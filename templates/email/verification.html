@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Verification Code</title>
+    <style>
+        body {
+            background: linear-gradient(to bottom right, #e6e6fa, #add8e6);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            padding: 30px;
+            color: #333;
+        }
+        .container {
+            max-width: 600px;
+            background-color: #ffffffcc;
+            margin: 0 auto;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .code-box {
+            text-align: center;
+            font-size: 2em;
+            letter-spacing: 4px;
+            padding: 20px;
+            background-color: #f3f0ff;
+            border: 1px dashed #9370db;
+            border-radius: 8px;
+            margin-top: 20px;
+            margin-bottom: 30px;
+            color: #4B0082;
+        }
+        .footer {
+            margin-top: 40px;
+            font-size: 0.9em;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h2>Your Verification Code is Here ✉️</h2>
+    <p>Hello, <strong>Dear users</strong>,</p>
+    <p>Here is your verification code:</p>
+
+    <div class="code-box">
+        {{.Code}}
+    </div>
+
+    <p>Please enter this code within 10 minutes to complete verification.</p>
+    <p>If you did not request this code, please ignore this email.</p>
+
+    <div class="footer">
+        — The VoiceSculptor Team 🌟
+    </div>
+</div>
+</body>
+</html>

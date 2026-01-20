@@ -1,0 +1,33 @@
+[
+  {
+    "id": "zh-CN-XiaoxiaoNeural",
+    "name": "晓晓",
+    "description": "年轻女声",
+    "type": "女声",
+    "language": "zh-CN",
+    "sampleRate": "24k",
+    "emotion": "中性",
+    "scene": "通用场景"
+  },
+  {
+    "id": "zh-CN-YunxiNeural",
+    "name": "云希",
+    "description": "温暖男声",
+    "type": "男声",
+    "language": "zh-CN",
+    "sampleRate": "24k",
+    "emotion": "中性",
+    "scene": "通用场景"
+  },
+  {
+    "id": "zh-CN-YunyangNeural",
+    "name": "云扬",
+    "description": "成熟男声",
+    "type": "男声",
+    "language": "zh-CN",
+    "sampleRate": "24k",
+    "emotion": "中性",
+    "scene": "通用场景"
+  }
+]
+

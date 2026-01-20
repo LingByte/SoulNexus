@@ -1,0 +1,6 @@
+<svg width="192" height="192" viewBox="0 0 192 192" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="192" height="192" rx="24" fill="#3b82f6"/>
+  <path d="M48 96c0-26.51 21.49-48 48-48s48 21.49 48 48-21.49 48-48 48-48-21.49-48-48z" fill="white"/>
+  <path d="M96 72c-13.255 0-24 10.745-24 24s10.745 24 24 24 24-10.745 24-24-10.745-24-24-24z" fill="#3b82f6"/>
+  <text x="96" y="160" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="16" font-weight="bold">LingEcho</text>
+</svg>

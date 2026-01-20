@@ -1,0 +1,575 @@
+/* 深色主题优化 */
+:root {
+  /* 基础颜色变量 */
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #f8fafc;
+  --color-bg-tertiary: #f1f5f9;
+  --color-text-primary: #1e293b;
+  --color-text-secondary: #64748b;
+  --color-text-tertiary: #94a3b8;
+  --color-border: #e2e8f0;
+  --color-border-light: #f1f5f9;
+
+  /* 语义化颜色 */
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  --color-info: #3b82f6;
+
+  /* 阴影 */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+}
+
+/* 深色主题 */
+.dark {
+  --color-bg-primary: #1a1a1a;
+  --color-bg-secondary: #2d2d2d;
+  --color-bg-tertiary: #404040;
+  --color-text-primary: #ffffff;
+  --color-text-secondary: #e5e5e5;
+  --color-text-tertiary: #cccccc;
+  --color-border: #404040;
+  --color-border-light: #525252;
+
+  /* Tailwind CSS 变量 - 更亮的深色模式 */
+  --background: 0 0% 10%;
+  --foreground: 0 0% 100%;
+  --card: 0 0% 18%;
+  --card-foreground: 0 0% 100%;
+  --popover: 0 0% 18%;
+  --popover-foreground: 0 0% 100%;
+  --primary: 217 91% 60%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 0 0% 25%;
+  --secondary-foreground: 0 0% 100%;
+  --muted: 0 0% 25%;
+  --muted-foreground: 0 0% 80%;
+  --accent: 0 0% 25%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 0 0% 25%;
+  --input: 0 0% 25%;
+  --ring: 217 91% 60%;
+
+  /* 自定义主题色支持 */
+  --color-primary: #3b82f6;
+  --color-primary-hover: #2563eb;
+  --color-primary-foreground: #ffffff;
+
+  /* 深色主题下的语义化颜色 */
+  --color-success: #34d399;
+  --color-warning: #fbbf24;
+  --color-error: #f87171;
+  --color-info: #60a5fa;
+
+  /* 深色主题阴影 */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.4);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.4), 0 4px 6px -4px rgb(0 0 0 / 0.4);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.4), 0 8px 10px -6px rgb(0 0 0 / 0.4);
+}
+
+/* 应用主题变量 */
+.bg-primary {
+  background-color: var(--color-bg-primary);
+}
+
+.bg-secondary {
+  background-color: var(--color-bg-secondary);
+}
+
+.bg-tertiary {
+  background-color: var(--color-bg-tertiary);
+}
+
+.text-primary {
+  color: var(--color-text-primary);
+}
+
+.text-secondary {
+  color: var(--color-text-secondary);
+}
+
+.text-tertiary {
+  color: var(--color-text-tertiary);
+}
+
+.border-primary {
+  border-color: var(--color-border);
+}
+
+.border-light {
+  border-color: var(--color-border-light);
+}
+
+/* 深色主题下的卡片样式 */
+.dark .bg-white {
+  background-color: var(--color-bg-secondary) !important;
+  border-color: var(--color-border) !important;
+}
+
+/* 确保没有蒙层效果 */
+.dark {
+  background-color: var(--color-bg-primary) !important;
+}
+
+.dark body {
+  background-color: var(--color-bg-primary) !important;
+}
+
+.dark #root {
+  background-color: var(--color-bg-primary) !important;
+}
+
+/* 深色主题下的卡片背景 */
+.dark .bg-gray-50 {
+  background-color: var(--color-bg-tertiary) !important;
+}
+
+.dark .bg-gray-100 {
+  background-color: var(--color-bg-tertiary) !important;
+}
+
+/* 深色主题下的文本颜色优化 */
+.dark .text-gray-800 {
+  color: var(--color-text-primary) !important;
+}
+
+.dark .text-gray-700 {
+  color: var(--color-text-secondary) !important;
+}
+
+.dark .text-gray-600 {
+  color: var(--color-text-secondary) !important;
+}
+
+.dark .text-gray-500 {
+  color: var(--color-text-tertiary) !important;
+}
+
+.dark .text-gray-400 {
+  color: var(--color-text-tertiary) !important;
+}
+
+/* 深色主题下的边框颜色 */
+.dark .border-gray-100 {
+  border-color: var(--color-border) !important;
+}
+
+.dark .border-gray-200 {
+  border-color: var(--color-border) !important;
+}
+
+.dark .border-gray-300 {
+  border-color: var(--color-border) !important;
+}
+
+/* 深色主题下的背景颜色 */
+.dark .bg-gray-800 {
+  background-color: var(--color-bg-secondary) !important;
+}
+
+.dark .bg-gray-900 {
+  background-color: var(--color-bg-primary) !important;
+}
+
+/* 让深色模式更亮 */
+.dark .bg-white {
+  background-color: var(--color-bg-secondary) !important;
+}
+
+.dark .bg-gray-50 {
+  background-color: var(--color-bg-tertiary) !important;
+}
+
+.dark .bg-gray-100 {
+  background-color: var(--color-bg-tertiary) !important;
+}
+
+/* 深色主题下的渐变背景 */
+.dark .bg-gradient-to-br {
+  background: linear-gradient(135deg, var(--color-bg-primary) 0%, var(--color-bg-secondary) 50%, var(--color-bg-tertiary) 100%) !important;
+}
+
+.dark .bg-gradient-to-r {
+  background: linear-gradient(90deg, var(--color-bg-primary) 0%, var(--color-bg-secondary) 100%) !important;
+}
+
+/* 深色主题下的页面背景 */
+.dark .min-h-screen {
+  background-color: var(--color-bg-primary) !important;
+}
+
+.dark .bg-gradient-to-br.from-blue-50.to-indigo-100 {
+  background: linear-gradient(135deg, var(--color-bg-primary) 0%, var(--color-bg-secondary) 100%) !important;
+}
+
+.dark .bg-gradient-to-br.from-gray-50.to-indigo-100 {
+  background: linear-gradient(135deg, var(--color-bg-primary) 0%, var(--color-bg-secondary) 100%) !important;
+}
+
+/* 让深色模式更亮的额外优化 */
+.dark .bg-gray-700 {
+  background-color: var(--color-bg-tertiary) !important;
+}
+
+.dark .bg-gray-600 {
+  background-color: var(--color-bg-tertiary) !important;
+}
+
+.dark .bg-gray-500 {
+  background-color: var(--color-bg-tertiary) !important;
+}
+
+/* 深色模式下的卡片和容器 */
+.dark .bg-white\/80 {
+  background-color: var(--color-bg-secondary) !important;
+}
+
+.dark .bg-white\/90 {
+  background-color: var(--color-bg-secondary) !important;
+}
+
+.dark .backdrop-blur {
+  backdrop-filter: none !important;
+}
+
+/* 深色主题下的容器背景 */
+.dark .max-w-6xl,
+.dark .max-w-4xl,
+.dark .max-w-2xl {
+  background-color: transparent !important;
+}
+
+/* 深色主题下的按钮样式优化 */
+.dark .bg-blue-600 {
+  background-color: var(--color-primary) !important;
+}
+
+.dark .bg-blue-700 {
+  background-color: var(--color-primary-hover) !important;
+}
+
+.dark .hover\:bg-blue-700:hover {
+  background-color: var(--color-primary-hover) !important;
+}
+
+/* 深色主题下的输入框样式优化 */
+.dark input[type="text"],
+.dark input[type="email"],
+.dark input[type="password"],
+.dark input[type="number"],
+.dark textarea,
+.dark select {
+  background-color: var(--color-bg-tertiary) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text-primary) !important;
+}
+
+.dark input:focus,
+.dark textarea:focus,
+.dark select:focus {
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
+}
+
+/* 确保Header和Layout使用正确的颜色 */
+.header-bg {
+  background-color: var(--color-bg-primary);
+}
+
+.main-bg {
+  background-color: var(--color-bg-secondary);
+}
+
+.dark .text-gray-900 {
+  color: var(--color-text-primary) !important;
+}
+
+.dark .text-gray-600 {
+  color: var(--color-text-secondary) !important;
+}
+
+.dark .text-gray-500 {
+  color: var(--color-text-tertiary) !important;
+}
+
+.dark .border-gray-200 {
+  border-color: var(--color-border) !important;
+}
+
+.dark .border-gray-300 {
+  border-color: var(--color-border) !important;
+}
+
+/* 深色主题下的按钮样式 */
+.dark .bg-blue-600 {
+  background-color: #3b82f6 !important;
+}
+
+.dark .bg-blue-700 {
+  background-color: #2563eb !important;
+}
+
+.dark .text-white {
+  color: var(--color-text-primary) !important;
+}
+
+/* 深色主题下的输入框样式 */
+.dark input,
+.dark textarea,
+.dark select {
+  background-color: var(--color-bg-tertiary) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text-primary) !important;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: var(--color-text-tertiary) !important;
+}
+
+/* 深色主题下的模态框样式 */
+.dark .fixed.inset-0 {
+  background-color: rgba(0, 0, 0, 0.8) !important;
+}
+
+/* 深色主题下的通知样式 */
+.dark .bg-green-50 {
+  background-color: rgba(16, 185, 129, 0.1) !important;
+  border-color: rgba(16, 185, 129, 0.3) !important;
+  color: #34d399 !important;
+}
+
+.dark .bg-red-50 {
+  background-color: rgba(239, 68, 68, 0.1) !important;
+  border-color: rgba(239, 68, 68, 0.3) !important;
+  color: #f87171 !important;
+}
+
+.dark .bg-yellow-50 {
+  background-color: rgba(245, 158, 11, 0.1) !important;
+  border-color: rgba(245, 158, 11, 0.3) !important;
+  color: #fbbf24 !important;
+}
+
+.dark .bg-blue-50 {
+  background-color: rgba(59, 130, 246, 0.1) !important;
+  border-color: rgba(59, 130, 246, 0.3) !important;
+  color: #60a5fa !important;
+}
+
+/* 深色主题下的性能监控面板 */
+.dark .bg-yellow-100 {
+  background-color: rgba(245, 158, 11, 0.2) !important;
+  border-color: rgba(245, 158, 11, 0.4) !important;
+  color: #fbbf24 !important;
+}
+
+/* 深色主题下的渐变背景 */
+.dark .bg-gradient-to-br {
+  background: linear-gradient(135deg, var(--color-bg-primary) 0%, var(--color-bg-secondary) 50%, var(--color-bg-tertiary) 100%) !important;
+}
+
+/* 深色主题下的阴影 */
+.dark .shadow-lg {
+  box-shadow: var(--shadow-lg) !important;
+}
+
+.dark .shadow-xl {
+  box-shadow: var(--shadow-xl) !important;
+}
+
+.dark .shadow-2xl {
+  box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.5) !important;
+}
+
+/* 深色主题下的滚动条 */
+.dark ::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: var(--color-bg-secondary);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-tertiary);
+}
+
+/* 深色主题下的选择文本 */
+.dark ::selection {
+  background-color: rgba(59, 130, 246, 0.3);
+  color: var(--color-text-primary);
+}
+
+/* 深色主题下的焦点样式 */
+.dark *:focus {
+  outline-color: #3b82f6 !important;
+}
+
+/* 深色主题下的链接样式 */
+.dark a {
+  color: #60a5fa !important;
+}
+
+.dark a:hover {
+  color: #93c5fd !important;
+}
+
+/* 深色主题下的代码样式 */
+.dark code {
+  background-color: var(--color-bg-tertiary) !important;
+  color: var(--color-text-primary) !important;
+  border: 1px solid var(--color-border) !important;
+}
+
+.dark pre {
+  background-color: var(--color-bg-tertiary) !important;
+  color: var(--color-text-primary) !important;
+  border: 1px solid var(--color-border) !important;
+}
+
+/* 深色主题下的额外优化 */
+.dark .space-y-8 > * + * {
+  border-color: var(--color-border) !important;
+}
+
+.dark .divide-y > * + * {
+  border-color: var(--color-border) !important;
+}
+
+.dark .border-t {
+  border-color: var(--color-border) !important;
+}
+
+.dark .border-b {
+  border-color: var(--color-border) !important;
+}
+
+.dark .border-l {
+  border-color: var(--color-border) !important;
+}
+
+.dark .border-r {
+  border-color: var(--color-border) !important;
+}
+
+/* 深色模式下的阴影优化 */
+.dark .shadow-lg {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2), 0 4px 6px -4px rgba(0, 0, 0, 0.2) !important;
+}
+
+.dark .shadow-xl {
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* 深色模式下的透明度优化 */
+.dark .opacity-50 {
+  opacity: 0.7 !important;
+}
+
+.dark .opacity-60 {
+  opacity: 0.8 !important;
+}
+
+.dark .opacity-70 {
+  opacity: 0.9 !important;
+}
+
+/* 强制覆盖所有深色模式样式 */
+.dark {
+  color-scheme: dark;
+}
+
+.dark * {
+  color-scheme: dark;
+}
+
+/* 确保深色模式下的所有元素都使用正确的颜色 */
+.dark .text-gray-900 {
+  color: #ffffff !important;
+}
+
+.dark .text-gray-800 {
+  color: #ffffff !important;
+}
+
+.dark .text-gray-700 {
+  color: #e5e5e5 !important;
+}
+
+.dark .text-gray-600 {
+  color: #e5e5e5 !important;
+}
+
+.dark .text-gray-500 {
+  color: #cccccc !important;
+}
+
+.dark .text-gray-400 {
+  color: #cccccc !important;
+}
+
+.dark .text-gray-300 {
+  color: #cccccc !important;
+}
+
+.dark .text-gray-200 {
+  color: #e5e5e5 !important;
+}
+
+.dark .text-gray-100 {
+  color: #ffffff !important;
+}
+
+/* 确保深色模式下的背景色 */
+.dark .bg-gray-900 {
+  background-color: #1a1a1a !important;
+}
+
+.dark .bg-gray-800 {
+  background-color: #2d2d2d !important;
+}
+
+.dark .bg-gray-700 {
+  background-color: #404040 !important;
+}
+
+.dark .bg-gray-600 {
+  background-color: #404040 !important;
+}
+
+.dark .bg-gray-500 {
+  background-color: #404040 !important;
+}
+
+.dark .bg-gray-400 {
+  background-color: #404040 !important;
+}
+
+.dark .bg-gray-300 {
+  background-color: #404040 !important;
+}
+
+.dark .bg-gray-200 {
+  background-color: #404040 !important;
+}
+
+.dark .bg-gray-100 {
+  background-color: #404040 !important;
+}
+
+.dark .bg-gray-50 {
+  background-color: #404040 !important;
+}

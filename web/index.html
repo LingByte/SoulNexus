@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="https://cetide-1325039295.cos.ap-chengdu.myqcloud.com/folder/icon-192x192.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#3b82f6" />
+    <meta name="description" content="灵枢" />
+    <meta name="keywords" content="对话,语音AI,AI对话,智能语音助手" />
+    <meta name="author" content="灵枢 Team" />
+    
+    <!-- PWA 相关 -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="灵枢" />
+    <link rel="apple-touch-icon" href="https://cetide-1325039295.cos.ap-chengdu.myqcloud.com/folder/icon-192x192.ico" />
+    
+    <title>灵枢</title>
+    
+    <!-- 字体预加载 - 使用本地字体作为后备 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- 字体加载超时处理 -->
+    <script>
+      // 字体加载超时处理
+      document.fonts.ready.then(() => {
+        console.log('字体加载完成');
+      }).catch(() => {
+        console.log('字体加载失败，使用系统字体');
+        document.documentElement.style.setProperty('--font-family', 'system-ui, -apple-system, sans-serif');
+      });
+      
+      // 设置字体加载超时
+      setTimeout(() => {
+        if (!document.fonts.check('16px Inter')) {
+          document.documentElement.style.setProperty('--font-family', 'system-ui, -apple-system, sans-serif');
+        }
+      }, 3000);
+    </script>
+    
+    <!-- 防止页面闪烁 -->
+    <style>
+      #root {
+        min-height: 100vh;
+        background: linear-gradient(135deg, #f8fafc 0%, #ffffff 50%, #eff6ff 100%);
+      }
+      
+      /* 加载动画 */
+      .loading-spinner {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 40px;
+        height: 40px;
+        border: 4px solid #f3f4f6;
+        border-top: 4px solid #3b82f6;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+      
+      @keyframes spin {
+        0% { transform: translate(-50%, -50%) rotate(0deg); }
+        100% { transform: translate(-50%, -50%) rotate(360deg); }
+      }
+      
+      /* 隐藏加载动画 */
+      .app-loaded .loading-spinner {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <div class="loading-spinner"></div>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+    
+    <!-- 性能监控脚本 -->
+    <script>
+      // 页面加载完成后隐藏加载动画
+      window.addEventListener('load', function() {
+        document.body.classList.add('app-loaded');
+      });
+      
+      // 错误监控
+      window.addEventListener('error', function(e) {
+        console.error('Global error:', e.error);
+      });
+      
+      window.addEventListener('unhandledrejection', function(e) {
+        console.error('Unhandled promise rejection:', e.reason);
+      });
+    </script>
+  </body>
+</html>

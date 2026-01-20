@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html class="h-full bg-purple-50" xmlns:x-bind="http://www.w3.org/1999/xhtml"
+      xmlns:x-transition="http://www.w3.org/1999/xhtml">
+
+<head>
+    <title>API Docs</title>
+    <script>
+        window.tailwind = window.tailwind || {};
+        window.tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#f5f3ff',
+                            100: '#ede9fe',
+                            200: '#ddd6fe',
+                            300: '#c4b5fd',
+                            400: '#a78bfa',
+                            500: '#8b5cf6',
+                            600: '#7c3aed',
+                            700: '#6d28d9',
+                            800: '#5b21b6',
+                            900: '#4c1d95',
+                        }
+                    }
+                }
+            }
+        };
+    </script>
+    <script src="//cdn.tailwindcss.com?plugins=forms"></script>
+    <script src="//cdn.jsdelivr.net/npm/alpinejs@3.13.7/dist/cdn.min.js" defer></script>
+    <script src="//cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link href="//cdn.jsdelivr.net/npm/inter-ui@4.0.2/inter.min.css" rel="stylesheet"/>
+    <script src="https://unpkg.com/fuse.js@6.6.2/dist/fuse.js"></script>
+</head>
+
+<body class="h-full">
+<style>
+    :root {
+        font-family: 'Inter', sans-serif;
+    }
+
+    [v-cloak] {
+        display: none;
+    }
+</style>
+<script>
+    const renderer = {
+        heading(text, level) {
+            return `<h${level} class="py-4 font-medium">${text}</h${level}>`;
+        },
+        strong(text) {
+            return `<span class="font-semibold">${text}</span>`;
+        },
+        em(text) {
+            return `<span class="italic text-gray-500">${text}</span>`;
+        },
+        list(body, ordered, start) {
+            if (ordered) {
+                return `<ol class="space-y-1  list-decimal list-inside">${body}</ol>`;
+            }
+            return `<ul class="space-y-1 list-disc list-inside">${body}</ul>`;
+        },
+        listitem(text, task, checked) {
+            if (task) {
+                return `<li class="flex pl-4 items-center gap-x-2"><input type="checkbox" disabled ${checked ? 'checked' : ''} /><span>${text}</span></li>`;
+            }
+            return `<li class="pl-4">${text}</li>`;
+        },
+        blockquote(quote) {
+            return `<blockquote class="pl-4 border-l-2 border-purple-300 dark:border-purple-500 text-purple-600 italic my-2 py-2">${quote}</blockquote>`;
+        },
+    };
+    marked.use({renderer});
+
+    document.addEventListener('alpine:init', () => {
+        Alpine.directive('markdown', el => {
+            el.innerHTML = marked.parse(el.textContent)
+        })
+    })
+
+    function renderMethodClass(method) {
+        var color = 'purple'
+        if (/post|query/i.test(method)) {
+            color = 'indigo'
+        } else if (/put|patch|create|edit/i.test(method)) {
+            color = 'violet'
+        } else if (/delete/i.test(method)) {
+            color = 'rose'
+        }
+        return `ring-${color}-300 dark:ring-${color}-400/30 bg-${color}-400/10 text-${color}-600 dark:text-${color}-300`
+    }
+
+    function renderMethodPath(path, method, pk = 'pk') {
+        if (/GET|EDIT|DELETE/i.test(method)) {
+            return `${path}/:${pk}`
+        }
+        return path
+    }
+
+    const docsApp = () => ({
+        site: {},
+        groups: [],
+        search: "",
+        fuse: null,
+        allItems: [],
+        showTester: false,
+        tester: {
+            path: "",
+            method: "GET",
+            headers: [{key: '', value: ''}],
+            params: [{key: '', value: ''}],
+            body: "",
+            files: null,
+            bodyType: 'json',
+            response: null,
+            duration: 0,
+        },
+
+        addHeader() {
+            this.tester.headers.push({key: '', value: ''});
+        },
+        addParam() {
+            this.tester.params.push({key: '', value: ''});
+        },
+        onFileChange(event) {
+            this.tester.file = event.target.files[0];
+        },
+        async sendRequest() {
+            const start = performance.now();
+            let url = this.tester.path;
+            const query = new URLSearchParams();
+            this.tester.params.forEach(p => {
+                if (p.key) query.append(p.key, p.value);
+            });
+            if (query.toString()) url += '?' + query.toString();
+
+            const headers = {};
+            this.tester.headers.forEach(h => {
+                if (h.key) headers[h.key] = h.value;
+            });
+
+            let body;
+            if (this.tester.bodyType === 'json') {
+                headers['Content-Type'] = 'application/json';
+                try {
+                    body = JSON.stringify(JSON.parse(this.tester.body));
+                } catch (e) {
+                    alert('请求体不是合法的 JSON 格式，请检查并修正。');
+                    return;
+                }
+            } else if (this.tester.bodyType === 'form') {
+                body = new FormData();
+                body.append('file', this.tester.file);
+            } else {
+                body = this.tester.body;
+            }
+
+            try {
+                const res = await fetch(url, {
+                    method: this.tester.method,
+                    headers,
+                    body: ['POST', 'PUT', 'PATCH'].includes(this.tester.method.toUpperCase()) ? body : undefined
+                });
+
+                const text = await res.text();
+                try {
+                    this.tester.response = JSON.stringify(JSON.parse(text), null, 2);
+                } catch {
+                    this.tester.response = text;
+                }
+                this.tester.statusCode = res.status;
+                this.tester.duration = Math.round(performance.now() - start);
+            } catch (e) {
+                this.tester.response = '请求出错: ' + e.message;
+            }
+        },
+
+        exportResponse() {
+            const blob = new Blob([this.tester.response], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'response.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        },
+
+        resetTester() {
+            this.tester = {
+                path: "",
+                method: "GET",
+                headers: [{key: '', value: ''}],
+                params: [{key: '', value: ''}],
+                body: "",
+                file: null,
+                bodyType: 'json',
+                response: null,
+                duration: 0,
+                statusCode: null,
+            }
+        },
+
+        get filteredGroups() {
+            if (!this.search || !this.fuse) return this.groups;
+
+            const results = this.fuse.search(this.search);
+            const matchedItems = results.map(r => r.item);
+
+            // 高亮关键字（只在 path、summary、desc 上）
+            const kw = this.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // escape
+            const regex = new RegExp(`(${kw})`, 'gi');
+
+            matchedItems.forEach(i => {
+                ['path', 'summary', 'desc'].forEach(k => {
+                    if (i[k]) {
+                        i[`${k}__highlight`] = i[k].replace(regex, `<mark class="bg-yellow-200">$1</mark>`);
+                    }
+                })
+            });
+
+            // 按 group 分类重新组装
+            const grouped = {};
+            matchedItems.forEach(item => {
+                if (!grouped[item.groupName]) grouped[item.groupName] = [];
+                grouped[item.groupName].push(item);
+            });
+
+            return Object.entries(grouped).map(([name, items]) => ({
+                name,
+                items
+            }));
+        },
+
+        async init() {
+            let resp = await fetch(`${location.pathname}.json`)
+            let data = await resp.json()
+            this.site = data.site
+
+            let uris = data.uris || []
+            let objs = data.objs || []
+            uris.forEach(u => {
+                let group = this.groups.find(g => g.name === u.group)
+                if (!group) {
+                    group = Alpine.reactive({name: u.group, items: []})
+                    this.groups.push(group)
+                }
+                u.isObject = false
+                u.methodClass = renderMethodClass(u.method)
+                group.items.push(u)
+            })
+            objs.forEach(obj => {
+                let group = this.groups.find(g => g.name === obj.group)
+                if (!group) {
+                    group = Alpine.reactive({name: obj.group, items: []})
+                    this.groups.push(group)
+                }
+                obj.isObject = true
+                obj.primaryKey = 'pk'
+                let editables = obj.editables || []
+                obj.fields.forEach(f => {
+                    let canEdit = editables.findIndex(e => e === f.name)
+                    f.canEdit = canEdit >= 0
+                    if (f.isPrimary) {
+                        obj.primaryKey = f.name
+                    }
+                })
+                group.items.push(obj)
+            })
+            // 收集所有 items 扁平化
+            let all = []
+            this.groups.forEach(g => {
+                g.items.forEach(i => {
+                    all.push({
+                        ...i,
+                        groupName: g.name
+                    })
+                })
+            })
+            this.allItems = all
+
+            this.fuse = new Fuse(all, {
+                keys: ['path', 'summary', 'desc'],
+                threshold: 0.4, // 越低越严格，越高越模糊
+            })
+
+        },
+    })
+</script>
+<div x-data="docsApp()" x-cloak class="w-full">
+    <div class="h-full lg:ml-72 xl:ml-80">
+        <header class="contents lg:pointer-events-none lg:fixed lg:inset-0 lg:z-40 lg:flex">
+            <div
+                    class="contents lg:pointer-events-auto lg:block lg:w-72 lg:overflow-y-auto lg:border-r lg:border-purple-200 bg-white/60 lg:px-6 lg:pb-8 lg:pt-4 lg:dark:border-purple-800/20 xl:w-80">
+                <template x-if="site.Site">
+                    <div class="hidden lg:flex items-center gap-x-4 h-16">
+                        <!-- Logo -->
+                        <div class="shrink-0">
+                            <img class="h-12 w-auto rounded" :src="site.Site.LogoUrl" :alt="site.Site.Name"/>
+                        </div>
+
+                        <!-- Site info -->
+                        <div class="flex flex-col">
+                            <!-- Name -->
+                            <div class="text-lg font-semibold text-gray-800" x-text="site.Site.Name"></div>
+
+                            <!-- Description -->
+                            <div class="text-sm text-gray-500" x-text="site.Site.Description"></div>
+
+                            <!-- URL as link -->
+                            <div>
+                                <a :href="site.Site.Url" target="_blank" rel="noopener noreferrer"
+                                   class="text-sm text-purple-600 hover:underline" x-text="site.Site.Url">
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+                <nav class="lg:mt-10 lg:block">
+                    <ul role="list">
+                        <template x-for="(group, index) in groups" :key="index">
+                            <li class="relative mt-6" x-data="{ open: false }">
+                                <!-- 折叠标题 -->
+                                <h2 @click="open = !open"
+                                    class="flex items-center justify-between text-xs font-semibold text-purple-700 dark:text-purple-300 cursor-pointer select-none">
+                                    <span x-text="group.name"></span>
+                                    <svg :class="{'rotate-90': open}"
+                                         class="h-4 w-4 transition-transform duration-500 transform-gpu"
+                                         fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                              d="M9 5l7 7-7 7"/>
+                                    </svg>
+                                </h2>
+                                <div x-show="open"
+                                     x-transition:enter="transition-all duration-500 ease-out"
+                                     x-transition:enter-start="opacity-0 max-h-0"
+                                     x-transition:enter-end="opacity-100 max-h-screen"
+                                     x-transition:leave="transition-all duration-400 ease-in"
+                                     x-transition:leave-start="opacity-100 max-h-screen"
+                                     x-transition:leave-end="opacity-0 max-h-0 overflow-hidden"
+                                     class="overflow-hidden mt-2">
+
+                                    <ul role="list" class="border-l border-transparent space-y-1">
+                                        <template x-for="item in group.items" :key="item.path">
+                                            <li class="relative">
+                                                <a class="flex justify-between gap-2 py-1 pr-3 text-sm transition pl-4 text-purple-600 hover:text-purple-900 dark:text-purple-400 dark:hover:text-white"
+                                                   :href="'#'+item.path">
+                                                    <span class="truncate"
+                                                          x-html="item.path__highlight || item.path"></span>
+                                                    <template x-if="item.summary">
+    <span class="text-sm text-gray-600 truncate max-w-[10ch]"
+          x-bind:title="item.summary"
+          x-html="item.summary__highlight || (item.summary.length > 9 ? item.summary.slice(0, 9) + '…' : item.summary)">
+    </span>
+                                                    </template>
+                                                    <span class="font-mono text-[0.625rem] font-semibold leading-6 text-zinc-400 dark:text-zinc-500"
+                                                          x-text="item.method"></span>
+                                                </a>
+                                            </li>
+                                        </template>
+                                    </ul>
+                                </div>
+                            </li>
+                        </template>
+                    </ul>
+                </nav>
+            </div>
+        </header>
+        <div class="relative flex h-full flex-col px-4 pt-14 sm:px-6 lg:px-8 bg-white/60 rounded-xl shadow-sm">
+            <div class="sticky top-0 z-10 bg-white/60 backdrop-blur p-2 border-b border-purple-200">
+                <input
+                        x-model="search"
+                        type="text"
+                        placeholder="搜索接口路径、描述或概要…"
+                        class="w-full px-3 py-2 border border-purple-300 rounded-md shadow-sm text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
+                />
+            </div>
+            <main class="flex-auto">
+                <template x-for="(group,index) in filteredGroups" :key="index">
+                    <div>
+                        <template x-for="item in group.items">
+                            <article class="flex h-full flex-col pb-10 pt-16 gap-y-3" :id="item.path">
+                                <div class="flex items-center gap-x-3">
+                                        <span
+                                                class="font-mono text-[0.625rem] font-semibold leading-6 rounded-lg px-1.5 ring-1 ring-inset "
+                                                :class="item.methodClass" x-text="item.method"></span>
+                                    <span class="font-mono text-xs text-zinc-400" x-text="item.path"></span>
+                                    <span class="text-sm text-gray-600" x-text="item.summary"></span>
+                                    <button
+                                            class="text-sm text-purple-600 hover:text-purple-800 flex items-center gap-1"
+                                            @click="
+        resetTester();
+        showTester = true;
+        tester.path = item.path;
+        tester.method = item.method.toUpperCase();
+        tester.bodyType = 'json';
+
+        // 设置路径参数（如 GET /path/:id）
+        if (item.isObject && ['GET', 'PUT', 'PATCH', 'DELETE'].includes(tester.method)) {
+            tester.path = item.path + '/:' + (item.primaryKey || 'id');
+        }
+
+        // 如果有字段，构造默认请求体 JSON
+        if (item.request && item.request.fields && item.request.fields.length > 0) {
+            const bodyObj = {};
+            item.request.fields.forEach(field => {
+                switch (field.type) {
+                    case 'string': bodyObj[field.name] = ''; break;
+                    case 'boolean': bodyObj[field.name] = false; break;
+                    case 'number':
+                    case 'integer': bodyObj[field.name] = 0; break;
+                    default: bodyObj[field.name] = null;
+                }
+            });
+            tester.body = JSON.stringify(bodyObj, null, 2);
+        }
+    "
+                                    >
+                                        测试 →
+                                    </button>
+                                </div>
+                                <div class="flex items-center gap-x-2">
+                                    <span class="text-xs font-medium text-gray-600">Auth Required:</span>
+                                    <span
+                                            class="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"
+                                            :class="item.authRequired
+                ? 'bg-red-100 text-red-800 ring-1 ring-red-300'
+                : 'bg-green-100 text-green-800 ring-1 ring-green-300'"
+                                            x-text="item.authRequired ? 'Yes' : 'No'">
+        </span>
+                                </div>
+                                <p class="lead text-gray-700" x-html="item.desc__highlight || item.desc" x-markdown></p>
+                                <template x-if="item.request">
+                                    <div class="gap-y-3">
+                                        <h3>
+                                            <span class="text-gray-600">Request</span>
+                                            <span class="font-mono text-xs text-blue-600"
+                                                  x-text="item.request.type"></span>
+                                            <template x-if="item.request.isArray">
+                                                <span class="font-mono text-xs text-sky-500">Array</span>
+                                            </template>
+                                        </h3>
+                                        <div class="px-2 text-gray-500 " x-text="item.request.desc" x-markdown>
+                                        </div>
+                                        <template x-if="item.request.fields">
+                                            <div class="px-4 sm:px-6 lg:px-8">
+                                                <div class="sm:flex sm:items-center">
+                                                    <table class="w-2/3 divide-y divide-gray-300">
+                                                        <thead class="bg-purple-100/50">
+                                                        <tr>
+                                                            <th scope="col"
+                                                                class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-0">
+                                                                Name
+                                                            </th>
+                                                            <th scope="col"
+                                                                class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                                                                Type
+                                                            </th>
+                                                            <th scope="col"
+                                                                class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                                                                Required
+                                                            </th>
+                                                            <th scope="col"
+                                                                class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                                                                Null
+                                                            </th>
+                                                            </th>
+                                                        </tr>
+                                                        </thead>
+                                                        <tbody class="divide-y divide-purple-100 bg-white">
+                                                        <template x-for="field in item.request.fields">
+                                                            <tr>
+                                                                <td class="w-96 py-2 text-sm sm:pl-0">
+                                                                    <div class="px-2 font-medium text-gray-900"
+                                                                         x-text="field.name"></div>
+                                                                    <div class="px-2 text-gray-500 "
+                                                                         x-text="field.desc" x-markdown></div>
+                                                                </td>
+                                                                <td class="px-3 py-3 text-sm text-gray-500">
+                                                                    <template x-if="field.isArray">
+                                                                                <span
+                                                                                        class="font-mono text-xs text-sky-500">[]</span>
+                                                                    </template>
+                                                                    <span x-text="field.type"></span>
+                                                                </td>
+                                                                <td class="px-3 py-3 text-sm text-gray-500">
+                                                                    <template x-if="field.required">
+                                                                                <span
+                                                                                        class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">Required</span>
+                                                                    </template>
+                                                                </td>
+                                                                <td class="px-3 py-3 text-sm">
+                                                                    <template x-if="field.canNull">
+                                                                        <svg class="h-5 w-5 text-emerald-500 undefined"
+                                                                             viewBox="0 0 20 20"
+                                                                             fill="currentColor"
+                                                                             aria-hidden="true">
+                                                                            <path fill-rule="evenodd"
+                                                                                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z"
+                                                                                  clip-rule="evenodd"></path>
+                                                                        </svg>
+                                                                    </template>
+                                                                </td>
+                                                            </tr>
+                                                        </template>
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        </template>
+                                        <template x-if="item.response">
+                                            <div class="gap-y-3">
+                                                <h3>
+                                                    <span class="text-gray-600">Response</span>
+                                                    <span class="font-mono text-xs text-blue-600"
+                                                          x-text="item.response.type"></span>
+                                                    <template x-if="item.response.isArray">
+                                                        <span class="font-mono text-xs text-sky-500">Array</span>
+                                                    </template>
+                                                </h3>
+                                                <div class="px-2 text-gray-500 " x-text="item.response.desc" x-markdown>
+                                                </div>
+                                                <template x-if="item.response.fields">
+                                                    <div class="px-4 sm:px-6 lg:px-8">
+                                                        <div class="sm:flex sm:items-center">
+                                                            <table class="w-2/3 divide-y divide-gray-300">
+                                                                <thead>
+                                                                <tr>
+                                                                    <th scope="col"
+                                                                        class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-0">
+                                                                        Name
+                                                                    </th>
+                                                                    <th scope="col"
+                                                                        class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                                                                        Type
+                                                                    </th>
+                                                                    <th scope="col"
+                                                                        class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                                                                        Null
+                                                                    </th>
+                                                                    </th>
+                                                                </tr>
+                                                                </thead>
+                                                                <tbody class="divide-y divide-gray-200 bg-white">
+                                                                <template x-for="field in item.response.fields">
+                                                                    <tr>
+                                                                        <td class="w-96 py-2 text-sm sm:pl-0">
+                                                                            <div class="px-2 font-medium text-gray-900"
+                                                                                 x-text="field.name"></div>
+                                                                            <div class="px-2 text-gray-500 "
+                                                                                 x-text="field.desc" x-markdown></div>
+                                                                        </td>
+                                                                        <td class="px-3 py-3 text-sm text-gray-500">
+                                                                            <template x-if="field.isArray">
+                                                                                <span
+                                                                                        class="font-mono text-xs text-sky-500">[]</span>
+                                                                            </template>
+                                                                            <span x-text="field.type"></span>
+                                                                        </td>
+                                                                        <td class="px-3 py-3 text-sm">
+                                                                            <template x-if="field.canNull">
+                                                                                <svg class="h-5 w-5 text-emerald-500 undefined"
+                                                                                     viewBox="0 0 20 20"
+                                                                                     fill="currentColor"
+                                                                                     aria-hidden="true">
+                                                                                    <path fill-rule="evenodd"
+                                                                                          d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z"
+                                                                                          clip-rule="evenodd"></path>
+                                                                                </svg>
+                                                                            </template>
+                                                                        </td>
+                                                                    </tr>
+                                                                </template>
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </template>
+                                        <template x-if="item.isObject">
+                                            <div class="gap-y-3">
+                                                <h3 class="space-x-2">
+                                                    <span class="text-gray-600">WebObject</span>
+                                                    <template x-for="method in item.allowMethods">
+                                                    <span
+                                                            class="font-mono text-[0.625rem] font-semibold leading-6 rounded-lg py-1.5 px-1.5 ring-1 ring-inset"
+                                                            :class="renderMethodClass(method)" x-text="method"></span>
+                                                    </template>
+                                                </h3>
+                                                <div class="px-4 sm:px-6 lg:px-8">
+                                                    <div class="sm:flex sm:items-center">
+                                                        <table class="w-2/3 divide-y divide-gray-300">
+                                                            <thead>
+                                                            <tr>
+                                                                <th scope="col"
+                                                                    class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-0">
+                                                                    Name
+                                                                </th>
+                                                                <th scope="col"
+                                                                    class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                                                                    Type
+                                                                </th>
+                                                                <th scope="col"
+                                                                    class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                                                                    Required
+                                                                </th>
+                                                                <th scope="col"
+                                                                    class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                                                                    Editable
+                                                                </th>
+                                                                <th scope="col"
+                                                                    class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                                                                    Null
+                                                                </th>
+                                                                </th>
+                                                            </tr>
+                                                            </thead>
+                                                            <tbody class="divide-y divide-gray-200 bg-white">
+                                                            <template x-for="field in item.fields">
+                                                                <tr>
+                                                                    <td class="w-96 py-2 text-sm sm:pl-0">
+                                                                        <div class="px-2 font-medium text-gray-900"
+                                                                             x-text="field.name"></div>
+                                                                        <div class="px-2 text-gray-500 "
+                                                                             x-text="field.desc" x-markdown></div>
+                                                                    </td>
+                                                                    <td class="px-3 py-3 text-sm text-gray-500">
+                                                                        <template x-if="field.isArray">
+                                                                            <span
+                                                                                    class="font-mono text-xs text-sky-500">[]</span>
+                                                                        </template>
+                                                                        <span x-text="field.type"></span>
+                                                                    </td>
+                                                                    <td class="px-3 py-3 text-sm text-gray-500">
+                                                                        <template x-if="field.required">
+                                                                            <span
+                                                                                    class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">Required</span>
+                                                                        </template>
+                                                                    </td>
+                                                                    <td class="px-3 py-3 text-sm text-gray-500">
+                                                                        <template x-if="field.canEdit">
+                                                                            <svg class="h-5 w-5 text-emerald-500 undefined"
+                                                                                 viewBox="0 0 20 20" fill="currentColor"
+                                                                                 aria-hidden="true">
+                                                                                <path fill-rule="evenodd"
+                                                                                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z"
+                                                                                      clip-rule="evenodd"></path>
+                                                                            </svg>
+                                                                        </template>
+                                                                    </td>
+                                                                    <td class="px-3 py-3 text-sm">
+                                                                        <template x-if="field.canNull">
+                                                                            <svg class="h-5 w-5 text-emerald-500 undefined"
+                                                                                 viewBox="0 0 20 20" fill="currentColor"
+                                                                                 aria-hidden="true">
+                                                                                <path fill-rule="evenodd"
+                                                                                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z"
+                                                                                      clip-rule="evenodd"></path>
+                                                                            </svg>
+                                                                        </template>
+                                                                    </td>
+                                                                </tr>
+                                                            </template>
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                                <div class="pt-4 px-4 sm:px-6 lg:px-8">
+                                                    <h4>Methods</h4>
+                                                    <ul class="gap-y-2">
+                                                        <template x-for="method in item.allowMethods">
+                                                            <li>
+                                                            <span
+                                                                    class="font-mono text-[0.625rem] font-semibold leading-6 rounded-lg py-1.5 px-1.5 ring-1 ring-inset"
+                                                                    :class="renderMethodClass(method)"
+                                                                    x-text="method"></span>
+                                                                <span class="font-mono text-xs text-zinc-400"
+                                                                      x-text="renderMethodPath(item.path, method, item.primaryKey)"></span>
+                                                            </li>
+                                                        </template>
+                                                    </ul>
+                                                </div>
+                                                <template x-if="item.views">
+                                                    <div class="pt-4 px-4 sm:px-6 lg:px-8">
+                                                        <h4>Views</h4>
+                                                        <ul class="gap-y-2">
+                                                            <template x-for="view in item.views">
+                                                                <li>
+                                                                    <div class="flex items-center gap-x-3">
+                                                                    <span
+                                                                            class="font-mono text-[0.625rem] font-semibold leading-6 rounded-lg px-1.5 ring-1 ring-inset"
+                                                                            :class="renderMethodClass(view.method)"
+                                                                            x-text="view.method"></span>
+                                                                        <span class="font-mono text-xs text-zinc-400"
+                                                                              x-text="view.path"></span>
+                                                                        <span class="font-mono text-xs text-zinc-400"
+                                                                              x-text="view.desc" x-markdown></span>
+                                                                    </div>
+                                                                </li>
+                                                            </template>
+                                                        </ul>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </template>
+                            </article>
+                        </template>
+                    </div>
+                </template>
+            </main>
+        </div>
+    </div>
+
+    <!-- 折叠按钮（固定在右下角） -->
+    <div class="fixed bottom-4 right-4 z-50" x-show="!showTester">
+        <button @click="showTester = true"
+                class="bg-purple-600 text-white rounded-full px-4 py-2 shadow hover:bg-purple-700">
+            接口测试
+        </button>
+    </div>
+
+    <!-- 浮动右侧测试面板 -->
+    <div
+            class="fixed inset-y-0 right-0 w-96 bg-white shadow-lg border-l border-purple-200 z-40 transform transition-transform duration-300"
+            :class="{ 'translate-x-0': showTester, 'translate-x-full': !showTester }"
+            x-show="showTester"
+            x-transition
+            @keydown.escape.window="showTester = false"
+    >
+        <div class="flex justify-between items-center p-4 border-b border-purple-100">
+            <h2 class="text-lg font-semibold text-purple-700">接口测试</h2>
+            <button @click="showTester = false"
+                    class="text-gray-400 hover:text-gray-600">
+                ✕
+            </button>
+        </div>
+
+        <div class="h-[calc(100vh-60px)] overflow-y-auto p-4 space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700">请求地址</label>
+                <input type="text" x-model="tester.path"
+                       class="mt-1 block w-full rounded-md border border-gray-300 shadow-sm text-sm px-3 py-2"/>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700">请求方式</label>
+                <select x-model="tester.method"
+                        class="mt-1 block w-full rounded-md border border-gray-300 shadow-sm text-sm px-3 py-2">
+                    <option>GET</option>
+                    <option>POST</option>
+                    <option>PUT</option>
+                    <option>DELETE</option>
+                    <option>PATCH</option>
+                </select>
+            </div>
+            <!-- 请求头 -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700">请求头 (Headers)</label>
+                <div class="space-y-2">
+                    <template x-for="(header, index) in tester.headers" :key="index">
+                        <div class="flex gap-2">
+                            <input x-model="header.key" placeholder="Header Key"
+                                   class="w-1/2 border border-gray-300 px-2 py-1 text-sm rounded"/>
+                            <input x-model="header.value" placeholder="Header Value"
+                                   class="w-1/2 border border-gray-300 px-2 py-1 text-sm rounded"/>
+                        </div>
+                    </template>
+                </div>
+                <button @click="addHeader" type="button"
+                        class="mt-1 text-sm text-purple-600 hover:text-purple-800">+ 添加请求头
+                </button>
+            </div>
+
+            <!-- 查询参数 -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700">查询参数 (Query)</label>
+                <div class="space-y-2">
+                    <template x-for="(param, index) in tester.params" :key="index">
+                        <div class="flex gap-2">
+                            <input x-model="param.key" placeholder="Param Key"
+                                   class="w-1/2 border border-gray-300 px-2 py-1 text-sm rounded"/>
+                            <input x-model="param.value" placeholder="Param Value"
+                                   class="w-1/2 border border-gray-300 px-2 py-1 text-sm rounded"/>
+                        </div>
+                    </template>
+                </div>
+                <button @click="addParam" type="button"
+                        class="mt-1 text-sm text-purple-600 hover:text-purple-800">+ 添加参数
+                </button>
+            </div>
+            <template x-if="['POST', 'PUT', 'PATCH'].includes(tester.method)">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-purple-700">请求体类型</label>
+                        <select x-model="tester.bodyType"
+                                class="mt-1 block w-full rounded-md border border-purple-300 bg-purple-50 text-purple-900 shadow-sm text-sm focus:border-purple-400 focus:ring-1 focus:ring-purple-500">
+                            <option value="json">JSON</option>
+                            <option value="form">Form Data</option>
+                            <option value="text">Text</option>
+                        </select>
+                    </div>
+
+                    <template x-if="tester.bodyType === 'json' || tester.bodyType === 'text'">
+                        <div>
+                            <label class="block text-sm font-medium text-purple-700">请求体</label>
+                            <textarea
+                                    x-model="tester.body"
+                                    placeholder="请输入请求体内容（JSON 或 Text）"
+                                    class="mt-1 block w-full h-40 rounded-md border border-purple-300 bg-purple-50 text-purple-900 shadow-sm text-sm px-3 py-2 focus:border-purple-400 focus:ring-1 focus:ring-purple-500"
+                            ></textarea>
+                        </div>
+                    </template>
+
+                    <!-- FormData：上传文件 -->
+                    <template x-if="tester.bodyType === 'form'">
+                        <div>
+                            <label class="block text-sm font-medium text-purple-700 mb-1">文件上传</label>
+                            <label
+                                    class="flex items-center justify-between px-4 py-2 bg-purple-50 text-purple-700 border border-purple-300 rounded-md shadow-sm text-sm cursor-pointer hover:bg-purple-100 focus-within:ring-2 focus-within:ring-purple-500 focus-within:border-purple-400 transition">
+                                <span x-text="tester.file ? tester.file.name : '点击选择文件'" class="truncate"></span>
+                                <svg class="w-5 h-5 text-purple-400" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd"
+                                          d="M4 3a1 1 0 00-1 1v12a1 1 0 001 1h12a1 1 0 001-1V7.414a1 1 0 00-.293-.707l-4.414-4.414A1 1 0 0012.586 2H4zm8 1.414L15.586 7H13a1 1 0 01-1-1V4.414zM4 5h6v2a2 2 0 002 2h3v8H4V5z"
+                                          clip-rule="evenodd"/>
+                                </svg>
+                                <input type="file" class="hidden" @change="onFileChange">
+                            </label>
+                        </div>
+                    </template>
+                </div>
+            </template>
+            <button @click="sendRequest"
+                    class="w-full bg-purple-600 text-white rounded-md py-2 hover:bg-purple-700 shadow">
+                发送请求
+            </button>
+            <div x-show="tester.response !== null" class="pt-4">
+                <h3 class="text-sm font-semibold text-gray-700">响应结果：</h3>
+                <pre class="mt-1 bg-gray-100 p-2 rounded text-xs text-gray-700 overflow-auto max-h-60"
+                     x-text="tester.response">
+                </pre>
+                <div class="text-xs text-gray-500 space-y-1">
+                    <div>
+                        <span class="font-semibold">状态码:</span>
+                        <span x-text="tester.statusCode || '-'"></span>
+                        <span class="font-semibold">耗时:</span>
+                        <span x-text="tester.duration + ' ms'"></span>
+                    </div>
+                    <button @click="exportResponse"
+                            class="w-full bg-green-600 text-white rounded-md py-2 mt-2 hover:bg-green-700 shadow">
+                        导出 JSON
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

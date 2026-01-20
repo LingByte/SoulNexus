@@ -1,0 +1,24 @@
+[
+  {
+    "code": "en-US",
+    "name": "English",
+    "nativeName": "English",
+    "configKey": "languageCode",
+    "description": "英语（美式）"
+  },
+  {
+    "code": "zh-CN",
+    "name": "Chinese",
+    "nativeName": "中文",
+    "configKey": "languageCode",
+    "description": "中文（简体）"
+  },
+  {
+    "code": "ja-JP",
+    "name": "Japanese",
+    "nativeName": "日本語",
+    "configKey": "languageCode",
+    "description": "日语"
+  }
+]
+

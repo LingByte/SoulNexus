@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>设备验证</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #f8f9fa; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+        .content { background: #fff; padding: 30px; border: 1px solid #e9ecef; }
+        .code { display: inline-block; background: #007bff; color: white; padding: 15px 30px; font-size: 24px; font-weight: bold; letter-spacing: 3px; border-radius: 4px; margin: 20px 0; }
+        .footer { background: #f8f9fa; padding: 20px; text-align: center; border-radius: 0 0 8px 8px; font-size: 14px; color: #666; }
+        .warning { background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 4px; margin: 20px 0; }
+        .device-info { background: #f8f9fa; padding: 15px; border-radius: 4px; margin: 20px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>设备验证</h1>
+        </div>
+        <div class="content">
+            <p>亲爱的 {{.Username}}，</p>
+            <p>我们检测到您正在尝试从一个新设备登录。为了保护您的账户安全，请使用以下验证码验证此设备：</p>
+            <p style="text-align: center;">
+                <span class="code">{{.Code}}</span>
+            </p>
+            <div class="device-info">
+                <strong>设备信息：</strong><br>
+                设备ID: {{.DeviceID}}
+            </div>
+            <div class="warning">
+                <strong>安全提醒：</strong>
+                <ul>
+                    <li>此验证码将在5分钟后过期</li>
+                    <li>如果这不是您的操作，请立即更改密码</li>
+                    <li>验证后，此设备将被标记为受信任设备</li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer">
+            <p>如果您没有尝试登录，请忽略此邮件并考虑更改密码。</p>
+        </div>
+    </div>
+</body>
+</html>

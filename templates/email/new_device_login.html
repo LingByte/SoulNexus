@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>新设备登录提醒</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #f8f9fa; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+        .content { background: #fff; padding: 30px; border: 1px solid #e9ecef; }
+        .alert { background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 4px; margin: 20px 0; }
+        .device-info { background: #f8f9fa; padding: 15px; border-radius: 4px; margin: 20px 0; }
+        .footer { background: #f8f9fa; padding: 20px; text-align: center; border-radius: 0 0 8px 8px; font-size: 14px; color: #666; }
+        .security-tips { background: #e7f3ff; border: 1px solid #b3d9ff; padding: 15px; border-radius: 4px; margin: 20px 0; }
+        .btn { display: inline-block; background: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin: 10px 5px; }
+        .btn-danger { background: #dc3545; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>新设备登录提醒</h1>
+        </div>
+        <div class="content">
+            <p>亲爱的 {{.Username}}，</p>
+            <p>我们检测到您的账户在一个新设备上成功登录。如果这是您本人的操作，请忽略此邮件。</p>
+            
+            <div class="alert">
+                <strong>安全提醒：</strong> 如果这不是您的操作，您的账户可能已被他人访问，请立即采取安全措施！
+            </div>
+
+            <div class="device-info">
+                <h3>登录详情：</h3>
+                <ul>
+                    <li><strong>登录时间：</strong> {{.LoginTime}}</li>
+                    <li><strong>IP地址：</strong> {{.IPAddress}}</li>
+                    <li><strong>登录位置：</strong> {{.Location}}</li>
+                    <li><strong>设备类型：</strong> {{.DeviceType}}</li>
+                    <li><strong>操作系统：</strong> {{.OS}}</li>
+                    <li><strong>浏览器：</strong> {{.Browser}}</li>
+                    {{if .IsSuspicious}}<li><strong>风险等级：</strong> <span style="color: #dc3545;">可疑登录</span></li>{{end}}
+                </ul>
+            </div>
+
+            <div class="security-tips">
+                <h3>安全建议：</h3>
+                <ul>
+                    <li>如果这不是您的操作，请立即更改密码</li>
+                    <li>启用两步验证以增强账户安全</li>
+                    <li>定期检查登录设备列表</li>
+                    <li>不要在公共设备上保存登录信息</li>
+                </ul>
+            </div>
+
+            <p style="text-align: center; margin: 30px 0;">
+                {{if .SecurityURL}}
+                <a href="{{.SecurityURL}}" class="btn">查看账户安全</a>
+                {{end}}
+                {{if .ChangePasswordURL}}
+                <a href="{{.ChangePasswordURL}}" class="btn btn-danger">立即更改密码</a>
+                {{end}}
+            </p>
+        </div>
+        <div class="footer">
+            <p>此邮件由系统自动发送，请勿回复。</p>
+            <p>如有疑问，请联系客服支持。</p>
+        </div>
+    </div>
+</body>
+</html>
