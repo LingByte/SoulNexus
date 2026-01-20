@@ -1,0 +1,17 @@
+[
+  {
+    "code": "zh",
+    "name": "中文",
+    "nativeName": "中文",
+    "configKey": "lan",
+    "description": "中文"
+  },
+  {
+    "code": "en",
+    "name": "English",
+    "nativeName": "English",
+    "configKey": "lan",
+    "description": "英语"
+  }
+]
+

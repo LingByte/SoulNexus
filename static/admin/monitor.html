@@ -1,0 +1,1352 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="h-full">
+<head>
+    <link rel="icon" type="image/png" sizes="32x32" :href="staticBasePath + '/img/favicon.png'"/>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统监控 - LingEcho</title>
+    <script src="//cdn.tailwindcss.com/?plugins=forms" onerror="console.warn('Tailwind CDN failed to load')"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <script src="//cdn.jsdelivr.net/npm/alpinejs@3.13.7/dist/cdn.min.js" defer></script>
+    <link href="//cdn.jsdelivr.net/npm/inter-ui@4.0.2/inter.min.css" rel="stylesheet"/>
+    <style>
+        :root {
+            font-family: 'Inter', sans-serif;
+        }
+
+        [x-cloak] {
+            display: none;
+        }
+
+        .monitor-card {
+            @apply bg-white rounded-lg shadow-sm border border-gray-200 p-6 transition-all duration-200;
+        }
+
+        .monitor-btn-primary {
+            @apply rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 transition-colors duration-150;
+        }
+
+        .monitor-btn-secondary {
+            @apply rounded-lg bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 transition-colors duration-150;
+        }
+
+        .monitor-badge {
+            @apply text-xs font-medium rounded-full px-3 py-1;
+        }
+
+        .monitor-badge-success {
+            @apply bg-green-100 text-green-700 border border-green-200;
+        }
+
+        .monitor-badge-disabled {
+            @apply bg-gray-100 text-gray-400 border border-gray-200;
+        }
+
+        .monitor-header {
+            @apply bg-white border-b border-gray-200 shadow-sm mb-6;
+        }
+
+        .monitor-stat-card {
+            @apply monitor-card;
+        }
+    </style>
+</head>
+<body class="h-full bg-gray-50">
+<div x-data="monitorApp()" x-init="init()" class="min-h-screen" x-cloak>
+    <!-- 顶部栏 -->
+    <header class="monitor-header sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <img :src="staticBasePath + '/img/favicon.png'" alt="LingEcho" class="w-10 h-12 rounded-lg bg-indigo-50 p-1.5 border border-indigo-200"/>
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-900"><span x-text="siteName || ''"></span> 系统监控</h1>
+                        <p class="text-sm text-gray-500">可观测性面板</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div class="hidden sm:flex items-center gap-3 bg-gray-50 rounded-lg px-4 py-2 border border-gray-200">
+                        <label class="text-sm font-medium text-gray-700">自动刷新</label>
+                        <select class="bg-white border border-gray-300 rounded-md px-3 py-1.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600"
+                                x-model.number="refreshSec" @change="restartAutoRefresh()">
+                            <option :value="0" class="text-gray-900">关闭</option>
+                            <template x-for="s in [5,10,15,30,60,120]">
+                                <option :value="s" class="text-gray-900" x-text="s + ' 秒'"></option>
+                            </template>
+                        </select>
+                        <button class="monitor-btn-secondary" @click="refreshAll()">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="text-sm text-gray-600">
+                        <span class="font-medium">最后更新：</span>
+                        <span x-text="lastUpdate||'—'"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- 功能提示条 -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div class="monitor-card flex flex-wrap items-center gap-3">
+            <span class="text-sm font-medium text-gray-700">功能状态：</span>
+            <template x-for="(on,key) in capabilities" :key="key">
+                <span class="monitor-badge"
+                      :class="on ? 'monitor-badge-success' : 'monitor-badge-disabled'"
+                      x-text="key.replace('_', ' ')"></span>
+            </template>
+            <span class="flex-1"></span>
+            <a :href="basePath + '/metric'" target="_blank" class="text-sm text-indigo-600 hover:text-indigo-700 font-medium hover:underline flex items-center gap-1 transition-colors duration-150">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                </svg>
+                Prometheus Metrics
+            </a>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-6">
+        <div class="monitor-card">
+            <div class="border-b border-gray-200">
+                <nav class="-mb-px flex space-x-8 px-4 sm:px-6 overflow-x-auto">
+                    <template x-for="tab in tabs" :key="tab.key">
+                        <button
+                                class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-150"
+                                :class="activeTab === tab.key
+        ? 'border-indigo-500 text-indigo-600'
+        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                                @click="switchTab(tab.key)">
+                            <span x-text="tab.name"></span>
+                        </button>
+                    </template>
+                </nav>
+            </div>
+
+            <!-- 概览 -->
+            <section x-show="activeTab==='overview'" class="space-y-6 pt-6">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="monitor-stat-card">
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="text-base font-medium">系统资源趋势</h3>
+                            <div class="text-xs text-gray-500" x-text="basePath + '/system'"></div>
+                        </div>
+                        <div style="width: 100%; height: 300px; min-height: 300px; position: relative;">
+                            <div id="sysChart" style="width: 100%; height: 100%; position: absolute; top: 0; left: 0;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 系统资源卡片 -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="monitor-card">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-600">CPU 使用率</p>
+                                <p class="text-2xl font-bold text-gray-900 mt-1" x-text="(overview.cpu_usage ?? 0).toFixed(1) + '%'"></p>
+                            </div>
+                            <div class="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
+                                <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"></path>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="monitor-card">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-600">内存使用率</p>
+                                <p class="text-2xl font-bold text-gray-900 mt-1" x-text="(overview.memory_usage ?? 0).toFixed(1) + '%'"></p>
+                            </div>
+                            <div class="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
+                                <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"></path>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="monitor-card">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-600">磁盘使用率</p>
+                                <p class="text-2xl font-bold text-gray-900 mt-1" x-text="(overview.disk_usage ?? 0).toFixed(1) + '%'"></p>
+                            </div>
+                            <div class="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                                <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="monitor-card">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-600">Goroutines</p>
+                                <p class="text-2xl font-bold text-gray-900 mt-1" x-text="overview.goroutines ?? 0"></p>
+                            </div>
+                            <div class="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center">
+                                <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 系统信息 -->
+                <div class="monitor-card">
+                    <h3 class="text-base font-semibold mb-4 text-gray-900">系统信息</h3>
+                    <dl class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                            <dt class="text-gray-500 font-medium">主机名</dt>
+                            <dd class="text-gray-900 font-mono text-xs" x-text="overview.hostname||'—'"></dd>
+                        </div>
+                        <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                            <dt class="text-gray-500 font-medium">平台</dt>
+                            <dd class="text-gray-900 font-mono text-xs" x-text="overview.platform||'—'"></dd>
+                        </div>
+                        <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                            <dt class="text-gray-500 font-medium">架构</dt>
+                            <dd class="text-gray-900 font-mono text-xs" x-text="overview.architecture||'—'"></dd>
+                        </div>
+                        <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                            <dt class="text-gray-500 font-medium">运行时间</dt>
+                            <dd class="text-gray-900 font-mono text-xs" x-text="formatUptime(overview.uptime)"></dd>
+                        </div>
+                        <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                            <dt class="text-gray-500 font-medium">堆内存</dt>
+                            <dd class="text-gray-900 font-mono text-xs" x-text="formatBytes(overview.heap_alloc ?? 0)"></dd>
+                        </div>
+                        <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                            <dt class="text-gray-500 font-medium">最后更新</dt>
+                            <dd class="text-gray-900 font-mono text-xs" x-text="formatTime(overview.timestamp)"></dd>
+                        </div>
+                    </dl>
+                </div>
+            </section>
+
+            <!-- SQL 分析 -->
+            <section x-show="activeTab==='sql'" class="space-y-8">
+                <!-- 慢查询 -->
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <h3 class="text-base font-medium">慢查询</h3>
+                        <div class="flex items-center gap-2 text-sm">
+                            <label>每页</label>
+                            <select class="border rounded px-1" x-model.number="slow.limit" @change="fetchSlow()">
+                                <template x-for="n in [10,20,50,100]">
+                                    <option :value="n" x-text="n"></option>
+                                </template>
+                            </select>
+                            <button class="monitor-btn-secondary" @click="exportJSON(slow.items,'slow_queries.json')">
+                                <svg class="w-4 h-4 mr-1 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                </svg>
+                                导出
+                            </button>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto bg-white shadow ring-1 ring-black ring-opacity-5 sm:rounded-lg">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SQL</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">表</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">耗时</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">行数</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">时间</th>
+                            </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                            <template x-if="slow.items.length===0">
+                                <tr>
+                                    <td class="px-4 py-8 text-center text-gray-400" colspan="6">
+                                        <div class="flex flex-col items-center">
+                                            <svg class="w-12 h-12 text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path>
+                                            </svg>
+                                            <span class="text-sm">暂无慢查询数据</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </template>
+                            <template x-for="q in slow.items" :key="q.id">
+                                <tr class="hover:bg-indigo-50 transition-colors duration-150">
+                                    <td class="px-4 py-3 max-w-[400px] truncate font-mono text-xs" :title="q.sql" x-text="q.sql"></td>
+                                    <td class="px-4 py-3 text-sm text-gray-700 font-medium" x-text="q.table"></td>
+                                    <td class="px-4 py-3">
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                                              :class="q.operation === 'SELECT' ? 'bg-blue-100 text-blue-800' : q.operation === 'INSERT' ? 'bg-green-100 text-green-800' : q.operation === 'UPDATE' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'"
+                                              x-text="q.operation"></span>
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <span class="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-red-100 text-red-700" x-text="formatDuration(q.duration)"></span>
+                                    </td>
+                                    <td class="px-4 py-3 text-sm text-gray-600" x-text="q.rows_affected"></td>
+                                    <td class="px-4 py-3 text-xs text-gray-500" x-text="formatTime(q.start_time)"></td>
+                                </tr>
+                            </template>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="flex justify-end items-center gap-2 mt-2">
+                            <button class="monitor-btn-secondary" :disabled="slow.page<=1" @click="slow.page--; fetchSlow()">
+                            上一页
+                        </button>
+                        <div class="text-sm text-gray-600 font-medium">第 <span x-text="slow.page"></span> 页</div>
+                        <button class="monitor-btn-secondary" @click="slow.page++; fetchSlow()">下一页</button>
+                    </div>
+                </div>
+
+                <!-- 查询模式 -->
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <h3 class="text-base font-medium">查询模式</h3>
+                        <div class="flex items-center gap-2 text-sm">
+                            <label>每页</label>
+                            <select class="border rounded px-1" x-model.number="pattern.limit"
+                                    @change="fetchPatterns()">
+                                <template x-for="n in [10,20,50,100]">
+                                    <option :value="n" x-text="n"></option>
+                                </template>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto bg-white shadow ring-1 ring-black ring-opacity-5 sm:rounded-lg">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">模式</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">次数</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">平均耗时</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">最大耗时</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">最后执行</th>
+                            </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                            <template x-if="pattern.items.length===0">
+                                <tr>
+                                    <td class="px-4 py-8 text-center text-gray-400" colspan="5">
+                                        <div class="flex flex-col items-center">
+                                            <svg class="w-12 h-12 text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                                            </svg>
+                                            <span class="text-sm">暂无查询模式数据</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </template>
+                            <template x-for="p in pattern.items" :key="p.pattern">
+                                <tr class="hover:bg-indigo-50 transition-colors duration-150">
+                                    <td class="px-4 py-3 max-w-[400px] truncate font-mono text-xs" :title="p.pattern" x-text="p.pattern"></td>
+                                    <td class="px-4 py-3">
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-800" x-text="p.count"></span>
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <span class="text-sm font-medium text-gray-700" x-text="formatDuration(p.avg_time)"></span>
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <span class="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-orange-100 text-orange-700" x-text="formatDuration(p.max_time)"></span>
+                                    </td>
+                                    <td class="px-4 py-3 text-xs text-gray-500" x-text="formatTime(p.last_seen)"></td>
+                                </tr>
+                            </template>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="flex justify-end items-center gap-2 mt-2">
+                        <button class="monitor-btn-secondary" :disabled="pattern.page<=1"
+                                @click="pattern.page--; fetchPatterns()">上一页
+                        </button>
+                        <div class="text-sm text-gray-600 font-medium">第 <span x-text="pattern.page"></span> 页</div>
+                        <button class="monitor-btn-secondary" @click="pattern.page++; fetchPatterns()">下一页</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 链路追踪 -->
+            <section x-show="activeTab==='traces'" class="space-y-4">
+                <div class="flex flex-wrap items-center gap-2">
+                    <label class="text-sm">状态</label>
+                    <select class="border rounded px-2 py-1 text-sm" x-model="trace.filter.status"
+                            @change="debouncedTraces()">
+                        <option value="">全部</option>
+                        <option value="OK">OK</option>
+                        <option value="ERROR">ERROR</option>
+                    </select>
+                    <input class="border rounded px-2 py-1 text-sm" placeholder="按 name 前缀过滤"
+                           x-model="trace.filter.name" @input="debouncedTraces()"/>
+                    <span class="flex-1"></span>
+                    <label class="text-sm">每页</label>
+                    <select class="border rounded px-1" x-model.number="trace.limit" @change="fetchTraces()">
+                        <template x-for="n in [10,20,50,100]">
+                            <option :value="n" x-text="n"></option>
+                        </template>
+                    </select>
+                </div>
+                <div class="overflow-x-auto border border-gray-200 rounded-lg shadow-sm">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gradient-to-r from-gray-50 to-gray-100">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">TraceID</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">开始</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">耗时</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                        </tr>
+                        </thead>
+                        <tbody class="bg-gray-50 divide-y divide-gray-200">
+                        <template x-if="trace.items.length===0">
+                            <tr>
+                                <td class="px-4 py-8 text-center text-gray-400" colspan="6">
+                                    <div class="flex flex-col items-center">
+                                        <svg class="w-12 h-12 text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                        </svg>
+                                        <span class="text-sm">暂无链路追踪数据</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        </template>
+                        <template x-for="s in trace.items" :key="s.id">
+                            <tr class="hover:bg-indigo-50 transition-colors duration-150">
+                                <td class="px-4 py-3 font-mono text-xs text-gray-600" x-text="s.trace_id"></td>
+                                <td class="px-4 py-3 text-sm font-medium text-gray-900" x-text="s.name"></td>
+                                <td class="px-4 py-3 text-xs text-gray-500" x-text="formatTime(s.start_time)"></td>
+                                <td class="px-4 py-3">
+                                    <span class="text-sm font-medium text-gray-700" x-text="formatDuration(s.duration)"></span>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <span class="monitor-badge"
+                                          :class="s.status==='OK'?'monitor-badge-success':'bg-red-100 text-red-700 border border-red-200'"
+                                          x-text="s.status"></span>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <button class="monitor-btn-secondary text-sm" @click="openTrace(s.trace_id)">
+                                        <svg class="w-4 h-4 mr-1 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                        </svg>
+                                        详情
+                                    </button>
+                                </td>
+                            </tr>
+                        </template>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="flex justify-end items-center gap-2">
+                    <button class="monitor-btn-secondary" :disabled="trace.page<=1" @click="trace.page--; fetchTraces()">
+                        上一页
+                    </button>
+                    <div class="text-sm text-gray-600 font-medium">第 <span x-text="trace.page"></span> 页</div>
+                    <button class="monitor-btn-secondary" @click="trace.page++; fetchTraces()">下一页</button>
+                </div>
+
+                <!-- 详情弹窗 -->
+                <div x-show="trace.modal.open"
+                     class="fixed inset-0 bg-black/30 z-40 flex items-center justify-center p-4"
+                     @click.self="trace.modal.open=false">
+                    <div class="bg-gray-50 rounded-lg shadow-xl w-full max-w-3xl max-h-[85vh] overflow-auto p-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="text-base font-medium">Trace 详情</h3>
+                            <button class="text-gray-400 hover:text-gray-600" @click="trace.modal.open=false">✕</button>
+                        </div>
+                        <div class="text-xs text-gray-500 mb-2">TraceID：<span x-text="trace.modal.id"></span></div>
+                        <template x-if="trace.modal.loading">
+                            <div class="text-sm text-gray-500">加载中…</div>
+                        </template>
+                        <template x-if="!trace.modal.loading">
+                            <div>
+                                <ul class="space-y-2">
+                                    <template x-for="sp in trace.modal.spans" :key="sp.id">
+                                        <li class="card p-2">
+                                            <div class="flex items-center justify-between">
+                                                <div class="font-mono text-sm" x-text="sp.name"></div>
+                                                <div class="text-xs text-gray-500"
+                                                     x-text="formatDuration(sp.duration)"></div>
+                                            </div>
+                                            <div class="text-xs text-gray-500">开始：<span
+                                                    x-text="formatTime(sp.start_time)"></span></div>
+                                            <div class="text-xs text-gray-500">状态：<span x-text="sp.status"></span>
+                                            </div>
+                                            <template x-if="sp.tags && Object.keys(sp.tags).length">
+                                                <div class="mt-1 text-xs">
+                                                    <span class="text-gray-500">Tags:</span>
+                                                    <template x-for="(v,k) in sp.tags" :key="k"><span
+                                                            class="ml-1 px-1 bg-gray-100 rounded"
+                                                            x-text="k+':'+v"></span></template>
+                                                </div>
+                                            </template>
+                                        </li>
+                                    </template>
+                                </ul>
+                                <div class="mt-3 text-right">
+                                    <button class="monitor-btn-secondary"
+                                            @click="exportJSON(trace.modal.spans,'trace_'+trace.modal.id+'.json')">
+                                        <svg class="w-4 h-4 mr-1 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                        </svg>
+                                        导出 JSON
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 系统监控列表 -->
+            <section x-show="activeTab==='system'">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="text-base font-medium">历史样本</h3>
+                    <div class="text-xs text-gray-500" x-text="'来源 ' + basePath + '/system'"></div>
+                </div>
+                <div class="overflow-x-auto border border-gray-200 rounded-lg shadow-sm">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gradient-to-r from-gray-50 to-gray-100">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">时间</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">CPU%</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">内存%</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">磁盘%</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Goroutines</th>
+                        </tr>
+                        </thead>
+                        <tbody class="bg-gray-50 divide-y divide-gray-200">
+                        <template x-if="system.items.length===0">
+                            <tr>
+                                <td class="px-4 py-8 text-center text-gray-400" colspan="5">
+                                    <div class="flex flex-col items-center">
+                                        <svg class="w-12 h-12 text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                                        </svg>
+                                        <span class="text-sm">暂无系统监控数据</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        </template>
+                        <template x-for="s in system.items" :key="s.timestamp">
+                            <tr class="hover:bg-indigo-50 transition-colors duration-150">
+                                <td class="px-4 py-3 text-xs text-gray-600" x-text="formatTime(s.timestamp)"></td>
+                                <td class="px-4 py-3">
+                                    <div class="flex items-center">
+                                        <div class="flex-1 bg-gray-200 rounded-full h-2 mr-2">
+                                            <div class="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full" 
+                                                 :style="'width: ' + Math.min((s.cpu?.usage_percent??0), 100) + '%'"></div>
+                                        </div>
+                                        <span class="text-sm font-semibold text-gray-700 w-12 text-right" x-text="(s.cpu?.usage_percent??0).toFixed(1) + '%'"></span>
+                                    </div>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <div class="flex items-center">
+                                        <div class="flex-1 bg-gray-200 rounded-full h-2 mr-2">
+                                            <div class="bg-gradient-to-r from-green-500 to-green-600 h-2 rounded-full" 
+                                                 :style="'width: ' + Math.min((s.memory?.usage_percent??0), 100) + '%'"></div>
+                                        </div>
+                                        <span class="text-sm font-semibold text-gray-700 w-12 text-right" x-text="(s.memory?.usage_percent??0).toFixed(1) + '%'"></span>
+                                    </div>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <div class="flex items-center">
+                                        <div class="flex-1 bg-gray-200 rounded-full h-2 mr-2">
+                                            <div class="bg-gradient-to-r from-purple-500 to-purple-600 h-2 rounded-full" 
+                                                 :style="'width: ' + Math.min((s.disk?.usage_percent??0), 100) + '%'"></div>
+                                        </div>
+                                        <span class="text-sm font-semibold text-gray-700 w-12 text-right" x-text="(s.disk?.usage_percent??0).toFixed(1) + '%'"></span>
+                                    </div>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-800" x-text="s.runtime?.goroutines??0"></span>
+                                </td>
+                            </tr>
+                        </template>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+
+        <!-- 右下角悬浮：快速导出 & 回到顶部 -->
+        <div class="fixed bottom-6 right-6 flex flex-col gap-3 z-50">
+            <button class="monitor-btn-primary shadow-lg"
+                    @click="exportJSON({overview,systemLine,slow:slow.items,pattern:pattern.items}, 'monitor_snapshot.json')"
+                    title="导出监控快照">
+                <svg class="w-4 h-4 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+                导出快照
+            </button>
+            <button class="monitor-btn-secondary shadow-lg" @click="window.scrollTo({top:0,behavior:'smooth'})" title="回到顶部">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"></path>
+                </svg>
+            </button>
+        </div>
+    </main>
+</div>
+
+<script>
+    function monitorApp() {
+        return {
+            // 基础路径（从当前路径推断）
+            basePath: window.location.pathname.replace(/\/ui$/, ''),
+            // 静态资源基础路径（从当前路径推断 API 前缀）
+            staticBasePath: (() => {
+                const path = window.location.pathname;
+                // 匹配 /api/xxx/metrics/ui 或 /api/metrics/ui
+                const match = path.match(/^(\/api[^\/]*)/);
+                return match ? match[1] + '/static' : '/api/static';
+            })(),
+            
+            // tabs
+            tabs: [{key: 'overview', name: '概览'}, {key: 'sql', name: 'SQL 分析'}, {
+                key: 'traces',
+                name: '链路追踪'
+            }, {key: 'system', name: '系统监控'}],
+            activeTab: 'overview',
+
+            // 状态
+            lastUpdate: '', refreshSec: 30, timer: null,
+            capabilities: {},
+            siteName: '',
+
+            // 数据模型
+            overview: {}, systemLine: [], system: {items: []},
+            slow: {items: [], page: 1, limit: 20},
+            pattern: {items: [], page: 1, limit: 20},
+            trace: {
+                items: [],
+                page: 1,
+                limit: 20,
+                filter: {status: '', name: ''},
+                modal: {open: false, id: '', loading: false, spans: []}
+            },
+            // 保证有且仅有一个 ECharts 实例
+            _ensureChartRetries: 0,
+            ensureChart() {
+                // 检查 echarts 是否已加载
+                if (typeof echarts === 'undefined') {
+                    console.warn('ECharts not loaded yet, retrying...');
+                    if (this._ensureChartRetries++ < 50) {
+                        setTimeout(() => this.ensureChart(), 100);
+                    }
+                    return;
+                }
+
+                const el = document.getElementById('sysChart');
+                if (!el) {
+                    console.warn('Chart container not found, retrying...');
+                    if (this._ensureChartRetries++ < 50) {
+                        setTimeout(() => this.ensureChart(), 100);
+                    }
+                    return;
+                }
+
+                // 检查容器是否有尺寸 - 使用 getBoundingClientRect 更可靠
+                const rect = el.getBoundingClientRect();
+                if (rect.width === 0 || rect.height === 0) {
+                    console.warn('Chart container has no size, retrying...', rect);
+                    if (this._ensureChartRetries++ < 50) {
+                        setTimeout(() => this.ensureChart(), 100);
+                    }
+                    return;
+                }
+
+                // 重置重试计数器
+                this._ensureChartRetries = 0;
+                
+                // 如果已存在且有效，直接返回
+                if (this.sysChart && !this.sysChart.isDisposed()) {
+                    return;
+                }
+                
+                // 如果已存在，先清理
+                if (this.sysChart) {
+                    try {
+                        if (!this.sysChart.isDisposed()) {
+                            this.sysChart.dispose();
+                        }
+                    } catch (e) {
+                        console.warn('Error disposing chart:', e);
+                    }
+                    this.sysChart = null;
+                }
+                
+                // 创建新实例
+                try {
+                    this.sysChart = echarts.init(el);
+                    
+                    if (!this.sysChart) {
+                        console.error('Failed to initialize ECharts');
+                        return;
+                    }
+                    
+                    // 设置初始配置
+                    const option = {
+                        animation: false,
+                        tooltip: {
+                            trigger: 'axis',
+                            axisPointer: {
+                                type: 'cross'
+                            },
+                            formatter: function(params) {
+                                if (!params || !Array.isArray(params) || params.length === 0) return '';
+                                let result = params[0].axisValue + '<br/>';
+                                params.forEach(function(item) {
+                                    if (item && item.value !== undefined) {
+                                        result += item.marker + (item.seriesName || '') + ': ' + item.value.toFixed(1) + '%<br/>';
+                                    }
+                                });
+                                return result;
+                            }
+                        },
+                        legend: {
+                            data: ['CPU %', '内存 %'],
+                            top: 10
+                        },
+                        grid: {
+                            left: '3%',
+                            right: '4%',
+                            bottom: '3%',
+                            top: '15%',
+                            containLabel: true
+                        },
+                        xAxis: {
+                            type: 'category',
+                            boundaryGap: false,
+                            data: [],
+                            axisLabel: {
+                                rotate: 45,
+                                interval: 'auto'
+                            }
+                        },
+                        yAxis: {
+                            type: 'value',
+                            min: 0,
+                            max: 100,
+                            interval: 10,
+                            axisLabel: {
+                                formatter: '{value}%'
+                            }
+                        },
+                        series: [
+                            {
+                                name: 'CPU %',
+                                type: 'line',
+                                smooth: true,
+                                data: [],
+                                itemStyle: {
+                                    color: 'rgb(59,130,246)'
+                                },
+                                areaStyle: {
+                                    color: {
+                                        type: 'linear',
+                                        x: 0,
+                                        y: 0,
+                                        x2: 0,
+                                        y2: 1,
+                                        colorStops: [{
+                                            offset: 0,
+                                            color: 'rgba(59,130,246,0.3)'
+                                        }, {
+                                            offset: 1,
+                                            color: 'rgba(59,130,246,0.1)'
+                                        }]
+                                    }
+                                },
+                                lineStyle: {
+                                    width: 2
+                                },
+                                symbol: 'none',
+                                showSymbol: false
+                            },
+                            {
+                                name: '内存 %',
+                                type: 'line',
+                                smooth: true,
+                                data: [],
+                                itemStyle: {
+                                    color: 'rgb(16,185,129)'
+                                },
+                                areaStyle: {
+                                    color: {
+                                        type: 'linear',
+                                        x: 0,
+                                        y: 0,
+                                        x2: 0,
+                                        y2: 1,
+                                        colorStops: [{
+                                            offset: 0,
+                                            color: 'rgba(16,185,129,0.3)'
+                                        }, {
+                                            offset: 1,
+                                            color: 'rgba(16,185,129,0.1)'
+                                        }]
+                                    }
+                                },
+                                lineStyle: {
+                                    width: 2
+                                },
+                                symbol: 'none',
+                                showSymbol: false
+                            }
+                        ]
+                    };
+                    
+                    this.sysChart.setOption(option);
+                    console.log('Chart initialized successfully');
+                } catch (e) {
+                    console.error('ensureChart error:', e);
+                    this.sysChart = null;
+                }
+            },
+
+            // 图表
+            sysChart: null,
+            _updatingChart: false,
+            _chartUpdateTimer: null,
+
+            // 切换标签页
+            switchTab(tabKey) {
+                this.activeTab = tabKey;
+                if (tabKey === 'overview') {
+                    this.$nextTick(() => {
+                        setTimeout(() => {
+                            this.ensureChart();
+                            if (this.sysChart && !this.sysChart.isDisposed()) {
+                                setTimeout(() => {
+                                    if (this.sysChart && !this.sysChart.isDisposed() && typeof this.sysChart.resize === 'function') {
+                                        try {
+                                            this.sysChart.resize();
+                                        } catch (e) {
+                                            console.warn('Resize error:', e);
+                                        }
+                                    }
+                                    this.updateChart();
+                                }, 200);
+                            } else {
+                                // 如果图表未初始化，再试一次
+                                setTimeout(() => {
+                                    this.ensureChart();
+                                    this.updateChart();
+                                }, 300);
+                            }
+                        }, 150);
+                    });
+                } else if (tabKey === 'sql') {
+                    this.fetchSlow();
+                    this.fetchPatterns();
+                } else if (tabKey === 'traces') {
+                    this.fetchTraces();
+                } else if (tabKey === 'system') {
+                    this.fetchSystemLine();
+                }
+            },
+
+            // 初始化
+            async init() {
+                // 确保 ECharts 已加载
+                if (typeof echarts === 'undefined') {
+                    console.warn('Waiting for ECharts to load...');
+                    let retries = 0;
+                    const checkECharts = setInterval(() => {
+                        retries++;
+                        if (typeof echarts !== 'undefined') {
+                            clearInterval(checkECharts);
+                            this.init();
+                        } else if (retries > 50) {
+                            clearInterval(checkECharts);
+                            console.error('ECharts failed to load after 5 seconds');
+                        }
+                    }, 100);
+                    return;
+                }
+
+                await this.fetchMeta();
+
+                // 先获取数据
+                await this.refreshAll();
+
+                // 等待DOM渲染完成后再初始化图表
+                await this.$nextTick();
+
+                if (this.activeTab === 'overview') {
+                    // 延迟一点确保图表容器已渲染，然后初始化并更新图表
+                    setTimeout(() => {
+                        this.ensureChart();
+                        // 等待图表初始化完成后再更新数据
+                        setTimeout(() => {
+                            this.updateChart();
+                        }, 300);
+                    }, 300);
+                }
+
+                this.restartAutoRefresh();
+
+                // 防抖的 resize 处理
+                let resizeTimer = null;
+                window.addEventListener('resize', () => {
+                    if (resizeTimer) clearTimeout(resizeTimer);
+                    resizeTimer = setTimeout(() => {
+                        if (this.sysChart && !this.sysChart.isDisposed() && typeof this.sysChart.resize === 'function') {
+                            try {
+                                this.sysChart.resize();
+                            } catch (e) {
+                                // 忽略 resize 错误
+                            }
+                        }
+                    }, 100);
+                }, { passive: true });
+            },
+
+            // 自动刷新
+            restartAutoRefresh() {
+                if (this.timer) clearInterval(this.timer);
+                if (this.refreshSec > 0) {
+                    this.timer = setInterval(() => this.refreshAll(), this.refreshSec * 1000);
+                }
+            },
+
+            // 汇总刷新
+            async refreshAll() {
+                await Promise.all([
+                    this.fetchOverview(),
+                    this.fetchSystemLine(),
+                    this.fetchSlow(),
+                    this.fetchPatterns(),
+                    this.fetchTraces()
+                ]);
+                this.lastUpdate = new Date().toLocaleString('zh-CN');
+                // 只在概览标签页时更新图表，延迟更新避免冲突
+                if (this.activeTab === 'overview') {
+                    setTimeout(() => {
+                        this.updateChart();
+                    }, 100);
+                }
+            },
+
+            // 元信息
+            async fetchMeta() {
+                try {
+                    const r = await fetch(this.basePath + '/ui.json');
+                    const j = await r.json();
+                    if (j.success) {
+                        this.capabilities = j.data.capabilities || {};
+                        if (j.data?.defaults?.refresh_seconds != null) this.refreshSec = j.data.defaults.refresh_seconds;
+                        if (j.data?.site?.server_name) {
+                            this.siteName = j.data.site.server_name;
+                        }
+                    }
+                } catch (e) {
+                    console.warn('ui.json error', e);
+                }
+            },
+
+            // 各数据源
+            async fetchOverview() {
+                const j = await this.safeJSON(this.basePath + '/overview');
+                if (j?.success) {
+                    // 数据结构：j.data.system 包含系统信息
+                    if (j.data?.system) {
+                        this.overview = j.data.system;
+                    } else if (j.data) {
+                        // 如果没有 system 字段，直接使用 data（向后兼容）
+                        this.overview = j.data;
+                    } else {
+                        this.overview = {};
+                    }
+                    // 保存完整数据用于其他用途
+                    this.overviewMeta = j.data || {};
+                }
+            },
+            async fetchSystemLine() {
+                const j = await this.safeJSON(this.basePath + '/system?limit=60');
+                if (j?.success && Array.isArray(j.data)) {
+                    this.systemLine = j.data || [];
+                    this.system.items = this.systemLine;
+                    console.log('Fetched system line data:', this.systemLine.length, 'items');
+                    // 如果图表已创建且在概览标签页，更新图表
+                    if (this.activeTab === 'overview' && this.sysChart && !this.sysChart.isDisposed()) {
+                        // 使用 setTimeout 延迟更新，避免在数据更新过程中立即更新图表
+                        setTimeout(() => {
+                            this.updateChart();
+                        }, 50);
+                    }
+                } else {
+                    console.warn('Failed to fetch system line data:', j);
+                }
+            },
+            async fetchSlow() {
+                const j = await this.safeJSON(`${this.basePath}/sql/slow?limit=${this.slow.limit}&page=${this.slow.page}`);
+                if (j?.success) this.slow.items = j.data || [];
+            },
+            async fetchPatterns() {
+                const j = await this.safeJSON(`${this.basePath}/sql/patterns?limit=${this.pattern.limit}&page=${this.pattern.page}`);
+                if (j?.success) this.pattern.items = j.data || [];
+            },
+            async fetchTraces() {
+                const qs = new URLSearchParams({
+                    limit: this.trace.limit,
+                    page: this.trace.page,
+                    status: this.trace.filter.status || '',
+                    name: this.trace.filter.name || ''
+                }).toString();
+                const j = await this.safeJSON(`${this.basePath}/traces?${qs}`);
+                if (j?.success) this.trace.items = j.data || [];
+            },
+
+            // Trace 详情
+            async openTrace(traceId) {
+                this.trace.modal.open = true;
+                this.trace.modal.id = traceId;
+                this.trace.modal.loading = true;
+                this.trace.modal.spans = [];
+                const j = await this.safeJSON(`${this.basePath}/traces/${encodeURIComponent(traceId)}`);
+                if (j?.success) this.trace.modal.spans = j.data || [];
+                this.trace.modal.loading = false;
+            },
+
+            updateChart() {
+                // 清除之前的定时器
+                if (this._chartUpdateTimer) {
+                    clearTimeout(this._chartUpdateTimer);
+                    this._chartUpdateTimer = null;
+                }
+
+                // 防止重复更新
+                if (this._updatingChart) {
+                    return;
+                }
+
+                // 如果图表不存在，先尝试初始化
+                if (!this.sysChart) {
+                    console.log('Chart not initialized, trying to create...');
+                    this.ensureChart();
+                    // 如果还是没有，延迟重试
+                    if (!this.sysChart) {
+                        setTimeout(() => this.updateChart(), 200);
+                        return;
+                    }
+                }
+
+                // 检查图表是否被销毁
+                if (this.sysChart.isDisposed && this.sysChart.isDisposed()) {
+                    this.sysChart = null;
+                    this.ensureChart();
+                    if (!this.sysChart) {
+                        setTimeout(() => this.updateChart(), 200);
+                        return;
+                    }
+                }
+
+                if (!this.systemLine || this.systemLine.length === 0) {
+                    console.log('No system line data available');
+                    return;
+                }
+                
+                this._updatingChart = true;
+                
+                // 使用防抖机制，避免频繁更新
+                this._chartUpdateTimer = setTimeout(() => {
+                    try {
+                        // 再次检查图表状态
+                        if (!this.sysChart || (this.sysChart.isDisposed && this.sysChart.isDisposed())) {
+                            this._updatingChart = false;
+                            return;
+                        }
+                        
+                        // 准备数据 - 简化处理逻辑
+                        const labels = [];
+                        const cpuData = [];
+                        const memData = [];
+                        
+                        for (let i = 0; i < this.systemLine.length; i++) {
+                            const s = this.systemLine[i];
+                            if (!s) continue;
+                            
+                            // 处理时间戳
+                            if (s.timestamp) {
+                                try {
+                                    const date = new Date(s.timestamp);
+                                    if (!isNaN(date.getTime())) {
+                                        labels.push(date.toLocaleTimeString('zh-CN', { 
+                                            hour: '2-digit', 
+                                            minute: '2-digit', 
+                                            second: '2-digit' 
+                                        }));
+                                    } else {
+                                        labels.push(`T${i}`);
+                                    }
+                                } catch {
+                                    labels.push(`T${i}`);
+                                }
+                            } else {
+                                labels.push(`T${i}`);
+                            }
+                            
+                            // 处理 CPU - 使用可选链和空值合并
+                            const cpuVal = s.cpu?.usage_percent ?? 0;
+                            const cpuNum = typeof cpuVal === 'number' ? cpuVal : parseFloat(cpuVal) || 0;
+                            cpuData.push(Math.max(0, Math.min(100, cpuNum)));
+                            
+                            // 处理内存 - 使用可选链和空值合并
+                            const memVal = s.memory?.usage_percent ?? 0;
+                            const memNum = typeof memVal === 'number' ? memVal : parseFloat(memVal) || 0;
+                            memData.push(Math.max(0, Math.min(100, memNum)));
+                        }
+                        
+                        // 验证数据
+                        if (labels.length === 0 || cpuData.length === 0 || memData.length === 0) {
+                            console.warn('Empty data arrays:', {
+                                labels: labels.length,
+                                cpu: cpuData.length,
+                                mem: memData.length
+                            });
+                            this._updatingChart = false;
+                            return;
+                        }
+                        
+                        // 确保数据长度一致
+                        const minLength = Math.min(labels.length, cpuData.length, memData.length);
+                        if (minLength === 0) {
+                            this._updatingChart = false;
+                            return;
+                        }
+                        
+                        // 截取到相同长度
+                        const finalLabels = labels.slice(0, minLength);
+                        const finalCpuData = cpuData.slice(0, minLength);
+                        const finalMemData = memData.slice(0, minLength);
+                        
+                        // 最后检查图表状态
+                        if (!this.sysChart || (this.sysChart.isDisposed && this.sysChart.isDisposed())) {
+                            this._updatingChart = false;
+                            return;
+                        }
+                        
+                        // 使用 ECharts 的 setOption 更新数据 - 使用完整配置避免部分更新问题
+                        try {
+                            // 构建完整的 option，确保所有必需字段都存在
+                            const updateOption = {
+                                animation: false,
+                                tooltip: {
+                                    trigger: 'axis',
+                                    axisPointer: {
+                                        type: 'cross'
+                                    },
+                                    formatter: function(params) {
+                                        if (!params || !Array.isArray(params) || params.length === 0) return '';
+                                        let result = params[0].axisValue + '<br/>';
+                                        params.forEach(function(item) {
+                                            if (item && item.value !== undefined) {
+                                                result += item.marker + (item.seriesName || '') + ': ' + item.value.toFixed(1) + '%<br/>';
+                                            }
+                                        });
+                                        return result;
+                                    }
+                                },
+                                legend: {
+                                    data: ['CPU %', '内存 %'],
+                                    top: 10
+                                },
+                                grid: {
+                                    left: '3%',
+                                    right: '4%',
+                                    bottom: '3%',
+                                    top: '15%',
+                                    containLabel: true
+                                },
+                                xAxis: {
+                                    type: 'category',
+                                    boundaryGap: false,
+                                    data: finalLabels,
+                                    axisLabel: {
+                                        rotate: 45,
+                                        interval: 'auto'
+                                    }
+                                },
+                                yAxis: {
+                                    type: 'value',
+                                    min: 0,
+                                    max: 100,
+                                    interval: 10,
+                                    axisLabel: {
+                                        formatter: '{value}%'
+                                    }
+                                },
+                                series: [
+                                    {
+                                        name: 'CPU %',
+                                        type: 'line',
+                                        smooth: true,
+                                        data: finalCpuData,
+                                        itemStyle: {
+                                            color: 'rgb(59,130,246)'
+                                        },
+                                        areaStyle: {
+                                            color: {
+                                                type: 'linear',
+                                                x: 0,
+                                                y: 0,
+                                                x2: 0,
+                                                y2: 1,
+                                                colorStops: [{
+                                                    offset: 0,
+                                                    color: 'rgba(59,130,246,0.3)'
+                                                }, {
+                                                    offset: 1,
+                                                    color: 'rgba(59,130,246,0.1)'
+                                                }]
+                                            }
+                                        },
+                                        lineStyle: {
+                                            width: 2
+                                        },
+                                        symbol: 'none',
+                                        showSymbol: false
+                                    },
+                                    {
+                                        name: '内存 %',
+                                        type: 'line',
+                                        smooth: true,
+                                        data: finalMemData,
+                                        itemStyle: {
+                                            color: 'rgb(16,185,129)'
+                                        },
+                                        areaStyle: {
+                                            color: {
+                                                type: 'linear',
+                                                x: 0,
+                                                y: 0,
+                                                x2: 0,
+                                                y2: 1,
+                                                colorStops: [{
+                                                    offset: 0,
+                                                    color: 'rgba(16,185,129,0.3)'
+                                                }, {
+                                                    offset: 1,
+                                                    color: 'rgba(16,185,129,0.1)'
+                                                }]
+                                            }
+                                        },
+                                        lineStyle: {
+                                            width: 2
+                                        },
+                                        symbol: 'none',
+                                        showSymbol: false
+                                    }
+                                ]
+                            };
+                            
+                            // 使用 notMerge: false 进行合并更新，但提供完整配置
+                            this.sysChart.setOption(updateOption, {
+                                notMerge: false,
+                                lazyUpdate: false
+                            });
+                            
+                            console.log('Chart updated successfully with', minLength, 'data points');
+                        } catch (updateError) {
+                            console.error('Chart update failed:', updateError);
+                            console.error('Error details:', {
+                                labels: finalLabels.length,
+                                cpu: finalCpuData.length,
+                                mem: finalMemData.length,
+                                sampleData: {
+                                    label: finalLabels[0],
+                                    cpu: finalCpuData[0],
+                                    mem: finalMemData[0]
+                                }
+                            });
+                            // 如果更新失败，尝试重新创建图表
+                            if (this.activeTab === 'overview') {
+                                setTimeout(() => {
+                                    this.ensureChart();
+                                    setTimeout(() => this.updateChart(), 200);
+                                }, 500);
+                            }
+                        }
+                        
+                        this._updatingChart = false;
+                    } catch (e) {
+                        console.error('updateChart error:', e);
+                        this._updatingChart = false;
+                    }
+                }, 50);
+            },
+
+            // Utils
+            async safeJSON(url) {
+                try {
+                    const r = await fetch(url);
+                    const t = await r.text();
+                    try {
+                        return JSON.parse(t);
+                    } catch {
+                        return {success: false, data: t};
+                    }
+                } catch (e) {
+                    console.warn('fetch error', url, e);
+                    return null;
+                }
+            },
+            formatDuration(d) {
+                if (!d && d !== 0) return '—';
+                if (typeof d === 'string') return d;
+                const ms = parseInt(d, 10);
+                if (isNaN(ms)) return d;
+                if (ms < 1000) return ms + 'ms';
+                if (ms < 60000) return (ms / 1000).toFixed(2) + 's';
+                return (ms / 60000).toFixed(2) + 'm';
+            },
+            formatTime(t) {
+                return t ? new Date(t).toLocaleString('zh-CN') : '—';
+            },
+            formatUptime(sec) {
+                if (!sec) return '—';
+                const h = Math.floor(sec / 3600), d = Math.floor(h / 24);
+                return d ? `${d}天 ${h % 24}小时` : `${h}小时`;
+            },
+            formatBytes(bytes) {
+                if (!bytes && bytes !== 0) return '—';
+                const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+                let size = bytes;
+                let unitIndex = 0;
+                while (size >= 1024 && unitIndex < units.length - 1) {
+                    size /= 1024;
+                    unitIndex++;
+                }
+                return `${size.toFixed(2)} ${units[unitIndex]}`;
+            },
+            exportJSON(obj, name) {
+                const blob = new Blob([JSON.stringify(obj, null, 2)], {type: 'application/json'});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = name;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                setTimeout(() => URL.revokeObjectURL(url));
+            },
+            debounce(fn, ms) {
+                let to = null;
+                return (...args) => {
+                    clearTimeout(to);
+                    to = setTimeout(() => fn.apply(this, args), ms);
+                };
+            },
+            debouncedTraces() {
+                if (!this._debounced) this._debounced = this.debounce(() => this.fetchTraces(), 300);
+                this._debounced();
+            }
+        }
+    }
+</script>
+</body>
+</html>

@@ -1,0 +1,257 @@
+<div class="mt-8 flow-root" x-data="{current:$store.current, queryresult:$store.queryresult}">
+  <div class="-mx-4 -my-2 sm:-mx-6 lg:-mx-8">
+    <div class="py-2">
+      <div class="flex justify-between">
+        <div class="flex mb-2 items-center" id="filter_form">
+          <div class="px-2">
+            <!-- refresh icon -->
+            <button type="button" @click="queryresult.refresh()"
+              class="inline-flex items-center p-1.5 border border-transparent rounded-full shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-600">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                stroke="currentColor" class="w-5 h-5">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+              </svg>
+            </button>
+          </div>
+          <div class="relative rounded-md shadow-sm">
+            <div x-show="current.showSearch">
+              <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke-width="1.5" stroke="currentColor"
+                  class="w-5 h-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                </svg>
+              </div>
+              <input type="text" x-model="queryresult.keyword" @keyup.enter="queryresult.refresh()"
+                class="block w-full rounded-md border-0 py-1.5 pl-10 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6"
+                placeholder="Type to search" />
+            </div>
+          </div>
+          <template x-if="current.showFilter">
+            <!-- Filters -->
+            <div class="flex items-center">
+              <template x-for="filter in current.filterables">
+                <div class="group border-gray-200 px-2 py-6">
+                  <h3 class="-my-2 flow-root group-hover:bg-gray-100 rounded">
+                    <button type="button"
+                      class="flex w-full items-center justify-between px-2 py-3 text-sm text-gray-400"
+                      aria-controls="filter-section-0" aria-expanded="false">
+                      <span class="font-medium text-gray-900" x-text="filter.label"></span>
+                      <span class="ml-6 flex items-center ">
+                        <svg class="group-hover:rotate-180 rotate-0 transition h-5 w-5 transform" viewBox="0 0 20 20"
+                          fill="currentColor" aria-hidden="true">
+                          <path fill-rule="evenodd"
+                            d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
+                            clip-rule="evenodd" />
+                        </svg>
+                      </span>
+                    </button>
+                  </h3>
+                  <div x-cloak
+                    class="group-hover:block hidden ease-in-out delay-150 absolute mt-4 -ml-2 px-6 py-4 bg-white shadow rounded-md z-20 flex-col"
+                    x-admin-filter="filter">
+                  </div>
+                </div>
+              </template>
+            </div>
+          </template>
+        </div>
+        <div id="result_layout_form">
+          <!-- result layout grid widget -->
+          <template x-if="current.listMode !== undefined">
+            <div class="flex mr-4 mt-2 space-x-1 rounded-lg bg-slate-100 p-0.5" role="tablist"
+              aria-orientation="horizontal">
+              <button :class="current.listMode=='grid'?'bg-white shadow':''" @click="current.listMode = 'grid'"
+                class="flex items-center rounded-md py-[0.4375rem] pl-2 pr-2 text-sm font-semibold lg:pr-3" role="tab"
+                type="button" aria-selected="false" tabindex="-1" aria-controls="headlessui-tabs-panel-16"><svg
+                  xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                  stroke="currentColor" class="w-5 h-5 stroke-slate-600">
+                  <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
+                </svg><span class="sr-only lg:not-sr-only lg:ml-2 text-slate-600">Grid</span></button>
+              <button :class="current.listMode=='list'?'bg-white shadow':''" @click="current.listMode = 'list'"
+                class="flex items-center rounded-md py-[0.4375rem] pl-2 pr-2 text-sm font-semibold lg:pr-3" role="tab"
+                type="button" aria-selected="true" tabindex="0" aria-controls="headlessui-tabs-panel-17"><svg
+                  xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                  stroke="currentColor" class="w-5 h-5 stroke-sky-500">
+                  <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z" />
+                </svg><span class="sr-only lg:not-sr-only lg:ml-2 text-slate-900">List</span></button>
+            </div>
+          </template>
+        </div>
+      </div>
+      <template x-if="current.hasFilterSelected">
+        <div class="flex w-full h-12 rounded-md shadow bg-white px-4 py-2 items-center space-x-2">
+          <template x-for="filter in current.selectedFilters">
+            <div class="flex space-x-1 text-xs items-center rounded bg-indigo-50 px-2 py-2">
+              <span class="text-gray-600" x-text="filter.label"></span>
+              <span class="font-semibold" x-text="filter.selected.showOp"></span>
+              <span class="text-blue-700" x-text="filter.selected.showValue"></span>
+            </div>
+          </template>
+        </div>
+      </template>
+      <div class="flex mt-2">
+        <div id="category_form">
+          <!-- show category -->
+        </div>
+        <div class="w-full">
+          <div class="w-full">
+            <div id="result_head_form"></div>
+            <!-- show result path -->
+            <div id="result_form">
+              <div id="result_form_grid"></div>
+              <div id="result_form_list">
+                <template x-if="current.listMode != 'grid'">
+                  <!-- show result -->
+                  <div class="overflow-x-auto bg-white shadow ring-1 ring-black ring-opacity-5 sm:rounded-lg">
+                    <table class="w-full border-separate border-spacing-0">
+                      <thead class="bg-gray-50">
+                        <tr class="relative">
+                          <!-- Column headers -->
+                          <template x-if="current.actions.length > 0">
+                            <th scope="col" class="sticky border-b border-gray-300 relative px-7 sm:w-12 sm:px-6">
+                              <input type="checkbox" x-on:click="queryresult.selectAll()" id="btn_selectAll"
+                                class="absolute left-4 top-1/2 -mt-2 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600" />
+                            </th>
+                          </template>
+                          <template x-if="current.shows">
+                            <template x-for="col in current.shows">
+                              <th scope="col"
+                                class="sticky w-72 border-b border-gray-300 bg-opacity-75 py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-600 backdrop-blur backdrop-filter sm:pl-6 lg:pl-8">
+                                <template x-if="col.canSort">
+                                  <div class="flex justify-between text-blue-900 h-6 group items-center">
+                                    <span class="cursor-pointer" x-text="col.headerName"
+                                      @click="queryresult.toggleOrder(col)"></span>
+                                    <div x-show="col.sort != ''" class="flex space-x-1 h-5 text-xs cursor-pointer">
+                                      <span class="hidden group-hover:block hover:text-gray-400 w-4 h-4"
+                                        @click="queryresult.toggleOrder(col, '')">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                          stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                                          <path stroke-linecap="round" stroke-linejoin="round"
+                                            d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                                        </svg>
+                                      </span>
+                                      <span>
+                                        <svg @click="queryresult.toggleOrder(col)" x-show="col.sort == 'desc'"
+                                          xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                          stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                                          <path stroke-linecap="round" stroke-linejoin="round"
+                                            d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                                        </svg>
+                                        <svg @click="queryresult.toggleOrder(col)" x-show="col.sort == 'asc'"
+                                          xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                          stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                                          <path stroke-linecap="round" stroke-linejoin="round"
+                                            d="M4.5 15.75l7.5-7.5 7.5 7.5" />
+                                        </svg>
+                                      </span>
+                                    </div>
+                                  </div>
+                                </template>
+                                <template x-if="!col.canSort">
+                                  <span x-text="col.headerName"></span>
+                                </template>
+                              </th>
+                            </template>
+                          </template>
+                          <th scope=" col"
+                            class=" w-12 border-b border-gray-300 bg-opacity-75 relative py-3.5 pl-3 pr-4 sm:pr-0">
+                            <span class="sr-only">Edit</span>
+                          </th>
+                          <!--Selected action bar-->
+                          <template x-if="current.actions.length > 0 && queryresult.selected">
+                            <div class="absolute top-0 left-14 flex h-12 items-center space-x-3 bg-gray-50 sm:left-12">
+                              <span class="font-semibold" x-text="queryresult.selected"></span>
+                              <span>Selected</span>
+                              <a href="#" @click="queryresult.selectResult($event)" class="text-gray-600">or Select
+                                result(<span class="font-semibold" x-text="queryresult.total"></span>)</a>
+                              <template x-for="action in current.actions">
+                                <button type="button" x-text="action.name" :class="action.class"
+                                  @click="action.onclick()"
+                                  class="inline-flex items-center rounded px-2 py-1 text-sm font-semibold shadow-sm"></button>
+                              </template>
+                            </div>
+                          </template>
+                        </tr>
+                      </thead>
+                      <tbody class="overflow-y-scroll">
+                        <!-- Query result -->
+                        <template x-if="queryresult.rows">
+                          <template x-for="(row,rowIdx) in queryresult.rows">
+                            <tr class="hover:bg-gray-50" :class="row.selected?'bg-gray-50':'bg-white'">
+                              <template x-if="current.actions.length > 0">
+                                <td class="border-b border-gray-200 relative px-7 sm:w-12 sm:px-6">
+                                  <input type="checkbox" x-model="row.selected"
+                                    @click="queryresult.onSelectRow($event, row)"
+                                    class="absolute left-4 top-1/2 -mt-2 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600" />
+                                </td>
+                              </template>
+                              <template x-for="(col,colIdx) in row.cols">
+                                <td
+                                  class="whitespace-nowrap border-b border-gray-200 py-3 pl-4 pr-3 text-sm text-gray-900 sm:pl-6 lg:pl-8">
+
+                                  <template x-if="colIdx === 0">
+                                    <a href="#" @click="editObject($event, queryresult.rows[rowIdx])"
+                                      class="text-indigo-600 hover:text-indigo-900">
+                                      <div x-admin-render="col"></div>
+                                    </a>
+                                  </template>
+                                  <template x-if="colIdx !== 0">
+                                    <div x-admin-render="col"></div>
+                                  </template>
+                                </td>
+                              </template>
+                              <td
+                                class="relative whitespace-nowrap border-b border-gray-200 py-4 pl-3 pr-4 text-right text-sm font-medium sm:pl-2 lg:pl-4">
+                                <template x-if="row.viewOnSite">
+                                  <a :href="row.viewOnSite" class="text-indigo-600 hover:text-indigo-900"
+                                    target="_blank">View</a>
+                                </template>
+                              </td>
+                            </tr>
+                          </template>
+                        </template>
+                      </tbody>
+                    </table>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
+
+          <nav class="shadow sm:rounded-md mt-2 bg-white px-4 py-3 sm:px-6 max-w-full" aria-label="Pagination">
+            <template x-if="queryresult.total === 0">
+              <div class="hidden sm:block">
+                <p class="text-sm text-gray-700">No results found.</p>
+              </div>
+            </template>
+            <template x-if="queryresult.total">
+              <div class="flex items-center justify-between">
+                <div class="hidden sm:block">
+                  <p class="text-sm text-gray-700">
+                    Showing
+                    <span class="font-medium" x-text="queryresult.posValue"></span>
+                    to
+                    <span class="font-medium" x-text="queryresult.pos + queryresult.count"></span>
+                    of
+                    <span class="font-medium" x-text="queryresult.total"></span>
+                    results
+                  </p>
+                </div>
+                <div class="flex flex-1 justify-between sm:justify-end">
+                  <a href="#" x-on:click="queryresult.queryprev($event)"
+                    class="relative inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus-visible:outline-offset-0">Previous</a>
+                  <a href="#" x-on:click="queryresult.querynext($event)"
+                    class="relative ml-3 inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus-visible:outline-offset-0">Next</a>
+                </div>
+              </div>
+            </template>
+          </nav>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

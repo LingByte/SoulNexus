@@ -1,0 +1,17 @@
+[
+  {
+    "code": "zh",
+    "name": "中文",
+    "nativeName": "中文",
+    "configKey": "languageBoost",
+    "description": "中文"
+  },
+  {
+    "code": "en",
+    "name": "English",
+    "nativeName": "English",
+    "configKey": "languageBoost",
+    "description": "英语"
+  }
+]
+

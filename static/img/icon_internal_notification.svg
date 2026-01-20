@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-bell" width="24" height="24" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.5">
+    <path stroke="none" d="M0 0h24v24H0z"/>
+    <path d="M5 17h14" />
+    <path d="M17 17v-6a5 5 0 0 0 -10 0v6" />
+    <path d="M9 17v1a3 3 0 0 0 6 0v-1" />
+</svg>

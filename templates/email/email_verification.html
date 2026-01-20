@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>邮箱验证</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #f8f9fa; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+        .content { background: #fff; padding: 30px; border: 1px solid #e9ecef; }
+        .button { display: inline-block; background: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin: 20px 0; }
+        .footer { background: #f8f9fa; padding: 20px; text-align: center; border-radius: 0 0 8px 8px; font-size: 14px; color: #666; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>邮箱验证</h1>
+        </div>
+        <div class="content">
+            <p>亲爱的 {{.Username}}，</p>
+            <p>感谢您注册我们的服务！请点击下面的按钮验证您的邮箱地址：</p>
+            <p style="text-align: center;">
+                <a href="{{.VerifyURL}}" class="button">验证邮箱</a>
+            </p>
+            <p>如果按钮无法点击，请复制以下链接到浏览器中打开：</p>
+            <p style="word-break: break-all; background: #f8f9fa; padding: 10px; border-radius: 4px;">{{.VerifyURL}}</p>
+            <p>此链接将在24小时后过期。</p>
+        </div>
+        <div class="footer">
+            <p>如果您没有注册此服务，请忽略此邮件。</p>
+        </div>
+    </div>
+</body>
+</html>

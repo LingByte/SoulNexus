@@ -1,0 +1,33 @@
+[
+  {
+    "id": "xiaoyan",
+    "name": "小燕",
+    "description": "温柔女声",
+    "type": "女声",
+    "language": "zh-CN",
+    "sampleRate": "16k",
+    "emotion": "中性",
+    "scene": "通用场景"
+  },
+  {
+    "id": "aisjiuxu",
+    "name": "许久",
+    "description": "温和男声",
+    "type": "男声",
+    "language": "zh-CN",
+    "sampleRate": "16k",
+    "emotion": "中性",
+    "scene": "通用场景"
+  },
+  {
+    "id": "aisxping",
+    "name": "小萍",
+    "description": "亲切女声",
+    "type": "女声",
+    "language": "zh-CN",
+    "sampleRate": "16k",
+    "emotion": "中性",
+    "scene": "通用场景"
+  }
+]
+

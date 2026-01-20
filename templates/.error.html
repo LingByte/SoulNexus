@@ -1,0 +1,81 @@
+<html>
+
+<head>
+    <title>Error</title>
+</head>
+
+<body>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #f00;
+        }
+
+        h2 {
+            color: #f00;
+        }
+
+        .code {
+            background-color: #f8f8f8;
+            border: 1px solid #ddd;
+            padding: 10px;
+            overflow: auto;
+            word-wrap: break-word;
+        }
+
+        .line {
+            color: rgb(34, 48, 54);
+            padding-right: 20px;
+        }
+
+        .line_text {
+            color: rgb(68, 80, 86);
+        }
+
+        .err_line {
+            color: rgb(233, 119, 19);
+            padding-right: 20px;
+        }
+
+        .err_line_text {
+            color: rgb(233, 119, 19);
+        }
+    </style>
+    <h1>Error</h1>
+    <p>An error occurred while rendering: {{.Name}}</p>
+    {{if .Message}}
+    <p>Error: {{.Message}}</p>
+    {{end}}
+    {{if .Sources}}
+    <h2>Sources</h2>
+    <div class="code">
+        {{range $line := .Sources}}
+        <div>
+            {{if eq $line.Num $.LineAt}}
+            <span class="err_line">{{$line.Num}}</span><span class="err_line_text">{{$line.Text}}</span>
+            {{else}}
+            <span class="line">{{$line.Num}}</span><span class="line_text"> {{$line.Text}} </span>
+            {{end}}
+        </div>
+        {{end}}
+    </div>
+    {{end}}
+
+    {{if .Context}}
+    <h2>Context</h2>
+    <div>
+        {{range $key, $value := .Context}}
+        <div><strong>{{$key}}</strong>: <span>{{$value}}</span></div>
+        {{end}}
+    </div>
+    {{end}}
+    <p>
+        <a href="https://github.com/restsend/carrot">Carrot</a>
+    </p>
+</body>
+
+</html>

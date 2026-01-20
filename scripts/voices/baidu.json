@@ -1,0 +1,43 @@
+[
+  {
+    "id": "0",
+    "name": "度小宇",
+    "description": "温暖亲和男声",
+    "type": "男声",
+    "language": "zh-CN",
+    "sampleRate": "16k",
+    "emotion": "中性",
+    "scene": "通用场景"
+  },
+  {
+    "id": "1",
+    "name": "度小美",
+    "description": "温柔知性女声",
+    "type": "女声",
+    "language": "zh-CN",
+    "sampleRate": "16k",
+    "emotion": "中性",
+    "scene": "通用场景"
+  },
+  {
+    "id": "3",
+    "name": "度逍遥",
+    "description": "成熟稳重男声",
+    "type": "男声",
+    "language": "zh-CN",
+    "sampleRate": "16k",
+    "emotion": "中性",
+    "scene": "通用场景"
+  },
+  {
+    "id": "4",
+    "name": "度丫丫",
+    "description": "活泼甜美童声",
+    "type": "童声",
+    "language": "zh-CN",
+    "sampleRate": "16k",
+    "emotion": "中性",
+    "scene": "通用场景"
+  }
+]
+

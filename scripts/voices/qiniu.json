@@ -1,0 +1,43 @@
+[
+  {
+    "id": "qiniu_zh_female_tmjxxy",
+    "name": "甜美女声",
+    "description": "标准中文女声",
+    "type": "女声",
+    "language": "zh-CN",
+    "sampleRate": "16k",
+    "emotion": "中性",
+    "scene": "通用场景"
+  },
+  {
+    "id": "qiniu_zh_male_tmjxxy",
+    "name": "浑厚男声",
+    "description": "标准中文男声",
+    "type": "男声",
+    "language": "zh-CN",
+    "sampleRate": "16k",
+    "emotion": "中性",
+    "scene": "通用场景"
+  },
+  {
+    "id": "female_cn_001",
+    "name": "中文女声1号",
+    "description": "清晰女声",
+    "type": "女声",
+    "language": "zh-CN",
+    "sampleRate": "16k",
+    "emotion": "中性",
+    "scene": "通用场景"
+  },
+  {
+    "id": "male_cn_001",
+    "name": "中文男声1号",
+    "description": "稳重男声",
+    "type": "男声",
+    "language": "zh-CN",
+    "sampleRate": "16k",
+    "emotion": "中性",
+    "scene": "通用场景"
+  }
+]
+

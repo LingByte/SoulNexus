@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html class="h-full bg-gradient-to-br from-gray-50 to-gray-100">
+
+<head>
+  <title>Admin panel</title>
+  <script src="//cdn.tailwindcss.com/?plugins=forms"></script>
+  <script src="//cdn.jsdelivr.net/npm/@shaun/alpinejs-router@1.3.1/dist/cdn.min.js" defer></script>
+  <script src="//cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link href="//cdn.jsdelivr.net/npm/inter-ui@4.0.2/inter.min.css" rel="stylesheet" />
+  <script src="//cdn.jsdelivr.net/npm/alpinejs@3.13.7/dist/cdn.min.js" defer></script>
+  {{range $index, $js := .Scripts}}
+  <script src="{{$js}}"></script>
+  {{end}}
+  {{range $index, $css := .Styles}}
+  <link href="{{$css}}" rel="stylesheet" />
+  {{end}}
+</head>
+
+<body class="h-full">
+<style>
+  :root {
+    font-family: 'Inter', sans-serif;
+  }
+
+  [v-cloak] {
+    display: none;
+  }
+
+  /* 自定义样式 */
+  .admin-container {
+    @apply transition-all duration-300 ease-in-out;
+  }
+
+  .admin-header {
+    @apply bg-white rounded-2xl shadow-sm border border-gray-200 mb-6 p-6 transition-all duration-300 hover:shadow-md;
+  }
+
+  .admin-content {
+    @apply bg-white rounded-2xl shadow-sm border border-gray-200 p-6 transition-all duration-300 hover:shadow-md;
+  }
+
+  .admin-btn-primary {
+    @apply rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-5 py-3 text-sm font-semibold text-white shadow-md hover:from-indigo-500 hover:to-purple-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 transition-all duration-200 transform hover:-translate-y-0.5 hover:shadow-lg;
+  }
+
+  .admin-btn-secondary {
+    @apply rounded-xl bg-white px-5 py-3 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 hover:ring-indigo-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 transition-all duration-200 transform hover:-translate-y-0.5;
+  }
+
+  .admin-btn-danger {
+    @apply rounded-xl bg-gradient-to-r from-red-600 to-orange-500 px-5 py-3 text-sm font-semibold text-white shadow-md hover:from-red-500 hover:to-orange-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 transition-all duration-200 transform hover:-translate-y-0.5 hover:shadow-lg;
+  }
+
+  .admin-alert {
+    @apply rounded-2xl shadow-xl p-5 transition-all duration-300 transform hover:scale-[1.02];
+  }
+
+  .admin-modal {
+    @apply rounded-2xl shadow-2xl border border-gray-200 transition-all duration-300;
+  }
+
+  .admin-loading {
+    @apply fixed inset-0 flex items-center justify-center bg-white bg-opacity-90 z-50 backdrop-blur-sm;
+  }
+
+  .admin-switching {
+    @apply flex items-center justify-center py-12 text-indigo-600;
+  }
+
+  .admin-back-link {
+    @apply font-medium text-indigo-600 hover:text-indigo-800 transition-colors;
+  }
+
+  .admin-section-title {
+    @apply text-3xl font-bold leading-7 text-gray-900 mb-2;
+  }
+
+  .admin-section-desc {
+    @apply mt-1 text-base text-gray-600;
+  }
+
+  .admin-action-bar {
+    @apply mt-4 sm:ml-10 sm:mt-0 sm:flex-none;
+  }
+
+  .admin-toast-container {
+    @apply fixed inset-y-16 left-1/2 transform -translate-x-1/2 h-0 z-50;
+  }
+
+  .admin-toast-content {
+    @apply flex justify-center;
+  }
+
+  .admin-toast-box {
+    @apply w-[28rem];
+  }
+
+  .admin-toast-message {
+    @apply flex p-5 space-x-4 items-center;
+  }
+
+  .admin-toast-pending {
+    @apply flex p-5 space-x-4 items-center bg-white border border-gray-200;
+  }
+
+  .admin-modal-overlay {
+    @apply fixed inset-0 bg-gray-900 bg-opacity-60 transition-opacity;
+  }
+
+  .admin-modal-container {
+    @apply fixed inset-0 z-50 overflow-y-auto;
+  }
+
+  .admin-modal-content {
+    @apply flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0;
+  }
+
+  .admin-modal-body {
+    @apply admin-modal relative transform overflow-hidden bg-white px-6 pb-6 pt-6 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-xl sm:p-8;
+  }
+
+  .admin-modal-icon {
+    @apply mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10;
+  }
+
+  .admin-modal-title {
+    @apply text-xl font-bold leading-6 text-gray-900;
+  }
+
+  .admin-modal-text {
+    @apply text-base text-gray-600;
+  }
+
+  .admin-modal-buttons {
+    @apply mt-6 sm:mt-6 sm:flex sm:flex-row-reverse gap-3;
+  }
+
+  .admin-edit-header {
+    @apply flex space-x-4 px-2 mb-6 pb-4 border-b border-gray-200;
+  }
+
+  .admin-edit-title {
+    @apply text-2xl font-bold leading-6 text-gray-900;
+  }
+
+  .admin-loading-spinner {
+    @apply animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-indigo-600 mb-4;
+  }
+
+  .admin-loading-text {
+    @apply text-gray-700 font-semibold text-lg;
+  }
+
+  .admin-switching-spinner {
+    @apply animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-indigo-600;
+  }
+
+  .admin-switching-text {
+    @apply text-lg font-semibold;
+  }
+
+  .admin-close-button {
+    @apply inline-flex flex-shrink-0 justify-center items-center h-6 w-6 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 focus:outline-none transition-all text-sm;
+  }
+
+  .admin-icon-success {
+    @apply h-5 w-5 text-green-500;
+  }
+
+  .admin-icon-error {
+    @apply h-5 w-5 text-red-500;
+  }
+
+  /* 悬停效果增强 */
+  .admin-hover-card {
+    @apply transition-all duration-300 hover:shadow-md hover:border-indigo-200;
+  }
+
+  .admin-hover-button {
+    @apply transition-all duration-200 transform hover:-translate-y-0.5;
+  }
+
+  .admin-hover-toast {
+    @apply transition-all duration-300 transform hover:scale-[1.02];
+  }
+
+  /* 响应式改进 */
+  @media (max-width: 768px) {
+    .admin-action-bar {
+      @apply mt-4 sm:ml-0;
+    }
+
+    .admin-edit-header {
+      @apply flex-col items-start space-y-3;
+    }
+
+    .admin-header, .admin-content {
+      @apply p-4;
+    }
+
+    .admin-section-title {
+      @apply text-2xl;
+    }
+
+    .admin-modal-content {
+      @apply p-3;
+    }
+
+    .admin-modal-body {
+      @apply px-4 py-4 sm:p-6;
+    }
+  }
+</style>
+
+<div x-data="adminapp()" x-cloak class="admin-container">
+  <template x-if="$store.loading">
+    <div class="admin-loading">
+      <div class="flex flex-col items-center">
+        <div class="admin-loading-spinner"></div>
+        <p class="admin-loading-text">Loading admin panel...</p>
+      </div>
+    </div>
+  </template>
+
+  <template x-if="!$store.loading">
+    <div class="flex">
+      <!-- Static sidebar for desktop -->
+      <div class="w-16 md:w-40 lg:w-64 md:fixed md:inset-y-0 md:z-50 md:flex md:flex-col overflow-hidden" x-ref="sidebar">
+      </div>
+
+      <main class="flex-grow py-6 md:py-8 md:pl-40 lg:pl-64 max-w-full">
+      <div class="px-4 md:px-6 lg:px-8">
+          <div class="px-4 md:px-6 lg:px-8">
+            <!-- Your content -->
+            <template x-if="$store.switching">
+              <div class="admin-switching">
+                <div class="flex items-center space-x-3">
+                  <div class="admin-switching-spinner"></div>
+                  <span class="admin-switching-text">Switching...</span>
+                </div>
+              </div>
+            </template>
+
+            <template x-if="!$store.switching">
+              <div class="admin-header admin-hover-card" x-show="$store.current && ($store.current.active || (!$store.current.active && !$store.current.pluralName))">
+                <div class="sm:flex sm:items-center">
+                  <div class="sm:flex-auto">
+                    <template x-if="$store.current && $store.current.active">
+                      <h1 class="admin-section-title" x-text="$store.current.pluralName || ''"></h1>
+                      <p class="admin-section-desc" x-text="$store.current.desc || ''"></p>
+                    </template>
+                  </div>
+                  <template x-if="$store.editobj && !$store.editobj.mode && $store.current && $store.current.active">
+                    <div class="admin-action-bar">
+                      <button type="button" x-text="'Add '+ ($store.current.name || '')" @click="addObject($event)"
+                              class="admin-btn-primary admin-hover-button"></button>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </template>
+
+            <div x-show="!$store.editobj || !$store.editobj.mode" id="query_content" class="admin-content admin-hover-card mb-6"></div>
+
+            <div x-show="$store.editobj && $store.editobj.mode" id="edit_content" class="admin-content admin-hover-card">
+              <div class="px-4 py-4">
+                <div class="admin-edit-header">
+                  <a href="#" @click="closeEdit($event, true)" class="admin-back-link">← Back</a>
+                  <template x-if="$store.editobj">
+                    <h3 class="admin-edit-title" x-text="$store.editobj.title"></h3>
+                  </template>
+                </div>
+                <div id="edit_form"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </template>
+
+  <template x-if="$store.toasts && $store.toasts.show">
+    <div class="admin-toast-container">
+      <div class="admin-toast-content">
+        <div class="admin-toast-box" role="alert">
+          <template x-if="$store.toasts && !$store.toasts.pending">
+            <div class="admin-alert admin-hover-toast admin-toast-message" :class="$store.toasts && $store.toasts.class">
+              <div>
+                <template x-if="$store.toasts && $store.toasts.level == 'info'">
+                  <svg class="admin-icon-success" xmlns="http://www.w3.org/2000/svg" width="20" height="20"
+                       fill="currentColor" viewBox="0 0 16 16">
+                    <path
+                            d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zm-3.97-3.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-.01-1.05z" />
+                  </svg>
+                </template>
+                <template x-if="$store.toasts && $store.toasts.level == 'error'">
+                  <svg class="admin-icon-error" xmlns="http://www.w3.org/2000/svg" width="20" height="20"
+                       fill="currentColor" viewBox="0 0 16 16">
+                    <path
+                            d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zM5.354 4.646a.5.5 0 1 0-.708.708L7.293 8l-2.647 2.646a.5.5 0 0 0 .708.708L8 8.707l2.646 2.647a.5.5 0 0 0 .708-.708L8.707 8l2.647-2.646a.5.5 0 0 0-.708-.708L8 7.293 5.354 4.646z" />
+                  </svg>
+                </template>
+              </div>
+              <div class="flex-grow text-base font-semibold" x-text="$store.toasts && $store.toasts.text || ''"></div>
+              <div class="flex flex-end">
+                <button type="button" @click="$store.toasts && $store.toasts.reset()"
+                        class="admin-close-button">
+                  <span class="sr-only">Close</span>
+                  <svg class="w-4 h-4" width="16" height="16" viewBox="0 0 16 16" fill="none"
+                       xmlns="http://www.w3.org/2000/svg">
+                    <path
+                            d="M0.92524 0.687069C1.126 0.486219 1.39823 0.373377 1.68209 0.373377C1.96597 0.373377 2.2382 0.486219 2.43894 0.687069L8.10514 6.35813L13.7714 0.687069C13.8701 0.584748 13.9882 0.503105 14.1188 0.446962C14.2494 0.39082 14.3899 0.361248 14.5321 0.360026C14.6742 0.358783 14.8151 0.38589 14.9468 0.439762C15.0782 0.493633 15.1977 0.573197 15.2983 0.673783C15.3987 0.774389 15.4784 0.894026 15.5321 1.02568C15.5859 1.15736 15.6131 1.29845 15.6118 1.44071C15.6105 1.58297 15.5809 1.72357 15.5248 1.85428C15.4688 1.98499 15.3872 2.10324 15.2851 2.20206L9.61883 7.87312L15.2851 13.5441C15.4801 13.7462 15.588 14.0168 15.5854 14.2977C15.5831 14.5787 15.4705 14.8474 15.272 15.046C15.0735 15.2449 14.805 15.3574 14.5244 15.3599C14.2437 15.3623 13.9733 15.2543 13.7714 15.0591L8.10514 9.38812L2.43894 15.0591C2.23704 15.2543 1.96663 15.3623 1.68594 15.3599C1.40526 15.3574 1.13677 15.2449 0.938279 15.046C0.739807 14.8474 0.627232 14.5787 0.624791 14.2977C0.62235 14.0168 0.730236 13.7462 0.92524 13.5441L6.59144 7.87312L0.92524 2.20206C0.724562 2.00115 0.611816 1.72867 0.611816 1.44457C0.611816 1.16047 0.724562 0.887983 0.92524 0.687069Z"
+                            fill="currentColor" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </template>
+          <template x-if="$store.toasts && $store.toasts.pending">
+            <div class="admin-alert admin-hover-toast admin-toast-pending" :class="$store.toasts && $store.toasts.class">
+              <div
+                      class="animate-spin inline-block w-5 h-5 border-[3px] border-indigo-600 border-t-transparent rounded-full"
+                      role="status" aria-label="loading">
+              </div>
+              <span x-text="$store.toasts && $store.toasts.text || ''" class="font-semibold text-base"></span>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <template x-if="$store.confirmAction && $store.confirmAction.show">
+    <div class="fixed inset-0 z-50 overflow-y-auto" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0">
+      <!-- Backdrop -->
+      <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
+      
+      <!-- Modal -->
+      <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+        <div class="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95">
+          
+          <!-- Header -->
+          <div class="bg-white px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
+            <div class="sm:flex sm:items-start">
+              <!-- Icon -->
+              <div class="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                <svg class="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                </svg>
+              </div>
+              
+              <!-- Content -->
+              <div class="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
+                <h3 class="text-lg font-semibold leading-6 text-gray-900" id="modal-title">
+                  <template x-if="$store.confirmAction && $store.confirmAction.action && !$store.confirmAction.action.title">
+                    <span x-text="$store.confirmAction.action.label || ''"></span> records
+                  </template>
+                  <template x-if="$store.confirmAction && $store.confirmAction.action && $store.confirmAction.action.title">
+                    <span x-text="$store.confirmAction.action.title"></span>
+                  </template>
+                </h3>
+                
+                <div class="mt-2">
+                  <p class="text-sm text-gray-600">
+                    <template x-if="$store.confirmAction && $store.confirmAction.action && !$store.confirmAction.action.text">
+                      <div class="space-y-2">
+                        <p>Are you sure you want to <span x-text="($store.confirmAction && $store.confirmAction.action && $store.confirmAction.action.label ? $store.confirmAction.action.label.toLowerCase() : '')" class="font-medium text-red-600"></span> <strong x-text="$store.confirmAction && $store.confirmAction.keys ? $store.confirmAction.keys.length : 0" class="font-semibold"></strong> records?</p>
+                        <p class="text-xs text-gray-500 italic">This action will be executed immediately on the server and cannot be undone.</p>
+                      </div>
+                    </template>
+                    <template x-if="$store.confirmAction && $store.confirmAction.action && $store.confirmAction.action.text">
+                      <div x-html="$store.confirmAction.action.text" class="text-gray-600"></div>
+                    </template>
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Footer -->
+          <div class="bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
+            <button type="button" @click="$store.queryresult && $store.queryresult.doAction($event)"
+                    :class="$store.confirmAction && $store.confirmAction.action && $store.confirmAction.action.class"
+                    class="inline-flex w-full justify-center rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 sm:ml-3 sm:w-auto">
+              <span x-text="$store.confirmAction && $store.confirmAction.action && $store.confirmAction.action.name || 'Confirm'"></span>
+            </button>
+            
+            <button type="button" @click="$store.confirmAction.cancel($event)"
+                    class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto">
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </template>
+</div>
+</body>
+
+</html>

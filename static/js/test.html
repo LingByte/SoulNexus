@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>语音助手测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .warning { background: #fff3cd; color: #856404; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎤 语音助手测试</h1>
+        <div id="status" class="status warning">
+            <strong>状态:</strong> 正在加载语音助手...
+        </div>
+    </div>
+
+    <!-- 配置脚本 -->
+    <script>
+        window.__AIPetConfig = {
+            apiKey: "1234567",
+            apiSecret: "1234567",
+            assistantId: 1,
+            systemPrompt: "你是我的贴心语音助手",
+            temperature: 0.6,
+            volume: 5
+        };
+        
+        // 监听加载状态
+        let loadCheckInterval = setInterval(function() {
+            if (window.__AIPetLoaded) {
+                clearInterval(loadCheckInterval);
+                document.getElementById('status').className = 'status success';
+                document.getElementById('status').innerHTML = '<strong>状态:</strong> 语音助手已成功加载！';
+            }
+        }, 1000);
+        
+        // 10秒后如果还没加载成功，显示错误
+        setTimeout(function() {
+            if (!window.__AIPetLoaded) {
+                clearInterval(loadCheckInterval);
+                document.getElementById('status').className = 'status error';
+                document.getElementById('status').innerHTML = '<strong>状态:</strong> 语音助手加载失败，请检查控制台错误信息';
+            }
+        }, 10000);
+    </script>
+    <script src="http://localhost:7072/api/assistant/lingecho/client/affnawbwef/loader.js"></script>
+</body>
+</html>

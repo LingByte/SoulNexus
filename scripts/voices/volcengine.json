@@ -1,0 +1,297 @@
+[
+  {
+    "id": "BV700_streaming",
+    "name": "灿灿 1.0",
+    "description": "默认音色",
+    "type": "标准音色",
+    "language": "中文",
+    "sampleRate": "8k/16k",
+    "emotion": "中性",
+    "scene": "通用场景"
+  },
+  {
+    "id": "BV700_V2_streaming",
+    "name": "灿灿 2.0",
+    "description": "V2版本音色",
+    "type": "标准音色",
+    "language": "中文",
+    "sampleRate": "8k/16k",
+    "emotion": "中性",
+    "scene": "通用场景"
+  },
+  {
+    "id": "BV705_streaming",
+    "name": "炀炀",
+    "description": "炀炀",
+    "type": "男声",
+    "language": "中文",
+    "sampleRate": "8k/16k",
+    "emotion": "中性",
+    "scene": "聊天男声"
+  },
+  {
+    "id": "BV701_V2_streaming",
+    "name": "擎苍 2.0",
+    "description": "擎苍 2.0",
+    "type": "标准音色",
+    "language": "中文",
+    "sampleRate": "8k/16k",
+    "emotion": "中性",
+    "scene": "聊天女声"
+  },
+  {
+    "id": "BV001_V2_streaming",
+    "name": "通用女声 2.0",
+    "description": "通用女声 2.0",
+    "type": "女声",
+    "language": "中文",
+    "sampleRate": "8k/16k",
+    "emotion": "中性",
+    "scene": "聊天女声"
+  },
+  {
+    "id": "BV406_V2_streaming",
+    "name": "超自然音色-梓梓2.0",
+    "description": "超自然音色-梓梓2.0",
+    "type": "标准音色",
+    "language": "中文",
+    "sampleRate": "8k/16k",
+    "emotion": "中性",
+    "scene": "聊天男声"
+  },
+  {
+    "id": "BV406_streaming",
+    "name": "超自然音色-梓梓",
+    "description": "超自然音色-梓梓",
+    "type": "标准音色",
+    "language": "中文",
+    "sampleRate": "8k/16k",
+    "emotion": "中性",
+    "scene": "通用场景"
+  },
+  {
+    "id": "BV407_V2_streaming",
+    "name": "超自然音色-燃燃2.0",
+    "description": "超自然音色-燃燃2.0",
+    "type": "标准音色",
+    "language": "中文",
+    "sampleRate": "8k/16k",
+    "emotion": "中性",
+    "scene": "通用场景"
+  },
+
+  {
+    "id": "BV407_streaming",
+    "name": "超自然音色-燃燃",
+    "description": "超自然音色-燃燃",
+    "type": "标准音色",
+    "language": "中文",
+    "sampleRate": "8k/16k",
+    "emotion": "中性",
+    "scene": "通用场景"
+  },
+  {
+    "id": "BV001_streaming",
+    "name": "通用女声",
+    "description": "通用女声",
+    "type": "标准音色",
+    "language": "中文",
+    "sampleRate": "8k/16k",
+    "emotion": "中性",
+    "scene": "通用场景"
+  },
+  {
+    "id": "BV002_streaming",
+    "name": "通用男声",
+    "description": "通用男声",
+    "type": "男声",
+    "language": "中文",
+    "sampleRate": "8k/16k",
+    "emotion": "中性",
+    "scene": "聊天男声"
+  },
+  {
+    "id": "BV701_streaming",
+    "name": "擎苍 1.0",
+    "description": "擎苍 1.0",
+    "type": "标准音色",
+    "language": "中文",
+    "sampleRate": "8k/16k",
+    "emotion": "中性",
+    "scene": "聊天女声"
+  },
+  {
+    "id": "BV123_streaming",
+    "name": "阳光青年",
+    "description": "阳光青年",
+    "type": "标准音色",
+    "language": "中文",
+    "sampleRate": "8k/16k",
+    "emotion": "中性",
+    "scene": "聊天女声"
+  },
+  {
+    "id": "BV120_streaming",
+    "name": "反卷青年",
+    "description": "反卷青年",
+    "type": "男声",
+    "language": "中文",
+    "sampleRate": "8k/16k",
+    "emotion": "中性",
+    "scene": "聊天男声"
+  },
+  {
+    "id": "BV119_streaming",
+    "name": "通用赘婿",
+    "description": "通用赘婿",
+    "type": "标准音色",
+    "language": "中文",
+    "sampleRate": "8k/16k",
+    "emotion": "中性",
+    "scene": "通用场景"
+  },
+  {
+    "id": "BV115_streaming",
+    "name": "古风少御",
+    "description": "古风少御",
+    "type": "标准音色",
+    "language": "中文",
+    "sampleRate": "8k/16k",
+    "emotion": "中性",
+    "scene": "通用场景"
+  },
+  {
+    "id": "BV107_streaming",
+    "name": "霸气青叔",
+    "description": "霸气青叔",
+    "type": "标准音色",
+    "language": "中文",
+    "sampleRate": "8k/16k",
+    "emotion": "中性",
+    "scene": "通用场景"
+  },
+
+  {
+    "id": "BV100_streaming",
+    "name": "质朴青年",
+    "description": "质朴青年",
+    "type": "标准音色",
+    "language": "中文",
+    "sampleRate": "8k/16k",
+    "emotion": "中性",
+    "scene": "通用场景"
+  },
+  {
+    "id": "BV104_streaming",
+    "name": "温柔淑女",
+    "description": "温柔淑女",
+    "type": "标准音色",
+    "language": "中文",
+    "sampleRate": "8k/16k",
+    "emotion": "中性",
+    "scene": "通用场景"
+  },
+  {
+    "id": "BV004_streaming",
+    "name": "开朗青年",
+    "description": "开朗青年",
+    "type": "男声",
+    "language": "中文",
+    "sampleRate": "8k/16k",
+    "emotion": "中性",
+    "scene": "聊天男声"
+  },
+  {
+    "id": "BV113_streaming",
+    "name": "甜宠少御",
+    "description": "甜宠少御",
+    "type": "标准音色",
+    "language": "中文",
+    "sampleRate": "8k/16k",
+    "emotion": "中性",
+    "scene": "聊天女声"
+  },
+  {
+    "id": "BV102_streaming",
+    "name": "儒雅青年",
+    "description": "儒雅青年",
+    "type": "标准音色",
+    "language": "中文",
+    "sampleRate": "8k/16k",
+    "emotion": "中性",
+    "scene": "聊天女声"
+  },
+  {
+    "id": "BV021_streaming",
+    "name": "东北老铁",
+    "description": "东北老铁",
+    "type": "男声",
+    "language": "中文",
+    "sampleRate": "8k/16k",
+    "emotion": "中性",
+    "scene": "聊天男声"
+  },
+  {
+    "id": "BV020_streaming",
+    "name": "东北丫头",
+    "description": "东北丫头",
+    "type": "女声",
+    "language": "中文",
+    "sampleRate": "8k/16k",
+    "emotion": "中性",
+    "scene": "通用场景"
+  },
+  {
+    "id": "BV704_streaming",
+    "name": "方言灿灿",
+    "description": "方言灿灿",
+    "type": "标准音色",
+    "language": "中文",
+    "sampleRate": "8k/16k",
+    "emotion": "中性",
+    "scene": "通用场景"
+  },
+
+
+  {
+    "id": "BV019_streaming",
+    "name": "重庆小伙",
+    "description": "重庆小伙",
+    "type": "男声",
+    "language": "中文",
+    "sampleRate": "8k/16k",
+    "emotion": "中性",
+    "scene": "聊天女声"
+  },
+  {
+    "id": "BV221_streaming",
+    "name": "四川甜妹儿",
+    "description": "四川甜妹儿",
+    "type": "女声",
+    "language": "中文",
+    "sampleRate": "8k/16k",
+    "emotion": "中性",
+    "scene": "聊天男声"
+  },
+  {
+    "id": "BV423_streaming",
+    "name": "重庆幺妹儿",
+    "description": "重庆幺妹儿",
+    "type": "女声",
+    "language": "中文",
+    "sampleRate": "8k/16k",
+    "emotion": "中性",
+    "scene": "通用场景"
+  },
+  {
+    "id": "BV704_streaming",
+    "name": "方言灿灿（成都）",
+    "description": "方言灿灿（成都）",
+    "type": "标准音色",
+    "language": "中文",
+    "sampleRate": "8k/16k",
+    "emotion": "中性",
+    "scene": "通用场景"
+  }
+]
+
