@@ -120,9 +120,9 @@ const DeviceVerificationModal: React.FC<DeviceVerificationModalProps> = ({
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ delay: 0.1, type: "spring", stiffness: 200 }}
-            className="w-16 h-16 bg-yellow-100 dark:bg-yellow-900/20 rounded-full flex items-center justify-center mx-auto mb-4"
+            className="w-14 h-14 bg-yellow-100 dark:bg-yellow-900/20 rounded-full flex items-center justify-center mx-auto mb-4"
           >
-            <Shield className="w-8 h-8 text-yellow-600 dark:text-yellow-400" />
+            <Shield className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
           </motion.div>
           
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
@@ -141,7 +141,7 @@ const DeviceVerificationModal: React.FC<DeviceVerificationModalProps> = ({
               </span>
             </div>
             <div className="flex items-center space-x-2">
-              <AlertTriangle className="w-4 h-4 text-gray-500" />
+              <AlertTriangle className="w-2 h-2 text-gray-500" />
               <span className="text-sm text-gray-600 dark:text-gray-400">
                 <strong>设备ID：</strong>{deviceId.substring(0, 8)}...
               </span>
@@ -149,7 +149,7 @@ const DeviceVerificationModal: React.FC<DeviceVerificationModalProps> = ({
           </div>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-2">
           <div className="flex space-x-2">
             <Input
               label="设备验证码"
@@ -173,14 +173,10 @@ const DeviceVerificationModal: React.FC<DeviceVerificationModalProps> = ({
 
           <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
             <div className="flex items-start space-x-2">
-              <Shield className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+              <Shield className="w-2 h-2 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
               <div className="text-xs text-blue-700 dark:text-blue-300">
                 <p className="font-medium mb-1">安全提醒：</p>
-                <ul className="space-y-1">
-                  <li>• 验证码将在5分钟后过期</li>
-                  <li>• 如果这不是您的操作，请立即更改密码</li>
-                  <li>• 验证后，此设备将被标记为受信任设备</li>
-                </ul>
+                <p className="font-medium"> • 验证码将在5分钟后过期 验证后，此设备将被标记为受信任设备</p>
               </div>
             </div>
           </div>

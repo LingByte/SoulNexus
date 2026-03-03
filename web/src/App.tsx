@@ -42,12 +42,8 @@ import DeviceDetail from '@/pages/DeviceDetail.tsx';
 import RedirectToDevices from '@/components/RedirectToDevices.tsx';
 import WorkflowManager from '@/pages/WorkflowManager.tsx';
 import Overview from '@/pages/Overview.tsx';
-import CallCenter from '@/pages/CallCenter.tsx';
+import CallRecordingAnalytics from '@/pages/CallRecordingAnalytics.tsx';
 import NodePluginMarket from '@/pages/NodePluginMarket.tsx';
-import SchemeManager from '@/pages/SchemeManager.tsx';
-import PhoneNumberManager from '@/pages/PhoneNumberManager.tsx';
-import VoicemailBox from '@/pages/VoicemailBox.tsx';
-import VoicemailDetail from '@/pages/VoicemailDetail.tsx';
 import VoiceprintManagement from '@/pages/VoiceprintManagement.tsx';
 import MCPManagement from '@/pages/MCPManagement.tsx';
 import MCPMarketplace from '@/pages/MCPMarketplace.tsx';
@@ -285,48 +281,6 @@ function App() {
                             <ProtectedRoute>
                                 <Layout>
                                     <NodePluginMarket />
-                                </Layout>
-                            </ProtectedRoute>
-                        } />
-                        <Route path="/call-center" element={
-                            <ProtectedRoute>
-                                <Layout>
-                                    <CallCenter />
-                                </Layout>
-                            </ProtectedRoute>
-                        } />
-                        <Route path="/schemes" element={
-                            <ProtectedRoute>
-                                <Layout>
-                                    <SchemeManager />
-                                </Layout>
-                            </ProtectedRoute>
-                        } />
-                        <Route path="/phone-numbers" element={
-                            <ProtectedRoute>
-                                <Layout>
-                                    <PhoneNumberManager />
-                                </Layout>
-                            </ProtectedRoute>
-                        } />
-                        <Route path="/voicemail" element={
-                            <ProtectedRoute>
-                                <Layout>
-                                    <VoicemailBox />
-                                </Layout>
-                            </ProtectedRoute>
-                        } />
-                        <Route path="/voicemail/:id" element={
-                            <ProtectedRoute>
-                                <Layout>
-                                    <VoicemailDetail />
-                                </Layout>
-                            </ProtectedRoute>
-                        } />
-                        <Route path="/voiceprint-management" element={
-                            <ProtectedRoute>
-                                <Layout>
-                                    <VoiceprintManagement />
                                 </Layout>
                             </ProtectedRoute>
                         } />

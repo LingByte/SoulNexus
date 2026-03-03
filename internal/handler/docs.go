@@ -364,18 +364,6 @@ func (h *Handlers) RegisterAdmin(router *gin.RouterGroup) {
 			Searchables: []string{"Role"},
 			Icon:        &models.AdminIcon{SVG: string(iconOperatorLog)},
 		},
-		// AI Call Sessions
-		{
-			Model:       &models.AICallSession{},
-			Group:       "AI Assistant",
-			Name:        "AI Call Sessions",
-			Desc:        "AI-powered call session records.",
-			Shows:       []string{"ID", "CallID", "AssistantID", "Status", "TurnCount", "Duration", "CreatedAt"},
-			Editables:   []string{"Status", "Messages"},
-			Orderables:  []string{"CreatedAt"},
-			Searchables: []string{"CallID", "Status"},
-			Icon:        &models.AdminIcon{SVG: string(iconChatSessionLog)},
-		},
 		// Voiceprint management
 		{
 			Model:       &models.Voiceprint{},
