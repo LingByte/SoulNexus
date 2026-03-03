@@ -187,16 +187,6 @@ export const voice: Record<Language, Record<string, string>> = {
     'voiceTraining.index.volcengine.feature2': '多种音频格式支持',
     'voiceTraining.index.volcengine.feature3': '稳定可靠',
     'voiceTraining.index.volcengine.button': '开始训练',
-
-    // Call Center 页面
-    'callCenter.title': '外呼中心',
-    'callCenter.subtitle': '选择SIP用户并发起外呼电话',
-    'callCenter.searchPlaceholder': '搜索SIP用户...',
-    'callCenter.callControl': '呼叫控制',
-    'callCenter.makeCall': '发起呼叫',
-    'callCenter.cancelCall': '取消呼叫',
-    'callCenter.callHistory': '通话历史',
-
     // Voiceprint 声纹识别
     'voiceprint.title': '声纹识别',
     'voiceprint.subtitle': '管理和配置声纹识别功能',
@@ -468,15 +458,6 @@ export const voice: Record<Language, Record<string, string>> = {
     'voiceTraining.index.volcengine.feature2': 'Multiple audio format support',
     'voiceTraining.index.volcengine.feature3': 'Stable and reliable',
     'voiceTraining.index.volcengine.button': 'Start Training',
-
-    // Call Center page
-    'callCenter.title': 'Call Center',
-    'callCenter.subtitle': 'Select SIP users and make outbound calls',
-    'callCenter.searchPlaceholder': 'Search SIP users...',
-    'callCenter.callControl': 'Call Control',
-    'callCenter.makeCall': 'Make Call',
-    'callCenter.cancelCall': 'Cancel Call',
-    'callCenter.callHistory': 'Call History',
 
     // Voiceprint Recognition
     'voiceprint.title': 'Voiceprint',
@@ -807,15 +788,6 @@ export const voice: Record<Language, Record<string, string>> = {
     'voiceTraining.index.volcengine.feature2': '複数オーディオフォーマットサポート',
     'voiceTraining.index.volcengine.feature3': '安定で信頼性',
     'voiceTraining.index.volcengine.button': 'トレーニング開始',
-
-    // Call Center 页面
-    'callCenter.title': 'コールセンター',
-    'callCenter.subtitle': 'SIPユーザーを選択してアウトバウンドコールを発信',
-    'callCenter.searchPlaceholder': 'SIPユーザーを検索...',
-    'callCenter.callControl': '通話制御',
-    'callCenter.makeCall': '通話発信',
-    'callCenter.cancelCall': '通話キャンセル',
-    'callCenter.callHistory': '通話履歴',
 
     // Voiceprint 声纹识别
     'voiceprint.title': '声纹识别管理',
