@@ -49,6 +49,7 @@ export const voice: Record<Language, Record<string, string>> = {
     'controlPanel.assistant.jsTemplateDefault': '使用默认模板',
     'controlPanel.assistant.jsTemplateHint': '选择JS模板将自定义助手的应用接入行为',
     'controlPanel.assistant.save': '保存设置',
+    'controlPanel.assistant.saving': '保存中...',
     'controlPanel.assistant.delete': '删除助手',
 
     'controlPanel.knowledge.title': '知识库配置',
@@ -375,6 +376,7 @@ export const voice: Record<Language, Record<string, string>> = {
     'controlPanel.assistant.jsTemplateDefault': 'Use Default Template',
     'controlPanel.assistant.jsTemplateHint': 'Selecting a JS template will customize the assistant\'s application integration behavior',
     'controlPanel.assistant.save': 'Save Settings',
+    'controlPanel.assistant.saving': 'Saving...',
     'controlPanel.assistant.delete': 'Delete Assistant',
 
     'controlPanel.knowledge.title': 'Knowledge Base Configuration',

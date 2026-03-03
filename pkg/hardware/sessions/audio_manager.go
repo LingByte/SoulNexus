@@ -11,13 +11,18 @@ const (
 	// TTSEchoSuppressionWindow TTS回音抑制窗口（毫秒）
 	ttsEchoSuppressionWindow = 5000
 	// AudioEnergyThreshold 音频能量阈值（基础值）
-	// 在 TTS 播放期间，只有能量超过这个值的 15 倍才能通过
 	audioEnergyThreshold = 2000
 	// TTSPlayingGracePeriod TTS播放状态的宽限期（毫秒）
 	ttsPlayingGracePeriod = 1000
+	// EchoThresholdMultiplier 回声检测的能量倍数阈值
+	// 用户语音能量必须超过TTS能量的这个倍数才能通过
+	EchoThresholdMultiplier = 1.5
+	// MinUserVoiceEnergy 最小用户语音能量
+	// 即使超过倍数阈值，也必须超过这个绝对值
+	MinUserVoiceEnergy = 3000
 )
 
-// AudioManager 音频管理器 - 回声消除
+// AudioManager 音频管理器 - 智能回声消除
 type AudioManager struct {
 	mu              sync.RWMutex
 	logger          *zap.Logger
@@ -25,6 +30,12 @@ type AudioManager struct {
 	sampleRate      int
 	channels        int
 	echoSuppression bool
+
+	// 统计信息
+	lastTTSEnergy   int64   // 最后一帧TTS的能量
+	avgTTSEnergy    int64   // 平均TTS能量
+	ttsEnergyBuffer []int64 // TTS能量缓冲（用于计算平均值）
+	maxBufferSize   int     // 缓冲区最大大小
 }
 
 // TTSFrame TTS音频帧
@@ -42,10 +53,12 @@ func NewAudioManager(sampleRate, channels int, logger *zap.Logger) *AudioManager
 		sampleRate:      sampleRate,
 		channels:        channels,
 		echoSuppression: true,
+		ttsEnergyBuffer: make([]int64, 0, 50),
+		maxBufferSize:   50,
 	}
 }
 
-// ProcessInputAudio 处理输入音频（激进的 AEC 回声消除）
+// ProcessInputAudio 处理输入音频（智能AEC回声消除）
 // 返回 (处理后的音频数据, 是否应该处理)
 func (m *AudioManager) ProcessInputAudio(data []byte, ttsPlaying bool) ([]byte, bool) {
 	if len(data) == 0 {
@@ -54,29 +67,53 @@ func (m *AudioManager) ProcessInputAudio(data []byte, ttsPlaying bool) ([]byte, 
 
 	m.mu.RLock()
 	echoSuppression := m.echoSuppression
+	avgTTSEnergy := m.avgTTSEnergy
 	m.mu.RUnlock()
 
-	// 不再有宽限期，TTS 结束后立即恢复 ASR
-	// 如果TTS不在播放，直接处理
+	// 如果TTS不在播放或AEC未启用，直接处理
 	if !ttsPlaying || !echoSuppression {
 		return data, true
 	}
 
-	// ============ 超激进的 AEC 算法：在 TTS 播放期间严格过滤 ============
-	// 策略：在 TTS 播放期间，直接过滤掉所有音频
-	// 只有 VAD 明确检测到用户语音时才放通（由 VAD 组件负责）
+	// ============ 智能AEC算法：基于能量比较 ============
+	// 策略：
+	// 1. 计算输入音频能量
+	// 2. 与平均TTS能量比较
+	// 3. 如果输入能量 > TTS能量 * 倍数阈值，认为是用户语音
+	// 4. 否则认为是回声，过滤掉
 
 	inputEnergy := m.calculateEnergy(data)
 
-	// 在 TTS 播放期间，直接过滤所有音频
-	// 不依赖能量检测，因为 AI 语音的能量可能很高
-	// 让 VAD 组件做最终决定
-	m.logger.Debug("[AudioManager] TTS 播放期间，过滤所有音频（由 VAD 做最终决定）",
-		zap.Int64("energy", inputEnergy))
+	// 如果没有TTS能量数据，使用默认阈值
+	if avgTTSEnergy == 0 {
+		avgTTSEnergy = int64(audioEnergyThreshold)
+	}
+
+	// 计算回声检测阈值
+	echoThreshold := int64(float64(avgTTSEnergy) * EchoThresholdMultiplier)
+
+	// 用户语音必须同时满足两个条件：
+	// 1. 能量超过TTS能量的倍数阈值
+	// 2. 能量超过最小用户语音能量
+	isUserVoice := inputEnergy > echoThreshold && inputEnergy > MinUserVoiceEnergy
+
+	if isUserVoice {
+		m.logger.Debug("[AudioManager] 检测到用户语音（通过AEC）",
+			zap.Int64("input_energy", inputEnergy),
+			zap.Int64("avg_tts_energy", avgTTSEnergy),
+			zap.Int64("echo_threshold", echoThreshold))
+		return data, true
+	}
+
+	// 过滤掉回声
+	m.logger.Debug("[AudioManager] 过滤掉回声",
+		zap.Int64("input_energy", inputEnergy),
+		zap.Int64("avg_tts_energy", avgTTSEnergy),
+		zap.Int64("echo_threshold", echoThreshold))
 	return nil, false
 }
 
-// RecordTTSOutput 记录TTS输出音频
+// RecordTTSOutput 记录TTS输出音频并更新能量统计
 func (m *AudioManager) RecordTTSOutput(data []byte) {
 	if len(data) == 0 {
 		return
@@ -86,6 +123,22 @@ func (m *AudioManager) RecordTTSOutput(data []byte) {
 	defer m.mu.Unlock()
 
 	energy := m.calculateEnergy(data)
+	m.lastTTSEnergy = energy
+
+	// 更新能量缓冲区
+	m.ttsEnergyBuffer = append(m.ttsEnergyBuffer, energy)
+	if len(m.ttsEnergyBuffer) > m.maxBufferSize {
+		m.ttsEnergyBuffer = m.ttsEnergyBuffer[1:]
+	}
+
+	// 计算平均能量
+	if len(m.ttsEnergyBuffer) > 0 {
+		var sum int64
+		for _, e := range m.ttsEnergyBuffer {
+			sum += e
+		}
+		m.avgTTSEnergy = sum / int64(len(m.ttsEnergyBuffer))
+	}
 
 	frame := TTSFrame{
 		Data:      make([]byte, len(data)),
@@ -217,6 +270,24 @@ func (m *AudioManager) Clear() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.ttsOutputBuffer = m.ttsOutputBuffer[:0]
+	m.ttsEnergyBuffer = m.ttsEnergyBuffer[:0]
+	m.avgTTSEnergy = 0
+	m.lastTTSEnergy = 0
+}
+
+// GetAverageEnergyInfo 获取能量统计信息（用于调试）
+func (m *AudioManager) GetAverageEnergyInfo() map[string]interface{} {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	return map[string]interface{}{
+		"last_tts_energy":    m.lastTTSEnergy,
+		"avg_tts_energy":     m.avgTTSEnergy,
+		"buffer_size":        len(m.ttsEnergyBuffer),
+		"echo_threshold":     int64(float64(m.avgTTSEnergy) * EchoThresholdMultiplier),
+		"min_user_voice":     MinUserVoiceEnergy,
+		"threshold_multiple": EchoThresholdMultiplier,
+	}
 }
 
 func abs64(x int64) int64 {

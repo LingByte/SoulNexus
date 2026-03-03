@@ -172,6 +172,7 @@ func (h *Handlers) UpdateAssistant(c *gin.Context) {
 		EnableVAD            *bool    `json:"enableVAD"`            // 是否启用VAD
 		VADThreshold         *float64 `json:"vadThreshold"`         // VAD阈值
 		VADConsecutiveFrames *int     `json:"vadConsecutiveFrames"` // VAD连续帧数
+		JsSourceId           string   `json:"jsSourceId"`           // JS模板ID
 	}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		response.Fail(c, "invalid request", "parameter error")
@@ -251,6 +252,16 @@ func (h *Handlers) UpdateAssistant(c *gin.Context) {
 	}
 	if input.VADConsecutiveFrames != nil {
 		updateData["vad_consecutive_frames"] = *input.VADConsecutiveFrames
+	}
+
+	// Handle JS template ID - verify it exists if provided
+	if input.JsSourceId != "" {
+		_, err := models.GetJSTemplateByJsSourceID(h.db, input.JsSourceId)
+		if err != nil {
+			response.Fail(c, "Specified JS template does not exist", nil)
+			return
+		}
+		updateData["js_source_id"] = input.JsSourceId
 	}
 
 	if err := h.db.Model(&assistant).Where("id = ?", id).Updates(updateData).Error; err != nil {

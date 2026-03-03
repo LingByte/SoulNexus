@@ -56,6 +56,7 @@ interface ControlPanelProps {
     onVADThresholdChange?: (value: number) => void
     onVADConsecutiveFramesChange?: (value: number) => void
     onSaveSettings: () => void
+    isSavingSettings?: boolean // 保存状态
     onDeleteAssistant: () => void
     // JS模板配置
     selectedJSTemplate: string | null
@@ -132,6 +133,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                                        onVADThresholdChange,
                                                        onVADConsecutiveFramesChange,
                                                        onSaveSettings,
+                                                       isSavingSettings = false,
                                                        onDeleteAssistant,
                                                        selectedJSTemplate,
                                                        onJSTemplateChange,
@@ -765,10 +767,12 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                             onClick={onSaveSettings}
                                             variant="success"
                                             size="md"
+                                            loading={isSavingSettings}
+                                            disabled={isSavingSettings}
                                             leftIcon={<Settings className="w-4 h-4" />}
                                             className="flex-1"
                                         >
-                                            {t('controlPanel.assistant.save')}
+                                            {isSavingSettings ? t('controlPanel.assistant.saving') : t('controlPanel.assistant.save')}
                                         </Button>
                                     </div>
                                 </div>
