@@ -20,7 +20,6 @@ import {
   Library, // 知识库图标
   GitBranch, // 工作流图标
   LayoutDashboard, // 概览图标
-  Phone, // 外呼中心图标
   Info, // 关于我们图标
   Package, // 插件市场图标
   Mic, // 声纹识别图标
@@ -120,14 +119,13 @@ const Sidebar = () => {
     { name: t('nav.sidebar.billing'), href: '/billing', icon: FileText },
     { name: t('nav.sidebar.groups'), href: '/groups', icon: Users },
     { name: t('nav.sidebar.deviceManagement'), href: '/devices', icon: Smartphone },
-    { name: t('nav.sidebar.callCenter'), href: '/call-center', icon: Phone },
     { name: t('nav.about'), href: '/about', icon: Info },
     { name: t('nav.docs'), href: '/docs', icon: BookOpen },
   ]
 
   const publicNavs = [t('nav.docs'), t('nav.about')]
   // 受保护页面名称
-  const privateNavs = [t('nav.sidebar.overview'), t('nav.sidebar.smartAssistant'), t('nav.sidebar.voiceTraining'), t('voiceprint.title'), t('nav.sidebar.knowledgeBase'), t('nav.sidebar.workflow'), t('nav.sidebar.pluginMarket'), t('nav.sidebar.notification'), t('nav.sidebar.alerts'), t('nav.sidebar.jsTemplate'), t('nav.sidebar.billing'), t('nav.sidebar.groups'), t('nav.sidebar.deviceManagement'), t('nav.sidebar.callCenter'), t('nav.sidebar.mcpManagement'), t('nav.sidebar.mcpMarketplace')]
+  const privateNavs = [t('nav.sidebar.overview'), t('nav.sidebar.smartAssistant'), t('nav.sidebar.voiceTraining'), t('voiceprint.title'), t('nav.sidebar.knowledgeBase'), t('nav.sidebar.workflow'), t('nav.sidebar.pluginMarket'), t('nav.sidebar.notification'), t('nav.sidebar.alerts'), t('nav.sidebar.jsTemplate'), t('nav.sidebar.billing'), t('nav.sidebar.groups'), t('nav.sidebar.deviceManagement'), t('nav.sidebar.mcpManagement'), t('nav.sidebar.mcpMarketplace')]
 
   const isActive = (path: string) => location.pathname === path
 
