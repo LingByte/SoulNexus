@@ -15,24 +15,24 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// 生成 HMAC 签名
+// Generate HMAC signature
 func generateSignature(data, secretKey string) string {
 	mac := hmac.New(sha256.New, []byte(secretKey))
 	mac.Write([]byte(data))
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
-// API 签名验证中间件
+// API signature verification middleware
 func SignVerifyMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		secret := config.GlobalConfig.APISecretKey
+		secret := config.GlobalConfig.Auth.APISecretKey
 		if secret == "" {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "server misconfigured"})
 			c.Abort()
 			return
 		}
 
-		// 从请求头中获取签名
+		// Get signature from request headers
 		signature := c.GetHeader("X-Signature")
 		if signature == "" {
 			signature = c.GetHeader("Signature")
@@ -43,7 +43,7 @@ func SignVerifyMiddleware() gin.HandlerFunc {
 			}
 		}
 
-		// 获取请求的时间戳
+		// Get request timestamp
 		timestampStr := c.GetHeader("X-Timestamp")
 		if timestampStr == "" {
 			timestampStr = c.DefaultQuery("timestamp", "")
@@ -117,7 +117,7 @@ func SignVerifyMiddleware() gin.HandlerFunc {
 		}
 
 		// 生成期望的签名
-		expectedSignature := generateSignature(signatureData.String(), config.GlobalConfig.APISecretKey)
+		expectedSignature := generateSignature(signatureData.String(), config.GlobalConfig.Auth.APISecretKey)
 
 		// 使用时间常数比较防止时序攻击
 		if !hmac.Equal([]byte(signature), []byte(expectedSignature)) {

@@ -26,16 +26,22 @@ const request = async <T = any>(
     if (error.response?.data) {
       const errorData = error.response.data
       // 处理不同的错误格式
-      if (errorData.error) {
+      if (errorData.code !== undefined) {
+        // 标准格式: {code, msg, data, error?}
+        // 优先使用 msg 字段，这是用户友好的错误信息
+        throw {
+          code: errorData.code,
+          msg: errorData.msg || errorData.message || errorData.error || '请求失败',
+          data: errorData.data || null,
+          error: errorData.error // 保留原始错误代码
+        }
+      } else if (errorData.error) {
         // 格式: {"error": "email has exists"}
         throw {
           code: error.response.status || 500,
           msg: errorData.error,
           data: null
         }
-      } else if (errorData.code !== undefined) {
-        // 格式: {code, msg, data}
-        throw errorData
       } else {
         // 其他格式，尝试提取错误信息
         throw {

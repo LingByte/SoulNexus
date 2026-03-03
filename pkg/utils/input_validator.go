@@ -7,11 +7,11 @@ import (
 	"unicode"
 )
 
-// SanitizeInput 清理输入，去除首尾空格和特殊字符
+// SanitizeInput cleans input by removing leading/trailing spaces and special characters
 func SanitizeInput(input string) string {
-	// 去除首尾空格
+	// Remove leading and trailing spaces
 	input = strings.TrimSpace(input)
-	// 去除控制字符
+	// Remove control characters
 	input = strings.Map(func(r rune) rune {
 		if unicode.IsControl(r) && r != '\n' && r != '\r' && r != '\t' {
 			return -1
@@ -21,27 +21,27 @@ func SanitizeInput(input string) string {
 	return input
 }
 
-// SanitizeEmail 清理邮箱地址
+// SanitizeEmail cleans email address
 func SanitizeEmail(email string) string {
 	email = strings.TrimSpace(email)
 	email = strings.ToLower(email)
-	// 去除邮箱中的多余空格
+	// Remove extra spaces in email
 	email = strings.ReplaceAll(email, " ", "")
 	return email
 }
 
-// SanitizePassword 清理密码（保留空格，但去除首尾空格）
+// SanitizePassword cleans password (preserves spaces but removes leading/trailing spaces)
 func SanitizePassword(password string) string {
 	return strings.TrimSpace(password)
 }
 
-// ValidateSQLInjection 检查SQL注入风险
+// ValidateSQLInjection checks for SQL injection risks
 func ValidateSQLInjection(input string) error {
 	if input == "" {
 		return nil
 	}
 
-	// SQL注入常见关键词和字符
+	// Common SQL injection keywords and characters
 	sqlKeywords := []string{
 		"'", "\"", ";", "--", "/*", "*/", "xp_", "sp_",
 		"exec", "execute", "select", "insert", "update", "delete",
@@ -51,10 +51,10 @@ func ValidateSQLInjection(input string) error {
 
 	inputLower := strings.ToLower(input)
 
-	// 检查是否包含SQL注入关键词
+	// Check if contains SQL injection keywords
 	for _, keyword := range sqlKeywords {
 		if strings.Contains(inputLower, keyword) {
-			// 允许正常的单引号在邮箱地址中（如 o'brien@example.com）
+			// Allow normal single quotes in email addresses (e.g. o'brien@example.com)
 			if keyword == "'" && isValidEmailQuote(input) {
 				continue
 			}
@@ -62,7 +62,7 @@ func ValidateSQLInjection(input string) error {
 		}
 	}
 
-	// 检查是否包含SQL注释
+	// Check if contains SQL comments
 	if strings.Contains(inputLower, "--") || strings.Contains(inputLower, "/*") {
 		return errors.New("input contains SQL comment characters")
 	}
@@ -70,20 +70,20 @@ func ValidateSQLInjection(input string) error {
 	return nil
 }
 
-// isValidEmailQuote 检查单引号是否在有效的邮箱地址中
+// isValidEmailQuote checks if single quote is in a valid email address
 func isValidEmailQuote(input string) bool {
-	// 简单的邮箱格式检查
+	// Simple email format check
 	emailRegex := regexp.MustCompile(`^[a-zA-Z0-9._%+\-']+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
 	return emailRegex.MatchString(input)
 }
 
-// ValidateXSS 检查XSS攻击风险
+// ValidateXSS checks for XSS attack risks
 func ValidateXSS(input string) error {
 	if input == "" {
 		return nil
 	}
 
-	// XSS常见关键词
+	// Common XSS keywords
 	xssPatterns := []string{
 		"<script", "</script>", "javascript:", "onerror=",
 		"onload=", "onclick=", "<iframe", "<img", "onmouseover=",
@@ -101,19 +101,19 @@ func ValidateXSS(input string) error {
 	return nil
 }
 
-// ValidateEmailFormat 验证邮箱格式
+// ValidateEmailFormat validates email format
 func ValidateEmailFormat(email string) error {
 	if email == "" {
 		return errors.New("email is required")
 	}
 
-	// 邮箱格式正则
+	// Email format regex
 	emailRegex := regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
 	if !emailRegex.MatchString(email) {
 		return errors.New("invalid email format")
 	}
 
-	// 长度检查
+	// Length check
 	if len(email) > 254 {
 		return errors.New("email address too long")
 	}
@@ -121,13 +121,34 @@ func ValidateEmailFormat(email string) error {
 	return nil
 }
 
-// ValidatePasswordFormat 验证密码格式
+// ValidatePasswordFormat validates password format
 func ValidatePasswordFormat(password string) error {
 	if password == "" {
 		return errors.New("password is required")
 	}
 
-	// 密码长度检查
+	// Check if this is an encrypted password format (passwordHash:encryptedHash:salt:timestamp)
+	if strings.Contains(password, ":") && len(strings.Split(password, ":")) == 4 {
+		// For encrypted passwords, validate the first part (password hash)
+		parts := strings.Split(password, ":")
+		passwordHash := parts[0]
+
+		// Password hash should be a valid SHA-256 hash (64 hex characters)
+		if len(passwordHash) != 64 {
+			return errors.New("invalid encrypted password format")
+		}
+
+		// Check if it's a valid hex string
+		for _, char := range passwordHash {
+			if !((char >= '0' && char <= '9') || (char >= 'a' && char <= 'f') || (char >= 'A' && char <= 'F')) {
+				return errors.New("invalid encrypted password format")
+			}
+		}
+
+		return nil // Encrypted password is valid
+	}
+
+	// For plain text passwords, apply normal validation
 	if len(password) < 8 {
 		return errors.New("password must be at least 8 characters long")
 	}
@@ -139,18 +160,19 @@ func ValidatePasswordFormat(password string) error {
 	return nil
 }
 
-// ValidateDisplayName 验证显示名称
+// ValidateDisplayName validates display name
 func ValidateDisplayName(name string) error {
 	if name == "" {
-		return nil // 显示名称可以为空
+		return nil // Display name can be empty
 	}
 
-	// 长度检查
-	if len(name) > 50 {
+	// Length check (using rune count for proper Unicode support)
+	runeCount := len([]rune(name))
+	if runeCount > 50 {
 		return errors.New("display name too long")
 	}
 
-	// 检查是否包含危险字符
+	// Check for dangerous characters
 	if err := ValidateXSS(name); err != nil {
 		return err
 	}
@@ -158,31 +180,34 @@ func ValidateDisplayName(name string) error {
 	return nil
 }
 
-// ValidateUserName 验证用户名
+// ValidateUserName validates username
 func ValidateUserName(username string) error {
 	if username == "" {
 		return errors.New("username is required")
 	}
 
-	// 长度检查
-	if len(username) < 3 {
-		return errors.New("username must be at least 3 characters long")
+	// Length check (using rune count for proper Unicode support)
+	runeCount := len([]rune(username))
+	if runeCount < 2 {
+		return errors.New("username must be at least 2 characters long")
 	}
 
-	if len(username) > 30 {
+	if runeCount > 30 {
 		return errors.New("username too long")
 	}
 
-	// 只允许字母、数字、下划线和连字符
-	usernameRegex := regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
-	if !usernameRegex.MatchString(username) {
-		return errors.New("username can only contain letters, numbers, underscores and hyphens")
+	// Allow letters (including Unicode letters like Chinese), numbers, underscores and hyphens
+	// Check each character individually
+	for _, r := range username {
+		if !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '_' && r != '-' {
+			return errors.New("username can only contain letters, numbers, underscores and hyphens")
+		}
 	}
 
 	return nil
 }
 
-// SanitizeAndValidate 清理并验证输入
+// SanitizeAndValidate cleans and validates input
 func SanitizeAndValidate(input string, inputType string) (string, error) {
 	var sanitized string
 
@@ -211,12 +236,12 @@ func SanitizeAndValidate(input string, inputType string) (string, error) {
 		sanitized = SanitizeInput(input)
 	}
 
-	// SQL注入检查
+	// SQL injection check
 	if err := ValidateSQLInjection(sanitized); err != nil {
 		return "", err
 	}
 
-	// XSS检查
+	// XSS check
 	if err := ValidateXSS(sanitized); err != nil {
 		return "", err
 	}

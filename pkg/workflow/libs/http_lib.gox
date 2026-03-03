@@ -1,0 +1,181 @@
+type httpLib struct{}
+
+// Request 结构体用于构建 HTTP 请求
+type httpRequest struct {
+	URL     string
+	Method  string
+	Headers map[string]string
+	Body    string
+	Timeout int // 秒
+}
+
+// Response 结构体用于返回 HTTP 响应
+type httpResponse struct {
+	Status     int
+	StatusText string
+	Headers    map[string]string
+	Body       string
+	Error      string
+}
+
+// Get 发送 GET 请求
+func (h *httpLib) Get(url string) *httpResponse {
+	return h.Request("GET", url, nil, nil, 30)
+}
+
+// Post 发送 POST 请求
+func (h *httpLib) Post(url string, body string) *httpResponse {
+	headers := map[string]string{"Content-Type": "application/json"}
+	return h.Request("POST", url, headers, body, 30)
+}
+
+// Put 发送 PUT 请求
+func (h *httpLib) Put(url string, body string) *httpResponse {
+	headers := map[string]string{"Content-Type": "application/json"}
+	return h.Request("PUT", url, headers, body, 30)
+}
+
+// Delete 发送 DELETE 请求
+func (h *httpLib) Delete(url string) *httpResponse {
+	return h.Request("DELETE", url, nil, nil, 30)
+}
+
+// Patch 发送 PATCH 请求
+func (h *httpLib) Patch(url string, body string) *httpResponse {
+	headers := map[string]string{"Content-Type": "application/json"}
+	return h.Request("PATCH", url, headers, body, 30)
+}
+
+// Request 发送自定义 HTTP 请求
+// method: GET, POST, PUT, DELETE, PATCH 等
+// url: 请求 URL
+// headers: 请求头 map
+// body: 请求体
+// timeout: 超时时间（秒）
+func (h *httpLib) Request(method string, url string, headers map[string]string, body string, timeout int) *httpResponse {
+	client := &http.Client{
+		Timeout: time.Duration(timeout) * time.Second,
+	}
+
+	req, err := http.NewRequest(method, url, strings.NewReader(body))
+	if err != nil {
+		return &httpResponse{
+			Status: 0,
+			Error:  fmt.Sprintf("failed to create request: %v", err),
+		}
+	}
+
+	// 设置请求头
+	if headers != nil {
+		for key, value := range headers {
+			req.Header.Set(key, value)
+		}
+	}
+
+	// 发送请求
+	resp, err := client.Do(req)
+	if err != nil {
+		return &httpResponse{
+			Status: 0,
+			Error:  fmt.Sprintf("request failed: %v", err),
+		}
+	}
+	defer resp.Body.Close()
+
+	// 读取响应体
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return &httpResponse{
+			Status:     resp.StatusCode,
+			StatusText: resp.Status,
+			Error:      fmt.Sprintf("failed to read response: %v", err),
+		}
+	}
+
+	// 构建响应头 map
+	respHeaders := make(map[string]string)
+	for key, values := range resp.Header {
+		if len(values) > 0 {
+			respHeaders[key] = values[0]
+		}
+	}
+
+	return &httpResponse{
+		Status:     resp.StatusCode,
+		StatusText: resp.Status,
+		Headers:    respHeaders,
+		Body:       string(respBody),
+		Error:      "",
+	}
+}
+
+// GetStatus 获取响应状态码
+func (r *httpResponse) GetStatus() int {
+	return r.Status
+}
+
+// GetBody 获取响应体
+func (r *httpResponse) GetBody() string {
+	return r.Body
+}
+
+// GetHeader 获取响应头
+func (r *httpResponse) GetHeader(key string) string {
+	if r.Headers != nil {
+		return r.Headers[key]
+	}
+	return ""
+}
+
+// IsSuccess 检查是否成功（状态码 200-299）
+func (r *httpResponse) IsSuccess() bool {
+	return r.Status >= 200 && r.Status < 300
+}
+
+// IsError 检查是否出错
+func (r *httpResponse) IsError() bool {
+	return r.Error != ""
+}
+
+// GetError 获取错误信息
+func (r *httpResponse) GetError() string {
+	return r.Error
+}
+
+// ParseJSON 解析 JSON 响应体
+// 返回 map[string]interface{}
+func (r *httpResponse) ParseJSON() map[string]interface{} {
+	var result map[string]interface{}
+	err := json.Unmarshal([]byte(r.Body), &result)
+	if err != nil {
+		return map[string]interface{}{
+			"error": fmt.Sprintf("failed to parse JSON: %v", err),
+		}
+	}
+	return result
+}
+
+// GetJSONField 从 JSON 响应中获取指定字段
+// path 支持简单的点号路径，如 "data.user.name"
+func (r *httpResponse) GetJSONField(path string) interface{} {
+	data := r.ParseJSON()
+	if data == nil {
+		return nil
+	}
+
+	parts := strings.Split(path, ".")
+	var current interface{} = data
+
+	for _, part := range parts {
+		if m, ok := current.(map[string]interface{}); ok {
+			current = m[part]
+		} else {
+			return nil
+		}
+	}
+
+	return current
+}
+
+// 库实例
+var HttpLib = &httpLib{}

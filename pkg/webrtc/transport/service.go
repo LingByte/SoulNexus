@@ -115,13 +115,12 @@ func NewAIClient(conn *websocket.Conn, transport *rtcmedia.WebRTCTransport, sess
 	// The decoded PCM audio is sent directly to ASR at 16kHz
 	asrService := recognizer.NewQcloudASR(asrOpt)
 	// Initialize LLM (legacy: use OpenAI provider)
-	llmProvider, err := llm.NewLLMProviderFromConfig(
+	llmProvider, err := llm.NewLLMProvider(
 		context.Background(),
 		"openai",
 		utils.GetEnv("OPENAI_TOKEN"),
 		utils.GetEnv("OPENAI_BASE_URL"),
 		"你是一个友好的AI助手，请用简洁明了的语言回答问题。",
-		nil,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create LLM provider: %w", err)
@@ -301,7 +300,7 @@ func NewAIClientWithCredential(
 	}
 
 	// Use factory function to create the correct LLM provider based on credential
-	llmProvider, err := llm.NewLLMProvider(context.Background(), cred, systemPrompt)
+	llmProvider, err := llm.NewLLMProvider(context.Background(), cred.LLMProvider, cred.LLMApiKey, cred.LLMApiURL, systemPrompt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create LLM provider: %w", err)
 	}
@@ -698,24 +697,13 @@ func (c *AIClient) handleASRResult(text string, isLast bool, duration time.Durat
 
 // isCompleteSentence checks if text contains sentence ending markers
 func isCompleteSentence(text string) bool {
-	if text == "" {
-		return false
-	}
-	endMarkers := []string{"。", "？", "！", ".", "?", "!"}
-	for _, marker := range endMarkers {
-		if strings.Contains(text, marker) {
-			return true
-		}
-	}
-	return false
+	// 简化处理：任何非空文本都视为完整句子
+	return text != ""
 }
 
-// filterText removes punctuation and whitespace
+// filterText removes whitespace only
 func filterText(text string) string {
-	text = strings.TrimSpace(text)
-	// Remove common punctuation
-	text = strings.Trim(text, "。，、；：？！\"\"''（）【】《》")
-	return text
+	return strings.TrimSpace(text)
 }
 
 // isMeaninglessText checks if text is meaningless (should be filtered)

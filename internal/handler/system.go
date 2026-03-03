@@ -3,7 +3,9 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -13,7 +15,10 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/utils"
+	"github.com/LingByte/SoulNexus/pkg/voiceprint"
+	"github.com/LingByte/lingstorage-sdk-go"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // UpdateRateLimiterConfig updates rate limiter configuration
@@ -49,7 +54,7 @@ func (h *Handlers) HealthCheck(c *gin.Context) {
 // SystemInit system initialization endpoint, returns basic configuration information
 func (h *Handlers) SystemInit(c *gin.Context) {
 	// Get database type
-	dbDriver := config.GlobalConfig.DBDriver
+	dbDriver := config.GlobalConfig.Database.Driver
 	if dbDriver == "" {
 		dbDriver = "sqlite"
 	}
@@ -59,16 +64,20 @@ func (h *Handlers) SystemInit(c *gin.Context) {
 	isMemoryDB := strings.ToLower(dbDriver) == "sqlite"
 
 	// Check if email configuration is complete
-	mailConfig := config.GlobalConfig.Mail
-	emailConfigured := mailConfig.Host != "" &&
-		mailConfig.Port > 0 &&
-		mailConfig.Username != "" &&
-		mailConfig.Password != "" &&
-		mailConfig.From != ""
+	mailConfig := config.GlobalConfig.Services.Mail
+	emailConfigured := mailConfig.APIUser != "" &&
+		mailConfig.APIKey != "" ||
+		mailConfig.From != "" ||
+		mailConfig.Host != "" ||
+		mailConfig.Port > 0 ||
+		mailConfig.Username != ""
 
 	// Get voice clone configurations (from database first, then from .env)
 	xunfeiConfig := h.getVoiceCloneConfig("xunfei")
 	volcengineConfig := h.getVoiceCloneConfig("volcengine")
+
+	// Get voiceprint recognition configuration
+	voiceprintConfig := h.getVoiceprintConfig()
 
 	// Return initialization information
 	response.Success(c, "System initialization info", gin.H{
@@ -89,10 +98,18 @@ func (h *Handlers) SystemInit(c *gin.Context) {
 				"config":     volcengineConfig,
 			},
 		},
+		"voiceprint": gin.H{
+			"enabled":    voiceprintConfig["enabled"],
+			"configured": voiceprintConfig["configured"],
+			"config":     voiceprintConfig["config"],
+		},
+		"features": gin.H{
+			"voiceprintEnabled": voiceprintConfig["enabled"], // 专门用于前端sidebar显示控制
+		},
 	})
 }
 
-// getVoiceCloneConfig 获取音色克隆配置（先从数据库读，再从.env读）
+// getVoiceCloneConfig gets voice clone configuration (read from database first, then from .env)
 func (h *Handlers) getVoiceCloneConfig(provider string) map[string]interface{} {
 	var configKey string
 	var envConfig map[string]interface{}
@@ -100,7 +117,7 @@ func (h *Handlers) getVoiceCloneConfig(provider string) map[string]interface{} {
 	switch provider {
 	case "xunfei":
 		configKey = constants.KEY_VOICE_CLONE_XUNFEI_CONFIG
-		// 从 .env 读取配置
+		// Read configuration from .env
 		envConfig = map[string]interface{}{
 			"app_id":        utils.GetEnv("XUNFEI_APP_ID"),
 			"api_key":       utils.GetEnv("XUNFEI_API_KEY"),
@@ -114,7 +131,7 @@ func (h *Handlers) getVoiceCloneConfig(provider string) map[string]interface{} {
 		}
 	case "volcengine":
 		configKey = constants.KEY_VOICE_CLONE_VOLCENGINE_CONFIG
-		// 从 .env 读取配置
+		// Read configuration from .env
 		envConfig = map[string]interface{}{
 			"app_id":         utils.GetEnv("VOLCENGINE_CLONE_APP_ID"),
 			"token":          utils.GetEnv("VOLCENGINE_CLONE_TOKEN"),
@@ -145,24 +162,59 @@ func (h *Handlers) getVoiceCloneConfig(provider string) map[string]interface{} {
 		return nil
 	}
 
-	// 先从数据库读取
+	// Read from database first
 	dbConfigStr := utils.GetValue(h.db, configKey)
 	if dbConfigStr != "" {
 		var dbConfig map[string]interface{}
 		if err := json.Unmarshal([]byte(dbConfigStr), &dbConfig); err == nil {
-			// 检查是否配置完整（至少要有必需的字段）
+			// Check if configuration is complete (must have required fields)
 			if h.isConfigValid(provider, dbConfig) {
 				return dbConfig
 			}
 		}
 	}
 
-	// 如果数据库没有或配置不完整，从 .env 读取
+	// If database doesn't have it or configuration is incomplete, read from .env
 	if h.isConfigValid(provider, envConfig) {
 		return envConfig
 	}
 
 	return nil
+}
+
+// getVoiceprintConfig gets voiceprint recognition configuration
+func (h *Handlers) getVoiceprintConfig() map[string]interface{} {
+	// 使用新的配置方法
+	cfg := voiceprint.DefaultConfig()
+
+	// 从数据库或环境变量读取启用状态
+	enabledStr := utils.GetValue(h.db, constants.KEY_VOICEPRINT_ENABLED)
+	enabled := false
+	if enabledStr != "" {
+		enabled = enabledStr == "true"
+	} else {
+		// 回退到环境变量
+		enabled = cfg.Enabled
+	}
+
+	// 只有在配置完整且显式启用时才启用
+	configured := cfg.BaseURL != "" && cfg.APIKey != ""
+	enabled = enabled && configured
+
+	config := map[string]interface{}{
+		"service_url":          cfg.BaseURL,
+		"api_key":              cfg.APIKey,
+		"similarity_threshold": cfg.SimilarityThreshold,
+		"max_candidates":       cfg.MaxCandidates,
+		"cache_enabled":        cfg.CacheEnabled,
+		"log_enabled":          cfg.LogEnabled,
+	}
+
+	return map[string]interface{}{
+		"enabled":    enabled,
+		"configured": configured,
+		"config":     config,
+	}
 }
 
 // isConfigValid 检查配置是否有效
@@ -226,6 +278,52 @@ func (h *Handlers) SaveVoiceCloneConfig(c *gin.Context) {
 	utils.SetValue(h.db, configKey, string(configJSON), "json", true, true)
 
 	response.Success(c, "配置保存成功", nil)
+}
+
+// SaveVoiceprintConfig 保存声纹识别配置
+func (h *Handlers) SaveVoiceprintConfig(c *gin.Context) {
+	var req struct {
+		Enabled bool                   `json:"enabled"`
+		Config  map[string]interface{} `json:"config" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, "参数错误", err.Error())
+		return
+	}
+
+	// 验证配置
+	if req.Config == nil {
+		response.Fail(c, "配置无效", "配置不能为空")
+		return
+	}
+
+	serviceURL, _ := req.Config["service_url"].(string)
+	apiKey, _ := req.Config["api_key"].(string)
+
+	if serviceURL == "" || apiKey == "" {
+		response.Fail(c, "配置无效", "服务地址和API密钥不能为空")
+		return
+	}
+
+	// 序列化配置为 JSON
+	configJSON, err := json.Marshal(req.Config)
+	if err != nil {
+		response.Fail(c, "序列化配置失败", err.Error())
+		return
+	}
+
+	// 保存配置到数据库
+	utils.SetValue(h.db, constants.KEY_VOICEPRINT_CONFIG, string(configJSON), "json", true, true)
+
+	// 保存启用状态
+	enabledStr := "false"
+	if req.Enabled {
+		enabledStr = "true"
+	}
+	utils.SetValue(h.db, constants.KEY_VOICEPRINT_ENABLED, enabledStr, "string", true, true)
+
+	response.Success(c, "声纹识别配置保存成功", nil)
 }
 
 // SystemStatus 系统状态检查接口，检查数据库、缓存、API、存储服务
@@ -358,4 +456,72 @@ func (h *Handlers) DashboardMetrics(c *gin.Context) {
 	}
 
 	response.Success(c, "获取仪表板指标成功", metrics)
+}
+
+// UploadAudio uploads audio file
+func (h *Handlers) UploadAudio(c *gin.Context) {
+	// Get uploaded file
+	file, header, err := c.Request.FormFile("audio")
+	if err != nil {
+		response.Fail(c, "Failed to get uploaded file: "+err.Error(), nil)
+		return
+	}
+	defer file.Close()
+
+	// Check file type
+	contentType := header.Header.Get("Content-Type")
+	if contentType != "audio/webm" && contentType != "audio/wav" && contentType != "audio/mp3" {
+		response.Fail(c, "Unsupported file type: "+contentType, nil)
+		return
+	}
+
+	// Generate storage key (relative to storage root)
+	timestamp := time.Now().Unix()
+	randomStr := utils.RandString(8)
+	fileName := fmt.Sprintf("audio_%d_%s.webm", timestamp, randomStr)
+	storageKey := fmt.Sprintf("audio/%s", fileName)
+	reader, err := config.GlobalStore.UploadFromReader(&lingstorage.UploadFromReaderRequest{
+		Reader:   file,
+		Bucket:   config.GlobalConfig.Services.Storage.Bucket,
+		Filename: storageKey,
+		Key:      storageKey,
+	})
+	if err != nil {
+		response.Fail(c, "Failed to upload file: "+err.Error(), nil)
+		return
+	}
+
+	// Record storage usage
+	user := models.CurrentUser(c)
+	if user != nil {
+		// 从middleware获取数据库连接
+		db, exists := c.Get("db")
+		if exists {
+			if gormDB, ok := db.(*gorm.DB); ok {
+				// Try to get credential ID (from request parameters or user's default credential)
+				var credentialID uint
+				if credIDStr := c.Query("credentialId"); credIDStr != "" {
+					if id, err := strconv.ParseUint(credIDStr, 10, 32); err == nil {
+						credentialID = uint(id)
+					}
+				}
+				// 如果没有提供凭证ID，尝试获取用户的第一个凭证
+				if credentialID == 0 {
+					credentials, err := models.GetUserCredentials(gormDB, user.ID)
+					if err == nil && len(credentials) > 0 {
+						credentialID = credentials[0].ID
+					}
+				}
+			}
+		}
+	}
+
+	// Return success response
+	response.Success(c, "音频文件上传成功", map[string]interface{}{
+		"fileName":   fileName,
+		"filePath":   reader.URL,
+		"fileSize":   reader.Size,
+		"uploadTime": time.Now().Format(time.RFC3339),
+		"url":        reader.URL,
+	})
 }

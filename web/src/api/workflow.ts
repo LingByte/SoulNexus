@@ -7,7 +7,7 @@ export type WorkflowStatus = 'draft' | 'active' | 'archived'
 export type WorkflowEdgeType = 'default' | 'true' | 'false' | 'error' | 'branch'
 
 // 工作流节点类型
-export type WorkflowNodeType = 'start' | 'end' | 'task' | 'gateway' | 'event' | 'subflow' | 'parallel' | 'wait' | 'timer' | 'script'
+export type WorkflowNodeType = 'start' | 'end' | 'task' | 'gateway' | 'event' | 'subflow' | 'parallel' | 'wait' | 'timer' | 'script' | 'plugin' | 'workflow_plugin' | 'condition'
 
 // 工作流节点 Schema
 export interface WorkflowNodeSchema {
@@ -83,11 +83,22 @@ export interface WorkflowDefinition {
   definition: WorkflowGraph
   settings?: Record<string, any>
   triggers?: WorkflowTriggerConfig
+  inputParameters?: WorkflowParameter[]
+  outputParameters?: WorkflowParameter[]
   tags?: string[]
   createdBy: string
   updatedBy: string
   createdAt: string
   updatedAt: string
+}
+
+// 工作流参数定义
+export interface WorkflowParameter {
+  name: string
+  type: 'string' | 'number' | 'boolean' | 'object' | 'array'
+  required: boolean
+  description?: string
+  default?: any
 }
 
 // 工作流版本
@@ -156,6 +167,8 @@ export interface UpdateWorkflowDefinitionRequest {
   definition?: WorkflowGraph
   settings?: Record<string, any>
   triggers?: WorkflowTriggerConfig
+  inputParameters?: WorkflowParameter[]
+  outputParameters?: WorkflowParameter[]
   tags?: string[]
   version: number // 必须提供当前版本号，用于乐观锁
   changeNote?: string // 版本变更说明
@@ -282,6 +295,13 @@ export const workflowService = {
       }>
       total: number
     }>('/workflows/events/types')
+  },
+
+  /**
+   * 停止工作流实例
+   */
+  async stopInstance(instanceId: number): Promise<ApiResponse<{ instance_id: number; status: string }>> {
+    return post<{ instance_id: number; status: string }>(`/workflows/instances/${instanceId}/stop`)
   }
 }
 

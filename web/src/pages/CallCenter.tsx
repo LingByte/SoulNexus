@@ -1,12 +1,31 @@
 import { useState, useEffect } from 'react'
-import { Phone, PhoneCall, PhoneOff, Search, User, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
+import { 
+  Phone, 
+  PhoneCall, 
+  PhoneOff, 
+  Search, 
+  User, 
+  Clock, 
+  CheckCircle, 
+  XCircle, 
+  AlertCircle,
+  Settings,
+  Mail,
+  Smartphone
+} from 'lucide-react'
 import { getSipUsers, makeOutgoingCall, getOutgoingCallStatus, cancelOutgoingCall, hangupOutgoingCall, getCallHistory, type SipUser, type SipCall } from '@/api/sip'
 import { useI18nStore } from '@/stores/i18nStore'
 import Button from '@/components/UI/Button'
 import { showAlert } from '@/utils/notification'
+import SchemeManager from './SchemeManager'
+import PhoneNumberManager from './PhoneNumberManager'
+import VoicemailBox from './VoicemailBox'
+
+type TabType = 'call' | 'schemes' | 'numbers' | 'voicemail'
 
 const CallCenter = () => {
   const { t } = useI18nStore()
+  const [activeTab, setActiveTab] = useState<TabType>('call')
   const [sipUsers, setSipUsers] = useState<SipUser[]>([])
   const [selectedUser, setSelectedUser] = useState<SipUser | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
@@ -16,6 +35,14 @@ const CallCenter = () => {
   const [callStatus, setCallStatus] = useState<string>('')
   const [callHistory, setCallHistory] = useState<SipCall[]>([])
   const [showHistory, setShowHistory] = useState(false)
+
+  // Tab 配置
+  const tabs = [
+    { id: 'call' as TabType, name: '通话控制', icon: PhoneCall },
+    { id: 'schemes' as TabType, name: '代接方案', icon: Settings },
+    { id: 'numbers' as TabType, name: '号码管理', icon: Smartphone },
+    { id: 'voicemail' as TabType, name: '留言箱', icon: Mail },
+  ]
 
   // 加载SIP用户列表
   useEffect(() => {
@@ -177,15 +204,94 @@ const CallCenter = () => {
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
+      {/* Header */}
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">
           {t('callCenter.title')}
         </h1>
         <p className="text-gray-600 dark:text-gray-400">
-          {t('callCenter.subtitle')}
+          通话控制、AI代接方案、号码管理和留言箱
         </p>
       </div>
 
+      {/* Tabs */}
+      <div className="mb-6 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex gap-1">
+          {tabs.map((tab) => {
+            const Icon = tab.icon
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`
+                  flex items-center gap-2 px-4 py-3 font-medium text-sm rounded-t-lg transition-all
+                  ${activeTab === tab.id
+                    ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                  }
+                `}
+              >
+                <Icon className="w-4 h-4" />
+                {tab.name}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Tab Content */}
+      <div className="mt-6">
+        {activeTab === 'call' && (
+          <CallControlTab
+            sipUsers={sipUsers}
+            selectedUser={selectedUser}
+            setSelectedUser={setSelectedUser}
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
+            loading={loading}
+            calling={calling}
+            currentCallId={currentCallId}
+            callStatus={callStatus}
+            callHistory={callHistory}
+            showHistory={showHistory}
+            setShowHistory={setShowHistory}
+            handleMakeCall={handleMakeCall}
+            handleCancelCall={handleCancelCall}
+            filteredUsers={filteredUsers}
+            getStatusBadge={getStatusBadge}
+            t={t}
+          />
+        )}
+        {activeTab === 'schemes' && <SchemeManager />}
+        {activeTab === 'numbers' && <PhoneNumberManager />}
+        {activeTab === 'voicemail' && <VoicemailBox />}
+      </div>
+    </div>
+  )
+}
+
+// 通话控制 Tab 组件
+const CallControlTab = ({
+  sipUsers,
+  selectedUser,
+  setSelectedUser,
+  searchTerm,
+  setSearchTerm,
+  loading,
+  calling,
+  currentCallId,
+  callStatus,
+  callHistory,
+  showHistory,
+  setShowHistory,
+  handleMakeCall,
+  handleCancelCall,
+  filteredUsers,
+  getStatusBadge,
+  t
+}: any) => {
+  return (
+    <>
       {/* 主操作区域 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
         {/* 用户选择区域 */}
@@ -375,7 +481,7 @@ const CallCenter = () => {
           </div>
         )}
       </div>
-    </div>
+    </>
   )
 }
 

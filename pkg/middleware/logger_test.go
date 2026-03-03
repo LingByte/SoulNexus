@@ -16,35 +16,36 @@ import (
 func TestLoggerMiddleware_Basic(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	// 捕获 zap 日志
+	// Capture zap logs
 	core, recorded := observer.New(zapcore.InfoLevel)
 	logger := zap.New(core)
 
 	r := gin.New()
 	r.Use(LoggerMiddleware(logger))
 
-	// 模拟业务 handler：写入 201 状态码
-	r.GET("/hello", func(c *gin.Context) {
-		// 模拟一些处理耗时
+	// Mock business handler: write 201 status code
+	// Use POST instead of GET since LoggerMiddleware filters GET requests
+	r.POST("/hello", func(c *gin.Context) {
+		// Simulate some processing time
 		time.Sleep(5 * time.Millisecond)
 		c.String(http.StatusCreated, "created")
 	})
 
-	// 构造请求
+	// Construct request
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/hello?a=1&b=2", nil)
+	req := httptest.NewRequest("POST", "/hello?a=1&b=2", nil)
 	req.Header.Set("User-Agent", "UnitTestUA/1.0")
-	// 为了 ClientIP 可控，设置代理头（gin.ClientIP 会优先取 X-Forwarded-For）
+	// For controllable ClientIP, set proxy header (gin.ClientIP prioritizes X-Forwarded-For)
 	req.Header.Set("X-Forwarded-For", "203.0.113.1")
 
-	// 发起请求
+	// Send request
 	r.ServeHTTP(w, req)
 
-	// 断言响应（确保 c.Next() 之后才记录日志）
+	// Assert response (ensure logging happens after c.Next())
 	assert.Equal(t, http.StatusCreated, w.Code)
 	assert.Equal(t, "created", w.Body.String())
 
-	// 拿到一条日志
+	// Get one log entry
 	entries := recorded.All()
 	if !assert.Equal(t, 1, len(entries), "should log exactly one entry") {
 		t.FailNow()
@@ -52,24 +53,24 @@ func TestLoggerMiddleware_Basic(t *testing.T) {
 	entry := entries[0]
 	assert.Equal(t, "Request", entry.Message)
 
-	// 将字段转成 map 方便断言
+	// Convert fields to map for easier assertion
 	fields := map[string]zapcore.Field{}
 	for _, f := range entry.Context {
 		fields[f.Key] = f
 	}
 
-	// 基本字段断言
+	// Basic field assertions
 	if f, ok := fields["status"]; assert.True(t, ok) {
 		assert.Equal(t, int64(http.StatusCreated), f.Integer)
 	}
 	if f, ok := fields["method"]; assert.True(t, ok) {
-		assert.Equal(t, "GET", f.String)
+		assert.Equal(t, "POST", f.String)
 	}
 	if f, ok := fields["path"]; assert.True(t, ok) {
 		assert.Equal(t, "/hello", f.String)
 	}
 	if f, ok := fields["query"]; assert.True(t, ok) {
-		// RawQuery 不保证顺序，这里只校验包含关系
+		// RawQuery doesn't guarantee order, only check containment
 		assert.Contains(t, f.String, "a=1")
 		assert.Contains(t, f.String, "b=2")
 	}
@@ -79,7 +80,7 @@ func TestLoggerMiddleware_Basic(t *testing.T) {
 	if f, ok := fields["user-agent"]; assert.True(t, ok) {
 		assert.Equal(t, "UnitTestUA/1.0", f.String)
 	}
-	// latency 为 DurationType，单位 ns，>0 即可
+	// latency is DurationType, unit ns, >0 is sufficient
 	if f, ok := fields["latency"]; assert.True(t, ok) {
 		assert.Greater(t, f.Integer, int64(0))
 		assert.Equal(t, zapcore.DurationType, f.Type)
@@ -94,12 +95,12 @@ func TestLoggerMiddleware_NoQuery_NoUA_DefaultIP(t *testing.T) {
 
 	r := gin.New()
 	r.Use(LoggerMiddleware(logger))
-	r.GET("/ping", func(c *gin.Context) {
+	r.POST("/ping", func(c *gin.Context) {
 		c.Status(http.StatusOK)
 	})
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/ping", nil) // 无 query/UA/IP 头
+	req := httptest.NewRequest("POST", "/ping", nil) // No query/UA/IP headers
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
@@ -112,21 +113,21 @@ func TestLoggerMiddleware_NoQuery_NoUA_DefaultIP(t *testing.T) {
 		fields[f.Key] = f
 	}
 
-	// 基本健壮性校验
+	// Basic robustness checks
 	if f, ok := fields["path"]; assert.True(t, ok) {
 		assert.Equal(t, "/ping", f.String)
 	}
 	if f, ok := fields["query"]; assert.True(t, ok) {
-		assert.Equal(t, "", f.String) // 无 query
+		assert.Equal(t, "", f.String) // No query
 	}
 	if f, ok := fields["user-agent"]; assert.True(t, ok) {
-		// httptest 默认会给个 UA，也可能为空；仅校验字段存在
+		// httptest may provide default UA or empty; just check field exists
 		_ = f.String
 	}
-	// IP 可能是空或 127.0.0.1 / ::1，按存在性和不崩溃为准
+	// IP might be empty or 127.0.0.1 / ::1, check existence and no crash
 	_, ipExists := fields["ip"]
 	assert.True(t, ipExists)
-	// latency 仍需 >0
+	// latency still needs >0
 	if f, ok := fields["latency"]; assert.True(t, ok) {
 		assert.Greater(t, f.Integer, int64(0))
 	}

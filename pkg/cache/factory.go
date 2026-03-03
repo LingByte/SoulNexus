@@ -13,7 +13,7 @@ const (
 	KindRedis   = "redis"   // redis
 )
 
-// NewCache 创建缓存实例
+// NewCache creates a cache instance based on configuration
 func NewCache(config Config) (Cache, error) {
 	switch strings.ToLower(config.Type) {
 	case KindLocal:
@@ -27,13 +27,13 @@ func NewCache(config Config) (Cache, error) {
 	}
 }
 
-// NewCacheWithOptions 创建带选项的缓存实例
+// NewCacheWithOptions creates a cache instance with additional options
 func NewCacheWithOptions(config Config, options *Options) (Cache, error) {
 	if options == nil {
 		options = DefaultOptions()
 	}
 
-	// 如果启用本地缓存作为一级缓存，创建分层缓存
+	// If local cache is enabled as L1 cache, create layered cache
 	if options.UseLocalCache && config.Type != "local" && config.Type != "gocache" {
 		return NewLayeredCache(config, options)
 	}
@@ -41,9 +41,9 @@ func NewCacheWithOptions(config Config, options *Options) (Cache, error) {
 	return NewCache(config)
 }
 
-// NewLayeredCache 创建分层缓存（本地缓存 + 分布式缓存）
+// NewLayeredCache creates a layered cache (local cache + distributed cache)
 func NewLayeredCache(config Config, options *Options) (Cache, error) {
-	// 创建本地缓存作为一级缓存
+	// Create local cache as L1 cache
 	localConfig := config.Local
 	if options.LocalExpiration > 0 {
 		localConfig.DefaultExpiration = options.LocalExpiration
@@ -51,7 +51,7 @@ func NewLayeredCache(config Config, options *Options) (Cache, error) {
 
 	localCache := NewLocalCache(localConfig)
 
-	// 创建分布式缓存作为二级缓存
+	// Create distributed cache as L2 cache
 	var distributedCache Cache
 	var err error
 
@@ -72,23 +72,23 @@ func NewLayeredCache(config Config, options *Options) (Cache, error) {
 	}, nil
 }
 
-// layeredCache 分层缓存实现
+// layeredCache implements layered caching strategy
 type layeredCache struct {
 	local       Cache
 	distributed Cache
 	options     *Options
 }
 
-// Get 从本地缓存获取，如果没有则从分布式缓存获取并回填本地缓存
+// Get retrieves from local cache first, then from distributed cache and backfills local cache
 func (lc *layeredCache) Get(ctx context.Context, key string) (interface{}, bool) {
-	// 先从本地缓存获取
+	// Try local cache first
 	if value, exists := lc.local.Get(ctx, key); exists {
 		return value, true
 	}
 
-	// 从分布式缓存获取
+	// Get from distributed cache
 	if value, exists := lc.distributed.Get(ctx, key); exists {
-		// 回填到本地缓存
+		// Backfill to local cache
 		lc.local.Set(ctx, key, value, lc.options.LocalExpiration)
 		return value, true
 	}
@@ -96,55 +96,55 @@ func (lc *layeredCache) Get(ctx context.Context, key string) (interface{}, bool)
 	return nil, false
 }
 
-// Set 同时设置到本地和分布式缓存
+// Set stores to both local and distributed cache
 func (lc *layeredCache) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error {
-	// 设置到分布式缓存
+	// Set to distributed cache
 	if err := lc.distributed.Set(ctx, key, value, expiration); err != nil {
 		return err
 	}
 
-	// 设置到本地缓存
+	// Set to local cache
 	return lc.local.Set(ctx, key, value, lc.options.LocalExpiration)
 }
 
-// Delete 从两个缓存层删除
+// Delete removes from both cache layers
 func (lc *layeredCache) Delete(ctx context.Context, key string) error {
-	// 删除本地缓存
+	// Delete from local cache
 	if err := lc.local.Delete(ctx, key); err != nil {
 		return err
 	}
 
-	// 删除分布式缓存
+	// Delete from distributed cache
 	return lc.distributed.Delete(ctx, key)
 }
 
-// Exists 检查键是否存在
+// Exists checks if key exists in either cache layer
 func (lc *layeredCache) Exists(ctx context.Context, key string) bool {
 	return lc.local.Exists(ctx, key) || lc.distributed.Exists(ctx, key)
 }
 
-// Clear 清空两个缓存层
+// Clear removes all entries from both cache layers
 func (lc *layeredCache) Clear(ctx context.Context) error {
-	// 清空本地缓存
+	// Clear local cache
 	if err := lc.local.Clear(ctx); err != nil {
 		return err
 	}
 
-	// 清空分布式缓存
+	// Clear distributed cache
 	return lc.distributed.Clear(ctx)
 }
 
-// GetMulti 批量获取
+// GetMulti retrieves multiple values by keys
 func (lc *layeredCache) GetMulti(ctx context.Context, keys ...string) map[string]interface{} {
 	result := make(map[string]interface{})
 
-	// 先从本地缓存获取
+	// Get from local cache first
 	localResult := lc.local.GetMulti(ctx, keys...)
 	for key, value := range localResult {
 		result[key] = value
 	}
 
-	// 查找本地缓存中没有的键
+	// Find keys missing from local cache
 	missingKeys := make([]string, 0)
 	for _, key := range keys {
 		if _, exists := result[key]; !exists {
@@ -152,12 +152,12 @@ func (lc *layeredCache) GetMulti(ctx context.Context, keys ...string) map[string
 		}
 	}
 
-	// 从分布式缓存获取缺失的键
+	// Get missing keys from distributed cache
 	if len(missingKeys) > 0 {
 		distributedResult := lc.distributed.GetMulti(ctx, missingKeys...)
 		for key, value := range distributedResult {
 			result[key] = value
-			// 回填到本地缓存
+			// Backfill to local cache
 			lc.local.Set(ctx, key, value, lc.options.LocalExpiration)
 		}
 	}
@@ -165,64 +165,64 @@ func (lc *layeredCache) GetMulti(ctx context.Context, keys ...string) map[string
 	return result
 }
 
-// SetMulti 批量设置
+// SetMulti stores multiple key-value pairs to both cache layers
 func (lc *layeredCache) SetMulti(ctx context.Context, data map[string]interface{}, expiration time.Duration) error {
-	// 设置到分布式缓存
+	// Set to distributed cache
 	if err := lc.distributed.SetMulti(ctx, data, expiration); err != nil {
 		return err
 	}
 
-	// 设置到本地缓存
+	// Set to local cache
 	return lc.local.SetMulti(ctx, data, lc.options.LocalExpiration)
 }
 
-// DeleteMulti 批量删除
+// DeleteMulti removes multiple keys from both cache layers
 func (lc *layeredCache) DeleteMulti(ctx context.Context, keys ...string) error {
-	// 删除本地缓存
+	// Delete from local cache
 	if err := lc.local.DeleteMulti(ctx, keys...); err != nil {
 		return err
 	}
 
-	// 删除分布式缓存
+	// Delete from distributed cache
 	return lc.distributed.DeleteMulti(ctx, keys...)
 }
 
-// Increment 自增
+// Increment increments a numeric value in distributed cache and updates local cache
 func (lc *layeredCache) Increment(ctx context.Context, key string, value int64) (int64, error) {
-	// 分布式缓存的Increment操作
+	// Increment in distributed cache
 	result, err := lc.distributed.Increment(ctx, key, value)
 	if err != nil {
 		return 0, err
 	}
 
-	// 更新本地缓存
+	// Update local cache
 	lc.local.Set(ctx, key, result, lc.options.LocalExpiration)
 	return result, nil
 }
 
-// Decrement 自减
+// Decrement decrements a numeric value in distributed cache and updates local cache
 func (lc *layeredCache) Decrement(ctx context.Context, key string, value int64) (int64, error) {
-	// 分布式缓存的Decrement操作
+	// Decrement in distributed cache
 	result, err := lc.distributed.Decrement(ctx, key, value)
 	if err != nil {
 		return 0, err
 	}
 
-	// 更新本地缓存
+	// Update local cache
 	lc.local.Set(ctx, key, result, lc.options.LocalExpiration)
 	return result, nil
 }
 
-// GetWithTTL 获取值和TTL
+// GetWithTTL retrieves value and TTL from cache layers
 func (lc *layeredCache) GetWithTTL(ctx context.Context, key string) (interface{}, time.Duration, bool) {
-	// 先从本地缓存获取
+	// Try local cache first
 	if value, ttl, exists := lc.local.GetWithTTL(ctx, key); exists {
 		return value, ttl, true
 	}
 
-	// 从分布式缓存获取
+	// Get from distributed cache
 	if value, ttl, exists := lc.distributed.GetWithTTL(ctx, key); exists {
-		// 回填到本地缓存
+		// Backfill to local cache
 		lc.local.Set(ctx, key, value, lc.options.LocalExpiration)
 		return value, ttl, true
 	}
@@ -230,13 +230,13 @@ func (lc *layeredCache) GetWithTTL(ctx context.Context, key string) (interface{}
 	return nil, 0, false
 }
 
-// Close 关闭缓存连接
+// Close closes connections for both cache layers
 func (lc *layeredCache) Close() error {
-	// 关闭本地缓存
+	// Close local cache
 	if err := lc.local.Close(); err != nil {
 		return err
 	}
 
-	// 关闭分布式缓存
+	// Close distributed cache
 	return lc.distributed.Close()
 }

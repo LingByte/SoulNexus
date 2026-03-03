@@ -19,6 +19,19 @@ export const assistant: Record<Language, Record<string, string>> = {
     'assistants.emptyState.createButton': '创建第一个助手',
     'assistants.groupShared': '组织共享',
     'assistants.noDescription': '暂无描述',
+    'assistants.clickToEnter': '点击进入',
+
+    // 新增助手模态框
+    'assistants.name': '助手名称',
+    'assistants.namePlaceholder': '请输入助手名称',
+    'assistants.description': '助手描述',
+    'assistants.descriptionPlaceholder': '请输入助手描述',
+    'assistants.selectIcon': '选择图标',
+    'assistants.shareToGroup': '共享到组织（所有组织成员都可以使用）',
+    'assistants.selectGroup': '选择组织',
+    'assistants.save': '保存助手',
+    'assistants.validation.nameRequired': '请输入助手名称',
+    'assistants.validation.descriptionRequired': '请输入助手描述',
 
     // AssistantTools 页面
     'assistantTools.title': '工具管理',
@@ -166,6 +179,19 @@ export const assistant: Record<Language, Record<string, string>> = {
     'assistants.emptyState.createButton': 'Create First Assistant',
     'assistants.groupShared': 'Organization Shared',
     'assistants.noDescription': 'No description',
+    'assistants.clickToEnter': 'Click to Enter',
+
+    // Add Assistant Modal
+    'assistants.name': 'Assistant Name',
+    'assistants.namePlaceholder': 'Please enter assistant name',
+    'assistants.description': 'Assistant Description',
+    'assistants.descriptionPlaceholder': 'Please enter assistant description',
+    'assistants.selectIcon': 'Select Icon',
+    'assistants.shareToGroup': 'Share to Organization (all members can use)',
+    'assistants.selectGroup': 'Select Organization',
+    'assistants.save': 'Save Assistant',
+    'assistants.validation.nameRequired': 'Please enter assistant name',
+    'assistants.validation.descriptionRequired': 'Please enter assistant description',
 
     // AssistantTools Page
     'assistantTools.title': 'Tool Management',
@@ -240,6 +266,19 @@ export const assistant: Record<Language, Record<string, string>> = {
     'assistants.emptyState.createButton': '最初のアシスタントを作成',
     'assistants.groupShared': '組織共有',
     'assistants.noDescription': '説明なし',
+    'assistants.clickToEnter': 'クリックして入る',
+
+    // アシスタント追加モーダル
+    'assistants.name': 'アシスタント名',
+    'assistants.namePlaceholder': 'アシスタント名を入力してください',
+    'assistants.description': 'アシスタント説明',
+    'assistants.descriptionPlaceholder': 'アシスタント説明を入力してください',
+    'assistants.selectIcon': 'アイコンを選択',
+    'assistants.shareToGroup': '組織に共有（すべてのメンバーが使用可能）',
+    'assistants.selectGroup': '組織を選択',
+    'assistants.save': 'アシスタントを保存',
+    'assistants.validation.nameRequired': 'アシスタント名を入力してください',
+    'assistants.validation.descriptionRequired': 'アシスタント説明を入力してください',
 
     // アシスタントメッセージ
     'assistants.messages.fetchFailed': 'アシスタントリストの取得に失敗しました',

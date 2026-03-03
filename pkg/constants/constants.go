@@ -1,11 +1,13 @@
 package constants
 
 const (
-	USER_TABLE_NAME            = "users"
-	USER_CREDENTIAL_TABLE_NAME = "user_credentials"
-	USER_DEVICE_TABLE_NAME     = "user_devices"
-	LOGIN_HISTORY_TABLE_NAME   = "login_histories"
-	ACCOUNT_LOCK_TABLE_NAME    = "account_locks"
+	USER_TABLE_NAME             = "users"
+	USER_CREDENTIAL_TABLE_NAME  = "user_credentials"
+	USER_DEVICE_TABLE_NAME      = "user_devices"
+	LOGIN_HISTORY_TABLE_NAME    = "login_histories"
+	ACCOUNT_LOCK_TABLE_NAME     = "account_locks"
+	CALL_RECORDING_TABLE_NAME   = "call_recordings"
+	DEVICE_ERROR_LOG_TABLE_NAME = "device_error_logs"
 )
 
 // Default Value: 1024
@@ -65,6 +67,10 @@ const KEY_SEARCH_INDEX_SCHEDULE = "SEARCH_INDEX_SCHEDULE"
 // Voice clone configuration keys
 const KEY_VOICE_CLONE_XUNFEI_CONFIG = "VOICE_CLONE_XUNFEI_CONFIG"
 const KEY_VOICE_CLONE_VOLCENGINE_CONFIG = "VOICE_CLONE_VOLCENGINE_CONFIG"
+
+// Voiceprint recognition configuration keys
+const KEY_VOICEPRINT_ENABLED = "VOICEPRINT_ENABLED"
+const KEY_VOICEPRINT_CONFIG = "VOICEPRINT_CONFIG"
 
 // OTA and device configuration keys
 const KEY_SERVER_WEBSOCKET = "server.websocket"

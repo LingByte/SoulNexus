@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Bot, MessageCircle, Users, Zap, Circle, Building2 } from 'lucide-react'
+import { Bot, MessageCircle, Users, Zap, Circle, Building2, AlertCircle } from 'lucide-react'
 import { cn } from '@/utils/cn'
 import { getGroupList, type Group } from '@/api/group'
 import { useAuthStore } from '@/stores/authStore'
+import { useI18nStore } from '@/stores/i18nStore'
+import Button from '@/components/UI/Button'
 
 interface AddAssistantModalProps {
   isOpen: boolean
@@ -25,16 +27,19 @@ const AddAssistantModal: React.FC<AddAssistantModalProps> = ({
   onAdd
 }) => {
   const { user } = useAuthStore()
+  const { t } = useI18nStore()
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [selectedIcon, setSelectedIcon] = useState('Bot')
   const [groups, setGroups] = useState<Group[]>([])
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null)
   const [shareToGroup, setShareToGroup] = useState(false)
+  const [errors, setErrors] = useState<{ name?: string; description?: string }>({})
 
   useEffect(() => {
     if (isOpen) {
       fetchGroups()
+      setErrors({})
     }
   }, [isOpen])
 
@@ -42,18 +47,34 @@ const AddAssistantModal: React.FC<AddAssistantModalProps> = ({
     try {
       const res = await getGroupList()
       // 只显示用户是创建者或管理员的组织
-      const adminGroups = res.data.filter(g => {
+      const adminGroups = (res.data || []).filter(g => {
         const userId = user?.id ? Number(user.id) : null
         return g.creatorId === userId || g.myRole === 'admin'
       })
       setGroups(adminGroups)
     } catch (err) {
       console.error('获取组织列表失败', err)
+      setGroups([])
     }
   }
 
+  const validateForm = () => {
+    const newErrors: { name?: string; description?: string } = {}
+    
+    if (!name.trim()) {
+      newErrors.name = t('assistants.validation.nameRequired') || '请输入助手名称'
+    }
+    
+    if (!description.trim()) {
+      newErrors.description = t('assistants.validation.descriptionRequired') || '请输入助手描述'
+    }
+    
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }
+
   const handleSubmit = () => {
-    if (!name || !description) return
+    if (!validateForm()) return
     
     onAdd({
       name,
@@ -68,6 +89,7 @@ const AddAssistantModal: React.FC<AddAssistantModalProps> = ({
     setSelectedIcon('Bot')
     setShareToGroup(false)
     setSelectedGroupId(null)
+    setErrors({})
     onClose()
   }
 
@@ -79,55 +101,101 @@ const AddAssistantModal: React.FC<AddAssistantModalProps> = ({
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9 }}
-            className="bg-white dark:bg-neutral-800 p-6 rounded-xl max-w-md w-full mx-4"
+            className="bg-white dark:bg-neutral-800 p-6 rounded-xl max-w-md w-full mx-4 shadow-xl"
           >
-            <h3 className="text-lg font-semibold mb-4">添加自定义助手</h3>
+            <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">
+              {t('assistants.add')}
+            </h3>
             
             <div className="space-y-4">
+              {/* 助手名称 */}
               <div>
-                <label className="text-sm text-gray-500">助手名称</label>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">
+                  {t('assistants.name') || '助手名称'}
+                </label>
                 <input
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full p-2 mt-1 border rounded-lg dark:bg-neutral-700 dark:border-neutral-600"
-                  placeholder="请输入助手名称"
+                  onChange={(e) => {
+                    setName(e.target.value)
+                    if (errors.name) {
+                      setErrors({ ...errors, name: undefined })
+                    }
+                  }}
+                  className={cn(
+                    'w-full px-3 py-2 border rounded-lg dark:bg-neutral-700 dark:border-neutral-600 transition-colors',
+                    errors.name 
+                      ? 'border-red-500 dark:border-red-500 bg-red-50 dark:bg-red-900/10' 
+                      : 'border-gray-300 dark:border-neutral-600'
+                  )}
+                  placeholder={t('assistants.namePlaceholder') || '请输入助手名称'}
                 />
+                {errors.name && (
+                  <div className="flex items-center gap-1 mt-1 text-red-600 dark:text-red-400 text-xs">
+                    <AlertCircle className="w-3 h-3" />
+                    {errors.name}
+                  </div>
+                )}
               </div>
               
+              {/* 助手描述 */}
               <div>
-                <label className="text-sm text-gray-500">助手描述</label>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">
+                  {t('assistants.description') || '助手描述'}
+                </label>
                 <textarea
                   value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  className="w-full p-2 mt-1 border rounded-lg dark:bg-neutral-700 dark:border-neutral-600"
+                  onChange={(e) => {
+                    setDescription(e.target.value)
+                    if (errors.description) {
+                      setErrors({ ...errors, description: undefined })
+                    }
+                  }}
+                  className={cn(
+                    'w-full px-3 py-2 border rounded-lg dark:bg-neutral-700 dark:border-neutral-600 transition-colors resize-none',
+                    errors.description 
+                      ? 'border-red-500 dark:border-red-500 bg-red-50 dark:bg-red-900/10' 
+                      : 'border-gray-300 dark:border-neutral-600'
+                  )}
                   rows={2}
-                  placeholder="请输入助手描述"
+                  placeholder={t('assistants.descriptionPlaceholder') || '请输入助手描述'}
                 />
+                {errors.description && (
+                  <div className="flex items-center gap-1 mt-1 text-red-600 dark:text-red-400 text-xs">
+                    <AlertCircle className="w-3 h-3" />
+                    {errors.description}
+                  </div>
+                )}
               </div>
               
+              {/* 选择图标 */}
               <div>
-                <label className="text-sm text-gray-500">选择图标</label>
-                <div className="grid grid-cols-5 gap-2 mt-2">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-2">
+                  {t('assistants.selectIcon') || '选择图标'}
+                </label>
+                <div className="grid grid-cols-5 gap-2">
                   {Object.keys(ICON_MAP).map(iconName => (
-                    <button
+                    <motion.button
                       key={iconName}
                       onClick={() => setSelectedIcon(iconName)}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
                       className={cn(
-                        'p-2 rounded-lg transition-colors',
+                        'p-2 rounded-lg transition-all duration-200 flex items-center justify-center',
                         selectedIcon === iconName
-                          ? 'bg-purple-100 dark:bg-neutral-700'
-                          : 'hover:bg-gray-100 dark:hover:bg-neutral-600'
+                          ? 'bg-purple-500 text-white shadow-md' 
+                          : 'bg-gray-100 dark:bg-neutral-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-neutral-600'
                       )}
                     >
                       {ICON_MAP[iconName as keyof typeof ICON_MAP]}
-                    </button>
+                    </motion.button>
                   ))}
                 </div>
               </div>
 
+              {/* 共享到组织 */}
               {groups.length > 0 && (
-                <div>
-                  <label className="flex items-center gap-2 text-sm text-gray-500 cursor-pointer">
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={shareToGroup}
@@ -139,20 +207,20 @@ const AddAssistantModal: React.FC<AddAssistantModalProps> = ({
                           setSelectedGroupId(groups[0].id)
                         }
                       }}
-                      className="w-4 h-4 rounded border-gray-300 dark:border-neutral-600"
+                      className="w-4 h-4 rounded border-gray-300 dark:border-neutral-600 cursor-pointer"
                     />
                     <span className="flex items-center gap-1">
                       <Building2 className="w-4 h-4" />
-                      共享到组织（所有组织成员都可以使用）
+                      {t('assistants.shareToGroup') || '共享到组织'}
                     </span>
                   </label>
                   {shareToGroup && (
                     <select
                       value={selectedGroupId || ''}
                       onChange={(e) => setSelectedGroupId(e.target.value ? Number(e.target.value) : null)}
-                      className="w-full p-2 mt-2 border rounded-lg dark:bg-neutral-700 dark:border-neutral-600"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg dark:bg-neutral-700 dark:text-gray-100"
                     >
-                      <option value="">选择组织</option>
+                      <option value="">{t('assistants.selectGroup') || '选择组织'}</option>
                       {groups.map(group => (
                         <option key={group.id} value={group.id}>
                           {group.name}
@@ -163,19 +231,22 @@ const AddAssistantModal: React.FC<AddAssistantModalProps> = ({
                 </div>
               )}
               
-              <div className="flex justify-end space-x-4">
-                <button
+              {/* 操作按钮 */}
+              <div className="flex justify-end gap-3 pt-2">
+                <Button
                   onClick={onClose}
-                  className="px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-700 rounded-lg"
+                  variant="ghost"
+                  size="md"
                 >
-                  取消
-                </button>
-                <button
+                  {t('common.cancel') || '取消'}
+                </Button>
+                <Button
                   onClick={handleSubmit}
-                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                  variant="primary"
+                  size="md"
                 >
-                  保存助手
-                </button>
+                  {t('assistants.save') || '保存助手'}
+                </Button>
               </div>
             </div>
           </motion.div>

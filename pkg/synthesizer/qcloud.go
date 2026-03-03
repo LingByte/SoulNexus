@@ -94,7 +94,6 @@ func (qs *QCloudService) CacheKey(text string) string {
 
 func (qs *QCloudService) Synthesize(ctx context.Context, handler SynthesisHandler, text string) error {
 	qs.mu.Lock()
-	// 创建临时配置以避免在合成过程中被修改
 	opt := qs.opt
 	qs.mu.Unlock()
 
@@ -111,7 +110,21 @@ func (qs *QCloudService) Synthesize(ctx context.Context, handler SynthesisHandle
 	if err != nil {
 		return err
 	}
-	return synthesizer.Wait()
+	err = synthesizer.Wait()
+	if err != nil {
+		return err
+	}
+
+	// 检查是否有 OnFail 错误
+	ttsReq.mu.Lock()
+	failErr := ttsReq.err
+	ttsReq.mu.Unlock()
+
+	if failErr != nil {
+		return failErr
+	}
+
+	return nil
 }
 
 func (qs *QCloudService) Close() error {
@@ -120,6 +133,8 @@ func (qs *QCloudService) Close() error {
 
 type qcloudSpeechSynthesisListener struct {
 	handler SynthesisHandler
+	err     error
+	mu      sync.Mutex
 }
 
 func (q *qcloudSpeechSynthesisListener) OnCancel(*tts.SpeechSynthesisResponse) {
@@ -131,7 +146,10 @@ func (q *qcloudSpeechSynthesisListener) OnComplete(*tts.SpeechSynthesisResponse)
 }
 
 func (q *qcloudSpeechSynthesisListener) OnFail(_ *tts.SpeechSynthesisResponse, err error) {
-	logrus.WithFields(logrus.Fields{}).WithError(err).Info("qcloud tts: fail")
+	logrus.WithFields(logrus.Fields{}).WithError(err).Error("qcloud tts: fail")
+	q.mu.Lock()
+	q.err = err
+	q.mu.Unlock()
 }
 
 func (q *qcloudSpeechSynthesisListener) OnMessage(resp *tts.SpeechSynthesisResponse) {

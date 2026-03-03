@@ -11,23 +11,23 @@ import (
 	"go.uber.org/zap"
 )
 
-// RegistrationGuard 注册防护服务
+// RegistrationGuard registration protection service
 type RegistrationGuard struct {
-	// IP限流配置
-	maxRegistrationsPerIP  int           // 每个IP在时间窗口内允许的最大注册次数
-	ipRateLimitWindow      time.Duration // IP限流时间窗口
-	maxFailedAttemptsPerIP int           // 每个IP允许的最大失败尝试次数
-	failedAttemptWindow    time.Duration // 失败尝试时间窗口
+	// IP rate limiting configuration
+	maxRegistrationsPerIP  int           // Maximum registrations allowed per IP within time window
+	ipRateLimitWindow      time.Duration // IP rate limiting time window
+	maxFailedAttemptsPerIP int           // Maximum failed attempts allowed per IP
+	failedAttemptWindow    time.Duration // Failed attempt time window
 
-	// 邮箱验证配置
-	emailDomainBlacklist   []string // 邮箱域名黑名单
-	disposableEmailDomains []string // 临时邮箱域名列表
+	// Email validation configuration
+	emailDomainBlacklist   []string // Email domain blacklist
+	disposableEmailDomains []string // Disposable email domain list
 
-	// 密码强度配置
-	minPasswordLength  int  // 最小密码长度
-	requireUppercase   bool // 是否需要大写字母
-	requireLowercase   bool // 是否需要小写字母
-	requireNumber      bool // 是否需要数字
+	// Password strength configuration
+	minPasswordLength  int  // Minimum password length
+	requireUppercase   bool // Whether uppercase letters are required
+	requireLowercase   bool // Whether lowercase letters are required
+	requireNumber      bool // Whether numbers are required
 	requireSpecialChar bool // 是否需要特殊字符
 
 	// IP黑名单配置

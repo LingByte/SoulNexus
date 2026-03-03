@@ -4,17 +4,20 @@ package workflow
 type NodeType string
 
 const (
-	NodeTypeStart     NodeType = "start"
-	NodeTypeEnd       NodeType = "end"
-	NodeTypeTask      NodeType = "task"
-	NodeTypeGateway   NodeType = "gateway"
-	NodeTypeEvent     NodeType = "event"
-	NodeTypeSubflow   NodeType = "subflow"
-	NodeTypeCondition NodeType = "condition"
-	NodeTypeParallel  NodeType = "parallel"
-	NodeTypeWait      NodeType = "wait"
-	NodeTypeTimer     NodeType = "timer"
-	NodeTypeScript    NodeType = "script"
+	NodeTypeStart          NodeType = "start"
+	NodeTypeEnd            NodeType = "end"
+	NodeTypeTask           NodeType = "task"
+	NodeTypeGateway        NodeType = "gateway"
+	NodeTypeEvent          NodeType = "event"
+	NodeTypeSubflow        NodeType = "subflow"
+	NodeTypeCondition      NodeType = "condition"
+	NodeTypeParallel       NodeType = "parallel"
+	NodeTypeWait           NodeType = "wait"
+	NodeTypeTimer          NodeType = "timer"
+	NodeTypeScript         NodeType = "script"
+	NodeTypePlugin         NodeType = "plugin"
+	NodeTypeWorkflowPlugin NodeType = "workflow_plugin"
+	NodeTypeAIChat         NodeType = "ai_chat"
 )
 
 func (nt NodeType) String() string {

@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// handleGetMiddlewareStats 获取中间件统计信息
+// handleGetMiddlewareStats retrieves middleware statistics
 func (h *Handlers) handleGetMiddlewareStats(c *gin.Context) {
 	stats := middleware.GetGlobalMiddlewareStats()
 
@@ -16,7 +16,7 @@ func (h *Handlers) handleGetMiddlewareStats(c *gin.Context) {
 	})
 }
 
-// handleUpdateRateLimitConfig 更新限流配置
+// handleUpdateRateLimitConfig updates rate limiting configuration
 func (h *Handlers) handleUpdateRateLimitConfig(c *gin.Context) {
 	var cfg config.RateLimiterConfig
 	if err := c.ShouldBindJSON(&cfg); err != nil {
@@ -30,7 +30,7 @@ func (h *Handlers) handleUpdateRateLimitConfig(c *gin.Context) {
 	response.Success(c, "Rate limit configuration updated successfully", nil)
 }
 
-// handleUpdateTimeoutConfig 更新超时配置
+// handleUpdateTimeoutConfig updates timeout configuration
 func (h *Handlers) handleUpdateTimeoutConfig(c *gin.Context) {
 	var cfg config.TimeoutConfig
 	if err := c.ShouldBindJSON(&cfg); err != nil {
@@ -44,7 +44,7 @@ func (h *Handlers) handleUpdateTimeoutConfig(c *gin.Context) {
 	response.Success(c, "Timeout configuration updated successfully", nil)
 }
 
-// handleUpdateCircuitBreakerConfig 更新熔断器配置
+// handleUpdateCircuitBreakerConfig updates circuit breaker configuration
 func (h *Handlers) handleUpdateCircuitBreakerConfig(c *gin.Context) {
 	var cfg config.CircuitBreakerConfig
 	if err := c.ShouldBindJSON(&cfg); err != nil {
@@ -58,14 +58,14 @@ func (h *Handlers) handleUpdateCircuitBreakerConfig(c *gin.Context) {
 	response.Success(c, "Circuit breaker configuration updated successfully", nil)
 }
 
-// registerMiddlewareRoutes 注册中间件相关路由
+// registerMiddlewareRoutes registers middleware-related routes
 func (h *Handlers) registerMiddlewareRoutes(r *gin.RouterGroup) {
 	middleware := r.Group("/middleware")
 	{
-		// 获取中间件统计信息（需要管理员权限）
+		// Get middleware statistics (requires admin privileges)
 		middleware.GET("/stats", h.handleGetMiddlewareStats)
 
-		// 动态更新配置（需要管理员权限）
+		// Dynamic configuration updates (requires admin privileges)
 		middleware.PUT("/rate-limit/config", h.handleUpdateRateLimitConfig)
 		middleware.PUT("/timeout/config", h.handleUpdateTimeoutConfig)
 		middleware.PUT("/circuit-breaker/config", h.handleUpdateCircuitBreakerConfig)

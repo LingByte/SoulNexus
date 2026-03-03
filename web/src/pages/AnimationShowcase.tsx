@@ -19,8 +19,10 @@ import { showAlertWithScroll } from '../utils/notification'
 import EnhancedParticleEffect from "@/components/Animations/EnhancedParticleEffect.tsx";
 import EnhancedPageTransition from "@/components/Animations/EnhancedPageTransition.tsx";
 import {ScrollReveal} from "@/components/UX/MicroInteractions.tsx";
+import { useI18nStore } from '../stores/i18nStore'
 
 const AnimationShowcase = () => {
+  const { t } = useI18nStore()
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [showFixedOnboarding, setShowFixedOnboarding] = useState(false)
   const [showParticles, setShowParticles] = useState(false)
@@ -28,20 +30,20 @@ const AnimationShowcase = () => {
   const onboardingSteps = [
     {
       id: 'welcome',
-      title: '欢迎使用 SoulNexus',
-      description: '这是一个强大的AI写作助手，帮助您创作出优秀的内容。',
+      title: t('animation.onboarding.welcome.title'),
+      description: t('animation.onboarding.welcome.description'),
       target: '.welcome-card'
     },
     {
       id: 'features',
-      title: '核心功能',
-      description: '探索我们的各种功能，包括智能写作、内容优化和实时协作。',
+      title: t('animation.onboarding.features.title'),
+      description: t('animation.onboarding.features.description'),
       target: '.features-card'
     },
     {
       id: 'get-started',
-      title: '开始使用',
-      description: '点击下方按钮开始您的创作之旅！',
+      title: t('animation.onboarding.getStarted.title'),
+      description: t('animation.onboarding.getStarted.description'),
       target: '.get-started-card'
     }
   ]
@@ -58,36 +60,36 @@ const AnimationShowcase = () => {
         >
           <h1 className="text-4xl font-bold mb-4">
             <Typewriter
-              text="高级动画效果展示"
+              text={t('animation.title')}
               speed={100}
               className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600"
             />
           </h1>
           <p className="text-lg text-gray-600 dark:text-gray-400">
-            体验各种炫酷的动画效果和交互体验
+            {t('animation.subtitle')}
           </p>
         </motion.div>
 
         {/* 真实水波涟漪效果 */}
         <ScrollReveal direction="up" delay={0.2}>
           <Card
-            title="真实水波涟漪效果"
-            subtitle="点击卡片体验真实的水波涟漪动画"
+            title={t('animation.waterRipple.title')}
+            subtitle={t('animation.waterRipple.subtitle')}
             className="welcome-card"
           >
             <div className="space-y-6">
               {/* 简单水波纹效果 */}
               <div>
-                <h4 className="text-lg font-semibold mb-3">简单水波纹效果</h4>
+                <h4 className="text-lg font-semibold mb-3">{t('animation.waterRipple.simple')}</h4>
                 <SimpleWaterRipple
                   intensity="high"
                   color="rgba(59, 130, 246, 0.4)"
                   className="p-8 bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-lg"
                 >
                   <div className="text-center">
-                    <h3 className="text-2xl font-bold mb-2">点击我！</h3>
+                    <h3 className="text-2xl font-bold mb-2">{t('animation.waterRipple.clickMe')}</h3>
                     <p className="text-gray-600 dark:text-gray-400">
-                      感受稳定的水波涟漪效果
+                      {t('animation.waterRipple.simpleDescription')}
                     </p>
                   </div>
                 </SimpleWaterRipple>
@@ -95,16 +97,16 @@ const AnimationShowcase = () => {
 
               {/* 真实水波纹效果 */}
               <div>
-                <h4 className="text-lg font-semibold mb-3">真实水波纹效果</h4>
+                <h4 className="text-lg font-semibold mb-3">{t('animation.waterRipple.real')}</h4>
                 <RealWaterRipple
                   intensity="high"
                   color="rgba(59, 130, 246, 0.4)"
                   className="p-8 bg-gradient-to-br from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20 rounded-lg"
                 >
                   <div className="text-center">
-                    <h3 className="text-2xl font-bold mb-2">点击我！</h3>
+                    <h3 className="text-2xl font-bold mb-2">{t('animation.waterRipple.clickMe')}</h3>
                     <p className="text-gray-600 dark:text-gray-400">
-                      感受更真实的水波效果
+                      {t('animation.waterRipple.realDescription')}
                     </p>
                   </div>
                 </RealWaterRipple>
@@ -116,8 +118,8 @@ const AnimationShowcase = () => {
         {/* 磁性按钮 */}
         <ScrollReveal direction="left" delay={0.4}>
           <Card
-            title="磁性按钮效果"
-            subtitle="鼠标悬停体验磁性吸附效果"
+            title={t('animation.magnetic.title')}
+            subtitle={t('animation.magnetic.subtitle')}
             className="features-card"
           >
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
@@ -129,8 +131,8 @@ const AnimationShowcase = () => {
               >
                 <Rocket className="w-10 h-10 text-blue-600" />
                 <div className="text-center">
-                  <div className="font-semibold text-lg">磁性按钮</div>
-                  <div className="text-sm opacity-80 mt-1">鼠标跟随效果</div>
+                  <div className="font-semibold text-lg">{t('animation.magnetic.button1')}</div>
+                  <div className="text-sm opacity-80 mt-1">{t('animation.magnetic.button1Desc')}</div>
                 </div>
               </MagneticButton>
               <MagneticButton
@@ -141,8 +143,8 @@ const AnimationShowcase = () => {
               >
                 <div className="text-4xl">⚡</div>
                 <div className="text-center">
-                  <div className="font-semibold text-lg">悬停我</div>
-                  <div className="text-sm opacity-80 mt-1">交互式体验</div>
+                  <div className="font-semibold text-lg">{t('animation.magnetic.button2')}</div>
+                  <div className="text-sm opacity-80 mt-1">{t('animation.magnetic.button2Desc')}</div>
                 </div>
               </MagneticButton>
               <MagneticButton
@@ -153,8 +155,8 @@ const AnimationShowcase = () => {
               >
                 <div className="text-4xl">✨</div>
                 <div className="text-center">
-                  <div className="font-semibold text-lg">交互体验</div>
-                  <div className="text-sm opacity-80 mt-1">沉浸式感受</div>
+                  <div className="font-semibold text-lg">{t('animation.magnetic.button3')}</div>
+                  <div className="text-sm opacity-80 mt-1">{t('animation.magnetic.button3Desc')}</div>
                 </div>
               </MagneticButton>
             </div>
@@ -164,8 +166,8 @@ const AnimationShowcase = () => {
         {/* 故障效果 */}
         <ScrollReveal direction="right" delay={0.6}>
           <Card
-            title="故障效果"
-            subtitle="悬停或点击触发故障动画"
+            title={t('animation.glitch.title')}
+            subtitle={t('animation.glitch.subtitle')}
           >
             <div className="flex flex-wrap gap-4 justify-center">
               <GlitchEffect
@@ -173,14 +175,14 @@ const AnimationShowcase = () => {
                 intensity="medium"
                 className="text-4xl font-bold text-blue-600"
               >
-                HOVER ME
+                {t('animation.glitch.hoverMe')}
               </GlitchEffect>
               <GlitchEffect
                 trigger="click"
                 intensity="high"
                 className="text-4xl font-bold text-purple-600 cursor-pointer"
               >
-                CLICK ME
+                {t('animation.glitch.clickMe')}
               </GlitchEffect>
             </div>
           </Card>
@@ -189,8 +191,8 @@ const AnimationShowcase = () => {
         {/* 粒子效果 */}
         <ScrollReveal direction="up" delay={0.8}>
           <Card
-            title="粒子效果"
-            subtitle="动态粒子背景效果"
+            title={t('animation.particle.title')}
+            subtitle={t('animation.particle.subtitle')}
             className="get-started-card"
           >
             <div className="relative h-64 bg-gradient-to-br from-gray-900 to-blue-900 rounded-lg overflow-hidden">
@@ -212,7 +214,7 @@ const AnimationShowcase = () => {
                   size="lg"
                   className="z-10"
                 >
-                  {showParticles ? '隐藏粒子' : '显示粒子'}
+                  {showParticles ? t('animation.particle.hide') : t('animation.particle.show')}
                 </Button>
               </div>
             </div>
@@ -222,8 +224,8 @@ const AnimationShowcase = () => {
         {/* 页面过渡效果 */}
         <ScrollReveal direction="down" delay={1.0}>
           <Card
-            title="页面过渡效果"
-            subtitle="各种页面切换动画"
+            title={t('animation.pageTransition.title')}
+            subtitle={t('animation.pageTransition.subtitle')}
           >
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {['fade', 'slide', 'scale', 'flip'].map((variant) => (
@@ -233,7 +235,7 @@ const AnimationShowcase = () => {
                   className="p-4 bg-gray-100 dark:bg-gray-800 rounded-lg text-center"
                 >
                   <div className="text-sm font-medium capitalize">
-                    {variant} 过渡
+                    {t(`animation.pageTransition.${variant}`)}
                   </div>
                 </PageTransition>
               ))}
@@ -244,14 +246,14 @@ const AnimationShowcase = () => {
         {/* 引导动画 */}
         <ScrollReveal direction="up" delay={1.2}>
           <Card
-            title="引导动画"
-            subtitle="用户引导和教程动画 - 支持滚动到指定位置"
+            title={t('animation.onboarding.title')}
+            subtitle={t('animation.onboarding.subtitle')}
           >
             <div className="text-center space-y-4">
               <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                 <p className="text-sm text-blue-700 dark:text-blue-300 flex items-center gap-2">
                   <Lightbulb className="w-4 h-4" />
-                  点击下面的按钮体验引导功能，页面会自动滚动到相关元素位置
+                  {t('animation.onboarding.hint')}
                 </p>
               </div>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -261,7 +263,7 @@ const AnimationShowcase = () => {
                   size="lg"
                   className="px-8 py-4"
                 >
-                  基础引导教程
+                  {t('animation.onboarding.basicButton')}
                 </Button>
                 <Button
                   onClick={() => setShowFixedOnboarding(true)}
@@ -269,7 +271,7 @@ const AnimationShowcase = () => {
                   size="lg"
                   className="px-8 py-4"
                 >
-                  固定引导教程
+                  {t('animation.onboarding.fixedButton')}
                 </Button>
               </div>
             </div>
@@ -437,7 +439,7 @@ const AnimationShowcase = () => {
         onClose={() => setShowOnboarding(false)}
         onComplete={() => {
           setShowOnboarding(false)
-          showAlertWithScroll('引导完成！欢迎使用 SoulNexus！', 'success', '欢迎！')
+          showAlertWithScroll(t('animation.onboarding.completeMessage'), 'success', t('animation.onboarding.completeTitle'))
         }}
       />
 
@@ -446,26 +448,26 @@ const AnimationShowcase = () => {
         steps={[
           {
             id: 'welcome',
-            title: '🎉 欢迎使用 SoulNexus',
-            description: '这是一个强大的AI语音助手，帮助您创作出优秀的内容。让我们开始这段精彩的旅程！',
+            title: t('animation.fixed.welcome.title'),
+            description: t('animation.fixed.welcome.description'),
             target: '.welcome-card',
             position: 'center'
           },
           {
             id: 'features',
-            title: '✨ 核心功能',
-            description: '探索我们的各种功能，包括智能语音。每个功能都经过精心设计，为您提供最佳体验。',
+            title: t('animation.fixed.features.title'),
+            description: t('animation.fixed.features.description'),
             target: '.features-card',
             position: 'center'
           },
           {
             id: 'water-ripple',
-            title: '🌊 水波涟漪效果',
-            description: '体验我们独特的水波涟漪交互效果，让每一次点击都充满惊喜！',
+            title: t('animation.fixed.waterRipple.title'),
+            description: t('animation.fixed.waterRipple.description'),
             target: '.welcome-card',
             position: 'center',
             action: {
-              text: '试试水波效果',
+              text: t('animation.fixed.waterRipple.action'),
               onClick: () => {
                 // 触发水波效果
                 const element = document.querySelector('.welcome-card') as HTMLElement
@@ -477,15 +479,15 @@ const AnimationShowcase = () => {
           },
           {
             id: 'get-started',
-            title: '开始使用',
+            title: t('animation.fixed.getStarted.title'),
             icon: <Rocket className="w-5 h-5" />,
-            description: '现在您已经了解了所有功能，点击下方按钮开始您的创作之旅！',
+            description: t('animation.fixed.getStarted.description'),
             target: '.get-started-card',
             position: 'center',
             action: {
-              text: '开始创作',
+              text: t('animation.fixed.getStarted.action'),
               onClick: () => {
-                showAlertWithScroll('开始您的创作之旅！', 'info', '创作开始')
+                showAlertWithScroll(t('animation.fixed.getStarted.actionMessage'), 'info', t('animation.fixed.getStarted.actionTitle'))
               }
             }
           }
@@ -494,7 +496,7 @@ const AnimationShowcase = () => {
         onClose={() => setShowFixedOnboarding(false)}
         onComplete={() => {
           setShowFixedOnboarding(false)
-          showAlertWithScroll('🎉 引导完成！欢迎使用 SoulNexus！', 'success', '完成！')
+          showAlertWithScroll(t('animation.fixed.completeMessage'), 'success', t('animation.fixed.completeTitle'))
         }}
         autoPlay={false}
         showProgress={true}

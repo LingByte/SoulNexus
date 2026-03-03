@@ -8,9 +8,11 @@ import Card, { CardContent, CardHeader, CardTitle } from '../components/UI/Card'
 import PasswordStrength from '../components/Auth/PasswordStrength'
 import { resetPasswordConfirm } from '../api/auth'
 import { showAlert } from '../utils/notification'
+import { useI18nStore } from '../stores/i18nStore'
 
 const ResetPassword = () => {
   const navigate = useNavigate()
+  const { t } = useI18nStore()
   const [searchParams] = useSearchParams()
   const token = searchParams.get('token')
 
@@ -27,9 +29,9 @@ const ResetPassword = () => {
   useEffect(() => {
     if (!token) {
       setIsTokenValid(false)
-      showAlert('重置链接无效或已过期', 'error', '链接无效')
+      showAlert(t('resetPassword.invalidLink'), 'error', t('resetPassword.invalidLinkTitle'))
     }
-  }, [token])
+  }, [token, t])
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({
@@ -42,17 +44,17 @@ const ResetPassword = () => {
     e.preventDefault()
 
     if (!token) {
-      showAlert('重置链接无效', 'error', '验证失败')
+      showAlert(t('resetPassword.invalidToken'), 'error', t('resetPassword.validationFailed'))
       return
     }
 
     if (formData.password !== formData.confirmPassword) {
-      showAlert('密码不匹配', 'error', '验证失败')
+      showAlert(t('resetPassword.passwordMismatch'), 'error', t('resetPassword.validationFailed'))
       return
     }
 
     if (formData.password.length < 6) {
-      showAlert('密码至少需要6位', 'error', '验证失败')
+      showAlert(t('resetPassword.passwordTooShort'), 'error', t('resetPassword.validationFailed'))
       return
     }
 
@@ -62,17 +64,17 @@ const ResetPassword = () => {
       
       if (response.code === 200) {
         setIsSuccess(true)
-        showAlert('密码重置成功！', 'success', '重置成功')
+        showAlert(t('resetPassword.resetSuccess'), 'success', t('resetPassword.resetSuccessTitle'))
         
         // 3秒后跳转到登录页面
         setTimeout(() => {
           navigate('/', { replace: true })
         }, 3000)
       } else {
-        throw new Error(response.msg || '重置失败')
+        throw new Error(response.msg || t('resetPassword.resetFailed'))
       }
     } catch (error: any) {
-      showAlert(error?.msg || error?.message || '密码重置失败，请重试', 'error', '重置失败')
+      showAlert(error?.msg || error?.message || t('resetPassword.resetError'), 'error', t('resetPassword.resetFailedTitle'))
     } finally {
       setIsLoading(false)
     }
@@ -92,19 +94,19 @@ const ResetPassword = () => {
                 <AlertTriangle className="w-8 h-8 text-red-600 dark:text-red-400" />
               </div>
               <CardTitle className="text-2xl font-bold text-gray-900 dark:text-white">
-                链接无效
+                {t('resetPassword.invalidTitle')}
               </CardTitle>
             </CardHeader>
             <CardContent className="text-center">
               <p className="text-gray-600 dark:text-gray-400 mb-6">
-                重置密码链接无效或已过期。请重新申请密码重置。
+                {t('resetPassword.invalidMessage')}
               </p>
               <Button
                 variant="primary"
                 onClick={() => navigate('/', { replace: true })}
                 className="w-full"
               >
-                返回首页
+                {t('resetPassword.backToHome')}
               </Button>
             </CardContent>
           </Card>
@@ -132,19 +134,19 @@ const ResetPassword = () => {
                 <CheckCircle className="w-8 h-8 text-green-600 dark:text-green-400" />
               </motion.div>
               <CardTitle className="text-2xl font-bold text-gray-900 dark:text-white">
-                重置成功！
+                {t('resetPassword.successTitle')}
               </CardTitle>
             </CardHeader>
             <CardContent className="text-center">
               <p className="text-gray-600 dark:text-gray-400 mb-6">
-                您的密码已成功重置。正在跳转到登录页面...
+                {t('resetPassword.successMessage')}
               </p>
               <Button
                 variant="primary"
                 onClick={() => navigate('/', { replace: true })}
                 className="w-full"
               >
-                立即登录
+                {t('resetPassword.loginNow')}
               </Button>
             </CardContent>
           </Card>
@@ -166,19 +168,19 @@ const ResetPassword = () => {
               <Lock className="w-8 h-8 text-blue-600 dark:text-blue-400" />
             </div>
             <CardTitle className="text-2xl font-bold text-gray-900 dark:text-white">
-              重置密码
+              {t('resetPassword.title')}
             </CardTitle>
             <p className="text-gray-600 dark:text-gray-400 mt-2">
-              请输入您的新密码
+              {t('resetPassword.subtitle')}
             </p>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
                 <Input
-                  label="新密码"
+                  label={t('resetPassword.newPassword')}
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="请输入新密码（至少6位）"
+                  placeholder={t('resetPassword.newPasswordPlaceholder')}
                   value={formData.password}
                   onChange={(e) => handleInputChange('password', e.target.value)}
                   leftIcon={<Lock className="w-5 h-5" />}
@@ -197,9 +199,9 @@ const ResetPassword = () => {
               </div>
 
               <Input
-                label="确认密码"
+                label={t('resetPassword.confirmPassword')}
                 type={showConfirmPassword ? 'text' : 'password'}
-                placeholder="请再次输入新密码"
+                placeholder={t('resetPassword.confirmPasswordPlaceholder')}
                 value={formData.confirmPassword}
                 onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
                 leftIcon={<Lock className="w-5 h-5" />}
@@ -221,7 +223,7 @@ const ResetPassword = () => {
                 className="w-full"
                 disabled={isLoading}
               >
-                {isLoading ? '重置中...' : '重置密码'}
+                {isLoading ? t('resetPassword.resetting') : t('resetPassword.resetButton')}
               </Button>
             </form>
           </CardContent>

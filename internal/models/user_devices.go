@@ -205,23 +205,40 @@ func CreateOrUpdateUserDevice(db *gorm.DB, userID uint, deviceID, deviceName, de
 	return &device, err
 }
 
-// GetUserDevices 获取用户的所有设备
-func GetUserDevices(db *gorm.DB, userID uint) ([]UserDevice, error) {
-	var devices []UserDevice
-	err := db.Where("user_id = ? AND is_active = ?", userID, true).
-		Order("last_used_at DESC").
-		Find(&devices).Error
-	return devices, err
-}
-
 // DeleteUserDevice 删除用户设备
 func DeleteUserDevice(db *gorm.DB, userID uint, deviceID string) error {
-	return db.Where("user_id = ? AND device_id = ?", userID, deviceID).
+	return db.Model(&UserDevice{}).Where("user_id = ? AND device_id = ?", userID, deviceID).
 		Update("is_active", false).Error
 }
 
 // TrustUserDevice 信任设备
 func TrustUserDevice(db *gorm.DB, userID uint, deviceID string) error {
+	// 先检查设备是否存在
+	device, err := GetUserDevice(db, userID, deviceID)
+	if err != nil && err != gorm.ErrRecordNotFound {
+		return err
+	}
+
+	// 如果设备不存在，先创建一个基本记录（这种情况理论上不应该发生，但为了健壮性）
+	if device == nil {
+		device = &UserDevice{
+			UserID:     userID,
+			DeviceID:   deviceID,
+			DeviceName: "Unknown Device",
+			DeviceType: "unknown",
+			OS:         "unknown",
+			Browser:    "unknown",
+			IsTrusted:  true, // 直接设置为信任
+			IsActive:   true,
+			LastUsedAt: time.Now(),
+		}
+		if err := db.Create(device).Error; err != nil {
+			return err
+		}
+		return nil
+	}
+
+	// 如果设备存在，更新信任状态
 	return db.Model(&UserDevice{}).
 		Where("user_id = ? AND device_id = ?", userID, deviceID).
 		Update("is_trusted", true).Error
@@ -255,4 +272,13 @@ func CheckDeviceTrust(db *gorm.DB, userID uint, deviceID string) (bool, error) {
 		return false, nil
 	}
 	return device.IsTrusted, nil
+}
+
+// GetUserLoginDevices 获取用户的登录设备列表
+func GetUserLoginDevices(db *gorm.DB, userID uint) ([]UserDevice, error) {
+	var devices []UserDevice
+	err := db.Where("user_id = ? AND is_active = ?", userID, true).
+		Order("last_used_at DESC").
+		Find(&devices).Error
+	return devices, err
 }

@@ -723,11 +723,11 @@ const VoiceAssistant = () => {
 
                 setLocalStream(stream)
 
-                // 开始实时录音和发送（PCM 16kHz, Int16Array）
-                startQiniuRecording(stream, newSocket)
-
-                // 等待服务端确认连接
+                // 等待服务端确认连接后再开始录音
                 console.log('[WebSocket语音] 等待服务端确认连接...')
+                
+                // 保存 stream，等待 connected 消息后再启动录音
+                ;(newSocket as any)._pendingStream = stream
             } catch (error) {
                 console.error('[WebSocket语音] 获取麦克风失败:', error)
                 showAlert('获取麦克风权限失败', 'error')
@@ -738,6 +738,7 @@ const VoiceAssistant = () => {
         // TTS音频流处理
         let ttsAudioBuffer: Uint8Array[] = []
         let ttsAudioFormat: { sampleRate?: number; channels?: number; bitDepth?: number } = {}
+        let isRecordingStarted = false // 标记是否已开始录音
         let isTTSActive = false // 标记是否在TTS播放状态
         let audioContext: AudioContext | null = null
 
@@ -745,20 +746,24 @@ const VoiceAssistant = () => {
             // 处理二进制消息（TTS音频流）- 支持ArrayBuffer和Blob
             // WebSocket的二进制消息应该总是音频数据，不应该尝试解析为JSON
             if (event.data instanceof ArrayBuffer) {
+                console.log('[WebSocket语音] 收到ArrayBuffer音频数据，大小:', event.data.byteLength, 'isTTSActive:', isTTSActive, 'sampleRate:', ttsAudioFormat.sampleRate)
                 // 只有在TTS激活状态时才累积音频数据
                 if (!isGlobalMuted && isTTSActive && ttsAudioFormat.sampleRate) {
                     // 累积音频数据
                     ttsAudioBuffer.push(new Uint8Array(event.data))
+                    console.log('[WebSocket语音] 累积音频数据，当前缓冲区大小:', ttsAudioBuffer.length)
                 }
                 return
             }
 
             // 处理Blob对象（某些浏览器可能将二进制数据包装为Blob）
             if (event.data instanceof Blob) {
+                console.log('[WebSocket语音] 收到Blob音频数据，大小:', event.data.size, 'isTTSActive:', isTTSActive, 'sampleRate:', ttsAudioFormat.sampleRate)
                 // WebSocket的Blob消息在TTS激活状态下应该是音频数据
                 if (!isGlobalMuted && isTTSActive && ttsAudioFormat.sampleRate) {
                     const arrayBuffer = await event.data.arrayBuffer()
                     ttsAudioBuffer.push(new Uint8Array(arrayBuffer))
+                    console.log('[WebSocket语音] 累积音频数据，当前缓冲区大小:', ttsAudioBuffer.length)
                 } else {
                     // 如果不是TTS激活状态，尝试作为文本消息处理（但这种情况应该很少）
                     // 先检查是否是有效的文本（尝试读取前几个字节）
@@ -795,12 +800,22 @@ const VoiceAssistant = () => {
 
         // 处理WebSocket文本消息的内部函数
         const handleWebSocketMessage = (data: any) => {
+            console.log('[WebSocket语音] 收到消息:', data.type, data)
 
             switch (data.type) {
                 case 'connected':
-                    // 服务端确认连接成功
+                    // 服务端确认连接成功，现在可以开始录音了
                     console.log('[WebSocket语音]', data.message)
                     showAlert('WebSocket语音连接已建立', 'success')
+                    
+                    // 启动录音（如果还没开始）
+                    if (!isRecordingStarted && (newSocket as any)._pendingStream) {
+                        const stream = (newSocket as any)._pendingStream
+                        console.log('[WebSocket语音] 服务端就绪，开始录音')
+                        startQiniuRecording(stream, newSocket)
+                        isRecordingStarted = true
+                        delete (newSocket as any)._pendingStream
+                    }
                     break
                 case 'asr_result':
                     // 显示识别结果（去重：只显示新的文本）
@@ -826,6 +841,12 @@ const VoiceAssistant = () => {
 
                     // 停止之前的播放（打断之前的TTS）
                     stopCurrentTTSPlayback()
+
+                    // 暂停发送音频数据（防止回声/反馈触发VAD barge-in）
+                    if ((newSocket as any)._audioProcessor) {
+                        console.log('[WebSocket语音] TTS开始，暂停发送音频数据以防止回声')
+                        ;(newSocket as any)._audioProcessor.pause()
+                    }
 
                     // 标记TTS为激活状态
                     isTTSActive = true
@@ -865,6 +886,14 @@ const VoiceAssistant = () => {
                     }
                     // 重置音频格式（防止后续二进制消息被误认为是音频）
                     ttsAudioFormat = {}
+                    
+                    // 恢复发送音频数据（TTS播放完成后，延迟500ms以确保TTS音频播放完成）
+                    setTimeout(() => {
+                        if ((newSocket as any)._audioProcessor) {
+                            console.log('[WebSocket语音] TTS结束，恢复发送音频数据')
+                            ;(newSocket as any)._audioProcessor.resume()
+                        }
+                    }, 500)
                     break
                 case 'tts_audio':
                     // 兼容旧格式（音频URL）
@@ -900,9 +929,9 @@ const VoiceAssistant = () => {
         setSocket(newSocket)
     }
 
-    // 开始七牛云录音 - 使用Web Audio API获取PCM数据
+    // 开始录音 - 使用Web Audio API获取PCM数据
     const startQiniuRecording = (stream: MediaStream, ws: WebSocket) => {
-        console.log('开始七牛云录音，使用Web Audio API获取PCM数据')
+        console.log('[WebSocket语音] 开始录音，使用Web Audio API获取PCM数据')
 
         try {
             // 创建AudioContext
@@ -916,8 +945,17 @@ const VoiceAssistant = () => {
             // 创建ScriptProcessorNode来处理音频数据
             const processor = audioContext.createScriptProcessor(4096, 1, 1)
 
+            // 标记是否应该发送音频（TTS播放时不发送）
+            let shouldSendAudio = true
+            
+            // 保存到ref以便外部控制
+            ;(ws as any)._audioProcessor = {
+                pause: () => { shouldSendAudio = false },
+                resume: () => { shouldSendAudio = true }
+            }
+
             processor.onaudioprocess = (event) => {
-                if (ws.readyState === WebSocket.OPEN) {
+                if (ws.readyState === WebSocket.OPEN && shouldSendAudio) {
                     // 获取PCM数据
                     const inputBuffer = event.inputBuffer
                     const pcmData = inputBuffer.getChannelData(0)
@@ -929,8 +967,7 @@ const VoiceAssistant = () => {
                         pcm16Data[i] = Math.max(-32768, Math.min(32767, pcmData[i] * 32768))
                     }
 
-                    // 发送PCM数据
-                    console.log('发送PCM音频数据到七牛云ASR，大小:', pcm16Data.byteLength)
+                    // 发送PCM数据（二进制消息）
                     ws.send(pcm16Data.buffer)
                 }
             }
@@ -957,7 +994,7 @@ const VoiceAssistant = () => {
 
     // 回退方案：使用MediaRecorder
     const startQiniuRecordingFallback = (stream: MediaStream, ws: WebSocket) => {
-        console.log('使用MediaRecorder回退方案')
+        console.log('[WebSocket语音] 使用MediaRecorder回退方案')
 
         const mediaRecorder = new MediaRecorder(stream, {
             mimeType: 'audio/webm;codecs=opus',
@@ -969,7 +1006,6 @@ const VoiceAssistant = () => {
                 const reader = new FileReader()
                 reader.onload = () => {
                     const arrayBuffer = reader.result as ArrayBuffer
-                    console.log('发送WebM音频数据到七牛云ASR，大小:', arrayBuffer.byteLength)
                     ws.send(arrayBuffer)
                 }
                 reader.readAsArrayBuffer(event.data)

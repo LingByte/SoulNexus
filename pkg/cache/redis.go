@@ -9,13 +9,13 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// redisCache Redis缓存实现
+// redisCache implements Redis cache
 type redisCache struct {
 	client *redis.Client
 	config RedisConfig
 }
 
-// NewRedisCache 创建Redis缓存
+// NewRedisCache creates a new Redis cache instance
 func NewRedisCache(config RedisConfig) (Cache, error) {
 	client := redis.NewClient(&redis.Options{
 		Addr:         config.Addr,
@@ -29,7 +29,7 @@ func NewRedisCache(config RedisConfig) (Cache, error) {
 		PoolTimeout:  config.IdleTimeout,
 	})
 
-	// 测试连接
+	// Test connection
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -55,13 +55,13 @@ func (rc *redisCache) Get(ctx context.Context, key string) (interface{}, bool) {
 
 	var value interface{}
 	if err := json.Unmarshal([]byte(result.Val()), &value); err != nil {
-		// 如果JSON解析失败，尝试直接返回字符串
+		// If JSON parsing fails, try to return the string directly
 		return result.Val(), true
 	}
 	return value, true
 }
 
-// Set 设置缓存值
+// Set stores a value in cache
 func (rc *redisCache) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error {
 	data, err := json.Marshal(value)
 	if err != nil {
@@ -71,12 +71,12 @@ func (rc *redisCache) Set(ctx context.Context, key string, value interface{}, ex
 	return rc.client.Set(ctx, key, data, expiration).Err()
 }
 
-// Delete 删除缓存
+// Delete removes a cached value
 func (rc *redisCache) Delete(ctx context.Context, key string) error {
 	return rc.client.Del(ctx, key).Err()
 }
 
-// Exists 检查键是否存在
+// Exists checks if a key exists
 func (rc *redisCache) Exists(ctx context.Context, key string) bool {
 	result := rc.client.Exists(ctx, key)
 	return result.Val() > 0
@@ -93,7 +93,7 @@ func (rc *redisCache) GetMulti(ctx context.Context, keys ...string) map[string]i
 		return make(map[string]interface{})
 	}
 
-	// 使用 Pipeline 批量获取
+	// Use Pipeline for batch retrieval
 	pipe := rc.client.Pipeline()
 	cmds := make([]*redis.StringCmd, len(keys))
 
@@ -110,9 +110,9 @@ func (rc *redisCache) GetMulti(ctx context.Context, keys ...string) map[string]i
 	for i, cmd := range cmds {
 		if cmd.Err() == nil {
 			var value interface{}
-			// 先尝试 JSON 解码
+			// Try JSON decoding first
 			if err := json.Unmarshal([]byte(cmd.Val()), &value); err != nil {
-				// 如果解码失败，返回原始字符串值
+				// If decoding fails, return the raw string value
 				result[keys[i]] = cmd.Val()
 			} else {
 				result[keys[i]] = value
@@ -131,7 +131,7 @@ func (rc *redisCache) SetMulti(ctx context.Context, data map[string]interface{},
 
 	pipe := rc.client.Pipeline()
 	for key, value := range data {
-		dataBytes, err := json.Marshal(value) // 确保值被序列化
+		dataBytes, err := json.Marshal(value) // Ensure value is serialized
 		if err != nil {
 			return fmt.Errorf("failed to marshal value for key %s: %w", key, err)
 		}
@@ -163,15 +163,15 @@ func (rc *redisCache) Decrement(ctx context.Context, key string, value int64) (i
 	return result.Val(), result.Err()
 }
 
-// GetWithTTL 获取值并返回剩余TTL
+// GetWithTTL retrieves value with remaining TTL
 func (rc *redisCache) GetWithTTL(ctx context.Context, key string) (interface{}, time.Duration, bool) {
-	// 获取值
+	// Get value
 	value, exists := rc.Get(ctx, key)
 	if !exists {
 		return nil, 0, false
 	}
 
-	// 获取TTL
+	// Get TTL
 	ttl := rc.client.TTL(ctx, key)
 	if ttl.Err() != nil {
 		return value, 0, true

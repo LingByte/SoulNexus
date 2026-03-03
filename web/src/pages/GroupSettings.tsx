@@ -12,11 +12,11 @@ import {
   type GroupSharedResources
 } from '@/api/group';
 import {
-  getGroupQuotas,
-  deleteGroupQuota,
-  type GroupQuota,
-  getQuotaTypeLabel,
-  formatQuotaValue
+    getGroupQuotas,
+    deleteGroupQuota,
+    type GroupQuota,
+    getQuotaTypeLabel,
+    formatQuotaValue, QuotaType
 } from '@/api/quota';
 import { showAlert } from '@/utils/notification';
 import { useAuthStore } from '@/stores/authStore';
@@ -24,6 +24,7 @@ import { useI18nStore } from '@/stores/i18nStore';
 import { ArrowLeft, Save, Trash2, AlertTriangle, Bot, BookOpen, Upload, X, Plus, Edit, Database, LayoutDashboard } from 'lucide-react';
 import Button from '@/components/UI/Button';
 import QuotaModal from '@/components/Quota/QuotaModal';
+import DeleteConfirmModal from '@/components/Quota/DeleteConfirmModal';
 import { getOverviewConfig } from '@/api/overview';
 import { OverviewConfig, defaultOverviewConfig } from '@/types/overview';
 
@@ -44,6 +45,9 @@ const GroupSettings: React.FC = () => {
   const [loadingQuotas, setLoadingQuotas] = useState(false);
   const [showQuotaModal, setShowQuotaModal] = useState(false);
   const [editingQuota, setEditingQuota] = useState<GroupQuota | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletingQuotaType, setDeletingQuotaType] = useState<string | null>(null);
+  const [deletingLoading, setDeletingLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     type: '',
@@ -664,14 +668,8 @@ const GroupSettings: React.FC = () => {
                         </Button>
                         <Button
                           onClick={async () => {
-                            if (!confirm(t('groupSettings.messages.deleteConfirm'))) return;
-                            try {
-                              await deleteGroupQuota(Number(id), quota.quotaType);
-                              showAlert(t('groupSettings.messages.deleteSuccess'), 'success');
-                              fetchQuotas();
-                            } catch (err: any) {
-                              showAlert(err?.msg || t('groupSettings.messages.deleteFailed'), 'error');
-                            }
+                            setDeletingQuotaType(quota.quotaType);
+                            setShowDeleteConfirm(true);
                           }}
                           variant="ghost"
                           size="sm"
@@ -734,6 +732,32 @@ const GroupSettings: React.FC = () => {
           }}
         />
       )}
+
+      {/* 删除确认弹窗 */}
+      <DeleteConfirmModal
+        isOpen={showDeleteConfirm}
+        onClose={() => {
+          setShowDeleteConfirm(false);
+          setDeletingQuotaType(null);
+        }}
+        quotaType={deletingQuotaType || ''}
+        loading={deletingLoading}
+        onConfirm={async () => {
+          if (!id || !deletingQuotaType) return;
+          try {
+            setDeletingLoading(true);
+            await deleteGroupQuota(Number(id), deletingQuotaType as QuotaType);
+            showAlert(t('groupSettings.messages.deleteSuccess'), 'success');
+            setShowDeleteConfirm(false);
+            setDeletingQuotaType(null);
+            fetchQuotas();
+          } catch (err: any) {
+            showAlert(err?.msg || t('groupSettings.messages.deleteFailed'), 'error');
+          } finally {
+            setDeletingLoading(false);
+          }
+        }}
+      />
     </div>
   );
 };

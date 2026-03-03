@@ -20,7 +20,7 @@ func StartBackupScheduler() {
 	c := cron.New()
 
 	// Use Cron expression from configuration
-	schedule := config.GlobalConfig.BackupSchedule
+	schedule := config.GlobalConfig.Features.BackupSchedule
 
 	// Add scheduled task
 	c.AddFunc(schedule, func() {
@@ -38,17 +38,17 @@ func StartBackupScheduler() {
 
 // ExecuteBackup executes database backup according to configuration
 func ExecuteBackup() error {
-	switch config.GlobalConfig.DBDriver {
+	switch config.GlobalConfig.Database.Driver {
 	case "sqlite":
 		// Execute SQLite backup
-		dst := filepath.Join(config.GlobalConfig.BackupPath, fmt.Sprintf("sys_backup_%s.db", time.Now().Format("20060102_150405")))
-		return BackupSQLiteDatabase(config.GlobalConfig.DSN, dst)
+		dst := filepath.Join(config.GlobalConfig.Features.BackupPath, fmt.Sprintf("sys_backup_%s.db", time.Now().Format("20060102_150405")))
+		return BackupSQLiteDatabase(config.GlobalConfig.Database.DSN, dst)
 	case "mysql":
 		// Execute MySQL backup
-		dst := filepath.Join(config.GlobalConfig.BackupPath, fmt.Sprintf("sys_backup_%s.sql", time.Now().Format("20060102_150405")))
-		return BackupMySQLDatabase(config.GlobalConfig.DSN, dst)
+		dst := filepath.Join(config.GlobalConfig.Features.BackupPath, fmt.Sprintf("sys_backup_%s.sql", time.Now().Format("20060102_150405")))
+		return BackupMySQLDatabase(config.GlobalConfig.Database.DSN, dst)
 	default:
-		return fmt.Errorf("unsupported DB_DRIVER: %s", config.GlobalConfig.DBDriver)
+		return fmt.Errorf("unsupported DB_DRIVER: %s", config.GlobalConfig.Database.Driver)
 	}
 }
 

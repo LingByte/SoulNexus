@@ -164,8 +164,13 @@ func (g *GatewayNode) evaluateComparison(ctx *WorkflowContext, condition string)
 				ctx.AddLog("debug", fmt.Sprintf("Right value resolved from context: %v", rightVal), g.ID, g.Name)
 			}
 		} else {
-			// Try to parse as string literal
-			rightVal = rightStr
+			// Try to parse as string literal (remove quotes if present)
+			strVal := rightStr
+			if (strings.HasPrefix(strVal, "\"") && strings.HasSuffix(strVal, "\"")) ||
+				(strings.HasPrefix(strVal, "'") && strings.HasSuffix(strVal, "'")) {
+				strVal = strVal[1 : len(strVal)-1]
+			}
+			rightVal = strVal
 			if ctx != nil {
 				ctx.AddLog("debug", fmt.Sprintf("Right value treated as string: %v", rightVal), g.ID, g.Name)
 			}

@@ -41,7 +41,8 @@ func (h *Handlers) handleGetCredential(c *gin.Context) {
 		response.Fail(c, "get user credentials failed", err)
 		return
 	}
-	response.Success(c, "get user credentials success", credentials)
+	// 转换为响应格式，不包含敏感信息
+	response.Success(c, "get user credentials success", models.ToResponseList(credentials))
 }
 
 // handleDeleteCredential 删除用户凭证

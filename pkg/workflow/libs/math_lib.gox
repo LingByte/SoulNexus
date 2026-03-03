@@ -1,0 +1,42 @@
+type mathLib struct{}
+
+func (m *mathLib) Abs(x float64) float64 {
+	return math.Abs(x)
+}
+
+func (m *mathLib) Max(a, b float64) float64 {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func (m *mathLib) Min(a, b float64) float64 {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func (m *mathLib) Round(x float64) float64 {
+	return math.Round(x)
+}
+
+func (m *mathLib) Ceil(x float64) float64 {
+	return math.Ceil(x)
+}
+
+func (m *mathLib) Floor(x float64) float64 {
+	return math.Floor(x)
+}
+
+func (m *mathLib) Pow(x, y float64) float64 {
+	return math.Pow(x, y)
+}
+
+func (m *mathLib) Sqrt(x float64) float64 {
+	return math.Sqrt(x)
+}
+
+// 库实例
+var MathLib = &mathLib{}

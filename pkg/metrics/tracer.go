@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -255,12 +256,19 @@ func getTraceIDFromContext(ctx context.Context) string {
 	return ""
 }
 
+var (
+	spanIDCounter  int64
+	traceIDCounter int64
+)
+
 // generateSpanID 生成跨度ID
 func generateSpanID() string {
-	return fmt.Sprintf("span_%d", time.Now().UnixNano())
+	id := atomic.AddInt64(&spanIDCounter, 1)
+	return fmt.Sprintf("span_%d_%d", time.Now().UnixNano(), id)
 }
 
 // generateTraceID 生成追踪ID
 func generateTraceID() string {
-	return fmt.Sprintf("trace_%d", time.Now().UnixNano())
+	id := atomic.AddInt64(&traceIDCounter, 1)
+	return fmt.Sprintf("trace_%d_%d", time.Now().UnixNano(), id)
 }

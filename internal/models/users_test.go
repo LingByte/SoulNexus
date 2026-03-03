@@ -673,80 +673,6 @@ func TestUser_IsAdmin(t *testing.T) {
 	}
 }
 
-func TestUser_HasPermission(t *testing.T) {
-	tests := []struct {
-		name       string
-		user       *User
-		permission string
-		want       bool
-	}{
-		{
-			name: "superadmin has all permissions",
-			user: &User{
-				Role: RoleSuperAdmin,
-			},
-			permission: "any.permission",
-			want:       true,
-		},
-		{
-			name: "superadmin with all permissions in JSON",
-			user: &User{
-				Role:        RoleSuperAdmin,
-				Permissions: `["*"]`,
-			},
-			permission: "any.permission",
-			want:       true,
-		},
-		{
-			name: "admin has admin permissions",
-			user: &User{
-				Role: RoleAdmin,
-			},
-			permission: PermissionAdminRead,
-			want:       true,
-		},
-		{
-			name: "admin has user permissions",
-			user: &User{
-				Role: RoleAdmin,
-			},
-			permission: PermissionUserRead,
-			want:       true, // Admin has all permissions including user permissions
-		},
-		{
-			name: "regular user has user permissions",
-			user: &User{
-				Role: RoleUser,
-			},
-			permission: PermissionUserRead,
-			want:       true,
-		},
-		{
-			name: "regular user doesn't have admin permissions",
-			user: &User{
-				Role: RoleUser,
-			},
-			permission: PermissionAdminRead,
-			want:       false,
-		},
-		{
-			name: "user with custom permissions",
-			user: &User{
-				Role:        RoleUser,
-				Permissions: `["search.config"]`,
-			},
-			permission: PermissionSearchConfig,
-			want:       true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, tt.user.HasPermission(tt.permission))
-		})
-	}
-}
-
 func TestCurrentUser(t *testing.T) {
 	db := setupTestDB(t)
 	c := setupTestContext(t, db)
@@ -896,55 +822,6 @@ func TestCalculateProfileComplete_Minimal(t *testing.T) {
 	assert.GreaterOrEqual(t, complete, 0)
 	assert.LessOrEqual(t, complete, 30)
 }
-
-func TestUser_HasPermission_EdgeCases(t *testing.T) {
-	tests := []struct {
-		name       string
-		user       *User
-		permission string
-		want       bool
-	}{
-		{
-			name: "superadmin with any permission",
-			user: &User{
-				Role: RoleSuperAdmin,
-			},
-			permission: "any.permission",
-			want:       true,
-		},
-		{
-			name: "admin with admin permission",
-			user: &User{
-				Role: "admin",
-			},
-			permission: "admin.write",
-			want:       true,
-		},
-		{
-			name: "regular user with user permission",
-			user: &User{
-				Role: "user",
-			},
-			permission: "user.write",
-			want:       true,
-		},
-		{
-			name: "regular user without permission",
-			user: &User{
-				Role: "user",
-			},
-			permission: "unknown.permission",
-			want:       false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, tt.user.HasPermission(tt.permission))
-		})
-	}
-}
-
 func TestGetUserByUID_DisabledUser(t *testing.T) {
 	db := setupTestDB(t)
 

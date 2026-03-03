@@ -1,0 +1,14 @@
+type cryptoLib struct{}
+
+func (c *cryptoLib) MD5(s string) string {
+	hash := md5.Sum([]byte(s))
+	return hex.EncodeToString(hash[:])
+}
+
+func (c *cryptoLib) SHA256(s string) string {
+	hash := sha256.Sum256([]byte(s))
+	return hex.EncodeToString(hash[:])
+}
+
+// 库实例
+var CryptoLib = &cryptoLib{}

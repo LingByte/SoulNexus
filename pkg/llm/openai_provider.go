@@ -89,6 +89,11 @@ func (p *OpenAIProvider) SetSystemPrompt(systemPrompt string) {
 	p.handler.SetSystemPrompt(systemPrompt)
 }
 
+// SetModel 设置模型
+func (p *OpenAIProvider) SetModel(model string) {
+	p.handler.SetModel(model)
+}
+
 // GetMessages 获取当前对话历史
 func (p *OpenAIProvider) GetMessages() []Message {
 	openaiMessages := p.handler.GetMessages()

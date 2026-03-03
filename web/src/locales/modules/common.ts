@@ -16,6 +16,7 @@ export const common: Record<Language, Record<string, string>> = {
     'nav.sidebar.voiceTraining': '音色训练',
     'nav.sidebar.knowledgeBase': '知识库',
     'nav.sidebar.workflow': '工作流',
+    'nav.sidebar.pluginMarket': '插件市场',
     'nav.sidebar.notification': '通知中心',
     'nav.sidebar.jsTemplate': 'JS模板',
     'nav.sidebar.profile': '个人中心',
@@ -29,6 +30,8 @@ export const common: Record<Language, Record<string, string>> = {
     'nav.sidebar.overview': '数据概览',
     'nav.sidebar.currentOrganization': '当前组织',
     'nav.sidebar.selectOrganization': '选择组织',
+    'nav.sidebar.mcpManagement': 'MCP 管理',
+    'nav.sidebar.mcpMarketplace': 'MCP 广场',
 
     // 主题
     'theme.toggle': '切换主题',
@@ -97,6 +100,7 @@ export const common: Record<Language, Record<string, string>> = {
     'nav.sidebar.voiceTraining': 'Voice Training',
     'nav.sidebar.knowledgeBase': 'Knowledge Base',
     'nav.sidebar.workflow': 'Workflow',
+    'nav.sidebar.pluginMarket': 'Plugin Market',
     'nav.sidebar.notification': 'Notifications',
     'nav.sidebar.jsTemplate': 'JS Templates',
     'nav.sidebar.profile': 'Profile',
@@ -110,6 +114,8 @@ export const common: Record<Language, Record<string, string>> = {
     'nav.sidebar.overview': 'Overview',
     'nav.sidebar.currentOrganization': 'Current Organization',
     'nav.sidebar.selectOrganization': 'Select Organization',
+    'nav.sidebar.mcpManagement': 'MCP Management',
+    'nav.sidebar.mcpMarketplace': 'MCP Marketplace',
 
     // Theme
     'theme.toggle': 'Toggle Theme',
@@ -178,6 +184,7 @@ export const common: Record<Language, Record<string, string>> = {
     'nav.sidebar.voiceTraining': '音声トレーニング',
     'nav.sidebar.knowledgeBase': 'ナレッジベース',
     'nav.sidebar.workflow': 'ワークフロー',
+    'nav.sidebar.pluginMarket': 'プラグインマーケット',
     'nav.sidebar.notification': '通知',
     'nav.sidebar.jsTemplate': 'JSテンプレート',
     'nav.sidebar.profile': 'プロフィール',
@@ -191,6 +198,8 @@ export const common: Record<Language, Record<string, string>> = {
     'nav.sidebar.overview': '概要',
     'nav.sidebar.currentOrganization': '現在の組織',
     'nav.sidebar.selectOrganization': '組織を選択',
+    'nav.sidebar.mcpManagement': 'MCP管理',
+    'nav.sidebar.mcpMarketplace': 'MCPマーケットプレイス',
 
     // テーマ
     'theme.toggle': 'テーマ切り替え',

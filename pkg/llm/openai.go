@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"regexp"
 	"sync"
 	"time"
 
@@ -21,6 +20,7 @@ type LLMHandler struct {
 	client          *openai.Client
 	ctx             context.Context
 	systemMsg       string
+	defaultModel    string // 默认模型
 	baseURL         string // Store base URL for logging
 	mutex           sync.Mutex
 	messages        []openai.ChatCompletionMessage
@@ -141,6 +141,10 @@ func NewLLMHandler(ctx context.Context, apiKey, baseURL, systemPrompt string) *L
 }
 
 func (h *LLMHandler) Query(text, model string) (string, error) {
+	// 如果没有指定模型，使用默认模型
+	if model == "" {
+		model = h.defaultModel
+	}
 	return h.QueryWithOptions(text, QueryOptions{Model: model, Temperature: Float32Ptr(0.7)})
 }
 
@@ -660,7 +664,6 @@ func (h *LLMHandler) QueryStream(text string, options QueryOptions, callback fun
 	defer stream.Close()
 
 	// Buffer to collect text
-	var buffer string
 	fullResponse := ""
 	var finishReason string
 	var responseID string
@@ -673,9 +676,6 @@ func (h *LLMHandler) QueryStream(text string, options QueryOptions, callback fun
 
 	// Track tool calls for statistics
 	var allToolCalls []ToolCallInfo
-
-	// Regular expression to detect punctuation
-	punctuationRegex := regexp.MustCompile(`([.,;:!?，。！？；：])\s*`)
 
 	// Process the stream of responses
 	for {
@@ -755,33 +755,15 @@ func (h *LLMHandler) QueryStream(text string, options QueryOptions, callback fun
 				}
 			}
 
-			// Process content if available
+			// Process content if available - 直接透传，不做缓冲
 			if response.Choices[0].Delta.Content != "" {
 				content := response.Choices[0].Delta.Content
-				buffer += content
 				fullResponse += content
 
-				// Check for punctuation in the buffer
-				matches := punctuationRegex.FindAllStringSubmatchIndex(buffer, -1)
-				if len(matches) > 0 {
-					lastIdx := 0
-					for _, match := range matches {
-						// Extract the segment up to and including the punctuation
-						segment := buffer[lastIdx:match[1]]
-						if segment != "" && callback != nil {
-							// Send this segment via callback
-							if err := callback(segment, false); err != nil {
-								logger.Error("Failed to process stream segment", zap.Error(err))
-							}
-						}
-						lastIdx = match[1]
-					}
-
-					// Keep the remainder in the buffer
-					if lastIdx < len(buffer) {
-						buffer = buffer[lastIdx:]
-					} else {
-						buffer = ""
+				// 直接调用 callback，不等待标点符号
+				if callback != nil {
+					if err := callback(content, false); err != nil {
+						logger.Error("Failed to process stream segment", zap.Error(err))
 					}
 				}
 			}
@@ -798,13 +780,6 @@ func (h *LLMHandler) QueryStream(text string, options QueryOptions, callback fun
 	for i := 0; i <= maxIdx; i++ {
 		if toolCall, exists := toolCallMap[i]; exists {
 			collectedToolCalls = append(collectedToolCalls, *toolCall)
-		}
-	}
-
-	// Send any remaining text in the buffer
-	if buffer != "" && callback != nil {
-		if err := callback(buffer, false); err != nil {
-			logger.Error("Failed to process final stream segment", zap.Error(err))
 		}
 	}
 
@@ -858,7 +833,8 @@ func (h *LLMHandler) QueryStream(text string, options QueryOptions, callback fun
 
 		// Update request and make another call to get final response
 		request.Messages = h.messages
-		request.Stream = false // Use non-streaming for final response
+		request.Stream = false      // Use non-streaming for final response
+		request.StreamOptions = nil // Clear stream options for non-streaming request
 		h.mutex.Unlock()
 
 		// Make another call to get final response after tool execution
@@ -1025,6 +1001,13 @@ func (h *LLMHandler) QueryStream(text string, options QueryOptions, callback fun
 
 	h.mutex.Unlock()
 
+	// 发送完成信号给 callback
+	if callback != nil {
+		if err := callback("", true); err != nil {
+			logger.Error("Failed to send completion signal", zap.Error(err))
+		}
+	}
+
 	return fullResponse, nil
 }
 
@@ -1130,6 +1113,13 @@ func (h *LLMHandler) SetSystemPrompt(systemPrompt string) {
 		}
 		h.messages = append([]openai.ChatCompletionMessage{systemMessage}, h.messages...)
 	}
+}
+
+// SetModel 设置默认模型
+func (h *LLMHandler) SetModel(model string) {
+	h.mutex.Lock()
+	defer h.mutex.Unlock()
+	h.defaultModel = model
 }
 
 // GetMessages returns the current conversation history

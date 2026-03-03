@@ -15,4 +15,5 @@ func TestUserConstants(t *testing.T) {
 	assert.Equal(t, "user.resetpassword", SigUserResetPassword, "SigUserResetPassword should be 'user.resetpassword'")
 	assert.Equal(t, "user.changeemail", SigUserChangeEmail, "SigUserChangeEmail should be 'user.changeemail'")
 	assert.Equal(t, "user.changeemaildone", SigUserChangeEmailDone, "SigUserChangeEmailDone should be 'user.changeemaildone'")
+	assert.Equal(t, "user.newdevicelogin", SigUserNewDeviceLogin, "SigUserNewDeviceLogin should be 'user.newdevicelogin'")
 }

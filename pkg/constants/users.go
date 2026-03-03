@@ -19,6 +19,8 @@ const (
 	SigUserChangeEmail = "user.changeemail"
 	//SigUserChangeEmailDone: user *User, oldEmail, newEmail string
 	SigUserChangeEmailDone = "user.changeemaildone"
+	//SigUserNewDeviceLogin: user *User, deviceInfo map[string]interface{}, db *gorm.DB
+	SigUserNewDeviceLogin = "user.newdevicelogin"
 )
 
 // 缓存键前缀

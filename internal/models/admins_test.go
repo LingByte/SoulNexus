@@ -323,53 +323,13 @@ func TestFormatAsInt64(t *testing.T) {
 	}
 }
 
-// TestConvertValue is tested below with actual reflection types
-
-func TestAdminObject_BuildPermissions(t *testing.T) {
-	db := setupAdminsTestDB(t)
-
-	superUser := &User{
-		Role: RoleSuperAdmin,
-	}
-
-	regularUser := &User{
-		Role: RoleUser,
-	}
-
-	obj := AdminObject{
-		Model: &User{},
-	}
-
-	// Test super user
-	obj.BuildPermissions(db, superUser)
-	assert.True(t, obj.Permissions["can_create"])
-	assert.True(t, obj.Permissions["can_update"])
-	assert.True(t, obj.Permissions["can_delete"])
-	assert.True(t, obj.Permissions["can_action"])
-
-	// Test regular user (should not have permissions by default)
-	obj.BuildPermissions(db, regularUser)
-	assert.False(t, obj.Permissions["can_create"])
-	assert.False(t, obj.Permissions["can_update"])
-	assert.False(t, obj.Permissions["can_delete"])
-	assert.False(t, obj.Permissions["can_action"])
-
-	// Test regular user with admin.write permission
-	regularUser.Permissions = `["admin.write"]`
-	obj.BuildPermissions(db, regularUser)
-	assert.True(t, obj.Permissions["can_create"])
-	assert.True(t, obj.Permissions["can_update"])
-	assert.True(t, obj.Permissions["can_delete"])
-	assert.True(t, obj.Permissions["can_action"])
-}
-
 func TestHandleAdminJson(t *testing.T) {
-	// Initialize config to avoid nil pointer dereference
-	if config.GlobalConfig == nil {
-		config.GlobalConfig = &config.Config{
+	// 初始化配置
+	config.GlobalConfig = &config.Config{
+		Server: config.ServerConfig{
 			APIPrefix:     "/api",
-			MonitorPrefix: "/metrics",
-		}
+			MonitorPrefix: "/monitor",
+		},
 	}
 
 	db := setupAdminsTestDB(t)
@@ -378,8 +338,7 @@ func TestHandleAdminJson(t *testing.T) {
 	user, err := CreateUser(db, "test@example.com", "password123")
 	require.NoError(t, err)
 	user.Role = RoleSuperAdmin
-	user.Permissions = `["*"]`
-	err = UpdateUserFields(db, user, map[string]any{"Role": RoleSuperAdmin, "Permissions": `["*"]`})
+	err = UpdateUserFields(db, user, map[string]any{"Role": RoleSuperAdmin})
 	require.NoError(t, err)
 
 	objects := GetLingEchoAdminObjects()
@@ -757,11 +716,6 @@ func TestAdminObject_handleCreate(t *testing.T) {
 
 	user, err := CreateUser(db, "admin@example.com", "password123")
 	require.NoError(t, err)
-	user.Role = RoleSuperAdmin
-	user.Permissions = `["*"]`
-	err = UpdateUserFields(db, user, map[string]any{"Role": RoleSuperAdmin, "Permissions": `["*"]`})
-	require.NoError(t, err)
-
 	obj := AdminObject{
 		Model:       &User{},
 		Path:        "users",
@@ -792,14 +746,21 @@ func TestAdminObject_handleCreate(t *testing.T) {
 }
 
 func TestAdminObject_handleUpdate(t *testing.T) {
+	// 初始化配置
+	config.GlobalConfig = &config.Config{
+		Server: config.ServerConfig{
+			APIPrefix:     "/api",
+			MonitorPrefix: "/monitor",
+		},
+	}
+
 	db := setupAdminsTestDB(t)
 	router := setupAdminsTestRouter(t, db)
 
 	user, err := CreateUser(db, "admin@example.com", "password123")
 	require.NoError(t, err)
 	user.Role = RoleSuperAdmin
-	user.Permissions = `["*"]`
-	err = UpdateUserFields(db, user, map[string]any{"Role": RoleSuperAdmin, "Permissions": `["*"]`})
+	err = UpdateUserFields(db, user, map[string]any{"Role": RoleSuperAdmin})
 	require.NoError(t, err)
 
 	targetUser, err := CreateUser(db, "target@example.com", "password123")
@@ -837,14 +798,21 @@ func TestAdminObject_handleUpdate(t *testing.T) {
 }
 
 func TestAdminObject_handleDelete(t *testing.T) {
+	// 初始化配置
+	config.GlobalConfig = &config.Config{
+		Server: config.ServerConfig{
+			APIPrefix:     "/api",
+			MonitorPrefix: "/monitor",
+		},
+	}
+
 	db := setupAdminsTestDB(t)
 	router := setupAdminsTestRouter(t, db)
 
 	user, err := CreateUser(db, "admin@example.com", "password123")
 	require.NoError(t, err)
 	user.Role = RoleSuperAdmin
-	user.Permissions = `["*"]`
-	err = UpdateUserFields(db, user, map[string]any{"Role": RoleSuperAdmin, "Permissions": `["*"]`})
+	err = UpdateUserFields(db, user, map[string]any{"Role": RoleSuperAdmin})
 	require.NoError(t, err)
 
 	targetUser, err := CreateUser(db, "target@example.com", "password123")
@@ -879,14 +847,21 @@ func TestAdminObject_handleDelete(t *testing.T) {
 }
 
 func TestAdminObject_handleAction(t *testing.T) {
+	// 初始化配置
+	config.GlobalConfig = &config.Config{
+		Server: config.ServerConfig{
+			APIPrefix:     "/api",
+			MonitorPrefix: "/monitor",
+		},
+	}
+
 	db := setupAdminsTestDB(t)
 	router := setupAdminsTestRouter(t, db)
 
 	user, err := CreateUser(db, "admin@example.com", "password123")
 	require.NoError(t, err)
 	user.Role = RoleSuperAdmin
-	user.Permissions = `["*"]`
-	err = UpdateUserFields(db, user, map[string]any{"Role": RoleSuperAdmin, "Permissions": `["*"]`})
+	err = UpdateUserFields(db, user, map[string]any{"Role": RoleSuperAdmin})
 	require.NoError(t, err)
 
 	obj := AdminObject{
@@ -925,14 +900,21 @@ func TestAdminObject_handleAction(t *testing.T) {
 }
 
 func TestRegisterAdmins(t *testing.T) {
+	// 初始化配置
+	config.GlobalConfig = &config.Config{
+		Server: config.ServerConfig{
+			APIPrefix:     "/api",
+			MonitorPrefix: "/monitor",
+		},
+	}
+
 	db := setupAdminsTestDB(t)
 	router := setupAdminsTestRouter(t, db)
 
 	user, err := CreateUser(db, "admin@example.com", "password123")
 	require.NoError(t, err)
 	user.Role = RoleSuperAdmin
-	user.Permissions = `["*"]`
-	err = UpdateUserFields(db, user, map[string]any{"Role": RoleSuperAdmin, "Permissions": `["*"]`})
+	err = UpdateUserFields(db, user, map[string]any{"Role": RoleSuperAdmin})
 	require.NoError(t, err)
 
 	router.Use(func(c *gin.Context) {

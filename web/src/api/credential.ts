@@ -18,21 +18,16 @@ export interface CreateCredentialForm {
   ttsConfig?: ProviderConfig // TTS配置
 }
 
-// 密钥信息
+// 密钥信息（不包含敏感信息）
 export interface Credential {
   id: number
   name: string
-  apiKey: string
-  apiSecret: string
   llmProvider: string
-  llmApiKey: string
-  llmApiUrl: string
-  
-  // JSON格式配置
-  asrConfig?: ProviderConfig
-  ttsConfig?: ProviderConfig
-  created_at: string
-  updated_at: string
+  userId: number
+  asrProvider?: string
+  ttsProvider?: string
+  createdAt: string
+  updatedAt: string
 }
 
 // 创建密钥响应

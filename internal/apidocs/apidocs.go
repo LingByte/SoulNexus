@@ -176,6 +176,7 @@ func parseDocField(rt reflect.Type, name string, stacks []string) (val DocField)
 	switch rt.Name() {
 	case "NullTime", "NullBool", "NullString", "NullByte", "NullInt16",
 		"NullInt32", "NullInt64", "NullFloat32", "NullFloat64":
+		// These types are handled as objects, continue processing
 	case "Time", "DeletedAt":
 		return val
 	}
@@ -208,7 +209,10 @@ func parseDocField(rt reflect.Type, name string, stacks []string) (val DocField)
 
 		var name = f.Name
 		if jsonTag != "" {
-			name = strings.Split(jsonTag, ",")[0]
+			jsonName := strings.Split(jsonTag, ",")[0]
+			if jsonName != "" {
+				name = jsonName
+			}
 		}
 
 		fieldRT := parseDocField(f.Type, name, stacks)

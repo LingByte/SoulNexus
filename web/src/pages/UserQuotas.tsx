@@ -13,9 +13,11 @@ import { showAlert } from '@/utils/notification';
 import { Plus, Edit, Trash2, Database, X } from 'lucide-react';
 import Button from '@/components/UI/Button';
 import QuotaModal from '@/components/Quota/QuotaModal';
+import { useI18nStore } from '@/stores/i18nStore';
 
 const UserQuotas: React.FC = () => {
   const navigate = useNavigate();
+  const { t } = useI18nStore();
   const [quotas, setQuotas] = useState<UserQuota[]>([]);
   const [loading, setLoading] = useState(false);
   const [showQuotaModal, setShowQuotaModal] = useState(false);
@@ -27,7 +29,7 @@ const UserQuotas: React.FC = () => {
       const res = await getUserQuotas();
       setQuotas(res.data || []);
     } catch (err: any) {
-      showAlert(err?.msg || '获取配额列表失败', 'error');
+      showAlert(err?.msg || t('quota.fetchError'), 'error');
     } finally {
       setLoading(false);
     }
@@ -42,8 +44,8 @@ const UserQuotas: React.FC = () => {
       <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-8 flex flex-col">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-1">配额管理</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">配置和管理您的使用配额</p>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-1">{t('quota.title')}</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400">{t('quota.subtitle')}</p>
           </div>
           <Button
             onClick={() => {
@@ -54,20 +56,20 @@ const UserQuotas: React.FC = () => {
             size="md"
             leftIcon={<Plus className="w-4 h-4" />}
           >
-            添加配额
+            {t('quota.addQuota')}
           </Button>
         </div>
 
         {loading ? (
           <div className="bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-lg p-16 text-center">
-            <div className="text-gray-400 dark:text-gray-500">加载中...</div>
+            <div className="text-gray-400 dark:text-gray-500">{t('quota.loading')}</div>
           </div>
         ) : quotas.length === 0 ? (
           <div className="bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-lg p-16 text-center">
             <Database className="w-12 h-12 mx-auto mb-4 text-gray-400 dark:text-gray-500" />
-            <p className="text-gray-500 dark:text-gray-400 mb-4">还没有配置配额</p>
+            <p className="text-gray-500 dark:text-gray-400 mb-4">{t('quota.empty')}</p>
             <p className="text-sm text-gray-500 dark:text-gray-500 mb-4">
-              配额用于限制您的使用量，当使用率达到阈值时会触发告警
+              {t('quota.emptyDescription')}
             </p>
             <Button
               onClick={() => setShowQuotaModal(true)}
@@ -75,7 +77,7 @@ const UserQuotas: React.FC = () => {
               size="md"
               leftIcon={<Plus className="w-4 h-4" />}
             >
-              创建第一个配额
+              {t('quota.createFirst')}
             </Button>
           </div>
         ) : (
@@ -96,22 +98,22 @@ const UserQuotas: React.FC = () => {
                           {getQuotaTypeLabel(quota.quotaType)}
                         </h3>
                         <span className="px-2 py-0.5 rounded text-xs bg-gray-100 dark:bg-neutral-700 text-gray-600 dark:text-gray-400">
-                          {quota.period === 'lifetime' ? '永久' : quota.period === 'monthly' ? '按月' : '按年'}
+                          {quota.period === 'lifetime' ? t('quota.period.lifetime') : quota.period === 'monthly' ? t('quota.period.monthly') : t('quota.period.yearly')}
                         </span>
                       </div>
                       <div className="space-y-2">
                         <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-600 dark:text-gray-400">已使用：</span>
+                          <span className="text-gray-600 dark:text-gray-400">{t('quota.used')}：</span>
                           <span className="font-medium">{formatQuotaValue(quota.quotaType, quota.usedQuota)}</span>
                         </div>
                         <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-600 dark:text-gray-400">总配额：</span>
-                          <span className="font-medium">{quota.totalQuota === 0 ? '无限制' : formatQuotaValue(quota.quotaType, quota.totalQuota)}</span>
+                          <span className="text-gray-600 dark:text-gray-400">{t('quota.total')}：</span>
+                          <span className="font-medium">{quota.totalQuota === 0 ? t('quota.unlimited') : formatQuotaValue(quota.quotaType, quota.totalQuota)}</span>
                         </div>
                         {quota.totalQuota > 0 && (
                           <div className="mt-3">
                             <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
-                              <span>使用率</span>
+                              <span>{t('quota.usageRate')}</span>
                               <span>{percentage}%</span>
                             </div>
                             <div className="w-full bg-gray-200 dark:bg-neutral-700 rounded-full h-2">
@@ -145,24 +147,24 @@ const UserQuotas: React.FC = () => {
                         size="sm"
                         leftIcon={<Edit className="w-4 h-4" />}
                       >
-                        编辑
+                        {t('quota.edit')}
                       </Button>
                       <Button
                         onClick={async () => {
-                          if (!confirm('确定要删除这个配额配置吗？')) return;
+                          if (!confirm(t('quota.deleteConfirm'))) return;
                           try {
                             await deleteUserQuota(quota.quotaType);
-                            showAlert('删除成功', 'success');
+                            showAlert(t('quota.deleteSuccess'), 'success');
                             fetchQuotas();
                           } catch (err: any) {
-                            showAlert(err?.msg || '删除失败', 'error');
+                            showAlert(err?.msg || t('quota.deleteError'), 'error');
                           }
                         }}
                         variant="ghost"
                         size="sm"
                         leftIcon={<Trash2 className="w-4 h-4" />}
                       >
-                        删除
+                        {t('quota.delete')}
                       </Button>
                     </div>
                   </div>
@@ -200,6 +202,7 @@ interface UserQuotaModalProps {
 }
 
 const UserQuotaModal: React.FC<UserQuotaModalProps> = ({ isOpen, onClose, quota, onSuccess }) => {
+  const { t } = useI18nStore();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     quotaType: '' as any,
@@ -229,11 +232,11 @@ const UserQuotaModal: React.FC<UserQuotaModalProps> = ({ isOpen, onClose, quota,
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.quotaType) {
-      showAlert('请选择配额类型', 'error');
+      showAlert(t('quota.selectTypeError'), 'error');
       return;
     }
     if (!formData.totalQuota || parseFloat(formData.totalQuota) < 0) {
-      showAlert('请输入有效的总配额', 'error');
+      showAlert(t('quota.validTotalError'), 'error');
       return;
     }
 
@@ -248,15 +251,15 @@ const UserQuotaModal: React.FC<UserQuotaModalProps> = ({ isOpen, onClose, quota,
 
       if (quota) {
         await updateUserQuota(quota.quotaType, data);
-        showAlert('更新成功', 'success');
+        showAlert(t('quota.updateSuccess'), 'success');
       } else {
         await createUserQuota(data);
-        showAlert('创建成功', 'success');
+        showAlert(t('quota.createSuccess'), 'success');
       }
       onSuccess();
       onClose();
     } catch (err: any) {
-      showAlert(err?.msg || err?.message || '操作失败', 'error');
+      showAlert(err?.msg || err?.message || t('quota.operationFailed'), 'error');
     } finally {
       setLoading(false);
     }
@@ -281,7 +284,7 @@ const UserQuotaModal: React.FC<UserQuotaModalProps> = ({ isOpen, onClose, quota,
       <div className="bg-white dark:bg-neutral-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white dark:bg-neutral-800 border-b border-gray-200 dark:border-neutral-700 p-6 flex items-center justify-between">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-            {quota ? '编辑配额' : '创建配额'}
+            {quota ? t('quota.editQuota') : t('quota.createQuota')}
           </h2>
           <button
             onClick={onClose}
@@ -294,7 +297,7 @@ const UserQuotaModal: React.FC<UserQuotaModalProps> = ({ isOpen, onClose, quota,
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           <div>
             <label className="block text-sm font-medium mb-2">
-              配额类型 {!quota && '*'}
+              {t('quota.quotaType')} {!quota && '*'}
             </label>
             {quota ? (
               <div className="px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg bg-gray-50 dark:bg-neutral-900 text-gray-700 dark:text-gray-300">
@@ -307,7 +310,7 @@ const UserQuotaModal: React.FC<UserQuotaModalProps> = ({ isOpen, onClose, quota,
                 className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-purple-500"
                 required
               >
-                <option value="">请选择配额类型</option>
+                <option value="">{t('quota.selectType')}</option>
                 {quotaTypes.map(type => (
                   <option key={type} value={type}>
                     {getQuotaTypeLabel(type)}
@@ -319,7 +322,7 @@ const UserQuotaModal: React.FC<UserQuotaModalProps> = ({ isOpen, onClose, quota,
 
           <div>
             <label className="block text-sm font-medium mb-2">
-              总配额 *
+              {t('quota.totalQuota')} *
             </label>
             <input
               type="number"
@@ -328,42 +331,42 @@ const UserQuotaModal: React.FC<UserQuotaModalProps> = ({ isOpen, onClose, quota,
               value={formData.totalQuota}
               onChange={(e) => setFormData({ ...formData, totalQuota: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-purple-500"
-              placeholder="0 表示无限制"
+              placeholder={t('quota.unlimitedPlaceholder')}
               required
             />
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              输入 0 表示不限制该配额类型的使用量
+              {t('quota.unlimitedHint')}
             </p>
           </div>
 
           <div>
             <label className="block text-sm font-medium mb-2">
-              配额周期
+              {t('quota.quotaPeriod')}
             </label>
             <select
               value={formData.period}
               onChange={(e) => setFormData({ ...formData, period: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-purple-500"
             >
-              <option value="lifetime">永久有效</option>
-              <option value="monthly">按月重置</option>
-              <option value="yearly">按年重置</option>
+              <option value="lifetime">{t('quota.period.lifetime')}</option>
+              <option value="monthly">{t('quota.period.monthly')}</option>
+              <option value="yearly">{t('quota.period.yearly')}</option>
             </select>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              选择配额的生效周期，到期后会自动重置使用量
+              {t('quota.periodHint')}
             </p>
           </div>
 
           <div>
             <label className="block text-sm font-medium mb-2">
-              描述
+              {t('quota.description')}
             </label>
             <textarea
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               rows={3}
               className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-purple-500"
-              placeholder="可选：添加配额说明"
+              placeholder={t('quota.descriptionPlaceholder')}
             />
           </div>
 
@@ -373,14 +376,14 @@ const UserQuotaModal: React.FC<UserQuotaModalProps> = ({ isOpen, onClose, quota,
               onClick={onClose}
               variant="ghost"
             >
-              取消
+              {t('quota.cancel')}
             </Button>
             <Button
               type="submit"
               variant="primary"
               disabled={loading}
             >
-              {loading ? '保存中...' : '保存'}
+              {loading ? t('quota.saving') : t('quota.save')}
             </Button>
           </div>
         </form>

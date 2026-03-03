@@ -39,8 +39,8 @@ func TestNewLoginSecurityManager(t *testing.T) {
 	if lsm.maxPasswordLogins != 25 {
 		t.Fatalf("Expected maxPasswordLogins 25, got %d", lsm.maxPasswordLogins)
 	}
-	if lsm.ipRateLimitPerMinute != 10 {
-		t.Fatalf("Expected ipRateLimitPerMinute 10, got %d", lsm.ipRateLimitPerMinute)
+	if lsm.ipRateLimitPerMinute != 7 {
+		t.Fatalf("Expected ipRateLimitPerMinute 7, got %d", lsm.ipRateLimitPerMinute)
 	}
 }
 

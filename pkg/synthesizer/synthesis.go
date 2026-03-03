@@ -514,9 +514,15 @@ func NewSynthesisService(name string, options map[string]any) (SynthesisService,
 	case TTS_LOCAL:
 		opt := media.CastOption[LocalTTSConfig](options)
 		return NewLocalService(opt), nil
+	case TTS_LOCAL_GOSPEECH:
+		opt := media.CastOption[LocalGoSpeechConfig](options)
+		return NewLocalGoSpeechService(&opt)
 	case TTS_FISHSPEECH:
 		opt := media.CastOption[FishSpeechConfig](options)
 		return NewFishSpeechService(opt), nil
+	case TTS_FISHAUDIO:
+		opt := media.CastOption[FishAudioConfig](options)
+		return NewFishAudioService(opt), nil
 	case TTS_COQUI:
 		opt := media.CastOption[CoquiTTSOption](options)
 		return NewCoquiService(opt), nil
@@ -860,6 +866,9 @@ func NewSynthesisServiceFromCredential(config TTSCredentialConfig) (SynthesisSer
 		if accessToken == "" {
 			accessToken = config.getString("access_token") // 兼容下划线格式
 		}
+		if accessToken == "" {
+			accessToken = config.getString("token") // 兼容 token 字段
+		}
 		cluster := config.getString("cluster")
 		if cluster == "" {
 			cluster = "volcano_tts" // 默认集群
@@ -878,7 +887,13 @@ func NewSynthesisServiceFromCredential(config TTSCredentialConfig) (SynthesisSer
 		language := config.getString("language")
 		rate := config.getInt64("rate")
 		if rate == 0 {
-			rate = 8000 // 默认采样率
+			rate = config.getInt64("sampleRate") // 尝试 sampleRate 字段
+		}
+		if rate == 0 {
+			rate = config.getInt64("sample_rate") // 尝试 sample_rate 字段
+		}
+		if rate == 0 {
+			rate = 16000 // 默认采样率改为16000（Volcengine标准）
 		}
 		encoding := config.getString("encoding")
 		if encoding == "" {
@@ -1184,6 +1199,92 @@ func NewSynthesisServiceFromCredential(config TTSCredentialConfig) (SynthesisSer
 			return nil, fmt.Errorf("反序列化FishSpeech配置失败: %w", err)
 		}
 
+	case "fishaudio":
+		apiKey := config.getString("apiKey")
+		if apiKey == "" {
+			apiKey = config.getString("api_key") // 兼容下划线格式
+		}
+		if apiKey == "" {
+			return nil, fmt.Errorf("Fish Audio TTS配置不完整：缺少apiKey")
+		}
+		providerName = TTS_FISHAUDIO
+		referenceID := config.getString("referenceId")
+		if referenceID == "" {
+			referenceID = config.getString("reference_id") // 兼容下划线格式
+		}
+		model := config.getString("model")
+		if model == "" {
+			model = "s1" // 默认值
+		}
+		format := config.getString("format")
+		if format == "" {
+			format = "mp3" // 默认值
+		}
+		sampleRate := config.getInt64("sampleRate")
+		if sampleRate == 0 {
+			sampleRate = config.getInt64("sample_rate") // 兼容下划线格式
+		}
+		if sampleRate == 0 {
+			if format == "opus" {
+				sampleRate = 48000
+			} else {
+				sampleRate = 44100 // 默认值
+			}
+		}
+		temperature := 0.7
+		if tempStr := config.getString("temperature"); tempStr != "" {
+			if f, err := strconv.ParseFloat(tempStr, 64); err == nil {
+				temperature = f
+			}
+		}
+		topP := 0.7
+		if topPStr := config.getString("topP"); topPStr != "" {
+			if f, err := strconv.ParseFloat(topPStr, 64); err == nil {
+				topP = f
+			}
+		}
+		latency := config.getString("latency")
+		if latency == "" {
+			latency = "normal" // 默认值
+		}
+		chunkLength := config.getInt64("chunkLength")
+		if chunkLength == 0 {
+			chunkLength = config.getInt64("chunk_length") // 兼容下划线格式
+		}
+		if chunkLength == 0 {
+			chunkLength = 300 // 默认值
+		}
+		normalize := true
+		if normStr := config.getString("normalize"); normStr != "" {
+			normalize = normStr == "true" || normStr == "1"
+		}
+		mp3Bitrate := config.getInt64("mp3Bitrate")
+		if mp3Bitrate == 0 {
+			mp3Bitrate = config.getInt64("mp3_bitrate") // 兼容下划线格式
+		}
+		if mp3Bitrate == 0 {
+			mp3Bitrate = 128 // 默认值
+		}
+		fishaudioConfig := NewFishAudioConfig(apiKey, referenceID)
+		fishaudioConfig.Model = model
+		fishaudioConfig.Format = format
+		fishaudioConfig.SampleRate = int(sampleRate)
+		fishaudioConfig.Temperature = temperature
+		fishaudioConfig.TopP = topP
+		fishaudioConfig.Latency = latency
+		fishaudioConfig.ChunkLength = int(chunkLength)
+		fishaudioConfig.Normalize = normalize
+		fishaudioConfig.MPEGBitrate = int(mp3Bitrate)
+		// 将配置对象转换为 map[string]any
+		configBytes, err := json.Marshal(fishaudioConfig)
+		if err != nil {
+			return nil, fmt.Errorf("序列化Fish Audio配置失败: %w", err)
+		}
+		options = make(map[string]any)
+		if err := json.Unmarshal(configBytes, &options); err != nil {
+			return nil, fmt.Errorf("反序列化Fish Audio配置失败: %w", err)
+		}
+
 	case "coqui":
 		url := config.getString("url")
 		if url == "" {
@@ -1230,6 +1331,97 @@ func NewSynthesisServiceFromCredential(config TTSCredentialConfig) (SynthesisSer
 		options = make(map[string]any)
 		if err := json.Unmarshal(configBytes, &options); err != nil {
 			return nil, fmt.Errorf("反序列化Coqui配置失败: %w", err)
+		}
+
+	case "local_gospeech":
+		provider := config.getString("provider")
+		if provider == "" {
+			provider = "melotts" // 默认使用 MeloTTS
+		}
+		modelPath := config.getString("modelPath")
+		if modelPath == "" {
+			modelPath = config.getString("model_path") // 兼容下划线格式
+		}
+		if modelPath == "" {
+			return nil, fmt.Errorf("本地go-speech TTS配置不完整：缺少modelPath")
+		}
+
+		providerName = TTS_LOCAL_GOSPEECH
+		language := config.getString("language")
+		if language == "" {
+			language = "zh-CN" // 默认值
+		}
+		speaker := config.getString("speaker")
+		if speaker == "" {
+			speaker = "default" // 默认值
+		}
+		sampleRate := config.getInt64("sampleRate")
+		if sampleRate == 0 {
+			sampleRate = config.getInt64("sample_rate") // 兼容下划线格式
+		}
+		if sampleRate == 0 {
+			sampleRate = 16000 // 默认值
+		}
+		channels := config.getInt64("channels")
+		if channels == 0 {
+			channels = 1 // 默认值
+		}
+		bitDepth := config.getInt64("bitDepth")
+		if bitDepth == 0 {
+			bitDepth = config.getInt64("bit_depth") // 兼容下划线格式
+		}
+		if bitDepth == 0 {
+			bitDepth = 16 // 默认值
+		}
+		speed := float32(1.0)
+		if speedStr := config.getString("speed"); speedStr != "" {
+			if f, err := strconv.ParseFloat(speedStr, 32); err == nil {
+				speed = float32(f)
+			}
+		}
+		pitch := float32(1.0)
+		if pitchStr := config.getString("pitch"); pitchStr != "" {
+			if f, err := strconv.ParseFloat(pitchStr, 32); err == nil {
+				pitch = float32(f)
+			}
+		}
+		volume := float32(1.0)
+		if volumeStr := config.getString("volume"); volumeStr != "" {
+			if f, err := strconv.ParseFloat(volumeStr, 32); err == nil {
+				volume = float32(f)
+			}
+		}
+		enableCache := true
+		if cacheStr := config.getString("enableCache"); cacheStr != "" {
+			enableCache = cacheStr == "true" || cacheStr == "1"
+		}
+		cacheExpiry := 24 * time.Hour
+		if expiryStr := config.getString("cacheExpiry"); expiryStr != "" {
+			if d, err := time.ParseDuration(expiryStr); err == nil {
+				cacheExpiry = d
+			}
+		}
+
+		localGoSpeechConfig := NewLocalGoSpeechConfig(LocalGoSpeechProvider(provider), modelPath)
+		localGoSpeechConfig.Language = language
+		localGoSpeechConfig.Speaker = speaker
+		localGoSpeechConfig.SampleRate = int(sampleRate)
+		localGoSpeechConfig.Channels = int(channels)
+		localGoSpeechConfig.BitDepth = int(bitDepth)
+		localGoSpeechConfig.Speed = speed
+		localGoSpeechConfig.Pitch = pitch
+		localGoSpeechConfig.Volume = volume
+		localGoSpeechConfig.EnableCache = enableCache
+		localGoSpeechConfig.CacheExpiry = cacheExpiry
+
+		// 将配置对象转换为 map[string]any
+		configBytes, err := json.Marshal(localGoSpeechConfig)
+		if err != nil {
+			return nil, fmt.Errorf("序列化本地go-speech配置失败: %w", err)
+		}
+		options = make(map[string]any)
+		if err := json.Unmarshal(configBytes, &options); err != nil {
+			return nil, fmt.Errorf("反序列化本地go-speech配置失败: %w", err)
 		}
 
 	default:

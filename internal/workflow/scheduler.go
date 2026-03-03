@@ -11,12 +11,12 @@ import (
 	"gorm.io/gorm"
 )
 
-// WorkflowScheduler 工作流定时任务调度器
+// WorkflowScheduler workflow scheduled task scheduler
 type WorkflowScheduler struct {
 	db             *gorm.DB
 	triggerManager *WorkflowTriggerManager
 	cron           *cron.Cron
-	jobIDs         map[uint]cron.EntryID // 工作流ID -> Cron任务ID
+	jobIDs         map[uint]cron.EntryID // Workflow ID -> Cron Job ID
 	mu             sync.RWMutex
 }
 
@@ -25,7 +25,7 @@ var (
 	schedulerOnce     sync.Once
 )
 
-// GetWorkflowScheduler 获取全局调度器实例
+// GetWorkflowScheduler gets global scheduler instance
 func GetWorkflowScheduler(db *gorm.DB) *WorkflowScheduler {
 	schedulerOnce.Do(func() {
 		schedulerInstance = &WorkflowScheduler{
@@ -38,9 +38,9 @@ func GetWorkflowScheduler(db *gorm.DB) *WorkflowScheduler {
 	return schedulerInstance
 }
 
-// Start 启动调度器
+// Start starts the scheduler
 func (s *WorkflowScheduler) Start() error {
-	// 加载所有需要定时执行的工作流
+	// Load all workflows that need scheduled execution
 	workflows, err := s.triggerManager.GetScheduledWorkflows()
 	if err != nil {
 		return fmt.Errorf("failed to load scheduled workflows: %w", err)
@@ -49,7 +49,7 @@ func (s *WorkflowScheduler) Start() error {
 	logger.Info("Starting workflow scheduler",
 		zap.Int("workflowCount", len(workflows)))
 
-	// 为每个工作流注册定时任务
+	// Register scheduled tasks for each workflow
 	for _, wf := range workflows {
 		if err := s.ScheduleWorkflow(wf.ID); err != nil {
 			logger.Error("Failed to schedule workflow",
@@ -59,39 +59,39 @@ func (s *WorkflowScheduler) Start() error {
 		}
 	}
 
-	// 启动 Cron
+	// Start Cron
 	s.cron.Start()
 	logger.Info("Workflow scheduler started")
 
 	return nil
 }
 
-// Stop 停止调度器
+// Stop stops the scheduler
 func (s *WorkflowScheduler) Stop() {
 	s.cron.Stop()
 	logger.Info("Workflow scheduler stopped")
 }
 
-// ScheduleWorkflow 为工作流注册定时任务
+// ScheduleWorkflow registers scheduled task for workflow
 func (s *WorkflowScheduler) ScheduleWorkflow(workflowID uint) error {
-	// 获取工作流定义
+	// Get workflow definition
 	var def models.WorkflowDefinition
 	if err := s.db.First(&def, workflowID).Error; err != nil {
 		return fmt.Errorf("workflow not found: %w", err)
 	}
 
-	// 检查工作流状态
+	// Check workflow status
 	if def.Status != "active" {
 		return fmt.Errorf("workflow is not active")
 	}
 
-	// 解析触发器配置
+	// Parse trigger configuration
 	config, err := ParseTriggerConfig(&def)
 	if err != nil {
 		return fmt.Errorf("failed to parse trigger config: %w", err)
 	}
 
-	// 检查定时触发配置
+	// Check scheduled trigger configuration
 	if config.Schedule == nil || !config.Schedule.Enabled || config.Schedule.CronExpr == "" {
 		return fmt.Errorf("schedule trigger not enabled or cron expression missing")
 	}

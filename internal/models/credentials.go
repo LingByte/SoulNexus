@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/utils"
@@ -63,6 +64,56 @@ type UserCredential struct {
 	LLMApiURL   string         `json:"llmApiUrl"`
 	AsrConfig   ProviderConfig `json:"asrConfig" gorm:"type:json"`
 	TtsConfig   ProviderConfig `json:"ttsConfig" gorm:"type:json"`
+}
+
+// UserCredentialResponse 用于返回给前端的凭证信息（不包含敏感信息）
+type UserCredentialResponse struct {
+	ID          uint      `json:"id"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+	UserID      uint      `json:"userId"`
+	Name        string    `json:"name"`
+	LLMProvider string    `json:"llmProvider"`
+	// 只返回 provider 信息，不返回具体的凭证
+	AsrProvider string `json:"asrProvider"`
+	TtsProvider string `json:"ttsProvider"`
+}
+
+// ToResponse 将 UserCredential 转换为 UserCredentialResponse（不包含敏感信息）
+func (uc *UserCredential) ToResponse() *UserCredentialResponse {
+	asrProvider := ""
+	if uc.AsrConfig != nil {
+		if provider, ok := uc.AsrConfig["provider"].(string); ok {
+			asrProvider = provider
+		}
+	}
+
+	ttsProvider := ""
+	if uc.TtsConfig != nil {
+		if provider, ok := uc.TtsConfig["provider"].(string); ok {
+			ttsProvider = provider
+		}
+	}
+
+	return &UserCredentialResponse{
+		ID:          uc.ID,
+		CreatedAt:   uc.CreatedAt,
+		UpdatedAt:   uc.UpdatedAt,
+		UserID:      uc.UserID,
+		Name:        uc.Name,
+		LLMProvider: uc.LLMProvider,
+		AsrProvider: asrProvider,
+		TtsProvider: ttsProvider,
+	}
+}
+
+// ToResponseList 将 UserCredential 列表转换为 UserCredentialResponse 列表
+func ToResponseList(credentials []*UserCredential) []*UserCredentialResponse {
+	responses := make([]*UserCredentialResponse, len(credentials))
+	for i, cred := range credentials {
+		responses[i] = cred.ToResponse()
+	}
+	return responses
 }
 
 func (uc *UserCredential) TableName() string {

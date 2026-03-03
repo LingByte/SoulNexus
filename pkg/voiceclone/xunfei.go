@@ -25,8 +25,8 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// XunfeiConfig 讯飞配置
-type XunfeiConfig struct {
+// XunfeiCloneConfig 讯飞克隆配置
+type XunfeiCloneConfig struct {
 	AppID              string `json:"app_id"`
 	APIKey             string `json:"api_key"`
 	BaseURL            string `json:"base_url"`
@@ -36,9 +36,9 @@ type XunfeiConfig struct {
 	WebSocketAPISecret string `json:"ws_api_secret"`
 }
 
-// XunfeiService 讯飞语音克隆服务
-type XunfeiService struct {
-	config      *XunfeiConfig
+// XunfeiCloneService 讯飞语音克隆服务
+type XunfeiCloneService struct {
+	config      *XunfeiCloneConfig
 	httpClient  *http.Client
 	token       *AuthToken
 	tokenExpiry time.Time
@@ -51,9 +51,9 @@ type AuthToken struct {
 	RetCode     string `json:"retcode"`
 }
 
-// NewXunfeiService 创建讯飞服务
+// NewXunfeiCloneService 创建讯飞克隆服务
 // 讯飞语音克隆服务实现
-func NewXunfeiService(config XunfeiConfig) *XunfeiService {
+func NewXunfeiCloneService(config XunfeiCloneConfig) *XunfeiCloneService {
 	if config.BaseURL == "" {
 		// 使用与已有实现相同的默认 BaseURL
 		config.BaseURL = "http://opentrain.xfyousheng.com"
@@ -62,7 +62,7 @@ func NewXunfeiService(config XunfeiConfig) *XunfeiService {
 		config.Timeout = 30
 	}
 
-	return &XunfeiService{
+	return &XunfeiCloneService{
 		config: &config,
 		httpClient: &http.Client{
 			Timeout: time.Duration(config.Timeout) * time.Second,
@@ -71,13 +71,13 @@ func NewXunfeiService(config XunfeiConfig) *XunfeiService {
 }
 
 // Provider 返回服务提供商
-func (s *XunfeiService) Provider() Provider {
+func (s *XunfeiCloneService) Provider() Provider {
 	return ProviderXunfei
 }
 
 // getAuthToken 获取认证token
 // 使用与旧实现完全相同的认证方式
-func (s *XunfeiService) getAuthToken(ctx context.Context) error {
+func (s *XunfeiCloneService) getAuthToken(ctx context.Context) error {
 	// 如果token未过期，直接返回
 	if s.token != nil && time.Now().Before(s.tokenExpiry) {
 		return nil
@@ -146,7 +146,7 @@ func (s *XunfeiService) getAuthToken(ctx context.Context) error {
 
 // makeRequest 发送HTTP请求
 // 使用与旧实现完全相同的请求方式（包含签名）
-func (s *XunfeiService) makeRequest(ctx context.Context, method, url string, body interface{}) (*http.Response, error) {
+func (s *XunfeiCloneService) makeRequest(ctx context.Context, method, url string, body interface{}) (*http.Response, error) {
 	if err := s.getAuthToken(ctx); err != nil {
 		return nil, err
 	}
@@ -181,7 +181,7 @@ func (s *XunfeiService) makeRequest(ctx context.Context, method, url string, bod
 
 // GetTrainingTexts 获取训练文本
 // 讯飞语音克隆服务实现
-func (s *XunfeiService) GetTrainingTexts(ctx context.Context, textID int64) (*TrainingText, error) {
+func (s *XunfeiCloneService) GetTrainingTexts(ctx context.Context, textID int64) (*TrainingText, error) {
 	url := s.config.BaseURL + "/voice_train/task/traintext"
 	body := map[string]interface{}{
 		"textId": textID,
@@ -237,7 +237,7 @@ func (s *XunfeiService) GetTrainingTexts(ctx context.Context, textID int64) (*Tr
 
 // CreateTask 创建训练任务
 // 讯飞语音克隆服务实现
-func (s *XunfeiService) CreateTask(ctx context.Context, req *CreateTaskRequest) (*CreateTaskResponse, error) {
+func (s *XunfeiCloneService) CreateTask(ctx context.Context, req *CreateTaskRequest) (*CreateTaskResponse, error) {
 	url := s.config.BaseURL + "/voice_train/task/add"
 
 	// 构建请求体，确保所有必需参数都包含
@@ -282,7 +282,7 @@ func (s *XunfeiService) CreateTask(ctx context.Context, req *CreateTaskRequest) 
 }
 
 // SubmitAudio 提交音频文件
-func (s *XunfeiService) SubmitAudio(ctx context.Context, req *SubmitAudioRequest) error {
+func (s *XunfeiCloneService) SubmitAudio(ctx context.Context, req *SubmitAudioRequest) error {
 	if err := s.getAuthToken(ctx); err != nil {
 		return fmt.Errorf("failed to get auth token: %w", err)
 	}
@@ -359,7 +359,7 @@ func (s *XunfeiService) SubmitAudio(ctx context.Context, req *SubmitAudioRequest
 
 // QueryTaskStatus 查询任务状态
 // 讯飞语音克隆服务实现
-func (s *XunfeiService) QueryTaskStatus(ctx context.Context, taskID string) (*TaskStatus, error) {
+func (s *XunfeiCloneService) QueryTaskStatus(ctx context.Context, taskID string) (*TaskStatus, error) {
 	url := s.config.BaseURL + "/voice_train/task/result"
 	body := map[string]interface{}{
 		"taskId": taskID,
@@ -412,7 +412,7 @@ func (s *XunfeiService) QueryTaskStatus(ctx context.Context, taskID string) (*Ta
 }
 
 // generateWebSocketAuthURL 生成WebSocket鉴权URL
-func (s *XunfeiService) generateWebSocketAuthURL(host, path string) (string, error) {
+func (s *XunfeiCloneService) generateWebSocketAuthURL(host, path string) (string, error) {
 	if s.config.WebSocketAPIKey == "" || s.config.WebSocketAPISecret == "" {
 		return "", fmt.Errorf("WebSocket API credentials not configured")
 	}
@@ -437,7 +437,7 @@ func (s *XunfeiService) generateWebSocketAuthURL(host, path string) (string, err
 }
 
 // Synthesize 使用训练好的音色合成语音
-func (s *XunfeiService) Synthesize(ctx context.Context, req *SynthesizeRequest) (*SynthesizeResponse, error) {
+func (s *XunfeiCloneService) Synthesize(ctx context.Context, req *SynthesizeRequest) (*SynthesizeResponse, error) {
 	if s.config.WebSocketAppID == "" || s.config.WebSocketAPIKey == "" || s.config.WebSocketAPISecret == "" {
 		return nil, fmt.Errorf("WebSocket credentials not configured")
 	}
@@ -554,7 +554,7 @@ func (s *XunfeiService) Synthesize(ctx context.Context, req *SynthesizeRequest) 
 }
 
 // SynthesizeStream 流式合成语音
-func (s *XunfeiService) SynthesizeStream(ctx context.Context, req *SynthesizeRequest, handler SynthesisHandler) error {
+func (s *XunfeiCloneService) SynthesizeStream(ctx context.Context, req *SynthesizeRequest, handler SynthesisHandler) error {
 	if s.config.WebSocketAppID == "" || s.config.WebSocketAPIKey == "" || s.config.WebSocketAPISecret == "" {
 		return fmt.Errorf("WebSocket credentials not configured")
 	}
@@ -683,7 +683,7 @@ func (s *XunfeiService) SynthesizeStream(ctx context.Context, req *SynthesizeReq
 }
 
 // SynthesizeToStorage 合成并保存到存储
-func (s *XunfeiService) SynthesizeToStorage(ctx context.Context, req *SynthesizeRequest, storageKey string) (string, error) {
+func (s *XunfeiCloneService) SynthesizeToStorage(ctx context.Context, req *SynthesizeRequest, storageKey string) (string, error) {
 	resp, err := s.Synthesize(ctx, req)
 	if err != nil {
 		return "", err
@@ -728,7 +728,7 @@ func (s *XunfeiService) SynthesizeToStorage(ctx context.Context, req *Synthesize
 	result, err := config.GlobalStore.UploadBytes(&lingstorage.UploadBytesRequest{
 		Data:     mp3Data,
 		Filename: storageKey,
-		Bucket:   config.GlobalConfig.LingstorageBucket,
+		Bucket:   config.GlobalConfig.Services.Storage.Bucket,
 		Key:      storageKey,
 	})
 
@@ -737,7 +737,7 @@ func (s *XunfeiService) SynthesizeToStorage(ctx context.Context, req *Synthesize
 }
 
 // convertPCMToWAV 将 PCM 音频数据转换为 WAV 格式（添加 WAV 文件头）
-func (s *XunfeiService) convertPCMToWAV(pcmData []byte, sampleRate int, channels int, bitDepth int) ([]byte, error) {
+func (s *XunfeiCloneService) convertPCMToWAV(pcmData []byte, sampleRate int, channels int, bitDepth int) ([]byte, error) {
 	// 创建44字节的WAV头部
 	header := make([]byte, 44)
 	dataSize := len(pcmData)
@@ -767,7 +767,7 @@ func (s *XunfeiService) convertPCMToWAV(pcmData []byte, sampleRate int, channels
 }
 
 // convertWAVToMP3 使用 ffmpeg 将 WAV 音频数据转换为 MP3 格式
-func (s *XunfeiService) convertWAVToMP3(wavData []byte) ([]byte, error) {
+func (s *XunfeiCloneService) convertWAVToMP3(wavData []byte) ([]byte, error) {
 	// 创建临时文件
 	tmpWavFile, err := os.CreateTemp("", "voice_synthesis_*.wav")
 	if err != nil {

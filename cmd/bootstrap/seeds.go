@@ -19,56 +19,48 @@ func (s *SeedService) SeedAll() error {
 	if err := s.seedConfigs(); err != nil {
 		return err
 	}
-
 	if err := s.seedAdminUsers(); err != nil {
 		return err
 	}
-
 	if err := s.seedAssistants(); err != nil {
 		return err
 	}
-
-	if err := s.seedPromptModels(); err != nil {
+	if err := s.seedMCPMarketplace(); err != nil {
 		return err
 	}
-
-	if err := s.seedPromptArgs(); err != nil {
-		return err
-	}
-
 	return nil
 }
 
 func (s *SeedService) seedConfigs() error {
-	apiPrefix := config.GlobalConfig.APIPrefix
+	apiPrefix := config.GlobalConfig.Server.APIPrefix
 	defaults := []utils.Config{
 		{Key: constants.KEY_SITE_URL, Desc: "Site URL", Autoload: true, Public: true, Format: "text", Value: func() string {
-			if config.GlobalConfig.ServerUrl != "" {
-				return config.GlobalConfig.ServerUrl
+			if config.GlobalConfig.Server.URL != "" {
+				return config.GlobalConfig.Server.URL
 			}
 			return "https://lingecho.com"
 		}()},
 		{Key: constants.KEY_SITE_NAME, Desc: "Site Name", Autoload: true, Public: true, Format: "text", Value: func() string {
-			if config.GlobalConfig.ServerName != "" {
-				return config.GlobalConfig.ServerName
+			if config.GlobalConfig.Server.Name != "" {
+				return config.GlobalConfig.Server.Name
 			}
-			return "LingEcho"
+			return "SoulNexus"
 		}()},
 		{Key: constants.KEY_SITE_LOGO_URL, Desc: "Site Logo", Autoload: true, Public: true, Format: "text", Value: func() string {
-			if config.GlobalConfig.ServerLogo != "" {
-				return config.GlobalConfig.ServerLogo
+			if config.GlobalConfig.Server.Logo != "" {
+				return config.GlobalConfig.Server.Logo
 			}
 			return "/static/img/favicon.png"
 		}()},
 		{Key: constants.KEY_SITE_DESCRIPTION, Desc: "Site Description", Autoload: true, Public: true, Format: "text", Value: func() string {
-			if config.GlobalConfig.ServerDesc != "" {
-				return config.GlobalConfig.ServerDesc
+			if config.GlobalConfig.Server.Desc != "" {
+				return config.GlobalConfig.Server.Desc
 			}
-			return "LingEcho - Intelligent Voice Customer Service Platform"
+			return "SoulNexus - Intelligent Voice Customer Service Platform"
 		}()},
 		{Key: constants.KEY_SITE_TERMS_URL, Desc: "Terms of Service", Autoload: true, Public: true, Format: "text", Value: func() string {
-			if config.GlobalConfig.ServerTermsUrl != "" {
-				return config.GlobalConfig.ServerTermsUrl
+			if config.GlobalConfig.Server.TermsURL != "" {
+				return config.GlobalConfig.Server.TermsURL
 			}
 			return "https://lingecho.com"
 		}()},
@@ -82,22 +74,21 @@ func (s *SeedService) seedConfigs() error {
 		{Key: constants.KEY_SITE_RESET_PASSWORD_DONE_API, Desc: "Reset Password API", Autoload: true, Public: true, Format: "text", Value: apiPrefix + "/auth/reset-password-done"},
 		{Key: constants.KEY_SITE_LOGIN_NEXT, Desc: "Login Redirect Page", Autoload: true, Public: true, Format: "text", Value: apiPrefix + "/admin/"},
 		{Key: constants.KEY_SITE_USER_ID_TYPE, Desc: "User ID Type", Autoload: true, Public: true, Format: "text", Value: "email"},
-		// Search configuration
 		{Key: constants.KEY_SEARCH_ENABLED, Desc: "Search Feature Enabled", Autoload: true, Public: true, Format: "bool", Value: func() string {
-			if config.GlobalConfig.SearchEnabled {
+			if config.GlobalConfig.Features.SearchEnabled {
 				return "true"
 			}
 			return "false"
 		}()},
 		{Key: constants.KEY_SEARCH_PATH, Desc: "Search Index Path", Autoload: true, Public: false, Format: "text", Value: func() string {
-			if config.GlobalConfig.SearchPath != "" {
-				return config.GlobalConfig.SearchPath
+			if config.GlobalConfig.Features.SearchPath != "" {
+				return config.GlobalConfig.Features.SearchPath
 			}
 			return "./search"
 		}()},
 		{Key: constants.KEY_SEARCH_BATCH_SIZE, Desc: "Search Batch Size", Autoload: true, Public: false, Format: "int", Value: func() string {
-			if config.GlobalConfig.SearchBatchSize > 0 {
-				return strconv.Itoa(config.GlobalConfig.SearchBatchSize)
+			if config.GlobalConfig.Features.SearchBatchSize > 0 {
+				return strconv.Itoa(config.GlobalConfig.Features.SearchBatchSize)
 			}
 			return "100"
 		}()},
@@ -121,16 +112,12 @@ func (s *SeedService) seedConfigs() error {
 }
 
 func (s *SeedService) seedAdminUsers() error {
-	// 超级管理员权限（所有权限）
-	allPermissions := `["*"]`
-
 	defaultAdmins := []models.User{
 		{
 			Email:       "admin@lingecho.com",
 			Password:    models.HashPassword("admin123"),
 			IsStaff:     true,
 			Role:        models.RoleSuperAdmin,
-			Permissions: allPermissions,
 			DisplayName: "Administrator",
 			Enabled:     true,
 		},
@@ -139,7 +126,6 @@ func (s *SeedService) seedAdminUsers() error {
 			Password:    models.HashPassword("admin123"),
 			IsStaff:     true,
 			Role:        models.RoleSuperAdmin,
-			Permissions: allPermissions,
 			DisplayName: "Administrator",
 			Enabled:     true,
 		},
@@ -230,58 +216,143 @@ func (s *SeedService) seedAssistants() error {
 	return nil
 }
 
-func (s *SeedService) seedPromptModels() error {
-	defaultPrompts := []models.PromptModel{
-		{
-			Name:        "summarize_article",
-			Description: "Summarize the main content of an article, suitable for extracting summaries from long paragraphs or blog posts.",
-			CreatedAt:   time.Now(),
-			UpdatedAt:   time.Now(),
-		},
-		{
-			Name:        "translate_text",
-			Description: "Translate input text to a specified language, suitable for scenarios like English-Chinese translation.",
-			CreatedAt:   time.Now(),
-			UpdatedAt:   time.Now(),
-		},
-		{
-			Name:        "generate_title",
-			Description: "Generate a concise and attractive title based on article content.",
-			CreatedAt:   time.Now(),
-			UpdatedAt:   time.Now(),
-		},
-		{
-			Name:        "email_reply_generator",
-			Description: "Automatically generate professional email replies based on email content and intent.",
-			CreatedAt:   time.Now(),
-			UpdatedAt:   time.Now(),
-		},
-	}
+func (s *SeedService) seedMCPMarketplace() error {
 	var count int64
-	if err := s.db.Model(models.PromptModel{}).Count(&count).Error; err != nil {
+	if err := s.db.Model(&models.MCPMarketplaceItem{}).Count(&count).Error; err != nil {
 		return err
 	}
 	if count != 0 {
-		return nil
+		return nil // Data already exists, skip
 	}
-	return s.db.Model(models.PromptModel{}).Create(defaultPrompts).Error
-}
 
-func (s *SeedService) seedPromptArgs() error {
-	defaultArgs := []models.PromptArgModel{
-		// summarize_article
-		{Name: "content", Description: "Article content to be summarized", Required: true, PromptID: 1},
-
-		// translate_text
-		{Name: "text", Description: "Text to be translated", Required: true, PromptID: 2},
-		{Name: "target_language", Description: "Target language (e.g., en, zh)", Required: true, PromptID: 2},
-
-		// generate_title
-		{Name: "article", Description: "Article content", Required: true, PromptID: 3},
-
-		// email_reply_generator
-		{Name: "email_body", Description: "Original email content", Required: true, PromptID: 4},
-		{Name: "tone", Description: "Reply tone (e.g., formal, casual)", Required: false, PromptID: 4},
+	// Seed categories first
+	categories := []models.MCPCategory{
+		{
+			Name:        "Database",
+			Description: "Database query and management tools",
+			Order:       1,
+		},
+		{
+			Name:        "File System",
+			Description: "File operations and management tools",
+			Order:       2,
+		},
+		{
+			Name:        "Network",
+			Description: "Network and HTTP request tools",
+			Order:       3,
+		},
+		{
+			Name:        "Utilities",
+			Description: "Utility and helper tools",
+			Order:       4,
+		},
+		{
+			Name:        "System",
+			Description: "System information and management tools",
+			Order:       5,
+		},
 	}
-	return s.db.Model(models.PromptArgModel{}).Create(defaultArgs).Error
+
+	for i := range categories {
+		if err := s.db.Create(&categories[i]).Error; err != nil {
+			return err
+		}
+	}
+
+	// Seed marketplace items
+	items := []models.MCPMarketplaceItem{
+		{
+			Name:          "Database Query MCP",
+			Description:   "Provides database query tools, supports SQL queries, data export and other functions",
+			Version:       "1.0.0",
+			Author:        "SoulNexus Team",
+			Repository:    "https://github.com/soulmcp/mcp-database",
+			Documentation: "https://docs.soulmcp.com/mcp-database",
+			Category:      "Database",
+			Tags:          []byte(`["database", "query", "sql"]`),
+			Downloads:     1250,
+			Rating:        4.8,
+			Status:        "published",
+			IsFeatured:    true,
+		},
+		{
+			Name:          "File Operations MCP",
+			Description:   "Provides file operation tools, supports read, write, list, delete and other operations",
+			Version:       "1.0.0",
+			Author:        "SoulNexus Team",
+			Repository:    "https://github.com/soulmcp/mcp-file",
+			Documentation: "https://docs.soulmcp.com/mcp-file",
+			Category:      "File System",
+			Tags:          []byte(`["file", "filesystem", "io"]`),
+			Downloads:     980,
+			Rating:        4.6,
+			Status:        "published",
+			IsFeatured:    true,
+		},
+		{
+			Name:          "HTTP API MCP",
+			Description:   "Provides HTTP request tools, supports GET, POST, PUT, DELETE and other methods",
+			Version:       "1.0.0",
+			Author:        "SoulNexus Team",
+			Repository:    "https://github.com/soulmcp/mcp-http",
+			Documentation: "https://docs.soulmcp.com/mcp-http",
+			Category:      "Network",
+			Tags:          []byte(`["http", "api", "rest"]`),
+			Downloads:     750,
+			Rating:        4.5,
+			Status:        "published",
+			IsFeatured:    true,
+		},
+		{
+			Name:          "System Information MCP",
+			Description:   "Provides system information tools, supports OS info, CPU, memory and other metrics",
+			Version:       "1.0.0",
+			Author:        "SoulNexus Team",
+			Repository:    "https://github.com/soulmcp/mcp-system",
+			Documentation: "https://docs.soulmcp.com/mcp-system",
+			Category:      "System",
+			Tags:          []byte(`["system", "info", "metrics"]`),
+			Downloads:     650,
+			Rating:        4.7,
+			Status:        "published",
+			IsFeatured:    true,
+		},
+		{
+			Name:          "Utility Tools MCP",
+			Description:   "Provides utility tools, supports hash, encode, decode, validate and other functions",
+			Version:       "1.0.0",
+			Author:        "SoulNexus Team",
+			Repository:    "https://github.com/soulmcp/mcp-utils",
+			Documentation: "https://docs.soulmcp.com/mcp-utils",
+			Category:      "Utilities",
+			Tags:          []byte(`["utility", "hash", "encode"]`),
+			Downloads:     520,
+			Rating:        4.4,
+			Status:        "published",
+			IsFeatured:    false,
+		},
+		{
+			Name:          "Network Tools MCP",
+			Description:   "Provides network tools, supports ping, DNS lookup, traceroute and other functions",
+			Version:       "1.0.0",
+			Author:        "SoulNexus Team",
+			Repository:    "https://github.com/soulmcp/mcp-network",
+			Documentation: "https://docs.soulmcp.com/mcp-network",
+			Category:      "Network",
+			Tags:          []byte(`["network", "ping", "dns"]`),
+			Downloads:     380,
+			Rating:        4.3,
+			Status:        "published",
+			IsFeatured:    false,
+		},
+	}
+
+	for i := range items {
+		if err := s.db.Create(&items[i]).Error; err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

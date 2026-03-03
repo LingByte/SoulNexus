@@ -42,6 +42,8 @@ const (
 	VendorBaidu Vendor = "baidu"
 	// VendorVoiceAPI VoiceAPI
 	VendorVoiceAPI Vendor = "voiceapi"
+	// VendorLocal 本地ASR
+	VendorLocal Vendor = "local"
 )
 
 // TranscriberConfig 统一的配置接口
@@ -170,8 +172,6 @@ func (f *DefaultTranscriberFactory) registerDefaultCreators() {
 	})
 
 	// 注册科大讯飞多语言
-	// 注意：XfyunMul 需要 pipeline.SessionHandler 参数，需要通过 NewXfyunMul 创建
-	// 如果需要在工厂中创建，需要特殊处理
 	f.RegisterCreator(VendorXfyunMul, func(config TranscriberConfig) (TranscribeService, error) {
 		return nil, fmt.Errorf("xfyun_mul requires pipeline.SessionHandler, use NewXfyunMul directly")
 	})
@@ -196,16 +196,73 @@ func (f *DefaultTranscriberFactory) registerDefaultCreators() {
 		return &realtime, nil
 	})
 
-	// 注意：以下 transcriber 没有实现 TranscribeService 接口，只有 With 函数
-	// Whisper, Deepgram, AWS, Baidu, VoiceAPI 等需要通过 With*ASR 函数使用
-	// 如果需要使用这些，请直接调用相应的 With*ASR 函数
+	// 注册本地ASR
+	f.RegisterCreator(VendorLocal, func(config TranscriberConfig) (TranscribeService, error) {
+		localConfig, ok := config.(*LocalASRConfig)
+		if !ok {
+			return nil, fmt.Errorf("invalid config type for local")
+		}
+		return NewLocalASRService(localConfig)
+	})
+
+	// 注册火山引擎标准ASR
+	f.RegisterCreator(VendorVolcengine, func(config TranscriberConfig) (TranscribeService, error) {
+		_, ok := config.(*VolcengineOption)
+		if !ok {
+			return nil, fmt.Errorf("invalid config type for volcengine")
+		}
+		return nil, fmt.Errorf("volcengine requires media.MediaHandler, use WithVolcengineASR directly")
+	})
+
+	// 注册Deepgram
+	f.RegisterCreator(VendorDeepgram, func(config TranscriberConfig) (TranscribeService, error) {
+		_, ok := config.(*DeepgramASROption)
+		if !ok {
+			return nil, fmt.Errorf("invalid config type for deepgram")
+		}
+		return nil, fmt.Errorf("deepgram requires media.MediaHandler, use WithDeepgramASR directly")
+	})
+
+	// 注册AWS
+	f.RegisterCreator(VendorAWS, func(config TranscriberConfig) (TranscribeService, error) {
+		_, ok := config.(*AwsASROption)
+		if !ok {
+			return nil, fmt.Errorf("invalid config type for aws")
+		}
+		return nil, fmt.Errorf("aws requires media.MediaHandler, use WithAwsASR directly")
+	})
+
+	// 注册百度
+	f.RegisterCreator(VendorBaidu, func(config TranscriberConfig) (TranscribeService, error) {
+		_, ok := config.(*BaiduASROption)
+		if !ok {
+			return nil, fmt.Errorf("invalid config type for baidu")
+		}
+		return nil, fmt.Errorf("baidu requires media.MediaHandler, use WithBaiduASR directly")
+	})
+
+	// 注册VoiceAPI
+	f.RegisterCreator(VendorVoiceAPI, func(config TranscriberConfig) (TranscribeService, error) {
+		_, ok := config.(*VoiceapiASROption)
+		if !ok {
+			return nil, fmt.Errorf("invalid config type for voiceapi")
+		}
+		return nil, fmt.Errorf("voiceapi requires media.MediaHandler, use WithVoiceapiASR directly")
+	})
+
+	// 注册Whisper
+	f.RegisterCreator(VendorWhisper, func(config TranscriberConfig) (TranscribeService, error) {
+		_, ok := config.(*WhisperASROption)
+		if !ok {
+			return nil, fmt.Errorf("invalid config type for whisper")
+		}
+		return nil, fmt.Errorf("whisper requires media.MediaHandler, use WithWhisperASR directly")
+	})
 
 	logrus.WithFields(logrus.Fields{
 		"vendors": f.GetSupportedVendors(),
 	}).Info("transcriber factory initialized")
 }
-
-// 为各个配置类型实现 GetVendor 方法
 
 func (opt *QCloudASROption) GetVendor() Vendor {
 	return VendorQCloud
@@ -237,6 +294,30 @@ func (opt *GladiaASROption) GetVendor() Vendor {
 
 func (opt *FunAsrRealtimeOption) GetVendor() Vendor {
 	return VendorFunASRRealtime
+}
+
+func (opt *LocalASRConfig) GetVendor() Vendor {
+	return VendorLocal
+}
+
+func (opt *DeepgramASROption) GetVendor() Vendor {
+	return VendorDeepgram
+}
+
+func (opt *AwsASROption) GetVendor() Vendor {
+	return VendorAWS
+}
+
+func (opt *BaiduASROption) GetVendor() Vendor {
+	return VendorBaidu
+}
+
+func (opt *WhisperASROption) GetVendor() Vendor {
+	return VendorWhisper
+}
+
+func (opt *VoiceapiASROption) GetVendor() Vendor {
+	return VendorVoiceAPI
 }
 
 // 全局工厂实例

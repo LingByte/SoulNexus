@@ -6,14 +6,14 @@ import (
 	"time"
 )
 
-// localCache 本地缓存实现
+// localCache implements local in-memory cache
 type localCache struct {
 	config LocalConfig
 	cache  *lruCache
 	mu     sync.RWMutex
 }
 
-// lruCache LRU缓存
+// lruCache implements LRU (Least Recently Used) cache
 type lruCache struct {
 	maxSize int
 	items   map[string]*cacheItem
@@ -21,14 +21,14 @@ type lruCache struct {
 	mu      sync.RWMutex
 }
 
-// cacheItem 缓存项
+// cacheItem represents a single cache entry
 type cacheItem struct {
 	value      interface{}
 	expiration time.Time
 	lastAccess time.Time
 }
 
-// NewLocalCache 创建本地缓存
+// NewLocalCache creates a new local cache instance
 func NewLocalCache(config LocalConfig) Cache {
 	lc := &localCache{
 		config: config,
@@ -39,13 +39,13 @@ func NewLocalCache(config LocalConfig) Cache {
 		},
 	}
 
-	// 启动清理协程
+	// Start cleanup goroutine
 	go lc.startCleanup()
 
 	return lc
 }
 
-// Get 获取缓存值
+// Get retrieves a value from cache by key
 func (lc *localCache) Get(ctx context.Context, key string) (interface{}, bool) {
 	lc.mu.RLock()
 	defer lc.mu.RUnlock()
@@ -55,18 +55,18 @@ func (lc *localCache) Get(ctx context.Context, key string) (interface{}, bool) {
 		return nil, false
 	}
 
-	// 检查是否过期
+	// Check if expired
 	if !item.expiration.IsZero() && time.Now().After(item.expiration) {
 		lc.cache.delete(key)
 		return nil, false
 	}
 
-	// 更新最后访问时间
+	// Update last access time
 	item.lastAccess = time.Now()
 	return item.value, true
 }
 
-// Set 设置缓存值
+// Set stores a value in cache with expiration
 func (lc *localCache) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error {
 	lc.mu.Lock()
 	defer lc.mu.Unlock()
@@ -86,7 +86,7 @@ func (lc *localCache) Set(ctx context.Context, key string, value interface{}, ex
 	return nil
 }
 
-// Delete 删除缓存
+// Delete removes a key from cache
 func (lc *localCache) Delete(ctx context.Context, key string) error {
 	lc.mu.Lock()
 	defer lc.mu.Unlock()
@@ -95,7 +95,7 @@ func (lc *localCache) Delete(ctx context.Context, key string) error {
 	return nil
 }
 
-// Exists 检查键是否存在
+// Exists checks if a key exists in cache
 func (lc *localCache) Exists(ctx context.Context, key string) bool {
 	lc.mu.RLock()
 	defer lc.mu.RUnlock()
@@ -105,7 +105,7 @@ func (lc *localCache) Exists(ctx context.Context, key string) bool {
 		return false
 	}
 
-	// 检查是否过期
+	// Check if expired
 	if !item.expiration.IsZero() && time.Now().After(item.expiration) {
 		lc.cache.delete(key)
 		return false
@@ -114,7 +114,7 @@ func (lc *localCache) Exists(ctx context.Context, key string) bool {
 	return true
 }
 
-// Clear 清空所有缓存
+// Clear removes all entries from cache
 func (lc *localCache) Clear(ctx context.Context) error {
 	lc.mu.Lock()
 	defer lc.mu.Unlock()
@@ -123,7 +123,7 @@ func (lc *localCache) Clear(ctx context.Context) error {
 	return nil
 }
 
-// GetMulti 批量获取
+// GetMulti retrieves multiple values by keys
 func (lc *localCache) GetMulti(ctx context.Context, keys ...string) map[string]interface{} {
 	result := make(map[string]interface{})
 	for _, key := range keys {
@@ -134,7 +134,7 @@ func (lc *localCache) GetMulti(ctx context.Context, keys ...string) map[string]i
 	return result
 }
 
-// SetMulti 批量设置
+// SetMulti stores multiple key-value pairs with expiration
 func (lc *localCache) SetMulti(ctx context.Context, data map[string]interface{}, expiration time.Duration) error {
 	for key, value := range data {
 		if err := lc.Set(ctx, key, value, expiration); err != nil {
@@ -144,7 +144,7 @@ func (lc *localCache) SetMulti(ctx context.Context, data map[string]interface{},
 	return nil
 }
 
-// DeleteMulti 批量删除
+// DeleteMulti removes multiple keys from cache
 func (lc *localCache) DeleteMulti(ctx context.Context, keys ...string) error {
 	for _, key := range keys {
 		if err := lc.Delete(ctx, key); err != nil {
@@ -154,14 +154,14 @@ func (lc *localCache) DeleteMulti(ctx context.Context, keys ...string) error {
 	return nil
 }
 
-// Increment 自增
+// Increment increments a numeric value by the given amount
 func (lc *localCache) Increment(ctx context.Context, key string, value int64) (int64, error) {
 	lc.mu.Lock()
 	defer lc.mu.Unlock()
 
 	item, exists := lc.cache.get(key)
 	if !exists {
-		// 如果不存在，创建新值
+		// If key doesn't exist, create new value
 		newValue := value
 		lc.cache.set(key, &cacheItem{
 			value:      newValue,
@@ -171,7 +171,7 @@ func (lc *localCache) Increment(ctx context.Context, key string, value int64) (i
 		return newValue, nil
 	}
 
-	// 检查是否过期
+	// Check if expired
 	if !item.expiration.IsZero() && time.Now().After(item.expiration) {
 		lc.cache.delete(key)
 		newValue := value
@@ -183,7 +183,7 @@ func (lc *localCache) Increment(ctx context.Context, key string, value int64) (i
 		return newValue, nil
 	}
 
-	// 尝试转换为数字并自增
+	// Try to convert to number and increment
 	switch v := item.value.(type) {
 	case int:
 		newValue := int64(v) + value
@@ -201,19 +201,19 @@ func (lc *localCache) Increment(ctx context.Context, key string, value int64) (i
 		item.lastAccess = time.Now()
 		return newValue, nil
 	default:
-		// 如果类型不支持，重置为指定值
+		// If type is not supported, reset to specified value
 		item.value = value
 		item.lastAccess = time.Now()
 		return value, nil
 	}
 }
 
-// Decrement 自减
+// Decrement decrements a numeric value by the given amount
 func (lc *localCache) Decrement(ctx context.Context, key string, value int64) (int64, error) {
 	return lc.Increment(ctx, key, -value)
 }
 
-// GetWithTTL 获取值并返回剩余TTL
+// GetWithTTL retrieves a value and its remaining TTL
 func (lc *localCache) GetWithTTL(ctx context.Context, key string) (interface{}, time.Duration, bool) {
 	lc.mu.RLock()
 	defer lc.mu.RUnlock()
@@ -223,7 +223,7 @@ func (lc *localCache) GetWithTTL(ctx context.Context, key string) (interface{}, 
 		return nil, 0, false
 	}
 
-	// 检查是否过期
+	// Check if expired
 	if !item.expiration.IsZero() && time.Now().After(item.expiration) {
 		lc.cache.delete(key)
 		return nil, 0, false
@@ -237,18 +237,18 @@ func (lc *localCache) GetWithTTL(ctx context.Context, key string) (interface{}, 
 		}
 	}
 
-	// 更新最后访问时间
+	// Update last access time
 	item.lastAccess = time.Now()
 	return item.value, ttl, true
 }
 
-// Close 关闭缓存连接
+// Close closes the cache connection (no-op for local cache)
 func (lc *localCache) Close() error {
-	// 本地缓存不需要关闭连接
+	// Local cache doesn't need to close connections
 	return nil
 }
 
-// startCleanup 启动清理协程
+// startCleanup starts the cleanup goroutine
 func (lc *localCache) startCleanup() {
 	ticker := time.NewTicker(lc.config.CleanupInterval)
 	defer ticker.Stop()
@@ -258,7 +258,7 @@ func (lc *localCache) startCleanup() {
 	}
 }
 
-// cleanup 清理过期项
+// cleanup removes expired items from cache
 func (lc *localCache) cleanup() {
 	lc.mu.Lock()
 	defer lc.mu.Unlock()
@@ -271,25 +271,25 @@ func (lc *localCache) cleanup() {
 	}
 }
 
-// LRU缓存方法实现
+// LRU cache method implementations
 func (lc *lruCache) get(key string) (*cacheItem, bool) {
 	item, exists := lc.items[key]
 	if !exists {
 		return nil, false
 	}
 
-	// 更新访问顺序
+	// Update access order
 	lc.updateAccessOrder(key)
 	return item, true
 }
 
 func (lc *lruCache) set(key string, item *cacheItem) {
-	// 如果键已存在，先删除
+	// If key already exists, delete it first
 	if _, exists := lc.items[key]; exists {
 		lc.delete(key)
 	}
 
-	// 如果达到最大大小，删除最久未使用的项
+	// If max size reached, evict least recently used item
 	if len(lc.items) >= lc.maxSize {
 		lc.evictLRU()
 	}
@@ -300,7 +300,7 @@ func (lc *lruCache) set(key string, item *cacheItem) {
 
 func (lc *lruCache) delete(key string) {
 	delete(lc.items, key)
-	// 从keys中删除
+	// Remove from keys slice
 	for i, k := range lc.keys {
 		if k == key {
 			lc.keys = append(lc.keys[:i], lc.keys[i+1:]...)
@@ -315,7 +315,7 @@ func (lc *lruCache) clear() {
 }
 
 func (lc *lruCache) updateAccessOrder(key string) {
-	// 将访问的键移到末尾
+	// Move accessed key to end
 	for i, k := range lc.keys {
 		if k == key {
 			lc.keys = append(lc.keys[:i], lc.keys[i+1:]...)
@@ -330,7 +330,7 @@ func (lc *lruCache) evictLRU() {
 		return
 	}
 
-	// 删除最久未使用的项（第一个）
+	// Remove least recently used item (first one)
 	oldestKey := lc.keys[0]
 	delete(lc.items, oldestKey)
 	lc.keys = lc.keys[1:]

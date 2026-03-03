@@ -51,13 +51,20 @@ func SetupDatabase(logWriter io.Writer, opts *Options) (*gorm.DB, error) {
 
 	// 3) Migrate entities
 	if opts.AutoMigrate {
+		// 首先执行迁移 SQL 脚本
+		migrationsDir := "cmd/bootstrap/migrations"
+		if err := runMigrationScripts(db, migrationsDir); err != nil {
+			logger.Warn("run migration scripts failed", zap.String("dir", migrationsDir), zap.Error(err))
+			// 不中断流程，继续执行 GORM 迁移
+		}
+
 		if err := RunMigrations(db); err != nil {
 			logger.Error("migration failed", zap.Error(err))
 			return nil, err
 		}
 		logger.Info("migration success",
-			zap.String("database", config.GlobalConfig.DBDriver),
-			zap.String("dsn", config.GlobalConfig.DSN),
+			zap.String("database", config.GlobalConfig.Database.Driver),
+			zap.String("dsn", config.GlobalConfig.Database.DSN),
 		)
 	}
 
@@ -78,8 +85,8 @@ func SetupDatabase(logWriter io.Writer, opts *Options) (*gorm.DB, error) {
 
 // initDBConn creates *gorm.DB based on global configuration
 func initDBConn(logWriter io.Writer) (*gorm.DB, error) {
-	dbDriver := config.GlobalConfig.DBDriver
-	dsn := config.GlobalConfig.DSN
+	dbDriver := config.GlobalConfig.Database.Driver
+	dsn := config.GlobalConfig.Database.DSN
 	return utils.InitDatabase(logWriter, dbDriver, dsn)
 }
 
@@ -90,7 +97,6 @@ func RunInitSQL(db *gorm.DB, sqlFilePath string) error {
 		return err
 	}
 	defer f.Close()
-
 	var (
 		sb      strings.Builder
 		scanner = bufio.NewScanner(f)
@@ -98,7 +104,6 @@ func RunInitSQL(db *gorm.DB, sqlFilePath string) error {
 	// Relax token limit (long lines)
 	buf := make([]byte, 0, 1024*1024)
 	scanner.Buffer(buf, 1024*1024)
-
 	for scanner.Scan() {
 		line := scanner.Text()
 		trim := strings.TrimSpace(line)
@@ -129,6 +134,37 @@ func RunInitSQL(db *gorm.DB, sqlFilePath string) error {
 	return scanner.Err()
 }
 
+// runMigrationScripts executes all .sql files in the migrations directory
+func runMigrationScripts(db *gorm.DB, migrationsDir string) error {
+	entries, err := os.ReadDir(migrationsDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// 迁移目录不存在，跳过
+			return nil
+		}
+		return err
+	}
+
+	// 按文件名排序执行迁移脚本
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		if !strings.HasSuffix(entry.Name(), ".sql") {
+			continue
+		}
+
+		filePath := migrationsDir + "/" + entry.Name()
+		logger.Info("executing migration script", zap.String("file", filePath))
+		if err := RunInitSQL(db, filePath); err != nil {
+			logger.Error("migration script failed", zap.String("file", filePath), zap.Error(err))
+			return err
+		}
+	}
+
+	return nil
+}
+
 // RunMigrations executes entity migration
 func RunMigrations(db *gorm.DB) error {
 	if db == nil {
@@ -144,47 +180,50 @@ func RunMigrations(db *gorm.DB) error {
 		&models.Assistant{},
 		&models.AssistantTool{},
 		&models.ChatSessionLog{},
-		&models.PromptModel{},
-		&models.PromptArgModel{},
 		&notification.InternalNotification{},
-		&models.Knowledge{}, // New knowledge base model
-		// Voice training related rtcmedia
+		&notification.MailLog{},
+		&models.Knowledge{},
 		&models.VoiceTrainingTask{},
 		&models.VoiceClone{},
+		&models.Voiceprint{},
 		&models.VoiceSynthesis{},
-		// Must be before VoiceTrainingTextSegment
 		&models.VoiceTrainingText{},
-		// Depends on VoiceTrainingText
 		&models.VoiceTrainingTextSegment{},
-		// Operation log model
 		&middleware.OperationLog{},
 		&models.JSTemplate{},
 		&models.JSTemplateVersion{},
-		// Device model for OTA
 		&models.Device{},
-		// OTA firmware model
 		&models.OTA{},
-		// Billing models
 		&models.UsageRecord{},
 		&models.Bill{},
-		// Alert models
 		&models.AlertRule{},
 		&models.Alert{},
 		&models.AlertNotification{},
-		// Quota models
 		&models.UserQuota{},
 		&models.GroupQuota{},
 		&models.WorkflowDefinition{},
 		&models.WorkflowInstance{},
 		&models.WorkflowVersion{},
+		&models.WorkflowPlugin{},
+		&models.WorkflowPluginVersion{},
+		&models.WorkflowPluginReview{},
+		&models.WorkflowPluginInstallation{},
+		&models.NodePlugin{},
+		&models.NodePluginVersion{},
+		&models.NodePluginReview{},
+		&models.NodePluginInstallation{},
 		&models.OverviewConfig{},
-		// Login security models
-		&models.UserDevice{},   // 用户设备管理表
-		&models.LoginHistory{}, // 登录历史记录表
-		&models.AccountLock{},  // 账号锁定记录表
-		// SIP user model
-		&models.SipUser{}, // SIP用户表
-		// SIP call model
-		&models.SipCall{}, // SIP通话记录表
+		&models.UserDevice{},
+		&models.LoginHistory{},
+		&models.AccountLock{},
+		&models.DeviceErrorLog{},
+		&models.CallRecording{},
+		&models.MCPServer{},
+		&models.MCPTool{},
+		&models.MCPCallLog{},
+		&models.MCPMarketplaceItem{},
+		&models.MCPUserInstallation{},
+		&models.MCPReview{},
+		&models.MCPCategory{},
 	})
 }

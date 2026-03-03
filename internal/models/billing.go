@@ -342,7 +342,7 @@ func GetUsageStatistics(db *gorm.DB, userID uint, startTime, endTime time.Time, 
 		Count int64
 	}
 	createBaseQuery().Where("usage_type = ?", UsageTypeAPI).
-		Select("COUNT(*) as count").
+		Select("SUM(api_call_count) as count").
 		Scan(&apiStats)
 	stats.APICalls = apiStats.Count
 

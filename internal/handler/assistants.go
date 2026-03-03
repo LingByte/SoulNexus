@@ -335,7 +335,7 @@ func (h *Handlers) GetAssistantGraphData(c *gin.Context) {
 	}
 
 	// 检查是否启用了 Neo4j
-	if !config.GlobalConfig.Neo4jEnabled {
+	if !config.GlobalConfig.Services.KnowledgeBase.Neo4j.Enabled {
 		response.Fail(c, "Neo4j not enabled", "Neo4j is not enabled in the system")
 		return
 	}
@@ -411,7 +411,7 @@ func (h *Handlers) ServeVoiceSculptorLoaderJS(c *gin.Context) {
 	if c.Request.TLS != nil {
 		scheme = "https"
 	}
-	baseURL := fmt.Sprintf("%s://%s%s", scheme, host, config.GlobalConfig.APIPrefix)
+	baseURL := fmt.Sprintf("%s://%s%s", scheme, host, config.GlobalConfig.Server.APIPrefix)
 
 	// Check if there is a bound JS template
 	var templateContent string
@@ -444,7 +444,8 @@ func (h *Handlers) ServeVoiceSculptorLoaderJS(c *gin.Context) {
 	}
 
 	// Inject SDK at the beginning of the template content (if not already loaded)
-	sdkPath := fmt.Sprintf("%s/static/js/lingecho-sdk.js", baseURL)
+	// 使用固定的CDN地址而不是本地地址
+	sdkPath := "https://store.lingecho.com/uploads/buckets/default/lingecho-sdk.js"
 	sdkInjection := fmt.Sprintf(`
 // LingEcho SDK - auto load
 (function() {

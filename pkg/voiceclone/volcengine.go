@@ -28,9 +28,9 @@ const (
 
 var defaultHeader = []byte{0x11, 0x10, 0x11, 0x00}
 
-// VolcengineConfig 火山引擎配置
+// VolcengineCloneConfig 火山引擎克隆配置
 // 完全效仿 voiceserver-main/pkg/synthesis/volcengine_clone.go
-type VolcengineConfig struct {
+type VolcengineCloneConfig struct {
 	AppID         string  `json:"app_id"`
 	Token         string  `json:"token"`          // WebSocket认证token（必需）
 	Cluster       string  `json:"cluster"`        // 集群名称，默认 "volcano_icl"
@@ -80,15 +80,15 @@ type VolcAddition struct {
 	Frontend string `json:"frontend"`
 }
 
-// VolcengineService 火山引擎语音克隆服务
+// VolcengineCloneService 火山引擎语音克隆服务
 // 完全效仿 voiceserver-main/pkg/synthesis/volcengine_clone.go
-type VolcengineService struct {
-	config     *VolcengineConfig
+type VolcengineCloneService struct {
+	config     *VolcengineCloneConfig
 	httpClient *http.Client
 }
 
-// NewVolcengineService 创建火山引擎服务
-func NewVolcengineService(config VolcengineConfig) *VolcengineService {
+// NewVolcengineCloneService 创建火山引擎克隆服务
+func NewVolcengineCloneService(config VolcengineCloneConfig) *VolcengineCloneService {
 	if config.Cluster == "" {
 		config.Cluster = VolcengineCloneCluster
 	}
@@ -114,7 +114,7 @@ func NewVolcengineService(config VolcengineConfig) *VolcengineService {
 		config.TrainingTimes = 1
 	}
 
-	return &VolcengineService{
+	return &VolcengineCloneService{
 		config: &config,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
@@ -123,19 +123,19 @@ func NewVolcengineService(config VolcengineConfig) *VolcengineService {
 }
 
 // Provider 返回服务提供商
-func (s *VolcengineService) Provider() Provider {
+func (s *VolcengineCloneService) Provider() Provider {
 	return ProviderVolcengine
 }
 
 // GetTrainingTexts 获取训练文本（火山引擎暂不支持，返回错误）
-func (s *VolcengineService) GetTrainingTexts(ctx context.Context, textID int64) (*TrainingText, error) {
+func (s *VolcengineCloneService) GetTrainingTexts(ctx context.Context, textID int64) (*TrainingText, error) {
 	return nil, fmt.Errorf("volcengine does not support GetTrainingTexts API")
 }
 
 // CreateTask 创建训练任务
 // 注意：火山引擎的训练需要先在控制台创建 speaker_id，然后通过 SubmitAudio 上传音频
 // 这里返回一个占位任务ID，实际训练通过 SubmitAudio 完成
-func (s *VolcengineService) CreateTask(ctx context.Context, req *CreateTaskRequest) (*CreateTaskResponse, error) {
+func (s *VolcengineCloneService) CreateTask(ctx context.Context, req *CreateTaskRequest) (*CreateTaskResponse, error) {
 	// 火山引擎的训练流程：
 	// 1. 在控制台创建 speaker_id（或使用已有的）
 	// 2. 通过 SubmitAudio 上传音频进行训练
@@ -148,7 +148,7 @@ func (s *VolcengineService) CreateTask(ctx context.Context, req *CreateTaskReque
 
 // SubmitAudio 提交音频文件进行训练
 // speaker_id 需要从控制台获取，或通过 TaskID 参数传入（格式：speaker_id:xxx）
-func (s *VolcengineService) SubmitAudio(ctx context.Context, req *SubmitAudioRequest) error {
+func (s *VolcengineCloneService) SubmitAudio(ctx context.Context, req *SubmitAudioRequest) error {
 	if s.config.Token == "" {
 		return fmt.Errorf("token is required for training")
 	}
@@ -266,7 +266,7 @@ func (s *VolcengineService) SubmitAudio(ctx context.Context, req *SubmitAudioReq
 
 // QueryTaskStatus 查询任务状态
 // taskID 应该是 speaker_id
-func (s *VolcengineService) QueryTaskStatus(ctx context.Context, taskID string) (*TaskStatus, error) {
+func (s *VolcengineCloneService) QueryTaskStatus(ctx context.Context, taskID string) (*TaskStatus, error) {
 	if s.config.Token == "" {
 		return nil, fmt.Errorf("token is required for querying status")
 	}
@@ -492,18 +492,18 @@ func parseVolcengineResponse(message []byte) (*VolcengineResponse, error) {
 
 // Synthesize 使用训练好的音色合成语音
 // 完全效仿 voiceserver-main/pkg/synthesis/volcengine_clone.go，只支持 WebSocket
-func (s *VolcengineService) Synthesize(ctx context.Context, req *SynthesizeRequest) (*SynthesizeResponse, error) {
+func (s *VolcengineCloneService) Synthesize(ctx context.Context, req *SynthesizeRequest) (*SynthesizeResponse, error) {
 	return s.synthesizeWithWebSocket(ctx, req)
 }
 
 // SynthesizeStream 流式合成语音
-func (s *VolcengineService) SynthesizeStream(ctx context.Context, req *SynthesizeRequest, handler SynthesisHandler) error {
+func (s *VolcengineCloneService) SynthesizeStream(ctx context.Context, req *SynthesizeRequest, handler SynthesisHandler) error {
 	return s.synthesizeStreamWithWebSocket(ctx, req, handler)
 }
 
 // synthesizeWithWebSocket 使用WebSocket合成语音
 // 参考 voiceserver-main/pkg/synthesis/volcengine_clone.go 的实现
-func (s *VolcengineService) synthesizeWithWebSocket(ctx context.Context, req *SynthesizeRequest) (*SynthesizeResponse, error) {
+func (s *VolcengineCloneService) synthesizeWithWebSocket(ctx context.Context, req *SynthesizeRequest) (*SynthesizeResponse, error) {
 	if s.config.Token == "" {
 		return nil, fmt.Errorf("token is required for WebSocket API")
 	}
@@ -610,7 +610,7 @@ func (s *VolcengineService) synthesizeWithWebSocket(ctx context.Context, req *Sy
 }
 
 // synthesizeStreamWithWebSocket 使用WebSocket流式合成语音
-func (s *VolcengineService) synthesizeStreamWithWebSocket(ctx context.Context, req *SynthesizeRequest, handler SynthesisHandler) error {
+func (s *VolcengineCloneService) synthesizeStreamWithWebSocket(ctx context.Context, req *SynthesizeRequest, handler SynthesisHandler) error {
 	if s.config.Token == "" {
 		return fmt.Errorf("token is required for WebSocket API")
 	}
@@ -730,7 +730,7 @@ func (s *VolcengineService) synthesizeStreamWithWebSocket(ctx context.Context, r
 
 // buildWebSocketRequestParams 构建WebSocket请求参数
 // 参考 voiceserver-main/pkg/synthesis/volcengine_clone.go 的实现
-func (s *VolcengineService) buildWebSocketRequestParams(text, voiceType string) []byte {
+func (s *VolcengineCloneService) buildWebSocketRequestParams(text, voiceType string) []byte {
 	reqID := uuid.NewString()
 	params := make(map[string]map[string]interface{})
 
@@ -767,7 +767,7 @@ func (s *VolcengineService) buildWebSocketRequestParams(text, voiceType string) 
 }
 
 // SynthesizeToStorage 合成并保存到存储
-func (s *VolcengineService) SynthesizeToStorage(ctx context.Context, req *SynthesizeRequest, storageKey string) (string, error) {
+func (s *VolcengineCloneService) SynthesizeToStorage(ctx context.Context, req *SynthesizeRequest, storageKey string) (string, error) {
 	resp, err := s.Synthesize(ctx, req)
 	if err != nil {
 		return "", err
@@ -790,7 +790,7 @@ func (s *VolcengineService) SynthesizeToStorage(ctx context.Context, req *Synthe
 	result, err := config.GlobalStore.UploadBytes(&lingstorage.UploadBytesRequest{
 		Data:     wavData,
 		Filename: storageKey,
-		Bucket:   config.GlobalConfig.LingstorageBucket,
+		Bucket:   config.GlobalConfig.Services.Storage.Bucket,
 		Key:      storageKey,
 	})
 
@@ -799,7 +799,7 @@ func (s *VolcengineService) SynthesizeToStorage(ctx context.Context, req *Synthe
 }
 
 // convertPCMToWAV 将 PCM 音频数据转换为 WAV 格式（添加 WAV 文件头）
-func (s *VolcengineService) convertPCMToWAV(pcmData []byte, sampleRate int, channels int, bitDepth int) ([]byte, error) {
+func (s *VolcengineCloneService) convertPCMToWAV(pcmData []byte, sampleRate int, channels int, bitDepth int) ([]byte, error) {
 	// 创建44字节的WAV头部
 	header := make([]byte, 44)
 	dataSize := len(pcmData)

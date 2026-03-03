@@ -5,10 +5,10 @@ import (
 )
 
 func createPCMUDecode(src, pcm media.CodecConfig) media.EncoderFunc {
-	// 使用配置的采样率，如果未设置则使用 PCMU 标准采样率 8000Hz
+	// Use configured sample rate, if not set use PCMU standard sample rate 8000Hz
 	sourceSampleRate := src.SampleRate
 	if sourceSampleRate == 0 {
-		sourceSampleRate = 8000 // PCMU 标准采样率
+		sourceSampleRate = 8000 // PCMU standard sample rate
 	}
 	res := media.DefaultResampler(sourceSampleRate, pcm.SampleRate)
 	return func(packet media.MediaPacket) ([]media.MediaPacket, error) {
@@ -33,10 +33,10 @@ func createPCMUDecode(src, pcm media.CodecConfig) media.EncoderFunc {
 }
 
 func createPCMUEncode(src, pcm media.CodecConfig) media.EncoderFunc {
-	// 使用配置的目标采样率，如果未设置则使用 PCMU 标准采样率 8000Hz
+	// Use configured target sample rate, if not set use PCMU standard sample rate 8000Hz
 	targetSampleRate := src.SampleRate
 	if targetSampleRate == 0 {
-		targetSampleRate = 8000 // PCMU 标准采样率
+		targetSampleRate = 8000 // PCMU standard sample rate
 	}
 	res := media.DefaultResampler(pcm.SampleRate, targetSampleRate)
 	return func(packet media.MediaPacket) ([]media.MediaPacket, error) {

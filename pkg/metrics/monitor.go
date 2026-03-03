@@ -99,7 +99,7 @@ func RegisterMonitorUI(grp *gin.RouterGroup, api *MonitorAPI) {
 	})
 	grp.GET("/ui.json", func(c *gin.Context) {
 		m := api.monitor
-		serverName := config.GlobalConfig.ServerName
+		serverName := config.GlobalConfig.Server.Name
 		if serverName == "" {
 			serverName = "LingEcho"
 		}

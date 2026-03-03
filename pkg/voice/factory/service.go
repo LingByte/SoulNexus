@@ -37,12 +37,8 @@ func (f *ServiceFactory) CreateASR(credential *models.UserCredential, language s
 	if asrProvider == "" {
 		return nil, errhandler.NewRecoverableError("Factory", "ASR provider未配置", nil)
 	}
-
-	normalizedProvider := recognizer.NormalizeProvider(asrProvider)
-
-	// 构建配置
 	asrConfig := make(map[string]interface{})
-	asrConfig["provider"] = normalizedProvider
+	asrConfig["provider"] = asrProvider
 	asrConfig["language"] = language
 
 	if credential.AsrConfig != nil {
@@ -50,21 +46,15 @@ func (f *ServiceFactory) CreateASR(credential *models.UserCredential, language s
 			asrConfig[key] = value
 		}
 	}
-
-	// 验证提供商支持
-	vendor := recognizer.GetVendor(normalizedProvider)
+	vendor := recognizer.GetVendor(asrProvider)
 	if f.transcriberFactory != nil && !f.transcriberFactory.IsVendorSupported(vendor) {
 		supported := f.transcriberFactory.GetSupportedVendors()
 		return nil, errhandler.NewRecoverableError("Factory", fmt.Sprintf("不支持的ASR提供商: %s, 支持的提供商: %v", asrProvider, supported), nil)
 	}
-
-	// 解析配置
-	config, err := recognizer.NewTranscriberConfigFromMap(normalizedProvider, asrConfig, language)
+	config, err := recognizer.NewTranscriberConfigFromMap(asrProvider, asrConfig, language)
 	if err != nil {
 		return nil, errhandler.NewRecoverableError("Factory", "解析ASR配置失败", err)
 	}
-
-	// 创建服务
 	if f.transcriberFactory == nil {
 		f.transcriberFactory = recognizer.GetGlobalFactory()
 	}
@@ -82,11 +72,8 @@ func (f *ServiceFactory) CreateTTS(credential *models.UserCredential, speaker st
 	if ttsProvider == "" {
 		return nil, errhandler.NewRecoverableError("Factory", "TTS provider未配置", nil)
 	}
-
-	normalizedProvider := recognizer.NormalizeProvider(ttsProvider)
-
 	ttsConfig := make(synthesizer.TTSCredentialConfig)
-	ttsConfig["provider"] = normalizedProvider
+	ttsConfig["provider"] = ttsProvider
 
 	if credential.TtsConfig != nil {
 		for key, value := range credential.TtsConfig {
@@ -102,7 +89,7 @@ func (f *ServiceFactory) CreateTTS(credential *models.UserCredential, speaker st
 	}
 
 	// 设置默认语速
-	setDefaultTTSSpeed(ttsConfig, normalizedProvider)
+	setDefaultTTSSpeed(ttsConfig, ttsProvider)
 
 	ttsService, err := synthesizer.NewSynthesisServiceFromCredential(ttsConfig)
 	if err != nil {
@@ -114,7 +101,7 @@ func (f *ServiceFactory) CreateTTS(credential *models.UserCredential, speaker st
 
 // CreateLLM 创建LLM服务
 func (f *ServiceFactory) CreateLLM(ctx context.Context, credential *models.UserCredential, systemPrompt string) (llm.LLMProvider, error) {
-	provider, err := llm.NewLLMProvider(ctx, credential, systemPrompt)
+	provider, err := llm.NewLLMProvider(ctx, credential.LLMProvider, credential.LLMApiKey, credential.LLMApiURL, systemPrompt)
 	if err != nil {
 		return nil, errhandler.NewRecoverableError("Factory", "创建LLM服务失败", err)
 	}

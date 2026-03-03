@@ -6,7 +6,7 @@ import (
 	"github.com/gen2brain/malgo"
 )
 
-// DeviceInfo 设备信息
+// DeviceInfo device information
 type DeviceInfo struct {
 	ID      malgo.DeviceID
 	Name    string
@@ -14,7 +14,7 @@ type DeviceInfo struct {
 	Error   string
 }
 
-// ListPlaybackDevices 列出所有播放设备
+// ListPlaybackDevices lists all playback devices
 func ListPlaybackDevices(ctx *malgo.AllocatedContext) ([]DeviceInfo, error) {
 	if ctx == nil {
 		return nil, fmt.Errorf("context is nil")
@@ -22,7 +22,7 @@ func ListPlaybackDevices(ctx *malgo.AllocatedContext) ([]DeviceInfo, error) {
 
 	infos, err := ctx.Devices(malgo.Playback)
 	if err != nil {
-		return nil, fmt.Errorf("获取播放设备列表失败: %w", err)
+		return nil, fmt.Errorf("failed to get playback device list: %w", err)
 	}
 
 	result := make([]DeviceInfo, 0, len(infos))
@@ -45,7 +45,7 @@ func ListPlaybackDevices(ctx *malgo.AllocatedContext) ([]DeviceInfo, error) {
 	return result, nil
 }
 
-// ListCaptureDevices 列出所有捕获设备
+// ListCaptureDevices lists all capture devices
 func ListCaptureDevices(ctx *malgo.AllocatedContext) ([]DeviceInfo, error) {
 	if ctx == nil {
 		return nil, fmt.Errorf("context is nil")
@@ -53,7 +53,7 @@ func ListCaptureDevices(ctx *malgo.AllocatedContext) ([]DeviceInfo, error) {
 
 	infos, err := ctx.Devices(malgo.Capture)
 	if err != nil {
-		return nil, fmt.Errorf("获取捕获设备列表失败: %w", err)
+		return nil, fmt.Errorf("failed to get capture device list: %w", err)
 	}
 
 	result := make([]DeviceInfo, 0, len(infos))
@@ -76,7 +76,7 @@ func ListCaptureDevices(ctx *malgo.AllocatedContext) ([]DeviceInfo, error) {
 	return result, nil
 }
 
-// PrintPlaybackDevices 打印所有播放设备信息
+// PrintPlaybackDevices prints all playback device information
 func PrintPlaybackDevices(ctx *malgo.AllocatedContext) error {
 	devices, err := ListPlaybackDevices(ctx)
 	if err != nil {

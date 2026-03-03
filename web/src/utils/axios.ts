@@ -23,10 +23,8 @@ axiosInstance.interceptors.request.use(
     const token = localStorage.getItem('auth_token')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
-    } else {
-      // 测试模式：使用测试token
-      config.headers.Authorization = `Bearer test-token-123`
     }
+    // 移除测试token逻辑，让需要认证的接口正确返回401
     
     // 如果是FormData，让浏览器自动设置Content-Type（包含boundary）
     if (config.data instanceof FormData) {

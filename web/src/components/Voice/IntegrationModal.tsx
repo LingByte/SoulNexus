@@ -124,7 +124,7 @@ class _VoiceAssistantPageState extends State<VoiceAssistantPage> {
     return (
       <Card variant="filled" padding="none" className="relative">
         <div className="relative">
-          <pre className="bg-gray-900 dark:bg-gray-950 p-4 rounded-lg overflow-x-auto overflow-y-auto max-h-96 text-sm">
+          <pre className="dark:bg-gray-950 p-4 rounded-lg overflow-x-auto overflow-y-auto max-h-96 text-sm">
             <code className={cn("whitespace-pre-wrap", {
               'language-javascript': language === 'javascript',
               'language-dart': language === 'dart',

@@ -12,6 +12,8 @@ import (
 )
 
 func InitUserListeners() {
+	logger.Info("Initializing user listeners...")
+
 	// Handle after user registration success
 	utils.Sig().Connect(constants.SigUserCreate, func(sender any, params ...any) {
 		if len(params) < 2 {
@@ -33,7 +35,7 @@ func InitUserListeners() {
 		go sendWelcomeEmail(user, db)
 
 		// Log user registration event
-		go logUserEvent(user, "user_created", "User registered successfully")
+		logUserEvent(user, "user_created", "User registered successfully")
 	})
 
 	// Handle after user login
@@ -53,7 +55,7 @@ func InitUserListeners() {
 			"Dear "+user.DisplayName+", welcome back to LingEcho AI voice platform! You have successfully logged into the system.")
 
 		// Log login event
-		go logUserEvent(user, "user_login", "User login")
+		logUserEvent(user, "user_login", "User login")
 	})
 
 	// Handle after user logout
@@ -74,27 +76,34 @@ func InitUserListeners() {
 
 	// User email verification
 	utils.Sig().Connect(constants.SigUserVerifyEmail, func(sender any, params ...any) {
-		if len(params) < 5 {
+		logger.Info("SigUserVerifyEmail signal received")
+		if len(params) < 4 {
+			logger.Warn("SigUserVerifyEmail: insufficient parameters", zap.Int("paramCount", len(params)))
 			return
 		}
-		user, ok := params[0].(*models.User)
+		user, ok := sender.(*models.User)
 		if !ok {
+			logger.Warn("SigUserVerifyEmail: invalid user type")
 			return
 		}
-		hash, ok := params[1].(string)
+		hash, ok := params[0].(string)
 		if !ok {
+			logger.Warn("SigUserVerifyEmail: invalid hash type")
 			return
 		}
-		clientIp, ok := params[2].(string)
+		clientIp, ok := params[1].(string)
 		if !ok {
+			logger.Warn("SigUserVerifyEmail: invalid clientIp type")
 			return
 		}
-		userAgent, ok := params[3].(string)
+		userAgent, ok := params[2].(string)
 		if !ok {
+			logger.Warn("SigUserVerifyEmail: invalid userAgent type")
 			return
 		}
-		db, ok := params[4].(*gorm.DB)
+		db, ok := params[3].(*gorm.DB)
 		if !ok {
+			logger.Warn("SigUserVerifyEmail: invalid db type")
 			return
 		}
 
@@ -136,18 +145,47 @@ func InitUserListeners() {
 		sendPasswordResetEmail(user, hash, clientIp, userAgent, db)
 	})
 
-	logger.Info("user module listener is already")
+	// Handle new device login alert
+	utils.Sig().Connect(constants.SigUserNewDeviceLogin, func(sender any, params ...any) {
+		logger.Info("SigUserNewDeviceLogin signal received")
+		if len(params) < 2 {
+			logger.Warn("SigUserNewDeviceLogin: insufficient parameters", zap.Int("paramCount", len(params)))
+			return
+		}
+		user, ok := sender.(*models.User)
+		if !ok {
+			logger.Warn("SigUserNewDeviceLogin: invalid user type")
+			return
+		}
+		deviceInfo, ok := params[0].(map[string]interface{})
+		if !ok {
+			logger.Warn("SigUserNewDeviceLogin: invalid deviceInfo type")
+			return
+		}
+		db, ok := params[1].(*gorm.DB)
+		if !ok {
+			logger.Warn("SigUserNewDeviceLogin: invalid db type")
+			return
+		}
+
+		logger.Info("Sending new device login alert", zap.Uint("userId", user.ID), zap.String("email", user.Email))
+
+		// Send new device login alert email
+		go sendNewDeviceLoginAlert(user, deviceInfo, db)
+	})
+
+	logger.Info("User module listeners initialized successfully")
 }
 
 // sendWelcomeEmail sends welcome email
 func sendWelcomeEmail(user *models.User, db *gorm.DB) {
-	if config.GlobalConfig.Mail.Host == "" || config.GlobalConfig.Mail.From == "" || config.GlobalConfig.Mail.Username == "" {
+	if config.GlobalConfig.Services.Mail.APIUser == "" || config.GlobalConfig.Services.Mail.From == "" || config.GlobalConfig.Services.Mail.APIKey == "" {
 		logger.Warn("Mail configuration not set, skipping sending login notification")
 		return
 	}
 
 	if user.EmailNotifications {
-		mailer := notification.NewMailNotification(config.GlobalConfig.Mail)
+		mailer := notification.NewMailNotificationWithDB(config.GlobalConfig.Services.Mail, db, user.ID)
 		err := mailer.SendWelcomeEmail(
 			user.Email,
 			user.DisplayName,
@@ -168,26 +206,26 @@ func sendEmailVerification(user *models.User, hash, clientIp, userAgent string, 
 		zap.String("email", user.Email),
 		zap.String("hash", hash))
 
-	if config.GlobalConfig.Mail.Host == "" {
+	if config.GlobalConfig.Services.Mail.APIUser == "" {
 		logger.Warn("Mail configuration not set, skipping sending email verification")
 		return
 	}
 
-	// 获取站点 URL
+	// Get site URL
 	siteURL := utils.GetValue(db, constants.KEY_SITE_URL)
 	if siteURL == "" {
-		siteURL = "http://localhost:3000" // 默认值
+		siteURL = "http://localhost:3000" // Default value
 	}
 
-	// 构建验证 URL
+	// Build verification URL
 	verifyUrl := siteURL + "/verify-email?token=" + hash
 
 	logger.Info("Preparing to send email verification",
 		zap.String("email", user.Email),
 		zap.String("verifyUrl", verifyUrl),
-		zap.String("mailHost", config.GlobalConfig.Mail.Host))
+		zap.String("mailAPIUser", config.GlobalConfig.Services.Mail.APIUser))
 
-	mailer := notification.NewMailNotification(config.GlobalConfig.Mail)
+	mailer := notification.NewMailNotificationWithDB(config.GlobalConfig.Services.Mail, db, user.ID)
 	err := mailer.SendVerificationEmail(user.Email, user.DisplayName, verifyUrl)
 	if err != nil {
 		logger.Error("Failed to send email verification", zap.Error(err), zap.String("email", user.Email))
@@ -198,21 +236,21 @@ func sendEmailVerification(user *models.User, hash, clientIp, userAgent string, 
 
 // sendPasswordResetEmail sends password reset email
 func sendPasswordResetEmail(user *models.User, hash, clientIp, userAgent string, db *gorm.DB) {
-	if config.GlobalConfig.Mail.Host == "" {
+	if config.GlobalConfig.Services.Mail.APIUser == "" {
 		logger.Warn("Mail configuration not set, skipping sending password reset email")
 		return
 	}
 
-	// 获取站点 URL
+	// Get site URL
 	siteURL := utils.GetValue(db, constants.KEY_SITE_URL)
 	if siteURL == "" {
-		siteURL = "http://localhost:3000" // 默认值
+		siteURL = "http://localhost:3000" // Default value
 	}
 
-	// 构建重置密码 URL
+	// Build password reset URL
 	resetUrl := siteURL + "/reset-password?token=" + hash
 
-	mailer := notification.NewMailNotification(config.GlobalConfig.Mail)
+	mailer := notification.NewMailNotificationWithDB(config.GlobalConfig.Services.Mail, db, user.ID)
 	err := mailer.SendPasswordResetEmail(user.Email, user.DisplayName, resetUrl)
 	if err != nil {
 		logger.Error("Failed to send password reset email", zap.Error(err), zap.String("email", user.Email))
@@ -229,4 +267,64 @@ func logUserEvent(user *models.User, eventType, description string) {
 		zap.String("eventType", eventType),
 		zap.String("description", description),
 	)
+}
+
+// sendNewDeviceLoginAlert sends new device login alert email
+func sendNewDeviceLoginAlert(user *models.User, deviceInfo map[string]interface{}, db *gorm.DB) {
+	if config.GlobalConfig.Services.Mail.APIUser == "" {
+		logger.Warn("Mail configuration not set, skipping sending new device login alert")
+		return
+	}
+
+	// Extract device information from the map
+	clientIP, _ := deviceInfo["clientIP"].(string)
+	location, _ := deviceInfo["location"].(string)
+	deviceType, _ := deviceInfo["deviceType"].(string)
+	os, _ := deviceInfo["os"].(string)
+	browser, _ := deviceInfo["browser"].(string)
+	isSuspicious, _ := deviceInfo["isSuspicious"].(bool)
+	loginTime, _ := deviceInfo["loginTime"].(string)
+
+	// Get display name
+	displayName := user.DisplayName
+	if displayName == "" {
+		displayName = user.Email
+	}
+
+	// Get URLs from configuration
+	siteURL := utils.GetValue(db, constants.KEY_SITE_URL)
+	if siteURL == "" {
+		siteURL = "http://localhost:3000" // Default value
+	}
+
+	securityURL := siteURL + "/security"       // Security settings page
+	changePasswordURL := siteURL + "/password" // Change password page
+
+	// Send the alert email
+	mailer := notification.NewMailNotificationWithDB(config.GlobalConfig.Services.Mail, db, user.ID)
+	err := mailer.SendNewDeviceLoginAlert(
+		user.Email,
+		displayName,
+		loginTime,
+		clientIP,
+		location,
+		deviceType,
+		os,
+		browser,
+		isSuspicious,
+		securityURL,
+		changePasswordURL,
+	)
+
+	if err != nil {
+		logger.Error("Failed to send new device login alert email",
+			zap.Error(err),
+			zap.String("email", user.Email),
+			zap.String("deviceID", deviceInfo["deviceID"].(string)))
+	} else {
+		logger.Info("New device login alert email sent",
+			zap.String("email", user.Email),
+			zap.String("deviceID", deviceInfo["deviceID"].(string)),
+			zap.Bool("isSuspicious", isSuspicious))
+	}
 }

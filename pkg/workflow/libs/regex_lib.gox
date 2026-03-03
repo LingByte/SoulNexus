@@ -1,0 +1,33 @@
+type regexLib struct{}
+
+func (r *regexLib) Match(pattern, text string) bool {
+	matched, err := regexp.MatchString(pattern, text)
+	return err == nil && matched
+}
+
+func (r *regexLib) FindString(pattern, text string) string {
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return ""
+	}
+	return re.FindString(text)
+}
+
+func (r *regexLib) FindAllString(pattern, text string) []string {
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return []string{}
+	}
+	return re.FindAllString(text, -1)
+}
+
+func (r *regexLib) ReplaceAllString(pattern, text, repl string) string {
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return text
+	}
+	return re.ReplaceAllString(text, repl)
+}
+
+// 库实例
+var RegexLib = &regexLib{}

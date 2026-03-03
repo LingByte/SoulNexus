@@ -320,35 +320,6 @@ func (m *milvusKnowledgeBase) GetDocument(ctx context.Context, knowledgeKey stri
 	return io.NopCloser(strings.NewReader(content)), nil
 }
 
-// 工具函数
-
-func getFloatVectorFromConfig(filter map[string]interface{}, key string) []float32 {
-	if filter == nil {
-		return nil
-	}
-
-	if val, ok := filter[key]; ok {
-		if vec, ok := val.([]float32); ok {
-			return vec
-		}
-		if vec, ok := val.([]interface{}); ok {
-			result := make([]float32, 0, len(vec))
-			for _, v := range vec {
-				switch f := v.(type) {
-				case float32:
-					result = append(result, f)
-				case float64:
-					result = append(result, float32(f))
-				case int:
-					result = append(result, float32(f))
-				}
-			}
-			return result
-		}
-	}
-	return nil
-}
-
 // 注意：getIntFromConfig 和 getBoolFromConfig 已移至 config.go
 
 // 注册Milvus提供者

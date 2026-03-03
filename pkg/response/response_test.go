@@ -148,10 +148,45 @@ func TestAbortWithStatusJSON(t *testing.T) {
 
 	var got map[string]any
 	readJSON(t, rr, &got)
-	if got["error"] != "nope" {
-		t.Fatalf("error field=%v, want 'nope'", got["error"])
+	// 检查新的响应格式
+	if got["msg"] != "nope" {
+		t.Fatalf("msg field=%v, want 'nope'", got["msg"])
+	}
+	if got["error"] != "UNKNOWN_ERROR" {
+		t.Fatalf("error field=%v, want 'UNKNOWN_ERROR'", got["error"])
+	}
+	if got["code"] != float64(403) { // JSON 数字会被解析为 float64
+		t.Fatalf("code field=%v, want 403", got["code"])
 	}
 	if rr.Header().Get("X-After") != "" {
 		t.Fatalf("AbortWithStatusJSON did not stop next handler")
+	}
+}
+
+func TestAbortWithStatusJSON_UsernameError(t *testing.T) {
+	r, rr := newCtx()
+	r.GET("/username-error", func(c *gin.Context) {
+		AbortWithStatusJSON(c, http.StatusBadRequest, errors.New("username must be at least 2 characters long"))
+	})
+
+	req, _ := http.NewRequest(http.MethodGet, "/username-error", nil)
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d, want 400", rr.Code)
+	}
+
+	var got map[string]any
+	readJSON(t, rr, &got)
+
+	// 检查友好的中文错误信息
+	if got["msg"] != "用户名至少需要2个字符" {
+		t.Fatalf("msg field=%v, want '用户名至少需要2个字符'", got["msg"])
+	}
+	if got["error"] != "INVALID_USERNAME_LENGTH" {
+		t.Fatalf("error field=%v, want 'INVALID_USERNAME_LENGTH'", got["error"])
+	}
+	if got["code"] != float64(400) {
+		t.Fatalf("code field=%v, want 400", got["code"])
 	}
 }

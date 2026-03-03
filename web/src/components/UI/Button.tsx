@@ -34,7 +34,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
          onMouseEnter,
          ...props
      }, ref) => {
-        const baseClasses = 'relative inline-flex items-center justify-center font-medium transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none select-none overflow-hidden'
+        const baseClasses = 'relative inline-flex items-center justify-center font-medium transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none select-none overflow-hidden whitespace-nowrap'
 
         // 获取当前主题
         const currentTheme = getCurrentTheme()
@@ -52,11 +52,11 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         }
 
         const sizeClasses = {
-            xs: 'h-7 px-2 text-xs rounded-md',
-            sm: 'h-8 px-3 text-sm rounded-md',
-            md: 'h-9 px-4 text-sm rounded-lg',
-            lg: 'h-10 px-6 text-base rounded-lg',
-            xl: 'h-12 px-8 text-lg rounded-xl',
+            xs: 'h-7 px-2 text-xs rounded-md min-w-fit',
+            sm: 'h-8 px-3 text-sm rounded-md min-w-fit',
+            md: 'h-9 px-4 text-sm rounded-lg min-w-fit',
+            lg: 'h-10 px-6 text-base rounded-lg min-w-fit',
+            xl: 'h-12 px-8 text-lg rounded-xl min-w-fit',
             icon: 'h-9 w-9 rounded-lg',
         }
 
@@ -140,12 +140,12 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
                     transition={{duration: 0.3}}
                 />
 
-                <div className="relative flex items-center justify-center gap-2">
+                <div className="relative flex items-center justify-center gap-2 min-w-0">
                     {loading && (
                         <motion.div
                             animate={{rotate: 360}}
                             transition={{duration: 1, repeat: Infinity, ease: 'linear'}}
-                            className={cn('border-2 border-current border-t-transparent rounded-full', iconSize)}
+                            className={cn('border-2 border-current border-t-transparent rounded-full flex-shrink-0', iconSize)}
                         />
                     )}
                     {!loading && leftIcon && (
@@ -159,7 +159,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
                     )}
                     {children && (
                         <motion.span
-                            className="truncate"
+                            className="whitespace-nowrap overflow-hidden text-ellipsis"
                             initial={{opacity: 0, y: 10}}
                             animate={{opacity: 1, y: 0}}
                             transition={{duration: 0.3, delay: 0.1}}

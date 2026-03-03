@@ -9,7 +9,7 @@ import PasswordStrength from './PasswordStrength'
 import CaptchaModal from './CaptchaModal'
 import DeviceVerificationModal from './DeviceVerificationModal'
 import { useAuthStore } from '@/stores/authStore.ts'
-import { showAlert } from '@/utils/notification.ts'
+import { showAlert } from '@/utils/notification'
 import { sendEmailCode, registerUserByEmail, registerUser, loginWithPassword, loginWithEmailCode, forgotPassword } from '@/api/auth.ts'
 import { encryptPasswordToString } from '@/utils/passwordEncrypt.ts'
 import { getSystemInit } from '@/api/system.ts'
@@ -157,7 +157,7 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login' }: AuthModalProps) =
   // 处理两步验证码提交
   const handleTwoFactorSubmit = async () => {
     if (!twoFactorCode.trim()) {
-      showAlert('请输入两步验证码', 'error', '验证失败')
+      showAlert('请输入两步验证码', 'error')
       return
     }
 
@@ -212,7 +212,7 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login' }: AuthModalProps) =
           throw new Error('登录处理失败：无法获取用户信息')
         }
       } else {
-        // 从data中获取详细错误信息
+        // 从response中获取详细错误信息
         const errorMessage = response.data?.message || response.msg || '登录失败'
         throw new Error(errorMessage)
       }
@@ -226,13 +226,13 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login' }: AuthModalProps) =
   // 发送验证码
   const sendVerificationCode = async () => {
     if (!formData.email) {
-      showAlert('请先输入邮箱', 'error', '验证失败')
+      showAlert('请先输入邮箱', 'warning')
       return
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!emailRegex.test(formData.email)) {
-      showAlert('请输入有效的邮箱地址', 'error', '验证失败')
+      showAlert('请输入有效的邮箱地址', 'warning')
       return
     }
 
@@ -283,13 +283,13 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login' }: AuthModalProps) =
   // 执行忘记密码
   const performForgotPassword = async () => {
     if (!formData.email) {
-      showAlert('请输入邮箱地址', 'error', '验证失败')
+      showAlert('请输入邮箱地址', 'warning')
       return
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!emailRegex.test(formData.email)) {
-      showAlert('请输入有效的邮箱地址', 'error', '验证失败')
+      showAlert('请输入有效的邮箱地址', 'warning')
       return
     }
 
@@ -318,7 +318,7 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login' }: AuthModalProps) =
         if (loginType === 'email') {
           // 邮箱验证码登录
           if (!formData.verificationCode) {
-            showAlert('请输入验证码', 'error', '验证失败')
+            showAlert('请输入验证码', 'warning')
             return
           }
           
@@ -364,14 +364,14 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login' }: AuthModalProps) =
               throw new Error('登录处理失败：无法获取用户信息')
             }
           } else {
-            // 从data中获取详细错误信息
+            // 从response中获取详细错误信息
             const errorMessage = response.data?.message || response.msg || '登录失败'
             throw new Error(errorMessage)
           }
         } else {
         // 密码登录 - 需要验证码
           if (!formData.password) {
-            showAlert('请输入密码', 'error', '验证失败')
+            showAlert('请输入密码', 'warning')
             return
           }
           
@@ -447,13 +447,13 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login' }: AuthModalProps) =
               throw new Error('登录处理失败：无法获取用户信息')
             }
           } else {
-            // 从data中获取详细错误信息
+            // 从response中获取详细错误信息
             const errorMessage = response.data?.message || response.msg || '登录失败'
             throw new Error(errorMessage)
           }
         }
     } catch (error: any) {
-      showAlert(error.message || '登录失败', 'error', '登录错误')
+      showAlert(error?.msg || error?.message || '登录失败', 'error', '登录失败')
     } finally {
       setIsLoading(false)
     }
@@ -464,12 +464,12 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login' }: AuthModalProps) =
     setIsLoading(true)
     try {
         if (formData.password !== formData.confirmPassword) {
-          showAlert('密码不匹配', 'error', '验证失败')
+          showAlert('密码不匹配', 'warning')
         setIsLoading(false)
           return
         }
         if (!formData.displayName) {
-          showAlert('请输入显示名', 'error', '验证失败')
+          showAlert('请输入显示名', 'warning')
         setIsLoading(false)
           return
         }
@@ -495,11 +495,11 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login' }: AuthModalProps) =
         if (emailEnabled) {
           // 如果配置了邮箱，使用邮箱验证码注册
           if (!formData.verificationCode) {
-            showAlert('请输入验证码', 'error', '验证失败')
+            showAlert('请输入验证码', 'warning')
             return
           }
           if (!formData.userName) {
-            showAlert('请输入用户名', 'error', '验证失败')
+            showAlert('请输入用户名', 'warning')
             return
           }
           
@@ -559,7 +559,7 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login' }: AuthModalProps) =
             
             showAlert(
               `注册成功！欢迎 ${(response.data as any).displayName || (response.data as any).email}，您的账号已创建完成。`,
-              'success', 
+              'success',
               '注册完成'
             )
           } else {
@@ -578,7 +578,7 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login' }: AuthModalProps) =
             
             showAlert(
               `注册成功！${activationMsg}`,
-              'success', 
+              'success',
               '注册完成'
             )
           }
@@ -591,7 +591,7 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login' }: AuthModalProps) =
         throw new Error(response.msg || '注册失败')
       }
     } catch (error: any) {
-      showAlert(error.message || '注册失败', 'error', '注册错误')
+      showAlert(error?.msg || error?.message || '注册失败', 'error', '注册失败')
     } finally {
       setIsLoading(false)
     }
@@ -728,7 +728,7 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login' }: AuthModalProps) =
                   onClose()
                   resetForm()
                   setMode('login')
-                  showAlert('请使用您的邮箱和密码登录', 'info', '提示')
+                  showAlert('请使用您的邮箱和密码登录', 'info')
                 }}
                 className="flex-1"
               >

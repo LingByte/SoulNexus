@@ -17,7 +17,8 @@ export interface KnowledgeBase {
 // 创建知识库请求参数
 export interface CreateKnowledgeBaseRequest {
     knowledgeName: string
-    file: File
+    provider?: string
+    file?: File
     groupId?: number | null // 组织ID，如果设置则创建为组织共享的知识库
 }
 
@@ -55,7 +56,12 @@ export const createKnowledgeBase = async (
 ): Promise<ApiResponse<KnowledgeBase>> => {
     const formData = new FormData()
     formData.append('knowledgeName', data.knowledgeName)
-    formData.append('file', data.file)
+    if (data.provider) {
+        formData.append('provider', data.provider)
+    }
+    if (data.file) {
+        formData.append('file', data.file)
+    }
     if (data.groupId) {
         formData.append('group_id', data.groupId.toString())
     }
@@ -89,13 +95,23 @@ export const getKnowledgeBaseByUser = async (): Promise<ApiResponse<GetKnowledge
         '/knowledge/get',
     )
 }
-// 向知识库提问
+// 向知识库提问（搜索/召回知识库文档）
 export const askKnowledgeBase = async (
     params: AskKnowledgeBaseRequest
 ): Promise<ApiResponse<AskKnowledgeBaseResponse>> => {
     return get<AskKnowledgeBaseResponse>(
-        '/knowledge/getInfo',
+        '/knowledge/search',
         { params }
+    )
+}
+
+// 列出知识库中的所有内容
+export const listKnowledgeBaseContent = async (
+    knowledgeKey: string
+): Promise<ApiResponse<any>> => {
+    return get<any>(
+        '/knowledge/list',
+        { params: { knowledgeKey } }
     )
 }
 

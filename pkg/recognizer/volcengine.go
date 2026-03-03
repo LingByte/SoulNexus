@@ -246,16 +246,55 @@ func (volc *Volcengine) restartClient() {
 }
 
 func (volc *Volcengine) sendFrames(client *VolcengineClient) {
+	// 速率限制：1秒内最多发送3秒音频数据
+	// 16000 Hz 采样率，16-bit PCM，单声道 = 32000 bytes/秒
+	// 3秒音频 = 96000 bytes，所以每秒最多发送 96000 bytes
+	const maxBytesPerSecond = 96000
+	const sendInterval = 100 * time.Millisecond        // 每100ms发送一次
+	const maxBytesPerInterval = maxBytesPerSecond / 10 // 每100ms最多发送9600字节
+
+	ticker := time.NewTicker(sendInterval)
+	defer ticker.Stop()
+
+	var pendingData []byte
+
 	for {
 		select {
 		case data := <-volc.audioChan:
-			if err := volc.sendAudioMsg(client, data, false); err != nil {
-				logrus.WithFields(logrus.Fields{
-					"error": err.Error(),
-				}).WithError(err).Error("volcengine asr: fail to send audio msg")
-				volc.restartClient()
+			// 累积待发送的数据
+			pendingData = append(pendingData, data...)
+
+		case <-ticker.C:
+			// 定时发送数据，控制速率
+			if len(pendingData) > 0 {
+				// 每次最多发送 maxBytesPerInterval 字节
+				sendSize := len(pendingData)
+				if sendSize > maxBytesPerInterval {
+					sendSize = maxBytesPerInterval
+				}
+
+				toSend := pendingData[:sendSize]
+				pendingData = pendingData[sendSize:]
+
+				if err := volc.sendAudioMsg(client, toSend, false); err != nil {
+					logrus.WithFields(logrus.Fields{
+						"error": err.Error(),
+					}).WithError(err).Error("volcengine asr: fail to send audio msg")
+					volc.restartClient()
+					return
+				}
 			}
+
 		case <-volc.closeChan:
+			// 发送剩余的数据
+			if len(pendingData) > 0 {
+				if err := volc.sendAudioMsg(client, pendingData, false); err != nil {
+					logrus.WithFields(logrus.Fields{
+						"error": err.Error(),
+					}).WithError(err).Error("volcengine asr: fail to send remaining audio")
+				}
+			}
+			// 发送结束标记
 			client.sendLastAudio = true
 			if err := volc.sendAudioMsg(client, nil, true); err != nil {
 				logrus.WithFields(logrus.Fields{
@@ -264,6 +303,7 @@ func (volc *Volcengine) sendFrames(client *VolcengineClient) {
 				volc.restartClient()
 			}
 			return
+
 		case <-client.ctx.Done():
 			return
 		}

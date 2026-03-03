@@ -21,10 +21,11 @@ const (
 	ConfigKeyMilvusDimension      = "dimension"
 
 	// Qdrant config keys
-	ConfigKeyQdrantBaseURL        = "base_url"
-	ConfigKeyQdrantApiKey         = "api_key"
-	ConfigKeyQdrantCollectionName = "collection_name"
-	ConfigKeyQdrantDimension      = "dimension"
+	ConfigKeyQdrantHost      = "host"
+	ConfigKeyQdrantPort      = "port"
+	ConfigKeyQdrantAPIKey    = "api_key"
+	ConfigKeyQdrantUseTLS    = "use_tls"
+	ConfigKeyQdrantDimension = "dimension"
 
 	// Elasticsearch config keys
 	ConfigKeyElasticsearchBaseURL   = "base_url"

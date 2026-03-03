@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -103,11 +104,17 @@ func TestConcurrentQueries(t *testing.T) {
 		t.Skip("Skipping test that requires API key")
 	}
 
+	// Skip if no API key is provided
+	apiKey := os.Getenv("OPENAI_API_KEY")
+	if apiKey == "" {
+		t.Skip("Skipping test that requires OPENAI_API_KEY environment variable")
+	}
+
 	ctx := context.Background()
-	handler := NewLLMHandler(ctx, "test-key", "https://api.openai.com/v1", "You are a helpful assistant.")
+	handler := NewLLMHandler(ctx, apiKey, "https://api.openai.com/v1", "You are a helpful assistant.")
 
 	// Test concurrent queries
-	numGoroutines := 10
+	numGoroutines := 3 // Reduce number to avoid rate limits
 	var wg sync.WaitGroup
 	errors := make(chan error, numGoroutines)
 

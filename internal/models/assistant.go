@@ -363,6 +363,11 @@ func (JSTemplateVersion) TableName() string {
 
 // CreateJSTemplate create a new template
 func CreateJSTemplate(db *gorm.DB, template *JSTemplate) error {
+	// 如果没有提供ID，生成一个唯一的UUID
+	if template.ID == "" {
+		template.ID = generateUUID()
+	}
+
 	// 如果没有提供jsSourceId，生成一个唯一的
 	if template.JsSourceID == "" {
 		template.JsSourceID = generateUniqueJsSourceID(db, template.UserID)

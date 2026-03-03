@@ -13,6 +13,7 @@ interface SelectProps {
 interface SelectTriggerProps {
   children: React.ReactNode
   className?: string
+  selectedValue?: string
 }
 
 interface SelectContentProps {
@@ -53,8 +54,23 @@ const Select: React.FC<SelectProps> = ({
     }, []);
 
     const handleItemClick = (itemValue: string) => {
-        onValueChange(itemValue); // Trigger the onValueChange to update the value
-        setIsOpen(false); // Close dropdown after selecting an item
+        onValueChange(itemValue);
+        setIsOpen(false);
+    };
+
+    // 从 children 中找到选中项的显示文本
+    const getSelectedLabel = () => {
+        let selectedLabel = value;
+        React.Children.forEach(children, (child) => {
+            if (React.isValidElement(child) && child.type === SelectContent) {
+                React.Children.forEach(child.props.children, (item) => {
+                    if (React.isValidElement(item) && item.type === SelectItem && item.props.value === value) {
+                        selectedLabel = item.props.children as string;
+                    }
+                });
+            }
+        });
+        return selectedLabel;
     };
 
     return (
@@ -62,14 +78,14 @@ const Select: React.FC<SelectProps> = ({
             {React.Children.map(children, (child) => {
                 if (React.isValidElement(child)) {
                     if (child.type === SelectTrigger) {
-                        return React.cloneElement(child, {
+                        return React.cloneElement(child as React.ReactElement<any>, {
                             onClick: () => !disabled && setIsOpen(!isOpen),
                             isOpen,
                             disabled,
-                            selectedValue: value
+                            selectedValue: getSelectedLabel()
                         });
                     } else if (child.type === SelectContent) {
-                        return isOpen ? React.cloneElement(child, {
+                        return isOpen ? React.cloneElement(child as React.ReactElement<any>, {
                             onItemClick: handleItemClick,
                             selectedValue: value
                         }) : null;
@@ -80,7 +96,8 @@ const Select: React.FC<SelectProps> = ({
         </div>
     );
 };
-const SelectTrigger: React.FC<SelectTriggerProps & { onClick?: () => void; isOpen?: boolean; disabled?: boolean; selectedValue?: string }> = ({
+const SelectTrigger: React.FC<SelectTriggerProps & { onClick?: () => void; isOpen?: boolean; disabled?: boolean }> = ({
+                                                                                                                                                  children,
                                                                                                                                                   className = '',
                                                                                                                                                   onClick,
                                                                                                                                                   isOpen = false,
@@ -98,7 +115,14 @@ const SelectTrigger: React.FC<SelectTriggerProps & { onClick?: () => void; isOpe
                 className
             )}
         >
-            <SelectValue>{selectedValue}</SelectValue>
+            {React.Children.map(children, (child) => {
+                if (React.isValidElement(child) && child.type === SelectValue) {
+                    return React.cloneElement(child as React.ReactElement<any>, { 
+                        children: selectedValue || child.props.children 
+                    });
+                }
+                return child;
+            })}
             <ChevronDown className={cn('h-4 w-4 text-gray-500 transition-all duration-200', isOpen && 'rotate-180 text-gray-700')} />
         </button>
     );
@@ -125,7 +149,7 @@ const SelectContent: React.FC<SelectContentProps & { onItemClick?: (value: strin
         )}>
             {React.Children.map(children, (child) => {
                 if (React.isValidElement(child) && child.type === SelectItem) {
-                    return React.cloneElement(child, {
+                    return React.cloneElement(child as React.ReactElement<any>, {
                         onClick: () => onItemClick?.(child.props.value),
                         isSelected: child.props.value === selectedValue
                     });

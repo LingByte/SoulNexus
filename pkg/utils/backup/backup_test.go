@@ -253,9 +253,13 @@ func TestExecuteBackup_SQLite(t *testing.T) {
 	defer os.RemoveAll(testBackupPath)
 
 	config.GlobalConfig = &config.Config{
-		DBDriver:   "sqlite",
-		DSN:        testDB,
-		BackupPath: testBackupPath,
+		Database: config.DatabaseConfig{
+			Driver: "sqlite",
+			DSN:    testDB,
+		},
+		Features: config.FeaturesConfig{
+			BackupPath: testBackupPath,
+		},
 	}
 
 	err = ExecuteBackup()
@@ -286,9 +290,13 @@ func TestExecuteBackup_MySQL(t *testing.T) {
 	defer os.RemoveAll(testBackupPath)
 
 	config.GlobalConfig = &config.Config{
-		DBDriver:   "mysql",
-		DSN:        "invalid-dsn",
-		BackupPath: testBackupPath,
+		Database: config.DatabaseConfig{
+			Driver: "mysql",
+			DSN:    "invalid-dsn",
+		},
+		Features: config.FeaturesConfig{
+			BackupPath: testBackupPath,
+		},
 	}
 
 	// This will fail because mysqldump won't work, but we test the code path
@@ -309,8 +317,13 @@ func TestExecuteBackup_UnsupportedDriver(t *testing.T) {
 	}()
 
 	config.GlobalConfig = &config.Config{
-		DBDriver: "unsupported",
-		DSN:      "test-dsn",
+		Database: config.DatabaseConfig{
+			Driver: "unsupported",
+			DSN:    "test-dsn",
+		},
+		Features: config.FeaturesConfig{
+			BackupPath: "./backups",
+		},
 	}
 
 	err := ExecuteBackup()

@@ -7,11 +7,12 @@ import Button from '@/components/UI/Button.tsx'
 import Input from '@/components/UI/Input.tsx'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/UI/Select.tsx'
 import { jsTemplateService, JSTemplate, CreateJSTemplateForm } from '@/api/jsTemplate'
-import { ArrowLeft, Plus, Code, Eye, AlertCircle } from 'lucide-react'
+import { ArrowLeft, Plus, Code, Eye, AlertCircle, Maximize2, Minimize2, FileText } from 'lucide-react'
 import { showAlert } from '@/utils/notification'
 import { useDebounce } from '@/hooks/useDebounce'
 import { validateJavaScript } from '@/utils/jsValidator'
 import { getApiBaseURL } from '@/config/apiConfig'
+import MarkdownPreview from '@/components/UI/MarkdownPreview.tsx'
 
 // 懒加载Monaco Editor，优化首次加载性能
 const MonacoEditor = lazy(() => import('@monaco-editor/react'))
@@ -33,6 +34,8 @@ const JSTemplateManager = () => {
         usage: ''
     })
     const [validationError, setValidationError] = useState<string | null>(null)
+    const [isCodeEditorFullscreen, setIsCodeEditorFullscreen] = useState(false)
+    const [isMarkdownEditorFullscreen, setIsMarkdownEditorFullscreen] = useState(false)
     
     // 使用防抖来优化预览性能
     const debouncedContent = useDebounce(newTemplate.content, 500)
@@ -248,7 +251,8 @@ const JSTemplateManager = () => {
                 const apiBaseURL = getApiBaseURL()
                 // 从API URL提取基础URL（去掉/api后缀）
                 const baseURL = apiBaseURL.replace(/\/api$/, '')
-                const sdkPath = `${baseURL}/static/js/lingecho-sdk.js`
+                // 使用固定的CDN地址而不是本地地址
+                const sdkPath = `https://store.lingecho.com/uploads/buckets/default/lingecho-sdk.js`
                 
                 // 模拟模板变量（用于预览环境）
                 const mockAssistantID = 1
@@ -728,7 +732,7 @@ const JSTemplateManager = () => {
                                     <div className="flex-1 overflow-y-auto">
                                         <div className="p-6 space-y-6">
                                             <div>
-                                                <label className="block text-sm font-semibold mb-2">
+                                                <label className="block text-sm font-semibold mb-1">
                                                     {t('jsTemplate.templateName')}
                                                 </label>
                                                 <Input
@@ -740,25 +744,54 @@ const JSTemplateManager = () => {
                                             </div>
 
                                             <div>
-                                                <label className="block text-sm font-semibold mb-2">
+                                                <label className="block text-sm font-semibold mb-1">
                                                     {t('jsTemplate.usage')}
                                                 </label>
-                                                <textarea
-                                                    placeholder={t('jsTemplate.usagePlaceholder')}
-                                                    value={newTemplate.usage}
-                                                    onChange={(e) => setNewTemplate({ ...newTemplate, usage: e.target.value })}
-                                                    className="w-full p-3 border border-slate-200 dark:border-slate-600 dark:bg-slate-700/80 rounded-lg resize-none text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                                                    rows={4}
-                                                />
+                                                <div className="border border-slate-200 dark:border-slate-600 overflow-hidden rounded-lg shadow-sm">
+                                                    <div className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-600">
+                                                        <div className="text-xs text-slate-600 dark:text-slate-400">
+                                                            Markdown 使用说明编辑器
+                                                        </div>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="xs"
+                                                            onClick={() => setIsMarkdownEditorFullscreen(!isMarkdownEditorFullscreen)}
+                                                            className="h-6 px-2 text-xs"
+                                                        >
+                                                            {isMarkdownEditorFullscreen ? (
+                                                                <Minimize2 className="w-3 h-3" />
+                                                            ) : (
+                                                                <Maximize2 className="w-3 h-3" />
+                                                            )}
+                                                        </Button>
+                                                    </div>
+                                                </div>
                                             </div>
 
                                             <div>
-                                                <label className="block text-sm font-semibold mb-2">
+                                                <label className="block text-sm font-semibold mb-1">
                                                     {t('jsTemplate.templateContent')}
                                                 </label>
                                                 <div className="border border-slate-200 dark:border-slate-600 overflow-hidden rounded-lg shadow-sm">
+                                                    <div className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-600">
+                                                        <div className="text-xs text-slate-600 dark:text-slate-400">
+                                                            JavaScript 代码编辑器
+                                                        </div>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="xs"
+                                                            onClick={() => setIsCodeEditorFullscreen(!isCodeEditorFullscreen)}
+                                                            className="h-4 px-2 text-xs"
+                                                        >
+                                                            {isCodeEditorFullscreen ? (
+                                                                <Minimize2 className="w-3 h-3" />
+                                                            ) : (
+                                                                <Maximize2 className="w-3 h-3" />
+                                                            )}
+                                                        </Button>
+                                                    </div>
                                                     <Suspense fallback={
-                                                        <div className="h-[400px] flex items-center justify-center bg-slate-50 dark:bg-slate-800">
+                                                        <div className="h-[300px] flex items-center justify-center bg-slate-50 dark:bg-slate-800">
                                                             <div className="text-center">
                                                                 <div className="relative inline-block">
                                                                     <div className="animate-spin rounded-full h-8 w-8 border-4 border-slate-200 dark:border-slate-700"></div>
@@ -769,7 +802,7 @@ const JSTemplateManager = () => {
                                                         </div>
                                                     }>
                                                         <MonacoEditor
-                                                            height="400px"
+                                                            height="350px"
                                                             language="javascript"
                                                             value={newTemplate.content}
                                                             onChange={(value) => setNewTemplate({ ...newTemplate, content: value || '' })}
@@ -781,6 +814,11 @@ const JSTemplateManager = () => {
                                                                 wordWrap: 'on',
                                                                 automaticLayout: true,
                                                                 theme: 'vs-dark',
+                                                                tabSize: 2,
+                                                                formatOnPaste: true,
+                                                                formatOnType: true,
+                                                                suggestOnTriggerCharacters: true,
+                                                                quickSuggestions: true,
                                                             }}
                                                         />
                                                     </Suspense>
@@ -801,6 +839,250 @@ const JSTemplateManager = () => {
                             </div>
                         </motion.div>
                     </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* 代码编辑器全屏模式 */}
+            <AnimatePresence>
+                {isCodeEditorFullscreen && (isCreating || isEditing) && (
+                    <>
+                        {/* 背景遮罩 */}
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={() => setIsCodeEditorFullscreen(false)}
+                            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100]"
+                        />
+                        {/* 全屏编辑器 */}
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            transition={{ duration: 0.2 }}
+                            className="fixed inset-4 z-[110] bg-slate-900 rounded-lg shadow-2xl flex flex-col overflow-hidden"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            {/* 标题栏 */}
+                            <div className="h-14 bg-slate-800 border-b border-slate-700 flex items-center justify-between px-6 flex-shrink-0">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 rounded-lg bg-blue-500/15">
+                                        <Code className="w-5 h-5 text-blue-400" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-base font-semibold text-slate-200">
+                                            {newTemplate.name || '未命名模板'} - JavaScript 代码编辑器
+                                        </h3>
+                                        <p className="text-xs text-slate-400 mt-0.5">
+                                            全屏编辑模式
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    {validationError && (
+                                        <div className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 border border-red-500/20 rounded-lg">
+                                            <AlertCircle className="w-4 h-4 text-red-400" />
+                                            <span className="text-xs text-red-300">语法错误</span>
+                                        </div>
+                                    )}
+                                    {!validationError && (
+                                        <div className="flex items-center gap-2 px-3 py-1.5 bg-green-500/10 border border-green-500/20 rounded-lg">
+                                            <div className="w-2 h-2 rounded-full bg-green-400"></div>
+                                            <span className="text-xs text-green-300">语法正确</span>
+                                        </div>
+                                    )}
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => setIsCodeEditorFullscreen(false)}
+                                        className="flex items-center gap-2 text-slate-300 hover:text-white"
+                                    >
+                                        <Minimize2 className="w-4 h-4" />
+                                        <span>退出全屏</span>
+                                    </Button>
+                                </div>
+                            </div>
+                            
+                            {/* 编辑器区域 */}
+                            <div className="flex-1 overflow-hidden" style={{ height: 'calc(100vh - 8rem)' }}>
+                                <Suspense fallback={
+                                    <div className="h-full flex items-center justify-center bg-slate-900">
+                                        <div className="text-center">
+                                            <div className="animate-spin rounded-full h-8 w-8 border-4 border-slate-700 border-t-blue-500 mx-auto mb-3"></div>
+                                            <p className="text-sm text-slate-400">加载代码编辑器...</p>
+                                        </div>
+                                    </div>
+                                }>
+                                    <MonacoEditor
+                                        height="100%"
+                                        language="javascript"
+                                        value={newTemplate.content}
+                                        onChange={(value) => setNewTemplate({ ...newTemplate, content: value || '' })}
+                                        theme="vs-dark"
+                                        options={{
+                                            minimap: { enabled: true },
+                                            scrollBeyondLastLine: false,
+                                            fontSize: 14,
+                                            lineNumbers: 'on',
+                                            wordWrap: 'on',
+                                            automaticLayout: true,
+                                            tabSize: 2,
+                                            formatOnPaste: true,
+                                            formatOnType: true,
+                                            suggestOnTriggerCharacters: true,
+                                            quickSuggestions: true,
+                                            contextmenu: true,
+                                            mouseWheelZoom: true,
+                                            smoothScrolling: true,
+                                            cursorBlinking: 'smooth',
+                                            cursorSmoothCaretAnimation: 'on',
+                                        }}
+                                    />
+                                </Suspense>
+                            </div>
+                            
+                            {/* 底部错误提示 */}
+                            {validationError && (
+                                <div className="h-auto bg-red-900/20 border-t border-red-800/50 px-6 py-3 flex items-start gap-3">
+                                    <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+                                    <div className="flex-1">
+                                        <p className="text-sm font-medium text-red-200">语法错误</p>
+                                        <p className="text-xs text-red-300 mt-1">{validationError}</p>
+                                    </div>
+                                </div>
+                            )}
+                        </motion.div>
+                    </>
+                )}
+            </AnimatePresence>
+
+            {/* Markdown编辑器全屏模式 */}
+            <AnimatePresence>
+                {isMarkdownEditorFullscreen && (isCreating || isEditing) && (
+                    <>
+                        {/* 背景遮罩 */}
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={() => setIsMarkdownEditorFullscreen(false)}
+                            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100]"
+                        />
+                        {/* 全屏编辑器 */}
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            transition={{ duration: 0.2 }}
+                            className="fixed inset-4 z-[110] bg-white dark:bg-slate-900 rounded-lg shadow-2xl flex overflow-hidden"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            {/* 左侧：Markdown编辑器 */}
+                            <div className="w-1/2 flex flex-col border-r border-slate-200 dark:border-slate-700">
+                                {/* 标题栏 */}
+                                <div className="h-14 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between px-6 flex-shrink-0">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 rounded-lg bg-green-500/15">
+                                            <FileText className="w-5 h-5 text-green-600 dark:text-green-400" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-base font-semibold text-slate-800 dark:text-slate-200">
+                                                Markdown 编辑器
+                                            </h3>
+                                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                                编写使用说明文档
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => setIsMarkdownEditorFullscreen(false)}
+                                        className="flex items-center gap-2 text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white"
+                                    >
+                                        <Minimize2 className="w-4 h-4" />
+                                        <span>退出全屏</span>
+                                    </Button>
+                                </div>
+                                
+                                {/* 编辑器区域 */}
+                                <div className="flex-1 overflow-hidden">
+                                    <Suspense fallback={
+                                        <div className="h-full flex items-center justify-center bg-slate-50 dark:bg-slate-800">
+                                            <div className="text-center">
+                                                <div className="animate-spin rounded-full h-8 w-8 border-4 border-slate-200 dark:border-slate-700 border-t-green-500 mx-auto mb-3"></div>
+                                                <p className="text-sm text-slate-600 dark:text-slate-400">加载Markdown编辑器...</p>
+                                            </div>
+                                        </div>
+                                    }>
+                                        <MonacoEditor
+                                            height="100%"
+                                            language="markdown"
+                                            value={newTemplate.usage}
+                                            onChange={(value) => setNewTemplate({ ...newTemplate, usage: value || '' })}
+                                            theme="vs-light"
+                                            options={{
+                                                minimap: { enabled: false },
+                                                scrollBeyondLastLine: false,
+                                                fontSize: 14,
+                                                lineNumbers: 'on',
+                                                wordWrap: 'on',
+                                                automaticLayout: true,
+                                                tabSize: 2,
+                                                formatOnPaste: true,
+                                                formatOnType: true,
+                                                suggestOnTriggerCharacters: true,
+                                                quickSuggestions: true,
+                                                contextmenu: true,
+                                                mouseWheelZoom: true,
+                                                smoothScrolling: true,
+                                                cursorBlinking: 'smooth',
+                                                cursorSmoothCaretAnimation: 'on',
+                                            }}
+                                        />
+                                    </Suspense>
+                                </div>
+                            </div>
+
+                            {/* 右侧：实时预览 */}
+                            <div className="w-1/2 flex flex-col bg-slate-50/50 dark:bg-slate-800/50">
+                                {/* 预览标题栏 */}
+                                <div className="h-14 bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center px-6 flex-shrink-0">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 rounded-lg bg-blue-500/15">
+                                            <Eye className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-base font-semibold text-slate-800 dark:text-slate-200">
+                                                实时预览
+                                            </h3>
+                                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                                Markdown 渲染效果
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                {/* 预览区域 */}
+                                <div className="flex-1 overflow-y-auto p-6">
+                                    {newTemplate.usage ? (
+                                        <MarkdownPreview 
+                                            content={newTemplate.usage}
+                                            className="prose prose-sm max-w-none"
+                                        />
+                                    ) : (
+                                        <div className="flex items-center justify-center h-full text-slate-500 dark:text-slate-400">
+                                            <div className="text-center">
+                                                <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                                                <p className="text-sm">在左侧编辑器中输入Markdown内容</p>
+                                                <p className="text-xs mt-1 opacity-75">支持标题、列表、代码块、链接等格式</p>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </motion.div>
+                    </>
                 )}
             </AnimatePresence>
         </div>

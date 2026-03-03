@@ -116,26 +116,34 @@ func (ils *IPLocationService) getLocationFromPconline(ip string) (country, city,
 	url := fmt.Sprintf("%s?ip=%s&json=true", ils.apiURL, ip)
 	resp, err := client.Get(url)
 	if err != nil {
-		ils.logger.Warn("Failed to get IP location from pconline", zap.String("ip", ip), zap.Error(err))
+		if ils.logger != nil {
+			ils.logger.Warn("Failed to get IP location from pconline", zap.String("ip", ip), zap.Error(err))
+		}
 		return UNKNOWN, UNKNOWN, UNKNOWN, nil
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		ils.logger.Warn("Pconline API returned non-200 status", zap.String("ip", ip), zap.Int("status", resp.StatusCode))
+		if ils.logger != nil {
+			ils.logger.Warn("Pconline API returned non-200 status", zap.String("ip", ip), zap.Int("status", resp.StatusCode))
+		}
 		return UNKNOWN, UNKNOWN, UNKNOWN, nil
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		ils.logger.Warn("Failed to read pconline response", zap.String("ip", ip), zap.Error(err))
+		if ils.logger != nil {
+			ils.logger.Warn("Failed to read pconline response", zap.String("ip", ip), zap.Error(err))
+		}
 		return UNKNOWN, UNKNOWN, UNKNOWN, nil
 	}
 
 	var locationResp IPLocationResponse
 	err = json.Unmarshal(body, &locationResp)
 	if err != nil {
-		ils.logger.Warn("Failed to parse pconline response", zap.String("ip", ip), zap.Error(err))
+		if ils.logger != nil {
+			ils.logger.Warn("Failed to parse pconline response", zap.String("ip", ip), zap.Error(err))
+		}
 		return UNKNOWN, UNKNOWN, UNKNOWN, nil
 	}
 
@@ -166,31 +174,41 @@ func (ils *IPLocationService) getLocationFromIPAPI(ip string) (country, city, lo
 
 	resp, err := client.Get(url)
 	if err != nil {
-		ils.logger.Warn("Failed to get IP geolocation", zap.String("ip", ip), zap.Error(err))
+		if ils.logger != nil {
+			ils.logger.Warn("Failed to get IP geolocation", zap.String("ip", ip), zap.Error(err))
+		}
 		return UNKNOWN, UNKNOWN, UNKNOWN, nil
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		ils.logger.Warn("IP geolocation API returned non-200 status", zap.String("ip", ip), zap.Int("status", resp.StatusCode))
+		if ils.logger != nil {
+			ils.logger.Warn("IP geolocation API returned non-200 status", zap.String("ip", ip), zap.Int("status", resp.StatusCode))
+		}
 		return UNKNOWN, UNKNOWN, UNKNOWN, nil
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		ils.logger.Warn("Failed to read IP geolocation response", zap.String("ip", ip), zap.Error(err))
+		if ils.logger != nil {
+			ils.logger.Warn("Failed to read IP geolocation response", zap.String("ip", ip), zap.Error(err))
+		}
 		return UNKNOWN, UNKNOWN, UNKNOWN, nil
 	}
 
 	var geoResp IPGeolocationResponse
 	if err := json.Unmarshal(body, &geoResp); err != nil {
-		ils.logger.Warn("Failed to parse IP geolocation response", zap.String("ip", ip), zap.Error(err))
+		if ils.logger != nil {
+			ils.logger.Warn("Failed to parse IP geolocation response", zap.String("ip", ip), zap.Error(err))
+		}
 		return UNKNOWN, UNKNOWN, UNKNOWN, nil
 	}
 
 	// 检查API返回状态
 	if geoResp.Status == "fail" {
-		ils.logger.Warn("IP geolocation API returned fail status", zap.String("ip", ip), zap.String("message", geoResp.Message))
+		if ils.logger != nil {
+			ils.logger.Warn("IP geolocation API returned fail status", zap.String("ip", ip), zap.String("message", geoResp.Message))
+		}
 		return UNKNOWN, UNKNOWN, UNKNOWN, nil
 	}
 
@@ -216,8 +234,13 @@ func GetRealAddressByIP(ip string) string {
 		return INTERNAL_IP
 	}
 
-	// 创建临时服务实例（使用默认配置）
-	service := NewIPLocationService(nil)
+	// 创建临时服务实例（使用默认配置和空logger）
+	service := &IPLocationService{
+		apiURL:      IP_API_URL,
+		timeout:     5 * time.Second,
+		logger:      nil, // 在测试中可能为nil
+		usePconline: false,
+	}
 	_, _, location, _ := service.GetLocation(ip)
 
 	if location == UNKNOWN || location == "" {

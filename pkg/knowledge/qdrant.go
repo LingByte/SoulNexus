@@ -1,54 +1,67 @@
 package knowledge
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
+	"crypto/md5"
 	"fmt"
 	"io"
 	"mime/multipart"
-	"net/http"
 	"strings"
+
+	"github.com/qdrant/go-client/qdrant"
 )
 
 // qdrantKnowledgeBase Qdrant向量数据库实现
 type qdrantKnowledgeBase struct {
-	apiKey         string
-	baseURL        string
-	collectionName string
-	dimension      int
-	httpClient     *http.Client
+	client    *qdrant.Client
+	dimension int
 }
 
 // NewQdrantKnowledgeBase 创建Qdrant知识库实例
 func NewQdrantKnowledgeBase(config map[string]interface{}) (KnowledgeBase, error) {
-	baseURL := getStringFromConfig(config, "base_url")
-	if baseURL == "" {
-		baseURL = "http://localhost:6333"
+	host := getStringFromConfig(config, ConfigKeyQdrantHost)
+	if host == "" {
+		host = "localhost"
 	}
 
-	apiKey := getStringFromConfig(config, "api_key")
-	collectionName := getStringFromConfig(config, "collection_name")
-	if collectionName == "" {
-		return nil, fmt.Errorf("collection_name is required")
+	port := getIntFromConfig(config, ConfigKeyQdrantPort)
+	if port == 0 {
+		port = 6334
 	}
 
-	dimension := getIntFromConfig(config, "dimension")
+	apiKey := getStringFromConfig(config, ConfigKeyQdrantAPIKey)
+	useTLS := false
+	if tlsStr := getStringFromConfig(config, ConfigKeyQdrantUseTLS); tlsStr == "true" {
+		useTLS = true
+	}
+
+	dimension := getIntFromConfig(config, ConfigKeyQdrantDimension)
 	if dimension == 0 {
-		dimension = 384 // Qdrant默认维度
+		dimension = 384 // 默认维度
 	}
 
-	httpClient := &http.Client{}
+	// 创建Qdrant客户端
+	cfg := &qdrant.Config{
+		Host: host,
+		Port: port,
+	}
+
 	if apiKey != "" {
-		// 可以使用自定义transport添加认证
+		cfg.APIKey = apiKey
+	}
+
+	if useTLS {
+		cfg.UseTLS = true
+	}
+
+	client, err := qdrant.NewClient(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create qdrant client: %w", err)
 	}
 
 	return &qdrantKnowledgeBase{
-		apiKey:         apiKey,
-		baseURL:        baseURL,
-		collectionName: collectionName,
-		dimension:      dimension,
-		httpClient:     httpClient,
+		client:    client,
+		dimension: dimension,
 	}, nil
 }
 
@@ -61,84 +74,90 @@ func (q *qdrantKnowledgeBase) Search(ctx context.Context, knowledgeKey string, o
 		ctx = context.Background()
 	}
 
-	// 获取embedding向量
+	// 如果没有提供embedding，则列出所有文档
 	queryEmbedding := getFloatVectorFromConfig(options.Filter, "embedding")
 	if len(queryEmbedding) == 0 {
-		return nil, fmt.Errorf("embedding vector is required for qdrant search")
+		// 没有embedding，使用Scroll API列出所有文档
+		limit := uint32(options.TopK)
+		if limit <= 0 {
+			limit = 10
+		}
+
+		points, err := q.client.Scroll(ctx, &qdrant.ScrollPoints{
+			CollectionName: knowledgeKey,
+			Limit:          &limit,
+			WithPayload:    qdrant.NewWithPayload(true),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("qdrant scroll failed: %w", err)
+		}
+
+		var results []SearchResult
+		for _, point := range points {
+			// 从payload中提取content
+			content := ""
+			if payload := point.GetPayload(); payload != nil {
+				if contentField, ok := payload["content"]; ok {
+					if contentStr := contentField.GetStringValue(); contentStr != "" {
+						content = contentStr
+					}
+				}
+			}
+
+			result := SearchResult{
+				Content:  content,
+				Score:    1.0, // 列出所有文档时，分数为1.0
+				Metadata: make(map[string]interface{}),
+				Source:   fmt.Sprintf("%v", point.GetId()),
+			}
+			results = append(results, result)
+		}
+
+		return results, nil
 	}
 
+	// 有embedding，执行向量搜索
 	topK := options.TopK
 	if topK <= 0 {
 		topK = 10
 	}
 
-	// 构建Qdrant搜索请求
-	searchReq := map[string]interface{}{
-		"vector":       queryEmbedding,
-		"limit":        topK,
-		"with_payload": true,
-		"with_vector":  false,
-	}
-
-	if options.Threshold > 0 {
-		searchReq["score_threshold"] = options.Threshold
-	}
-
-	reqBody, _ := json.Marshal(searchReq)
-	url := fmt.Sprintf("%s/collections/%s/points/search", q.baseURL, knowledgeKey)
-
-	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(reqBody))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	if q.apiKey != "" {
-		req.Header.Set("api-key", q.apiKey)
-	}
-
-	resp, err := q.httpClient.Do(req)
+	// 使用Qdrant客户端搜索
+	limit := uint64(topK)
+	searchResult, err := q.client.Query(ctx, &qdrant.QueryPoints{
+		CollectionName: knowledgeKey,
+		Query:          qdrant.NewQuery(queryEmbedding...),
+		Limit:          &limit,
+		WithPayload:    qdrant.NewWithPayload(true),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("qdrant search failed: %w", err)
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("qdrant search failed with status: %d", resp.StatusCode)
-	}
-
-	var searchResp struct {
-		Result []struct {
-			ID      interface{}            `json:"id"`
-			Score   float64                `json:"score"`
-			Payload map[string]interface{} `json:"payload"`
-		} `json:"result"`
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&searchResp); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
-	}
 
 	var results []SearchResult
-	for _, hit := range searchResp.Result {
+	for _, scored := range searchResult {
 		// 从payload中提取content
 		content := ""
-		if contentField, ok := hit.Payload["content"].(string); ok {
-			content = contentField
+		if payload := scored.GetPayload(); payload != nil {
+			if contentField, ok := payload["content"]; ok {
+				if contentStr := contentField.GetStringValue(); contentStr != "" {
+					content = contentStr
+				}
+			}
 		}
 
-		score := hit.Score
+		score := float64(scored.GetScore())
 		if options.Threshold > 0 && score < options.Threshold {
 			continue
 		}
 
-		// 转换ID为字符串
-		idStr := fmt.Sprintf("%v", hit.ID)
+		// 获取ID
+		idStr := fmt.Sprintf("%v", scored.GetId())
 
 		result := SearchResult{
 			Content:  content,
 			Score:    score,
-			Metadata: hit.Payload,
+			Metadata: make(map[string]interface{}),
 			Source:   idStr,
 		}
 		results = append(results, result)
@@ -153,66 +172,33 @@ func (q *qdrantKnowledgeBase) CreateIndex(ctx context.Context, name string, conf
 	}
 
 	collectionName := name
-	if cn := getStringFromConfig(config, "collection_name"); cn != "" {
-		collectionName = cn
-	}
 
 	// 检查collection是否存在
-	url := fmt.Sprintf("%s/collections/%s", q.baseURL, collectionName)
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return "", fmt.Errorf("failed to create request: %w", err)
-	}
-
-	if q.apiKey != "" {
-		req.Header.Set("api-key", q.apiKey)
-	}
-
-	resp, err := q.httpClient.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("failed to check collection: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode == http.StatusOK {
+	exists, err := q.client.CollectionExists(ctx, collectionName)
+	if err == nil && exists {
 		// Collection已存在
 		return collectionName, nil
 	}
 
 	// 创建新的collection
 	dimension := q.dimension
-	if d := getIntFromConfig(config, "dimension"); d > 0 {
+	if d := getIntFromConfig(config, ConfigKeyQdrantDimension); d > 0 {
 		dimension = d
 	}
 
-	createReq := map[string]interface{}{
-		"vectors": map[string]interface{}{
-			"size":     dimension,
-			"distance": "Cosine",
+	err = q.client.CreateCollection(ctx, &qdrant.CreateCollection{
+		CollectionName: collectionName,
+		VectorsConfig: &qdrant.VectorsConfig{
+			Config: &qdrant.VectorsConfig_Params{
+				Params: &qdrant.VectorParams{
+					Size:     uint64(dimension),
+					Distance: qdrant.Distance_Cosine,
+				},
+			},
 		},
-	}
-
-	reqBody, _ := json.Marshal(createReq)
-	url = fmt.Sprintf("%s/collections/%s", q.baseURL, collectionName)
-
-	req, err = http.NewRequestWithContext(ctx, "PUT", url, bytes.NewReader(reqBody))
-	if err != nil {
-		return "", fmt.Errorf("failed to create request: %w", err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	if q.apiKey != "" {
-		req.Header.Set("api-key", q.apiKey)
-	}
-
-	resp, err = q.httpClient.Do(req)
+	})
 	if err != nil {
 		return "", fmt.Errorf("failed to create collection: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		return "", fmt.Errorf("failed to create collection with status: %d", resp.StatusCode)
 	}
 
 	return collectionName, nil
@@ -223,32 +209,62 @@ func (q *qdrantKnowledgeBase) DeleteIndex(ctx context.Context, knowledgeKey stri
 		ctx = context.Background()
 	}
 
-	url := fmt.Sprintf("%s/collections/%s", q.baseURL, knowledgeKey)
-	req, err := http.NewRequestWithContext(ctx, "DELETE", url, nil)
-	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
-	}
-
-	if q.apiKey != "" {
-		req.Header.Set("api-key", q.apiKey)
-	}
-
-	resp, err := q.httpClient.Do(req)
+	err := q.client.DeleteCollection(ctx, knowledgeKey)
 	if err != nil {
 		return fmt.Errorf("failed to delete collection: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
-		return fmt.Errorf("failed to delete collection with status: %d", resp.StatusCode)
 	}
 
 	return nil
 }
 
 func (q *qdrantKnowledgeBase) UploadDocument(ctx context.Context, knowledgeKey string, file multipart.File, header *multipart.FileHeader, metadata map[string]interface{}) error {
-	// Qdrant上传需要先进行文本处理和embedding
-	return fmt.Errorf("qdrant upload document not fully implemented, requires text processing and embedding generation")
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	// 读取文件内容
+	content, err := io.ReadAll(file)
+	if err != nil {
+		return fmt.Errorf("failed to read file: %w", err)
+	}
+
+	// 计算文件MD5作为ID
+	hash := md5.Sum(content)
+	pointID := qdrant.NewIDNum(parsePointID(fmt.Sprintf("%x", hash)))
+
+	// 生成embedding向量
+	embedding := GenerateEmbedding(string(content), q.dimension)
+
+	// 创建payload
+	payload := map[string]*qdrant.Value{
+		"content":  {Kind: &qdrant.Value_StringValue{StringValue: string(content)}},
+		"filename": {Kind: &qdrant.Value_StringValue{StringValue: header.Filename}},
+		"size":     {Kind: &qdrant.Value_IntegerValue{IntegerValue: int64(header.Size)}},
+	}
+
+	// 添加元数据
+	if metadata != nil {
+		for k, v := range metadata {
+			payload[k] = &qdrant.Value{Kind: &qdrant.Value_StringValue{StringValue: fmt.Sprintf("%v", v)}}
+		}
+	}
+
+	// 创建点并上传到Qdrant
+	point := &qdrant.PointStruct{
+		Id:      pointID,
+		Vectors: qdrant.NewVectors(embedding...),
+		Payload: payload,
+	}
+
+	_, err = q.client.Upsert(ctx, &qdrant.UpsertPoints{
+		CollectionName: knowledgeKey,
+		Points:         []*qdrant.PointStruct{point},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to upsert point to qdrant: %w", err)
+	}
+
+	return nil
 }
 
 func (q *qdrantKnowledgeBase) DeleteDocument(ctx context.Context, knowledgeKey string, documentID string) error {
@@ -256,31 +272,20 @@ func (q *qdrantKnowledgeBase) DeleteDocument(ctx context.Context, knowledgeKey s
 		ctx = context.Background()
 	}
 
-	deleteReq := map[string]interface{}{
-		"points": []string{documentID},
-	}
+	pointID := qdrant.NewIDNum(parsePointID(documentID))
 
-	reqBody, _ := json.Marshal(deleteReq)
-	url := fmt.Sprintf("%s/collections/%s/points/delete", q.baseURL, knowledgeKey)
-
-	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(reqBody))
-	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	if q.apiKey != "" {
-		req.Header.Set("api-key", q.apiKey)
-	}
-
-	resp, err := q.httpClient.Do(req)
+	_, err := q.client.Delete(ctx, &qdrant.DeletePoints{
+		CollectionName: knowledgeKey,
+		Points: &qdrant.PointsSelector{
+			PointsSelectorOneOf: &qdrant.PointsSelector_Points{
+				Points: &qdrant.PointsIdsList{
+					Ids: []*qdrant.PointId{pointID},
+				},
+			},
+		},
+	})
 	if err != nil {
 		return fmt.Errorf("failed to delete document: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed to delete document with status: %d", resp.StatusCode)
 	}
 
 	return nil
@@ -291,51 +296,22 @@ func (q *qdrantKnowledgeBase) ListDocuments(ctx context.Context, knowledgeKey st
 		ctx = context.Background()
 	}
 
-	// Qdrant可以通过scroll API获取所有点
-	scrollReq := map[string]interface{}{
-		"limit":        1000,
-		"with_payload": false,
-		"with_vector":  false,
-	}
-
-	reqBody, _ := json.Marshal(scrollReq)
-	url := fmt.Sprintf("%s/collections/%s/points/scroll", q.baseURL, knowledgeKey)
-
-	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(reqBody))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	if q.apiKey != "" {
-		req.Header.Set("api-key", q.apiKey)
-	}
-
-	resp, err := q.httpClient.Do(req)
+	// 使用Scroll API获取所有点
+	limit := uint32(1000)
+	points, err := q.client.Scroll(ctx, &qdrant.ScrollPoints{
+		CollectionName: knowledgeKey,
+		Limit:          &limit,
+		WithPayload:    qdrant.NewWithPayload(true),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list documents: %w", err)
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to list documents with status: %d", resp.StatusCode)
-	}
-
-	var scrollResp struct {
-		Result struct {
-			Points []struct {
-				ID interface{} `json:"id"`
-			} `json:"points"`
-		} `json:"result"`
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&scrollResp); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
-	}
 
 	var ids []string
-	for _, point := range scrollResp.Result.Points {
-		ids = append(ids, fmt.Sprintf("%v", point.ID))
+	for _, point := range points {
+		if point != nil {
+			ids = append(ids, fmt.Sprintf("%v", point.GetId()))
+		}
 	}
 
 	return ids, nil
@@ -346,47 +322,45 @@ func (q *qdrantKnowledgeBase) GetDocument(ctx context.Context, knowledgeKey stri
 		ctx = context.Background()
 	}
 
-	url := fmt.Sprintf("%s/collections/%s/points/%s", q.baseURL, knowledgeKey, documentID)
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
+	pointID := qdrant.NewIDNum(parsePointID(documentID))
 
-	if q.apiKey != "" {
-		req.Header.Set("api-key", q.apiKey)
-	}
-
-	resp, err := q.httpClient.Do(req)
+	// 获取点数据
+	points, err := q.client.Get(ctx, &qdrant.GetPoints{
+		CollectionName: knowledgeKey,
+		Ids:            []*qdrant.PointId{pointID},
+		WithPayload:    qdrant.NewWithPayload(true),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get document: %w", err)
 	}
-	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to get document with status: %d", resp.StatusCode)
+	if len(points) == 0 {
+		return nil, fmt.Errorf("document not found")
 	}
 
-	var getResp struct {
-		Result struct {
-			Payload map[string]interface{} `json:"payload"`
-		} `json:"result"`
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&getResp); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
-	}
-
+	// 从payload中提取content
 	content := ""
-	if contentField, ok := getResp.Result.Payload["content"].(string); ok {
-		content = contentField
+	if payload := points[0].GetPayload(); payload != nil {
+		if contentField, ok := payload["content"]; ok {
+			if contentStr := contentField.GetStringValue(); contentStr != "" {
+				content = contentStr
+			}
+		}
 	}
 
 	return io.NopCloser(strings.NewReader(content)), nil
 }
 
+// parsePointID 将字符串ID转换为uint64
+func parsePointID(id string) uint64 {
+	var result uint64
+	fmt.Sscanf(id, "%d", &result)
+	return result
+}
+
 // 注册Qdrant提供者
 func init() {
 	RegisterKnowledgeBaseProvider(ProviderQdrant, func(config map[string]interface{}) (KnowledgeBase, error) {
-		return NewQdrantKnowledgeBase(config)
+		return NewQdrantRESTKnowledgeBase(config)
 	})
 }

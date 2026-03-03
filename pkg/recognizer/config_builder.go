@@ -81,31 +81,12 @@ func (r *ConfigReader) Int(keys ...interface{}) int {
 	return defaultValue
 }
 
-// normalizeProviderName 标准化provider名称
-func normalizeProviderName(provider string) string {
-	normalized := strings.ToLower(provider)
-	if normalized == "qcloud" {
-		return "tencent"
-	}
-	// voiceengine映射到volcengine
-	if normalized == "voiceengine" {
-		return "volcengine"
-	}
-	return normalized
-}
-
-// NormalizeProvider 标准化provider名称（公开函数，供其他包使用）
-func NormalizeProvider(provider string) string {
-	return normalizeProviderName(provider)
-}
-
 // GetVendor 获取vendor枚举值（公开函数，供其他包使用）
 func GetVendor(provider string) Vendor {
-	normalized := normalizeProviderName(provider)
-	if normalized == "tencent" {
+	if provider == "tencent" {
 		return VendorQCloud
 	}
-	return Vendor(normalized)
+	return Vendor(provider)
 }
 
 // NewTranscriberConfigFromMap 从 map[string]interface{} 创建 TranscriberConfig
@@ -115,9 +96,7 @@ func NewTranscriberConfigFromMap(
 	config map[string]interface{},
 	language string,
 ) (TranscriberConfig, error) {
-	normalizedProvider := normalizeProviderName(provider)
-
-	switch normalizedProvider {
+	switch provider {
 	case "tencent", "qcloud":
 		return buildQCloudConfig(config)
 	case "google":
@@ -134,6 +113,18 @@ func NewTranscriberConfigFromMap(
 		return buildVolcengineLLMConfig(config)
 	case "gladia":
 		return buildGladiaConfig(config)
+	case "deepgram":
+		return buildDeepgramConfig(config, language)
+	case "aws":
+		return buildAwsConfig(config, language)
+	case "baidu":
+		return buildBaiduConfig(config)
+	case "voiceapi":
+		return buildVoiceAPIConfig(config)
+	case "whisper":
+		return buildWhisperConfig(config)
+	case "local":
+		return buildLocalConfig(config)
 	default:
 		return nil, fmt.Errorf("unsupported ASR provider: %s", provider)
 	}
@@ -143,12 +134,25 @@ func NewTranscriberConfigFromMap(
 func buildQCloudConfig(config map[string]interface{}) (*QCloudASROption, error) {
 	cfg := NewConfigReader(config)
 
-	appID := cfg.String("app_id", "appId", utils.GetEnv("QCLOUD_APP_ID"))
-	secretID := cfg.String("secret_id", "secretId", utils.GetEnv("QCLOUD_SECRET_ID"))
-	secretKey := cfg.String("secret_key", "secretKey", utils.GetEnv("QCLOUD_SECRET"))
+	// 优先使用配置中的值，如果没有则使用环境变量
+	appID := cfg.String("app_id", "appId")
+	if appID == "" {
+		appID = utils.GetEnv("QCLOUD_APP_ID")
+	}
+
+	secretID := cfg.String("secret_id", "secretId")
+	if secretID == "" {
+		secretID = utils.GetEnv("QCLOUD_SECRET_ID")
+	}
+
+	secretKey := cfg.String("secret_key", "secretKey")
+	if secretKey == "" {
+		secretKey = utils.GetEnv("QCLOUD_SECRET")
+	}
 
 	if appID == "" || secretID == "" || secretKey == "" {
-		return nil, fmt.Errorf("腾讯云ASR配置不完整：缺少appId、secretId或secretKey")
+		return nil, fmt.Errorf("腾讯云ASR配置不完整：缺少appId、secretId或secretKey (配置: appId=%s, secretId=%s, secretKey=%s)",
+			appID, secretID, secretKey)
 	}
 
 	opt := NewQcloudASROption(appID, secretID, secretKey)
@@ -265,4 +269,93 @@ func buildGladiaConfig(config map[string]interface{}) (*GladiaASROption, error) 
 	}
 	opt := NewGladiaASROption(apiKey, encoding)
 	return &opt, nil
+}
+
+// buildDeepgramConfig 构建Deepgram ASR配置
+func buildDeepgramConfig(config map[string]interface{}, language string) (*DeepgramASROption, error) {
+	cfg := NewConfigReader(config)
+	apiKey := cfg.String("apiKey", "api_key")
+	if apiKey == "" {
+		apiKey = utils.GetEnv("DEEPGRAM_API_KEY")
+	}
+	if apiKey == "" {
+		return nil, fmt.Errorf("Deepgram ASR配置不完整：缺少apiKey")
+	}
+
+	model := cfg.String("model", "nova-2")
+	lang := cfg.String("language", language)
+	if lang == "" {
+		lang = "en-US"
+	}
+
+	opt := NewDeepgramASROption(apiKey, model, lang)
+	return &opt, nil
+}
+
+// buildAwsConfig 构建AWS ASR配置
+func buildAwsConfig(config map[string]interface{}, language string) (*AwsASROption, error) {
+	cfg := NewConfigReader(config)
+	appID := cfg.String("appId", "app_id")
+	region := cfg.String("region", "us-east-1")
+	lang := cfg.String("language", language)
+	if lang == "" {
+		lang = "en-US"
+	}
+
+	opt := NewAwsASROption(appID, region, lang)
+	return &opt, nil
+}
+
+// buildBaiduConfig 构建百度ASR配置
+func buildBaiduConfig(config map[string]interface{}) (*BaiduASROption, error) {
+	cfg := NewConfigReader(config)
+	appID := cfg.Int("appId", "app_id")
+	appKey := cfg.String("appKey", "app_key")
+	devPid := cfg.Int("devPid", "dev_pid", 1537)
+	format := cfg.String("format", "pcm")
+	sampleRate := cfg.Int("sampleRate", "sample_rate", 16000)
+
+	if appID == 0 || appKey == "" {
+		return nil, fmt.Errorf("百度ASR配置不完整：缺少appId或appKey")
+	}
+
+	opt := NewBaiduASROption(appID, appKey, devPid, format, sampleRate)
+	return &opt, nil
+}
+
+// buildVoiceAPIConfig 构建VoiceAPI ASR配置
+func buildVoiceAPIConfig(config map[string]interface{}) (*VoiceapiASROption, error) {
+	cfg := NewConfigReader(config)
+	url := cfg.String("url", "")
+	if url == "" {
+		return nil, fmt.Errorf("VoiceAPI ASR配置不完整：缺少url")
+	}
+
+	opt := NewVoiceapiASROption(url)
+	return &opt, nil
+}
+
+// buildWhisperConfig 构建Whisper ASR配置
+func buildWhisperConfig(config map[string]interface{}) (*WhisperASROption, error) {
+	cfg := NewConfigReader(config)
+	url := cfg.String("url", "")
+	model := cfg.String("model", "whisper-1")
+
+	if url == "" {
+		return nil, fmt.Errorf("Whisper ASR配置不完整：缺少url")
+	}
+
+	opt := NewWhisperASROption(url, model)
+	return &opt, nil
+}
+
+// buildLocalConfig 构建本地ASR配置
+func buildLocalConfig(config map[string]interface{}) (*LocalASRConfig, error) {
+	cfg := NewConfigReader(config)
+	modelPath := cfg.String("modelPath", "model_path")
+
+	opt := &LocalASRConfig{
+		ModelPath: modelPath,
+	}
+	return opt, nil
 }

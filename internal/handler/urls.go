@@ -7,6 +7,7 @@ import (
 	"github.com/LingByte/SoulNexus"
 	"github.com/LingByte/SoulNexus/internal/apidocs"
 	"github.com/LingByte/SoulNexus/internal/models"
+	"github.com/LingByte/SoulNexus/internal/service"
 	"github.com/LingByte/SoulNexus/pkg/config"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/logger"
@@ -15,6 +16,7 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/utils/search"
 	"github.com/LingByte/SoulNexus/pkg/websocket"
 	"github.com/gin-gonic/gin"
+	"github.com/sirupsen/logrus"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -24,7 +26,6 @@ type Handlers struct {
 	wsHub             *websocket.Hub
 	searchHandler     *search.SearchHandlers
 	ipLocationService *utils.IPLocationService
-	sipHandler        *SipHandler
 }
 
 // GetSearchHandler gets the search handler (for scheduled tasks)
@@ -41,13 +42,13 @@ func NewHandlers(db *gorm.DB) *Handlers {
 	searchEnabled := utils.GetBoolValue(db, constants.KEY_SEARCH_ENABLED)
 	// If not configured in config table, use environment variables
 	if !searchEnabled && config.GlobalConfig != nil {
-		searchEnabled = config.GlobalConfig.SearchEnabled
+		searchEnabled = config.GlobalConfig.Features.SearchEnabled
 	}
 
 	if searchEnabled {
 		searchPath := utils.GetValue(db, constants.KEY_SEARCH_PATH)
 		if searchPath == "" && config.GlobalConfig != nil {
-			searchPath = config.GlobalConfig.SearchPath
+			searchPath = config.GlobalConfig.Features.SearchPath
 		}
 		if searchPath == "" {
 			searchPath = "./search"
@@ -55,7 +56,7 @@ func NewHandlers(db *gorm.DB) *Handlers {
 
 		batchSize := utils.GetIntValue(db, constants.KEY_SEARCH_BATCH_SIZE, 100)
 		if batchSize == 0 && config.GlobalConfig != nil {
-			batchSize = config.GlobalConfig.SearchBatchSize
+			batchSize = config.GlobalConfig.Features.SearchBatchSize
 		}
 		if batchSize == 0 {
 			batchSize = 100
@@ -88,31 +89,20 @@ func NewHandlers(db *gorm.DB) *Handlers {
 		}
 	}
 
-	// 初始化IP地理位置服务
+	// Initialize IP geolocation service
 	ipLocationService := utils.NewIPLocationService(logger.Lg)
-
-	// 初始化SIP handler（SipServer可以通过SetSipServer方法设置）
-	sipHandler := NewSipHandler(db, nil)
 
 	return &Handlers{
 		db:                db,
 		wsHub:             wsHub,
 		searchHandler:     searchHandler,
 		ipLocationService: ipLocationService,
-		sipHandler:        sipHandler,
-	}
-}
-
-// SetSipServer 设置SIP服务器（用于依赖注入）
-func (h *Handlers) SetSipServer(sipServer SipServerInterface) {
-	if h.sipHandler != nil {
-		h.sipHandler.sipServer = sipServer
 	}
 }
 
 func (h *Handlers) Register(engine *gin.Engine) {
 
-	r := engine.Group(config.GlobalConfig.APIPrefix)
+	r := engine.Group(config.GlobalConfig.Server.APIPrefix)
 
 	// Register Global Singleton DB
 	r.Use(middleware.InjectDB(h.db))
@@ -125,7 +115,7 @@ func (h *Handlers) Register(engine *gin.Engine) {
 	if h.searchHandler == nil {
 		searchPath := utils.GetValue(h.db, constants.KEY_SEARCH_PATH)
 		if searchPath == "" && config.GlobalConfig != nil {
-			searchPath = config.GlobalConfig.SearchPath
+			searchPath = config.GlobalConfig.Features.SearchPath
 		}
 		if searchPath == "" {
 			searchPath = "./search"
@@ -133,7 +123,7 @@ func (h *Handlers) Register(engine *gin.Engine) {
 
 		batchSize := utils.GetIntValue(h.db, constants.KEY_SEARCH_BATCH_SIZE, 100)
 		if batchSize == 0 && config.GlobalConfig != nil {
-			batchSize = config.GlobalConfig.SearchBatchSize
+			batchSize = config.GlobalConfig.Features.SearchBatchSize
 		}
 		if batchSize == 0 {
 			batchSize = 100
@@ -178,13 +168,11 @@ func (h *Handlers) Register(engine *gin.Engine) {
 	h.registerOTARoutes(r)
 	// Register Device routes
 	h.registerDeviceRoutes(r)
-	// Register SIP routes (if SIP handler is available)
-	if h.sipHandler != nil {
-		h.registerSipRoutes(r)
-	}
 	// Register Business Module Routes
 	h.registerAuthRoutes(r)
 	h.registerNotificationRoutes(r)
+	h.registerEmailLogRoutes(r)
+	h.registerSendCloudWebhookRoutes(r)
 	h.registerGroupRoutes(r)
 	h.registerQuotaRoutes(r)
 	h.registerAlertRoutes(r)
@@ -200,100 +188,24 @@ func (h *Handlers) Register(engine *gin.Engine) {
 	h.registerBillingRoutes(r)
 	h.registerMiddlewareRoutes(r)
 	h.registerWorkflowRoutes(r)
+	h.registerWorkflowPluginRoutes(r) // Add workflow plugin routes
+	h.registerNodePluginRoutes(r)     // Add node plugin routes
+	h.registerMCPRoutes(r)            // Add MCP routes
+	h.registerMCPMarketplaceRoutes(r) // Add MCP marketplace routes
 	// Register public workflow routes (no auth required)
 	h.RegisterPublicWorkflowRoutes(r)
 	objs := h.GetObjs()
 	LingEcho.RegisterObjects(r, objs)
-	if config.GlobalConfig.DocsPrefix != "" {
+	if config.GlobalConfig.Server.DocsPrefix != "" {
 		var objDocs []apidocs.WebObjectDoc
 		for _, obj := range objs {
-			objDocs = append(objDocs, apidocs.GetWebObjectDocDefine(config.GlobalConfig.APIPrefix, obj))
+			objDocs = append(objDocs, apidocs.GetWebObjectDocDefine(config.GlobalConfig.Server.APIPrefix, obj))
 		}
-		apidocs.RegisterHandler(config.GlobalConfig.DocsPrefix, engine, h.GetDocs(), objDocs, h.db)
+		apidocs.RegisterHandler(config.GlobalConfig.Server.DocsPrefix, engine, h.GetDocs(), objDocs, h.db)
 	}
-	if config.GlobalConfig.AdminPrefix != "" {
-		admin := r.Group(config.GlobalConfig.AdminPrefix)
+	if config.GlobalConfig.Server.AdminPrefix != "" {
+		admin := r.Group(config.GlobalConfig.Server.AdminPrefix)
 		h.RegisterAdmin(admin)
-	}
-}
-
-// registerAuthRoutes User Module
-func (h *Handlers) registerAuthRoutes(r *gin.RouterGroup) {
-	auth := r.Group(config.GlobalConfig.AuthPrefix)
-	{
-		// register
-		auth.GET("/register", h.handleUserSignupPage)
-		auth.POST("/register", h.handleUserSignup)
-		auth.POST("/register/email", h.handleUserSignupByEmail)
-		auth.POST("/send/email", h.handleSendEmailCode)
-
-		// captcha
-		auth.GET("/captcha", h.handleGetCaptcha)
-		auth.POST("/captcha/verify", h.handleVerifyCaptcha)
-
-		// password encryption salt
-		auth.GET("/salt", h.handleGetSalt)
-
-		// login
-		auth.GET("/login", h.handleUserSigninPage)
-		auth.POST("/login", h.handleUserSignin)
-		auth.POST("/login/password", h.handleUserSigninByPassword)
-		auth.POST("/login/email", h.handleUserSigninByEmail)
-
-		// logout
-		auth.GET("/logout", models.AuthRequired, h.handleUserLogout)
-		auth.GET("/info", models.AuthRequired, h.handleUserInfo)
-
-		// password management
-		auth.GET("/reset-password", h.handleUserResetPasswordPage)
-		auth.POST("/reset-password", h.handleResetPassword)
-		auth.POST("/reset-password/confirm", h.handleResetPasswordConfirm)
-		auth.POST("/change-password", models.AuthRequired, h.handleChangePassword)
-		auth.POST("/change-password/email", models.AuthRequired, h.handleChangePasswordByEmail)
-
-		// device management
-		auth.GET("/devices", models.AuthRequired, h.handleGetUserDevices)
-		auth.DELETE("/devices", models.AuthRequired, h.handleDeleteUserDevice)
-		auth.POST("/devices/trust", models.AuthRequired, h.handleTrustUserDevice)
-		auth.POST("/devices/untrust", models.AuthRequired, h.handleUntrustUserDevice)
-
-		// device verification (no auth required for login flow)
-		auth.POST("/devices/verify", h.handleVerifyDeviceForLogin)
-		auth.POST("/devices/send-verification", h.handleSendDeviceVerificationCode)
-
-		// email verification
-		auth.GET("/verify-email", h.handleVerifyEmail)
-		auth.POST("/send-email-verification", models.AuthRequired, h.handleSendEmailVerification)
-
-		// phone verification
-		auth.POST("/verify-phone", models.AuthRequired, h.handleVerifyPhone)
-		auth.POST("/send-phone-verification", models.AuthRequired, h.handleSendPhoneVerification)
-
-		// user management
-		auth.PUT("/update", models.AuthRequired, h.handleUserUpdate)
-		auth.PUT("/update/preferences", models.AuthRequired, h.handleUserUpdatePreferences)
-		auth.POST("/update/basic/info", models.AuthRequired, h.handleUserUpdateBasicInfo)
-
-		// notification settings
-		auth.PUT("/notification-settings", models.AuthRequired, h.handleUpdateNotificationSettings)
-
-		// user preferences
-		auth.PUT("/user-preferences", models.AuthRequired, h.handleUpdateUserPreferences)
-
-		// user stats
-		auth.GET("/stats", models.AuthRequired, h.handleGetUserStats)
-
-		// avatar upload (replace existing avatar)
-		auth.POST("/avatar/upload", models.AuthRequired, h.handleUploadAvatar)
-
-		// two-factor authentication
-		auth.POST("/two-factor/setup", models.AuthRequired, h.handleTwoFactorSetup)
-		auth.POST("/two-factor/enable", models.AuthRequired, h.handleTwoFactorEnable)
-		auth.POST("/two-factor/disable", models.AuthRequired, h.handleTwoFactorDisable)
-		auth.GET("/two-factor/status", models.AuthRequired, h.handleTwoFactorStatus)
-
-		// user activity logs
-		auth.GET("/activity", models.AuthRequired, h.handleGetUserActivity)
 	}
 }
 
@@ -335,11 +247,29 @@ func (h *Handlers) registerSystemRoutes(r *gin.RouterGroup) {
 		// Voice clone configuration routes
 		system.POST("/voice-clone/config", models.AuthRequired, h.SaveVoiceCloneConfig)
 
+		// Voiceprint configuration routes
+		system.POST("/voiceprint/config", models.AuthRequired, h.SaveVoiceprintConfig)
+
+		// Audio file upload route
+		system.POST("/upload/audio", h.UploadAudio)
+
 		// Search configuration routes
 		system.GET("/search/status", h.GetSearchStatus)
 		system.PUT("/search/config", models.AuthRequired, h.UpdateSearchConfig)
 		system.POST("/search/enable", models.AuthRequired, h.EnableSearch)
 		system.POST("/search/disable", models.AuthRequired, h.DisableSearch)
+	}
+
+	// Voiceprint management routes (separate from system group)
+	voiceprint := r.Group("/voiceprint")
+	{
+		voiceprint.GET("", models.AuthRequired, h.GetVoiceprints)               // 获取声纹列表
+		voiceprint.POST("", models.AuthRequired, h.CreateVoiceprint)            // 创建声纹记录
+		voiceprint.POST("/register", models.AuthRequired, h.RegisterVoiceprint) // 注册声纹（上传音频）
+		voiceprint.POST("/identify", models.AuthRequired, h.IdentifyVoiceprint) // 声纹识别
+		voiceprint.POST("/verify", models.AuthRequired, h.VerifyVoiceprint)     // 声纹验证
+		voiceprint.PUT("/:id", models.AuthRequired, h.UpdateVoiceprint)         // 更新声纹记录
+		voiceprint.DELETE("/:id", models.AuthRequired, h.DeleteVoiceprint)      // 删除声纹记录
 	}
 }
 
@@ -358,29 +288,48 @@ func (h *Handlers) registerOTARoutes(r *gin.RouterGroup) {
 	}
 }
 
-// registerDeviceRoutes Device Module (与 xiaozhi-esp32 完全一致)
+// registerDeviceRoutes Device Module (completely consistent with xiaozhi-esp32)
 func (h *Handlers) registerDeviceRoutes(r *gin.RouterGroup) {
 	device := r.Group("device")
 
-	// 获取设备配置接口（不需要认证，供xiaozhi-server调用）
+	// Get device configuration interface (no authentication required, for xiaozhi-server calls)
 	device.GET("/config/:deviceId", h.GetDeviceConfig)
 
-	device.Use(models.AuthRequired) // 需要用户登录
+	device.Use(models.AuthRequired) // Requires user login
 	{
-		// 绑定设备（激活设备）- 与 xiaozhi-esp32 路径完全一致
+		// Bind device (activate device) - completely consistent with xiaozhi-esp32 path
 		device.POST("/bind/:agentId/:deviceCode", h.BindDevice)
 
-		// 获取已绑定设备
+		// Get bound devices
 		device.GET("/bind/:agentId", h.GetUserDevices)
 
-		// 解绑设备
+		// Unbind device
 		device.POST("/unbind", h.UnbindDevice)
 
-		// 更新设备信息
+		// Update device information
 		device.PUT("/update/:id", h.UpdateDeviceInfo)
 
-		// 手动添加设备
+		// Manually add device
 		device.POST("/manual-add", h.ManualAddDevice)
+
+		// Device monitoring and management
+		device.GET("/:deviceId", h.GetDeviceDetail)                       // Get device detail
+		device.GET("/:deviceId/error-logs", h.GetDeviceErrorLogs)         // Get device error logs
+		device.POST("/error-logs/:errorId/resolve", h.ResolveDeviceError) // Resolve device error
+		device.GET("/call-recordings", h.GetCallRecordings)               // Get call recordings
+		device.GET("/call-recordings/:id", h.GetCallRecordingDetail)      // Get call recording detail
+
+		// AI分析相关路由
+		device.POST("/call-recordings/:id/analyze", h.AnalyzeCallRecording)         // 分析单个录音
+		device.POST("/call-recordings/batch-analyze", h.BatchAnalyzeCallRecordings) // 批量分析录音
+		device.GET("/call-recordings/:id/analysis", h.GetCallRecordingAnalysis)     // 获取分析结果
+
+		// Device status updates (for hardware devices to report status)
+		device.POST("/status", h.UpdateDeviceStatus) // Update device status
+		device.POST("/error", h.LogDeviceError)      // Log device error
+
+		// Recording file access
+		device.GET("/recordings/*filepath", h.ServeRecordingFile) // Serve recording files
 	}
 }
 
@@ -389,61 +338,61 @@ func (h *Handlers) registerGroupRoutes(r *gin.RouterGroup) {
 	group := r.Group("group")
 	group.Use(models.AuthRequired)
 	{
-		// 组织管理
+		// Organization management
 		group.POST("", h.CreateGroup)
 		group.GET("", h.ListGroups)
 
-		// 搜索用户 - 必须在 /:id 之前
+		// Search users - must be before /:id
 		group.GET("/search-users", h.SearchUsers)
 
-		// 邀请管理 - 必须在 /:id 之前，否则会被匹配为 id=invitations
+		// Invitation management - must be before /:id, otherwise will be matched as id=invitations
 		group.GET("/invitations", h.ListInvitations)
 		group.POST("/invitations/:id/accept", h.AcceptInvitation)
 		group.POST("/invitations/:id/reject", h.RejectInvitation)
 
-		// 概览配置管理 - 必须在 /:id 之前注册，避免路由冲突
+		// Overview configuration management - must be registered before /:id to avoid route conflicts
 		group.GET("/:id/overview/config", h.GetOverviewConfig)
 		group.POST("/:id/overview/config", h.SaveOverviewConfig)
 		group.PUT("/:id/overview/config", h.SaveOverviewConfig)
 		group.DELETE("/:id/overview/config", h.DeleteOverviewConfig)
 
-		// 组织统计数据 - 必须在 /:id 之前注册
+		// Organization statistics - must be registered before /:id
 		group.GET("/:id/statistics", h.GetGroupStatistics)
 
-		// 组织成员管理 - 必须在 /:id 之前注册
+		// Organization member management - must be registered before /:id
 		group.POST("/:id/leave", h.LeaveGroup)
 		group.DELETE("/:id/members/:memberId", h.RemoveMember)
 		group.PUT("/:id/members/:memberId/role", h.UpdateMemberRole)
 
-		// 邀请用户 - 必须在 /:id 之前注册
+		// Invite users - must be registered before /:id
 		group.POST("/:id/invite", h.InviteUser)
 
-		// 获取组织共享的资源 - 必须在 /:id 之前注册
+		// Get organization shared resources - must be registered before /:id
 		group.GET("/:id/resources", h.GetGroupSharedResources)
 
-		// 上传组织头像 - 必须在 /:id 之前注册
+		// Upload organization avatar - must be registered before /:id
 		group.POST("/:id/avatar", h.UploadGroupAvatar)
 
-		// 组织详情和管理 - 参数路由放在最后
+		// Organization details and management - parameter routes at the end
 		group.GET("/:id", h.GetGroup)
 		group.PUT("/:id", h.UpdateGroup)
 		group.DELETE("/:id", h.DeleteGroup)
 	}
 }
 
-// registerQuotaRoutes 注册配额路由
+// registerQuotaRoutes registers quota routes
 func (h *Handlers) registerQuotaRoutes(r *gin.RouterGroup) {
 	quota := r.Group("quota")
 	quota.Use(models.AuthRequired)
 	{
-		// 用户配额管理
+		// User quota management
 		quota.GET("/user", h.ListUserQuotas)
 		quota.GET("/user/:type", h.GetUserQuota)
 		quota.POST("/user", h.CreateUserQuota)
 		quota.PUT("/user/:type", h.UpdateUserQuota)
 		quota.DELETE("/user/:type", h.DeleteUserQuota)
 
-		// 组织配额管理
+		// Organization quota management
 		quota.GET("/group/:id", h.ListGroupQuotas)
 		quota.GET("/group/:id/:type", h.GetGroupQuota)
 		quota.POST("/group/:id", h.CreateGroupQuota)
@@ -452,12 +401,12 @@ func (h *Handlers) registerQuotaRoutes(r *gin.RouterGroup) {
 	}
 }
 
-// registerAlertRoutes 注册告警路由
+// registerAlertRoutes registers alert routes
 func (h *Handlers) registerAlertRoutes(r *gin.RouterGroup) {
 	alert := r.Group("alert")
 	alert.Use(models.AuthRequired)
 	{
-		// 告警规则管理
+		// Alert rule management
 		alert.POST("/rules", h.CreateAlertRule)
 		alert.GET("/rules", h.ListAlertRules)
 		alert.GET("/rules/:id", h.GetAlertRule)
@@ -604,6 +553,10 @@ func (h *Handlers) registerKnowledgeRoutes(r *gin.RouterGroup) {
 		knowledge.GET("/get", models.AuthApiRequired, h.GetKnowledgeBase)
 		//上传文件到知识库（支持多 provider）
 		knowledge.POST("/upload", models.AuthRequired, h.UploadFileToKnowledgeBase)
+		//搜索/召回知识库文档
+		knowledge.GET("/search", models.AuthRequired, h.SearchKnowledgeBase)
+		//列出知识库中的所有内容（文档和段落）
+		knowledge.GET("/list", models.AuthRequired, h.ListKnowledgeBaseContent)
 	}
 }
 
@@ -644,8 +597,13 @@ func (h *Handlers) registerVolcengineTTSRoutes(r *gin.RouterGroup) {
 // registerVoiceTrainingRoutes 注册音色训练路由
 func (h *Handlers) registerVoiceTrainingRoutes(r *gin.RouterGroup) {
 	voice := r.Group("/voice")
+
+	// 无需认证的接口
 	voice.GET("/lingecho/v1/", h.HandleHardwareWebSocketVoice)
-	voice.Use(models.AuthRequired) // 需要认证
+	voice.POST("/simple_text_chat", h.SimpleTextChat) // 简单文本对话（无需token验证）
+
+	// 需要认证的接口
+	voice.Use(models.AuthRequired)
 	{
 		// 训练任务管理
 		voice.POST("/training/create", h.CreateTrainingTask)
@@ -707,20 +665,133 @@ func (h *Handlers) registerBillingRoutes(r *gin.RouterGroup) {
 	}
 }
 
-// registerSipRoutes SIP Module
-func (h *Handlers) registerSipRoutes(r *gin.RouterGroup) {
-	sip := r.Group("sip")
+// registerNodePluginRoutes Node Plugin Module
+func (h *Handlers) registerNodePluginRoutes(r *gin.RouterGroup) {
+	pluginHandler := NewNodePluginHandler(h.db)
+
+	plugins := r.Group("node-plugins")
 	{
-		// SIP用户管理
-		sip.GET("/users", models.AuthRequired, h.sipHandler.GetSipUsers)
+		// Public routes (no auth required for browsing)
+		plugins.GET("", pluginHandler.ListPlugins)
+		plugins.GET("/:id", pluginHandler.GetPlugin)
+	}
 
-		// 呼出相关
-		sip.POST("/calls/outgoing", models.AuthRequired, h.sipHandler.MakeOutgoingCall)
-		sip.GET("/calls/outgoing/:callId", models.AuthRequired, h.sipHandler.GetOutgoingCallStatus)
-		sip.POST("/calls/outgoing/:callId/cancel", models.AuthRequired, h.sipHandler.CancelOutgoingCall)
-		sip.POST("/calls/outgoing/:callId/hangup", models.AuthRequired, h.sipHandler.HangupOutgoingCall)
+	// Protected routes (require authentication)
+	pluginsAuth := r.Group("node-plugins")
+	pluginsAuth.Use(models.AuthRequired)
+	{
+		pluginsAuth.POST("", pluginHandler.CreatePlugin)
+		pluginsAuth.PUT("/:id", pluginHandler.UpdatePlugin)
+		pluginsAuth.DELETE("/:id", pluginHandler.DeletePlugin)
+		pluginsAuth.POST("/:id/publish", pluginHandler.PublishPlugin)
+		pluginsAuth.POST("/:id/install", pluginHandler.InstallPlugin)
+		pluginsAuth.GET("/installed", pluginHandler.ListInstalledPlugins)
+	}
+}
 
-		// 通话历史
-		sip.GET("/calls", models.AuthRequired, h.sipHandler.GetCallHistory)
+// registerWorkflowPluginRoutes Workflow Plugin Module
+func (h *Handlers) registerWorkflowPluginRoutes(r *gin.RouterGroup) {
+	pluginHandler := NewWorkflowPluginHandler(h.db)
+
+	plugins := r.Group("workflow-plugins")
+	{
+		// Public routes (no auth required for browsing)
+		plugins.GET("", pluginHandler.ListWorkflowPlugins)
+		plugins.GET("/:id", pluginHandler.GetWorkflowPlugin)
+	}
+
+	// Protected routes (require authentication)
+	pluginsAuth := r.Group("workflow-plugins")
+	pluginsAuth.Use(models.AuthRequired)
+	{
+		// 发布工作流为插件
+		pluginsAuth.POST("/publish/:workflowId", pluginHandler.PublishWorkflowAsPlugin)
+
+		// 获取工作流已发布的插件信息
+		pluginsAuth.GET("/workflow/:workflowId/published", pluginHandler.GetWorkflowPublishedPlugin)
+
+		// 插件管理
+		pluginsAuth.PUT("/:id", pluginHandler.UpdateWorkflowPlugin)
+		pluginsAuth.DELETE("/:id", pluginHandler.DeleteWorkflowPlugin)
+		pluginsAuth.POST("/:id/publish", pluginHandler.PublishWorkflowPlugin)
+		pluginsAuth.POST("/:id/install", pluginHandler.InstallWorkflowPlugin)
+
+		// 用户插件
+		pluginsAuth.GET("/installed", pluginHandler.ListInstalledWorkflowPlugins)
+		pluginsAuth.GET("/my-plugins", pluginHandler.GetUserWorkflowPlugins)
+	}
+}
+
+// registerMCPRoutes MCP Server Management Module
+func (h *Handlers) registerMCPRoutes(r *gin.RouterGroup) {
+	mcpManager := service.NewMCPManager(h.db)
+	mcpHandler := NewMCPHandler(mcpManager)
+
+	mcp := r.Group("mcp")
+	mcp.Use(models.AuthRequired)
+	{
+		// MCP Server Management
+		mcp.GET("/servers", mcpHandler.ListMCPServers)
+		mcp.GET("/servers/:id", mcpHandler.GetMCPServer)
+		mcp.POST("/servers", mcpHandler.CreateMCPServer)
+		mcp.PATCH("/servers/:id", mcpHandler.UpdateMCPServer)
+		mcp.DELETE("/servers/:id", mcpHandler.DeleteMCPServer)
+		mcp.POST("/servers/:id/enable", mcpHandler.EnableMCPServer)
+		mcp.POST("/servers/:id/disable", mcpHandler.DisableMCPServer)
+
+		// MCP Tools
+		mcp.GET("/servers/:id/tools", mcpHandler.GetMCPTools)
+		mcp.POST("/servers/:id/call-tool", mcpHandler.CallMCPTool)
+
+		// MCP Logs
+		mcp.GET("/servers/:id/logs", mcpHandler.GetMCPLogs)
+	}
+}
+
+// registerMCPMarketplaceRoutes MCP Marketplace Module
+func (h *Handlers) registerMCPMarketplaceRoutes(r *gin.RouterGroup) {
+	marketplaceService := service.NewMCPMarketplaceService(h.db)
+	marketplaceHandler := NewMCPMarketplaceHandler(marketplaceService)
+
+	marketplace := r.Group("mcp/marketplace")
+	{
+		// Public routes (no auth required for browsing)
+		marketplace.GET("", marketplaceHandler.ListMarketplace)
+		marketplace.GET("/:id", marketplaceHandler.GetMarketplaceItem)
+		marketplace.GET("/categories", marketplaceHandler.GetCategories)
+		marketplace.GET("/featured", marketplaceHandler.GetFeaturedMCPs)
+		marketplace.GET("/trending", marketplaceHandler.GetTrendingMCPs)
+		marketplace.GET("/search/tag/:tag", marketplaceHandler.SearchByTag)
+		marketplace.GET("/:id/reviews", marketplaceHandler.GetMCPReviews)
+
+		// Protected routes (require authentication)
+		marketplace.POST("/:id/install", models.AuthRequired, marketplaceHandler.InstallMCP)
+		marketplace.DELETE("/installations/:id", models.AuthRequired, marketplaceHandler.UninstallMCP)
+		marketplace.GET("/my-installations", models.AuthRequired, marketplaceHandler.GetUserInstalledMCPs)
+		marketplace.PATCH("/installations/:id/config", models.AuthRequired, marketplaceHandler.UpdateInstallationConfig)
+		marketplace.POST("/:id/reviews", models.AuthRequired, marketplaceHandler.ReviewMCP)
+	}
+}
+
+// registerEmailLogRoutes Email Log Module
+func (h *Handlers) registerEmailLogRoutes(r *gin.RouterGroup) {
+	emailLog := r.Group("email-logs")
+	{
+		// Get email logs with pagination
+		emailLog.GET("", models.AuthRequired, h.handleGetEmailLogs)
+		// Get email log detail
+		emailLog.GET("/:id", models.AuthRequired, h.handleGetEmailLogDetail)
+		// Get email statistics
+		emailLog.GET("/stats/summary", models.AuthRequired, h.handleGetEmailStats)
+	}
+}
+
+// registerSendCloudWebhookRoutes SendCloud Webhook Module
+func (h *Handlers) registerSendCloudWebhookRoutes(r *gin.RouterGroup) {
+	webhook := r.Group("webhooks/sendcloud")
+	{
+		// SendCloud webhook endpoint (no auth required)
+		webhook.POST("", h.handleSendCloudWebhook)
+		webhook.POST("/batch", h.handleSendCloudWebhookBatch)
 	}
 }

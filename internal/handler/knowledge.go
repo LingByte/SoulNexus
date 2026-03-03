@@ -1,13 +1,16 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
 	"crypto/md5"
 	"fmt"
 	"io"
 	"log"
 	"mime/multipart"
+	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/config"
@@ -26,15 +29,15 @@ import (
 func getAliyunConfig() map[string]interface{} {
 	cfg := config.GlobalConfig
 	return map[string]interface{}{
-		knowledge.ConfigKeyAliyunAccessKeyID:     cfg.BailianAccessKeyId,
-		knowledge.ConfigKeyAliyunAccessKeySecret: cfg.BailianAccessKeySecret,
-		knowledge.ConfigKeyAliyunEndpoint:        models.GetStringOrDefault(cfg.BailianEndpoint, knowledge.DefaultAliyunEndpoint),
-		knowledge.ConfigKeyAliyunWorkspaceID:     cfg.BailianWorkspaceId,
-		knowledge.ConfigKeyAliyunCategoryID:      cfg.BailianCategoryId,
-		knowledge.ConfigKeyAliyunSourceType:      models.GetStringOrDefault(cfg.BailianSourceType, knowledge.DefaultAliyunSourceType),
-		knowledge.ConfigKeyAliyunParser:          models.GetStringOrDefault(cfg.BailianParser, knowledge.DefaultAliyunParser),
-		knowledge.ConfigKeyAliyunStructType:      models.GetStringOrDefault(cfg.BailianStructType, knowledge.DefaultAliyunStructType),
-		knowledge.ConfigKeyAliyunSinkType:        models.GetStringOrDefault(cfg.BailianSinkType, knowledge.DefaultAliyunSinkType),
+		knowledge.ConfigKeyAliyunAccessKeyID:     cfg.Services.KnowledgeBase.Bailian.AccessKeyId,
+		knowledge.ConfigKeyAliyunAccessKeySecret: cfg.Services.KnowledgeBase.Bailian.AccessKeySecret,
+		knowledge.ConfigKeyAliyunEndpoint:        models.GetStringOrDefault(cfg.Services.KnowledgeBase.Bailian.Endpoint, knowledge.DefaultAliyunEndpoint),
+		knowledge.ConfigKeyAliyunWorkspaceID:     cfg.Services.KnowledgeBase.Bailian.WorkspaceId,
+		knowledge.ConfigKeyAliyunCategoryID:      cfg.Services.KnowledgeBase.Bailian.CategoryId,
+		knowledge.ConfigKeyAliyunSourceType:      models.GetStringOrDefault(cfg.Services.KnowledgeBase.Bailian.SourceType, knowledge.DefaultAliyunSourceType),
+		knowledge.ConfigKeyAliyunParser:          models.GetStringOrDefault(cfg.Services.KnowledgeBase.Bailian.Parser, knowledge.DefaultAliyunParser),
+		knowledge.ConfigKeyAliyunStructType:      models.GetStringOrDefault(cfg.Services.KnowledgeBase.Bailian.StructType, knowledge.DefaultAliyunStructType),
+		knowledge.ConfigKeyAliyunSinkType:        models.GetStringOrDefault(cfg.Services.KnowledgeBase.Bailian.SinkType, knowledge.DefaultAliyunSinkType),
 	}
 }
 
@@ -42,22 +45,26 @@ func getAliyunConfig() map[string]interface{} {
 func getMilvusConfig() map[string]interface{} {
 	cfg := config.GlobalConfig
 	return map[string]interface{}{
-		knowledge.ConfigKeyMilvusAddress:        cfg.MilvusAddress,
-		knowledge.ConfigKeyMilvusUsername:       cfg.MilvusUsername,
-		knowledge.ConfigKeyMilvusPassword:       cfg.MilvusPassword,
-		knowledge.ConfigKeyMilvusCollectionName: cfg.MilvusCollection,
-		knowledge.ConfigKeyMilvusDimension:      cfg.MilvusDimension,
+		knowledge.ConfigKeyMilvusAddress:        cfg.Services.KnowledgeBase.Milvus.Address,
+		knowledge.ConfigKeyMilvusUsername:       cfg.Services.KnowledgeBase.Milvus.Username,
+		knowledge.ConfigKeyMilvusPassword:       cfg.Services.KnowledgeBase.Milvus.Password,
+		knowledge.ConfigKeyMilvusCollectionName: cfg.Services.KnowledgeBase.Milvus.Collection,
+		knowledge.ConfigKeyMilvusDimension:      cfg.Services.KnowledgeBase.Milvus.Dimension,
 	}
 }
 
 // getQdrantConfig gets Qdrant knowledge base config from config file
 func getQdrantConfig() map[string]interface{} {
 	cfg := config.GlobalConfig
+	baseURL := cfg.Services.KnowledgeBase.Qdrant.BaseURL
+	if baseURL == "" {
+		baseURL = "http://localhost:6333"
+	}
+
 	return map[string]interface{}{
-		knowledge.ConfigKeyQdrantBaseURL:        cfg.QdrantBaseURL,
-		knowledge.ConfigKeyQdrantApiKey:         cfg.QdrantApiKey,
-		knowledge.ConfigKeyQdrantCollectionName: cfg.QdrantCollection,
-		knowledge.ConfigKeyQdrantDimension:      cfg.QdrantDimension,
+		knowledge.ConfigKeyQdrantHost:      baseURL,
+		knowledge.ConfigKeyQdrantAPIKey:    cfg.Services.KnowledgeBase.Qdrant.APIKey,
+		knowledge.ConfigKeyQdrantDimension: cfg.Services.KnowledgeBase.Qdrant.Dimension,
 	}
 }
 
@@ -65,10 +72,10 @@ func getQdrantConfig() map[string]interface{} {
 func getElasticsearchConfig() map[string]interface{} {
 	cfg := config.GlobalConfig
 	return map[string]interface{}{
-		knowledge.ConfigKeyElasticsearchBaseURL:   cfg.ElasticsearchBaseURL,
-		knowledge.ConfigKeyElasticsearchUsername:  cfg.ElasticsearchUsername,
-		knowledge.ConfigKeyElasticsearchPassword:  cfg.ElasticsearchPassword,
-		knowledge.ConfigKeyElasticsearchIndexName: cfg.ElasticsearchIndex,
+		knowledge.ConfigKeyElasticsearchBaseURL:   cfg.Services.KnowledgeBase.Elasticsearch.BaseURL,
+		knowledge.ConfigKeyElasticsearchUsername:  cfg.Services.KnowledgeBase.Elasticsearch.Username,
+		knowledge.ConfigKeyElasticsearchPassword:  cfg.Services.KnowledgeBase.Elasticsearch.Password,
+		knowledge.ConfigKeyElasticsearchIndexName: cfg.Services.KnowledgeBase.Elasticsearch.Index,
 	}
 }
 
@@ -76,10 +83,10 @@ func getElasticsearchConfig() map[string]interface{} {
 func getPineconeConfig() map[string]interface{} {
 	cfg := config.GlobalConfig
 	return map[string]interface{}{
-		knowledge.ConfigKeyPineconeApiKey:    cfg.PineconeApiKey,
-		knowledge.ConfigKeyPineconeBaseURL:   cfg.PineconeBaseURL,
-		knowledge.ConfigKeyPineconeIndexName: cfg.PineconeIndexName,
-		knowledge.ConfigKeyPineconeDimension: cfg.PineconeDimension,
+		knowledge.ConfigKeyPineconeApiKey:    cfg.Services.KnowledgeBase.Pinecone.APIKey,
+		knowledge.ConfigKeyPineconeBaseURL:   cfg.Services.KnowledgeBase.Pinecone.BaseURL,
+		knowledge.ConfigKeyPineconeIndexName: cfg.Services.KnowledgeBase.Pinecone.IndexName,
+		knowledge.ConfigKeyPineconeDimension: cfg.Services.KnowledgeBase.Pinecone.Dimension,
 	}
 }
 
@@ -106,16 +113,13 @@ func getKnowledgeBase(provider string) (knowledge.KnowledgeBase, error) {
 	cfg := config.GlobalConfig
 
 	// Return error if knowledge base feature is not enabled
-	if !cfg.KnowledgeBaseEnabled {
+	if !cfg.Services.KnowledgeBase.Enabled {
 		return nil, fmt.Errorf(knowledge.ErrKnowledgeBaseDisabled)
 	}
 
-	// Use provider from config if not specified
+	// Use default provider if not specified
 	if provider == "" {
-		provider = cfg.KnowledgeBaseProvider
-		if provider == "" {
-			provider = knowledge.DefaultProvider // default to Aliyun
-		}
+		provider = knowledge.DefaultProvider // default to Aliyun
 	}
 
 	// Get config for the specified provider
@@ -135,17 +139,21 @@ func getStringFromConfig(config map[string]interface{}, key string) string {
 
 // CreateKnowledgeBase creates a knowledge base
 func (h *Handlers) CreateKnowledgeBase(c *gin.Context) {
-	// 1. Receive file
-	file, header, err := c.Request.FormFile(constants.FormFieldFile)
-	if err != nil {
+	// 1. Receive file (optional)
+	var file multipart.File
+	var header *multipart.FileHeader
+	var err error
+
+	file, header, err = c.Request.FormFile(constants.FormFieldFile)
+	if err != nil && err != http.ErrMissingFile {
 		response.Fail(c, knowledge.ErrFileReceiveFailed, err)
 		return
 	}
-	if file == nil || header == nil {
-		response.Fail(c, knowledge.ErrFileEmpty, nil)
-		return
+
+	// If file is provided, defer close
+	if file != nil {
+		defer file.Close()
 	}
-	defer file.Close()
 
 	// 2. Receive request parameters
 	knowledgeName := c.PostForm(constants.FormFieldKnowledgeName)
@@ -154,7 +162,7 @@ func (h *Handlers) CreateKnowledgeBase(c *gin.Context) {
 		provider = knowledge.DefaultProvider
 	}
 
-	// 获取组织ID（可选）
+	// Get organization ID (optional)
 	var groupID *uint
 	if groupIDStr := c.PostForm("group_id"); groupIDStr != "" {
 		if parsedID, err := strconv.ParseUint(groupIDStr, 10, 32); err == nil {
@@ -163,29 +171,29 @@ func (h *Handlers) CreateKnowledgeBase(c *gin.Context) {
 		}
 	}
 
-	log.Printf("Creating knowledge base - name: %s, provider: %s, groupID: %v", knowledgeName, provider, groupID)
+	log.Printf("Creating knowledge base - name: %s, provider: %s, groupID: %v, hasFile: %v", knowledgeName, provider, groupID, file != nil)
 	user := models.CurrentUser(c)
 	userId := int(user.ID)
 
-	// 如果指定了组织ID，验证用户是否有权限在该组织创建共享知识库
+	// If organization ID is specified, verify user has permission to create shared knowledge base in that organization
 	if groupID != nil {
 		var group models.Group
 		if err := h.db.First(&group, *groupID).Error; err != nil {
-			response.Fail(c, "组织不存在", nil)
+			response.Fail(c, "Organization not found", nil)
 			return
 		}
-		// 检查用户是否是组织的创建者或管理员
+		// Check if user is the creator or admin of the organization
 		if group.CreatorID != user.ID {
 			var member models.GroupMember
 			if err := h.db.Where("group_id = ? AND user_id = ? AND role = ?", *groupID, user.ID, models.GroupRoleAdmin).First(&member).Error; err != nil {
-				response.Fail(c, "权限不足", "只有创建者或管理员可以创建组织共享的知识库")
+				response.Fail(c, "Insufficient permissions", "Only creator or admin can create organization-shared knowledge base")
 				return
 			}
 		}
 	}
 
-	// 3. Process knowledge base name (prefix with userID)
-	knowledgeName = models.GenerateKnowledgeName(userId, knowledgeName)
+	// 3. Generate unique name for Aliyun (only used for Aliyun index creation)
+	generatedName := models.GenerateKnowledgeName(userId, knowledgeName)
 
 	// 4. Get knowledge base instance
 	kb, err := getKnowledgeBase(provider)
@@ -194,17 +202,39 @@ func (h *Handlers) CreateKnowledgeBase(c *gin.Context) {
 		return
 	}
 
+	// 检查 kb 是否为 nil
+	if kb == nil {
+		response.Fail(c, knowledge.ErrKnowledgeBaseInitFailed, fmt.Errorf("knowledge base provider is nil"))
+		return
+	}
+
 	// 5. Get config for the specified provider
 	config := getKnowledgeBaseConfig(provider)
+	if config == nil {
+		config = make(map[string]interface{})
+	}
 
-	// 6. Generate knowledge base key (userID + knowledge name)
-	knowledgeKey := models.GenerateKnowledgeKey(userId, knowledgeName)
+	// 6. Generate knowledge base key (use generated name for all providers)
+	var knowledgeKey string
+	knowledgeKey = models.GenerateKnowledgeKey(userId, generatedName)
 
 	// 7. Handle file upload and index creation based on provider
 	var indexId string
-	if provider == knowledge.ProviderAliyun {
+
+	// If no file is provided, just create an empty knowledge base
+	if file == nil {
+		log.Printf("No file provided, creating empty knowledge base - index will be created on first file upload")
+		// For empty knowledge base, use generatedName as index ID (for Aliyun compatibility)
+		// The actual index will be created when the first file is uploaded
+		indexId = generatedName
+	} else if provider == knowledge.ProviderAliyun {
 		// Aliyun: need to upload file first to get fileId, then create index
 		aliyunConfig := getAliyunConfig()
+		if aliyunConfig == nil {
+			response.Fail(c, "Aliyun config not found", nil)
+			return
+		}
+
 		client, err := createAliyunClient(aliyunConfig)
 		if err != nil {
 			response.Fail(c, "failed to create Aliyun client", err)
@@ -237,11 +267,26 @@ func (h *Handlers) CreateKnowledgeBase(c *gin.Context) {
 			knowledge.ConfigKeyAliyunSourceType: sourceType,
 			knowledge.ConfigKeyAliyunSinkType:   sinkType,
 		}
-		indexId, err = kb.CreateIndex(context.Background(), knowledgeKey, createConfig)
+
+		log.Printf("DEBUG: Creating Aliyun index with config - fileId: %s, structType: %s, sourceType: %s, sinkType: %s",
+			fileId, structType, sourceType, sinkType)
+
+		// 使用 generatedName 作为 Aliyun 索引名（长度限制在 20 以内）
+		indexId, err = kb.CreateIndex(context.Background(), generatedName, createConfig)
 		if err != nil {
+			log.Printf("ERROR: Failed to create Aliyun index - error: %v, knowledgeKey: %s", err, knowledgeKey)
 			response.Fail(c, knowledge.ErrIndexCreateFailed, err)
 			return
 		}
+
+		// 检查 indexId 是否为空
+		if indexId == "" {
+			log.Printf("ERROR: Index id is empty after Aliyun creation")
+			response.Fail(c, knowledge.ErrIndexCreateFailed, fmt.Errorf("index id is empty"))
+			return
+		}
+
+		log.Printf("SUCCESS: Aliyun index created - indexId: %s, knowledgeKey: %s", indexId, knowledgeKey)
 	} else {
 		// Other providers: upload document first, then create index
 		metadata := map[string]interface{}{
@@ -264,9 +309,6 @@ func (h *Handlers) CreateKnowledgeBase(c *gin.Context) {
 		if collectionName, ok := config[knowledge.ConfigKeyMilvusCollectionName]; ok {
 			createConfig[knowledge.ConfigKeyMilvusCollectionName] = collectionName
 		}
-		if qdrantCollectionName, ok := config[knowledge.ConfigKeyQdrantCollectionName]; ok {
-			createConfig[knowledge.ConfigKeyQdrantCollectionName] = qdrantCollectionName
-		}
 		if indexName, ok := config[knowledge.ConfigKeyElasticsearchIndexName]; ok {
 			createConfig[knowledge.ConfigKeyElasticsearchIndexName] = indexName
 		}
@@ -276,20 +318,67 @@ func (h *Handlers) CreateKnowledgeBase(c *gin.Context) {
 
 		indexId, err = kb.CreateIndex(context.Background(), knowledgeKey, createConfig)
 		if err != nil {
+			log.Printf("ERROR: Failed to create index for provider %s - error: %v, knowledgeKey: %s", provider, err, knowledgeKey)
 			response.Fail(c, knowledge.ErrIndexCreateFailed, err)
 			return
 		}
+
+		// 检查 indexId 是否为空
+		if indexId == "" {
+			log.Printf("ERROR: Index id is empty after creation for provider %s", provider)
+			response.Fail(c, knowledge.ErrIndexCreateFailed, fmt.Errorf("index id is empty"))
+			return
+		}
+
+		log.Printf("SUCCESS: Index created for provider %s - indexId: %s, knowledgeKey: %s", provider, indexId, knowledgeKey)
 	}
 
-	// 8. Call models layer to create knowledge base record (use indexId as knowledgeKey)
-	knowledgeRecord, err := models.CreateKnowledge(h.db, int(userId), indexId, knowledgeName, provider, config, groupID)
+	// 8. Call models layer to create knowledge base record (use original knowledgeName, not generated name)
+	log.Printf("DEBUG: About to create knowledge base record - indexId: %s, knowledgeName: %s, provider: %s", indexId, knowledgeName, provider)
+
+	// Check if knowledge base with same key already exists (idempotency check)
+	var existingKB models.Knowledge
+	if err := h.db.Where("knowledge_key = ? AND user_id = ?", knowledgeKey, userId).First(&existingKB).Error; err == nil {
+		// Knowledge base already exists, return it
+		log.Printf("INFO: Knowledge base already exists - ID: %d, Key: %s", existingKB.ID, existingKB.KnowledgeKey)
+		responseData := map[string]interface{}{
+			"id":             existingKB.ID,
+			"user_id":        existingKB.UserID,
+			"group_id":       existingKB.GroupID,
+			"knowledge_key":  existingKB.KnowledgeKey,
+			"knowledge_name": existingKB.KnowledgeName,
+			"provider":       existingKB.Provider,
+			"created_at":     existingKB.CreatedAt,
+			"updated_at":     existingKB.UpdateAt,
+		}
+		response.Success(c, "created successfully", responseData)
+		return
+	}
+
+	knowledgeRecord, err := models.CreateKnowledgeWithIndexId(h.db, int(userId), knowledgeKey, knowledgeName, provider, config, groupID, indexId)
 	if err != nil {
+		log.Printf("ERROR: Failed to create knowledge base record - error: %v", err)
 		response.Fail(c, err.Error(), nil)
 		return
 	}
 
+	log.Printf("DEBUG: Knowledge base record created - ID: %d, Key: %s", knowledgeRecord.ID, knowledgeRecord.KnowledgeKey)
+
 	// 9. Return success response
-	response.Success(c, "created successfully", knowledgeRecord)
+	// 构建返回数据，确保所有字段都有效
+	responseData := map[string]interface{}{
+		"id":             knowledgeRecord.ID,
+		"user_id":        knowledgeRecord.UserID,
+		"group_id":       knowledgeRecord.GroupID,
+		"knowledge_key":  knowledgeRecord.KnowledgeKey,
+		"knowledge_name": knowledgeRecord.KnowledgeName,
+		"provider":       knowledgeRecord.Provider,
+		"created_at":     knowledgeRecord.CreatedAt,
+		"updated_at":     knowledgeRecord.UpdateAt,
+	}
+
+	log.Printf("SUCCESS: Knowledge base created successfully - ID: %d, Name: %s", knowledgeRecord.ID, knowledgeRecord.KnowledgeName)
+	response.Success(c, "created successfully", responseData)
 }
 
 // createAliyunClient creates Aliyun client from config
@@ -413,11 +502,29 @@ func (h *Handlers) UploadFileToKnowledgeBase(c *gin.Context) {
 		return
 	}
 
+	log.Printf("Uploading file to knowledge base - key: %s, filename: %s, size: %d bytes", knowledgeKey, header.Filename, header.Size)
+
 	// 3. Get knowledge base info from database
 	k, err := models.GetKnowledge(h.db, knowledgeKey)
 	if err != nil {
-		response.Fail(c, knowledge.ErrKnowledgeNotFound, err)
-		return
+		// If exact match fails, try to find by IndexId (new format)
+		log.Printf("DEBUG: Exact key not found: %s, trying IndexId search", knowledgeKey)
+		var kb models.Knowledge
+		if err := h.db.Where("index_id = ?", knowledgeKey).First(&kb).Error; err == nil {
+			k = &kb
+			knowledgeKey = kb.KnowledgeKey // Update knowledgeKey to the one found in DB
+			log.Printf("DEBUG: Found knowledge base by IndexId: %s", knowledgeKey)
+		} else {
+			// If IndexId search fails, try prefix search (for truncated keys)
+			log.Printf("DEBUG: IndexId not found, trying prefix search")
+			if err := h.db.Where("knowledge_key LIKE ?", knowledgeKey+"%").First(&kb).Error; err != nil {
+				response.Fail(c, knowledge.ErrKnowledgeNotFound, err)
+				return
+			}
+			k = &kb
+			knowledgeKey = kb.KnowledgeKey // Update knowledgeKey to the one found in DB
+			log.Printf("DEBUG: Found knowledge base by prefix: %s", knowledgeKey)
+		}
 	}
 
 	// 4. Parse config
@@ -434,19 +541,34 @@ func (h *Handlers) UploadFileToKnowledgeBase(c *gin.Context) {
 		return
 	}
 
-	// 6. Upload document to knowledge base
+	// 6. For Aliyun, check if index needs to be created (on first file upload)
+	if k.Provider == knowledge.ProviderAliyun {
+		log.Printf("DEBUG: Aliyun upload - knowledgeKey: %s, IndexId: %s", knowledgeKey, k.IndexId)
+		log.Printf("Preparing to upload file to Aliyun knowledge base")
+	}
+
+	// 7. Upload document to knowledge base
 	metadata := map[string]interface{}{
 		knowledge.MetadataKeyUserID: k.UserID,
 		knowledge.MetadataKeyName:   k.KnowledgeName,
 		knowledge.MetadataKeySource: knowledge.MetadataSourceAPIUpload,
 	}
 
-	err = kb.UploadDocument(context.Background(), knowledgeKey, file, header, metadata)
+	// For Aliyun, use the stored indexId (which is the generatedName with length ≤ 20)
+	// For other providers, use knowledgeKey
+	uploadKey := knowledgeKey
+	if k.Provider == knowledge.ProviderAliyun && k.IndexId != "" {
+		uploadKey = k.IndexId
+	}
+
+	err = kb.UploadDocument(context.Background(), uploadKey, file, header, metadata)
 	if err != nil {
+		log.Printf("ERROR: Failed to upload file - error: %v", err)
 		response.Fail(c, knowledge.ErrFileUploadFailed, err)
 		return
 	}
 
+	log.Printf("File uploaded successfully - key: %s, filename: %s. Note: Indexing is asynchronous, may take a few seconds", knowledgeKey, header.Filename)
 	response.Success(c, "uploaded successfully", nil)
 }
 
@@ -462,23 +584,24 @@ func (h *Handlers) GetKnowledgeBase(c *gin.Context) {
 		return
 	}
 
-	// Build response data with complete information
+	// Build response data with essential information only
 	result := make([]map[string]interface{}, 0, len(knowledgeList))
 	for _, kb := range knowledgeList {
-		// Parse config
-		config, _ := models.ParseKnowledgeConfig(kb.Config)
-		if config == nil {
-			config = make(map[string]interface{})
+		// Generate new simplified key format for frontend
+		// If IndexId exists (new format), use it; otherwise generate from name
+		displayKey := kb.IndexId
+		if displayKey == "" {
+			// For old knowledge bases without IndexId, generate new format
+			displayKey = models.GenerateKnowledgeName(kb.UserID, kb.KnowledgeName)
 		}
 
 		item := map[string]interface{}{
 			"id":             kb.ID,
 			"user_id":        kb.UserID,
 			"group_id":       kb.GroupID,
-			"knowledge_key":  kb.KnowledgeKey,
+			"knowledge_key":  displayKey,
 			"knowledge_name": kb.KnowledgeName,
 			"provider":       kb.Provider,
-			"config":         config,
 			"created_at":     kb.CreatedAt,
 			"updated_at":     kb.UpdateAt,
 		}
@@ -532,6 +655,213 @@ func (h *Handlers) DeleteKnowledgeBase(c *gin.Context) {
 	}
 
 	response.Success(c, "deleted successfully", nil)
+}
+
+// SearchKnowledgeBase searches for documents in a knowledge base (retrieval test)
+func (h *Handlers) SearchKnowledgeBase(c *gin.Context) {
+	user := models.CurrentUser(c)
+	userID := int(user.ID)
+
+	// Get parameters
+	knowledgeKey := c.Query(constants.QueryParamKnowledgeKey)
+	message := c.Query("message")
+	topKStr := c.DefaultQuery("topK", "5")
+
+	// Validate parameters
+	if knowledgeKey == "" {
+		response.Fail(c, knowledge.ErrKnowledgeKeyRequired, nil)
+		return
+	}
+	if message == "" {
+		response.Fail(c, "message parameter is required", nil)
+		return
+	}
+
+	// Parse topK
+	topK := 5
+	if val, err := strconv.Atoi(topKStr); err == nil && val > 0 {
+		topK = val
+	}
+
+	// Verify knowledge base belongs to user
+	k, err := models.GetKnowledge(h.db, knowledgeKey)
+	if err != nil {
+		// If exact match fails, try to find by IndexId (new format)
+		log.Printf("DEBUG: Exact key not found: %s, trying IndexId search", knowledgeKey)
+		var kb models.Knowledge
+		if err := h.db.Where("index_id = ?", knowledgeKey).First(&kb).Error; err == nil {
+			k = &kb
+			knowledgeKey = kb.KnowledgeKey // Update knowledgeKey to the one found in DB
+			log.Printf("DEBUG: Found knowledge base by IndexId: %s", knowledgeKey)
+		} else {
+			// If IndexId search fails, try prefix search (for truncated keys)
+			log.Printf("DEBUG: IndexId not found, trying prefix search")
+			if err := h.db.Where("knowledge_key LIKE ?", knowledgeKey+"%").First(&kb).Error; err != nil {
+				response.Fail(c, knowledge.ErrKnowledgeNotFound, err)
+				return
+			}
+			k = &kb
+			knowledgeKey = kb.KnowledgeKey // Update knowledgeKey to the one found in DB
+			log.Printf("DEBUG: Found knowledge base by prefix: %s", knowledgeKey)
+		}
+	}
+	if k.UserID != userID {
+		response.Fail(c, "unauthorized access to knowledge base", nil)
+		return
+	}
+
+	// Search knowledge base
+	log.Printf("Searching knowledge base - key: %s, query: %s, topK: %d", knowledgeKey, message, topK)
+	results, err := models.SearchKnowledgeBase(h.db, knowledgeKey, message, topK)
+	if err != nil {
+		log.Printf("ERROR: Failed to search knowledge base - error: %v", err)
+		response.Fail(c, "failed to search knowledge base", err)
+		return
+	}
+
+	// Build response
+	resultList := make([]map[string]interface{}, 0, len(results))
+	for _, result := range results {
+		item := map[string]interface{}{
+			"content":  result.Content,
+			"score":    result.Score,
+			"metadata": result.Metadata,
+		}
+		resultList = append(resultList, item)
+	}
+
+	response.Success(c, "search completed", map[string]interface{}{
+		"knowledge_key": knowledgeKey,
+		"query":         message,
+		"total":         len(resultList),
+		"results":       resultList,
+	})
+}
+
+// ListKnowledgeBaseContent lists all content in a knowledge base (documents and chunks)
+func (h *Handlers) ListKnowledgeBaseContent(c *gin.Context) {
+	user := models.CurrentUser(c)
+	userID := int(user.ID)
+
+	// Get parameters
+	knowledgeKey := c.Query(constants.QueryParamKnowledgeKey)
+
+	// Validate parameters
+	if knowledgeKey == "" {
+		response.Fail(c, knowledge.ErrKnowledgeKeyRequired, nil)
+		return
+	}
+
+	// Verify knowledge base belongs to user
+	k, err := models.GetKnowledge(h.db, knowledgeKey)
+	if err != nil {
+		// If exact match fails, try to find by IndexId (new format)
+		log.Printf("DEBUG: Exact key not found: %s, trying IndexId search", knowledgeKey)
+		var kb models.Knowledge
+		if err := h.db.Where("index_id = ?", knowledgeKey).First(&kb).Error; err == nil {
+			k = &kb
+			knowledgeKey = kb.KnowledgeKey // Update knowledgeKey to the one found in DB
+			log.Printf("DEBUG: Found knowledge base by IndexId: %s", knowledgeKey)
+		} else {
+			// If IndexId search fails, try prefix search (for truncated keys)
+			log.Printf("DEBUG: IndexId not found, trying prefix search")
+			if err := h.db.Where("knowledge_key LIKE ?", knowledgeKey+"%").First(&kb).Error; err != nil {
+				response.Fail(c, knowledge.ErrKnowledgeNotFound, err)
+				return
+			}
+			k = &kb
+			knowledgeKey = kb.KnowledgeKey // Update knowledgeKey to the one found in DB
+			log.Printf("DEBUG: Found knowledge base by prefix: %s", knowledgeKey)
+		}
+	}
+	if k.UserID != userID {
+		response.Fail(c, "unauthorized access to knowledge base", nil)
+		return
+	}
+
+	// Parse config
+	config, err := models.GetKnowledgeConfigOrDefault(k.Provider, k.Config, getKnowledgeBaseConfig)
+	if err != nil {
+		response.Fail(c, knowledge.ErrConfigParseFailed, err)
+		return
+	}
+
+	// Get knowledge base instance
+	kb, err := knowledge.GetKnowledgeBaseByProvider(k.Provider, config)
+	if err != nil {
+		response.Fail(c, knowledge.ErrKnowledgeBaseInitFailed, err)
+		return
+	}
+
+	// For Aliyun, we use a wildcard search to get all content
+	// This is a workaround since Aliyun doesn't have a direct ListDocuments API
+	log.Printf("Listing knowledge base content - key: %s, provider: %s", knowledgeKey, k.Provider)
+
+	// Use the correct key for search (IndexId for Aliyun, knowledgeKey for others)
+	searchKey := knowledgeKey
+	if k.Provider == knowledge.ProviderAliyun && k.IndexId != "" {
+		searchKey = k.IndexId
+		log.Printf("DEBUG: Using IndexId for Aliyun search: %s", searchKey)
+	}
+
+	// Use a broad search query to retrieve all chunks
+	// For Aliyun, use a generic query instead of wildcard
+	query := "*"
+	if k.Provider == knowledge.ProviderAliyun {
+		query = "content" // Use a generic query for Aliyun
+	}
+
+	options := knowledge.SearchOptions{
+		Query: query,
+		TopK:  1000, // Get up to 1000 results
+	}
+	results, err := kb.Search(context.Background(), searchKey, options)
+	if err != nil {
+		log.Printf("ERROR: Failed to list knowledge base content - error: %v", err)
+		// Return empty results instead of error for empty knowledge bases
+		response.Success(c, "content listed successfully", map[string]interface{}{
+			"knowledge_key":  knowledgeKey,
+			"document_count": 0,
+			"total_chunks":   0,
+			"documents":      []map[string]interface{}{},
+		})
+		return
+	}
+
+	// Group results by source (document)
+	documentMap := make(map[string][]map[string]interface{})
+	for _, result := range results {
+		source := result.Source
+		if source == "" {
+			source = "unknown"
+		}
+
+		chunk := map[string]interface{}{
+			"content":  result.Content,
+			"score":    result.Score,
+			"metadata": result.Metadata,
+		}
+
+		documentMap[source] = append(documentMap[source], chunk)
+	}
+
+	// Build response
+	documents := make([]map[string]interface{}, 0)
+	for source, chunks := range documentMap {
+		doc := map[string]interface{}{
+			"source":      source,
+			"chunk_count": len(chunks),
+			"chunks":      chunks,
+		}
+		documents = append(documents, doc)
+	}
+
+	response.Success(c, "content listed successfully", map[string]interface{}{
+		"knowledge_key":  knowledgeKey,
+		"document_count": len(documents),
+		"total_chunks":   len(results),
+		"documents":      documents,
+	})
 }
 
 // Note: Old uploadFile and initKnowledgeBase functions have been removed
@@ -773,4 +1103,96 @@ func SubmitIndexAddDocumentsJob(client *bailian20231229.Client, workspaceId, ind
 	}
 	runtime := &teaUtil.RuntimeOptions{}
 	return client.SubmitIndexAddDocumentsJobWithOptions(tea.String(workspaceId), submitIndexAddDocumentsJobRequest, headers, runtime)
+}
+
+// fileWrapper wraps io.Reader to implement multipart.File interface
+type fileWrapper struct {
+	Reader io.Reader
+	data   []byte
+	offset int64
+}
+
+func (fw *fileWrapper) Read(p []byte) (n int, err error) {
+	return fw.Reader.Read(p)
+}
+
+func (fw *fileWrapper) ReadAt(p []byte, off int64) (n int, err error) {
+	if fw.data == nil {
+		// Read all data into memory on first ReadAt call
+		var buf bytes.Buffer
+		if _, err := io.Copy(&buf, fw.Reader); err != nil {
+			return 0, err
+		}
+		fw.data = buf.Bytes()
+	}
+
+	if off >= int64(len(fw.data)) {
+		return 0, io.EOF
+	}
+
+	n = copy(p, fw.data[off:])
+	return n, nil
+}
+
+func (fw *fileWrapper) Seek(offset int64, whence int) (int64, error) {
+	if fw.data == nil {
+		// Read all data into memory on first Seek call
+		var buf bytes.Buffer
+		if _, err := io.Copy(&buf, fw.Reader); err != nil {
+			return 0, err
+		}
+		fw.data = buf.Bytes()
+	}
+
+	switch whence {
+	case io.SeekStart:
+		fw.offset = offset
+	case io.SeekCurrent:
+		fw.offset += offset
+	case io.SeekEnd:
+		fw.offset = int64(len(fw.data)) + offset
+	default:
+		return 0, fmt.Errorf("invalid whence")
+	}
+
+	if fw.offset < 0 {
+		fw.offset = 0
+	}
+	if fw.offset > int64(len(fw.data)) {
+		fw.offset = int64(len(fw.data))
+	}
+
+	return fw.offset, nil
+}
+
+func (fw *fileWrapper) Close() error {
+	return nil
+}
+
+// simplifyKnowledgeKey simplifies knowledge key to max 20 characters
+// If key is longer than 20 chars, it extracts the userID and generates a short hash
+func simplifyKnowledgeKey(key string) string {
+	if len(key) <= 20 {
+		return key
+	}
+
+	// Extract userID (before the first dash)
+	parts := strings.Split(key, "-")
+	if len(parts) < 2 {
+		// No dash found, just truncate
+		return key[:20]
+	}
+
+	userID := parts[0]
+	// Generate a short hash from the rest of the key
+	hash := md5.Sum([]byte(key))
+	hashStr := fmt.Sprintf("%x", hash)[:8] // Use first 8 chars of hex hash
+
+	// Format: {userID}-{hash}
+	result := fmt.Sprintf("%s-%s", userID, hashStr)
+	if len(result) > 20 {
+		result = result[:20]
+	}
+
+	return result
 }

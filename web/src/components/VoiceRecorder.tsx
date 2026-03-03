@@ -73,7 +73,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
           const formData = new FormData();
           formData.append('audio', audioBlob, 'recording.webm');
           
-          const response = await fetch('/api/upload/audio', {
+          const response = await fetch('/api/system/upload/audio', {
             method: 'POST',
             body: formData
           });
