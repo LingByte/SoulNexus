@@ -203,7 +203,7 @@ func (hw *HardwareWriter) SendLLMResponse(text string) error {
 
 // SendTTSStart 发送TTS开始消息
 func (hw *HardwareWriter) SendTTSStart() error {
-	// xiaozhi协议格式：{"type": "tts", "state": "start", "session_id": "...", "audio_params": {...}}
+	// {"type": "tts", "state": "start", "session_id": "...", "audio_params": {...}}
 	hw.logger.Info("[Websocket Writer] 发送 TTS 开始消息", zap.String("session_id", hw.sessionID))
 	return hw.sendJSON(map[string]interface{}{
 		"type":       "tts",
@@ -321,7 +321,6 @@ func (hw *HardwareWriter) SendTTSAudioWithFlowControl(data []byte, frameDuration
 					// 正常等待完成
 				}
 			}
-			// 如果已经超过帧时长，立即发送（不等待）
 		} else {
 			// 使用时间同步方式（基于上次实际发送时间，避免累积误差）
 			nextSendTime := lastSendTime.Add(flowControl.frameDuration)

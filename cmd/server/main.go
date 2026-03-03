@@ -139,7 +139,6 @@ func main() {
 	app := NewLingEchoApp(db)
 
 	// 12. Initialize Monitoring System
-	// Optimized for small memory servers: Reduce monitoring system memory usage
 	// Can be overridden via environment variables, default values suitable for 2GB memory servers
 	maxSpansEnv := utils.GetIntEnv("METRICS_MAX_SPANS")
 	maxQueriesEnv := utils.GetIntEnv("METRICS_MAX_QUERIES")
@@ -228,13 +227,10 @@ func main() {
 	}
 
 	// 15. Start Timed task
-	// Start Email Cleaner Task
 	task.StartEmailCleaner(db)
-	// Start Quota Alert Checker
 	task.StartQuotaAlertChecker(db)
-	// Start Backup Data
 	if config.GlobalConfig.Features.BackupEnabled {
-		backup.StartBackupScheduler()
+		backup.StartBackupScheduler(db)
 	}
 
 	// 15. Initialize Gin Routing
@@ -242,16 +238,11 @@ func main() {
 	r := gin.New()        // Use gin.New() instead of gin.Default() to avoid automatic redirects
 	r.Use(gin.Recovery()) // Manually add Recovery middleware
 	r.LoadHTMLGlob("templates/**/**")
-
-	// Disable automatic redirects to avoid CORS issues caused by 307 redirects
 	r.RedirectTrailingSlash = false
 	r.RedirectFixedPath = false
-
-	// Set maximum memory limit for multipart forms (32MB)
 	r.MaxMultipartMemory = 32 << 20 // 32 MB
 
 	// 16. use middleware
-	// Monitoring Middleware
 	r.Use(metrics.MonitorMiddleware(monitor))
 
 	// Cookie Register
@@ -272,36 +263,14 @@ func main() {
 	// Logger Handle Middleware
 	r.Use(middleware.LoggerMiddleware(zap.L()))
 
-	// Note: Advanced middleware (rate limiting, timeout, circuit breaker)
-	// is applied in route registration via middleware.ApplyGlobalMiddlewares()
-
 	// Assets Middleware
 	r.Use(LingEcho.WithStaticAssets(r, utils.GetEnv(constants.ENV_STATIC_PREFIX), utils.GetEnv(constants.ENV_STATIC_ROOT)))
-
-	// Static service for uploaded files
-	uploadDir := utils.GetEnv("UPLOAD_DIR")
-	if uploadDir == "" {
-		uploadDir = "./uploads"
-	}
-	// 注册 /uploads（主路径）并保留 /media 兼容历史
-	r.Static("/uploads", uploadDir)
-	r.Static("/media", uploadDir)
-	apiPrefix := config.GlobalConfig.Server.APIPrefix
-	if apiPrefix == "" {
-		apiPrefix = "/api"
-	}
-	r.Static(apiPrefix+"/uploads", uploadDir)
-	r.Static(apiPrefix+"/media", uploadDir)
-	r.Static(apiPrefix+"/files", uploadDir) // 添加 /api/files 路由以兼容旧数据
-
-	// Add /api/static route to serve static files under API prefix
-	// This is needed for SDK files accessed via /api/static/js/lingecho-sdk.js
 	staticRootDir := utils.GetEnv(constants.ENV_STATIC_ROOT)
 	if staticRootDir == "" {
 		staticRootDir = "static"
 	}
 	staticAssets := LingEcho.NewCombineEmbedFS(LingEcho.HintAssetsRoot(staticRootDir), LingEcho.EmbedFS{"static", LingEcho.EmbedStaticAssets})
-	apiPrefix = config.GlobalConfig.Server.APIPrefix
+	apiPrefix := config.GlobalConfig.Server.APIPrefix
 	if apiPrefix == "" {
 		apiPrefix = "/api"
 	}
@@ -309,13 +278,6 @@ func main() {
 
 	// 18. Register Routes
 	app.RegisterRoutes(r)
-
-	// 18.6. Register Metrics Monitor Routes
-	// Get API prefix from config (default: /api)
-	apiPrefix = config.GlobalConfig.Server.APIPrefix
-	if apiPrefix == "" {
-		apiPrefix = "/api"
-	}
 	// Get monitor prefix from config (default: /metrics)
 	monitorPrefix := config.GlobalConfig.Server.MonitorPrefix
 	if monitorPrefix == "" {
