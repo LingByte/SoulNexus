@@ -30,8 +30,6 @@ func (l *WorkflowEventListener) Start() error {
 
 	// 订阅所有事件，然后根据工作流配置决定是否触发
 	bus.Subscribe("*", l.handleEvent)
-
-	logger.Info("Workflow event listener started")
 	return nil
 }
 

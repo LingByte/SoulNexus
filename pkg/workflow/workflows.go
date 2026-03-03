@@ -87,7 +87,6 @@ func (wf *Workflow) Execute() error {
 
 		wf.Context.CurrentNode = currentNodeID
 		wf.Context.SetNodeStatus(currentNodeID, NodeStatusRunning, nil)
-		wf.Context.AddLog("info", fmt.Sprintf("Executing node: %s", node.Base().Name), currentNodeID, node.Base().Name)
 
 		nextNodes, err := node.Run(wf.Context)
 		if err != nil {

@@ -3,13 +3,16 @@ package workflowdef
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"time"
 
 	"github.com/LingByte/SoulNexus/internal/models"
 	runtimewf "github.com/LingByte/SoulNexus/pkg/workflow"
+	"gorm.io/gorm"
 )
 
 // BuildRuntimeWorkflow converts a persisted workflow definition into an executable workflow instance.
-func BuildRuntimeWorkflow(def *models.WorkflowDefinition) (*runtimewf.Workflow, error) {
+func BuildRuntimeWorkflow(def *models.WorkflowDefinition, db *gorm.DB) (*runtimewf.Workflow, error) {
 	if def == nil {
 		return nil, fmt.Errorf("workflow definition is nil")
 	}
@@ -18,7 +21,11 @@ func BuildRuntimeWorkflow(def *models.WorkflowDefinition) (*runtimewf.Workflow, 
 	}
 
 	wf := runtimewf.NewWorkflow(fmt.Sprintf("definition-%d", def.ID))
-	wf.Context = runtimewf.NewWorkflowContext(fmt.Sprintf("definition-%d", def.ID))
+	if db != nil {
+		wf.Context = runtimewf.NewWorkflowContextWithDB(fmt.Sprintf("definition-%d", def.ID), db)
+	} else {
+		wf.Context = runtimewf.NewWorkflowContext(fmt.Sprintf("definition-%d", def.ID))
+	}
 
 	nodeRegistry := make(map[string]runtimewf.ExecutableNode, len(def.Definition.Nodes))
 	startCount := 0
@@ -261,7 +268,19 @@ func instantiateNode(base runtimewf.Node) (runtimewf.ExecutableNode, error) {
 	case runtimewf.NodeTypeWait:
 		return &runtimewf.WaitNode{Node: base}, nil
 	case runtimewf.NodeTypeTimer:
-		return &runtimewf.TimerNode{Node: base}, nil
+		timerNode := &runtimewf.TimerNode{Node: base}
+		// Extract timer configuration from properties
+		if base.Properties != nil {
+			if delayStr, ok := base.Properties["delay"]; ok {
+				if delayMs, err := strconv.Atoi(delayStr); err == nil {
+					timerNode.Delay = time.Duration(delayMs) * time.Millisecond
+				}
+			}
+			if repeatStr, ok := base.Properties["repeat"]; ok {
+				timerNode.Repeat = repeatStr == "true"
+			}
+		}
+		return timerNode, nil
 	case runtimewf.NodeTypeScript:
 		scriptNode := &runtimewf.ScriptNode{Node: base}
 		// Extract script code from properties
@@ -276,6 +295,84 @@ func instantiateNode(base runtimewf.Node) (runtimewf.ExecutableNode, error) {
 			}
 		}
 		return scriptNode, nil
+	case runtimewf.NodeTypePlugin:
+		pluginNode := &runtimewf.PluginNode{Node: base}
+		// Extract plugin configuration from properties
+		if base.Properties != nil {
+			// Parse plugin ID
+			if pluginIDStr, ok := base.Properties["plugin_id"]; ok {
+				// TODO: Load plugin definition from database
+				// For now, we'll need to implement plugin loading logic
+				_ = pluginIDStr
+			}
+
+			// Parse user configuration
+			if configStr, ok := base.Properties["config"]; ok {
+				var config map[string]interface{}
+				if err := json.Unmarshal([]byte(configStr), &config); err == nil {
+					pluginNode.Config = config
+				}
+			}
+		}
+		return pluginNode, nil
+	case runtimewf.NodeTypeWorkflowPlugin:
+		// 工作流插件节点
+		if base.Properties == nil {
+			return nil, fmt.Errorf("workflow plugin node requires properties")
+		}
+
+		pluginIDStr, ok := base.Properties["pluginId"]
+		if !ok {
+			return nil, fmt.Errorf("workflow plugin node requires pluginId property")
+		}
+
+		pluginID, err := strconv.ParseUint(pluginIDStr, 10, 32)
+		if err != nil {
+			return nil, fmt.Errorf("invalid pluginId: %v", err)
+		}
+
+		// 解析用户配置的参数
+		parameters := make(map[string]interface{})
+		if parametersStr, ok := base.Properties["parameters"]; ok && parametersStr != "" {
+			// Handle empty parameters or "[object Object]" case
+			if parametersStr == "{}" || parametersStr == "[object Object]" {
+				// Empty parameters, use empty map
+				parameters = make(map[string]interface{})
+			} else {
+				if err := json.Unmarshal([]byte(parametersStr), &parameters); err != nil {
+					return nil, fmt.Errorf("invalid parameters JSON: %v", err)
+				}
+			}
+		}
+
+		// 这里需要数据库连接，但在这个上下文中我们没有
+		// 我们需要修改这个函数的签名来传递数据库连接
+		// 暂时返回一个基础的工作流插件节点，稍后在执行时加载插件信息
+		workflowPluginNode := &runtimewf.WorkflowPluginNode{
+			Node:       base,
+			PluginID:   uint(pluginID),
+			Parameters: parameters,
+		}
+		return workflowPluginNode, nil
+	case runtimewf.NodeTypeAIChat:
+		// AI对话节点
+		aiChatNode := &runtimewf.AIChatNode{Node: &base}
+		// Extract AI chat configuration from properties
+		if base.Properties != nil {
+			// Convert map[string]string to map[string]interface{}
+			properties := make(map[string]interface{})
+			for k, v := range base.Properties {
+				properties[k] = v
+			}
+			config, err := runtimewf.ParseAIChatConfig(properties)
+			if err != nil {
+				return nil, fmt.Errorf("parse AI chat config failed: %w", err)
+			}
+			aiChatNode.Config = config
+		} else {
+			return nil, fmt.Errorf("AI chat node requires properties")
+		}
+		return aiChatNode, nil
 	default:
 		return nil, fmt.Errorf("unsupported node type %s", base.Type)
 	}

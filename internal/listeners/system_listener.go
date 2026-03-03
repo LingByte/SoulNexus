@@ -33,13 +33,13 @@ func InitSystemListeners() {
 
 // loadSSLCertificates loads SSL certificates
 func loadSSLCertificates() {
-	if !config.GlobalConfig.SSLEnabled {
+	if !config.GlobalConfig.Server.SSLEnabled {
 		logger.Info("SSL is disabled, skipping SSL certificate loading")
 		return
 	}
 
-	certFile := config.GlobalConfig.SSLCertFile
-	keyFile := config.GlobalConfig.SSLKeyFile
+	certFile := config.GlobalConfig.Server.SSLCertFile
+	keyFile := config.GlobalConfig.Server.SSLKeyFile
 
 	if certFile == "" || keyFile == "" {
 		logger.Warn("SSL enabled but certificate files not configured",
@@ -77,7 +77,7 @@ func GetSSLCertificate() (tls.Certificate, error) {
 
 // IsSSLEnabled checks if SSL is enabled and certificates are loaded
 func IsSSLEnabled() bool {
-	return config.GlobalConfig.SSLEnabled && sslCertErr == nil
+	return config.GlobalConfig.Server.SSLEnabled && sslCertErr == nil
 }
 
 // GetTLSConfig gets TLS configuration

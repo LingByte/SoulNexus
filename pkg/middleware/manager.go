@@ -122,6 +122,9 @@ func getDefaultEndpointTimeouts() map[string]time.Duration {
 		// 语音相关：30秒超时
 		"/api/voice/training/create": 30 * time.Second,
 		"/api/voice/synthesis":       30 * time.Second,
+
+		// 语音会话接口：10分钟超时（支持长时间语音交互）
+		"/api/voice/lingecho/v1/": 10 * time.Minute,
 	}
 }
 

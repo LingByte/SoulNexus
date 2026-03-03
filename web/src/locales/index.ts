@@ -12,6 +12,9 @@ import { notification } from './modules/notification'
 import { credential } from './modules/credential'
 import { device } from './modules/device'
 import { jsTemplate } from './modules/jsTemplate'
+import { quota } from './modules/quota'
+import { resetPassword } from './modules/resetPassword'
+import { animation } from './modules/animation'
 
 // 合并所有翻译模块
 function mergeTranslations(...modules: Record<Language, Record<string, string>>[]) {
@@ -44,7 +47,10 @@ export const translations = mergeTranslations(
   notification,
   credential,
   device,
-  jsTemplate
+  jsTemplate,
+  quota,
+  resetPassword,
+  animation
 )
 
 export type { Language }

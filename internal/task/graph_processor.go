@@ -135,7 +135,7 @@ func summarizeConversation(ctx context.Context, credential *models.UserCredentia
 	// 创建 LLM provider
 	// 传入一个非空的系统提示词，避免 DashScope 等兼容模式 API 报错（Content 不能为空）
 	systemPrompt := "You are a helpful assistant for analyzing conversations."
-	llmProvider, err := llm.NewLLMProvider(ctx, credential, systemPrompt)
+	llmProvider, err := llm.NewLLMProvider(ctx, credential.LLMProvider, credential.LLMApiKey, credential.LLMApiURL, systemPrompt)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to create LLM provider: %w", err)
 	}

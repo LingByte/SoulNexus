@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-
 	"fmt"
 	"net/http"
 	"path"
@@ -108,32 +107,31 @@ type AdminAction struct {
 }
 
 type AdminObject struct {
-	Model       any              `json:"-"`
-	Group       string           `json:"group"`               // Group name
-	Name        string           `json:"name"`                // Name of the object
-	Desc        string           `json:"desc,omitempty"`      // Description
-	Path        string           `json:"path"`                // Path prefix
-	Shows       []string         `json:"shows"`               // Show fields
-	Orders      []LingEcho.Order `json:"orders"`              // Default orders of the object
-	Editables   []string         `json:"editables"`           // Editable fields
-	Filterables []string         `json:"filterables"`         // Filterable fields
-	Orderables  []string         `json:"orderables"`          // Orderable fields, can override Orders
-	Searchables []string         `json:"searchables"`         // Searchable fields
-	Requireds   []string         `json:"requireds,omitempty"` // Required fields
-	PrimaryKeys []string         `json:"primaryKeys"`         // Primary keys name
-	UniqueKeys  []string         `json:"uniqueKeys"`          // Primary keys name
-	PluralName  string           `json:"pluralName"`
-	Fields      []AdminField     `json:"fields"`
-	EditPage    string           `json:"editpage,omitempty"`
-	ListPage    string           `json:"listpage,omitempty"`
-	Scripts     []AdminScript    `json:"scripts,omitempty"`
-	Styles      []string         `json:"styles,omitempty"`
-	Permissions map[string]bool  `json:"permissions,omitempty"`
-	Actions     []AdminAction    `json:"actions,omitempty"`
-	Icon        *AdminIcon       `json:"icon,omitempty"`
-	Invisible   bool             `json:"invisible,omitempty"`
-	ViewOnSite  AdminViewOnSite  `json:"-"`
-
+	Model            any                       `json:"-"`
+	Group            string                    `json:"group"`               // Group name
+	Name             string                    `json:"name"`                // Name of the object
+	Desc             string                    `json:"desc,omitempty"`      // Description
+	Path             string                    `json:"path"`                // Path prefix
+	Shows            []string                  `json:"shows"`               // Show fields
+	Orders           []LingEcho.Order          `json:"orders"`              // Default orders of the object
+	Editables        []string                  `json:"editables"`           // Editable fields
+	Filterables      []string                  `json:"filterables"`         // Filterable fields
+	Orderables       []string                  `json:"orderables"`          // Orderable fields, can override Orders
+	Searchables      []string                  `json:"searchables"`         // Searchable fields
+	Requireds        []string                  `json:"requireds,omitempty"` // Required fields
+	PrimaryKeys      []string                  `json:"primaryKeys"`         // Primary keys name
+	UniqueKeys       []string                  `json:"uniqueKeys"`          // Primary keys name
+	PluralName       string                    `json:"pluralName"`
+	Fields           []AdminField              `json:"fields"`
+	EditPage         string                    `json:"editpage,omitempty"`
+	ListPage         string                    `json:"listpage,omitempty"`
+	Scripts          []AdminScript             `json:"scripts,omitempty"`
+	Styles           []string                  `json:"styles,omitempty"`
+	Permissions      map[string]bool           `json:"permissions,omitempty"`
+	Actions          []AdminAction             `json:"actions,omitempty"`
+	Icon             *AdminIcon                `json:"icon,omitempty"`
+	Invisible        bool                      `json:"invisible,omitempty"`
+	ViewOnSite       AdminViewOnSite           `json:"-"`
 	Attributes       map[string]AdminAttribute `json:"-"` // Field's extra attributes
 	AccessCheck      AdminAccessCheck          `json:"-"` // Access control function
 	GetDB            LingEcho.GetDB            `json:"-"`
@@ -287,6 +285,12 @@ func WithAdminAuth() gin.HandlerFunc {
 			return
 		}
 
+		// Validate user role before checking admin permissions
+		if err := ValidateUserRole(user); err != nil {
+			LingEcho.AbortWithJSONError(ctx, http.StatusForbidden, fmt.Errorf("invalid user role: %w", err))
+			return
+		}
+
 		if !user.IsStaff && !user.IsAdmin() {
 			LingEcho.AbortWithJSONError(ctx, http.StatusForbidden, errors.New("forbidden"))
 			return
@@ -389,9 +393,7 @@ func HandleAdminJson(c *gin.Context, objects []*AdminObject, buildContext AdminB
 				continue
 			}
 		}
-		db := LingEcho.GetDbConnection(c, obj.GetDB, false)
 		val := *obj
-		val.BuildPermissions(db, CurrentUser(c))
 		viewObjects = append(viewObjects, val)
 	}
 
@@ -400,17 +402,17 @@ func HandleAdminJson(c *gin.Context, objects []*AdminObject, buildContext AdminB
 		siteCtx = buildContext(c, siteCtx)
 	}
 
-	// 添加监控页面路径（动态获取）
-	apiPrefix := config.GlobalConfig.APIPrefix
+	// Add monitoring page path (dynamically obtained)
+	apiPrefix := config.GlobalConfig.Server.APIPrefix
 	if apiPrefix == "" {
 		apiPrefix = "/api"
 	}
-	monitorPrefix := config.GlobalConfig.MonitorPrefix
+	monitorPrefix := config.GlobalConfig.Server.MonitorPrefix
 	if monitorPrefix == "" {
 		monitorPrefix = "/metrics"
 	}
-	// 组合完整的监控URL路径：/api/metrics/ui
-	// 将 monitor_url 添加到 Site 对象中，因为前端访问的是 site.Site.monitor_url
+	// Combine complete monitoring URL path: /api/metrics/ui
+	// Add monitor_url to Site object, as frontend accesses site.Site.monitor_url
 	if siteMap, ok := siteCtx["Site"].(map[string]any); ok {
 		siteMap["monitor_url"] = apiPrefix + monitorPrefix + "/ui"
 	}
@@ -422,41 +424,7 @@ func HandleAdminJson(c *gin.Context, objects []*AdminObject, buildContext AdminB
 	})
 }
 
-func (obj *AdminObject) BuildPermissions(db *gorm.DB, user *User) {
-	obj.Permissions = map[string]bool{}
-
-	// 超级管理员或管理员拥有所有权限
-	if user.IsAdmin() {
-		obj.Permissions["can_create"] = true
-		obj.Permissions["can_update"] = true
-		obj.Permissions["can_delete"] = true
-		obj.Permissions["can_action"] = true
-		return
-	}
-
-	// 根据权限列表设置权限
-	// 检查是否有 admin.write 权限
-	if user.HasPermission("admin.write") {
-		obj.Permissions["can_create"] = true
-		obj.Permissions["can_update"] = true
-		obj.Permissions["can_delete"] = true
-		obj.Permissions["can_action"] = true
-	} else {
-		// 默认普通用户只有读取权限
-		obj.Permissions["can_create"] = false
-		obj.Permissions["can_update"] = false
-		obj.Permissions["can_delete"] = false
-		obj.Permissions["can_action"] = false
-	}
-}
-
 // RegisterAdmin registers admin routes
-//
-//   - POST /admin/{objectslug} -> Query objects
-//   - PUT /admin/{objectslug} -> Create One
-//   - PATCH /admin/{objectslug}} -> Update One
-//   - DELETE /admin/{objectslug} -> Delete One
-//   - POST /admin/{objectslug}/:name -> Action
 func (obj *AdminObject) RegisterAdmin(r gin.IRoutes) {
 	r = r.Use(func(ctx *gin.Context) {
 		if obj.AccessCheck != nil {
@@ -683,12 +651,7 @@ func convertValue(elemType reflect.Type, source any, targetIsPtr bool) (any, err
 	if srcType == elemType {
 		return source, nil
 	}
-
-	// if srcType.Kind() == reflect.Array || srcType.Kind() == reflect.Slice || srcType.Kind() == reflect.Map {
-	// 	return source, nil
-	// }
-
-	var targetType reflect.Type = elemType
+	var targetType = elemType
 	var err error
 	switch elemType.Name() {
 	case "int", "int8", "int16", "int32", "int64":

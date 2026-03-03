@@ -4,9 +4,11 @@ import { createAlertRule, updateAlertRule, getAlertRule, AlertType, AlertSeverit
 import { showAlert } from '@/utils/notification';
 import { ArrowLeft, Save } from 'lucide-react';
 import Button from '@/components/UI/Button';
+import { useI18nStore } from '@/stores/i18nStore';
 
 const AlertRuleForm: React.FC = () => {
   const navigate = useNavigate();
+  const { t } = useI18nStore();
   const { id } = useParams<{ id: string }>();
   const isEdit = !!id;
 
@@ -56,7 +58,7 @@ const AlertRuleForm: React.FC = () => {
         enabled: rule.enabled,
       });
     } catch (err: any) {
-      showAlert(err?.msg || err?.message || '获取规则失败', 'error');
+      showAlert(err?.msg || err?.message || t('alertRuleForm.fetchError'), 'error');
       navigate('/alerts/rules');
     }
   };
@@ -67,14 +69,14 @@ const AlertRuleForm: React.FC = () => {
     try {
       if (isEdit && id) {
         await updateAlertRule(parseInt(id), formData);
-        showAlert('更新成功', 'success');
+        showAlert(t('alertRuleForm.updateSuccess'), 'success');
       } else {
         await createAlertRule(formData);
-        showAlert('创建成功', 'success');
+        showAlert(t('alertRuleForm.createSuccess'), 'success');
       }
       navigate('/alerts/rules');
     } catch (err: any) {
-      showAlert(err?.msg || err?.message || '操作失败', 'error');
+      showAlert(err?.msg || err?.message || t('alertRuleForm.operationFailed'), 'error');
     } finally {
       setLoading(false);
     }
@@ -99,14 +101,14 @@ const AlertRuleForm: React.FC = () => {
             size="sm"
             leftIcon={<ArrowLeft className="w-4 h-4" />}
           >
-            返回
+            {t('alertRuleForm.back')}
           </Button>
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-              {isEdit ? '编辑告警规则' : '创建告警规则'}
+              {isEdit ? t('alertRuleForm.titleEdit') : t('alertRuleForm.titleCreate')}
             </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              {isEdit ? '修改告警规则的配置' : '创建新的告警规则以监控系统状态'}
+              {isEdit ? t('alertRuleForm.subtitleEdit') : t('alertRuleForm.subtitleCreate')}
             </p>
           </div>
         </div>
@@ -114,10 +116,10 @@ const AlertRuleForm: React.FC = () => {
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* 基本信息 */}
           <div className="border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 rounded-lg p-6 shadow-sm">
-            <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">基本信息</h2>
+            <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">{t('alertRuleForm.basicInfo')}</h2>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-2">规则名称 *</label>
+                <label className="block text-sm font-medium mb-2">{t('alertRuleForm.nameRequired')}</label>
                 <input
                   type="text"
                   value={formData.name}
@@ -127,7 +129,7 @@ const AlertRuleForm: React.FC = () => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2">描述</label>
+                <label className="block text-sm font-medium mb-2">{t('alertRuleForm.description')}</label>
                 <textarea
                   value={formData.description}
                   onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
@@ -137,31 +139,31 @@ const AlertRuleForm: React.FC = () => {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-2">告警类型 *</label>
+                  <label className="block text-sm font-medium mb-2">{t('alertRuleForm.alertTypeRequired')}</label>
                   <select
                     value={formData.alertType}
                     onChange={(e) => setFormData(prev => ({ ...prev, alertType: e.target.value as AlertType }))}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800"
                     required
                   >
-                    <option value="system_error">系统异常</option>
-                    <option value="quota_exceeded">配额不足</option>
-                    <option value="service_error">服务异常</option>
-                    <option value="custom">自定义</option>
+                    <option value="system_error">{t('alertRuleForm.type.systemError')}</option>
+                    <option value="quota_exceeded">{t('alertRuleForm.type.quotaExceeded')}</option>
+                    <option value="service_error">{t('alertRuleForm.type.serviceError')}</option>
+                    <option value="custom">{t('alertRuleForm.type.custom')}</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-2">严重程度 *</label>
+                  <label className="block text-sm font-medium mb-2">{t('alertRuleForm.severityRequired')}</label>
                   <select
                     value={formData.severity}
                     onChange={(e) => setFormData(prev => ({ ...prev, severity: e.target.value as AlertSeverity }))}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800"
                     required
                   >
-                    <option value="critical">严重</option>
-                    <option value="high">高</option>
-                    <option value="medium">中</option>
-                    <option value="low">低</option>
+                    <option value="critical">{t('alertRuleForm.severity.critical')}</option>
+                    <option value="high">{t('alertRuleForm.severity.high')}</option>
+                    <option value="medium">{t('alertRuleForm.severity.medium')}</option>
+                    <option value="low">{t('alertRuleForm.severity.low')}</option>
                   </select>
                 </div>
               </div>
@@ -170,12 +172,12 @@ const AlertRuleForm: React.FC = () => {
 
           {/* 触发条件 */}
           <div className="border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 rounded-lg p-6 shadow-sm">
-            <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">触发条件</h2>
+            <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">{t('alertRuleForm.triggerConditions')}</h2>
             <div className="space-y-4">
               {formData.alertType === 'quota_exceeded' && (
                 <>
                   <div>
-                    <label className="block text-sm font-medium mb-2">配额类型 *</label>
+                    <label className="block text-sm font-medium mb-2">{t('alertRuleForm.quotaTypeRequired')}</label>
                     <select
                       value={formData.conditions.quotaType || ''}
                       onChange={(e) => setFormData(prev => ({
@@ -185,24 +187,24 @@ const AlertRuleForm: React.FC = () => {
                       className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                       required
                     >
-                      <option value="">请选择配额类型</option>
-                      <option value="storage">存储空间 (Storage)</option>
-                      <option value="llm_tokens">LLM Token 使用量</option>
-                      <option value="llm_calls">LLM 调用次数</option>
-                      <option value="api_calls">API 调用次数</option>
-                      <option value="call_duration">通话时长</option>
-                      <option value="call_count">通话次数</option>
-                      <option value="asr_duration">语音识别时长</option>
-                      <option value="asr_count">语音识别次数</option>
-                      <option value="tts_duration">语音合成时长</option>
-                      <option value="tts_count">语音合成次数</option>
+                      <option value="">{t('alertRuleForm.quotaTypePlaceholder')}</option>
+                      <option value="storage">{t('alertRuleForm.quotaType.storage')}</option>
+                      <option value="llm_tokens">{t('alertRuleForm.quotaType.llmTokens')}</option>
+                      <option value="llm_calls">{t('alertRuleForm.quotaType.llmCalls')}</option>
+                      <option value="api_calls">{t('alertRuleForm.quotaType.apiCalls')}</option>
+                      <option value="call_duration">{t('alertRuleForm.quotaType.callDuration')}</option>
+                      <option value="call_count">{t('alertRuleForm.quotaType.callCount')}</option>
+                      <option value="asr_duration">{t('alertRuleForm.quotaType.asrDuration')}</option>
+                      <option value="asr_count">{t('alertRuleForm.quotaType.asrCount')}</option>
+                      <option value="tts_duration">{t('alertRuleForm.quotaType.ttsDuration')}</option>
+                      <option value="tts_count">{t('alertRuleForm.quotaType.ttsCount')}</option>
                     </select>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      选择要监控的配额类型
+                      {t('alertRuleForm.quotaTypeHint')}
                     </p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">配额使用率阈值 (%) *</label>
+                    <label className="block text-sm font-medium mb-2">{t('alertRuleForm.quotaThresholdRequired')}</label>
                     <input
                       type="number"
                       min="0"
@@ -217,7 +219,7 @@ const AlertRuleForm: React.FC = () => {
                       required
                     />
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      当配额使用率达到此百分比时触发告警（例如：80 表示使用率达到 80% 时告警）
+                      {t('alertRuleForm.quotaThresholdHint')}
                     </p>
                   </div>
                 </>
@@ -225,7 +227,7 @@ const AlertRuleForm: React.FC = () => {
               {formData.alertType === 'system_error' && (
                 <>
                   <div>
-                    <label className="block text-sm font-medium mb-2">错误数量阈值</label>
+                    <label className="block text-sm font-medium mb-2">{t('alertRuleForm.errorCount')}</label>
                     <input
                       type="number"
                       min="1"
@@ -238,7 +240,7 @@ const AlertRuleForm: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">时间窗口 (秒)</label>
+                    <label className="block text-sm font-medium mb-2">{t('alertRuleForm.errorWindow')}</label>
                     <input
                       type="number"
                       min="1"
@@ -255,7 +257,7 @@ const AlertRuleForm: React.FC = () => {
               {formData.alertType === 'service_error' && (
                 <>
                   <div>
-                    <label className="block text-sm font-medium mb-2">服务名称</label>
+                    <label className="block text-sm font-medium mb-2">{t('alertRuleForm.serviceName')}</label>
                     <input
                       type="text"
                       value={formData.conditions.serviceName || ''}
@@ -268,7 +270,7 @@ const AlertRuleForm: React.FC = () => {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium mb-2">失败率阈值 (%)</label>
+                      <label className="block text-sm font-medium mb-2">{t('alertRuleForm.failureRate')}</label>
                       <input
                         type="number"
                         min="0"
@@ -282,7 +284,7 @@ const AlertRuleForm: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium mb-2">响应时间阈值 (ms)</label>
+                      <label className="block text-sm font-medium mb-2">{t('alertRuleForm.responseTime')}</label>
                       <input
                         type="number"
                         min="0"
@@ -302,10 +304,10 @@ const AlertRuleForm: React.FC = () => {
 
           {/* 通知配置 */}
           <div className="border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 rounded-lg p-6 shadow-sm">
-            <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">通知配置</h2>
+            <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">{t('alertRuleForm.notificationConfig')}</h2>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-2">通知渠道 *</label>
+                <label className="block text-sm font-medium mb-2">{t('alertRuleForm.channelsRequired')}</label>
                 <div className="flex flex-wrap gap-2">
                   {(['email', 'internal', 'webhook', 'sms'] as NotificationChannel[]).map(channel => (
                     <label key={channel} className="flex items-center gap-2 cursor-pointer">
@@ -316,7 +318,7 @@ const AlertRuleForm: React.FC = () => {
                         className="rounded"
                       />
                       <span className="text-sm">
-                        {channel === 'email' ? '邮件' : channel === 'internal' ? '站内通知' : channel === 'webhook' ? 'Webhook' : '短信'}
+                        {t(`alertRuleForm.channel.${channel}`)}
                       </span>
                     </label>
                   ))}
@@ -325,7 +327,7 @@ const AlertRuleForm: React.FC = () => {
               {formData.channels.includes('webhook') && (
                 <>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Webhook URL *</label>
+                    <label className="block text-sm font-medium mb-2">{t('alertRuleForm.webhookUrlRequired')}</label>
                     <input
                       type="url"
                       value={formData.webhookUrl}
@@ -335,7 +337,7 @@ const AlertRuleForm: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">请求方法</label>
+                    <label className="block text-sm font-medium mb-2">{t('alertRuleForm.webhookMethod')}</label>
                     <select
                       value={formData.webhookMethod}
                       onChange={(e) => setFormData(prev => ({ ...prev, webhookMethod: e.target.value }))}
@@ -349,7 +351,7 @@ const AlertRuleForm: React.FC = () => {
                 </>
               )}
               <div>
-                <label className="block text-sm font-medium mb-2">冷却时间 (秒)</label>
+                <label className="block text-sm font-medium mb-2">{t('alertRuleForm.cooldown')}</label>
                 <input
                   type="number"
                   min="0"
@@ -357,7 +359,7 @@ const AlertRuleForm: React.FC = () => {
                   onChange={(e) => setFormData(prev => ({ ...prev, cooldown: parseInt(e.target.value) || 300 }))}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800"
                 />
-                <p className="text-xs text-gray-500 mt-1">防止重复告警的时间间隔</p>
+                <p className="text-xs text-gray-500 mt-1">{t('alertRuleForm.cooldownHint')}</p>
               </div>
               <div>
                 <label className="flex items-center gap-2 cursor-pointer">
@@ -367,7 +369,7 @@ const AlertRuleForm: React.FC = () => {
                     onChange={(e) => setFormData(prev => ({ ...prev, enabled: e.target.checked }))}
                     className="rounded"
                   />
-                  <span className="text-sm">启用规则</span>
+                  <span className="text-sm">{t('alertRuleForm.enabled')}</span>
                 </label>
               </div>
             </div>
@@ -379,7 +381,7 @@ const AlertRuleForm: React.FC = () => {
               onClick={() => navigate('/alerts/rules')}
               variant="ghost"
             >
-              取消
+              {t('alertRuleForm.cancel')}
             </Button>
             <Button
               type="submit"
@@ -387,7 +389,7 @@ const AlertRuleForm: React.FC = () => {
               leftIcon={<Save className="w-4 h-4" />}
               disabled={loading}
             >
-              {loading ? '保存中...' : '保存'}
+              {loading ? t('alertRuleForm.saving') : t('alertRuleForm.save')}
             </Button>
           </div>
         </form>

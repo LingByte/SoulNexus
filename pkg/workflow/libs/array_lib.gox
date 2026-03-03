@@ -1,0 +1,60 @@
+type arrayLib struct{}
+
+func (a *arrayLib) Length(arr []interface{}) int {
+	return len(arr)
+}
+
+func (a *arrayLib) First(arr []interface{}) interface{} {
+	if len(arr) > 0 {
+		return arr[0]
+	}
+	return nil
+}
+
+func (a *arrayLib) Last(arr []interface{}) interface{} {
+	if len(arr) > 0 {
+		return arr[len(arr)-1]
+	}
+	return nil
+}
+
+func (a *arrayLib) Contains(arr []interface{}, item interface{}) bool {
+	for _, v := range arr {
+		if v == item {
+			return true
+		}
+	}
+	return false
+}
+
+func (a *arrayLib) Index(arr []interface{}, item interface{}) int {
+	for i, v := range arr {
+		if v == item {
+			return i
+		}
+	}
+	return -1
+}
+
+func (a *arrayLib) Reverse(arr []interface{}) []interface{} {
+	result := make([]interface{}, len(arr))
+	for i, v := range arr {
+		result[len(arr)-1-i] = v
+	}
+	return result
+}
+
+func (a *arrayLib) Unique(arr []interface{}) []interface{} {
+	seen := make(map[interface{}]bool)
+	result := []interface{}{}
+	for _, v := range arr {
+		if !seen[v] {
+			seen[v] = true
+			result = append(result, v)
+		}
+	}
+	return result
+}
+
+// 库实例
+var ArrayLib = &arrayLib{}

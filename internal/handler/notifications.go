@@ -41,11 +41,11 @@ func (h *Handlers) handleListNotifications(c *gin.Context) {
 		pageInt  int
 		sizeInt  int
 		filterBy = c.Query("filter")  // read / unread
-		title    = c.Query("title")   // 按标题查询
-		content  = c.Query("content") // 按内容查询
+		title    = c.Query("title")   // Query by title
+		content  = c.Query("content") // Query by content
 		layout   = "2006-01-02T15:04:05Z07:00"
-		startStr = c.Query("start_time") // 开始时间
-		endStr   = c.Query("end_time")   // 结束时间
+		startStr = c.Query("start_time") // Start time
+		endStr   = c.Query("end_time")   // End time
 		start    time.Time
 		end      time.Time
 	)
@@ -99,7 +99,7 @@ func (h *Handlers) handleAllNotifications(c *gin.Context) {
 	response.Success(c, "already mark all notifications", nil)
 }
 
-// handleMarkNotificationAsRead 将指定通知标记为已读
+// handleMarkNotificationAsRead marks specified notification as read
 func (h *Handlers) handleMarkNotificationAsRead(c *gin.Context) {
 	user := models.CurrentUser(c)
 	if user == nil {
@@ -107,7 +107,7 @@ func (h *Handlers) handleMarkNotificationAsRead(c *gin.Context) {
 		return
 	}
 
-	// 获取路径参数中的 notification ID
+	// Get notification ID from path parameter
 	idStr := c.Param("id")
 	var notificationID uint
 	_, err := fmt.Sscanf(idStr, "%d", &notificationID)
@@ -122,7 +122,7 @@ func (h *Handlers) handleMarkNotificationAsRead(c *gin.Context) {
 		return
 	}
 
-	// 调用服务层标记为已读
+	// Call service layer to mark as read
 	err = notification.NewInternalNotificationService(h.db).MarkAsRead(notificationID)
 	if err != nil {
 		response.AbortWithStatusJSON(c, http.StatusInternalServerError, err)
@@ -152,7 +152,7 @@ func (h *Handlers) handleDeleteNotification(c *gin.Context) {
 	response.Success(c, "Notification deleted", nil)
 }
 
-// handleBatchDeleteNotifications 批量删除通知
+// handleBatchDeleteNotifications batch deletes notifications
 func (h *Handlers) handleBatchDeleteNotifications(c *gin.Context) {
 	user := models.CurrentUser(c)
 	if user == nil {
@@ -187,7 +187,7 @@ func (h *Handlers) handleBatchDeleteNotifications(c *gin.Context) {
 	})
 }
 
-// handleGetAllNotificationIds 获取所有通知ID（用于全选功能）
+// handleGetAllNotificationIds gets all notification IDs (for select all functionality)
 func (h *Handlers) handleGetAllNotificationIds(c *gin.Context) {
 	user := models.CurrentUser(c)
 	if user == nil {
@@ -197,11 +197,11 @@ func (h *Handlers) handleGetAllNotificationIds(c *gin.Context) {
 
 	var (
 		filterBy = c.Query("filter")  // read / unread
-		title    = c.Query("title")   // 按标题查询
-		content  = c.Query("content") // 按内容查询
+		title    = c.Query("title")   // Query by title
+		content  = c.Query("content") // Query by content
 		layout   = "2006-01-02T15:04:05Z07:00"
-		startStr = c.Query("start_time") // 开始时间
-		endStr   = c.Query("end_time")   // 结束时间
+		startStr = c.Query("start_time") // Start time
+		endStr   = c.Query("end_time")   // End time
 		start    time.Time
 		end      time.Time
 	)

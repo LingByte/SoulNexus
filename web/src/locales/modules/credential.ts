@@ -77,6 +77,8 @@ export const credential: Record<Language, Record<string, string>> = {
     'credential.messages.updateSuccess': '凭证更新成功',
     'credential.messages.updateFailed': '更新凭证失败',
     'credential.messages.deleteConfirm': '确定要删除这个凭证吗？此操作不可恢复。',
+    'credential.deleteConfirmTitle': '删除密钥',
+    'credential.deleteConfirmMessage': '确定要删除密钥 "{name}" 吗？此操作不可恢复。',
   },
   en: {
     // CredentialManager Page
@@ -154,6 +156,8 @@ export const credential: Record<Language, Record<string, string>> = {
     'credential.messages.updateSuccess': 'Credential updated successfully',
     'credential.messages.updateFailed': 'Failed to update credential',
     'credential.messages.deleteConfirm': 'Are you sure you want to delete this credential? This action cannot be undone.',
+    'credential.deleteConfirmTitle': 'Delete Credential',
+    'credential.deleteConfirmMessage': 'Are you sure you want to delete the credential "{name}"? This action cannot be undone.',
   },
   ja: {
     // 認証情報管理ページ
@@ -231,5 +235,7 @@ export const credential: Record<Language, Record<string, string>> = {
     'credential.messages.updateSuccess': '認証情報が正常に更新されました',
     'credential.messages.updateFailed': '認証情報の更新に失敗しました',
     'credential.messages.deleteConfirm': 'この認証情報を削除してもよろしいですか？この操作は元に戻せません。',
+    'credential.deleteConfirmTitle': '認証情報を削除',
+    'credential.deleteConfirmMessage': '認証情報 "{name}" を削除してもよろしいですか？この操作は元に戻せません。',
   }
 }

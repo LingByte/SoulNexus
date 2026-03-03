@@ -143,6 +143,21 @@ func TestCreateJSTemplate(t *testing.T) {
 	err = CreateJSTemplate(db, template2)
 	require.NoError(t, err)
 	assert.NotEmpty(t, template2.JsSourceID)
+
+	// Test auto-generate ID
+	template3 := &JSTemplate{
+		ID:         "", // Empty ID should be auto-generated
+		JsSourceID: "",
+		Name:       "Test Template 3",
+		Type:       "custom",
+		UserID:     user.ID,
+	}
+	err = CreateJSTemplate(db, template3)
+	require.NoError(t, err)
+	assert.NotEmpty(t, template3.ID)
+	assert.NotEmpty(t, template3.JsSourceID)
+	// Verify ID is in UUID format (contains hyphens)
+	assert.Contains(t, template3.ID, "-")
 }
 
 func TestGetJSTemplateByJsSourceID(t *testing.T) {

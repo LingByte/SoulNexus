@@ -11,27 +11,20 @@ import (
 )
 
 type LogConfig struct {
-	Level      string       `mapstructure:"level"`
-	Filename   string       `mapstructure:"filename"`
-	MaxSize    int          `mapstructure:"max_size"`
-	MaxAge     int          `mapstructure:"max_age"`
-	MaxBackups int          `mapstructure:"max_backups"`
-	Daily      bool         `mapstructure:"daily"`
-	Alert      *AlertConfig `mapstructure:"alert"`
+	Level      string `mapstructure:"level"`
+	Filename   string `mapstructure:"filename"`
+	MaxSize    int    `mapstructure:"max_size"`
+	MaxAge     int    `mapstructure:"max_age"`
+	MaxBackups int    `mapstructure:"max_backups"`
+	Daily      bool   `mapstructure:"daily"`
 }
 
 var (
-	Lg           *zap.Logger
-	alertManager *AlertManager
+	Lg *zap.Logger
 )
 
-// Init 初始化lg（兼容旧版本）
+// Init 初始化logger
 func Init(cfg *LogConfig, mode string) (err error) {
-	return InitWithAlert(cfg, mode, nil)
-}
-
-// InitWithAlert 初始化logger和预警功能
-func InitWithAlert(cfg *LogConfig, mode string, notifiers []NotificationService) (err error) {
 	writeSyncer := getLogWriter(cfg.Filename, cfg.MaxSize, cfg.MaxBackups, cfg.MaxAge, cfg.Daily)
 	encoder := getEncoder()
 	var l = new(zapcore.Level)
@@ -96,13 +89,7 @@ func InitWithAlert(cfg *LogConfig, mode string, notifiers []NotificationService)
 
 	zap.ReplaceGlobals(Lg) // 替换zap包全局的logger
 
-	// 初始化预警管理器
-	if cfg.Alert != nil && cfg.Alert.Enabled && notifiers != nil {
-		alertManager = NewAlertManager(cfg.Alert, notifiers...)
-		Info("init logger with alert manager success")
-	} else {
-		Info("init logger success")
-	}
+	Info("init logger success")
 	return
 }
 
@@ -143,27 +130,11 @@ func Info(msg string, fields ...zap.Field) {
 // Warn 通用 warn 日志方法
 func Warn(msg string, fields ...zap.Field) {
 	Lg.Warn(msg, fields...)
-	// 检查预警
-	if alertManager != nil {
-		alertManager.CheckAndAlert(zapcore.WarnLevel, zapcore.Entry{
-			Level:   zapcore.WarnLevel,
-			Time:    time.Now(),
-			Message: msg,
-		}, fields)
-	}
 }
 
 // Error 通用 error 日志方法
 func Error(msg string, fields ...zap.Field) {
 	Lg.Error(msg, fields...)
-	// 检查预警
-	if alertManager != nil {
-		alertManager.CheckAndAlert(zapcore.ErrorLevel, zapcore.Entry{
-			Level:   zapcore.ErrorLevel,
-			Time:    time.Now(),
-			Message: msg,
-		}, fields)
-	}
 }
 
 // Debug 通用 debug 日志方法
@@ -184,26 +155,6 @@ func Panic(msg string, fields ...zap.Field) {
 // Sync 刷新缓冲区
 func Sync() {
 	_ = Lg.Sync()
-}
-
-// GetAlertStats 获取预警统计信息
-func GetAlertStats() *AlertStats {
-	if alertManager != nil {
-		return alertManager.GetStats()
-	}
-	return nil
-}
-
-// ResetAlertStats 重置预警统计
-func ResetAlertStats() {
-	if alertManager != nil {
-		alertManager.ResetStats()
-	}
-}
-
-// IsAlertEnabled 检查预警功能是否启用
-func IsAlertEnabled() bool {
-	return alertManager != nil
 }
 
 // GetDailyLogFilename 获取按日期分割的日志文件名

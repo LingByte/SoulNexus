@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/LingByte/SoulNexus/pkg/config"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 )
@@ -15,25 +16,39 @@ func setupTestRouter() (*gin.Engine, *MonitorAPI) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 
-	config := &MonitorConfig{
+	// 初始化全局配置
+	config.GlobalConfig = &config.Config{
+		Server: config.ServerConfig{
+			Name: "TestServer",
+		},
+	}
+
+	monitorConfig := &MonitorConfig{
 		EnableMetrics:       false,
 		EnableTracing:       true,
 		EnableSQLAnalysis:   true,
 		EnableSystemMonitor: true,
 		MonitorInterval:     100 * time.Millisecond, // Shorter interval for tests
 	}
-	monitor := NewMonitor(config)
+	monitor := NewMonitor(monitorConfig)
 	api := NewMonitorAPI(monitor)
 
 	return router, api
 }
 
 func TestNewMonitorAPI(t *testing.T) {
-	config := &MonitorConfig{
+	// 初始化全局配置
+	config.GlobalConfig = &config.Config{
+		Server: config.ServerConfig{
+			Name: "TestServer",
+		},
+	}
+
+	monitorConfig := &MonitorConfig{
 		EnableMetrics: false,
 		EnableTracing: true,
 	}
-	monitor := NewMonitor(config)
+	monitor := NewMonitor(monitorConfig)
 	api := NewMonitorAPI(monitor)
 
 	assert.NotNil(t, api)

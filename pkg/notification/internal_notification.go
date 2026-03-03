@@ -6,27 +6,27 @@ import (
 	"gorm.io/gorm"
 )
 
-// InternalNotification 站内通知
+// InternalNotification represents internal notification
 type InternalNotification struct {
-	ID        uint      `json:"id" gorm:"primaryKey"` // 通知 ID
-	UserID    uint      `json:"user_id"`              // 用户 ID
-	Title     string    `json:"title"`                // 通知标题
-	Content   string    `json:"content"`              // 通知内容
-	Read      bool      `json:"read"`                 // 是否已读
-	CreatedAt time.Time `json:"created_at"`           // 创建时间
+	ID        uint      `json:"id" gorm:"primaryKey"` // Notification ID
+	UserID    uint      `json:"user_id"`              // User ID
+	Title     string    `json:"title"`                // Notification title
+	Content   string    `json:"content"`              // Notification content
+	Read      bool      `json:"read"`                 // Whether read
+	CreatedAt time.Time `json:"created_at"`           // Creation time
 }
 
-// InternalNotificationService 站内通知服务
+// InternalNotificationService internal notification service
 type InternalNotificationService struct {
-	DB *gorm.DB // 数据库实例
+	DB *gorm.DB // Database instance
 }
 
-// NewInternalNotificationService 创建站内通知服务实例
+// NewInternalNotificationService creates internal notification service instance
 func NewInternalNotificationService(db *gorm.DB) *InternalNotificationService {
 	return &InternalNotificationService{DB: db}
 }
 
-// Send 发送站内通知
+// Send sends internal notification
 func (s *InternalNotificationService) Send(userID uint, title, content string) error {
 	notification := InternalNotification{
 		UserID:    userID,

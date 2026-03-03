@@ -754,9 +754,9 @@ func (s *MediaSession) SendToOutput(sender any, packet MediaPacket) {
 }
 
 func (s *MediaSession) AddMetric(key string, duration time.Duration) {
-	// Metrics功能已移除
+	// Metrics functionality has been removed
 
-	// Metrics功能已移除
+	// Metrics functionality has been removed
 	if s.trace != nil {
 		data := MediaData{
 			CreatedAt: time.Now(),

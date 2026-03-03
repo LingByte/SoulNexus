@@ -8,28 +8,28 @@ import (
 	"go.uber.org/zap"
 )
 
-// Event 系统事件
+// Event system event
 type Event struct {
-	Type      string                 `json:"type"`      // 事件类型，如 "user.created", "order.paid"
-	Timestamp time.Time              `json:"timestamp"` // 事件时间戳
-	Data      map[string]interface{} `json:"data"`      // 事件数据
-	Source    string                 `json:"source"`    // 事件来源
+	Type      string                 `json:"type"`      // Event type, e.g. "user.created", "order.paid"
+	Timestamp time.Time              `json:"timestamp"` // Event timestamp
+	Data      map[string]interface{} `json:"data"`      // Event data
+	Source    string                 `json:"source"`    // Event source
 }
 
-// EventHandler 事件处理器
+// EventHandler event handler function
 type EventHandler func(event Event) error
 
-// EventBus 事件总线
+// EventBus event bus
 type EventBus struct {
 	handlers       map[string][]EventHandler
-	publishedTypes map[string]time.Time // 记录所有发布过的事件类型及其首次发布时间
+	publishedTypes map[string]time.Time // Record all published event types and their first publish time
 	mu             sync.RWMutex
 }
 
 var globalEventBus *EventBus
 var once sync.Once
 
-// GetEventBus 获取全局事件总线实例
+// GetEventBus gets global event bus instance
 func GetEventBus() *EventBus {
 	once.Do(func() {
 		globalEventBus = &EventBus{
@@ -40,7 +40,7 @@ func GetEventBus() *EventBus {
 	return globalEventBus
 }
 
-// Subscribe 订阅事件
+// Subscribe subscribes to events
 func (bus *EventBus) Subscribe(eventType string, handler EventHandler) {
 	bus.mu.Lock()
 	defer bus.mu.Unlock()
@@ -54,7 +54,7 @@ func (bus *EventBus) Subscribe(eventType string, handler EventHandler) {
 		zap.String("eventType", eventType))
 }
 
-// Unsubscribe 取消订阅（移除所有该类型的处理器）
+// Unsubscribe unsubscribes from events (removes all handlers for the type)
 func (bus *EventBus) Unsubscribe(eventType string) {
 	bus.mu.Lock()
 	defer bus.mu.Unlock()
@@ -64,14 +64,14 @@ func (bus *EventBus) Unsubscribe(eventType string) {
 		zap.String("eventType", eventType))
 }
 
-// Publish 发布事件
+// Publish publishes an event
 func (bus *EventBus) Publish(event Event) {
-	// 如果没有设置时间戳，使用当前时间
+	// If timestamp is not set, use current time
 	if event.Timestamp.IsZero() {
 		event.Timestamp = time.Now()
 	}
 
-	// 记录发布过的事件类型
+	// Record published event types
 	bus.mu.Lock()
 	if bus.publishedTypes == nil {
 		bus.publishedTypes = make(map[string]time.Time)
@@ -82,9 +82,9 @@ func (bus *EventBus) Publish(event Event) {
 	bus.mu.Unlock()
 
 	bus.mu.RLock()
-	// 获取所有匹配的处理器
+	// Get all matching handlers
 	handlers := bus.handlers[event.Type]
-	// 也处理通配符 "*"
+	// Also handle wildcard "*"
 	wildcardHandlers := bus.handlers["*"]
 
 	allHandlers := append(handlers, wildcardHandlers...)
@@ -100,7 +100,7 @@ func (bus *EventBus) Publish(event Event) {
 		zap.String("eventType", event.Type),
 		zap.Int("handlerCount", len(allHandlers)))
 
-	// 异步执行所有处理器
+	// Execute all handlers asynchronously
 	for _, handler := range allHandlers {
 		go func(h EventHandler) {
 			if err := h(event); err != nil {
@@ -112,7 +112,7 @@ func (bus *EventBus) Publish(event Event) {
 	}
 }
 
-// GetPublishedEventTypes 获取所有发布过的事件类型
+// GetPublishedEventTypes gets all published event types
 func (bus *EventBus) GetPublishedEventTypes() map[string]time.Time {
 	bus.mu.RLock()
 	defer bus.mu.RUnlock()
@@ -124,7 +124,7 @@ func (bus *EventBus) GetPublishedEventTypes() map[string]time.Time {
 	return result
 }
 
-// PublishEvent 便捷方法：发布事件
+// PublishEvent convenience method: publish event
 func PublishEvent(eventType string, data map[string]interface{}, source string) {
 	bus := GetEventBus()
 	bus.Publish(Event{

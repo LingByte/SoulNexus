@@ -22,12 +22,16 @@ import {
   LayoutDashboard, // 概览图标
   Phone, // 外呼中心图标
   Info, // 关于我们图标
+  Package, // 插件市场图标
+  Mic, // 声纹识别图标
+  Store, // MCP 广场图标
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import { useI18nStore } from '@/stores/i18nStore'
 import AuthModal from '../Auth/AuthModal'
 import Button from '../UI/Button'
 import { getGroupList, type Group } from '@/api/group'
+import { getSystemInit, type SystemInitInfo } from '@/api/system'
 import { prefetch } from '@/utils/prefetch'
 
 const Sidebar = () => {
@@ -38,6 +42,7 @@ const Sidebar = () => {
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [showDropdown, setShowDropdown] = useState(false)
   const [groups, setGroups] = useState<Group[]>([])
+  const [systemInfo, setSystemInfo] = useState<SystemInitInfo | null>(null)
   const navigate = useNavigate()
   const dropdownRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -74,6 +79,11 @@ const Sidebar = () => {
     }
   }, [isAuthenticated])
 
+  // 获取系统初始化信息
+  useEffect(() => {
+    fetchSystemInfo()
+  }, [])
+
   const fetchGroups = async () => {
     try {
       const res = await getGroupList()
@@ -83,12 +93,27 @@ const Sidebar = () => {
     }
   }
 
+  const fetchSystemInfo = async () => {
+    try {
+      const res = await getSystemInit()
+      if (res.code === 200) {
+        setSystemInfo(res.data)
+      }
+    } catch (err) {
+      console.error('获取系统信息失败', err)
+    }
+  }
+
   const navigation = [
     ...(isAuthenticated && groups.length > 0 ? [{ name: t('nav.sidebar.overview'), href: '/overview', icon: LayoutDashboard }] : []),
     { name: t('nav.sidebar.smartAssistant'), href: '/voice-assistant', icon: Bot },
     { name: t('nav.sidebar.voiceTraining'), href: '/voice-training', icon: Settings },
+    ...(systemInfo?.features?.voiceprintEnabled ? [{ name: t('voiceprint.title'), href: '/voiceprint-management', icon: Mic }] : []),
+    { name: t('nav.sidebar.mcpManagement'), href: '/mcp-management', icon: Package },
+    { name: t('nav.sidebar.mcpMarketplace'), href: '/mcp-marketplace', icon: Store },
     { name: t('nav.sidebar.knowledgeBase'), href: '/knowledge', icon: Library },
     { name: t('nav.sidebar.workflow'), href: '/workflows', icon: GitBranch },
+    { name: t('nav.sidebar.pluginMarket'), href: '/node-plugins', icon: Package },
     { name: t('nav.sidebar.notification'), href: '/notification', icon: Bell},
     { name: t('nav.sidebar.alerts'), href: '/alerts', icon: AlertTriangle },
     { name: t('nav.sidebar.jsTemplate'), href: '/js-templates', icon: Component },
@@ -102,7 +127,7 @@ const Sidebar = () => {
 
   const publicNavs = [t('nav.docs'), t('nav.about')]
   // 受保护页面名称
-  const privateNavs = [t('nav.sidebar.overview'), t('nav.sidebar.smartAssistant'), t('nav.sidebar.voiceTraining'), t('nav.sidebar.knowledgeBase'), t('nav.sidebar.workflow'), t('nav.sidebar.notification'), t('nav.sidebar.alerts'), t('nav.sidebar.jsTemplate'), t('nav.sidebar.billing'), t('nav.sidebar.groups'), t('nav.sidebar.deviceManagement'), t('nav.sidebar.callCenter')]
+  const privateNavs = [t('nav.sidebar.overview'), t('nav.sidebar.smartAssistant'), t('nav.sidebar.voiceTraining'), t('voiceprint.title'), t('nav.sidebar.knowledgeBase'), t('nav.sidebar.workflow'), t('nav.sidebar.pluginMarket'), t('nav.sidebar.notification'), t('nav.sidebar.alerts'), t('nav.sidebar.jsTemplate'), t('nav.sidebar.billing'), t('nav.sidebar.groups'), t('nav.sidebar.deviceManagement'), t('nav.sidebar.callCenter'), t('nav.sidebar.mcpManagement'), t('nav.sidebar.mcpMarketplace')]
 
   const isActive = (path: string) => location.pathname === path
 
@@ -115,7 +140,7 @@ const Sidebar = () => {
           <Link to="/" className="flex items-center gap-2">
             <img
               src="https://cetide-1325039295.cos.ap-chengdu.myqcloud.com/folder/icon-192x192.ico"
-              alt="SoulNexus Logo"
+              alt="LingEcho Logo"
               className="w-6 h-8 rounded"
             />
             <span
@@ -477,7 +502,7 @@ const Sidebar = () => {
           <Link to="/" className="flex items-center gap-2 flex-shrink-0">
             <img
               src="https://cetide-1325039295.cos.ap-chengdu.myqcloud.com/folder/icon-192x192.ico"
-              alt="SoulNexus Logo"
+              alt="LingEcho Logo"
               className="w-6 h-8 rounded"
             />
             <span className="text-sm font-extrabold tracking-wider">

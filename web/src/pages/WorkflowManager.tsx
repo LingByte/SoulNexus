@@ -1,14 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
-  ArrowLeft, 
-  Plus, 
-  Edit2, 
-  Trash2, 
   Search,
   FileText,
-  Grid3x3,
-  List,
   GitBranch,
   X,
   ChevronRight,
@@ -19,11 +13,8 @@ import {
   Calendar,
   Webhook,
   Bot,
-  Copy,
-  Check,
-  History,
-  RotateCcw,
-  GitCompare
+  Edit,
+  Trash2
 } from 'lucide-react'
 import Button from '@/components/UI/Button'
 import Card from '@/components/UI/Card'
@@ -33,6 +24,7 @@ import Modal from '@/components/UI/Modal'
 import EmptyState from '@/components/UI/EmptyState'
 import WorkflowEditor, { Workflow, WorkflowConnection } from '@/components/Voice/WorkflowEditor'
 import Terminal, { TerminalLog } from '@/components/Workflow/Terminal'
+import { showAlert } from '@/utils/notification'
 import workflowService, { 
   WorkflowDefinition, 
   WorkflowGraph, 
@@ -46,7 +38,6 @@ import workflowService, {
   WorkflowVersion,
   WorkflowVersionCompareResponse
 } from '@/api/workflow'
-import { createNotification } from '@/utils/notification'
 import { buildWebSocketURL } from '@/config/apiConfig'
 
 // 根据后端模型定义的类型（从 API 导入）
@@ -69,6 +60,8 @@ const WorkflowManager: React.FC = () => {
   const [saving, setSaving] = useState(false)
   const [terminalLogs, setTerminalLogs] = useState<TerminalLog[]>([])
   const [isTerminalVisible, setIsTerminalVisible] = useState(false)
+  const [currentInstanceId, setCurrentInstanceId] = useState<number | null>(null)
+  const [isRunning, setIsRunning] = useState(false)
   const [showTriggerConfig, setShowTriggerConfig] = useState(false)
   const [triggerConfig, setTriggerConfig] = useState<WorkflowDefinition['triggers']>({})
   const wsRef = useRef<WebSocket | null>(null)
@@ -80,16 +73,21 @@ const WorkflowManager: React.FC = () => {
   const [selectedVersion1, setSelectedVersion1] = useState<number | null>(null)
   const [selectedVersion2, setSelectedVersion2] = useState<number | null>(null)
   const [changeNote, setChangeNote] = useState('')
+  const [showParametersPanel, setShowParametersPanel] = useState(false)
+  const [inputParameters, setInputParameters] = useState<any[]>([])
+  const [outputParameters, setOutputParameters] = useState<any[]>([])
 
   // 加载工作流列表
   useEffect(() => {
     loadWorkflows()
   }, [selectedStatus, searchTerm])
 
-  // 当选中工作流时，初始化触发器配置
+  // 当选中工作流时，初始化触发器配置和参数
   useEffect(() => {
     if (selectedWorkflow) {
       setTriggerConfig(selectedWorkflow.triggers || {})
+      setInputParameters(selectedWorkflow.inputParameters || [])
+      setOutputParameters(selectedWorkflow.outputParameters || [])
     }
   }, [selectedWorkflow])
 
@@ -212,28 +210,16 @@ const WorkflowManager: React.FC = () => {
         setVersions(response.data || [])
         console.log('版本列表:', response.data) // 调试日志
         if (!response.data || response.data.length === 0) {
-          const notification = createNotification()
-          notification.info({
-            title: '提示',
-            message: '该工作流暂无版本历史记录。创建或更新工作流时会自动保存版本。'
-          })
+          showAlert('该工作流暂无版本历史记录。创建或更新工作流时会自动保存版本。', 'info', '提示')
         }
       } else {
         setError(response.msg || '加载版本历史失败')
-        const notification = createNotification()
-        notification.error({
-          title: '加载失败',
-          message: response.msg || '加载版本历史失败'
-        })
+        showAlert(response.msg || '加载版本历史失败', 'error', '加载失败')
       }
     } catch (err: any) {
       console.error('加载版本历史错误:', err) // 调试日志
       setError(err.msg || err.message || '加载版本历史失败')
-      const notification = createNotification()
-      notification.error({
-        title: '加载失败',
-        message: err.msg || err.message || '加载版本历史失败'
-      })
+      showAlert(err.msg || err.message || '加载版本历史失败', 'error', '加载失败')
     } finally {
       setLoadingVersions(false)
     }
@@ -271,11 +257,7 @@ const WorkflowManager: React.FC = () => {
           }
         }
         setShowVersionHistory(false)
-        const notification = createNotification()
-        notification.success({
-          title: '回滚成功',
-          message: '工作流已成功回滚到指定版本'
-        })
+        showAlert('工作流已成功回滚到指定版本', 'success', '回滚成功')
       } else {
         setError(response.msg || '回滚失败')
       }
@@ -401,7 +383,6 @@ const WorkflowManager: React.FC = () => {
             <Button 
               variant="ghost"
               size="sm"
-              leftIcon={<ArrowLeft className="w-4 h-4" />}
               onClick={() => setSelectedWorkflow(null)}
             >
               返回
@@ -420,7 +401,6 @@ const WorkflowManager: React.FC = () => {
             <Button
               variant="ghost"
               size="sm"
-              leftIcon={<History className="w-4 h-4" />}
               onClick={async () => {
                 console.log('点击版本历史按钮，工作流ID:', selectedWorkflow.id)
                 await loadVersions(selectedWorkflow.id)
@@ -437,7 +417,6 @@ const WorkflowManager: React.FC = () => {
             <Button
               variant="outline"
               size="sm"
-              leftIcon={<Zap className="w-4 h-4" />}
               onClick={() => setShowTriggerConfig(true)}
             >
               触发器配置
@@ -460,7 +439,7 @@ const WorkflowManager: React.FC = () => {
                 nodes: selectedWorkflow.definition.nodes.map(n => {
                   // 节点类型直接使用后端定义的类型，不需要映射
                   // WorkflowEditor 现在支持所有后端节点类型
-                  const nodeType = n.type as 'start' | 'end' | 'task' | 'gateway' | 'event' | 'subflow' | 'parallel' | 'wait' | 'timer' | 'script'
+                  const nodeType = n.type as 'start' | 'end' | 'task' | 'gateway' | 'event' | 'subflow' | 'parallel' | 'wait' | 'timer' | 'script' | 'workflow_plugin' | 'ai_chat'
                   
                   // 根据节点类型生成输入输出
                   // 使用默认配置：start 0输入1输出，end 1输入0输出，其他1输入1输出，condition/gateway/parallel 1输入2输出
@@ -486,6 +465,10 @@ const WorkflowManager: React.FC = () => {
                   const inputKeys = Object.keys(n.inputMap || {})
                   const outputKeys = Object.keys(n.outputMap || {})
                   
+                  // 提取 pluginId 到顶层 data 对象（用于渲染时查找插件）
+                  const pluginIdStr = n.properties?.pluginId || n.properties?.['pluginId']
+                  const pluginId = pluginIdStr ? (typeof pluginIdStr === 'string' ? parseInt(pluginIdStr, 10) : pluginIdStr) : undefined
+                  
                   return {
                     id: n.id,
                     type: nodeType,
@@ -495,7 +478,9 @@ const WorkflowManager: React.FC = () => {
                       config: n.properties || {},
                       // 保存原始的 inputMap 和 outputMap，以便在保存时恢复
                       _inputMap: n.inputMap,
-                      _outputMap: n.outputMap
+                      _outputMap: n.outputMap,
+                      // 为 workflow_plugin 节点提取 pluginId
+                      ...(n.type === 'workflow_plugin' && pluginId ? { pluginId } : {})
                     },
                     inputs: inputKeys.length > 0 
                       ? inputKeys
@@ -544,11 +529,7 @@ const WorkflowManager: React.FC = () => {
               }}
               onSave={async (workflow: Workflow) => {
                 if (!selectedWorkflow) {
-                  const notification = createNotification()
-                  notification.error({
-                    title: '保存失败',
-                    message: '没有选中的工作流'
-                  })
+                  showAlert('没有选中的工作流', 'error', '保存失败')
                   return
                 }
                 
@@ -582,20 +563,101 @@ const WorkflowManager: React.FC = () => {
                         if (node.outputs && node.outputs.length > 0) {
                           node.outputs.forEach((output) => {
                             if (output && output.trim()) {
-                              // 对于结束节点，输出参数名定义最终结果的字段名称
-                              // source 留空，系统会自动从上游节点获取数据
-                              outputMap[output] = output
+                              // 对于结束节点，尝试从上游节点获取对应的输出
+                              // 首先查找连接到结束节点的边
+                              const incomingEdge = workflow.connections.find(conn => conn.target === node.id)
+                              if (incomingEdge) {
+                                const sourceNode = workflow.nodes.find(n => n.id === incomingEdge.source)
+                                if (sourceNode) {
+                                  if (sourceNode.type === 'ai_chat') {
+                                    // 如果上游是 AI 对话节点，使用其 outputVariable
+                                    const outputVar = sourceNode.data.config?.outputVariable
+                                    if (outputVar) {
+                                      outputMap[output] = `${sourceNode.id}.${outputVar}`
+                                    } else {
+                                      outputMap[output] = output
+                                    }
+                                  } else if (sourceNode.type === 'workflow_plugin' || sourceNode.type === 'script') {
+                                    // 如果上游是工作流插件或脚本节点，使用 nodeId.outputName 格式
+                                    outputMap[output] = `${sourceNode.id}.${output}`
+                                  } else {
+                                    // 其他节点类型，使用默认逻辑
+                                    outputMap[output] = output
+                                  }
+                                } else {
+                                  // 没有找到上游节点，使用默认逻辑
+                                  outputMap[output] = output
+                                }
+                              } else {
+                                // 没有找到上游节点，使用默认逻辑
+                                outputMap[output] = output
+                              }
                             }
                           })
+                        }
+                      } else if (node.type === 'ai_chat') {
+                        // AI对话节点：使用 inputVariable 和 outputVariable
+                        // inputVariable 是从上游节点获取数据的源
+                        // outputVariable 是保存 AI 响应的目标变量名
+                        const inputVar = node.data.config?.inputVariable
+                        const outputVar = node.data.config?.outputVariable
+                        
+                        // inputMap: 将输入参数别名映射到源
+                        // 对于 AI 对话节点，我们使用 inputVariable 作为别名
+                        if (inputVar) {
+                          inputMap[inputVar] = inputVar
+                        }
+                        
+                        // outputMap: 将输出参数别名映射到目标
+                        // 对于 AI 对话节点，我们使用 outputVariable 作为别名
+                        if (outputVar) {
+                          outputMap[outputVar] = `${node.id}.${outputVar}`
                         }
                       } else {
                         // 其他节点：处理输入和输出参数
                         if (node.inputs && node.inputs.length > 0) {
                           node.inputs.forEach((input) => {
                             if (input && input.trim()) {
-                              // 默认情况下，source 就是参数名本身
-                              // 实际运行时，系统会尝试从上下文解析这个值
-                              inputMap[input] = input
+                              // 查找连接到此节点的上游节点
+                              const incomingEdge = workflow.connections.find(conn => conn.target === node.id)
+                              if (incomingEdge) {
+                                const sourceNode = workflow.nodes.find(n => n.id === incomingEdge.source)
+                                if (sourceNode) {
+                                  // 根据源节点类型确定输出参数名
+                                  let sourceOutput = input // 默认使用相同的参数名
+                                  
+                                  if (sourceNode.type === 'workflow_plugin') {
+                                    // 工作流插件节点：输出参数来自 outputMap
+                                    // 查找匹配的输出参数
+                                    const sourceOutputMap = sourceNode.data._outputMap || sourceNode.data.config?.outputMap || {}
+                                    // 尝试找到匹配的输出参数
+                                    for (const [key, value] of Object.entries(sourceOutputMap)) {
+                                      if (key === input || value === input) {
+                                        sourceOutput = key
+                                        break
+                                      }
+                                    }
+                                    // 如果没找到，使用第一个输出参数
+                                    if (!sourceOutput && sourceNode.outputs && sourceNode.outputs.length > 0) {
+                                      sourceOutput = sourceNode.outputs[0]
+                                    }
+                                    inputMap[input] = `${sourceNode.id}.${sourceOutput}`
+                                  } else if (sourceNode.type === 'ai_chat') {
+                                    // AI对话节点：使用 outputVariable
+                                    const outputVar = sourceNode.data.config?.outputVariable || 'ai_response'
+                                    inputMap[input] = `${sourceNode.id}.${outputVar}`
+                                  } else {
+                                    // 其他节点类型：使用 nodeId.outputName 格式
+                                    inputMap[input] = `${sourceNode.id}.${sourceOutput}`
+                                  }
+                                } else {
+                                  // 找不到源节点，使用默认值
+                                  inputMap[input] = input
+                                }
+                              } else {
+                                // 没有上游连接，使用默认值
+                                inputMap[input] = input
+                              }
                             }
                           })
                         }
@@ -617,7 +679,12 @@ const WorkflowManager: React.FC = () => {
                         for (const [key, value] of Object.entries(node.data.config)) {
                           // Convert all values to strings for properties
                           if (value !== null && value !== undefined) {
-                            properties[key] = String(value)
+                            // Special handling for parameters object in workflow plugin nodes
+                            if (key === 'parameters' && typeof value === 'object') {
+                              properties[key] = JSON.stringify(value)
+                            } else {
+                              properties[key] = String(value)
+                            }
                           }
                         }
                       }
@@ -641,8 +708,8 @@ const WorkflowManager: React.FC = () => {
                       
                       const sourceNode = workflow.nodes.find(n => n.id === conn.source)
                       if (sourceNode) {
-                        if (sourceNode.type === 'condition' || sourceNode.type === 'gateway') {
-                          // 对于 condition/gateway 节点，根据 sourceHandle 确定类型
+                        if (sourceNode.type === 'gateway') {
+                          // 对于 gateway 节点，根据 sourceHandle 确定类型
                           const outputIndex = sourceNode.outputs.findIndex(o => o === conn.sourceHandle)
                           if (outputIndex === 0) {
                             edgeType = 'true'
@@ -674,7 +741,9 @@ const WorkflowManager: React.FC = () => {
                     definition: updatedDefinition,
                     triggers: triggerConfig,
                     version: selectedWorkflow.version, // 必须提供当前版本号
-                    changeNote: changeNote || ''
+                    changeNote: changeNote || '',
+                    inputParameters: inputParameters,
+                    outputParameters: outputParameters
                   }
                   setChangeNote('') // 清空变更说明
                   
@@ -688,18 +757,10 @@ const WorkflowManager: React.FC = () => {
                     setSelectedWorkflow(response.data)
                     
                     // 显示成功提示
-                    const notification = createNotification()
-                    notification.success({
-                      title: '保存成功',
-                      message: '工作流已成功保存'
-                    })
+                    showAlert('工作流已成功保存', 'success', '保存成功')
                   } else {
                     setError(response.msg || '更新工作流失败')
-                    const notification = createNotification()
-                    notification.error({
-                      title: '保存失败',
-                      message: response.msg || '更新工作流失败'
-                    })
+                    showAlert(response.msg || '更新工作流失败', 'error', '保存失败')
                     
                     if (response.msg?.includes('version conflict')) {
                       // 版本冲突，重新加载数据
@@ -713,31 +774,47 @@ const WorkflowManager: React.FC = () => {
                   }
                 } catch (error: any) {
                   setError(error.msg || error.message || '保存工作流失败')
-                  const notification = createNotification()
-                  notification.error({
-                    title: '保存失败',
-                    message: error.msg || error.message || '保存工作流时发生错误'
-                  })
+                  showAlert(error.msg || error.message || '保存工作流时发生错误', 'error', '保存失败')
                   console.error('Failed to save workflow:', error)
                 } finally {
                   setSaving(false)
                 }
               }}
+              onStop={async (instanceId: number) => {
+                try {
+                  const response = await workflowService.stopInstance(instanceId)
+
+                  if (response.code === 200) {
+                    setIsRunning(false)
+                    setCurrentInstanceId(null)
+                    const now = new Date()
+                    const timestamp = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}.${now.getMilliseconds().toString().padStart(3, '0')}`
+                    setTerminalLogs(prev => [...prev, {
+                      timestamp,
+                      level: 'warning',
+                      message: '工作流已被用户停止'
+                    }])
+                    showAlert('工作流已停止', 'success', '停止成功')
+                  } else {
+                    console.error('Failed to stop workflow:', response.msg)
+                    showAlert(response.msg || '停止工作流失败', 'error', '停止失败')
+                  }
+                } catch (error: any) {
+                  console.error('Error stopping workflow:', error)
+                  showAlert(error.msg || error.message || '停止工作流时发生错误', 'error', '停止失败')
+                }
+              }}
+              isRunning={isRunning}
+              currentInstanceId={currentInstanceId}
               onRun={async (workflow, parameters = {}) => {
                 if (!selectedWorkflow) {
-                  const notification = createNotification()
-                  notification.error({
-                    title: '运行失败',
-                    message: '没有选中的工作流'
-                  })
+                  showAlert('没有选中的工作流', 'error', '运行失败')
                   return
                 }
                 
                 // 清空之前的日志并显示终端
                 setTerminalLogs([])
                 setIsTerminalVisible(true)
-                
-                const notification = createNotification()
                 
                 // 关闭之前的 WebSocket 连接
                 if (wsRef.current) {
@@ -747,7 +824,10 @@ const WorkflowManager: React.FC = () => {
                 
                 // 建立 WebSocket 连接以接收实时日志
                 try {
-                  const wsUrl = buildWebSocketURL('/api/ws')
+                  const token = localStorage.getItem('auth_token')
+                  const wsUrl = token 
+                    ? `${buildWebSocketURL('/api/ws')}?token=${encodeURIComponent(token)}`
+                    : buildWebSocketURL('/api/ws')
                   const ws = new WebSocket(wsUrl)
                   wsRef.current = ws
                   
@@ -845,6 +925,10 @@ const WorkflowManager: React.FC = () => {
                       throw new Error('无法解析工作流执行结果')
                     }
                     
+                    // 设置当前运行的实例ID和运行状态
+                    setCurrentInstanceId(instance.id)
+                    setIsRunning(true)
+                    
                     // 添加后端返回的日志
                     if (logs && logs.length > 0) {
                       const convertedLogs: TerminalLog[] = logs.map(log => ({
@@ -870,10 +954,9 @@ const WorkflowManager: React.FC = () => {
                         message: `工作流执行完成，耗时: ${duration}`
                       }])
                       
-                      notification.success({
-                        title: '运行成功',
-                        message: `工作流执行完成，耗时: ${duration}`
-                      })
+                      setIsRunning(false)
+                      setCurrentInstanceId(null)
+                      showAlert(`工作流执行完成，耗时: ${duration}`, 'success', '运行成功')
                     } else if (instance && instance.status === 'failed') {
                       const failedTime = new Date()
                       const failedTimestamp = `${failedTime.getHours().toString().padStart(2, '0')}:${failedTime.getMinutes().toString().padStart(2, '0')}:${failedTime.getSeconds().toString().padStart(2, '0')}.${failedTime.getMilliseconds().toString().padStart(3, '0')}`
@@ -883,11 +966,13 @@ const WorkflowManager: React.FC = () => {
                         message: instance.resultData?.error || '工作流执行失败'
                       }])
                       
-                      notification.error({
-                        title: '运行失败',
-                        message: instance.resultData?.error || '工作流执行失败'
-                      })
+                      setIsRunning(false)
+                      setCurrentInstanceId(null)
+                      showAlert(instance.resultData?.error || '工作流执行失败', 'error', '运行失败')
                     }
+                    
+                    // 返回实例信息供前端使用
+                    return { instance }
                   } else {
                     const errorTime = new Date()
                     const errorTimestamp = `${errorTime.getHours().toString().padStart(2, '0')}:${errorTime.getMinutes().toString().padStart(2, '0')}:${errorTime.getSeconds().toString().padStart(2, '0')}.${errorTime.getMilliseconds().toString().padStart(3, '0')}`
@@ -897,10 +982,7 @@ const WorkflowManager: React.FC = () => {
                       message: response.msg || '运行工作流时发生错误'
                     }])
                     
-                    notification.error({
-                      title: '运行失败',
-                      message: response.msg || '运行工作流时发生错误'
-                    })
+                    showAlert(response.msg || '运行工作流时发生错误', 'error', '运行失败')
                   }
                 } catch (error: any) {
                   const catchErrorTime = new Date()
@@ -911,10 +993,7 @@ const WorkflowManager: React.FC = () => {
                     message: error.msg || error.message || '运行工作流时发生错误'
                   }])
                   
-                  notification.error({
-                    title: '运行失败',
-                    message: error.msg || error.message || '运行工作流时发生错误'
-                  })
+                  showAlert(error.msg || error.message || '运行工作流时发生错误', 'error', '运行失败')
                   console.error('Failed to run workflow:', error)
                 } finally {
                   // 关闭 WebSocket 连接
@@ -948,73 +1027,270 @@ const WorkflowManager: React.FC = () => {
                       <X className="w-4 h-4" />
                     </Button>
             </div>
+            {/* 选项卡 */}
+            <div className="flex gap-2 mt-3">
+              <Button
+                variant={!showParametersPanel ? "primary" : "outline"}
+                size="xs"
+                onClick={() => setShowParametersPanel(false)}
+              >
+                基本信息
+              </Button>
+              <Button
+                variant={showParametersPanel ? "primary" : "outline"}
+                size="xs"
+                onClick={() => setShowParametersPanel(true)}
+              >
+                参数定义
+              </Button>
+            </div>
           </div>
                 <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                  {/* 变更说明输入框 */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      变更说明（可选）
-                    </label>
-                    <textarea
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
-                      rows={3}
-                      placeholder="描述本次更新的内容..."
-                      value={changeNote}
-                      onChange={(e) => setChangeNote(e.target.value)}
-                    />
-                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                      保存工作流时会自动创建版本历史记录
-                    </p>
-                  </div>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        工作流名称
-                      </label>
-                      <Input
-                        size="sm"
-                        value={selectedWorkflow.name}
-                        readOnly
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        描述
-                      </label>
-                      <textarea
-                        className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                        rows={3}
-                        value={selectedWorkflow.description}
-                        readOnly
-                      />
-                        </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        标签
-                      </label>
-                      <div className="flex flex-wrap gap-2">
-                        {selectedWorkflow.tags?.map((tag, idx) => (
-                          <Badge key={idx} variant="outline" size="xs">{tag}</Badge>
-                        ))}
+                  {!showParametersPanel ? (
+                    <>
+                      {/* 基本信息选项卡 */}
+                      {/* 变更说明输入框 */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          变更说明（可选）
+                        </label>
+                        <textarea
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                          rows={3}
+                          placeholder="描述本次更新的内容..."
+                          value={changeNote}
+                          onChange={(e) => setChangeNote(e.target.value)}
+                        />
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                          保存工作流时会自动创建版本历史记录
+                        </p>
                       </div>
-                  </div>
-                    <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-                      <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
-                        <div className="flex justify-between">
-                          <span>创建时间</span>
-                          <span>{formatDate(selectedWorkflow.createdAt)}</span>
-              </div>
-                        <div className="flex justify-between">
-                          <span>更新时间</span>
-                          <span>{formatDate(selectedWorkflow.updatedAt)}</span>
-        </div>
-                        <div className="flex justify-between">
-                          <span>创建者</span>
-                          <span>{selectedWorkflow.createdBy}</span>
-            </div>
-                    </div>
-                  </div>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            工作流名称
+                          </label>
+                          <Input
+                            size="sm"
+                            value={selectedWorkflow.name}
+                            readOnly
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            描述
+                          </label>
+                          <textarea
+                            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                            rows={3}
+                            value={selectedWorkflow.description}
+                            readOnly
+                          />
+                            </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            标签
+                          </label>
+                          <div className="flex flex-wrap gap-2">
+                            {selectedWorkflow.tags?.map((tag, idx) => (
+                              <Badge key={idx} variant="outline" size="xs">{tag}</Badge>
+                            ))}
+                          </div>
+                      </div>
+                        <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                          <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
+                            <div className="flex justify-between">
+                              <span>创建时间</span>
+                              <span>{formatDate(selectedWorkflow.createdAt)}</span>
                 </div>
+                            <div className="flex justify-between">
+                              <span>更新时间</span>
+                              <span>{formatDate(selectedWorkflow.updatedAt)}</span>
+            </div>
+                            <div className="flex justify-between">
+                              <span>创建者</span>
+                              <span>{selectedWorkflow.createdBy}</span>
+                </div>
+                        </div>
+                      </div>
+                    </div>
+                    </>
+                  ) : (
+                    <>
+                      {/* 参数定义选项卡 */}
+                      <div className="space-y-4">
+                        {/* 输入参数 */}
+                        <div>
+                          <div className="flex items-center justify-between mb-3">
+                            <h3 className="font-medium text-gray-900 dark:text-white">输入参数</h3>
+                            <Button
+                              variant="outline"
+                              size="xs"
+                              onClick={() => {
+                                setInputParameters([
+                                  ...inputParameters,
+                                  { name: '', type: 'string', required: false, description: '' }
+                                ])
+                              }}
+                            >
+                              添加
+                            </Button>
+                          </div>
+                          <div className="space-y-2 max-h-48 overflow-y-auto">
+                            {inputParameters.map((param, index) => (
+                              <div key={index} className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg">
+                                <div className="grid grid-cols-2 gap-2 mb-2">
+                                  <Input
+                                    size="sm"
+                                    placeholder="参数名"
+                                    value={param.name}
+                                    onChange={(e) => {
+                                      const newParams = [...inputParameters]
+                                      newParams[index] = { ...param, name: e.target.value }
+                                      setInputParameters(newParams)
+                                    }}
+                                  />
+                                  <select
+                                    value={param.type}
+                                    onChange={(e) => {
+                                      const newParams = [...inputParameters]
+                                      newParams[index] = { ...param, type: e.target.value }
+                                      setInputParameters(newParams)
+                                    }}
+                                    className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                  >
+                                    <option value="string">字符串</option>
+                                    <option value="number">数字</option>
+                                    <option value="boolean">布尔值</option>
+                                    <option value="object">对象</option>
+                                    <option value="array">数组</option>
+                                  </select>
+                                </div>
+                                <Input
+                                  size="sm"
+                                  placeholder="描述"
+                                  value={param.description}
+                                  onChange={(e) => {
+                                    const newParams = [...inputParameters]
+                                    newParams[index] = { ...param, description: e.target.value }
+                                    setInputParameters(newParams)
+                                  }}
+                                />
+                                <div className="flex items-center justify-between mt-2">
+                                  <label className="flex items-center text-xs gap-2">
+                                    <input
+                                      type="checkbox"
+                                      checked={param.required}
+                                      onChange={(e) => {
+                                        const newParams = [...inputParameters]
+                                        newParams[index] = { ...param, required: e.target.checked }
+                                        setInputParameters(newParams)
+                                      }}
+                                    />
+                                    <span>必需</span>
+                                  </label>
+                                  <Button
+                                    variant="outline"
+                                    size="xs"
+                                    onClick={() => {
+                                      setInputParameters(inputParameters.filter((_, i) => i !== index))
+                                    }}
+                                  >
+                                    删除
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* 输出参数 */}
+                        <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                          <div className="flex items-center justify-between mb-3">
+                            <h3 className="font-medium text-gray-900 dark:text-white">输出参数</h3>
+                            <Button
+                              variant="outline"
+                              size="xs"
+                              onClick={() => {
+                                setOutputParameters([
+                                  ...outputParameters,
+                                  { name: '', type: 'string', required: false, description: '' }
+                                ])
+                              }}
+                            >
+                              添加
+                            </Button>
+                          </div>
+                          <div className="space-y-2 max-h-48 overflow-y-auto">
+                            {outputParameters.map((param, index) => (
+                              <div key={index} className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg">
+                                <div className="grid grid-cols-2 gap-2 mb-2">
+                                  <Input
+                                    size="sm"
+                                    placeholder="参数名"
+                                    value={param.name}
+                                    onChange={(e) => {
+                                      const newParams = [...outputParameters]
+                                      newParams[index] = { ...param, name: e.target.value }
+                                      setOutputParameters(newParams)
+                                    }}
+                                  />
+                                  <select
+                                    value={param.type}
+                                    onChange={(e) => {
+                                      const newParams = [...outputParameters]
+                                      newParams[index] = { ...param, type: e.target.value }
+                                      setOutputParameters(newParams)
+                                    }}
+                                    className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                  >
+                                    <option value="string">字符串</option>
+                                    <option value="number">数字</option>
+                                    <option value="boolean">布尔值</option>
+                                    <option value="object">对象</option>
+                                    <option value="array">数组</option>
+                                  </select>
+                                </div>
+                                <Input
+                                  size="sm"
+                                  placeholder="描述"
+                                  value={param.description}
+                                  onChange={(e) => {
+                                    const newParams = [...outputParameters]
+                                    newParams[index] = { ...param, description: e.target.value }
+                                    setOutputParameters(newParams)
+                                  }}
+                                />
+                                <div className="flex items-center justify-between mt-2">
+                                  <label className="flex items-center text-xs gap-2">
+                                    <input
+                                      type="checkbox"
+                                      checked={param.required}
+                                      onChange={(e) => {
+                                        const newParams = [...outputParameters]
+                                        newParams[index] = { ...param, required: e.target.checked }
+                                        setOutputParameters(newParams)
+                                      }}
+                                    />
+                                    <span>必需</span>
+                                  </label>
+                                  <Button
+                                    variant="outline"
+                                    size="xs"
+                                    onClick={() => {
+                                      setOutputParameters(outputParameters.filter((_, i) => i !== index))
+                                    }}
+                                  >
+                                    删除
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               </motion.div>
             )}
@@ -1072,24 +1348,12 @@ const WorkflowManager: React.FC = () => {
                   setSelectedWorkflow(response.data)
                   setShowTriggerConfig(false)
                   
-                  const notification = createNotification()
-                  notification.success({
-                    title: '保存成功',
-                    message: '触发器配置已保存'
-                  })
+                  showAlert('触发器配置已保存', 'success', '保存成功')
                 } else {
-                  const notification = createNotification()
-                  notification.error({
-                    title: '保存失败',
-                    message: response.msg || '保存触发器配置失败'
-                  })
+                  showAlert(response.msg || '保存触发器配置失败', 'error', '保存失败')
                 }
               } catch (error: any) {
-                const notification = createNotification()
-                notification.error({
-                  title: '保存失败',
-                  message: error.msg || error.message || '保存触发器配置时发生错误'
-                })
+                showAlert(error.msg || error.message || '保存触发器配置时发生错误', 'error', '保存失败')
               } finally {
                 setSaving(false)
               }
@@ -1139,7 +1403,6 @@ const WorkflowManager: React.FC = () => {
                         <Button
                           variant="ghost"
                           size="xs"
-                          leftIcon={<GitCompare className="w-3 h-3" />}
                           onClick={() => {
                             if (selectedVersion1 === null) {
                               setSelectedVersion1(version.id)
@@ -1159,7 +1422,6 @@ const WorkflowManager: React.FC = () => {
                         <Button
                           variant="ghost"
                           size="xs"
-                          leftIcon={<RotateCcw className="w-3 h-3" />}
                           onClick={() => {
                             if (selectedWorkflow) {
                               handleRollback(selectedWorkflow.id, version.id)
@@ -1353,7 +1615,6 @@ const WorkflowManager: React.FC = () => {
                   e.stopPropagation()
                   setViewMode('grid')
                 }}
-                leftIcon={<Grid3x3 className="w-4 h-4" />}
               >
                 网格
               </Button>
@@ -1365,13 +1626,11 @@ const WorkflowManager: React.FC = () => {
                   e.stopPropagation()
                   setViewMode('list')
                 }}
-                leftIcon={<List className="w-4 h-4" />}
               >
                 列表
               </Button>
               <Button
                 variant="primary"
-                leftIcon={<Plus className="w-4 h-4" />}
                 onClick={handleCreate}
               >
                 创建工作流
@@ -1498,28 +1757,26 @@ const WorkflowManager: React.FC = () => {
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="xs"
-                        leftIcon={<Edit2 className="w-3 h-3" />}
+                      <button
                         onClick={(e) => {
                           e.stopPropagation()
                           handleEdit(workflow)
                         }}
+                        className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
                       >
+                        <Edit className="w-3 h-3" />
                         编辑
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="xs"
-                        leftIcon={<Trash2 className="w-3 h-3" />}
+                      </button>
+                      <button
                         onClick={(e) => {
                           e.stopPropagation()
                           handleDelete(workflow.id)
                         }}
+                        className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
                       >
+                        <Trash2 className="w-3 h-3" />
                         删除
-                      </Button>
+                      </button>
               </div>
                   </div>
                 </Card>
@@ -1564,28 +1821,26 @@ const WorkflowManager: React.FC = () => {
                       </div>
                     </div>
                     <div className="flex items-center gap-1 ml-4">
-                      <Button
-                        variant="ghost"
-                        size="xs"
-                        leftIcon={<Edit2 className="w-3 h-3" />}
+                      <button
                         onClick={(e) => {
                           e.stopPropagation()
                           handleEdit(workflow)
                         }}
+                        className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
                       >
+                        <Edit className="w-3 h-3" />
                         编辑
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="xs"
-                        leftIcon={<Trash2 className="w-3 h-3" />}
+                      </button>
+                      <button
                         onClick={(e) => {
                           e.stopPropagation()
                           handleDelete(workflow.id)
                         }}
+                        className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
                       >
+                        <Trash2 className="w-3 h-3" />
                         删除
-                      </Button>
+                      </button>
                     </div>
                   </div>
           </motion.div>
@@ -1770,7 +2025,6 @@ const TriggerConfigPanel: React.FC<TriggerConfigPanelProps> = ({
                       variant="outline"
                       size="sm"
                       onClick={copyAPIKey}
-                      leftIcon={copiedKey ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                     >
                       {copiedKey ? '已复制' : '复制'}
                     </Button>
@@ -1931,13 +2185,8 @@ const TriggerConfigPanel: React.FC<TriggerConfigPanelProps> = ({
                   size="sm"
                   onClick={() => {
                     navigator.clipboard.writeText(getWebhookURL())
-                    const notification = createNotification()
-                    notification.success({
-                      title: '已复制',
-                      message: 'Webhook URL 已复制到剪贴板'
-                    })
+                    showAlert('Webhook URL 已复制到剪贴板', 'success', '已复制')
                   }}
-                  leftIcon={<Copy className="w-4 h-4" />}
                 >
                   复制
                 </Button>

@@ -65,6 +65,24 @@ func GetIntEnv(key string) int64 {
 	return v
 }
 
+// GetFloatEnvWithDefault gets float environment variable with default value
+func GetFloatEnvWithDefault(key string, defaultValue float64) float64 {
+	v := GetFloatEnv(key)
+	if v == 0 {
+		return defaultValue
+	}
+	return v
+}
+
+// GetIntEnvWithDefault gets int environment variable with default value
+func GetIntEnvWithDefault(key string, defaultValue int) int {
+	v := GetIntEnv(key)
+	if v == 0 {
+		return defaultValue
+	}
+	return int(v)
+}
+
 func LookupEnv(key string) (value string, found bool) {
 	key = strings.ToUpper(key)
 	if v, ok := os.LookupEnv(key); ok {

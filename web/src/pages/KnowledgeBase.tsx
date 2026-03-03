@@ -1,6 +1,7 @@
 // src/pages/KnowledgeBase.tsx
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Search, FileText, BookOpen, Upload, Building2, MessageSquare } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { showAlert } from '@/utils/notification'
 import { useI18nStore } from '@/stores/i18nStore'
 import { useAuthStore } from '@/stores/authStore'
@@ -39,6 +40,7 @@ interface KnowledgeBaseItem {
 
 const KnowledgeBase = () => {
     const { t } = useI18nStore()
+    const navigate = useNavigate()
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
     const [pendingDeleteKey, setPendingDeleteKey] = useState<string>('');
     const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBaseItem[]>([]);
@@ -51,12 +53,13 @@ const KnowledgeBase = () => {
     const [isCreating, setIsCreating] = useState(false);
     const [formData, setFormData] = useState({
         knowledgeName: '',
+        provider: 'aliyun',
         shareToGroup: false,
         selectedGroupId: null as number | null
     });
     const [groups, setGroups] = useState<Group[]>([]);
-    const [file, setFile] = useState<File | null>(null);
     const [uploadFile, setUploadFile] = useState<File | null>(null);
+    const [uploadFiles, setUploadFiles] = useState<File[]>([]);
     const [question, setQuestion] = useState('');
     const [answer, setAnswer] = useState('');
     const [isLoading, setIsLoading] = useState(true);
@@ -77,7 +80,7 @@ const KnowledgeBase = () => {
         try {
             const res = await getGroupList()
             // 只显示用户是创建者或管理员的组织
-            const adminGroups = res.data.filter((g: Group) => {
+            const adminGroups = (res.data || []).filter((g: Group) => {
                 const userIdNum = user?.id ? Number(user.id) : null
                 return g.creatorId === userIdNum || g.myRole === 'admin'
             })
@@ -160,10 +163,10 @@ const KnowledgeBase = () => {
         setCurrentItem(null);
         setFormData({
             knowledgeName: '',
+            provider: 'aliyun',
             shareToGroup: false,
             selectedGroupId: null
         });
-        setFile(null);
         setIsCreateModalOpen(true);
     };
 
@@ -209,8 +212,9 @@ const KnowledgeBase = () => {
     const handleCreateSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (!file) {
-            showAlert(t('knowledgeBase.messages.selectFile'), 'warning', t('knowledgeBase.messages.selectFile'));
+        // 只需要知识库名称
+        if (!formData.knowledgeName) {
+            showAlert(t('knowledgeBase.messages.nameRequired'), 'warning', t('knowledgeBase.messages.nameRequired'));
             return;
         }
 
@@ -224,7 +228,8 @@ const KnowledgeBase = () => {
             setIsCreating(true);
             const response = await createKnowledgeBase({
                 knowledgeName: formData.knowledgeName,
-                file: file,
+                provider: formData.provider,
+                file: undefined,
                 groupId: formData.shareToGroup && formData.selectedGroupId ? formData.selectedGroupId : null
             });
 
@@ -247,25 +252,51 @@ const KnowledgeBase = () => {
     const handleUploadSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (!uploadFile || !currentItem) return;
+        if (uploadFiles.length === 0 || !currentItem) return;
 
         try {
-            console.log('准备上传文件:', uploadFile);
-            console.log('知识库key:', currentItem.knowledge_key);
+            let successCount = 0;
+            let failCount = 0;
 
-            const response = await uploadKnowledgeBase({
-                file: uploadFile,
-                knowledgeKey: currentItem.knowledge_key
-            });
+            for (const file of uploadFiles) {
+                try {
+                    console.log('准备上传文件:', file.name);
+                    console.log('知识库key:', currentItem.knowledge_key);
 
-            console.log('上传响应:', response);
+                    const response = await uploadKnowledgeBase({
+                        file: file,
+                        knowledgeKey: currentItem.knowledge_key
+                    });
 
-            if (response.code === 200) {
-                showAlert(t('knowledgeBase.messages.uploadSuccess'), 'success', t('knowledgeBase.messages.uploadSuccess'));
+                    console.log('上传响应:', response);
+
+                    if (response.code === 200) {
+                        successCount++;
+                    } else {
+                        failCount++;
+                        console.error('上传失败:', response.msg);
+                    }
+                } catch (error) {
+                    failCount++;
+                    console.error('上传文件失败:', error);
+                }
+            }
+
+            if (successCount > 0) {
+                showAlert(
+                    `成功上传 ${successCount} 个文件${failCount > 0 ? `，失败 ${failCount} 个` : ''}`,
+                    'success',
+                    t('knowledgeBase.messages.uploadSuccess')
+                );
                 setIsUploadModalOpen(false);
+                setUploadFile(null);
+                setUploadFiles([]);
             } else {
-                console.error('上传失败:', response.msg);
-                showAlert(t('knowledgeBase.messages.uploadFailed') + ': ' + response.msg, 'error', t('knowledgeBase.messages.uploadFailed'));
+                showAlert(
+                    `所有文件上传失败`,
+                    'error',
+                    t('knowledgeBase.messages.uploadFailed')
+                );
             }
         } catch (error) {
             console.error('上传文件失败:', error);
@@ -285,7 +316,19 @@ const KnowledgeBase = () => {
             });
 
             if (response.code === 200) {
-                setAnswer(response.data);
+                // 后端返回格式: { knowledge_key, query, total, results: [...] }
+                const data = response.data as any;
+                if (data && data.results && Array.isArray(data.results)) {
+                    // 格式化搜索结果为可读的文本
+                    const formattedResults = data.results
+                        .map((result: any, index: number) => 
+                            `[结果 ${index + 1}]\n内容: ${result.content}\n相关度: ${(result.score * 100).toFixed(1)}%`
+                        )
+                        .join('\n\n');
+                    setAnswer(`找到 ${data.total} 个相关结果:\n\n${formattedResults}`);
+                } else {
+                    setAnswer(JSON.stringify(data, null, 2));
+                }
             } else {
                 console.error('提问失败:', response.msg);
                 showAlert(response.msg || t('knowledgeBase.messages.askFailed'), 'error', t('knowledgeBase.messages.askFailed'));
@@ -313,18 +356,12 @@ const KnowledgeBase = () => {
         }
     };
 
-    const handleFileChange = (files: File[]) => {
-        if (files && files.length > 0) {
-            setFile(files[0]);
-        } else {
-            setFile(null);
-        }
-    };
-
     const handleUploadFileChange = (files: File[]) => {
         if (files && files.length > 0) {
-            setUploadFile(files[0]);
+            setUploadFiles(files);
+            setUploadFile(files[0]); // 显示第一个文件
         } else {
+            setUploadFiles([]);
             setUploadFile(null);
         }
     };
@@ -388,7 +425,8 @@ const KnowledgeBase = () => {
                                 <Card
                                     hover
                                     variant="default"
-                                    className="h-full"
+                                    className="h-full cursor-pointer"
+                                    onClick={() => navigate(`/knowledge/${kb.knowledge_key}`)}
                                 >
                                     <div className="flex justify-between items-start mb-4">
                                         <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -416,7 +454,7 @@ const KnowledgeBase = () => {
                                                 </div>
                                             </div>
                                         </div>
-                                        <div className="flex gap-2">
+                                        <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                                             <Button
                                                 variant="ghost"
                                                 size="sm"
@@ -477,9 +515,9 @@ const KnowledgeBase = () => {
                 isOpen={isCreateModalOpen}
                 onClose={() => {
                     setIsCreateModalOpen(false)
-                    setFile(null)
                     setFormData({
                         knowledgeName: '',
+                        provider: 'aliyun',
                         shareToGroup: false,
                         selectedGroupId: null
                     })
@@ -500,30 +538,20 @@ const KnowledgeBase = () => {
                                 maxLength={10}
                             />
 
-                            <FileUpload
-                                onFileSelect={handleFileChange}
-                                accept=".pdf,.doc,.docx,.txt,.md"
-                                multiple={false}
-                                maxSize={50}
-                                maxFiles={1}
-                                label={t('knowledgeBase.createModal.fileLabel')}
-                                className="w-full"
-                            />
-                            {file && (
-                                <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                                    <div className="flex items-center gap-2">
-                                        <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                                        <div className="flex-1">
-                                            <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
-                                                {file.name}
-                                            </p>
-                                            <p className="text-xs text-blue-700 dark:text-blue-300">
-                                                {(file.size / 1024 / 1024).toFixed(2)} MB
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    知识库类型
+                                </label>
+                                <select
+                                    name="provider"
+                                    value={formData.provider}
+                                    onChange={handleInputChange}
+                                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 dark:bg-neutral-700 dark:border-neutral-600"
+                                >
+                                    <option value="aliyun">阿里云百炼</option>
+                                    <option value="qdrant">Qdrant</option>
+                                </select>
+                            </div>
 
                         {groups.length > 0 && (
                             <div>
@@ -566,9 +594,9 @@ const KnowledgeBase = () => {
                             variant="outline"
                             onClick={() => {
                                 setIsCreateModalOpen(false)
-                                setFile(null)
                                 setFormData({
                                     knowledgeName: '',
+                                    provider: 'aliyun',
                                     shareToGroup: false,
                                     selectedGroupId: null
                                 })
@@ -581,7 +609,7 @@ const KnowledgeBase = () => {
                             type="submit"
                             loading={isCreating}
                             leftIcon={!isCreating ? <Plus className="w-4 h-4" /> : undefined}
-                            disabled={!file || !formData.knowledgeName}
+                            disabled={!formData.knowledgeName}
                         >
                             {isCreating ? t('knowledgeBase.createModal.creating') : t('knowledgeBase.createModal.create')}
                         </Button>
@@ -595,6 +623,7 @@ const KnowledgeBase = () => {
                 onClose={() => {
                     setIsUploadModalOpen(false)
                     setUploadFile(null)
+                    setUploadFiles([])
                 }}
                 title={t('knowledgeBase.uploadModal.title').replace('{name}', currentItem?.knowledge_name || '')}
                 size="md"
@@ -606,24 +635,33 @@ const KnowledgeBase = () => {
                                 <FileUpload
                                     onFileSelect={handleUploadFileChange}
                                     accept=".pdf,.doc,.docx,.txt,.md"
-                                    multiple={false}
+                                    multiple={true}
                                     maxSize={50}
-                                    maxFiles={1}
+                                    maxFiles={10}
                                     label={t('knowledgeBase.uploadModal.fileLabel')}
                                     className="w-full"
                                 />
-                                {uploadFile && (
-                                    <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                                        <div className="flex items-center gap-2">
-                                            <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                                            <div className="flex-1">
-                                                <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
-                                                    {uploadFile.name}
-                                                </p>
-                                                <p className="text-xs text-blue-700 dark:text-blue-300">
-                                                    {(uploadFile.size / 1024 / 1024).toFixed(2)} MB
-                                                </p>
-                                            </div>
+                                {uploadFiles.length > 0 && (
+                                    <div className="mt-4 space-y-2">
+                                        <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                            已选择 {uploadFiles.length} 个文件
+                                        </p>
+                                        <div className="max-h-48 overflow-y-auto space-y-2">
+                                            {uploadFiles.map((file, index) => (
+                                                <div key={index} className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded border border-blue-200 dark:border-blue-800">
+                                                    <div className="flex items-center gap-2">
+                                                        <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="text-xs font-medium text-blue-900 dark:text-blue-100 truncate">
+                                                                {file.name}
+                                                            </p>
+                                                            <p className="text-xs text-blue-700 dark:text-blue-300">
+                                                                {(file.size / 1024 / 1024).toFixed(2)} MB
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
                                         </div>
                                     </div>
                                 )}
@@ -636,6 +674,7 @@ const KnowledgeBase = () => {
                             onClick={() => {
                                 setIsUploadModalOpen(false)
                                 setUploadFile(null)
+                                setUploadFiles([])
                             }}
                         >
                             {t('knowledgeBase.deleteConfirm.cancel')}
@@ -644,9 +683,9 @@ const KnowledgeBase = () => {
                             variant="primary"
                             type="submit"
                             leftIcon={<Upload className="w-4 h-4" />}
-                            disabled={!uploadFile}
+                            disabled={uploadFiles.length === 0}
                         >
-                            {t('knowledgeBase.uploadModal.upload')}
+                            {t('knowledgeBase.uploadModal.upload')} ({uploadFiles.length})
                         </Button>
                     </ModalFooter>
                 </form>

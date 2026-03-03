@@ -22,8 +22,6 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/metrics"
 	"github.com/LingByte/SoulNexus/pkg/middleware"
-	"github.com/LingByte/SoulNexus/pkg/prompt"
-	"github.com/LingByte/SoulNexus/pkg/sip"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/LingByte/SoulNexus/pkg/utils/backup"
 	"github.com/LingByte/SoulNexus/pkg/utils/search"
@@ -47,9 +45,6 @@ func NewLingEchoApp(db *gorm.DB) *LingEchoApp {
 func (app *LingEchoApp) RegisterRoutes(r *gin.Engine) {
 	// Register system routes (with /api prefix)
 	app.handlers.Register(r)
-
-	// Register file upload handler
-	handlers.NewUploadHandler().Register(r)
 }
 
 func main() {
@@ -59,6 +54,8 @@ func main() {
 	}
 
 	// 2. Parse Command Line Parameters
+	init := flag.Bool("init", false, "initialize database")
+	seed := flag.Bool("seed", false, "seed database")
 	mode := flag.String("mode", "", "running environment (development, test, production)")
 	initSQL := flag.String("init-sql", "", "path to database init .sql script (optional)")
 	flag.Parse()
@@ -74,7 +71,7 @@ func main() {
 	}
 
 	// 5. Load Log Configuration
-	err := logger.Init(&config.GlobalConfig.Log, config.GlobalConfig.Mode)
+	err := logger.Init(&config.GlobalConfig.Log, config.GlobalConfig.Server.Mode)
 	if err != nil {
 		panic(err)
 	}
@@ -84,9 +81,9 @@ func main() {
 
 	// 7. Load Data Source
 	db, err := bootstrap.SetupDatabase(os.Stdout, &bootstrap.Options{
-		InitSQLPath: *initSQL,                             // Can be specified via --init-sql
-		AutoMigrate: false,                                // Whether to migrate entities
-		SeedNonProd: os.Getenv("APP_ENV") != "production", // Non-production default configuration
+		InitSQLPath: *initSQL, // Can be specified via --init-sql
+		AutoMigrate: *init,    // Whether to migrate entities
+		SeedNonProd: *seed,    // Non-production default configuration
 	})
 	if err != nil {
 		logger.Error("database setup failed", zap.Error(err))
@@ -94,17 +91,17 @@ func main() {
 	}
 
 	// 8. Load Base Configs
-	var addr = config.GlobalConfig.Addr
+	var addr = config.GlobalConfig.Server.Addr
 	if addr == "" {
 		addr = ":7072"
 	}
 
-	var DBDriver = config.GlobalConfig.DBDriver
+	var DBDriver = config.GlobalConfig.Database.Driver
 	if DBDriver == "" {
 		DBDriver = "sqlite"
 	}
 
-	var DSN = config.GlobalConfig.DSN
+	var DSN = config.GlobalConfig.Database.DSN
 	if DSN == "" {
 		DSN = "file::memory:?cache=shared"
 	}
@@ -114,7 +111,7 @@ func main() {
 
 	logger.Info("checked config -- addr: ", zap.String("addr", addr))
 	logger.Info("checked config -- db-driver: ", zap.String("db-driver", DBDriver), zap.String("dsn", DSN))
-	logger.Info("checked config -- mode: ", zap.String("mode", config.GlobalConfig.Mode))
+	logger.Info("checked config -- mode: ", zap.String("mode", config.GlobalConfig.Server.Mode))
 
 	// 9. Load Global Cache (new cache system)
 	if err := cache.InitGlobalCache(config.GlobalConfig.Cache); err != nil {
@@ -130,7 +127,7 @@ func main() {
 	utils.InitGlobalDistributedLock()
 
 	// Initialize global captcha manager
-	captcha.InitGlobalCaptchaManager(nil) // 使用内存存储，可以替换为Redis存储
+	captcha.InitGlobalCaptchaManager(nil) // Use memory storage, can be replaced with Redis storage
 
 	// Initialize global login security manager
 	utils.InitGlobalLoginSecurityManager(logger.Lg)
@@ -138,47 +135,8 @@ func main() {
 	// Initialize global intelligent risk control manager
 	utils.InitGlobalIntelligentRiskControl(logger.Lg)
 
-	// 10. Load Prompt System
-	err = prompt.InitPromptSystem(db)
-	if err != nil {
-		logger.Error("init prompt system failed: ", zap.Error(err))
-	}
-
 	//// 11. New App
 	app := NewLingEchoApp(db)
-
-	// 11.5. Initialize SIP Server (if enabled)
-	// Check if SIP server should be enabled via environment variable
-	sipEnabled := utils.GetBoolEnv("SIP_ENABLED")
-	if sipEnabled {
-		sipPortInt64 := utils.GetIntEnv("SIP_PORT")
-		if sipPortInt64 == 0 {
-			sipPortInt64 = 5060 // Default SIP port
-		}
-		sipPort := int(sipPortInt64)
-
-		rtpPortInt64 := utils.GetIntEnv("SIP_RTP_PORT")
-		if rtpPortInt64 == 0 {
-			rtpPortInt64 = 10000 // Default RTP port
-		}
-		rtpPort := int(rtpPortInt64)
-
-		sipServer := sip.NewSipServer(rtpPort)
-		sipServer.SetDBConfig(db)
-
-		// Set SIP server to handlers (wrap to match interface)
-		app.handlers.SetSipServer(sipServer)
-
-		// Start SIP server in background (pass empty targetURI to avoid auto-call)
-		go func() {
-			logger.Info("Starting SIP server", zap.Int("sip_port", sipPort), zap.Int("rtp_port", rtpPort))
-			sipServer.Start(sipPort, "") // Empty targetURI means no auto-call
-		}()
-
-		logger.Info("SIP server initialized", zap.Int("sip_port", sipPort), zap.Int("rtp_port", rtpPort))
-	} else {
-		logger.Info("SIP server is disabled (set SIP_ENABLED=true to enable)")
-	}
 
 	// 12. Initialize Monitoring System
 	// Optimized for small memory servers: Reduce monitoring system memory usage
@@ -240,12 +198,12 @@ func main() {
 		zap.Bool("operationLog", config.GlobalConfig.Middleware.EnableOperationLog))
 
 	// 14. Initialize Neo4j Graph Database (if enabled)
-	if config.GlobalConfig.Neo4jEnabled {
+	if config.GlobalConfig.Services.KnowledgeBase.Neo4j.Enabled {
 		graphStore, err := graph.NewNeo4jStore(
-			config.GlobalConfig.Neo4jURI,
-			config.GlobalConfig.Neo4jUsername,
-			config.GlobalConfig.Neo4jPassword,
-			config.GlobalConfig.Neo4jDatabase,
+			config.GlobalConfig.Services.KnowledgeBase.Neo4j.URI,
+			config.GlobalConfig.Services.KnowledgeBase.Neo4j.Username,
+			config.GlobalConfig.Services.KnowledgeBase.Neo4j.Password,
+			config.GlobalConfig.Services.KnowledgeBase.Neo4j.Database,
 		)
 		if err != nil {
 			logger.Error("Failed to initialize Neo4j", zap.Error(err))
@@ -255,7 +213,7 @@ func main() {
 		} else {
 			logger.Info("Neo4j graph database initialized successfully")
 			task.InitGraphProcessor(graphStore, true)
-			// 设置全局默认的图存储实例，供实时助手等组件读取用户画像
+			// Set global default graph storage instance for real-time assistants and other components to read user profiles
 			graph.SetDefaultStore(graphStore)
 			defer func() {
 				if err := graphStore.Close(); err != nil {
@@ -270,13 +228,12 @@ func main() {
 	}
 
 	// 15. Start Timed task
-	go task.StartOfflineChecker(db)
 	// Start Email Cleaner Task
 	task.StartEmailCleaner(db)
 	// Start Quota Alert Checker
 	task.StartQuotaAlertChecker(db)
 	// Start Backup Data
-	if config.GlobalConfig.BackupEnabled {
+	if config.GlobalConfig.Features.BackupEnabled {
 		backup.StartBackupScheduler()
 	}
 
@@ -329,12 +286,13 @@ func main() {
 	// 注册 /uploads（主路径）并保留 /media 兼容历史
 	r.Static("/uploads", uploadDir)
 	r.Static("/media", uploadDir)
-	apiPrefix := config.GlobalConfig.APIPrefix
+	apiPrefix := config.GlobalConfig.Server.APIPrefix
 	if apiPrefix == "" {
 		apiPrefix = "/api"
 	}
 	r.Static(apiPrefix+"/uploads", uploadDir)
 	r.Static(apiPrefix+"/media", uploadDir)
+	r.Static(apiPrefix+"/files", uploadDir) // 添加 /api/files 路由以兼容旧数据
 
 	// Add /api/static route to serve static files under API prefix
 	// This is needed for SDK files accessed via /api/static/js/lingecho-sdk.js
@@ -343,7 +301,7 @@ func main() {
 		staticRootDir = "static"
 	}
 	staticAssets := LingEcho.NewCombineEmbedFS(LingEcho.HintAssetsRoot(staticRootDir), LingEcho.EmbedFS{"static", LingEcho.EmbedStaticAssets})
-	apiPrefix = config.GlobalConfig.APIPrefix
+	apiPrefix = config.GlobalConfig.Server.APIPrefix
 	if apiPrefix == "" {
 		apiPrefix = "/api"
 	}
@@ -354,12 +312,12 @@ func main() {
 
 	// 18.6. Register Metrics Monitor Routes
 	// Get API prefix from config (default: /api)
-	apiPrefix = config.GlobalConfig.APIPrefix
+	apiPrefix = config.GlobalConfig.Server.APIPrefix
 	if apiPrefix == "" {
 		apiPrefix = "/api"
 	}
 	// Get monitor prefix from config (default: /metrics)
-	monitorPrefix := config.GlobalConfig.MonitorPrefix
+	monitorPrefix := config.GlobalConfig.Server.MonitorPrefix
 	if monitorPrefix == "" {
 		monitorPrefix = "/metrics"
 	}
@@ -371,7 +329,6 @@ func main() {
 	logger.Info("Metrics monitor routes registered", zap.String("prefix", fullMonitorPrefix))
 
 	// 19. Initialize System Listener
-	// Initialize system listener (pass in database connection)
 	listeners.InitLLMListenerWithDB(db)
 	listeners.InitBillingListenerWithDB(db)
 	listeners.InitSystemListeners()
@@ -379,7 +336,7 @@ func main() {
 	// 20. Start Search Indexer (if enabled)
 	searchEnabled := utils.GetBoolValue(db, constants.KEY_SEARCH_ENABLED)
 	if !searchEnabled && config.GlobalConfig != nil {
-		searchEnabled = config.GlobalConfig.SearchEnabled
+		searchEnabled = config.GlobalConfig.Features.SearchEnabled
 	}
 
 	if searchEnabled {
@@ -411,7 +368,6 @@ func main() {
 	utils.Sig().Emit(models.SigInitSystemConfig, nil)
 
 	// 21.5. Start Workflow Event Listener and Scheduler
-	// Start workflow event listener
 	eventListener := workflowdef.NewWorkflowEventListener(db)
 	if err := eventListener.Start(); err != nil {
 		logger.Error("Failed to start workflow event listener", zap.Error(err))
@@ -423,22 +379,20 @@ func main() {
 	scheduler := workflowdef.GetWorkflowScheduler(db)
 	if err := scheduler.Start(); err != nil {
 		logger.Error("Failed to start workflow scheduler", zap.Error(err))
-	} else {
-		logger.Info("Workflow scheduler started")
 	}
 
 	// 22. Start HTTP/HTTPS Server
 	httpServer := &http.Server{
 		Addr:           addr,
 		Handler:        r,
-		ReadTimeout:    30 * time.Second,
+		ReadTimeout:    300 * time.Second, // 5分钟，适合语音会话的长静音期
 		WriteTimeout:   30 * time.Second,
 		IdleTimeout:    120 * time.Second,
 		MaxHeaderBytes: 1 << 20, // 1MB
 	}
 
 	// Check if SSL is enabled
-	if config.GlobalConfig.SSLEnabled && listeners.IsSSLEnabled() {
+	if config.GlobalConfig.Server.SSLEnabled && listeners.IsSSLEnabled() {
 		tlsConfig, err := listeners.GetTLSConfig()
 		if err != nil {
 			logger.Error("failed to get TLS config", zap.Error(err))

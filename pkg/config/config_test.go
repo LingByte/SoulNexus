@@ -29,11 +29,9 @@ func setAllEnvs(t *testing.T) {
 	t.Setenv("LOG_MAX_BACKUPS", "7")
 
 	// 邮件
-	t.Setenv("MAIL_HOST", "smtp.example.com")
-	t.Setenv("MAIL_USERNAME", "user@example.com")
-	t.Setenv("MAIL_PASSWORD", "pass")
-	t.Setenv("MAIL_PORT", "587")
-	t.Setenv("MAIL_FROM", "noreply@example.com")
+	t.Setenv("SENDCLOUD_API_USER", "LingEcho")
+	t.Setenv("SENDCLOUD_API_KEY", "14b6e48501c452407421917c943be0c3")
+	t.Setenv("SENDCLOUD_FROM_EMAIL", "19511899044@163.com")
 
 	// LLM
 	t.Setenv("LLM_API_KEY", "ak")
@@ -80,26 +78,26 @@ func TestLoad_WithExplicitAppEnv(t *testing.T) {
 	if GlobalConfig.MachineID != 7 {
 		t.Fatalf("MachineID=%d, want 7", GlobalConfig.MachineID)
 	}
-	if GlobalConfig.DBDriver != "postgres" {
-		t.Fatalf("DBDriver=%q", GlobalConfig.DBDriver)
+	if GlobalConfig.Database.Driver != "postgres" {
+		t.Fatalf("DBDriver=%q", GlobalConfig.Database.Driver)
 	}
-	if GlobalConfig.DSN != "host=127.0.0.1 user=u dbname=d sslmode=disable" {
-		t.Fatalf("DSN=%q", GlobalConfig.DSN)
+	if GlobalConfig.Database.DSN != "host=127.0.0.1 user=u dbname=d sslmode=disable" {
+		t.Fatalf("DSN=%q", GlobalConfig.Database.DSN)
 	}
-	if GlobalConfig.Addr != ":8080" || GlobalConfig.Mode != "release" {
-		t.Fatalf("Addr=%q Mode=%q", GlobalConfig.Addr, GlobalConfig.Mode)
+	if GlobalConfig.Server.Addr != ":8080" || GlobalConfig.Server.Mode != "release" {
+		t.Fatalf("Addr=%q Mode=%q", GlobalConfig.Server.Addr, GlobalConfig.Server.Mode)
 	}
 
 	// 路由前缀
-	if GlobalConfig.DocsPrefix != "/docs" ||
-		GlobalConfig.APIPrefix != "/api" ||
-		GlobalConfig.AdminPrefix != "/admin" ||
-		GlobalConfig.AuthPrefix != "/auth" {
+	if GlobalConfig.Server.DocsPrefix != "/docs" ||
+		GlobalConfig.Server.APIPrefix != "/api" ||
+		GlobalConfig.Server.AdminPrefix != "/admin" ||
+		GlobalConfig.Server.AuthPrefix != "/auth" {
 		t.Fatalf("prefix mismatch: %+v", *GlobalConfig)
 	}
 
 	// Session
-	if GlobalConfig.SecretExpireDays != "14" || GlobalConfig.SessionSecret != "secret-xyz" {
+	if GlobalConfig.Auth.SecretExpireDays != "14" || GlobalConfig.Auth.SessionSecret != "secret-xyz" {
 		t.Fatalf("session mismatch: %+v", *GlobalConfig)
 	}
 
@@ -113,49 +111,23 @@ func TestLoad_WithExplicitAppEnv(t *testing.T) {
 	}
 
 	// 邮件
-	if GlobalConfig.Mail.Host != "smtp.example.com" ||
-		GlobalConfig.Mail.Username != "user@example.com" ||
-		GlobalConfig.Mail.Password != "pass" ||
-		GlobalConfig.Mail.Port != 587 ||
-		GlobalConfig.Mail.From != "noreply@example.com" {
-		t.Fatalf("mail config mismatch: %+v", GlobalConfig.Mail)
+	if GlobalConfig.Services.Mail.APIUser != "LingEcho" ||
+		GlobalConfig.Services.Mail.APIKey != "14b6e48501c452407421917c943be0c3" ||
+		GlobalConfig.Services.Mail.From != "19511899044@163.com" {
+		t.Fatalf("mail config mismatch: %+v", GlobalConfig.Services.Mail)
 	}
 
 	// LLM
-	if GlobalConfig.LLMApiKey != "ak" ||
-		GlobalConfig.LLMBaseURL != "https://llm.example.com" ||
-		GlobalConfig.LLMModel != "gpt-x" {
+	if GlobalConfig.Services.LLM.APIKey != "ak" ||
+		GlobalConfig.Services.LLM.BaseURL != "https://llm.example.com" ||
+		GlobalConfig.Services.LLM.Model != "gpt-x" {
 		t.Fatalf("llm mismatch: %+v", *GlobalConfig)
 	}
 
-	// Search
-	if !GlobalConfig.SearchEnabled ||
-		GlobalConfig.SearchPath != "/var/search" ||
-		GlobalConfig.SearchBatchSize != 500 {
-		t.Fatalf("search mismatch: enabled=%v path=%q batch=%d",
-			GlobalConfig.SearchEnabled, GlobalConfig.SearchPath, GlobalConfig.SearchBatchSize)
-	}
-
 	// 其他
-	if GlobalConfig.MonitorPrefix != "/monitor" ||
-		!GlobalConfig.LanguageEnabled ||
-		GlobalConfig.APISecretKey != "api-secret" {
+	if GlobalConfig.Server.MonitorPrefix != "/monitor" ||
+		GlobalConfig.Auth.APISecretKey != "api-secret" {
 		t.Fatalf("monitor/lang/api mismatch: %+v", *GlobalConfig)
-	}
-
-	// 备份
-	if !GlobalConfig.BackupEnabled ||
-		GlobalConfig.BackupPath != "/var/backup" ||
-		GlobalConfig.BackupSchedule != "0 2 * * *" {
-		t.Fatalf("backup mismatch: %+v", *GlobalConfig)
-	}
-
-	// 七牛 ASR/TTS
-	if GlobalConfig.QiniuASRApiKey != "q-asr-ak" ||
-		GlobalConfig.QiniuASRBaseURL != "https://asr.qiniu.example.com" ||
-		GlobalConfig.QiniuTTSApiKey != "q-tts-ak" ||
-		GlobalConfig.QiniuTTSBaseURL != "https://tts.qiniu.example.com" {
-		t.Fatalf("qiniu mismatch: %+v", *GlobalConfig)
 	}
 }
 
@@ -175,15 +147,5 @@ func TestLoad_DefaultsWhenAppEnvEmpty(t *testing.T) {
 	// 抽查几个关键字段，确认仍能正确从环境取值
 	if GlobalConfig.MachineID != 7 {
 		t.Fatalf("MachineID=%d, want 7", GlobalConfig.MachineID)
-	}
-	if GlobalConfig.SearchBatchSize != 500 || !GlobalConfig.SearchEnabled {
-		t.Fatalf("search config unexpected: %+v", *GlobalConfig)
-	}
-	if !GlobalConfig.LanguageEnabled || !GlobalConfig.BackupEnabled {
-		t.Fatalf("bool parsing unexpected: language=%v backup=%v",
-			GlobalConfig.LanguageEnabled, GlobalConfig.BackupEnabled)
-	}
-	if GlobalConfig.Mail.Port != 587 {
-		t.Fatalf("mail port=%d, want 587", GlobalConfig.Mail.Port)
 	}
 }

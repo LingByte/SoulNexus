@@ -52,6 +52,10 @@ func (n *Node) PrepareInputs(ctx *WorkflowContext) (map[string]interface{}, erro
 				// This is likely a placeholder mapping, provide nil as default
 				result[alias] = nil
 			} else {
+				// Debug: log what we're looking for and what's available
+				if ctx != nil {
+					ctx.AddLog("debug", fmt.Sprintf("ResolveValue failed for %s (source=%s). Available NodeData keys: %v", alias, source, getNodeDataKeys(ctx)), n.ID, n.Name)
+				}
 				return nil, fmt.Errorf("node %s missing input %s from %s", n.Name, alias, source)
 			}
 		} else {
@@ -61,14 +65,43 @@ func (n *Node) PrepareInputs(ctx *WorkflowContext) (map[string]interface{}, erro
 	return result, nil
 }
 
+// Helper function to get all keys in NodeData for debugging
+func getNodeDataKeys(ctx *WorkflowContext) []string {
+	if ctx == nil || ctx.NodeData == nil {
+		return []string{}
+	}
+	keys := make([]string, 0, len(ctx.NodeData))
+	for k := range ctx.NodeData {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
 // PersistOutputs writes outputs into context according to mapping
 func (n *Node) PersistOutputs(ctx *WorkflowContext, outputs map[string]interface{}) {
-	if n == nil || len(n.OutputParams) == 0 || len(outputs) == 0 {
+	if n == nil || len(outputs) == 0 {
 		return
 	}
-	for alias, target := range n.OutputParams {
-		if val, ok := outputs[alias]; ok {
+
+	if len(n.OutputParams) > 0 {
+		// If OutputParams is defined, use it to map outputs
+		for alias, target := range n.OutputParams {
+			if val, ok := outputs[alias]; ok {
+				ctx.SetData(target, val)
+				if ctx != nil {
+					ctx.AddLog("debug", fmt.Sprintf("PersistOutputs: stored %s -> %s", alias, target), n.ID, n.Name)
+				}
+			}
+		}
+	} else {
+		// If OutputParams is not defined, store all outputs using nodeId.outputName format
+		// This allows downstream nodes to access the outputs
+		for key, val := range outputs {
+			target := fmt.Sprintf("%s.%s", n.ID, key)
 			ctx.SetData(target, val)
+			if ctx != nil {
+				ctx.AddLog("debug", fmt.Sprintf("PersistOutputs (auto): stored %s -> %s", key, target), n.ID, n.Name)
+			}
 		}
 	}
 }

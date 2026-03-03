@@ -167,7 +167,7 @@ func (m *WorkflowTriggerManager) TriggerWorkflow(definitionID uint, parameters m
 	}
 
 	// 构建并执行工作流
-	runtimeWf, err := BuildRuntimeWorkflow(&def)
+	runtimeWf, err := BuildRuntimeWorkflow(&def, m.db)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build workflow: %w", err)
 	}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -23,6 +22,13 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
+)
+
+// 角色常量
+const (
+	RoleSuperAdmin = "superadmin" // 超级管理员
+	RoleAdmin      = "admin"      // 管理员
+	RoleUser       = "user"       // 普通用户
 )
 
 type SendEmailVerifyEmail struct {
@@ -62,20 +68,19 @@ type EmailOperatorForm struct {
 }
 
 type RegisterUserForm struct {
-	Email       string `json:"email" binding:"required"`
-	Password    string `json:"password" binding:"required"`
-	DisplayName string `json:"displayName"`
-	FirstName   string `json:"firstName"`
-	LastName    string `json:"lastName"`
-	Locale      string `json:"locale"`
-	Timezone    string `json:"timezone"`
-	Source      string `json:"source"`
-	CaptchaID   string `json:"captchaId"`
-	CaptchaCode string `json:"captchaCode"`
-	// 智能风控字段
-	MouseTrack       string `json:"mouseTrack"`       // 鼠标轨迹数据（JSON字符串）
-	FormFillTime     int64  `json:"formFillTime"`     // 表单填写时间（毫秒）
-	KeystrokePattern string `json:"keystrokePattern"` // 按键模式数据（JSON字符串）
+	Email            string `json:"email" binding:"required"`
+	Password         string `json:"password" binding:"required"`
+	DisplayName      string `json:"displayName"`
+	FirstName        string `json:"firstName"`
+	LastName         string `json:"lastName"`
+	Locale           string `json:"locale"`
+	Timezone         string `json:"timezone"`
+	Source           string `json:"source"`
+	CaptchaID        string `json:"captchaId"`
+	CaptchaCode      string `json:"captchaCode"`
+	MouseTrack       string `json:"mouseTrack"`
+	FormFillTime     int64  `json:"formFillTime"`
+	KeystrokePattern string `json:"keystrokePattern"`
 }
 
 type ChangePasswordForm struct {
@@ -145,7 +150,6 @@ type User struct {
 	LastPasswordChange    *time.Time `json:"lastPasswordChange,omitempty"`                 // 最后密码修改时间
 	ProfileComplete       int        `json:"profileComplete" gorm:"default:0"`             // 资料完整度百分比
 	Role                  string     `json:"role,omitempty" gorm:"size:50;default:'user'"` // 用户角色
-	Permissions           string     `json:"permissions,omitempty" gorm:"type:text"`       // 用户权限JSON
 }
 
 func (u *User) TableName() string {
@@ -197,7 +201,14 @@ func AuthRequired(c *gin.Context) {
 		c.Next()
 		return
 	}
-	token := c.GetHeader(config.GlobalConfig.AuthHeader)
+
+	// 检查配置是否存在
+	if config.GlobalConfig == nil {
+		LingEcho.AbortWithJSONError(c, http.StatusInternalServerError, errors.New("server configuration not initialized"))
+		return
+	}
+
+	token := c.GetHeader(config.GlobalConfig.Auth.Header)
 	if token == "" {
 		token = c.Query("token")
 	}
@@ -207,7 +218,6 @@ func AuthRequired(c *gin.Context) {
 		return
 	}
 	db := c.MustGet(constants.DbField).(*gorm.DB)
-	// split bearer
 	token = strings.TrimPrefix(token, constants.AUTHORIZATION_PREFIX)
 	user, err := DecodeHashToken(db, token, false)
 	if err != nil {
@@ -301,8 +311,8 @@ func VerifyEncryptedPassword(encryptedPassword, storedPasswordHash string) bool 
 	now := time.Now().Unix()
 	maxAge := int64(300) // 5分钟
 	if now-timestamp > maxAge {
-		fmt.Printf("DEBUG: Timestamp expired. now=%d, timestamp=%d, diff=%d\n",
-			now, timestamp, now-timestamp)
+		logger.Info(fmt.Sprintf("DEBUG: Timestamp expired. now=%d, timestamp=%d, diff=%d\n",
+			now, timestamp, now-timestamp))
 		return false
 	}
 
@@ -310,8 +320,8 @@ func VerifyEncryptedPassword(encryptedPassword, storedPasswordHash string) bool 
 	storedHash := strings.TrimPrefix(storedPasswordHash, "sha256$")
 
 	if passwordHash != storedHash {
-		fmt.Printf("DEBUG: Password hash mismatch. Expected: %s, Got: %s\n",
-			storedHash, passwordHash)
+		logger.Info(fmt.Sprintf("DEBUG: Password hash mismatch. Expected: %s, Got: %s\n",
+			storedHash, passwordHash))
 		return false
 	}
 
@@ -339,7 +349,7 @@ func GetUserByUID(db *gorm.DB, userID uint) (*User, error) {
 	duration := time.Since(start)
 
 	// Record database query metrics (if monitoring system is available)
-	if monitor := getMonitorFromContext(db); monitor != nil {
+	if monitor := metrics.GetGlobalMonitor(); monitor != nil {
 		monitor.RecordSQLQuery(context.Background(), "SELECT * FROM users WHERE id = ? AND enabled = ?",
 			[]interface{}{userID, true}, constants.USER_TABLE_NAME, "SELECT", duration, 1, result.Error)
 	}
@@ -357,7 +367,7 @@ func GetUserByEmail(db *gorm.DB, email string) (user *User, err error) {
 	duration := time.Since(start)
 
 	// Record database query metrics (if monitoring system is available)
-	if monitor := getMonitorFromContext(db); monitor != nil {
+	if monitor := metrics.GetGlobalMonitor(); monitor != nil {
 		monitor.RecordSQLQuery(context.Background(), "SELECT * FROM users WHERE email = ?",
 			[]interface{}{email}, constants.USER_TABLE_NAME, "SELECT", duration, 1, result.Error)
 	}
@@ -366,12 +376,6 @@ func GetUserByEmail(db *gorm.DB, email string) (user *User, err error) {
 		return nil, result.Error
 	}
 	return &val, nil
-}
-
-// getMonitorFromContext Get monitor from context (if available)
-func getMonitorFromContext(db *gorm.DB) *metrics.Monitor {
-	// Get monitor instance from global variable
-	return metrics.GetGlobalMonitor()
 }
 
 func IsExistsByEmail(db *gorm.DB, email string) bool {
@@ -411,7 +415,7 @@ func AuthApiRequired(c *gin.Context) {
 		return
 	}
 
-	token := c.GetHeader(config.GlobalConfig.AuthHeader)
+	token := c.GetHeader(config.GlobalConfig.Auth.Header)
 	if token == "" {
 		token = c.Query("token")
 	}
@@ -470,6 +474,7 @@ func CreateUserByEmail(db *gorm.DB, username, display, email, password string) (
 		Enabled:            true,
 		Activated:          false,
 		EmailNotifications: true,
+		Role:               RoleUser, // Explicitly set default role
 	}
 	result := db.Create(&user)
 	return &user, result.Error
@@ -481,12 +486,13 @@ func CreateUser(db *gorm.DB, email, password string) (*User, error) {
 		Password:  HashPassword(password),
 		Enabled:   true,
 		Activated: false,
+		Role:      RoleUser, // Explicitly set default role
 	}
 
 	start := time.Now()
 	result := db.Create(&user)
 	duration := time.Since(start)
-	if monitor := getMonitorFromContext(db); monitor != nil {
+	if monitor := metrics.GetGlobalMonitor(); monitor != nil {
 		monitor.RecordSQLQuery(context.Background(), "INSERT INTO users (email, password, enabled, activated) VALUES (?, ?, ?, ?)",
 			[]interface{}{email, user.Password, true, false}, constants.USER_TABLE_NAME, "INSERT", duration, 1, result.Error)
 	}
@@ -496,7 +502,7 @@ func UpdateUserFields(db *gorm.DB, user *User, vals map[string]any) error {
 	start := time.Now()
 	result := db.Model(user).Updates(vals)
 	duration := time.Since(start)
-	if monitor := getMonitorFromContext(db); monitor != nil {
+	if monitor := metrics.GetGlobalMonitor(); monitor != nil {
 		monitor.RecordSQLQuery(context.Background(), "UPDATE users SET ... WHERE id = ?",
 			[]interface{}{user.ID}, constants.USER_TABLE_NAME, "UPDATE", duration, 1, result.Error)
 	}
@@ -516,7 +522,7 @@ func SetLastLogin(db *gorm.DB, user *User, lastIp string) error {
 	start := time.Now()
 	result := db.Model(user).Updates(vals)
 	duration := time.Since(start)
-	if monitor := getMonitorFromContext(db); monitor != nil {
+	if monitor := metrics.GetGlobalMonitor(); monitor != nil {
 		monitor.RecordSQLQuery(context.Background(), "UPDATE users SET LastLoginIP = ?, LastLogin = ? WHERE id = ?",
 			[]interface{}{lastIp, &now, user.ID}, constants.USER_TABLE_NAME, "UPDATE", duration, 1, result.Error)
 	}
@@ -579,7 +585,30 @@ func CheckUserAllowLogin(db *gorm.DB, user *User) error {
 	if utils.GetBoolValue(db, constants.KEY_USER_ACTIVATED) && !user.Activated {
 		return errors.New("waiting for activation")
 	}
+
+	// Role validation - ensure user has a valid role
+	if err := ValidateUserRole(user); err != nil {
+		return err
+	}
+
 	return nil
+}
+
+// ValidateUserRole validates that the user has a valid role
+func ValidateUserRole(user *User) error {
+	if user.Role == "" {
+		return errors.New("user role is not set")
+	}
+
+	// Check if role is one of the valid roles
+	validRoles := []string{RoleSuperAdmin, RoleAdmin, RoleUser}
+	for _, validRole := range validRoles {
+		if user.Role == validRole {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("invalid user role: %s", user.Role)
 }
 
 func InTimezone(c *gin.Context, timezone string) {
@@ -888,48 +917,6 @@ func CalculateProfileComplete(user *User) int {
 	return percentage
 }
 
-// GetProfileCompleteMissingFields 获取缺失的资料字段
-func GetProfileCompleteMissingFields(user *User) []string {
-	var missing []string
-
-	// 基本信息检查
-	if user.DisplayName == "" {
-		missing = append(missing, "显示名称")
-	}
-	if user.FirstName == "" {
-		missing = append(missing, "名字")
-	}
-	if user.LastName == "" {
-		missing = append(missing, "姓氏")
-	}
-	if user.Avatar == "" {
-		missing = append(missing, "头像")
-	}
-
-	// 联系方式检查
-	if user.Phone == "" {
-		missing = append(missing, "手机号码")
-	}
-	if !user.EmailVerified {
-		missing = append(missing, "邮箱验证")
-	}
-
-	// 地址信息检查
-	if user.City == "" {
-		missing = append(missing, "城市")
-	}
-	if user.Region == "" {
-		missing = append(missing, "地区")
-	}
-
-	// 其他信息检查
-	if user.Gender == "" {
-		missing = append(missing, "性别")
-	}
-
-	return missing
-}
-
 // UpdateProfileComplete 更新资料完整度
 func UpdateProfileComplete(db *gorm.DB, user *User) error {
 	complete := CalculateProfileComplete(user)
@@ -957,38 +944,6 @@ func IncrementLoginCount(db *gorm.DB, user *User) error {
 	return nil
 }
 
-// 角色常量
-const (
-	RoleSuperAdmin = "superadmin" // 超级管理员
-	RoleAdmin      = "admin"      // 管理员
-	RoleUser       = "user"       // 普通用户
-)
-
-// 权限常量
-const (
-	PermissionAll          = "*"             // 所有权限
-	PermissionAdminRead    = "admin.read"    // 管理员读取
-	PermissionAdminWrite   = "admin.write"   // 管理员写入
-	PermissionUserRead     = "user.read"     // 用户读取
-	PermissionUserWrite    = "user.write"    // 用户写入
-	PermissionSearchConfig = "search.config" // 搜索配置
-	PermissionSystemConfig = "system.config" // 系统配置
-)
-
-// getPermissions 解析用户权限 JSON 字符串
-func (u *User) getPermissions() []string {
-	if u.Permissions == "" {
-		return []string{}
-	}
-
-	var perms []string
-	if err := json.Unmarshal([]byte(u.Permissions), &perms); err != nil {
-		// 如果解析失败，返回空列表
-		return []string{}
-	}
-	return perms
-}
-
 // IsAdmin 检查是否为管理员（基于角色）
 func (u *User) IsAdmin() bool {
 	return u.Role == RoleSuperAdmin || u.Role == RoleAdmin
@@ -997,64 +952,4 @@ func (u *User) IsAdmin() bool {
 // IsSuperAdmin 检查是否为超级管理员
 func (u *User) IsSuperAdmin() bool {
 	return u.Role == RoleSuperAdmin
-}
-
-// HasPermission 检查是否有特定权限
-// 优先级：超级管理员 > 权限列表中的权限 > 角色默认权限
-func (u *User) HasPermission(permission string) bool {
-	// 超级管理员拥有所有权限
-	if u.Role == RoleSuperAdmin {
-		return true
-	}
-
-	// 检查权限列表
-	perms := u.getPermissions()
-	for _, p := range perms {
-		// 支持通配符权限 "*" 表示所有权限
-		if p == PermissionAll {
-			return true
-		}
-		// 精确匹配权限
-		if p == permission {
-			return true
-		}
-	}
-
-	// 基于角色的默认权限
-	switch u.Role {
-	case RoleAdmin:
-		switch permission {
-		case PermissionAdminRead, PermissionAdminWrite,
-			PermissionUserRead, PermissionUserWrite,
-			PermissionSearchConfig, PermissionSystemConfig:
-			return true
-		}
-	case RoleUser:
-		switch permission {
-		case PermissionUserRead, PermissionUserWrite:
-			return true
-		}
-	}
-
-	return false
-}
-
-// HasAnyPermission 检查是否有任意一个权限
-func (u *User) HasAnyPermission(permissions ...string) bool {
-	for _, perm := range permissions {
-		if u.HasPermission(perm) {
-			return true
-		}
-	}
-	return false
-}
-
-// HasAllPermissions 检查是否拥有所有指定权限
-func (u *User) HasAllPermissions(permissions ...string) bool {
-	for _, perm := range permissions {
-		if !u.HasPermission(perm) {
-			return false
-		}
-	}
-	return true
 }

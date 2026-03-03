@@ -1,0 +1,57 @@
+type timeLib struct{}
+
+func (t *timeLib) Now() string {
+	return time.Now().Format("2006-01-02 15:04:05")
+}
+
+func (t *timeLib) NowUnix() int64 {
+	return time.Now().Unix()
+}
+
+func (t *timeLib) NowISO() string {
+	return time.Now().Format("2006-01-02T15:04:05Z07:00")
+}
+
+func (t *timeLib) Format(timestamp int64, format string) string {
+	tm := time.Unix(timestamp, 0)
+	switch format {
+	case "date":
+		return tm.Format("2006-01-02")
+	case "time":
+		return tm.Format("15:04:05")
+	case "datetime":
+		return tm.Format("2006-01-02 15:04:05")
+	case "iso":
+		return tm.Format("2006-01-02T15:04:05Z07:00")
+	default:
+		return tm.Format(format)
+	}
+}
+
+func (t *timeLib) Parse(dateStr string) int64 {
+	formats := []string{
+		"2006-01-02",
+		"2006-01-02 15:04:05",
+		"2006-01-02T15:04:05Z07:00",
+		"2006-01-02T15:04:05",
+	}
+	for _, format := range formats {
+		if tm, err := time.Parse(format, dateStr); err == nil {
+			return tm.Unix()
+		}
+	}
+	return 0
+}
+
+func (t *timeLib) AddDays(timestamp int64, days int) int64 {
+	tm := time.Unix(timestamp, 0)
+	return tm.AddDate(0, 0, days).Unix()
+}
+
+func (t *timeLib) AddHours(timestamp int64, hours int) int64 {
+	tm := time.Unix(timestamp, 0)
+	return tm.Add(time.Duration(hours) * time.Hour).Unix()
+}
+
+// 库实例
+var TimeLib = &timeLib{}

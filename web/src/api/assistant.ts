@@ -282,6 +282,16 @@ export const getLanguageOptions = async (provider: string): Promise<ApiResponse<
   return get('/voice/language-options', { params: { provider } })
 }
 
+// 获取 FishSpeech 音色列表（自动从用户凭证中获取 API Key）
+export interface FishSpeechVoicesResponse {
+  provider: string
+  voices: VoiceOption[]
+}
+
+export const getFishSpeechVoices = async (): Promise<ApiResponse<FishSpeechVoicesResponse>> => {
+  return get('/voice/voice-options', { params: { provider: 'fishspeech' } })
+}
+
 // ========== Assistant Tools 相关接口 ==========
 
 // 助手工具接口

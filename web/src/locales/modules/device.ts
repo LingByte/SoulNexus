@@ -64,6 +64,24 @@ export const device: Record<Language, Record<string, string>> = {
     'device.messages.confirmUnbindTitle': '确认解绑设备',
     'device.messages.confirmUnbindDescription': '确定要解绑设备 "{deviceName}" 吗？',
     'device.messages.confirmUnbind': '确认解绑',
+    
+    // 设备状态监控
+    'device.online': '在线',
+    'device.offline': '离线',
+    'device.lastSeen': '最后在线',
+    'device.uptime': '运行时长',
+    'device.errorCount': '错误次数',
+    'device.performance': '性能指标',
+    'device.cpu': 'CPU',
+    'device.memory': '内存',
+    'device.temperature': '温度',
+    'device.audioDevice': '音频设备',
+    'device.microphone': '麦克风',
+    'device.speaker': '扬声器',
+    'device.networkLatency': '网络延迟',
+    'device.callRecordings': '通话录音',
+    'device.errorLogs': '错误日志',
+    'device.performanceHistory': '性能历史',
   },
   en: {
     // DeviceManagement Page
@@ -128,6 +146,24 @@ export const device: Record<Language, Record<string, string>> = {
     'device.messages.confirmUnbindTitle': 'Confirm Unbind Device',
     'device.messages.confirmUnbindDescription': 'Are you sure you want to unbind device "{deviceName}"?',
     'device.messages.confirmUnbind': 'Confirm Unbind',
+    
+    // Device Status Monitoring
+    'device.online': 'Online',
+    'device.offline': 'Offline',
+    'device.lastSeen': 'Last Seen',
+    'device.uptime': 'Uptime',
+    'device.errorCount': 'Error Count',
+    'device.performance': 'Performance',
+    'device.cpu': 'CPU',
+    'device.memory': 'Memory',
+    'device.temperature': 'Temperature',
+    'device.audioDevice': 'Audio Device',
+    'device.microphone': 'Microphone',
+    'device.speaker': 'Speaker',
+    'device.networkLatency': 'Network Latency',
+    'device.callRecordings': 'Call Recordings',
+    'device.errorLogs': 'Error Logs',
+    'device.performanceHistory': 'Performance History',
   },
   ja: {
     // デバイス管理ページ
@@ -192,5 +228,23 @@ export const device: Record<Language, Record<string, string>> = {
     'device.messages.confirmUnbindTitle': 'デバイスのアンバインドを確認',
     'device.messages.confirmUnbindDescription': 'デバイス "{deviceName}" をアンバインドしてもよろしいですか？',
     'device.messages.confirmUnbind': 'アンバインドを確認',
+    
+    // デバイス状態監視
+    'device.online': 'オンライン',
+    'device.offline': 'オフライン',
+    'device.lastSeen': '最終確認',
+    'device.uptime': '稼働時間',
+    'device.errorCount': 'エラー回数',
+    'device.performance': 'パフォーマンス',
+    'device.cpu': 'CPU',
+    'device.memory': 'メモリ',
+    'device.temperature': '温度',
+    'device.audioDevice': 'オーディオデバイス',
+    'device.microphone': 'マイク',
+    'device.speaker': 'スピーカー',
+    'device.networkLatency': 'ネットワーク遅延',
+    'device.callRecordings': '通話録音',
+    'device.errorLogs': 'エラーログ',
+    'device.performanceHistory': 'パフォーマンス履歴',
   }
 }

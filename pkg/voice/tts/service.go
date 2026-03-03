@@ -91,10 +91,28 @@ type synthesisHandler struct {
 }
 
 func (h *synthesisHandler) OnMessage(data []byte) {
-	select {
-	case <-h.ctx.Done():
-		return
-	case h.audioChan <- data:
+	// 如果数据太大，分块发送（每块最大 64KB）
+	const chunkSize = 64 * 1024 // 64KB
+
+	if len(data) > chunkSize {
+		for i := 0; i < len(data); i += chunkSize {
+			end := i + chunkSize
+			if end > len(data) {
+				end = len(data)
+			}
+			chunk := data[i:end]
+			select {
+			case <-h.ctx.Done():
+				return
+			case h.audioChan <- chunk:
+			}
+		}
+	} else {
+		select {
+		case <-h.ctx.Done():
+			return
+		case h.audioChan <- data:
+		}
 	}
 }
 

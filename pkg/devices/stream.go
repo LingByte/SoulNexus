@@ -8,15 +8,15 @@ import (
 	"github.com/gen2brain/malgo"
 )
 
-// StreamContext 流式音频操作的上下文
+// StreamContext context for streaming audio operations
 type StreamContext struct {
 	ctx    *malgo.AllocatedContext
 	config StreamConfig
 	mu     sync.RWMutex
 }
 
-// NewStreamContext 创建新的流式音频上下文
-// 如果 config 为 nil，则使用默认配置
+// NewStreamContext creates new streaming audio context
+// If config is nil, uses default configuration
 func NewStreamContext(config *StreamConfig) (*StreamContext, error) {
 	if config == nil {
 		defaultConfig := DefaultStreamConfig()
@@ -34,7 +34,7 @@ func NewStreamContext(config *StreamConfig) (*StreamContext, error) {
 	}, nil
 }
 
-// Close 关闭流式音频上下文并释放资源
+// Close closes streaming audio context and releases resources
 func (sc *StreamContext) Close() error {
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
@@ -48,7 +48,7 @@ func (sc *StreamContext) Close() error {
 	return nil
 }
 
-// GetContext 获取底层的 malgo 上下文（用于设备列表等功能）
+// GetContext gets underlying malgo context (for device list and other functions)
 func (sc *StreamContext) GetContext() *malgo.AllocatedContext {
 	sc.mu.RLock()
 	defer sc.mu.RUnlock()

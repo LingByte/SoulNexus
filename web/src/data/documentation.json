@@ -2,7 +2,7 @@
   "project": {
     "name": "SoulNexus",
     "version": "1.0.0",
-    "description": "开源语音AI框架的完整开发指南",
+    "description": "开源智能语音开发平台",
     "github": "https://github.com/LingByte/SoulNexus",
     "license": "MIT"
   },

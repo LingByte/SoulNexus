@@ -89,7 +89,7 @@ func (f *Factory) CreateServiceFromEnv(provider Provider) (VoiceCloneService, er
 	return f.CreateService(config)
 }
 
-// createXunfeiService 创建讯飞服务
+// createXunfeiService 创建讯飞克隆服务
 func (f *Factory) createXunfeiService(options map[string]interface{}) (VoiceCloneService, error) {
 	appID, _ := options["app_id"].(string)
 	apiKey, _ := options["api_key"].(string)
@@ -103,7 +103,7 @@ func (f *Factory) createXunfeiService(options map[string]interface{}) (VoiceClon
 		return nil, fmt.Errorf("xunfei app_id and api_key are required")
 	}
 
-	return NewXunfeiService(XunfeiConfig{
+	return NewXunfeiCloneService(XunfeiCloneConfig{
 		AppID:              appID,
 		APIKey:             apiKey,
 		BaseURL:            baseURL,
@@ -114,7 +114,7 @@ func (f *Factory) createXunfeiService(options map[string]interface{}) (VoiceClon
 	}), nil
 }
 
-// createVolcengineService 创建火山引擎服务
+// createVolcengineService 创建火山引擎克隆服务
 // 完全效仿 voiceserver-main，只支持 WebSocket，需要 token
 func (f *Factory) createVolcengineService(options map[string]interface{}) (VoiceCloneService, error) {
 	appID, _ := options["app_id"].(string)
@@ -140,7 +140,7 @@ func (f *Factory) createVolcengineService(options map[string]interface{}) (Voice
 	speedRatio, _ := options["speed_ratio"].(float64)
 	trainingTimes, _ := options["training_times"].(int)
 
-	return NewVolcengineService(VolcengineConfig{
+	return NewVolcengineCloneService(VolcengineCloneConfig{
 		AppID:         appID,
 		Token:         token,
 		Cluster:       cluster,

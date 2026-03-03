@@ -4,7 +4,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/LingByte/SoulNexus/pkg/config"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/gin-contrib/sessions"
@@ -28,6 +30,17 @@ func setupHandlerTestDB(t *testing.T) *gorm.DB {
 }
 
 func setupHandlerTestRouter(t *testing.T, db *gorm.DB) *gin.Engine {
+	// 初始化配置
+	config.GlobalConfig = &config.Config{
+		Auth: config.AuthConfig{
+			Header: "Authorization",
+		},
+		Server: config.ServerConfig{
+			APIPrefix:     "/api",
+			MonitorPrefix: "/monitor",
+		},
+	}
+
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 
@@ -164,6 +177,12 @@ func TestAuthRequired_WithTestToken(t *testing.T) {
 	db := setupHandlerTestDB(t)
 	router := setupHandlerTestRouter(t, db)
 
+	// 创建一个测试用户和token
+	user, err := CreateUser(db, "test@example.com", "password123")
+	require.NoError(t, err)
+
+	token := EncodeHashToken(user, time.Now().Unix(), false)
+
 	router.Use(AuthRequired)
 	router.GET("/protected", func(c *gin.Context) {
 		user := CurrentUser(c)
@@ -173,7 +192,7 @@ func TestAuthRequired_WithTestToken(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/protected", nil)
-	req.Header.Set("Authorization", "Bearer test-token-123")
+	req.Header.Set("Authorization", "Bearer "+token)
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)

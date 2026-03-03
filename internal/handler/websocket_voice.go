@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/config"
 	"github.com/LingByte/SoulNexus/pkg/graph"
 	"github.com/LingByte/SoulNexus/pkg/hardware"
+	"github.com/LingByte/SoulNexus/pkg/hardware/constants"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/voice"
@@ -95,7 +97,7 @@ func (h *Handlers) HandleWebSocketVoice(c *gin.Context) {
 	}
 
 	// 如果开启了图记忆功能，则尝试从 Neo4j 中获取该用户的长期偏好主题，并拼接到系统提示词中
-	if config.GlobalConfig.Neo4jEnabled && assistant.EnableGraphMemory {
+	if config.GlobalConfig.Services.KnowledgeBase.Neo4j.Enabled && assistant.EnableGraphMemory {
 		if store := graph.GetDefaultStore(); store != nil {
 			// 通过凭证反查用户
 			var user models.User
@@ -142,7 +144,7 @@ func (h *Handlers) HandleWebSocketVoice(c *gin.Context) {
 	)
 }
 
-// HandleHardwareWebSocketVoice 处理硬件WebSocket语音连接（与xiaozhi-esp32兼容）
+// HandleHardwareWebSocketVoice 处理硬件WebSocket语音连接
 // 从Header中获取Device-Id（MAC地址），查询设备绑定的助手，动态获取配置
 func (h *Handlers) HandleHardwareWebSocketVoice(c *gin.Context) {
 	// 从Header获取Device-Id（MAC地址），与xiaozhi-esp32兼容
@@ -290,21 +292,31 @@ func (h *Handlers) HandleHardwareWebSocketVoice(c *gin.Context) {
 	}
 
 	// 创建WebSocket处理器
-	handler := hardware.NewHandler(logger.Lg)
+	handler := hardware.NewHardwareHandler(h.db, logger.Lg)
 
-	// 处理WebSocket连接
-	// 注意：hardware 包的 HandleWebSocket 暂时不支持 context 参数
-	// 如果需要，可以后续添加
-	handler.HandleWebSocket(
-		c.Request.Context(),
-		conn,
-		cred,
-		int(assistantID),
-		language,
-		speaker,
-		float64(temperature),
-		systemPrompt,
-		knowledgeKey,
-		h.db,
-	)
+	ctx := context.Background()
+
+	// 使用常量中的VAD配置（覆盖数据库值）
+	// 数据库中的值太低，导致Barge-in过于敏感
+	vadThreshold := constants.DefaultVADThreshold
+	vadConsecutiveFrames := constants.DefaultVADConsecutiveFrames
+
+	handler.HandlerHardwareWebsocket(ctx, &hardware.HardwareOptions{
+		Conn:                 conn,
+		AssistantID:          assistantID,
+		DeviceID:             &device.ID,
+		Language:             language,
+		Speaker:              speaker,
+		Temperature:          float64(temperature),
+		SystemPrompt:         systemPrompt,
+		KnowledgeKey:         knowledgeKey,
+		UserID:               device.UserID,
+		MacAddress:           device.MacAddress,
+		LLMModel:             llmModel,
+		Credential:           cred,
+		EnableVAD:            assistant.EnableVAD,
+		VADThreshold:         vadThreshold,
+		VADConsecutiveFrames: vadConsecutiveFrames,
+		VoiceCloneID:         assistant.VoiceCloneID,
+	})
 }

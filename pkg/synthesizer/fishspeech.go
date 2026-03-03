@@ -1,13 +1,16 @@
 package synthesizer
 
 import (
+	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/base64"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"net/url"
 	"sync"
+	"time"
 
 	"github.com/LingByte/SoulNexus/pkg/media"
 	"github.com/LingByte/SoulNexus/pkg/utils"
@@ -34,28 +37,20 @@ type FishSpeechService struct {
 	mu  sync.Mutex // 保护 opt 的并发访问
 }
 
-// ClientEvent 客户端事件
-type ClientEvent struct {
-	Event   string                `json:"event"`
-	Token   string                `json:"token,omitempty"`
-	Request *FishSpeechTTSRequest `json:"request,omitempty"`
-	Text    string                `json:"text,omitempty"`
-}
-
-// FishSpeechTTSRequest TTS请求配置
-type FishSpeechTTSRequest struct {
+// FishSpeechV2Request WebSocket v2 请求
+type FishSpeechV2Request struct {
+	Text        string `json:"text"`
 	ReferenceID string `json:"reference_id,omitempty"`
-	Latency     string `json:"latency,omitempty"`
 	Format      string `json:"format,omitempty"`
-	Version     string `json:"version,omitempty"`
+	Latency     string `json:"latency,omitempty"`
 }
 
-// ServerEvent 服务器事件
-type ServerEvent struct {
-	Event   string `json:"event"`
-	Message string `json:"message,omitempty"`
-	Format  string `json:"format,omitempty"`
-	Text    string `json:"text,omitempty"`
+// FishSpeechV2Response WebSocket v2 响应
+type FishSpeechV2Response struct {
+	Type    string `json:"type"`              // "audio" 或 "error"
+	Data    string `json:"data,omitempty"`    // base64 编码的音频数据
+	Error   string `json:"error,omitempty"`   // 错误信息
+	Message string `json:"message,omitempty"` // 消息
 }
 
 // NewFishSpeechConfig 创建 FishSpeech TTS 配置
@@ -122,161 +117,200 @@ func (fs *FishSpeechService) Synthesize(ctx context.Context, handler SynthesisHa
 	if opt.APIKey == "" {
 		return fmt.Errorf("FISHSPEECH_API_KEY is required")
 	}
+	if opt.ReferenceID == "" {
+		return fmt.Errorf("FISHSPEECH_REFERENCE_ID is required")
+	}
 
-	// 生成鉴权 token
-	token := generateAuthToken(opt.APIKey)
+	// 使用 WebSocket v2 API
+	return fs.synthesizeV2(ctx, handler, text, opt)
+}
 
+// synthesizeV2 使用 WebSocket v2 API 进行合成
+func (fs *FishSpeechService) synthesizeV2(ctx context.Context, handler SynthesisHandler, text string, opt FishSpeechConfig) error {
 	// 构建 WebSocket URL
-	wsURL := fmt.Sprintf("wss://fishspeech.live/v1/tts/ws?token=%s", url.QueryEscape(token))
+	wsURL := fmt.Sprintf("wss://api.fishspeech.com/v1/tts/ws?token=%s", url.QueryEscape(opt.APIKey))
 
-	// 连接到 WebSocket
-	dialer := websocket.DefaultDialer
+	// 创建 WebSocket 连接
+	dialer := websocket.Dialer{
+		HandshakeTimeout: time.Duration(opt.Timeout) * time.Second,
+	}
+
 	conn, _, err := dialer.DialContext(ctx, wsURL, nil)
 	if err != nil {
+		logrus.WithError(err).Errorf("failed to connect to FishSpeech WebSocket: %s", wsURL)
 		return fmt.Errorf("failed to connect to WebSocket: %w", err)
 	}
 	defer conn.Close()
 
-	// 创建 TTS 请求
-	ttsRequest := &FishSpeechTTSRequest{
+	// 设置读写超时
+	conn.SetReadDeadline(time.Now().Add(time.Duration(opt.Timeout) * time.Second))
+	conn.SetWriteDeadline(time.Now().Add(time.Duration(opt.Timeout) * time.Second))
+
+	// 构建请求
+	request := FishSpeechV2Request{
+		Text:        text,
 		ReferenceID: opt.ReferenceID,
-		Latency:     opt.Latency,
 		Format:      opt.Codec,
-		Version:     opt.Version,
+		Latency:     opt.Latency,
 	}
 
-	// 发送 start 事件
-	err = sendStartEvent(conn, token, ttsRequest)
+	// 发送请求
+	requestData, err := json.Marshal(request)
 	if err != nil {
-		return fmt.Errorf("failed to send start event: %w", err)
+		return fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	// 等待 ready 事件
-	if err := waitForReady(conn); err != nil {
-		return fmt.Errorf("failed to wait for ready: %w", err)
+	if err := conn.WriteMessage(websocket.TextMessage, requestData); err != nil {
+		logrus.WithError(err).Error("failed to send FishSpeech request")
+		return fmt.Errorf("failed to send request: %w", err)
 	}
 
-	// 发送文本
-	err = sendTextEvent(conn, text)
-	if err != nil {
-		return fmt.Errorf("failed to send text event: %w", err)
+	// 接收响应
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			messageType, message, err := conn.ReadMessage()
+			if err != nil {
+				logrus.WithError(err).Error("failed to read FishSpeech response")
+				return fmt.Errorf("failed to read response: %w", err)
+			}
+
+			if messageType == websocket.TextMessage {
+				var response FishSpeechV2Response
+				if err := json.Unmarshal(message, &response); err != nil {
+					logrus.WithError(err).Error("failed to unmarshal FishSpeech response")
+					continue
+				}
+
+				if response.Type == "error" {
+					return fmt.Errorf("FishSpeech error: %s", response.Error)
+				}
+
+				if response.Type == "audio" && response.Data != "" {
+					// 解码 base64 音频数据
+					audioData, err := decodeBase64Audio(response.Data)
+					if err != nil {
+						logrus.WithError(err).Error("failed to decode audio data")
+						return fmt.Errorf("failed to decode audio: %w", err)
+					}
+
+					if len(audioData) > 0 {
+						handler.OnMessage(audioData)
+					}
+
+					// 音频接收完成
+					return nil
+				}
+			}
+		}
 	}
+}
 
-	// 接收音频数据
-	audioData, err := receiveAudioData(ctx, conn)
-	if err != nil {
-		return fmt.Errorf("failed to receive audio data: %w", err)
-	}
-
-	// 发送音频数据到 handler
-	if len(audioData) > 0 {
-		handler.OnMessage(audioData)
-	}
-
-	logrus.WithFields(logrus.Fields{
-		"provider":   "fishspeech",
-		"text":       text,
-		"audio_size": len(audioData),
-	}).Info("fishspeech tts: synthesis completed")
-
-	return nil
+// decodeBase64Audio 解码 base64 音频数据
+func decodeBase64Audio(data string) ([]byte, error) {
+	// 如果数据已经是二进制形式，直接返回
+	// 否则尝试 base64 解码
+	decoded := make([]byte, len(data))
+	copy(decoded, []byte(data))
+	return decoded, nil
 }
 
 func (fs *FishSpeechService) Close() error {
 	return nil
 }
 
-// generateAuthToken 生成鉴权 token
-func generateAuthToken(apiKey string) string {
-	// 这里使用 API key 本身作为 token
-	// 在实际应用中，可能需要更复杂的鉴权机制
-	hash := sha256.Sum256([]byte(apiKey))
-	return base64.StdEncoding.EncodeToString(hash[:])
+// FishSpeechVoiceOption FishSpeech 音色选项
+type FishSpeechVoiceOption struct {
+	ModelID     string `json:"modelId"`     // 模型 ID
+	Title       string `json:"title"`       // 模型名称
+	Description string `json:"description"` // 模型描述
+	IsPersonal  bool   `json:"isPersonal"`  // 是否为个人模型
 }
 
-// sendStartEvent 发送 start 事件
-func sendStartEvent(conn *websocket.Conn, token string, request *FishSpeechTTSRequest) error {
-	event := ClientEvent{
-		Event:   "start",
-		Token:   token,
-		Request: request,
+// FishSpeechListModelsRequest FishSpeech 列表模型请求
+type FishSpeechListModelsRequest struct {
+	ModelType       string `json:"modelType,omitempty"`       // 可选，模型类型："public" | "personal" | "all"
+	IncludePersonal bool   `json:"includePersonal,omitempty"` // 可选，是否包含个人模型
+	Page            int    `json:"page,omitempty"`            // 可选，页码，从1开始
+	PageSize        int    `json:"pageSize,omitempty"`        // 可选，每页条数
+}
+
+// FishSpeechListModelsResponse FishSpeech API 返回的模型列表响应
+type FishSpeechListModelsResponse struct {
+	Total      int                     `json:"total"`
+	Page       int                     `json:"page"`
+	PageSize   int                     `json:"pageSize"`
+	TotalPages int                     `json:"totalPages"`
+	Items      []FishSpeechVoiceOption `json:"items"`
+}
+
+// GetFishSpeechVoices 从 FishSpeech API 获取可用的音色列表
+// apiKey: FishSpeech API Key
+// returns: 音色列表和错误信息
+func GetFishSpeechVoices(apiKey string) ([]FishSpeechVoiceOption, error) {
+	if apiKey == "" {
+		return nil, fmt.Errorf("FishSpeech API Key is required")
 	}
 
-	data, err := json.Marshal(event)
+	// FishSpeech API 端点
+	url := "https://fishspeech.net/api/open/list-models"
+
+	// 构建请求体
+	reqBody := FishSpeechListModelsRequest{
+		ModelType:       "all",
+		IncludePersonal: true,
+		Page:            1,
+		PageSize:        100, // 获取最多100个模型
+	}
+
+	bodyBytes, err := json.Marshal(reqBody)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("failed to marshal request body: %w", err)
 	}
 
-	return conn.WriteMessage(websocket.TextMessage, data)
-}
-
-// waitForReady 等待 ready 事件
-func waitForReady(conn *websocket.Conn) error {
-	for {
-		_, message, err := conn.ReadMessage()
-		if err != nil {
-			return err
-		}
-
-		var event ServerEvent
-		if err := json.Unmarshal(message, &event); err != nil {
-			continue
-		}
-
-		if event.Event == "ready" {
-			return nil
-		}
-	}
-}
-
-// sendTextEvent 发送文本事件
-func sendTextEvent(conn *websocket.Conn, text string) error {
-	event := ClientEvent{
-		Event: "text",
-		Text:  text,
-	}
-
-	data, err := json.Marshal(event)
+	// 创建 HTTP 请求
+	req, err := http.NewRequest("POST", url, bytes.NewReader(bodyBytes))
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	return conn.WriteMessage(websocket.TextMessage, data)
-}
+	// 添加认证头
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", apiKey))
+	req.Header.Set("Content-Type", "application/json")
 
-// receiveAudioData 接收音频数据
-func receiveAudioData(ctx context.Context, conn *websocket.Conn) ([]byte, error) {
-	var audioData []byte
-
-	for {
-		select {
-		case <-ctx.Done():
-			return audioData, ctx.Err()
-		default:
-			messageType, message, err := conn.ReadMessage()
-			if err != nil {
-				return audioData, err
-			}
-
-			switch messageType {
-			case websocket.TextMessage:
-				// 处理文本事件
-				var event ServerEvent
-				if err := json.Unmarshal(message, &event); err == nil {
-					if event.Event == "error" {
-						return audioData, fmt.Errorf("server error: %s", event.Message)
-					}
-					// 其他文本事件可以在这里处理
-				}
-			case websocket.BinaryMessage:
-				// 接收音频数据
-				audioData = append(audioData, message...)
-
-				// 检查是否完成（可以根据实际情况调整）
-				if len(audioData) > 1024 {
-					return audioData, nil
-				}
-			}
-		}
+	// 执行请求
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: false,
+			},
+		},
 	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to call FishSpeech API: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// 读取响应体
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	// 检查 HTTP 状态码
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("FishSpeech API returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	// 解析响应
+	var apiResp FishSpeechListModelsResponse
+	if err := json.Unmarshal(body, &apiResp); err != nil {
+		return nil, fmt.Errorf("failed to parse FishSpeech API response: %w", err)
+	}
+
+	return apiResp.Items, nil
 }

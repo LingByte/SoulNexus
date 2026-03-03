@@ -66,6 +66,21 @@ export interface SystemInitInfo {
       }
     }
   }
+  voiceprint: {
+    enabled: boolean
+    configured: boolean
+    config?: {
+      service_url?: string
+      api_key?: string
+      similarity_threshold?: number
+      max_candidates?: number
+      cache_enabled?: boolean
+      log_enabled?: boolean
+    }
+  }
+  features: {
+    voiceprintEnabled: boolean // 专门用于前端sidebar显示控制
+  }
 }
 
 // 获取系统初始化信息
@@ -81,5 +96,22 @@ export interface SaveVoiceCloneConfigRequest {
 
 export const saveVoiceCloneConfig = async (data: SaveVoiceCloneConfigRequest): Promise<ApiResponse<void>> => {
   return post('/system/voice-clone/config', data)
+}
+
+// 保存声纹识别配置
+export interface SaveVoiceprintConfigRequest {
+  enabled: boolean
+  config: {
+    service_url: string
+    api_key: string
+    similarity_threshold?: number
+    max_candidates?: number
+    cache_enabled?: boolean
+    log_enabled?: boolean
+  }
+}
+
+export const saveVoiceprintConfig = async (data: SaveVoiceprintConfigRequest): Promise<ApiResponse<void>> => {
+  return post('/system/voiceprint/config', data)
 }
 

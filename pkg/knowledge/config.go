@@ -105,3 +105,31 @@ func validateRequiredConfig(config map[string]interface{}, requiredKeys []string
 	}
 	return nil
 }
+
+// getFloatVectorFromConfig 从配置中获取float32向量
+func getFloatVectorFromConfig(filter map[string]interface{}, key string) []float32 {
+	if filter == nil {
+		return nil
+	}
+
+	if val, ok := filter[key]; ok {
+		if vec, ok := val.([]float32); ok {
+			return vec
+		}
+		if vec, ok := val.([]interface{}); ok {
+			result := make([]float32, 0, len(vec))
+			for _, v := range vec {
+				switch f := v.(type) {
+				case float32:
+					result = append(result, f)
+				case float64:
+					result = append(result, float32(f))
+				case int:
+					result = append(result, float32(f))
+				}
+			}
+			return result
+		}
+	}
+	return nil
+}

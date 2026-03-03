@@ -63,7 +63,7 @@ func (h *Handlers) ListUserQuotas(c *gin.Context) {
 		}
 	}
 
-	response.Success(c, "查询成功", quotas)
+	response.Success(c, "Query successful", quotas)
 }
 
 // GetUserQuota gets user quota details
@@ -81,11 +81,11 @@ func (h *Handlers) GetUserQuota(c *gin.Context) {
 		return
 	}
 
-	// 更新实际使用量
+	// Update actual usage
 	models.UpdateUserQuotaUsage(h.db, user.ID, quotaType)
 	quota, _ = models.GetUserQuota(h.db, user.ID, quotaType)
 
-	response.Success(c, "查询成功", quota)
+	response.Success(c, "Query successful", quota)
 }
 
 // CreateUserQuota creates user quota
@@ -102,10 +102,9 @@ func (h *Handlers) CreateUserQuota(c *gin.Context) {
 		return
 	}
 
-	// 检查是否已存在
 	var existing models.UserQuota
 	if err := h.db.Where("user_id = ? AND quota_type = ?", user.ID, req.QuotaType).First(&existing).Error; err == nil {
-		response.Fail(c, "配额已存在", "该类型的配额已配置，请使用更新接口")
+		response.Fail(c, "Quota already exists", "This type of quota is already configured, please use update interface")
 		return
 	}
 
@@ -203,7 +202,7 @@ func (h *Handlers) ListGroupQuotas(c *gin.Context) {
 		return
 	}
 
-	// 检查权限：只有创建者或管理员可以查看
+	// Check permissions: only creator or admin can view
 	var group models.Group
 	if err := h.db.First(&group, id).Error; err != nil {
 		response.Fail(c, "组织不存在", nil)
@@ -224,10 +223,8 @@ func (h *Handlers) ListGroupQuotas(c *gin.Context) {
 		return
 	}
 
-	// 更新所有配额的使用量（从 UsageRecord 表实时统计）
 	for i := range quotas {
 		models.UpdateGroupQuotaUsage(h.db, uint(id), quotas[i].QuotaType)
-		// 重新获取更新后的配额
 		updatedQuota, _ := models.GetGroupQuota(h.db, uint(id), quotas[i].QuotaType)
 		if updatedQuota != nil {
 			quotas[i] = *updatedQuota
@@ -237,7 +234,7 @@ func (h *Handlers) ListGroupQuotas(c *gin.Context) {
 	response.Success(c, "查询成功", quotas)
 }
 
-// GetGroupQuota 获取组织配额详情
+// GetGroupQuota gets organization quota details
 func (h *Handlers) GetGroupQuota(c *gin.Context) {
 	user := models.CurrentUser(c)
 	if user == nil {
@@ -253,7 +250,7 @@ func (h *Handlers) GetGroupQuota(c *gin.Context) {
 
 	quotaType := models.QuotaType(c.Param("type"))
 
-	// 检查权限
+	// Check permissions
 	var group models.Group
 	if err := h.db.First(&group, id).Error; err != nil {
 		response.Fail(c, "组织不存在", nil)
@@ -274,14 +271,14 @@ func (h *Handlers) GetGroupQuota(c *gin.Context) {
 		return
 	}
 
-	// 更新实际使用量
+	// Update actual usage
 	models.UpdateGroupQuotaUsage(h.db, uint(id), quotaType)
 	quota, _ = models.GetGroupQuota(h.db, uint(id), quotaType)
 
 	response.Success(c, "查询成功", quota)
 }
 
-// CreateGroupQuota 创建组织配额
+// CreateGroupQuota creates organization quota
 func (h *Handlers) CreateGroupQuota(c *gin.Context) {
 	user := models.CurrentUser(c)
 	if user == nil {
@@ -295,7 +292,7 @@ func (h *Handlers) CreateGroupQuota(c *gin.Context) {
 		return
 	}
 
-	// 检查权限：只有创建者可以创建配额
+	// Check permissions: only creator can create quota
 	var group models.Group
 	if err := h.db.First(&group, id).Error; err != nil {
 		response.Fail(c, "组织不存在", nil)
@@ -313,7 +310,7 @@ func (h *Handlers) CreateGroupQuota(c *gin.Context) {
 		return
 	}
 
-	// 检查是否已存在
+	// Check if already exists
 	var existing models.GroupQuota
 	if err := h.db.Where("group_id = ? AND quota_type = ?", id, req.QuotaType).First(&existing).Error; err == nil {
 		response.Fail(c, "配额已存在", "该类型的配额已配置，请使用更新接口")
@@ -340,7 +337,7 @@ func (h *Handlers) CreateGroupQuota(c *gin.Context) {
 	response.Success(c, "创建成功", quota)
 }
 
-// UpdateGroupQuota 更新组织配额
+// UpdateGroupQuota updates organization quota
 func (h *Handlers) UpdateGroupQuota(c *gin.Context) {
 	user := models.CurrentUser(c)
 	if user == nil {
@@ -402,7 +399,7 @@ func (h *Handlers) UpdateGroupQuota(c *gin.Context) {
 	response.Success(c, "更新成功", quota)
 }
 
-// DeleteGroupQuota 删除组织配额
+// DeleteGroupQuota deletes organization quota
 func (h *Handlers) DeleteGroupQuota(c *gin.Context) {
 	user := models.CurrentUser(c)
 	if user == nil {
@@ -415,10 +412,7 @@ func (h *Handlers) DeleteGroupQuota(c *gin.Context) {
 		response.Fail(c, "参数错误", "无效的组织ID")
 		return
 	}
-
 	quotaType := models.QuotaType(c.Param("type"))
-
-	// 检查权限
 	var group models.Group
 	if err := h.db.First(&group, id).Error; err != nil {
 		response.Fail(c, "组织不存在", nil)

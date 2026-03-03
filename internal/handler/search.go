@@ -33,12 +33,6 @@ func (h *Handlers) UpdateSearchConfig(c *gin.Context) {
 		return
 	}
 
-	// Only administrators can modify search configuration
-	if !user.HasPermission(models.PermissionSearchConfig) {
-		response.Fail(c, "forbidden", "Insufficient permissions")
-		return
-	}
-
 	var input struct {
 		Enabled   *bool   `json:"enabled"`
 		Path      *string `json:"path"`
@@ -81,12 +75,6 @@ func (h *Handlers) EnableSearch(c *gin.Context) {
 		return
 	}
 
-	// Only administrators can enable search
-	if !user.HasPermission(models.PermissionSearchConfig) {
-		response.Fail(c, "forbidden", "Insufficient permissions")
-		return
-	}
-
 	utils.SetValue(h.db, constants.KEY_SEARCH_ENABLED, "true", "bool", true, true)
 	utils.LoadAutoloads(h.db)
 
@@ -98,12 +86,6 @@ func (h *Handlers) DisableSearch(c *gin.Context) {
 	user := models.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "unauthorized", "User not logged in")
-		return
-	}
-
-	// Only administrators can disable search
-	if !user.HasPermission(models.PermissionSearchConfig) {
-		response.Fail(c, "forbidden", "Insufficient permissions")
 		return
 	}
 

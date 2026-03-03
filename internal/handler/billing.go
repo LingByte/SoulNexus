@@ -343,7 +343,7 @@ func (h *Handlers) ExportUsageRecords(c *gin.Context) {
 	}
 
 	// Export path
-	exportPath := config.GlobalConfig.BackupPath
+	exportPath := config.GlobalConfig.Features.BackupPath
 	if exportPath == "" {
 		exportPath = "./exports"
 	}
@@ -587,7 +587,7 @@ func (h *Handlers) ExportBill(c *gin.Context) {
 	}
 
 	// Export path
-	exportPath := config.GlobalConfig.BackupPath
+	exportPath := config.GlobalConfig.Features.BackupPath
 	if exportPath == "" {
 		exportPath = "./exports"
 	}

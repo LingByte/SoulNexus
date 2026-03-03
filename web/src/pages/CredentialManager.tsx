@@ -13,6 +13,7 @@ import Card from '../components/UI/Card'
 import Badge from '../components/UI/Badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/UI/Tabs'
 import FadeIn from '../components/Animations/FadeIn'
+import ConfirmDialog from '../components/UI/ConfirmDialog'
 import { showAlert } from '../utils/notification'
 import { createCredential, fetchUserCredentials, deleteCredential, type Credential, type CreateCredentialForm } from '../api/credential'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -51,6 +52,14 @@ const CredentialManager = () => {
   const [ttsConfigFields, setTtsConfigFields] = useState<Record<string, any>>({})
   const [asrProvider, setAsrProvider] = useState('')
   const [ttsProvider, setTtsProvider] = useState('')
+  
+  // 删除确认对话框状态
+  const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; credentialId: number | null; credentialName: string; isDeleting: boolean }>({
+    isOpen: false,
+    credentialId: null,
+    credentialName: '',
+    isDeleting: false
+  })
 
   // 页面加载时获取密钥列表
   useEffect(() => {
@@ -191,10 +200,12 @@ const CredentialManager = () => {
 
   const handleDelete = async (id: number) => {
     try {
+      setDeleteConfirm(prev => ({ ...prev, isDeleting: true }))
       const response = await deleteCredential(id)
       if (response.code === 200) {
         setCredentials((prev) => prev.filter((c) => c.id !== id))
         showAlert(t('credential.messages.deleteSuccess'), 'success', t('credential.messages.deleteSuccess'))
+        setDeleteConfirm({ isOpen: false, credentialId: null, credentialName: '', isDeleting: false })
       } else {
         throw new Error(response.msg || t('credential.messages.deleteFailed'))
       }
@@ -202,6 +213,26 @@ const CredentialManager = () => {
       // 处理API错误响应
       const errorMessage = error?.msg || error?.message || t('credential.messages.deleteFailed')
       showAlert(errorMessage, 'error', t('credential.messages.operationFailed'))
+      setDeleteConfirm(prev => ({ ...prev, isDeleting: false }))
+    }
+  }
+
+  const openDeleteConfirm = (id: number, name: string) => {
+    setDeleteConfirm({
+      isOpen: true,
+      credentialId: id,
+      credentialName: name,
+      isDeleting: false
+    })
+  }
+
+  const closeDeleteConfirm = () => {
+    setDeleteConfirm({ isOpen: false, credentialId: null, credentialName: '', isDeleting: false })
+  }
+
+  const confirmDelete = () => {
+    if (deleteConfirm.credentialId !== null) {
+      handleDelete(deleteConfirm.credentialId)
     }
   }
 
@@ -340,13 +371,13 @@ const CredentialManager = () => {
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-gray-600 dark:text-gray-400">{t('credential.asrKeys')}</span>
                       <span className="text-sm text-gray-900 dark:text-white">
-                        {credentials.filter(c => c.asrConfig?.provider).length}
+                        {credentials.filter(c => c.asrProvider).length}
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-gray-600 dark:text-gray-400">{t('credential.ttsKeys')}</span>
                       <span className="text-sm text-gray-900 dark:text-white">
-                        {credentials.filter(c => c.ttsConfig?.provider).length}
+                        {credentials.filter(c => c.ttsProvider).length}
                       </span>
                     </div>
                   </div>
@@ -411,19 +442,11 @@ const CredentialManager = () => {
                                       {cred.llmProvider || '未配置'}
                                     </Badge>
                                   </div>
-                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                                    <div>
-                                      <span className="text-gray-600 dark:text-gray-400">{t('credential.apiKey')}:</span>
-                                      <div className="flex items-center space-x-2 mt-1">
-                                        <span className="font-mono text-xs bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
-                                          {cred.apiKey ? `${cred.apiKey.substring(0, 8)}...${cred.apiKey.substring(cred.apiKey.length - 4)}` : '••••••••••••••••'}
-                                        </span>
-                                      </div>
-                                    </div>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                                     <div>
                                       <span className="text-gray-600 dark:text-gray-400">{t('credential.createdAt')}:</span>
                                       <div className="text-gray-900 dark:text-white">
-                                        {cred.created_at ? new Date(cred.created_at).toLocaleDateString('zh-CN', {
+                                        {cred.updatedAt ? new Date(cred.updatedAt).toLocaleDateString('zh-CN', {
                                           year: 'numeric',
                                           month: '2-digit',
                                           day: '2-digit',
@@ -447,7 +470,7 @@ const CredentialManager = () => {
                                     leftIcon={<Download className="w-4 h-4" />}
                                     onClick={() => {
                                       const blob = new Blob(
-                                        [`Name: ${cred.name}\nAPI Key: ${cred.apiKey}\nProvider: ${cred.llmProvider || t('credential.notConfigured')}\nCreated: ${cred.created_at ? new Date(cred.created_at).toLocaleString('zh-CN') : t('credential.unknown')}`],
+                                        [`Name: ${cred.name}\nProvider: ${cred.llmProvider || t('credential.notConfigured')}\nUpdated: ${cred.updatedAt ? new Date(cred.updatedAt).toLocaleString('zh-CN') : t('credential.unknown')}`],
                                         { type: "text/plain" }
                                       )
                                       const url = URL.createObjectURL(blob)
@@ -464,7 +487,7 @@ const CredentialManager = () => {
                                     variant="destructive"
                                     size="sm"
                                     leftIcon={<Trash2 className="w-4 h-4" />}
-                                    onClick={() => handleDelete(cred.id)}
+                                    onClick={() => openDeleteConfirm(cred.id, cred.name)}
                                   >
                                     {t('credential.delete')}
                                   </Button>
@@ -752,6 +775,19 @@ const CredentialManager = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* 删除确认对话框 */}
+      <ConfirmDialog
+        isOpen={deleteConfirm.isOpen}
+        onClose={closeDeleteConfirm}
+        onConfirm={confirmDelete}
+        title={t('credential.deleteConfirmTitle') || '删除密钥'}
+        message={t('credential.deleteConfirmMessage', { name: deleteConfirm.credentialName }) || `确定要删除密钥 "${deleteConfirm.credentialName}" 吗？此操作不可恢复。`}
+        confirmText={t('credential.delete') || '删除'}
+        cancelText={t('common.cancel') || '取消'}
+        type="danger"
+        loading={deleteConfirm.isDeleting}
+      />
     </div>
   )
 }

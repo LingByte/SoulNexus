@@ -195,3 +195,12 @@ func (v *VoiceClone) IncrementUsage() {
 func (v *VoiceClone) IsAvailable() bool {
 	return v.IsActive && v.AssetID != ""
 }
+
+// GetVoiceCloneByID 根据ID获取音色克隆
+func GetVoiceCloneByID(db *gorm.DB, voiceCloneID int64) (*VoiceClone, error) {
+	var voiceClone VoiceClone
+	if err := db.Where("id = ?", voiceCloneID).First(&voiceClone).Error; err != nil {
+		return nil, err
+	}
+	return &voiceClone, nil
+}

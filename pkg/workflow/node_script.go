@@ -2,12 +2,16 @@ package workflow
 
 import (
 	"bytes"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"strings"
+	"text/template"
+	"time"
 
+	"github.com/LingByte/SoulNexus/pkg/workflow/libs"
 	"github.com/traefik/yaegi/interp"
 	"github.com/traefik/yaegi/stdlib"
 )
@@ -28,21 +32,37 @@ func (s *ScriptNode) ExecuteScript(ctx *WorkflowContext, inputs map[string]inter
 		if len(inputs) > 0 {
 			inputJSON, err := json.Marshal(inputs)
 			if err == nil {
-				ctx.AddLog("debug", fmt.Sprintf("Script inputs: %s", string(inputJSON)), s.ID, s.Name)
-			} else {
-				ctx.AddLog("debug", fmt.Sprintf("Script inputs: %d parameter(s)", len(inputs)), s.ID, s.Name)
+				ctx.AddLog("info", fmt.Sprintf("Input: %s", string(inputJSON)), s.ID, s.Name)
 			}
 		}
 	} else {
 		fmt.Printf("%s\n", message)
 	}
+
+	// 检查脚本是否为空
+	if strings.TrimSpace(s.Script) == "" {
+		errMsg := "Script is empty"
+		if ctx != nil {
+			ctx.AddLog("error", errMsg, s.ID, s.Name)
+		}
+		return nil, fmt.Errorf(errMsg)
+	}
+
 	runtime := s.Runtime
 	if runtime == nil {
 		runtime = defaultGoScriptRuntime
 	}
+
+	if ctx != nil {
+		ctx.AddLog("info", "Starting script runtime...", s.ID, s.Name)
+	}
+
 	result, err := runtime(ctx, s.Script, inputs)
 	if err != nil {
-		ctx.AddLog("error", fmt.Sprintf("Script execution failed: %s", err.Error()), s.ID, s.Name)
+		errMsg := fmt.Sprintf("Script execution failed: %s", err.Error())
+		if ctx != nil {
+			ctx.AddLog("error", errMsg, s.ID, s.Name)
+		}
 		return nil, err
 	}
 	if result == nil {
@@ -53,11 +73,11 @@ func (s *ScriptNode) ExecuteScript(ctx *WorkflowContext, inputs map[string]inter
 	if ctx != nil && len(result) > 0 {
 		outputJSON, err := json.Marshal(result)
 		if err == nil {
-			ctx.AddLog("debug", fmt.Sprintf("Script outputs: %s", string(outputJSON)), s.ID, s.Name)
-		} else {
-			ctx.AddLog("debug", fmt.Sprintf("Script outputs: %d result(s)", len(result)), s.ID, s.Name)
+			ctx.AddLog("info", fmt.Sprintf("Output: %s", string(outputJSON)), s.ID, s.Name)
 		}
 		ctx.AddLog("success", "Script executed successfully", s.ID, s.Name)
+	} else if ctx != nil {
+		ctx.AddLog("success", "Script executed successfully (no output)", s.ID, s.Name)
 	}
 
 	return result, nil
@@ -70,13 +90,22 @@ func (s *ScriptNode) Base() *Node {
 func (s *ScriptNode) Run(ctx *WorkflowContext) ([]string, error) {
 	inputs, err := s.Node.PrepareInputs(ctx)
 	if err != nil {
+		if ctx != nil {
+			ctx.AddLog("error", fmt.Sprintf("Failed to prepare inputs: %v", err), s.ID, s.Name)
+		}
 		return nil, err
 	}
 	result, err := s.ExecuteScript(ctx, inputs)
 	if err != nil {
+		if ctx != nil {
+			ctx.AddLog("error", fmt.Sprintf("Script execution error: %v", err), s.ID, s.Name)
+		}
 		return nil, err
 	}
 	s.Node.PersistOutputs(ctx, result)
+	if ctx != nil {
+		ctx.AddLog("success", fmt.Sprintf("Script node completed, next nodes: %v", s.NextNodes), s.ID, s.Name)
+	}
 	return s.NextNodes, nil
 }
 
@@ -149,8 +178,13 @@ func defaultGoScriptRuntime(ctx *WorkflowContext, script string, inputs map[stri
 		// 恢复标准输出
 		os.Stdout = originalStdout
 		os.Stderr = originalStderr
-		// 等待读取完成
-		<-outputDone
+		// 等待读取完成（带超时）
+		select {
+		case <-outputDone:
+			// 读取完成
+		case <-time.After(1 * time.Second):
+			// 超时，继续
+		}
 		// 关闭读端
 		rOut.Close()
 		rErr.Close()
@@ -160,10 +194,31 @@ func defaultGoScriptRuntime(ctx *WorkflowContext, script string, inputs map[stri
 	i := interp.New(interp.Options{})
 	i.Use(stdlib.Symbols)
 
-	// 执行脚本 - 使用带日志函数的包装
-	wrapped := wrapScriptWithLog(script, ctx)
+	// 执行脚本 - 使用带日志函数和库的包装
+	wrapped := wrapScriptWithLibraries(script, ctx)
 	if _, err := i.Eval(wrapped); err != nil {
-		// 如果注入日志函数失败，尝试使用原始脚本
+		// 检查是否是小写库名称的错误
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "undefined: stringLib") ||
+			strings.Contains(errMsg, "undefined: mathLib") ||
+			strings.Contains(errMsg, "undefined: timeLib") ||
+			strings.Contains(errMsg, "undefined: cryptoLib") ||
+			strings.Contains(errMsg, "undefined: regexLib") ||
+			strings.Contains(errMsg, "undefined: validationLib") ||
+			strings.Contains(errMsg, "undefined: arrayLib") ||
+			strings.Contains(errMsg, "undefined: httpLib") ||
+			strings.Contains(errMsg, "cannot convert") && strings.Contains(errMsg, "main.stringLib") ||
+			strings.Contains(errMsg, "cannot convert") && strings.Contains(errMsg, "main.mathLib") ||
+			strings.Contains(errMsg, "cannot convert") && strings.Contains(errMsg, "main.timeLib") ||
+			strings.Contains(errMsg, "cannot convert") && strings.Contains(errMsg, "main.cryptoLib") ||
+			strings.Contains(errMsg, "cannot convert") && strings.Contains(errMsg, "main.regexLib") ||
+			strings.Contains(errMsg, "cannot convert") && strings.Contains(errMsg, "main.validationLib") ||
+			strings.Contains(errMsg, "cannot convert") && strings.Contains(errMsg, "main.arrayLib") ||
+			strings.Contains(errMsg, "cannot convert") && strings.Contains(errMsg, "main.httpLib") {
+			return nil, fmt.Errorf("script evaluation failed: library names must be UPPERCASE (e.g., StringLib, MathLib, TimeLib, ValidationLib, HttpLib, etc.). Error: %w", err)
+		}
+
+		// 如果注入失败，尝试使用原始脚本
 		wrapped = wrapScript(script)
 		if _, err2 := i.Eval(wrapped); err2 != nil {
 			return nil, fmt.Errorf("script evaluation failed: %w (original: %v)", err2, err)
@@ -182,13 +237,6 @@ func defaultGoScriptRuntime(ctx *WorkflowContext, script string, inputs map[stri
 	// 执行 Run 函数
 	result, err := runFunc(inputs)
 
-	// 确保所有缓冲的输出都被刷新
-	wOut.Sync()
-	wErr.Sync()
-
-	// 确保所有输出都被处理
-	// 由于使用了 CustomWriter，输出已经实时发送到日志了
-
 	return result, err
 }
 
@@ -203,34 +251,100 @@ func wrapScript(src string) string {
 	return builder.String()
 }
 
-// wrapScriptWithLog 包装脚本并注入日志函数
-func wrapScriptWithLog(src string, ctx *WorkflowContext) string {
-	trimmed := strings.TrimSpace(src)
+// wrapScriptWithLibraries 包装脚本并注入库对象和日志函数
+func wrapScriptWithLibraries(src string, ctx *WorkflowContext) string {
+	userScript := removePackageAndImports(src)
 
-	// 注入日志函数的代码
-	logFuncCode := `
-// 注入的日志函数，用于替代 fmt.Println
+	// 获取所有库的代码
+	libsCode := libs.GetAllLibsCode()
+
+	// 脚本模板 - 使用 //go:embed 嵌入的库代码
+	scriptTemplate := `package main
+import (
+	"crypto/md5"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"io"
+	"math"
+	"net/http"
+	"regexp"
+	"strconv"
+	"strings"
+	"time"
+)
+
+{{.LibsCode}}
+
 func log(args ...interface{}) {
 	for _, arg := range args {
 		fmt.Print(arg)
 	}
 	fmt.Println()
 }
+
+{{.UserScript}}
 `
 
-	builder := strings.Builder{}
-	if strings.HasPrefix(trimmed, "package") {
-		// 如果已经有 package 声明，在 package 后添加日志函数
-		lines := strings.Split(trimmed, "\n")
-		builder.WriteString(lines[0] + "\n")
-		builder.WriteString(logFuncCode)
-		for i := 1; i < len(lines); i++ {
-			builder.WriteString(lines[i] + "\n")
-		}
-	} else {
-		builder.WriteString("package main\n")
-		builder.WriteString(logFuncCode)
-		builder.WriteString(trimmed)
+	// 注意：库实例已在 .gox 文件中定义为大写变量（StringLib, MathLib 等）
+	// 用户脚本应该使用大写的库名称，例如：StringLib.ToUpper("hello")
+
+	tmpl, err := template.New("script").Parse(scriptTemplate)
+	if err != nil {
+		return src
 	}
-	return builder.String()
+
+	var buf bytes.Buffer
+	err = tmpl.Execute(&buf, map[string]interface{}{
+		"LibsCode":   libsCode,
+		"UserScript": userScript,
+	})
+	if err != nil {
+		return src
+	}
+
+	return buf.String()
+}
+
+// removePackageAndImports 移除脚本中的 package 和 import 声明
+func removePackageAndImports(src string) string {
+	lines := strings.Split(src, "\n")
+	var result []string
+	inImport := false
+	skipNextLines := 0
+
+	for i, line := range lines {
+		trimmedLine := strings.TrimSpace(line)
+
+		// 跳过 package 声明
+		if strings.HasPrefix(trimmedLine, "package ") {
+			continue
+		}
+
+		// 跳过 import 块
+		if strings.HasPrefix(trimmedLine, "import") {
+			if strings.Contains(trimmedLine, "(") {
+				inImport = true
+			}
+			continue
+		}
+
+		if inImport {
+			if strings.Contains(trimmedLine, ")") {
+				inImport = false
+			}
+			continue
+		}
+
+		// 跳过空行（在开头）
+		if i < len(lines)-1 && trimmedLine == "" && skipNextLines < 5 {
+			skipNextLines++
+			continue
+		}
+
+		result = append(result, line)
+	}
+
+	return strings.Join(result, "\n")
 }

@@ -10,20 +10,20 @@ const (
 	GroupRoleAdmin               = "admin"
 	GroupRoleMember              = "member"
 	SigInitSystemConfig          = "system.init"
-	SoftDeleteStatusActive  int8 = 0 // 未删除
-	SoftDeleteStatusDeleted int8 = 1 // 已删除
+	SoftDeleteStatusActive  int8 = 0 // Not deleted
+	SoftDeleteStatusDeleted int8 = 1 // Deleted
 )
 
 type BaseModel struct {
 	ID        uint      `json:"id" gorm:"primaryKey"`
-	CreatedAt time.Time `json:"createdAt" gorm:"autoCreateTime;comment:创建时间"`
-	UpdatedAt time.Time `json:"updatedAt,omitempty" gorm:"autoUpdateTime;comment:更新时间"`
-	IsDeleted int8      `json:"isDeleted,omitempty" gorm:"default:0;index;comment:软删除标记(0:未删除,1:已删除)"`
-	CreateBy  string    `json:"createBy,omitempty" gorm:"size:128;index;comment:创建人"`
-	UpdateBy  string    `json:"updateBy,omitempty" gorm:"size:128;index;comment:更新人"`
+	CreatedAt time.Time `json:"createdAt" gorm:"autoCreateTime;comment:Creation time"`
+	UpdatedAt time.Time `json:"updatedAt,omitempty" gorm:"autoUpdateTime;comment:Update time"`
+	IsDeleted int8      `json:"isDeleted,omitempty" gorm:"default:0;index;comment:Soft delete flag (0:not deleted, 1:deleted)"`
+	CreateBy  string    `json:"createBy,omitempty" gorm:"size:128;index;comment:Creator"`
+	UpdateBy  string    `json:"updateBy,omitempty" gorm:"size:128;index;comment:Updater"`
 }
 
-// BeforeCreate GORM hook: 创建前自动设置创建时间
+// BeforeCreate GORM hook: automatically set creation time before creating
 func (m *BaseModel) BeforeCreate(tx *gorm.DB) error {
 	now := time.Now()
 	if m.CreatedAt.IsZero() {
@@ -38,48 +38,48 @@ func (m *BaseModel) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
-// BeforeUpdate GORM hook: 更新前自动设置更新时间
+// BeforeUpdate GORM hook: automatically set update time before updating
 func (m *BaseModel) BeforeUpdate(tx *gorm.DB) error {
 	m.UpdatedAt = time.Now()
 	return nil
 }
 
-// IsSoftDeleted 检查是否已软删除
+// IsSoftDeleted checks if the record is soft deleted
 func (m *BaseModel) IsSoftDeleted() bool {
 	return m.IsDeleted == SoftDeleteStatusDeleted
 }
 
-// SoftDelete 执行软删除
+// SoftDelete performs soft deletion
 func (m *BaseModel) SoftDelete(operator string) {
 	m.IsDeleted = SoftDeleteStatusDeleted
 	m.UpdateBy = operator
 	m.UpdatedAt = time.Now()
 }
 
-// Restore 恢复软删除的记录
+// Restore restores a soft deleted record
 func (m *BaseModel) Restore(operator string) {
 	m.IsDeleted = SoftDeleteStatusActive
 	m.UpdateBy = operator
 	m.UpdatedAt = time.Now()
 }
 
-// SetCreateInfo 设置创建信息
+// SetCreateInfo sets creation information
 func (m *BaseModel) SetCreateInfo(operator string) {
 	m.CreateBy = operator
 	m.UpdateBy = operator
 }
 
-// SetUpdateInfo 设置更新信息
+// SetUpdateInfo sets update information
 func (m *BaseModel) SetUpdateInfo(operator string) {
 	m.UpdateBy = operator
 }
 
-// GetCreatedAtString 获取格式化的创建时间字符串
+// GetCreatedAtString returns formatted creation time string
 func (m *BaseModel) GetCreatedAtString() string {
 	return m.CreatedAt.Format("2006-01-02 15:04:05")
 }
 
-// GetUpdatedAtString 获取格式化的更新时间字符串
+// GetUpdatedAtString returns formatted update time string
 func (m *BaseModel) GetUpdatedAtString() string {
 	if m.UpdatedAt.IsZero() {
 		return ""
@@ -87,12 +87,12 @@ func (m *BaseModel) GetUpdatedAtString() string {
 	return m.UpdatedAt.Format("2006-01-02 15:04:05")
 }
 
-// GetCreatedAtUnix 获取创建时间的Unix时间戳
+// GetCreatedAtUnix returns creation time as Unix timestamp
 func (m *BaseModel) GetCreatedAtUnix() int64 {
 	return m.CreatedAt.Unix()
 }
 
-// GetUpdatedAtUnix 获取更新时间的Unix时间戳
+// GetUpdatedAtUnix returns update time as Unix timestamp
 func (m *BaseModel) GetUpdatedAtUnix() int64 {
 	if m.UpdatedAt.IsZero() {
 		return 0

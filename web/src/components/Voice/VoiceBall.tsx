@@ -191,9 +191,9 @@ const VoiceBall: React.FC<VoiceBallProps> = ({
         >
           <div className="absolute inset-0 bg-gradient-to-br from-white/30 to-transparent rounded-full" />
           {isCalling ? (
-            <PhoneOff className="w-8 h-8 text-white animate-pulse" />
+            <PhoneOff className="w-8 h-8 animate-pulse" />
           ) : (
-            <Mic className="w-8 h-8 text-white animate-bounce" />
+            <Mic className="w-8 h-8 animate-bounce" />
           )}
         </motion.button>
       </div>

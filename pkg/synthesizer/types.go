@@ -2,6 +2,7 @@ package synthesizer
 
 const (
 	TTS_QCLOUD            = "tts.qcloud"
+	TTS_TENCENT           = "tts.tencent"
 	TTS_XUNFEI            = "tts.xunfei"
 	TTS_QINIU             = "tts.qiniu"
 	TTS_BAIDU             = "tts.baidu"
@@ -11,7 +12,9 @@ const (
 	TTS_OPENAI            = "tts.openai"
 	TTS_ELEVENLABS        = "tts.elevenlabs"
 	TTS_LOCAL             = "tts.local"
+	TTS_LOCAL_GOSPEECH    = "tts.local_gospeech"
 	TTS_FISHSPEECH        = "tts.fishspeech"
+	TTS_FISHAUDIO         = "tts.fishaudio"
 	TTS_COQUI             = "tts.coqui"
 	TTS_VOLCENGINE        = "tts.volcengine"
 	TTS_VOLCENGINE_CLONE  = "tts.volcengine_clone"
@@ -46,8 +49,12 @@ const (
 	ProviderElevenLabs TTSProvider = "elevenlabs"
 	// ProviderLocal 本地TTS
 	ProviderLocal TTSProvider = "local"
+	// ProviderLocalGoSpeech 本地go-speech TTS
+	ProviderLocalGoSpeech TTSProvider = "local_gospeech"
 	// ProviderFishSpeech FishSpeech TTS
 	ProviderFishSpeech TTSProvider = "fishspeech"
+	// ProviderFishAudio Fish Audio TTS
+	ProviderFishAudio TTSProvider = "fishaudio"
 	// ProviderCoqui Coqui TTS
 	ProviderCoqui TTSProvider = "coqui"
 	// ProviderVolcengine 火山引擎标准TTS

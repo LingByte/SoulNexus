@@ -39,7 +39,7 @@ func TestCreateKnowledge_UserNotExists(t *testing.T) {
 
 	_, err := CreateKnowledge(db, 999, "kb-key-1", "Test Knowledge", "aliyun", nil, nil)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "用户不存在")
+	assert.Contains(t, err.Error(), "user not found")
 }
 
 func TestCreateKnowledge_DuplicateKey(t *testing.T) {
@@ -54,7 +54,7 @@ func TestCreateKnowledge_DuplicateKey(t *testing.T) {
 	// Try to create duplicate
 	_, err = CreateKnowledge(db, int(user.ID), "kb-key-1", "Another Knowledge", "aliyun", nil, nil)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "该知识库标识键已存在")
+	assert.Contains(t, err.Error(), "knowledge base key already exists")
 }
 
 func TestCreateKnowledge_DefaultProvider(t *testing.T) {
@@ -179,7 +179,7 @@ func TestGetKnowledgeBaseInfoWithQuery_InvalidConfig(t *testing.T) {
 	// Test with invalid config
 	_, err = GetKnowledgeBaseInfoWithQuery(db, "kb-key-1", "test query")
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "解析配置失败")
+	assert.Contains(t, err.Error(), "failed to parse config")
 }
 
 func TestSearchKnowledgeBase_KnowledgeNotExists(t *testing.T) {
@@ -213,7 +213,7 @@ func TestSearchKnowledgeBase_InvalidConfig(t *testing.T) {
 	// Test with invalid config
 	_, err = SearchKnowledgeBase(db, "kb-key-1", "test query", 10)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "解析配置失败")
+	assert.Contains(t, err.Error(), "failed to parse config")
 }
 
 func TestGetKnowledgeBaseInfoWithQuery_EmptyConfig(t *testing.T) {
@@ -288,7 +288,7 @@ func TestGetKnowledgeBaseInfoWithQuery_ValidConfig(t *testing.T) {
 	// This will fail because we don't have a real provider, but we're testing the code path
 	assert.Error(t, err)
 	// Should fail at provider creation or search stage, not at config parsing
-	assert.NotContains(t, err.Error(), "解析配置失败")
+	assert.NotContains(t, err.Error(), "failed to parse config")
 }
 
 func TestSearchKnowledgeBase_ValidConfig(t *testing.T) {
@@ -311,5 +311,5 @@ func TestSearchKnowledgeBase_ValidConfig(t *testing.T) {
 	// This will fail because we don't have a real provider, but we're testing the code path
 	assert.Error(t, err)
 	// Should fail at provider creation or search stage, not at config parsing
-	assert.NotContains(t, err.Error(), "解析配置失败")
+	assert.NotContains(t, err.Error(), "failed to parse config")
 }

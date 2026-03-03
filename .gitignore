@@ -50,13 +50,9 @@ uploads/.env
 /media_cache/
 /recorddata/
 /tracedata/
-/pkg/llm/package.json
-/pkg/llm/package-lock.json
-/pkg/llm/node_modules
 
 # Node modules and dependency files
 */node_modules/
-/node_modules/
 /package-lock.json
 /ui/yarn.lock
 
@@ -78,16 +74,6 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-/ui/npm-debug.log*
-/ui/arn-debug.log*
-/ui/yarn-error.log*
-
-# Third-party code
-third_party/
-/third_party/*
-/third_party/**/*
-/third_party/**/**/*
-
 voiceserver.db
 *.mp3
 
@@ -96,6 +82,8 @@ voiceserver.db
 *.db
 
 lingecho
+main
+server/main
 
 example
 ling.db
@@ -115,7 +103,6 @@ ssl/*.pfx
 lingecho.com.key
 lingecho.com_bundle.pem
 
-xiaozhi-esp32-server-main/
 .env
 pnpm-lock.yaml
 
@@ -124,38 +111,10 @@ logs
 /data
 *.log
 
-milvus_data/
-# Python virtual environments
-venv/
-env/
-ENV/
-.venv/
-.pilot/
-
 # Python cache
 *.py[cod]
 *$py.class
 *.so
 .Python
-
-# voiceprint-api specific
-services/voiceprint-api/__pycache__/
-services/voiceprint-api/**/__pycache__/
-services/voiceprint-api/data/
-services/voiceprint-api/logs/
-services/voiceprint-api/*.pyc
-services/voiceprint-api/.voiceprint.yaml
-services/voiceprint-api/rtcmedia/
-services/voiceprint-api/.cache/
-
-# vad-service specific
-services/vad-service/__pycache__/
-services/vad-service/**/__pycache__/
-services/vad-service/.cache/
-services/vad-service/*.pyc
-app/ui/dist/
-app/node_modules/
-
-web/dist/
-web/node_modules/
 xiaozhi-server/
+dist/

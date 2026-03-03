@@ -152,9 +152,21 @@ func TestTracer_GetSpans(t *testing.T) {
 	_, span1 := tracer.StartSpan(ctx, "span1")
 	_, span2 := tracer.StartSpan(ctx, "span2")
 
+	// Give a small delay to ensure spans are properly stored
+	time.Sleep(1 * time.Millisecond)
+
 	spans := tracer.GetSpans()
 	if len(spans) < 2 {
 		t.Errorf("Expected at least 2 spans, got %d", len(spans))
+		// Debug information
+		for i, s := range spans {
+			if s != nil {
+				t.Logf("Span %d: ID=%s, Name=%s", i, s.ID, s.Name)
+			} else {
+				t.Logf("Span %d: nil", i)
+			}
+		}
+		return
 	}
 
 	// Verify spans are in the list
@@ -169,6 +181,12 @@ func TestTracer_GetSpans(t *testing.T) {
 	}
 	if !found1 || !found2 {
 		t.Error("Expected spans not found in list")
+		t.Logf("Looking for span1 ID: %s, span2 ID: %s", span1.ID, span2.ID)
+		for i, s := range spans {
+			if s != nil {
+				t.Logf("Found span %d: ID=%s, Name=%s", i, s.ID, s.Name)
+			}
+		}
 	}
 }
 

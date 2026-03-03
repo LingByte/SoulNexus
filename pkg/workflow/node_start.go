@@ -16,8 +16,7 @@ func (s *StartNode) Trigger(ctx *WorkflowContext) error {
 	if ctx == nil {
 		return fmt.Errorf("workflow context is nil")
 	}
-	message := fmt.Sprintf("Starting workflow: %s", s.Name)
-	ctx.AddLog("info", message, s.ID, s.Name)
+	// 不添加日志，让节点的 Run 方法处理
 	return nil
 }
 
@@ -38,13 +37,21 @@ func (s *StartNode) Run(ctx *WorkflowContext) ([]string, error) {
 	if len(s.InputParams) > 0 {
 		// For start node, inputs come from context.Parameters (user-provided values)
 		inputs = make(map[string]interface{})
-		for alias := range s.InputParams {
-			// Get value from context.Parameters (these are the user-provided values)
-			if ctx.Parameters != nil {
+		for alias, source := range s.InputParams {
+			// Try to resolve from source first (in case it's a reference like "start-xxx.city")
+			if val, ok := ctx.ResolveValue(source); ok {
+				inputs[alias] = val
+			} else if ctx.Parameters != nil {
+				// Fall back to getting from context.Parameters using the alias
 				if val, ok := ctx.Parameters[alias]; ok {
 					inputs[alias] = val
 				} else {
-					inputs[alias] = nil
+					// Try to get from context.Parameters using the source (in case source is a simple key)
+					if val, ok := ctx.Parameters[source]; ok {
+						inputs[alias] = val
+					} else {
+						inputs[alias] = nil
+					}
 				}
 			} else {
 				inputs[alias] = nil
@@ -76,9 +83,7 @@ func (s *StartNode) Run(ctx *WorkflowContext) ([]string, error) {
 		// Log input parameters with their values
 		inputJSON, err := json.Marshal(inputs)
 		if err == nil {
-			ctx.AddLog("info", fmt.Sprintf("Start node received input parameters: %s", string(inputJSON)), s.ID, s.Name)
-		} else {
-			ctx.AddLog("info", fmt.Sprintf("Start node received %d input parameter(s)", len(inputs)), s.ID, s.Name)
+			ctx.AddLog("info", fmt.Sprintf("Input: %s", string(inputJSON)), s.ID, s.Name)
 		}
 	} else {
 		// No inputs, set default start data

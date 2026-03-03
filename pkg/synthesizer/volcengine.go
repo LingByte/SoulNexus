@@ -85,7 +85,7 @@ func NewVolcengineTTSOption(appID, accessToken, cluster string) VolcengineTTSOpt
 		Cluster:       cluster,
 		VoiceType:     "BV700_streaming",
 		Language:      "",
-		Rate:          8000,
+		Rate:          16000, // 火山引擎标准采样率 16000Hz
 		Encoding:      "pcm",
 		SpeedRatio:    1.0,
 		VolumeRatio:   1.0,
@@ -181,19 +181,23 @@ func (v *volcengineSpeechSynthesisListener) sendRequest(ctx context.Context, opt
 	params := make(map[string]map[string]interface{})
 	params["app"] = make(map[string]interface{})
 	params["app"]["appid"] = opt.AppID
-	params["app"]["token"] = opt.AccessToken
+	params["app"]["token"] = "access_token" // 固定值，实际 token 在 Authorization header 中
 	params["app"]["cluster"] = opt.Cluster
 
 	params["user"] = make(map[string]interface{})
 	params["user"]["uid"] = "uid"
 
 	params["audio"] = make(map[string]interface{})
-	params["audio"]["rate"] = opt.Rate
 	params["audio"]["voice_type"] = opt.VoiceType
-	params["audio"]["language"] = opt.Language
 	params["audio"]["encoding"] = opt.Encoding
-	params["audio"]["pitch_ratio"] = opt.PitchRatio
 	params["audio"]["speed_ratio"] = opt.SpeedRatio
+	params["audio"]["volume_ratio"] = opt.VolumeRatio
+	params["audio"]["pitch_ratio"] = opt.PitchRatio
+
+	// 添加采样率参数
+	if opt.Rate > 0 {
+		params["audio"]["rate"] = opt.Rate
+	}
 
 	params["request"] = make(map[string]interface{})
 	params["request"]["reqid"] = reqID
@@ -207,6 +211,18 @@ func (v *volcengineSpeechSynthesisListener) sendRequest(ctx context.Context, opt
 	params["request"]["with_timestamp"] = "1"
 
 	url := "https://openspeech.bytedance.com/api/v1/tts"
+
+	// 打印请求参数用于调试
+	paramsJSON, _ := json.Marshal(params)
+	logrus.WithFields(logrus.Fields{
+		"url":           url,
+		"appID":         opt.AppID,
+		"cluster":       opt.Cluster,
+		"voiceType":     opt.VoiceType,
+		"accessToken":   opt.AccessToken[:10] + "...", // 只显示前10个字符
+		"requestParams": string(paramsJSON),
+	}).Info("volcengine tts: sending request")
+
 	var resp VolcengineTTSServResponse
 	if err := requests.URL(url).BodyJSON(&params).
 		Header("Content-Type", "application/json").

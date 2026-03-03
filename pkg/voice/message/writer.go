@@ -12,7 +12,9 @@ import (
 
 const (
 	// WriterBufferSize 消息写入器缓冲区大小
-	WriterBufferSize = 100
+	// 根据音频帧大小计算：60ms音频帧 = 960字节
+	// 缓冲区大小 = 960 * 200 = 192KB（约200帧）
+	WriterBufferSize = 200
 )
 
 // Writer 消息写入器实现

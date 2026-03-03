@@ -1,7 +1,7 @@
 {
-  "name": "LingEcho",
-  "short_name": "LingEcho",
-  "description": "LingEcho",
+  "name": "灵枢",
+  "short_name": "灵枢",
+  "description": "灵枢",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

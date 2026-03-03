@@ -478,6 +478,16 @@
     "sampleRate": "8k/16k/24k",
     "emotion": "中性",
     "scene": "对话女声"
+  },
+  {
+    "id": "101040",
+    "name": "智川",
+    "description": "四川话女声",
+    "type": "精品音色",
+    "language": "中文",
+    "sampleRate": "8k/16k",
+    "emotion": "中性",
+    "scene": "四川话女声"
   }
 ]
 

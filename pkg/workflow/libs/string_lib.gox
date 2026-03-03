@@ -1,0 +1,76 @@
+type stringLib struct{}
+
+func (s *stringLib) Contains(str, substr string) bool {
+	return strings.Contains(str, substr)
+}
+
+func (s *stringLib) HasPrefix(str, prefix string) bool {
+	return strings.HasPrefix(str, prefix)
+}
+
+func (s *stringLib) HasSuffix(str, suffix string) bool {
+	return strings.HasSuffix(str, suffix)
+}
+
+func (s *stringLib) Index(str, substr string) int {
+	return strings.Index(str, substr)
+}
+
+func (s *stringLib) LastIndex(str, substr string) int {
+	return strings.LastIndex(str, substr)
+}
+
+func (s *stringLib) Replace(str, old, new string, n int) string {
+	return strings.Replace(str, old, new, n)
+}
+
+func (s *stringLib) ReplaceAll(str, old, new string) string {
+	return strings.ReplaceAll(str, old, new)
+}
+
+func (s *stringLib) Split(str, sep string) []string {
+	return strings.Split(str, sep)
+}
+
+func (s *stringLib) Join(a []string, sep string) string {
+	return strings.Join(a, sep)
+}
+
+func (s *stringLib) ToUpper(str string) string {
+	return strings.ToUpper(str)
+}
+
+func (s *stringLib) ToLower(str string) string {
+	return strings.ToLower(str)
+}
+
+func (s *stringLib) TrimSpace(str string) string {
+	return strings.TrimSpace(str)
+}
+
+func (s *stringLib) Trim(str, cutset string) string {
+	return strings.Trim(str, cutset)
+}
+
+func (s *stringLib) TrimPrefix(str, prefix string) string {
+	return strings.TrimPrefix(str, prefix)
+}
+
+func (s *stringLib) TrimSuffix(str, suffix string) string {
+	return strings.TrimSuffix(str, suffix)
+}
+
+func (s *stringLib) Repeat(str string, count int) string {
+	return strings.Repeat(str, count)
+}
+
+func (s *stringLib) Count(str, substr string) int {
+	return strings.Count(str, substr)
+}
+
+func (s *stringLib) Fields(str string) []string {
+	return strings.Fields(str)
+}
+
+// 库实例
+var StringLib = &stringLib{}

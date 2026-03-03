@@ -64,8 +64,15 @@ const VoicePlayer: React.FC<VoicePlayerProps> = ({
         onEnd?.();
       };
       
-      const handleError = () => {
-        setError('音频加载失败');
+      const handleError = (e: Event) => {
+        const audio = e.target as HTMLAudioElement;
+        console.error('音频加载失败:', {
+          src: audio.src,
+          error: audio.error,
+          networkState: audio.networkState,
+          readyState: audio.readyState
+        });
+        setError(`音频加载失败: ${audio.error?.message || '未知错误'}`);
         setIsLoading(false);
       };
       
@@ -94,13 +101,27 @@ const VoicePlayer: React.FC<VoicePlayerProps> = ({
       setError(null);
       
       if (audioUrl) {
+        console.log('设置音频URL:', audioUrl);
         audioRef.current.src = audioUrl;
+        
+        // 添加crossOrigin属性以支持跨域音频
+        audioRef.current.crossOrigin = 'anonymous';
+        
+        // 尝试预加载
+        audioRef.current.load();
       } else if (audioData) {
-        audioRef.current.src = `data:audio/mp3;base64,${audioData}`;
+        // 根据数据格式设置正确的MIME类型
+        const mimeType = audioData.startsWith('/9j/') ? 'audio/wav' : 'audio/mp3';
+        const dataUrl = `data:${mimeType};base64,${audioData}`;
+        console.log('设置音频数据URL:', dataUrl.substring(0, 100) + '...');
+        audioRef.current.src = dataUrl;
       }
       
       if (autoPlay) {
-        audioRef.current.play().catch(console.error);
+        audioRef.current.play().catch((error) => {
+          console.error('自动播放失败:', error);
+          setError('自动播放失败');
+        });
       }
     }
   }, [audioUrl, audioData, autoPlay]);
@@ -162,8 +183,19 @@ const VoicePlayer: React.FC<VoicePlayerProps> = ({
   const downloadAudio = () => {
     if (audioRef.current && audioRef.current.src) {
       const link = document.createElement('a');
-      link.href = audioRef.current.src;
-      link.download = `${title}.mp3`;
+      // 如果是API URL，添加download参数
+      if (audioRef.current.src.includes('/api/recordings/')) {
+        link.href = audioRef.current.src + '?download=1';
+      } else {
+        link.href = audioRef.current.src;
+      }
+      
+      // 根据URL推断文件扩展名
+      let extension = '.wav';
+      if (audioRef.current.src.includes('.mp3')) extension = '.mp3';
+      if (audioRef.current.src.includes('.opus')) extension = '.opus';
+      
+      link.download = `${title}${extension}`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -221,6 +253,17 @@ const VoicePlayer: React.FC<VoicePlayerProps> = ({
         {error && (
           <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
             <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+            {audioUrl && (
+              <div className="mt-2">
+                <p className="text-xs text-gray-500">音频URL: {audioUrl}</p>
+                <button 
+                  onClick={() => window.open(audioUrl, '_blank')}
+                  className="text-xs text-blue-500 hover:text-blue-700 underline"
+                >
+                  在新窗口中测试URL
+                </button>
+              </div>
+            )}
           </div>
         )}
 

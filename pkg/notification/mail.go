@@ -2,322 +2,261 @@ package notification
 
 import (
 	"bytes"
-	"crypto/tls"
 	"fmt"
 	"html/template"
-	"net/smtp"
 
 	"github.com/LingByte/SoulNexus"
+	"github.com/LingByte/SoulNexus/pkg/logger"
+	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
-// MailConfig 邮件配置
+// MailProvider defines the interface for email providers
+type MailProvider interface {
+	SendHTML(to, subject, htmlBody string) (string, error) // Returns messageID
+}
+
+// MailConfig email configuration (supports both SMTP and SendCloud)
 type MailConfig struct {
-	Host     string `json:"host"`     // SMTP 服务器地址
-	Port     int64  `json:"port"`     // SMTP 服务器端口
-	Username string `json:"username"` // SMTP 用户名
-	Password string `json:"password"` // SMTP 密码
-	From     string `json:"from"`     // 发件人邮箱
+	// Provider type: "smtp" or "sendcloud"
+	Provider string `json:"provider"`
+
+	// SMTP configuration
+	Host     string `json:"host"`     // SMTP server address
+	Port     int64  `json:"port"`     // SMTP server port
+	Username string `json:"username"` // SMTP username
+	Password string `json:"password"` // SMTP password
+
+	// SendCloud configuration
+	APIUser string `json:"api_user"` // SendCloud API User
+	APIKey  string `json:"api_key"`  // SendCloud API Key
+
+	// Common
+	From string `json:"from"` // Sender email address
 }
 
-// MailNotification 邮件通知
+// MailNotification email notification service (supports SMTP and SendCloud)
 type MailNotification struct {
-	Config MailConfig
+	provider  MailProvider
+	DB        *gorm.DB
+	UserID    uint
+	IPAddress string // For tracking emails sent without user context
 }
 
-// NewMailNotification 创建邮件通知实例
+// NewMailNotification creates email notification instance without database
 func NewMailNotification(config MailConfig) *MailNotification {
-	return &MailNotification{Config: config}
+	provider := createProvider(config)
+	return &MailNotification{
+		provider: provider,
+	}
 }
 
-// Send 发送邮件
+// NewMailNotificationWithDB creates email notification instance with database
+func NewMailNotificationWithDB(config MailConfig, db *gorm.DB, userID uint) *MailNotification {
+	provider := createProvider(config)
+	return &MailNotification{
+		provider: provider,
+		DB:       db,
+		UserID:   userID,
+	}
+}
+
+// NewMailNotificationWithIP creates email notification instance with IP address (for anonymous sends)
+func NewMailNotificationWithIP(config MailConfig, db *gorm.DB, ipAddress string) *MailNotification {
+	provider := createProvider(config)
+	return &MailNotification{
+		provider:  provider,
+		DB:        db,
+		IPAddress: ipAddress,
+	}
+}
+
+// createProvider creates the appropriate mail provider based on config
+func createProvider(config MailConfig) MailProvider {
+	if config.Provider == "sendcloud" {
+		return NewSendCloudClient(SendCloudConfig{
+			APIUser: config.APIUser,
+			APIKey:  config.APIKey,
+			From:    config.From,
+		})
+	}
+	// Default to SMTP
+	return NewSMTPClient(SMTPConfig{
+		Host:     config.Host,
+		Port:     config.Port,
+		Username: config.Username,
+		Password: config.Password,
+		From:     config.From,
+	})
+}
+
+// Send sends email
 func (m *MailNotification) Send(to, subject, body string) error {
-	// 邮件内容
-	msg := fmt.Sprintf("To: %s\r\nSubject: %s\r\n\r\n%s", to, subject, body)
+	messageID, err := m.provider.SendHTML(to, subject, body)
 
-	// SMTP 认证
-	auth := smtp.PlainAuth("", m.Config.Username, m.Config.Password, m.Config.Host)
-
-	// 配置 TLS
-	tlsConfig := &tls.Config{
-		ServerName:         m.Config.Host, // 服务器名称
-		InsecureSkipVerify: false,         // 不跳过证书验证
+	// Only log if we have a messageID
+	if messageID != "" && m.DB != nil {
+		if m.UserID > 0 {
+			CreateMailLog(m.DB, m.UserID, to, subject, messageID)
+		} else if m.IPAddress != "" {
+			CreateMailLogWithIP(m.DB, 0, to, subject, messageID, m.IPAddress)
+		}
 	}
 
-	// 连接 SMTP 服务器
-	addr := fmt.Sprintf("%s:%d", m.Config.Host, m.Config.Port)
-	conn, err := tls.Dial("tcp", addr, tlsConfig)
-	if err != nil {
-		return fmt.Errorf("failed to dial SMTP server: %v", err)
-	}
-	defer conn.Close()
-
-	// 创建 SMTP 客户端
-	client, err := smtp.NewClient(conn, m.Config.Host)
-	if err != nil {
-		return fmt.Errorf("failed to create SMTP client: %v", err)
-	}
-	defer client.Close()
-
-	// 认证
-	if err = client.Auth(auth); err != nil {
-		return fmt.Errorf("failed to authenticate: %v", err)
-	}
-
-	// 设置发件人和收件人
-	if err = client.Mail(m.Config.From); err != nil {
-		return fmt.Errorf("failed to set sender: %v", err)
-	}
-	if err = client.Rcpt(to); err != nil {
-		return fmt.Errorf("failed to set recipient: %v", err)
-	}
-
-	// 发送邮件内容
-	w, err := client.Data()
-	if err != nil {
-		return fmt.Errorf("failed to prepare data: %v", err)
-	}
-	defer w.Close()
-
-	_, err = w.Write([]byte(msg))
-	if err != nil {
-		return fmt.Errorf("failed to write email content: %v", err)
-	}
-
-	return nil
+	return err
 }
 
+// SendHTML sends HTML email
 func (m *MailNotification) SendHTML(to, subject, htmlBody string) error {
-	msg := "MIME-Version: 1.0\r\n"
-	msg += "Content-Type: text/html; charset=\"UTF-8\"\r\n"
-	msg += fmt.Sprintf("From: %s\r\n", m.Config.From)
-	msg += fmt.Sprintf("To: %s\r\n", to)
-	msg += fmt.Sprintf("Subject: %s\r\n", subject)
-	msg += "\r\n" + htmlBody
+	messageID, err := m.provider.SendHTML(to, subject, htmlBody)
 
-	addr := fmt.Sprintf("%s:%d", m.Config.Host, m.Config.Port)
+	logger.Info("Email sent via provider",
+		zap.String("to", to),
+		zap.String("subject", subject),
+		zap.String("messageId", messageID),
+		zap.Error(err),
+		zap.Uint("userId", m.UserID))
 
-	auth := smtp.PlainAuth("", m.Config.Username, m.Config.Password, m.Config.Host)
+	// Only log if we have a messageID
+	if messageID != "" && m.DB != nil {
+		if m.UserID > 0 {
+			CreateMailLog(m.DB, m.UserID, to, subject, messageID)
+		} else if m.IPAddress != "" {
+			CreateMailLogWithIP(m.DB, 0, to, subject, messageID, m.IPAddress)
+		}
+	}
 
-	// smtp.SendMail 不支持 465（SSL），只能发给 STARTTLS 服务，或使用第三方库
-	return smtp.SendMail(addr, auth, m.Config.From, []string{to}, []byte(msg))
+	return err
 }
 
-// SendHTML sends an HTML email using the embedded welcome template
+// renderTemplate renders an embedded template with data
+func renderTemplate(templateStr string, data interface{}) (string, error) {
+	tmpl, err := template.New("email").Parse(templateStr)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse template: %w", err)
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return "", fmt.Errorf("failed to render template: %w", err)
+	}
+
+	return buf.String(), nil
+}
+
+// SendWelcomeEmail sends welcome email using embedded template
 func (m *MailNotification) SendWelcomeEmail(to string, username string, verifyURL string) error {
-	// Parse the embedded template
-	tmpl, err := template.New("welcome").Parse(LingEcho.WelcomeHTML)
+	data := map[string]string{
+		"Username":  username,
+		"VerifyURL": verifyURL,
+	}
+
+	htmlBody, err := renderTemplate(LingEcho.WelcomeHTML, data)
 	if err != nil {
-		return fmt.Errorf("failed to parse template: %w", err)
+		return err
 	}
 
-	data := struct {
-		Username  string
-		VerifyURL string
-	}{
-		Username:  username,
-		VerifyURL: verifyURL,
-	}
-
-	var body bytes.Buffer
-	if err := tmpl.Execute(&body, data); err != nil {
-		return fmt.Errorf("failed to render email body: %w", err)
-	}
-
-	// Build MIME email message
-	msg := "MIME-Version: 1.0\r\n"
-	msg += "Content-Type: text/html; charset=\"UTF-8\"\r\n"
-	msg += fmt.Sprintf("From: %s\r\n", m.Config.From)
-	msg += fmt.Sprintf("To: %s\r\n", to)
-	msg += fmt.Sprintf("Subject: %s\r\n", "Welcome to Join LingEcho！")
-	msg += "\r\n" + body.String()
-
-	// Zoho SMTP uses SSL (port 465), but net/smtp only supports STARTTLS (usually port 587)
-	addr := fmt.Sprintf("%s:%d", m.Config.Host, m.Config.Port)
-	auth := smtp.PlainAuth("", m.Config.Username, m.Config.Password, m.Config.Host)
-
-	return smtp.SendMail(addr, auth, m.Config.From, []string{to}, []byte(msg))
+	return m.SendHTML(to, "欢迎加入 LingEcho", htmlBody)
 }
 
+// SendVerificationCode sends verification code email using embedded template
 func (m *MailNotification) SendVerificationCode(to, code string) error {
-	tmpl, err := template.New("verification").Parse(LingEcho.VerificationHTML)
+	data := map[string]string{
+		"Code": code,
+	}
+
+	htmlBody, err := renderTemplate(LingEcho.VerificationHTML, data)
 	if err != nil {
-		return fmt.Errorf("failed to parse verification template: %w", err)
-	}
-	data := struct {
-		Code string
-	}{
-		Code: code,
-	}
-	var body bytes.Buffer
-	if err := tmpl.Execute(&body, data); err != nil {
-		return fmt.Errorf("failed to render verification email: %w", err)
+		return err
 	}
 
-	msg := "MIME-Version: 1.0\r\n"
-	msg += "Content-Type: text/html; charset=\"UTF-8\"\r\n"
-	msg += fmt.Sprintf("From: %s\r\n", m.Config.From)
-	msg += fmt.Sprintf("To: %s\r\n", to)
-	msg += fmt.Sprintf("Subject: %s\r\n", "Your LingEcho Verification Code")
-	msg += "\r\n" + body.String()
-
-	addr := fmt.Sprintf("%s:%d", m.Config.Host, m.Config.Port)
-	auth := smtp.PlainAuth("", m.Config.Username, m.Config.Password, m.Config.Host)
-
-	return smtp.SendMail(addr, auth, m.Config.From, []string{to}, []byte(msg))
+	return m.SendHTML(to, "您的 LingEcho 验证码", htmlBody)
 }
 
-// SendVerificationEmail 发送邮箱验证邮件
+// SendVerificationEmail sends email verification email using embedded template
 func (m *MailNotification) SendVerificationEmail(to, username, verifyURL string) error {
-	// 使用嵌入的模板
-	tmpl, err := template.New("email_verification").Parse(LingEcho.EmailVerificationHTML)
+	data := map[string]string{
+		"Username":  username,
+		"VerifyURL": verifyURL,
+	}
+
+	htmlBody, err := renderTemplate(LingEcho.EmailVerificationHTML, data)
 	if err != nil {
-		return fmt.Errorf("failed to parse email verification template: %w", err)
+		return err
 	}
 
-	data := struct {
-		Username  string
-		VerifyURL string
-	}{
-		Username:  username,
-		VerifyURL: verifyURL,
-	}
-
-	var body bytes.Buffer
-	if err := tmpl.Execute(&body, data); err != nil {
-		return fmt.Errorf("failed to render email verification body: %w", err)
-	}
-
-	return m.SendHTML(to, "请验证您的邮箱地址", body.String())
+	return m.SendHTML(to, "请验证您的邮箱地址", htmlBody)
 }
 
-// SendPasswordResetEmail 发送密码重置邮件
+// SendPasswordResetEmail sends password reset email using embedded template
 func (m *MailNotification) SendPasswordResetEmail(to, username, resetURL string) error {
-	// 使用嵌入的模板
-	tmpl, err := template.New("password_reset").Parse(LingEcho.PasswordResetHTML)
+	data := map[string]string{
+		"Username": username,
+		"ResetURL": resetURL,
+	}
+
+	htmlBody, err := renderTemplate(LingEcho.PasswordResetHTML, data)
 	if err != nil {
-		return fmt.Errorf("failed to parse password reset template: %w", err)
+		return err
 	}
 
-	data := struct {
-		Username string
-		ResetURL string
-	}{
-		Username: username,
-		ResetURL: resetURL,
-	}
-
-	var body bytes.Buffer
-	if err := tmpl.Execute(&body, data); err != nil {
-		return fmt.Errorf("failed to render password reset body: %w", err)
-	}
-
-	return m.SendHTML(to, "密码重置请求", body.String())
+	return m.SendHTML(to, "密码重置请求", htmlBody)
 }
 
-// SendDeviceVerificationCode 发送设备验证码邮件
+// SendDeviceVerificationCode sends device verification code email using embedded template
 func (m *MailNotification) SendDeviceVerificationCode(to, username, code, deviceID string) error {
-	// 使用嵌入的模板
-	tmpl, err := template.New("device_verification").Parse(LingEcho.DeviceVerificationHTML)
+	data := map[string]string{
+		"Username": username,
+		"Code":     code,
+		"DeviceID": deviceID,
+	}
+
+	htmlBody, err := renderTemplate(LingEcho.DeviceVerificationHTML, data)
 	if err != nil {
-		return fmt.Errorf("failed to parse device verification template: %w", err)
+		return err
 	}
 
-	data := struct {
-		Username string
-		Code     string
-		DeviceID string
-	}{
-		Username: username,
-		Code:     code,
-		DeviceID: deviceID,
-	}
-
-	var body bytes.Buffer
-	if err := tmpl.Execute(&body, data); err != nil {
-		return fmt.Errorf("failed to render device verification body: %w", err)
-	}
-
-	return m.SendHTML(to, "设备验证码", body.String())
+	return m.SendHTML(to, "设备验证码", htmlBody)
 }
 
-// SendGroupInvitationEmail 发送组织邀请邮件
+// SendGroupInvitationEmail sends organization invitation email using embedded template
 func (m *MailNotification) SendGroupInvitationEmail(to, inviteeName, inviterName, groupName, groupType, groupDescription, acceptURL string) error {
-	// Parse the embedded template
-	tmpl, err := template.New("group_invitation").Parse(LingEcho.GroupInvitationHTML)
+	data := map[string]string{
+		"InviteeName":      inviteeName,
+		"InviterName":      inviterName,
+		"GroupName":        groupName,
+		"GroupType":        groupType,
+		"GroupDescription": groupDescription,
+		"AcceptURL":        acceptURL,
+	}
+
+	htmlBody, err := renderTemplate(LingEcho.GroupInvitationHTML, data)
 	if err != nil {
-		return fmt.Errorf("failed to parse template: %w", err)
+		return err
 	}
 
-	data := struct {
-		InviteeName      string
-		InviterName      string
-		GroupName        string
-		GroupType        string
-		GroupDescription string
-		AcceptURL        string
-	}{
-		InviteeName:      inviteeName,
-		InviterName:      inviterName,
-		GroupName:        groupName,
-		GroupType:        groupType,
-		GroupDescription: groupDescription,
-		AcceptURL:        acceptURL,
-	}
-
-	var body bytes.Buffer
-	if err := tmpl.Execute(&body, data); err != nil {
-		return fmt.Errorf("failed to render email body: %w", err)
-	}
-
-	// Build MIME email message
-	msg := "MIME-Version: 1.0\r\n"
-	msg += "Content-Type: text/html; charset=\"UTF-8\"\r\n"
-	msg += fmt.Sprintf("From: %s\r\n", m.Config.From)
-	msg += fmt.Sprintf("To: %s\r\n", to)
-	msg += fmt.Sprintf("Subject: %s\r\n", fmt.Sprintf("您收到了来自 %s 的组织邀请", inviterName))
-	msg += "\r\n" + body.String()
-
-	addr := fmt.Sprintf("%s:%d", m.Config.Host, m.Config.Port)
-	auth := smtp.PlainAuth("", m.Config.Username, m.Config.Password, m.Config.Host)
-
-	return smtp.SendMail(addr, auth, m.Config.From, []string{to}, []byte(msg))
+	subject := fmt.Sprintf("您收到了来自 %s 的组织邀请", inviterName)
+	return m.SendHTML(to, subject, htmlBody)
 }
 
-// SendNewDeviceLoginAlert 发送新设备登录警告邮件
+// SendNewDeviceLoginAlert sends new device login alert email using embedded template
 func (m *MailNotification) SendNewDeviceLoginAlert(to, username, loginTime, ipAddress, location, deviceType, os, browser string, isSuspicious bool, securityURL, changePasswordURL string) error {
-	// 使用嵌入的模板
-	tmpl, err := template.New("new_device_login").Parse(LingEcho.NewDeviceLoginHTML)
+	data := map[string]interface{}{
+		"Username":          username,
+		"LoginTime":         loginTime,
+		"IPAddress":         ipAddress,
+		"Location":          location,
+		"DeviceType":        deviceType,
+		"OS":                os,
+		"Browser":           browser,
+		"IsSuspicious":      isSuspicious,
+		"SecurityURL":       securityURL,
+		"ChangePasswordURL": changePasswordURL,
+	}
+
+	htmlBody, err := renderTemplate(LingEcho.NewDeviceLoginHTML, data)
 	if err != nil {
-		return fmt.Errorf("failed to parse new device login template: %w", err)
-	}
-
-	data := struct {
-		Username          string
-		LoginTime         string
-		IPAddress         string
-		Location          string
-		DeviceType        string
-		OS                string
-		Browser           string
-		IsSuspicious      bool
-		SecurityURL       string
-		ChangePasswordURL string
-	}{
-		Username:          username,
-		LoginTime:         loginTime,
-		IPAddress:         ipAddress,
-		Location:          location,
-		DeviceType:        deviceType,
-		OS:                os,
-		Browser:           browser,
-		IsSuspicious:      isSuspicious,
-		SecurityURL:       securityURL,
-		ChangePasswordURL: changePasswordURL,
-	}
-
-	var body bytes.Buffer
-	if err := tmpl.Execute(&body, data); err != nil {
-		return fmt.Errorf("failed to render new device login body: %w", err)
+		return err
 	}
 
 	subject := "新设备登录提醒"
@@ -325,5 +264,5 @@ func (m *MailNotification) SendNewDeviceLoginAlert(to, username, loginTime, ipAd
 		subject = "⚠️ 可疑登录警告"
 	}
 
-	return m.SendHTML(to, subject, body.String())
+	return m.SendHTML(to, subject, htmlBody)
 }
