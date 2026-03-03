@@ -30,6 +30,7 @@ export interface UpdateAssistantForm {
   enableVAD?: boolean // 是否启用VAD
   vadThreshold?: number // VAD阈值
   vadConsecutiveFrames?: number // VAD连续帧数
+  jsSourceId?: string // JS模板ID
 }
 
 // 助手信息 - 对应后端Assistant模型的完整字段

@@ -1,26 +1,28 @@
 package models
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/LingByte/SoulNexus/pkg/constants"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
 // DeviceErrorLog 设备错误日志表
 type DeviceErrorLog struct {
 	BaseModel
-	DeviceID   string    `json:"deviceId" gorm:"size:64;index;not null"` // 设备ID (MAC地址)
-	MacAddress string    `json:"macAddress" gorm:"size:64;index"`        // MAC地址
-	ErrorType  string    `json:"errorType" gorm:"size:64;index"`         // 错误类型
-	ErrorLevel string    `json:"errorLevel" gorm:"size:16;index"`        // 错误级别 (INFO, WARN, ERROR, FATAL)
-	ErrorCode  string    `json:"errorCode" gorm:"size:32"`               // 错误代码
-	ErrorMsg   string    `json:"errorMsg" gorm:"type:text"`              // 错误消息
-	StackTrace string    `json:"stackTrace" gorm:"type:text"`            // 堆栈跟踪
-	Context    string    `json:"context" gorm:"type:json"`               // 错误上下文
-	Resolved   bool      `json:"resolved" gorm:"default:false;index"`    // 是否已解决
-	ResolvedAt time.Time `json:"resolvedAt,omitempty"`                   // 解决时间
-	ResolvedBy string    `json:"resolvedBy" gorm:"size:128"`             // 解决人
+	DeviceID   string         `json:"deviceId" gorm:"size:64;index;not null"` // 设备ID (MAC地址)
+	MacAddress string         `json:"macAddress" gorm:"size:64;index"`        // MAC地址
+	ErrorType  string         `json:"errorType" gorm:"size:64;index"`         // 错误类型
+	ErrorLevel string         `json:"errorLevel" gorm:"size:16;index"`        // 错误级别 (INFO, WARN, ERROR, FATAL)
+	ErrorCode  string         `json:"errorCode" gorm:"size:32"`               // 错误代码
+	ErrorMsg   string         `json:"errorMsg" gorm:"type:text"`              // 错误消息
+	StackTrace string         `json:"stackTrace" gorm:"type:text"`            // 堆栈跟踪
+	Context    datatypes.JSON `json:"context" gorm:"type:json"`               // 错误上下文（JSON格式）
+	Resolved   bool           `json:"resolved" gorm:"default:false;index"`    // 是否已解决
+	ResolvedAt time.Time      `json:"resolvedAt,omitempty"`                   // 解决时间
+	ResolvedBy string         `json:"resolvedBy" gorm:"size:128"`             // 解决人
 }
 
 func (DeviceErrorLog) TableName() string {
@@ -29,6 +31,30 @@ func (DeviceErrorLog) TableName() string {
 
 // LogDeviceError 记录设备错误
 func LogDeviceError(db *gorm.DB, deviceID, macAddress, errorType, errorLevel, errorCode, errorMsg, stackTrace, context string) error {
+	// 将context字符串转换为有效的JSON
+	var contextJSON datatypes.JSON
+	if context != "" {
+		// 尝试将字符串作为JSON对象包装
+		contextData := map[string]interface{}{
+			"message": context,
+		}
+		if jsonBytes, err := json.Marshal(contextData); err == nil {
+			contextJSON = jsonBytes
+		} else {
+			// 如果转换失败，创建一个包含错误信息的JSON
+			fallbackData := map[string]interface{}{
+				"message": context,
+				"error":   "failed to parse context",
+			}
+			if jsonBytes, err := json.Marshal(fallbackData); err == nil {
+				contextJSON = jsonBytes
+			}
+		}
+	} else {
+		// 如果context为空，创建一个空的JSON对象
+		contextJSON = datatypes.JSON(`{}`)
+	}
+
 	errorLog := DeviceErrorLog{
 		DeviceID:   deviceID,
 		MacAddress: macAddress,
@@ -37,7 +63,7 @@ func LogDeviceError(db *gorm.DB, deviceID, macAddress, errorType, errorLevel, er
 		ErrorCode:  errorCode,
 		ErrorMsg:   errorMsg,
 		StackTrace: stackTrace,
-		Context:    context,
+		Context:    contextJSON,
 	}
 
 	now := time.Now()

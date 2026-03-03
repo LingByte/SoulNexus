@@ -172,6 +172,10 @@ const VoiceAssistant = () => {
     const [vadThreshold, setVadThreshold] = useState(500)
     const [vadConsecutiveFrames, setVadConsecutiveFrames] = useState(2)
 
+    // 保存设置状态和防抖
+    const [isSavingSettings, setIsSavingSettings] = useState(false)
+    const saveSettingsTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
     // 模态框状态
     const [showAddAssistantModal, setShowAddAssistantModal] = useState(false)
     const [showIntegrationModal, setShowIntegrationModal] = useState(false)
@@ -1884,53 +1888,62 @@ const VoiceAssistant = () => {
         }
     }
 
-    // 保存设置
+    // 保存设置（带防抖）
     const handleSaveSettings = async () => {
-        try {
-            await updateAssistant(assistantId, {
-                name: assistantName,
-                description: assistantDescription,
-                icon: assistantIcon,
-                systemPrompt,
-                persona_tag: assistants.find(a => a.id === assistantId)?.name || '',
-                temperature: temperature,
-                maxTokens: maxTokens,
-                language,
-                speaker: selectedSpeaker,
-                voiceCloneId: selectedVoiceCloneId,
-                knowledgeBaseId: selectedKnowledgeBase,
-                ttsProvider: ttsProvider || '',
-                apiKey,
-                apiSecret,
-                llmModel,
-                enableGraphMemory,
-                enableVAD,
-                vadThreshold,
-                vadConsecutiveFrames,
-            })
-
-            // 更新JS模板
-            if (selectedJSTemplate !== null) {
-                await updateAssistantJS(assistantId, selectedJSTemplate)
-            }
-
-            // 刷新助手列表以更新显示
-            const assistantsResponse = await getAssistantList()
-            setAssistants(assistantsResponse.data as Assistant[])
-
-            showAlert('设置保存成功', 'success')
-        } catch (err: any) {
-            console.error('保存设置失败:', err)
-
-            // 检查是否是API错误响应
-            if (err.response && err.response.data && err.response.data.msg) {
-                showAlert(err.response.data.msg, 'error')
-            } else if (err.message) {
-                showAlert(err.message, 'error')
-            } else {
-                showAlert('保存设置失败', 'error')
-            }
+        // 清除之前的防抖定时器
+        if (saveSettingsTimeoutRef.current) {
+            clearTimeout(saveSettingsTimeoutRef.current)
         }
+
+        // 设置新的防抖定时器（500ms）
+        saveSettingsTimeoutRef.current = setTimeout(async () => {
+            try {
+                setIsSavingSettings(true)
+
+                // 合并两个请求为一个
+                await updateAssistant(assistantId, {
+                    name: assistantName,
+                    description: assistantDescription,
+                    icon: assistantIcon,
+                    systemPrompt,
+                    persona_tag: assistants.find(a => a.id === assistantId)?.name || '',
+                    temperature: temperature,
+                    maxTokens: maxTokens,
+                    language,
+                    speaker: selectedSpeaker,
+                    voiceCloneId: selectedVoiceCloneId,
+                    knowledgeBaseId: selectedKnowledgeBase,
+                    ttsProvider: ttsProvider || '',
+                    apiKey,
+                    apiSecret,
+                    llmModel,
+                    enableGraphMemory,
+                    enableVAD,
+                    vadThreshold,
+                    vadConsecutiveFrames,
+                    jsSourceId: selectedJSTemplate || undefined, // 合并JS模板更新
+                })
+
+                // 刷新助手列表以更新显示
+                const assistantsResponse = await getAssistantList()
+                setAssistants(assistantsResponse.data as Assistant[])
+
+                showAlert('设置保存成功', 'success')
+            } catch (err: any) {
+                console.error('保存设置失败:', err)
+
+                // 检查是否是API错误响应
+                if (err.response && err.response.data && err.response.data.msg) {
+                    showAlert(err.response.data.msg, 'error')
+                } else if (err.message) {
+                    showAlert(err.message, 'error')
+                } else {
+                    showAlert('保存设置失败', 'error')
+                }
+            } finally {
+                setIsSavingSettings(false)
+            }
+        }, 500) // 500ms防抖延迟
     }
 
     // 删除助手
@@ -2201,6 +2214,7 @@ const VoiceAssistant = () => {
                                 onVADThresholdChange={setVadThreshold}
                                 onVADConsecutiveFramesChange={setVadConsecutiveFrames}
                                 onSaveSettings={handleSaveSettings}
+                                isSavingSettings={isSavingSettings}
                                 onDeleteAssistant={() => setShowDeleteConfirm(true)}
                                 searchKeyword={searchKeyword}
                                 highlightFragments={highlightFragments}
