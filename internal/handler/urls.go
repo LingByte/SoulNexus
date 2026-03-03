@@ -16,7 +16,6 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/utils/search"
 	"github.com/LingByte/SoulNexus/pkg/websocket"
 	"github.com/gin-gonic/gin"
-	"github.com/sirupsen/logrus"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
