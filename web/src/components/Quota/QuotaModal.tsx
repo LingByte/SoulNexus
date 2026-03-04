@@ -4,6 +4,8 @@ import { showAlert } from '@/utils/notification';
 import { X } from 'lucide-react';
 import Button from '@/components/UI/Button';
 
+const quotaTypes: QuotaType[] = ['api_calls', 'storage', 'llm_tokens'];
+
 interface QuotaModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -109,7 +111,7 @@ const QuotaModal: React.FC<QuotaModalProps> = ({ isOpen, onClose, groupId, quota
                 required
               >
                 <option value="">请选择配额类型</option>
-                {quotaTypes.map(type => (
+                {quotaTypes.map((type: QuotaType) => (
                   <option key={type} value={type}>
                     {getQuotaTypeLabel(type)}
                   </option>

@@ -22,7 +22,7 @@ import Badge from '@/components/UI/Badge'
 import Input from '@/components/UI/Input'
 import Modal from '@/components/UI/Modal'
 import EmptyState from '@/components/UI/EmptyState'
-import WorkflowEditor, { Workflow, WorkflowConnection } from '@/components/Voice/WorkflowEditor'
+import WorkflowEditor from '@/components/Voice/WorkflowEditor'
 import Terminal, { TerminalLog } from '@/components/Workflow/Terminal'
 import { showAlert } from '@/utils/notification'
 import workflowService, { 
@@ -436,7 +436,7 @@ const WorkflowManager: React.FC = () => {
                 id: selectedWorkflow.id.toString(),
                 name: selectedWorkflow.name,
                 description: selectedWorkflow.description,
-                nodes: selectedWorkflow.definition.nodes.map(n => {
+                nodes: selectedWorkflow.definition.nodes.map((n: any) => {
                   // 节点类型直接使用后端定义的类型，不需要映射
                   // WorkflowEditor 现在支持所有后端节点类型
                   const nodeType = n.type as 'start' | 'end' | 'task' | 'gateway' | 'event' | 'subflow' | 'parallel' | 'wait' | 'timer' | 'script' | 'workflow_plugin' | 'ai_chat'
@@ -527,7 +527,7 @@ const WorkflowManager: React.FC = () => {
                 createdAt: selectedWorkflow.createdAt,
                 updatedAt: selectedWorkflow.updatedAt
               }}
-              onSave={async (workflow: Workflow) => {
+              onSave={async (workflow: any) => {
                 if (!selectedWorkflow) {
                   showAlert('没有选中的工作流', 'error', '保存失败')
                   return
@@ -539,7 +539,7 @@ const WorkflowManager: React.FC = () => {
                 try {
                   // 将 WorkflowEditor 的格式转换回后端格式
                   const updatedDefinition: WorkflowGraph = {
-                    nodes: workflow.nodes.map(node => {
+                    nodes: workflow.nodes.map((node: any) => {
                       // 根据节点类型和当前的 inputs/outputs 生成 inputMap/outputMap
                       // 开始节点：只有输入参数
                       // 结束节点：只有输出参数
@@ -550,7 +550,7 @@ const WorkflowManager: React.FC = () => {
                       if (node.type === 'start') {
                         // 开始节点：只处理输入参数
                         if (node.inputs && node.inputs.length > 0) {
-                          node.inputs.forEach((input) => {
+                          node.inputs.forEach((input: any) => {
                             if (input && input.trim()) {
                               // 对于开始节点，输入参数名就是参数名本身
                               // 运行时，这些值会从 context.Parameters 中获取
@@ -561,13 +561,13 @@ const WorkflowManager: React.FC = () => {
                       } else if (node.type === 'end') {
                         // 结束节点：只处理输出参数
                         if (node.outputs && node.outputs.length > 0) {
-                          node.outputs.forEach((output) => {
+                          node.outputs.forEach((output: any) => {
                             if (output && output.trim()) {
                               // 对于结束节点，尝试从上游节点获取对应的输出
                               // 首先查找连接到结束节点的边
-                              const incomingEdge = workflow.connections.find(conn => conn.target === node.id)
+                              const incomingEdge = workflow.connections.find((conn: any) => conn.target === node.id)
                               if (incomingEdge) {
-                                const sourceNode = workflow.nodes.find(n => n.id === incomingEdge.source)
+                                const sourceNode = workflow.nodes.find((n: any) => n.id === incomingEdge.source)
                                 if (sourceNode) {
                                   if (sourceNode.type === 'ai_chat') {
                                     // 如果上游是 AI 对话节点，使用其 outputVariable
@@ -616,12 +616,12 @@ const WorkflowManager: React.FC = () => {
                       } else {
                         // 其他节点：处理输入和输出参数
                         if (node.inputs && node.inputs.length > 0) {
-                          node.inputs.forEach((input) => {
+                          node.inputs.forEach((input: any) => {
                             if (input && input.trim()) {
                               // 查找连接到此节点的上游节点
-                              const incomingEdge = workflow.connections.find(conn => conn.target === node.id)
+                              const incomingEdge = workflow.connections.find((conn: any) => conn.target === node.id)
                               if (incomingEdge) {
-                                const sourceNode = workflow.nodes.find(n => n.id === incomingEdge.source)
+                                const sourceNode = workflow.nodes.find((n: any) => n.id === incomingEdge.source)
                                 if (sourceNode) {
                                   // 根据源节点类型确定输出参数名
                                   let sourceOutput = input // 默认使用相同的参数名
@@ -663,7 +663,7 @@ const WorkflowManager: React.FC = () => {
                         }
                         
                         if (node.outputs && node.outputs.length > 0) {
-                          node.outputs.forEach((output) => {
+                          node.outputs.forEach((output: any) => {
                             if (output && output.trim()) {
                               // 默认情况下，target 使用节点ID作为前缀，避免冲突
                               // 格式: nodeId.outputName
@@ -701,16 +701,16 @@ const WorkflowManager: React.FC = () => {
                         lanes: undefined
                       }
                     }),
-                    edges: workflow.connections.map((conn: WorkflowConnection) => {
+                    edges: workflow.connections.map((conn: any) => {
                       // 根据 sourceHandle 和节点类型确定边的类型
                       // conn.type 和 conn.condition 都是可选的，需要处理 undefined 情况
                       let edgeType: WorkflowEdgeType = (conn.type as WorkflowEdgeType | undefined) || 'default'
                       
-                      const sourceNode = workflow.nodes.find(n => n.id === conn.source)
+                      const sourceNode = workflow.nodes.find((n: any) => n.id === conn.source)
                       if (sourceNode) {
                         if (sourceNode.type === 'gateway') {
                           // 对于 gateway 节点，根据 sourceHandle 确定类型
-                          const outputIndex = sourceNode.outputs.findIndex(o => o === conn.sourceHandle)
+                          const outputIndex = sourceNode.outputs.findIndex((o: any) => o === conn.sourceHandle)
                           if (outputIndex === 0) {
                             edgeType = 'true'
                           } else if (outputIndex === 1) {

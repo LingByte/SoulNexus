@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { MCPServer, MCPServerDetail, MCPCallLog, MCPState } from '@/types/mcp';
+import type { MCPServerDetail, MCPState } from '@/types/mcp';
 import * as mcpAPI from '@/api/mcp';
 
 interface MCPStoreState extends MCPState {

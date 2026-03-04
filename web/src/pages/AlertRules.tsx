@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { getAlertRules, deleteAlertRule, AlertRule, AlertType, AlertSeverity, NotificationChannel } from '@/api/alert';
 import { showAlert } from '@/utils/notification';
 import { useI18nStore } from '@/stores/i18nStore';
-import { Bell, Plus, Edit, Trash2, ToggleLeft, ToggleRight, Settings } from 'lucide-react';
+import { Bell, Plus, Edit, Trash2, ToggleLeft, ToggleRight } from 'lucide-react';
 import Button from '@/components/UI/Button';
 
 const AlertRules: React.FC = () => {

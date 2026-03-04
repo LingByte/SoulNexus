@@ -3,13 +3,11 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { getAssistantGraphData, getAssistant, type AssistantGraphData as GraphData } from '@/api/assistant'
 import GraphVisualization from '@/components/Graph/GraphVisualization'
 import { showAlert } from '@/utils/notification'
-import { useI18nStore } from '@/stores/i18nStore'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 import Button from '@/components/UI/Button'
 import Card, { CardContent, CardHeader, CardTitle } from '@/components/UI/Card'
 
 const AssistantGraph: React.FC = () => {
-  const { t } = useI18nStore()
   const { id } = useParams<{ id: string }>()
   const assistantId = id ? parseInt(id) : 0
   const navigate = useNavigate()

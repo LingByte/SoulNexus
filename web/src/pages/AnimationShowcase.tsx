@@ -480,7 +480,6 @@ const AnimationShowcase = () => {
           {
             id: 'get-started',
             title: t('animation.fixed.getStarted.title'),
-            icon: <Rocket className="w-5 h-5" />,
             description: t('animation.fixed.getStarted.description'),
             target: '.get-started-card',
             position: 'center',

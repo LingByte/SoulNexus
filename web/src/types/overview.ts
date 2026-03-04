@@ -222,7 +222,8 @@ export const widgetSizeMap: Record<WidgetSize, number> = {
   small: 3,    // 1/4 宽度
   medium: 6,   // 1/2 宽度
   large: 9,    // 3/4 宽度
-  full: 12     // 全宽
+  full: 12,    // 全宽
+  custom: 6    // 自定义，默认1/2宽度
 }
 
 // Widget高度映射 (行数)

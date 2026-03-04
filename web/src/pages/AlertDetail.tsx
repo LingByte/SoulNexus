@@ -2,12 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getAlert, resolveAlert, muteAlert, Alert, AlertNotification } from '@/api/alert';
 import { showAlert } from '@/utils/notification';
-import { useI18nStore } from '@/stores/i18nStore';
 import { ArrowLeft, CheckCircle, VolumeX, Bell, Mail, Webhook, MessageSquare } from 'lucide-react';
 import Button from '@/components/UI/Button';
 
 const AlertDetail: React.FC = () => {
-  const { t } = useI18nStore();
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const [alert, setAlert] = useState<Alert | null>(null);

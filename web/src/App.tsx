@@ -47,6 +47,8 @@ import NodePluginMarket from '@/pages/NodePluginMarket.tsx';
 import VoiceprintManagement from '@/pages/VoiceprintManagement.tsx';
 import MCPManagement from '@/pages/MCPManagement.tsx';
 import MCPMarketplace from '@/pages/MCPMarketplace.tsx';
+import Products from '@/pages/Products.tsx';
+import ProductDetail from '@/pages/ProductDetail.tsx';
 
 function App() {
     const [showPerformanceMonitor, setShowPerformanceMonitor] = useState(false);
@@ -284,6 +286,20 @@ function App() {
                                 </Layout>
                             </ProtectedRoute>
                         } />
+                        <Route path="/voiceprint-management" element={
+                            <ProtectedRoute>
+                                <Layout>
+                                    <VoiceprintManagement />
+                                </Layout>
+                            </ProtectedRoute>
+                        } />
+                        <Route path="/call-recording-analytics/:deviceId" element={
+                            <ProtectedRoute>
+                                <Layout>
+                                    <CallRecordingAnalytics />
+                                </Layout>
+                            </ProtectedRoute>
+                        } />
                         <Route path="/mcp-management" element={
                             <ProtectedRoute>
                                 <Layout>
@@ -299,6 +315,9 @@ function App() {
                             </ProtectedRoute>
                         } />
                         
+                        {/* 产品页面 - 不需要登录 */}
+                        <Route path="/products" element={<Products />} />
+                        <Route path="/product/:productId" element={<ProductDetail />} />
                         
                         {/* 404页面 */}
                         <Route path="*" element={<NotFound />}/>

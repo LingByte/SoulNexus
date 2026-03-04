@@ -30,6 +30,8 @@ import { useAuthStore } from "@/stores/authStore";
 import EnhancedThemeToggle from "@/components/UI/EnhancedThemeToggle";
 import LanguageSelector from "@/components/UI/LanguageSelector";
 import { useI18nStore } from "@/stores/i18nStore";
+import products from '@/data/products.json'
+import ProductNav from '@/components/Layout/ProductNav.tsx';
 import Footer from "@/components/Layout/Footer.tsx";
 
 const iconMap: Record<string, any> = {
@@ -175,6 +177,7 @@ const Home = () => {
 
                         {/* 桌面端导航 */}
                         <div className="hidden md:flex items-center gap-4">
+                            <ProductNav />
                             <Link to="/docs" className="text-muted-foreground hover:text-foreground transition-colors">
                                 {t('nav.docs')}
                             </Link>
@@ -263,6 +266,19 @@ const Home = () => {
                     {showMobileMenu && (
                         <div className="md:hidden py-4 border-t border-border">
                             <div className="flex flex-col gap-4">
+                                <div className="px-3 py-2">
+                                    <p className="text-sm font-semibold text-muted-foreground mb-2">Products</p>
+                                    {products.products.map((product) => (
+                                        <Link
+                                            key={product.id}
+                                            to={`/product/${product.id}`}
+                                            className="block px-2 py-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                                            onClick={() => setShowMobileMenu(false)}
+                                        >
+                                            {product.name}
+                                        </Link>
+                                    ))}
+                                </div>
                                 <Link 
                                     to="/docs" 
                                     className="text-muted-foreground hover:text-foreground transition-colors"

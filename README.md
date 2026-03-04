@@ -239,12 +239,14 @@ We welcome all forms of contributions! Please check our [Development Guide](docs
 
 ##  Our Team
 
-A core team of two full-stack engineers focused on innovation and application of AI voice technology.
+A core team of four full-stack engineers focused on innovation and application of AI voice technology.
 
 | Member | Role | Responsibilities |
 |--------|------|------------------|
 | **chenting** | Full-stack Engineer + Project Manager | Responsible for overall project architecture design and full-stack development, leading product direction and technology selection |
-| **wangyueran** | Full-stack Engineer | Responsible for frontend interface development and user experience optimization, ensuring product usability |
+| **jianghaotian** | Full-stack Engineer | Responsible for backend service development and system optimization, ensuring platform stability and performance |
+| **quenanlin** | Full-stack Engineer | Responsible for frontend interface development and user experience optimization, ensuring product usability |
+| **wangyueran** | Full-stack Engineer | Responsible for feature development and quality assurance, ensuring code quality and product reliability |
 
 ## 📧 Contact Us
 

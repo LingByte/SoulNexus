@@ -17,7 +17,6 @@ interface UseCanvasControlProps {
 export const useCanvasControl = ({
   nodes,
   canvasRef,
-  canvasOffset,
   canvasScale,
   setCanvasOffset,
   setCanvasScale
@@ -30,12 +29,12 @@ export const useCanvasControl = ({
 
   // 放大
   const zoomIn = useCallback(() => {
-    setCanvasScale(prev => Math.min(prev * 1.2, 3))
+    setCanvasScale((prev: number) => Math.min(prev * 1.2, 3))
   }, [setCanvasScale])
 
   // 缩小
   const zoomOut = useCallback(() => {
-    setCanvasScale(prev => Math.max(prev / 1.2, 0.3))
+    setCanvasScale((prev: number) => Math.max(prev / 1.2, 0.3))
   }, [setCanvasScale])
 
   // 居中显示所有节点

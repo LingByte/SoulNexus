@@ -106,7 +106,6 @@ const VoiceTrainingXunfei: React.FC = () => {
     const [selectedCloneForSynthesis, setSelectedCloneForSynthesis] = useState<number | null>(null) // 用于合成的音色ID
     const [configChecked, setConfigChecked] = useState(false)
     const [configConfigured, setConfigConfigured] = useState(false)
-    const [configData, setConfigData] = useState<any>(null)
     const [configForm, setConfigForm] = useState({
         app_id: '',
         api_key: '',
@@ -136,7 +135,6 @@ const VoiceTrainingXunfei: React.FC = () => {
                 const xunfeiConfig = response.data.voiceClone?.xunfei
                 const configured = xunfeiConfig?.configured || false
                 setConfigConfigured(configured)
-                setConfigData(xunfeiConfig)
                 if (xunfeiConfig?.config) {
                     setConfigForm({
                         app_id: xunfeiConfig.config.app_id || '',

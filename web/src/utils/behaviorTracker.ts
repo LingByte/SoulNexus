@@ -84,7 +84,7 @@ export class BehaviorTracker {
   }
 
   // 处理按键事件
-  private handleKeyDown(event: KeyboardEvent): void {
+  private handleKeyDown(_event: KeyboardEvent): void {
     if (!this.isTracking) {
       return;
     }

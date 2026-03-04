@@ -9,7 +9,7 @@ import {
   type UpdateToolForm
 } from '@/api/assistant';
 import { showAlert } from '@/utils/notification';
-import { Plus, Edit2, Trash2, X, Save, Code, Settings, CheckCircle2, XCircle } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Save, Code, CheckCircle2, XCircle } from 'lucide-react';
 
 interface AssistantToolsManagerProps {
   assistantId: number;
@@ -201,17 +201,7 @@ const AssistantToolsManager: React.FC<AssistantToolsManagerProps> = ({ assistant
     });
     setEditingTool(null);
   };
-
-  const formatJSON = (json: string) => {
-    try {
-      const parsed = JSON.parse(json);
-      return JSON.stringify(parsed, null, 2);
-    } catch {
-      return json;
-    }
-  };
-
-  return (
+    return (
     <div className="w-full">
       <div className="flex items-center justify-between mb-4">
         <div>

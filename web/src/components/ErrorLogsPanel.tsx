@@ -6,7 +6,7 @@ import { showAlert } from '@/utils/notification';
 
 interface ErrorLog {
     id: number;
-    deviceId: string;
+    deviceId: number;
     macAddress: string;
     errorType: string;
     errorLevel: string;
