@@ -34,29 +34,6 @@ func (s *ASRInputComponent) Process(ctx context.Context, data interface{}) (inte
 		s.metrics.mu.Unlock()
 	}
 
-	// 使用 AudioManager 处理输入音频（智能回声过滤）
-	if s.pipeline != nil && s.pipeline.audioManager != nil {
-		ttsPlaying := s.pipeline.IsTTSPlaying()
-		processedData, shouldProcess := s.pipeline.audioManager.ProcessInputAudio(pcmData, ttsPlaying)
-
-		if !shouldProcess {
-			// 音频被过滤（回声或低能量），发送静音帧保持连接
-			silentFrame := make([]byte, len(pcmData))
-			err := s.asr.SendAudioBytes(silentFrame)
-			if err != nil {
-				s.logger.Error(fmt.Sprintf("[ASRInput] 发送静音帧失败, %v", err))
-				if s.pipeline != nil {
-					go s.pipeline.TriggerReconnect()
-				}
-				return nil, false, err
-			}
-			return nil, true, nil
-		}
-
-		// 使用处理后的数据
-		pcmData = processedData
-	}
-
 	// 发送音频数据
 	err := s.asr.SendAudioBytes(pcmData)
 	if err != nil {
