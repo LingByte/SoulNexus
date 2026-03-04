@@ -1,0 +1,46 @@
+{
+  "products": [
+    {
+      "id": "soulnexus",
+      "name": "SoulNexus",
+      "title": "SoulNexus",
+      "description": "SoulNexus is an intelligent voice interaction platform that provides a comprehensive AI voice interaction solution. It integrates advanced speech recognition (ASR), text-to-speech (TTS), large language models (LLM) and real-time communication, supporting real-time calls, voice cloning, knowledge base management and other enterprise-level features.\n\nResources\n",
+      "shortDesc": "智能语音助手平台",
+      "icon": "Zap",
+      "logo": "https://store.lingecho.com/uploads/buckets/default/uploads/soulnexus.png",
+      "color": "indigo",
+      "features": [
+        "Real-time Voice Interaction",
+        "Voice Cloning Technology",
+        "Knowledge Base Integration",
+        "Workflow Automation",
+        "Multi-channel Support"
+      ],
+      "links": {
+        "github": "https://github.com/LingByte/SoulNexus",
+        "demo": "https://store.lingecho.com/admin/login"
+      }
+    },
+    {
+      "id": "lingstorage",
+      "name": "LingStorage",
+      "title": "LingStorage",
+      "description": "Enterprise-grade Cloud Storage Solution",
+      "shortDesc": "企业级云存储解决方案",
+      "icon": "Code",
+      "logo": "https://store.lingecho.com/uploads/buckets/default/uploads/favicon.png",
+      "color": "blue",
+      "features": [
+        "Multi-cloud Support",
+        "High Performance",
+        "Enterprise Security",
+        "RESTful API",
+        "Scalable Architecture"
+      ],
+      "links": {
+        "github": "https://github.com/LingByte/LingStorage",
+        "demo": "https://store.lingecho.com/admin/login"
+      }
+    }
+  ]
+}

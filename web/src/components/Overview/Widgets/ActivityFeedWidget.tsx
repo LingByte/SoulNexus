@@ -14,7 +14,7 @@ interface ActivityFeedWidgetProps {
 }
 
 const ActivityFeedWidget: React.FC<ActivityFeedWidgetProps> = ({ config, data = [] }) => {
-  const { title, style, props } = config
+  const { title, style} = config
 
   // 处理 padding（支持字符串或对象格式）
   const getPadding = () => {

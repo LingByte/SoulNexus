@@ -1,0 +1,311 @@
+{
+  "id": "soulnexus",
+  "name": "SoulNexus",
+  "title": "SoulNexus - AI Voice Assistant Platform",
+  "description": "A comprehensive AI voice assistant platform with real-time voice interaction, voice cloning, and intelligent workflow automation.",
+  "hero": {
+    "title": "SoulNexus",
+    "subtitle": "The Next Generation AI Voice Assistant Platform",
+    "description": "Build intelligent voice applications with real-time interaction, advanced voice cloning, and seamless integration.",
+    "image": "https://store.lingecho.com/uploads/buckets/default/uploads/soulnexus.png"
+  },
+  "sections": [
+    {
+      "id": "overview",
+      "title": "Overview",
+      "content": "SoulNexus is a cutting-edge AI voice assistant platform designed for developers and enterprises. It provides a complete solution for building intelligent voice applications with minimal effort.",
+      "features": [
+        {
+          "title": "Real-time Voice Interaction",
+          "description": "Low-latency WebRTC-based voice communication with advanced audio processing",
+          "icon": "Zap"
+        },
+        {
+          "title": "Voice Cloning",
+          "description": "Create personalized voice models with just a few audio samples",
+          "icon": "Mic"
+        },
+        {
+          "title": "Knowledge Base",
+          "description": "Integrate your documents and data for intelligent responses",
+          "icon": "BookOpen"
+        },
+        {
+          "title": "Workflow Automation",
+          "description": "Design complex workflows with visual editor and conditional logic",
+          "icon": "Activity"
+        }
+      ]
+    },
+    {
+      "id": "features",
+      "title": "Key Features",
+      "subsections": [
+        {
+          "title": "AI Voice Call",
+          "description": "Real-time voice interaction with AI assistants",
+          "details": [
+            "WebRTC-based low-latency communication",
+            "Multi-channel audio support",
+            "Advanced echo cancellation",
+            "Automatic speech recognition (ASR)",
+            "Text-to-speech (TTS) synthesis"
+          ]
+        },
+        {
+          "title": "Voice Cloning",
+          "description": "Create personalized voice models",
+          "details": [
+            "Train with minimal audio samples",
+            "Support for multiple languages",
+            "Real-time voice synthesis",
+            "Voice quality optimization",
+            "Multi-voice management"
+          ]
+        },
+        {
+          "title": "Knowledge Base",
+          "description": "Intelligent document management and retrieval",
+          "details": [
+            "Document upload and management",
+            "Smart search and retrieval",
+            "AI-powered analysis",
+            "Version control",
+            "Multi-format support"
+          ]
+        },
+        {
+          "title": "Workflow Automation",
+          "description": "Visual workflow design and execution",
+          "details": [
+            "Drag-and-drop workflow builder",
+            "Conditional branching",
+            "Real-time monitoring",
+            "Error handling and retry logic",
+            "Integration with external services"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "showcase",
+      "title": "Features Showcase",
+      "subsections": [
+        {
+          "title": "Workflow Orchestration",
+          "description": "Design complex AI workflows with our visual editor",
+          "details": [
+            "Drag-and-drop interface for easy workflow design",
+            "Support for conditional branching and loops",
+            "Real-time workflow execution monitoring",
+            "Integration with multiple AI models and services",
+            "Version control and workflow history"
+          ],
+          "image": "https://store.lingecho.com/uploads/buckets/lingecho/screenshot-20260304-101920.png"
+        },
+        {
+          "title": "MCP Tools Integration",
+          "description": "Extend functionality with Model Context Protocol tools",
+          "details": [
+            "Browse and install MCP tools from marketplace",
+            "Seamless integration with AI assistants",
+            "Real-time tool execution and monitoring",
+            "Custom tool development support",
+            "Tool versioning and dependency management"
+          ],
+          "image": "https://store.lingecho.com/uploads/buckets/lingecho/screenshot-20260304-103022.png"
+        },
+        {
+          "title": "JavaScript Templates",
+          "description": "Create custom logic with JavaScript templates",
+          "details": [
+            "Write custom JavaScript for advanced logic",
+            "Template library for common patterns",
+            "Real-time code execution",
+            "Debugging and error handling",
+            "Template sharing and reuse"
+          ],
+          "image": "https://store.lingecho.com/uploads/buckets/lingecho/screenshot-20260304-103232.png"
+        },
+        {
+          "title": "Hardware Device Management",
+          "description": "Manage and monitor connected hardware devices",
+          "details": [
+            "Real-time device status monitoring",
+            "Remote device configuration",
+            "Firmware updates and management",
+            "Device grouping and organization",
+            "Performance analytics and reporting"
+          ],
+          "image": "https://store.lingecho.com/uploads/buckets/lingecho/screenshot-20260304-103258.png"
+        },
+        {
+          "title": "Call Recording & Analytics",
+          "description": "Record and analyze voice call interactions",
+          "details": [
+            "Automatic call recording and storage",
+            "Call transcription and analysis",
+            "Performance metrics and insights",
+            "Quality assessment and improvement",
+            "Compliance and audit trails"
+          ],
+          "image": "https://store.lingecho.com/uploads/buckets/lingecho/screenshot-20260304-103323.png"
+        }
+      ]
+    },
+    {
+      "id": "technology",
+      "title": "Technology Stack",
+      "subsections": [
+        {
+          "title": "Frontend",
+          "technologies": [
+            { "name": "React", "version": "18.0+", "description": "Modern UI framework" },
+            { "name": "TypeScript", "version": "5.0+", "description": "Type-safe development" },
+            { "name": "Tailwind CSS", "version": "3.0+", "description": "Utility-first styling" },
+            { "name": "WebRTC", "version": "Latest", "description": "Real-time communication" }
+          ]
+        },
+        {
+          "title": "Backend",
+          "technologies": [
+            { "name": "Go", "version": "1.21+", "description": "High-performance server" },
+            { "name": "Gin", "version": "1.9+", "description": "Web framework" },
+            { "name": "WebSocket", "version": "Latest", "description": "Real-time messaging" },
+            { "name": "GORM", "version": "1.25+", "description": "Database ORM" }
+          ]
+        },
+        {
+          "title": "AI/ML",
+          "technologies": [
+            { "name": "ASR", "version": "Multiple providers", "description": "Speech recognition" },
+            { "name": "TTS", "version": "Multiple providers", "description": "Speech synthesis" },
+            { "name": "Voice Clone", "version": "Advanced models", "description": "Voice cloning" },
+            { "name": "LLM", "version": "Multiple models", "description": "Language models" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "use-cases",
+      "title": "Use Cases",
+      "useCases": [
+        {
+          "title": "Customer Service",
+          "description": "Automated customer support with natural voice interaction",
+          "icon": "Phone"
+        },
+        {
+          "title": "Virtual Assistant",
+          "description": "Personal AI assistant for scheduling and information retrieval",
+          "icon": "User"
+        },
+        {
+          "title": "Education",
+          "description": "Interactive learning with AI tutors and voice feedback",
+          "icon": "BookOpen"
+        },
+        {
+          "title": "Healthcare",
+          "description": "Patient support and appointment scheduling",
+          "icon": "Activity"
+        },
+        {
+          "title": "Entertainment",
+          "description": "Interactive games and voice-based entertainment",
+          "icon": "Zap"
+        },
+        {
+          "title": "Business Automation",
+          "description": "Workflow automation and process optimization",
+          "icon": "Settings"
+        }
+      ]
+    },
+    {
+      "id": "getting-started",
+      "title": "Getting Started",
+      "steps": [
+        {
+          "number": 1,
+          "title": "Sign Up",
+          "description": "Create your SoulNexus account and get API credentials"
+        },
+        {
+          "number": 2,
+          "title": "Create Assistant",
+          "description": "Set up your first AI assistant with basic configuration"
+        },
+        {
+          "number": 3,
+          "title": "Configure Voice",
+          "description": "Choose TTS provider and optionally train voice clone"
+        },
+        {
+          "number": 4,
+          "title": "Build Workflow",
+          "description": "Design your assistant's behavior with visual workflow editor"
+        },
+        {
+          "number": 5,
+          "title": "Integrate",
+          "description": "Embed SoulNexus into your application using SDK or API"
+        },
+        {
+          "number": 6,
+          "title": "Deploy",
+          "description": "Launch your voice application to production"
+        }
+      ]
+    },
+    {
+      "id": "pricing",
+      "title": "Pricing",
+      "description": "Flexible pricing plans for every need",
+      "plans": [
+        {
+          "name": "Starter",
+          "price": "$29",
+          "period": "/month",
+          "description": "Perfect for getting started",
+          "features": [
+            "Up to 1,000 voice minutes/month",
+            "1 AI Assistant",
+            "Basic voice cloning",
+            "Community support",
+            "Standard API access"
+          ]
+        },
+        {
+          "name": "Professional",
+          "price": "$99",
+          "period": "/month",
+          "description": "For growing applications",
+          "features": [
+            "Up to 10,000 voice minutes/month",
+            "5 AI Assistants",
+            "Advanced voice cloning",
+            "Priority support",
+            "Advanced API access",
+            "Custom workflows"
+          ],
+          "popular": true
+        },
+        {
+          "name": "Enterprise",
+          "price": "Custom",
+          "period": "pricing",
+          "description": "For large-scale deployments",
+          "features": [
+            "Unlimited voice minutes",
+            "Unlimited AI Assistants",
+            "Dedicated support",
+            "Custom integration",
+            "SLA guarantee",
+            "On-premise deployment"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -15,7 +15,6 @@ import {
     Calendar,
     Volume2,
     FileAudio,
-    Eye,
     Brain,
     Loader2,
     CheckCircle,
@@ -76,11 +75,17 @@ interface CallRecording {
 
 interface ErrorLog {
     id: number;
+    deviceId: number;
+    macAddress: string;
     errorType: string;
     errorLevel: string;
     errorCode: string;
     errorMsg: string;
+    stackTrace: string;
+    context: string;
     resolved: boolean;
+    resolvedAt?: string;
+    resolvedBy?: string;
     createdAt: string;
 }
 
@@ -616,12 +621,12 @@ const DeviceDetail: React.FC = () => {
                                                         {new Date(recording.createdAt).toLocaleString()}
                           </span>
                                                     {recording.totalTurns && (
-                                                      <span className="flex items-center gap-1">
+                                                        <span className="flex items-center gap-1">
                                                         轮次: {recording.totalTurns}
                                                       </span>
                                                     )}
                                                     {recording.llmModel && (
-                                                      <span className="flex items-center gap-1">
+                                                        <span className="flex items-center gap-1">
                                                         LLM: {recording.llmModel}
                                                       </span>
                                                     )}
@@ -635,13 +640,7 @@ const DeviceDetail: React.FC = () => {
                                                 >
                                                     <PlayCircle className="w-4 h-4" />
                                                 </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={() => handleViewError(recording as any)}
-                                                >
-                                                    <Eye className="w-4 h-4" />
-                                                </Button>
+                                                {/* View error button removed - function not implemented */}
                                                 {/* AI分析按钮 */}
                                                 <div className="flex items-center gap-1">
                                                     {getAnalysisStatusIcon(recording)}
@@ -701,7 +700,7 @@ const DeviceDetail: React.FC = () => {
                         <CallRecordingDetail
                             recording={selectedRecording}
                             recordingDetail={selectedRecordingDetail}
-                            onAnalyze={async (recordingId) => {
+                            onAnalyze={async () => {
                                 await handleAnalyzeRecording(selectedRecording);
                             }}
                             onGetAnalysis={async (recordingId) => {

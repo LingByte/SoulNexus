@@ -26,30 +26,30 @@ const PasswordStrength: React.FC<PasswordStrengthProps> = ({
   const rules: StrengthRule[] = [
     {
       label: `至少 ${minLength} 个字符`,
-      test: (pwd) => pwd.length >= minLength,
+      test: (pwd: string) => pwd.length >= minLength,
       met: password.length >= minLength,
     },
     {
       label: '包含小写字母',
-      test: (pwd) => /[a-z]/.test(pwd),
+      test: (pwd: string) => /[a-z]/.test(pwd),
       met: /[a-z]/.test(password),
       required: requireLowercase,
     },
     {
       label: '包含大写字母',
-      test: (pwd) => /[A-Z]/.test(pwd),
+      test: (pwd: string) => /[A-Z]/.test(pwd),
       met: /[A-Z]/.test(password),
       required: requireUppercase,
     },
     {
       label: '包含数字',
-      test: (pwd) => /[0-9]/.test(pwd),
+      test: (pwd: string) => /[0-9]/.test(pwd),
       met: /[0-9]/.test(password),
       required: requireNumber,
     },
     {
       label: '包含特殊字符',
-      test: (pwd) => /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pwd),
+      test: (pwd: string) => /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pwd),
       met: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password),
       required: requireSpecialChar,
     },

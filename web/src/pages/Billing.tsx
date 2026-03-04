@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { 
-  FileText, Download, RefreshCw, Brain, Mic, Volume2, HardDrive,
-  Globe, Plus, Eye, Search, ChevronLeft, ChevronRight,
-  BarChart3, List
+  FileText, Download, RefreshCw, Brain, Mic, Volume2,
+  Globe, Plus, Eye, ChevronLeft, ChevronRight,
+  BarChart3, List, User, Building2
 } from 'lucide-react'
 import { useI18nStore } from '@/stores/i18nStore'
 import Button from '@/components/UI/Button'
@@ -35,7 +35,6 @@ import UsageCharts from '@/components/Billing/UsageCharts'
 import { fetchUserCredentials, type Credential } from '@/api/credential'
 import { useAuthStore } from '@/stores/authStore'
 import { getGroupList, type Group } from '@/api/group'
-import { Building2, User } from 'lucide-react'
 
 const Billing = () => {
   const { t } = useI18nStore()
@@ -318,9 +317,9 @@ const Billing = () => {
     }
     
     try {
-      const formData = {
+      const formData: GenerateBillRequest = {
         ...generateBillForm,
-        groupId: billingScope === 'organization' ? selectedGroupId : undefined
+        groupId: billingScope === 'organization' ? selectedGroupId || undefined : undefined
       }
       const response = await generateBill(formData)
       if (response.code === 200) {

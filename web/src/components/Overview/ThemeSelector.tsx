@@ -1,5 +1,5 @@
 import React from 'react'
-import { Palette, Sparkles } from 'lucide-react'
+import { Palette } from 'lucide-react'
 import { ThemeStyle, themePresets, PageTheme } from '@/types/overview'
 import Card, { CardContent } from '@/components/UI/Card'
 

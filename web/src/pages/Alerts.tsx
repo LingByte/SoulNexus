@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { getAlerts, resolveAlert, muteAlert, Alert, AlertStatus, AlertType } from '@/api/alert';
 import { showAlert } from '@/utils/notification';
 import { useI18nStore } from '@/stores/i18nStore';
-import { Bell, AlertTriangle, AlertCircle, Info, X, CheckCircle, VolumeX, Plus, Filter } from 'lucide-react';
+import { Bell, AlertTriangle, AlertCircle, Info, CheckCircle, VolumeX, Plus, Filter } from 'lucide-react';
 import Button from '@/components/UI/Button';
 
 const Alerts: React.FC = () => {
