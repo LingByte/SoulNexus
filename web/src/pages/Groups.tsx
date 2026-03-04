@@ -19,6 +19,7 @@ import { showAlert } from '@/utils/notification';
 import { useAuthStore } from '@/stores/authStore';
 import { Users, Plus, X, UserPlus, LogOut, Trash2, Check, XCircle, Crown, Shield, Search, Settings } from 'lucide-react';
 import Button from '@/components/UI/Button';
+import ConfirmDialog from '@/components/UI/ConfirmDialog';
 import { useI18nStore } from '@/stores/i18nStore';
 
 const Groups: React.FC = () => {
@@ -35,6 +36,9 @@ const Groups: React.FC = () => {
   const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteGroupId, setDeleteGroupId] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchGroups = async () => {
     try {
@@ -119,15 +123,23 @@ const Groups: React.FC = () => {
   };
 
   const handleDeleteGroup = async (groupId: number) => {
-    if (!confirm(t('groups.messages.deleteConfirm'))) {
-      return;
-    }
+    setDeleteGroupId(groupId);
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDeleteGroup = async () => {
+    if (!deleteGroupId) return;
     try {
-      await deleteGroup(groupId);
+      setDeleting(true);
+      await deleteGroup(deleteGroupId);
       await fetchGroups();
       showAlert(t('groups.messages.deleteSuccess'), 'success');
+      setShowDeleteConfirm(false);
+      setDeleteGroupId(null);
     } catch (err: any) {
       showAlert(err?.msg || t('groups.messages.deleteFailed'), 'error');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -189,6 +201,20 @@ const Groups: React.FC = () => {
 
   return (
     <div className="min-h-screen dark:bg-neutral-900 flex flex-col">
+      <ConfirmDialog
+        isOpen={showDeleteConfirm}
+        onClose={() => {
+          setShowDeleteConfirm(false);
+          setDeleteGroupId(null);
+        }}
+        onConfirm={confirmDeleteGroup}
+        title={t('groups.messages.deleteConfirm')}
+        message={t('groups.messages.deleteConfirm')}
+        confirmText={t('common.delete') || '删除'}
+        cancelText={t('common.cancel') || '取消'}
+        type="danger"
+        loading={deleting}
+      />
       <div className="max-w-7xl w-full mx-auto pt-10 pb-4 px-4">
         <div className="flex items-center justify-between mb-8">
           <div className="relative pl-4">

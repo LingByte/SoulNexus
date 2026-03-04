@@ -11,6 +11,7 @@ const (
 	COMPONENT_OPUS_DECODE = "opus_decode"
 	COMPONENT_FILTER_WORD = "filter_word"
 	COMPONENT_VAD         = "vad"
+	COMPONENT_ECHO_FILTER = "echo_filter"
 	COMPONENT_INPUT       = "input"
 )
 

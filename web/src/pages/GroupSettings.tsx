@@ -23,6 +23,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useI18nStore } from '@/stores/i18nStore';
 import { ArrowLeft, Save, Trash2, AlertTriangle, Bot, BookOpen, Upload, X, Plus, Edit, Database, LayoutDashboard } from 'lucide-react';
 import Button from '@/components/UI/Button';
+import ConfirmDialog from '@/components/UI/ConfirmDialog';
 import QuotaModal from '@/components/Quota/QuotaModal';
 import DeleteConfirmModal from '@/components/Quota/DeleteConfirmModal';
 import { getOverviewConfig } from '@/api/overview';
@@ -55,6 +56,8 @@ const GroupSettings: React.FC = () => {
   });
   const [overviewConfig, setOverviewConfig] = useState<OverviewConfig | null>(null);
   const [loadingOverview, setLoadingOverview] = useState(false);
+  const [showDeleteGroupConfirm, setShowDeleteGroupConfirm] = useState(false);
+  const [deletingGroup, setDeletingGroup] = useState(false);
 
   const fetchGroup = async () => {
     if (!id) return;
@@ -194,18 +197,21 @@ const GroupSettings: React.FC = () => {
 
   const handleDelete = async () => {
     if (!id) return;
-    if (!confirm(t('groupSettings.deleteConfirm'))) {
-      return;
-    }
-    if (!confirm(t('groupSettings.deleteConfirmAgain'))) {
-      return;
-    }
+    setShowDeleteGroupConfirm(true);
+  };
+
+  const confirmDeleteGroup = async () => {
+    if (!id) return;
     try {
+      setDeletingGroup(true);
       await deleteGroup(Number(id));
       showAlert(t('groupSettings.messages.deleteSuccess'), 'success');
       navigate('/groups');
     } catch (err: any) {
       showAlert(err?.msg || t('groupSettings.messages.deleteFailed'), 'error');
+    } finally {
+      setDeletingGroup(false);
+      setShowDeleteGroupConfirm(false);
     }
   };
 
@@ -308,6 +314,17 @@ const GroupSettings: React.FC = () => {
 
   return (
     <div className="min-h-screen dark:bg-neutral-900 flex flex-col">
+      <ConfirmDialog
+        isOpen={showDeleteGroupConfirm}
+        onClose={() => setShowDeleteGroupConfirm(false)}
+        onConfirm={confirmDeleteGroup}
+        title={t('groupSettings.deleteConfirm')}
+        message={t('groupSettings.deleteConfirmAgain')}
+        confirmText={t('common.delete') || '删除'}
+        cancelText={t('common.cancel') || '取消'}
+        type="danger"
+        loading={deletingGroup}
+      />
       <div className="max-w-4xl w-full mx-auto pt-10 pb-4 px-4">
         {/* 头部 */}
         <div className="mb-8">
