@@ -19,7 +19,6 @@ import (
 func StartBackupScheduler(db *gorm.DB) {
 	// Execute backup immediately on startup
 	logger.Info("Executing initial backup on startup...")
-	ExecuteBackup(db)
 	c := cron.New()
 	// Use Cron expression from configuration
 	schedule := config.GlobalConfig.Features.BackupSchedule

@@ -47,7 +47,6 @@ type InterpolatingConverter struct {
 	sourceRate int
 	targetRate int
 	buffer     []byte
-	bufferPos  int  // 当前缓冲区写入位置
 	useCubic   bool // Use cubic interpolation for better quality (slower)
 }
 
@@ -56,8 +55,6 @@ func NewInterpolatingConverter(sourceRate, targetRate int) SampleRateConverter {
 	return &InterpolatingConverter{
 		sourceRate: sourceRate,
 		targetRate: targetRate,
-		buffer:     make([]byte, 0, 65536), // 预分配64KB缓冲区
-		bufferPos:  0,
 		useCubic:   false, // Default to linear for performance
 	}
 }
@@ -67,8 +64,6 @@ func NewCubicInterpolatingConverter(sourceRate, targetRate int) SampleRateConver
 	return &InterpolatingConverter{
 		sourceRate: sourceRate,
 		targetRate: targetRate,
-		buffer:     make([]byte, 0, 65536), // 预分配64KB缓冲区
-		bufferPos:  0,
 		useCubic:   true,
 	}
 }
@@ -141,29 +136,14 @@ func (ic *InterpolatingConverter) Close() error {
 }
 
 func (ic *InterpolatingConverter) Samples() []byte {
-	result := ic.buffer[:ic.bufferPos]
-	ic.buffer = ic.buffer[:0]
-	ic.bufferPos = 0
+	result := ic.buffer
+	ic.buffer = nil
 	return result
 }
 
 // Write implements SampleRateConverter
 func (ic *InterpolatingConverter) Write(p []byte) (n int, err error) {
 	converted := ic.ConvertSamples(p)
-
-	// 检查缓冲区容量，必要时扩展
-	requiredSize := ic.bufferPos + len(converted)
-	if requiredSize > cap(ic.buffer) {
-		// 缓冲区不足，扩展到所需大小的1.5倍
-		newCapacity := requiredSize + requiredSize/2
-		newBuffer := make([]byte, newCapacity)
-		copy(newBuffer, ic.buffer[:ic.bufferPos])
-		ic.buffer = newBuffer
-	}
-
-	// 复制转换后的数据到缓冲区
-	copy(ic.buffer[ic.bufferPos:], converted)
-	ic.bufferPos += len(converted)
-
+	ic.buffer = append(ic.buffer, converted...)
 	return len(p), nil
 }

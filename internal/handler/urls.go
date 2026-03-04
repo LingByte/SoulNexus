@@ -436,8 +436,6 @@ func (h *Handlers) registerAssistantRoutes(r *gin.RouterGroup) {
 
 		assistant.DELETE("/:id", models.AuthRequired, h.DeleteAssistant)
 
-		assistant.PUT("/:id/js", models.AuthRequired, h.UpdateAssistantJS)
-
 		assistant.GET("/lingecho/client/:id/loader.js", h.ServeVoiceSculptorLoaderJS)
 
 		// Assistant Tools management routes

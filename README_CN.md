@@ -122,7 +122,7 @@ docker run -d --name neo4j \
   neo4j:latest
 
 # 克隆项目
-git clone https://github.com/code-100-precent/LingEcho-App.git
+git clone https://github.com/LingByte/SoulNexus-App.git
 cd LingEcho-App
 
 # 复制环境配置
@@ -162,7 +162,7 @@ docker-compose --profile dev up -d
 
 ```bash
 # 克隆项目
-git clone https://github.com/code-100-precent/LingEcho-App.git
+git clone https://github.com/LingByte/SoulNexus-App.git
 cd LingEcho-App
 
 # 后端设置

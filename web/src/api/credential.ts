@@ -22,10 +22,14 @@ export interface CreateCredentialForm {
 export interface Credential {
   id: number
   name: string
+    apiKey: string
+    apiSecret: string
   llmProvider: string
   userId: number
   asrProvider?: string
   ttsProvider?: string
+    asrConfig?: ProviderConfig
+    ttsConfig?: ProviderConfig
   createdAt: string
   updatedAt: string
 }

@@ -98,11 +98,6 @@ export const updateAssistant = async (id: number, data: UpdateAssistantForm): Pr
   return put(`/assistant/${id}`, data)
 }
 
-// 更新助手JS模板
-export const updateAssistantJS = async (id: number, jsSourceId: string): Promise<ApiResponse<any>> => {
-  return put(`/assistant/${id}/js`, { jsSourceId })
-}
-
 // 删除助手
 export const deleteAssistant = async (id: number): Promise<ApiResponse<null>> => {
   return del(`/assistant/${id}`)

@@ -12,7 +12,7 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/vad"
 )
 
-// VADComponent VAD 管道组件
+// VADComponent VAD 管道组件（使用远程 SileroVAD 服务）
 // 用于在 TTS 播放期间检测用户语音（Barge-in）
 type VADComponent struct {
 	enabled     bool
