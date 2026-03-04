@@ -152,6 +152,13 @@ func (h *Handlers) UpdateAssistant(c *gin.Context) {
 
 	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
 
+	// First, read the raw body to check which fields were provided
+	var rawBody map[string]interface{}
+	if err := c.ShouldBindJSON(&rawBody); err != nil {
+		response.Fail(c, "invalid request", "parameter error")
+		return
+	}
+
 	var input struct {
 		Name                 string   `json:"name"`
 		Description          string   `json:"description"`
@@ -173,8 +180,12 @@ func (h *Handlers) UpdateAssistant(c *gin.Context) {
 		VADThreshold         *float64 `json:"vadThreshold"`         // VAD阈值
 		VADConsecutiveFrames *int     `json:"vadConsecutiveFrames"` // VAD连续帧数
 		JsSourceId           string   `json:"jsSourceId"`           // JS模板ID
+		OpeningStatement     string   `json:"openingStatement"`     // 开场白
 	}
-	if err := c.ShouldBindJSON(&input); err != nil {
+
+	// Convert raw body back to JSON and bind to struct
+	bodyBytes, _ := json.Marshal(rawBody)
+	if err := json.Unmarshal(bodyBytes, &input); err != nil {
 		response.Fail(c, "invalid request", "parameter error")
 		return
 	}
@@ -223,11 +234,11 @@ func (h *Handlers) UpdateAssistant(c *gin.Context) {
 	if input.Speaker != "" {
 		updateData["speaker"] = input.Speaker
 	}
-	if input.VoiceCloneId != nil {
+	if _, voiceCloneIdProvided := rawBody["voiceCloneId"]; voiceCloneIdProvided {
 		updateData["voice_clone_id"] = input.VoiceCloneId
 	}
 	if input.KnowledgeBaseId != nil {
-		updateData["knowledge_base_id"] = input.KnowledgeBaseId
+		updateData["knowledge_base_id"] = *input.KnowledgeBaseId
 	}
 	if input.TtsProvider != "" {
 		updateData["tts_provider"] = input.TtsProvider
@@ -276,53 +287,6 @@ func (h *Handlers) UpdateAssistant(c *gin.Context) {
 	}
 
 	response.Success(c, "Update successful", assistant)
-}
-
-// UpdateAssistantJS Update assistant JS template
-func (h *Handlers) UpdateAssistantJS(c *gin.Context) {
-	user := models.CurrentUser(c)
-	if user == nil {
-		response.Fail(c, "unauthorized", "User not logged in")
-		return
-	}
-
-	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
-
-	var input struct {
-		JsSourceId string `json:"jsSourceId"`
-	}
-	if err := c.ShouldBindJSON(&input); err != nil {
-		response.Fail(c, "Parameter error", nil)
-		return
-	}
-
-	var assistant models.Assistant
-	if err := h.db.First(&assistant, id).Error; err != nil {
-		response.Fail(c, "not found", "Assistant does not exist")
-		return
-	}
-
-	if assistant.UserID != user.ID {
-		response.Fail(c, "forbidden", "No permission to modify this assistant")
-		return
-	}
-
-	// If a JS template ID is provided, verify that the template exists
-	if input.JsSourceId != "" {
-		_, err := models.GetJSTemplateByJsSourceID(h.db, input.JsSourceId)
-		if err != nil {
-			response.Fail(c, "Specified JS template does not exist", nil)
-			return
-		}
-	}
-
-	// Update JS template ID
-	if err := h.db.Model(&assistant).Update("js_source_id", input.JsSourceId).Error; err != nil {
-		response.Fail(c, "Update failed", nil)
-		return
-	}
-
-	response.Success(c, "Update successful", nil)
 }
 
 // GetAssistantGraphData 获取助手在图数据库中的图数据

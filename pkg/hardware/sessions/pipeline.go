@@ -71,6 +71,7 @@ type ASRPipeline struct {
 	reconnecting    bool               // 是否正在重连
 	reconnectCancel context.CancelFunc // 重连取消函数
 	ctx             context.Context    // Pipeline 上下文
+	audioManager    *AudioManager      // 音频管理器（回声消除）
 }
 
 // NewASRPipeline Create a new ASR pipeline
@@ -79,10 +80,11 @@ func NewASRPipeline(option *ASRPipelineOption, logger *zap.Logger) (*ASRPipeline
 		return nil, fmt.Errorf("invalid option or invalid asr service")
 	}
 	pipeline := &ASRPipeline{
-		Asr:       option.Asr,
-		logger:    logger,
-		metrics:   &PipelineMetrics{},
-		asrOption: option,
+		Asr:          option.Asr,
+		logger:       logger,
+		metrics:      &PipelineMetrics{},
+		asrOption:    option,                                                      // 保存配置用于重连
+		audioManager: NewAudioManager(option.SampleRate, option.Channels, logger), // 初始化音频管理器
 	}
 	decode, err := encoder.CreateDecode(
 		media.CodecConfig{
@@ -245,13 +247,17 @@ func (p *ASRPipeline) ProcessInput(ctx context.Context, audioData []byte) error 
 		if !shouldContinue {
 			return nil
 		}
+
+		// 在 OpusDecodeComponent 之后保存 PCM 数据
 		if i == 0 && stage.Name() == constants.COMPONENT_OPUS_DECODE {
 			if data, ok := result.([]byte); ok {
 				pcmData = data
 			}
 		}
+
 		current = result
 	}
+
 	// 调用 PCM 音频记录回调
 	if pcmData != nil && p.onPCMAudio != nil {
 		if err := p.onPCMAudio(pcmData); err != nil {
@@ -285,6 +291,11 @@ func (p *ASRPipeline) SetTTSPlaying(playing bool) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.ttsPlaying = playing
+	if !playing {
+		if p.audioManager != nil {
+			p.audioManager.NotifyTTSEnd()
+		}
+	}
 }
 
 // IsTTSPlaying 检查TTS是否正在播放
@@ -302,6 +313,11 @@ func (p *ASRPipeline) ClearTTSState() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.ttsPlaying = false
+}
+
+// GetAudioManager 获取音频管理器
+func (p *ASRPipeline) GetAudioManager() *AudioManager {
+	return p.audioManager
 }
 
 // ResetState 重置状态（用于新的对话轮次）
@@ -437,8 +453,11 @@ func (p *ASRPipeline) reconnectASR(ctx context.Context) {
 		if delay > maxDelay {
 			delay = maxDelay
 		}
+
 		p.logger.Info("[ASR Pipeline] 等待后重试",
 			zap.Duration("delay", delay))
+
+		// 等待后重试
 		select {
 		case <-ctx.Done():
 			p.logger.Info("[ASR Pipeline] 重连被取消")

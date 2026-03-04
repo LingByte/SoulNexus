@@ -38,9 +38,9 @@ type HardwareSessionOption struct {
 	VADConsecutiveFrames int
 	DB                   *gorm.DB
 	VoiceprintService    *voiceprint.Service
-	DeviceID             *string
-	MacAddress           string
-	VoiceCloneID         *int
+	DeviceID             *string // 设备ID
+	MacAddress           string  // MAC地址
+	VoiceCloneID         *int    // 克隆音色ID（可选）
 }
 
 // HardwareSession hardware session
@@ -91,6 +91,7 @@ func NewHardwareSession(ctx context.Context, hardwareConfig *HardwareSessionOpti
 	tools.RegisterBuiltinTools(llmService)
 	speakerManager := tools.NewSpeakerManager(hardwareConfig.Logger)
 	tools.RegisterSpeakerTool(llmService, speakerManager)
+
 	ttsProvider := hardwareConfig.Credential.GetTTSProvider()
 	ttsConfig := make(synthesizer.TTSCredentialConfig)
 	ttsConfig["provider"] = ttsProvider
@@ -104,21 +105,30 @@ func NewHardwareSession(ctx context.Context, hardwareConfig *HardwareSessionOpti
 	}
 
 	var ttsService synthesizer.SynthesisService
+
+	// 如果指定了克隆音色ID，优先使用克隆音色
 	if hardwareConfig.VoiceCloneID != nil && *hardwareConfig.VoiceCloneID > 0 {
+		// 从数据库获取克隆音色信息
 		voiceClone, voiceCloneErr := models.GetVoiceCloneByID(hardwareConfig.DB, int64(*hardwareConfig.VoiceCloneID))
 		if voiceCloneErr == nil && voiceClone != nil {
+			// 创建克隆音色服务
 			cloneFactory := voiceclone.NewFactory()
 			cloneConfig := &voiceclone.Config{
 				Provider: voiceclone.Provider(voiceClone.Provider),
 				Options:  make(map[string]interface{}),
 			}
+
+			// 根据提供商类型和凭证设置配置
 			if voiceClone.Provider == "xunfei" {
+				// 从凭证中获取讯飞配置
 				if hardwareConfig.Credential.AsrConfig != nil {
 					if appID, ok := hardwareConfig.Credential.AsrConfig["appId"].(string); ok {
 						cloneConfig.Options["app_id"] = appID
 					}
 				}
+				// 从凭证中获取 API Key
 				cloneConfig.Options["api_key"] = hardwareConfig.Credential.LLMApiKey
+				// 从环境变量获取 WebSocket 配置（这些是全局配置）
 				if wsAppID := os.Getenv("XUNFEI_WS_APP_ID"); wsAppID != "" {
 					cloneConfig.Options["ws_app_id"] = wsAppID
 				}
@@ -129,11 +139,13 @@ func NewHardwareSession(ctx context.Context, hardwareConfig *HardwareSessionOpti
 					cloneConfig.Options["ws_api_secret"] = wsAPISecret
 				}
 			} else if voiceClone.Provider == "volcengine" {
+				// 从凭证中获取火山引擎配置
 				if hardwareConfig.Credential.TtsConfig != nil {
 					if appID, ok := hardwareConfig.Credential.TtsConfig["appId"].(string); ok {
 						cloneConfig.Options["app_id"] = appID
 					}
 				}
+				// 从凭证中获取 Token
 				cloneConfig.Options["token"] = hardwareConfig.Credential.LLMApiKey
 			}
 
@@ -173,6 +185,11 @@ func NewHardwareSession(ctx context.Context, hardwareConfig *HardwareSessionOpti
 	pipeline, err := stream.NewTTSPipeline(&stream.TTSPipelineConfig{
 		TTSService: stream.NewTTSServiceAdapter(ttsService),
 		SendCallback: func(data []byte) error {
+			if sessionRef != nil && sessionRef.asrPipeline != nil {
+				if audioMgr := sessionRef.asrPipeline.GetAudioManager(); audioMgr != nil {
+					audioMgr.RecordTTSOutput(data)
+				}
+			}
 			return writer.SendTTSAudioWithFlowControl(data, 60, 60)
 		},
 		RecordCallback: func(data []byte) error {
@@ -239,6 +256,8 @@ func NewHardwareSession(ctx context.Context, hardwareConfig *HardwareSessionOpti
 			hardwareConfig.Logger.Info(fmt.Sprintf("[Session] 通话记录已创建 SessionID:%s, RecordingID:%d", sessionID, uint64(session.callRecording.ID)))
 		}
 	}
+
+	// 初始化录音器（本地文件存储）
 	recordingDir := fmt.Sprintf("recordings/%d/%d", hardwareConfig.Credential.UserID, hardwareConfig.AssistantID)
 	recordingFile := fmt.Sprintf("%s/%s.wav", recordingDir, sessionID)
 	if recorder, err := NewAudioRecorder(recordingFile, 16000, 1, 16, hardwareConfig.Logger); err != nil {
@@ -263,6 +282,7 @@ func NewHardwareSession(ctx context.Context, hardwareConfig *HardwareSessionOpti
 			assistantIDStr,
 			hardwareConfig.Logger,
 		)
+		// 注册声纹识别工具给 LLM，使其可以主动调用
 		tools.RegisterVoiceprintIdentifyTool(llmService, session.voiceprintTool)
 	}
 	sessionRef = session
@@ -367,6 +387,7 @@ func (s *HardwareSession) messageLoop() {
 				s.logger.Info("[Session] WebSocket 连接正常关闭", zap.Error(err))
 			} else {
 				s.logger.Error("[Session] 读取 WebSocket 消息失败", zap.Error(err))
+				// 记录WebSocket连接错误
 				s.logSessionError("WEBSOCKET", "ERROR", "WS_READ_ERROR", err.Error(), "", "Failed to read WebSocket message")
 			}
 			return
@@ -375,11 +396,13 @@ func (s *HardwareSession) messageLoop() {
 		case websocket.BinaryMessage:
 			if err := s.handleAudio(message); err != nil {
 				s.logger.Warn("[Session] 处理音频消息失败", zap.Error(err))
+				// 记录音频处理错误
 				s.logSessionError("AUDIO", "WARN", "AUDIO_PROCESS_ERROR", err.Error(), "", "Failed to process audio message")
 			}
 		case websocket.TextMessage:
 			if err := s.handleText(message); err != nil {
 				s.logger.Warn("[Session] 处理文本消息失败", zap.Error(err))
+				// 记录文本处理错误
 				s.logSessionError("TEXT", "WARN", "TEXT_PROCESS_ERROR", err.Error(), "", "Failed to process text message")
 			}
 		}
@@ -421,6 +444,8 @@ func (s *HardwareSession) Stop() error {
 			s.logger.Debug("[Session] --- WebSocket连接已关闭")
 		}
 	}
+
+	// 设置设备在线状态为 false
 	if db != nil && macAddress != "" {
 		if err := models.UpdateDeviceOnlineStatus(db, macAddress, false); err != nil {
 			s.logger.Warn("[Session] 更新设备在线状态失败", zap.Error(err), zap.String("macAddress", macAddress))
@@ -428,6 +453,8 @@ func (s *HardwareSession) Stop() error {
 			s.logger.Info("[Session] 设备在线状态已更新为 false", zap.String("macAddress", macAddress))
 		}
 	}
+
+	// 在释放锁后调用 saveCallRecording
 	s.saveCallRecording()
 	return nil
 }
@@ -540,10 +567,12 @@ func (s *HardwareSession) logSessionError(errorType, errorLevel, errorCode, erro
 		s.logger.Warn("[Session] 无法记录错误：数据库或MAC地址为空", zap.String("errorMsg", errorMsg))
 		return
 	}
+
 	deviceID := s.config.MacAddress
 	if s.callRecording != nil && s.callRecording.DeviceID != "" {
 		deviceID = s.callRecording.DeviceID
 	}
+
 	if err := models.LogDeviceError(s.db, deviceID, s.config.MacAddress, errorType, errorLevel, errorCode, errorMsg, stackTrace, context); err != nil {
 		s.logger.Error("[Session] 记录设备错误失败", zap.Error(err), zap.String("errorMsg", errorMsg))
 	} else {
@@ -571,7 +600,10 @@ func (s *HardwareSession) saveCallRecording() {
 
 	s.logger.Info("[Session] 准备保存对话详情",
 		zap.Int("conversationTurns", len(s.conversationTurns)))
+
+	// 保存对话详情
 	s.saveConversationDetails()
+
 	// 处理录音数据
 	if s.recorder != nil {
 		// 关闭录音器
@@ -631,13 +663,18 @@ func (s *HardwareSession) uploadRecordingFile(filePath string) {
 	if s.callRecording == nil {
 		return
 	}
+
+	// 生成存储路径
 	storageKey := fmt.Sprintf("recordings/%d/%d/%s.wav",
 		s.callRecording.UserID,
 		s.callRecording.AssistantID,
 		s.callRecording.SessionID)
+
 	s.logger.Info("[Session] 开始上传录音文件",
 		zap.String("localPath", filePath),
 		zap.String("storageKey", storageKey))
+
+	// 读取本地文件
 	wavData, err := os.ReadFile(filePath)
 	if err != nil {
 		s.logger.Error("[Session] 读取录音文件失败", zap.Error(err), zap.String("filePath", filePath))

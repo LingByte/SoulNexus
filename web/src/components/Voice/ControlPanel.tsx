@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Key, Settings, AppWindow, ChevronDown, RefreshCw, ArrowRight, Bot, MessageCircle, Users, Zap, Circle, ExternalLink, Mic } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import {getKnowledgeBaseByUser} from "@/api/knowledge.ts";
-import { jsTemplateService, JSTemplate } from '@/api/jsTemplate';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/UI/Select.tsx';
 import Button from '@/components/UI/Button';
 import { Switch } from '@/components/UI/Switch';
@@ -58,9 +57,6 @@ interface ControlPanelProps {
     onSaveSettings: () => void
     isSavingSettings?: boolean // 保存状态
     onDeleteAssistant: () => void
-    // JS模板配置
-    selectedJSTemplate: string | null
-    onJSTemplateChange: (value: string) => void
     // 知识库配置
     knowledgeBases: Array<{id: string, name: string}>
     selectedKnowledgeBase: string | null
@@ -135,8 +131,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                                        onSaveSettings,
                                                        isSavingSettings = false,
                                                        onDeleteAssistant,
-                                                       selectedJSTemplate,
-                                                       onJSTemplateChange,
                                                        onMethodClick,
                                                        selectedKnowledgeBase,
                                                        onKnowledgeBaseChange,
@@ -152,7 +146,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                                    }) => {
     const { t } = useI18nStore()
     const [localKnowledgeBases, setLocalKnowledgeBases] = useState<Array<{id: string, name: string}>>([]);
-    const [jsTemplates, setJsTemplates] = useState<JSTemplate[]>([]);
     const [voiceOptions, setVoiceOptions] = useState<VoiceOption[]>([]);
     const [loadingVoices, setLoadingVoices] = useState(false);
     const [languageOptions, setLanguageOptions] = useState<LanguageOption[]>([]);
@@ -180,16 +173,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         }
     };
 
-    const fetchJSTemplates = async () => {
-        try {
-            const response = await jsTemplateService.getTemplates({ page: 1, limit: 100 });
-            if (response.code === 200) {
-                setJsTemplates(response.data.data);
-            }
-        } catch (error) {
-            console.error('获取JS模板失败:', error);
-        }
-    };
     const handleRefreshKnowledgeBases = () => {
         fetchKnowledgeBases();
     };
@@ -277,7 +260,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
 
     useEffect(() => {
         fetchKnowledgeBases();
-        fetchJSTemplates();
     }, []);
 
     // 当TTS Provider变化时，重新加载音色列表和语言列表
@@ -705,53 +687,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                                 ))}
                                             </div>
                                         </div>
-                                    </div>
-
-                                    {/* JS模板选择 */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                            {t('controlPanel.assistant.jsTemplate')}
-                                        </label>
-                                        <Select value={selectedJSTemplate || ""} onValueChange={onJSTemplateChange}>
-                                            <SelectTrigger
-                                                className="w-full h-10 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 hover:border-gray-400 dark:hover:border-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                                                selectedValue={
-                                                    selectedJSTemplate ?
-                                                        jsTemplates.find(t => t.jsSourceId === selectedJSTemplate)?.name || '未知模板'
-                                                        : t('controlPanel.assistant.jsTemplateDefault')
-                                                }
-                                            >
-                                                <SelectValue placeholder={t('controlPanel.assistant.jsTemplatePlaceholder')} />
-                                            </SelectTrigger>
-                                            <SelectContent className="z-50 max-h-60 overflow-auto">
-                                                <SelectItem value="" className="px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">
-                                                    <div className="flex items-center gap-2">
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
-                              默认
-                            </span>
-                                                        {t('controlPanel.assistant.jsTemplateDefault')}
-                                                    </div>
-                                                </SelectItem>
-                                                {jsTemplates.map((template) => (
-                                                    <SelectItem key={template.id} value={template.jsSourceId} className="px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">
-                                                        <div className="flex items-center gap-2">
-                              <span className={cn(
-                                  'inline-flex items-center px-2 py-0.5 rounded text-xs font-medium',
-                                  template.type === 'default'
-                                      ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-100'
-                                      : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100'
-                              )}>
-                                {template.type === 'default' ? '默认' : '自定义'}
-                              </span>
-                                                            <span className="truncate">{template.name}</span>
-                                                        </div>
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                            {t('controlPanel.assistant.jsTemplateHint')}
-                                        </p>
                                     </div>
 
                                     <div className="flex justify-between pt-4 border-t dark:border-neutral-700 gap-3">

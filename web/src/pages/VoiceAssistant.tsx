@@ -21,7 +21,6 @@ import {
     getAssistantList,
     getAssistant,
     updateAssistant,
-    updateAssistantJS,
     deleteAssistant,
     getVoiceClones,
     getAudioStatus,
@@ -85,7 +84,7 @@ const VoiceAssistant = () => {
     const [callTimer, setCallTimer] = useState<NodeJS.Timeout | null>(null)
     const [pendingCandidates, setPendingCandidates] = useState<any[]>([])
 
-    // 线路选择：WebRTC / 七牛云ASR+TTS
+    // 线路选择：WebRTC / ASR+TTS
     const [lineMode, setLineMode] = useState<LineMode>('webrtc')
     const mediaRecorderRef = useRef<MediaRecorder | null>(null)
     // 训练音色
@@ -191,12 +190,11 @@ const VoiceAssistant = () => {
     // 获取选中助手的 jsSourceId
     const jsSourceId = assistants.find(a => a.id === assistantId)?.jsSourceId || ''
 
-    // 当选中助手变化时，更新JS模板选择和基础配置
+    // 当选中助手变化时，更新基础配置
     useEffect(() => {
         if (assistantId && assistants.length > 0) {
             const currentAssistant = assistants.find(a => a.id === assistantId)
             if (currentAssistant) {
-                setSelectedJSTemplate(currentAssistant.jsSourceId || null)
                 // 同步助手基础配置（包括图记忆开关和VAD配置）
                 setAssistantName(currentAssistant.name || '')
                 setAssistantDescription(currentAssistant.description || '')
@@ -219,7 +217,6 @@ const VoiceAssistant = () => {
     // 状态管理中新增
     const [selectedKnowledgeBase, setSelectedKnowledgeBase] = useState<string | null>(null)
     const [knowledgeBases, setKnowledgeBases] = useState<Array<{id: string, name: string}>>([]);
-    const [selectedJSTemplate, setSelectedJSTemplate] = useState<string | null>(null)
     const [ttsProvider, setTtsProvider] = useState<string | undefined>(undefined)
 
     // 引导步骤配置（支持国际化）
@@ -1901,7 +1898,7 @@ const VoiceAssistant = () => {
                 setIsSavingSettings(true)
 
                 // 合并两个请求为一个
-                await updateAssistant(assistantId, {
+                const response = await updateAssistant(assistantId, {
                     name: assistantName,
                     description: assistantDescription,
                     icon: assistantIcon,
@@ -1921,12 +1918,12 @@ const VoiceAssistant = () => {
                     enableVAD,
                     vadThreshold,
                     vadConsecutiveFrames,
-                    jsSourceId: selectedJSTemplate || undefined, // 合并JS模板更新
                 })
 
-                // 刷新助手列表以更新显示
-                const assistantsResponse = await getAssistantList()
-                setAssistants(assistantsResponse.data as Assistant[])
+                // 使用返回的助手数据更新列表，避免额外的GET请求
+                if (response.code === 200 && response.data) {
+                    setAssistants(assistants.map(a => a.id === assistantId ? response.data : a))
+                }
 
                 showAlert('设置保存成功', 'success')
             } catch (err: any) {
@@ -2028,10 +2025,6 @@ const VoiceAssistant = () => {
         }
         setSelectedMethod(method)
         setShowIntegrationModal(true)
-    }
-
-    const handleJSTemplateChange = (value: string) => {
-        setSelectedJSTemplate(value)
     }
 
     return (
@@ -2219,8 +2212,6 @@ const VoiceAssistant = () => {
                                 searchKeyword={searchKeyword}
                                 highlightFragments={highlightFragments}
                                 highlightResultId={highlightResultId}
-                                selectedJSTemplate={selectedJSTemplate}
-                                onJSTemplateChange={handleJSTemplateChange}
                                 onMethodClick={handleMethodClick}
                                 selectedKnowledgeBase={selectedKnowledgeBase}
                                 onKnowledgeBaseChange={setSelectedKnowledgeBase}
