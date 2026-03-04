@@ -140,6 +140,10 @@ func NewASRPipeline(option *ASRPipelineOption, logger *zap.Logger) (*ASRPipeline
 	} else {
 		logger.Info("[ASR Pipeline] VAD 已禁用")
 	}
+	// 在 VAD 之后添加回声过滤组件
+	// 当 TTS 播放时，将音频替换为静音帧，防止 ASR 识别 AI 自己的声音
+	pipeline.inputStages = append(pipeline.inputStages, NewEchoFilterComponent(logger, pipeline))
+
 	pipeline.inputStages = append(pipeline.inputStages, &ASRInputComponent{
 		asr:      pipeline.Asr,
 		logger:   logger,

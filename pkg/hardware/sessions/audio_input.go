@@ -34,7 +34,8 @@ func (s *ASRInputComponent) Process(ctx context.Context, data interface{}) (inte
 		s.metrics.mu.Unlock()
 	}
 
-	// 发送音频数据
+	// 发送音频数据给 ASR
+	// 注意：此时音频可能已经被 EchoFilterComponent 替换为静音帧（如果 TTS 正在播放）
 	err := s.asr.SendAudioBytes(pcmData)
 	if err != nil {
 		s.logger.Error(fmt.Sprintf("[ASRInput] 发送失败, %v", err))
