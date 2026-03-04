@@ -185,11 +185,6 @@ func NewHardwareSession(ctx context.Context, hardwareConfig *HardwareSessionOpti
 	pipeline, err := stream.NewTTSPipeline(&stream.TTSPipelineConfig{
 		TTSService: stream.NewTTSServiceAdapter(ttsService),
 		SendCallback: func(data []byte) error {
-			if sessionRef != nil && sessionRef.asrPipeline != nil {
-				if audioMgr := sessionRef.asrPipeline.GetAudioManager(); audioMgr != nil {
-					audioMgr.RecordTTSOutput(data)
-				}
-			}
 			return writer.SendTTSAudioWithFlowControl(data, 60, 60)
 		},
 		RecordCallback: func(data []byte) error {

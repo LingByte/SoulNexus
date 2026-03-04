@@ -71,7 +71,6 @@ type ASRPipeline struct {
 	reconnecting    bool               // 是否正在重连
 	reconnectCancel context.CancelFunc // 重连取消函数
 	ctx             context.Context    // Pipeline 上下文
-	audioManager    *AudioManager      // 音频管理器（回声消除）
 }
 
 // NewASRPipeline Create a new ASR pipeline
@@ -80,11 +79,10 @@ func NewASRPipeline(option *ASRPipelineOption, logger *zap.Logger) (*ASRPipeline
 		return nil, fmt.Errorf("invalid option or invalid asr service")
 	}
 	pipeline := &ASRPipeline{
-		Asr:          option.Asr,
-		logger:       logger,
-		metrics:      &PipelineMetrics{},
-		asrOption:    option,                                                      // 保存配置用于重连
-		audioManager: NewAudioManager(option.SampleRate, option.Channels, logger), // 初始化音频管理器
+		Asr:       option.Asr,
+		logger:    logger,
+		metrics:   &PipelineMetrics{},
+		asrOption: option, // 保存配置用于重连
 	}
 	decode, err := encoder.CreateDecode(
 		media.CodecConfig{
@@ -291,11 +289,6 @@ func (p *ASRPipeline) SetTTSPlaying(playing bool) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.ttsPlaying = playing
-	if !playing {
-		if p.audioManager != nil {
-			p.audioManager.NotifyTTSEnd()
-		}
-	}
 }
 
 // IsTTSPlaying 检查TTS是否正在播放
@@ -313,11 +306,6 @@ func (p *ASRPipeline) ClearTTSState() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.ttsPlaying = false
-}
-
-// GetAudioManager 获取音频管理器
-func (p *ASRPipeline) GetAudioManager() *AudioManager {
-	return p.audioManager
 }
 
 // ResetState 重置状态（用于新的对话轮次）
