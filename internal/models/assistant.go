@@ -35,6 +35,7 @@ type Assistant struct {
 	EnableVAD            bool      `json:"enableVAD" gorm:"column:enable_vad;default:true"`                     // 是否启用VAD（语音活动检测）用于打断TTS
 	VADThreshold         float64   `json:"vadThreshold" gorm:"column:vad_threshold;default:500"`                // VAD阈值（RMS值，范围0-32768，默认500）
 	VADConsecutiveFrames int       `json:"vadConsecutiveFrames" gorm:"column:vad_consecutive_frames;default:2"` // 需要连续超过阈值的帧数（默认2帧，约40ms）
+	EnableJSONOutput     bool      `json:"enableJSONOutput" gorm:"column:enable_json_output;default:false"`     // 是否启用JSON格式化输出
 	CreatedAt            time.Time `json:"createdAt" gorm:"autoCreateTime"`
 	UpdatedAt            time.Time `json:"updatedAt" gorm:"autoUpdateTime"`
 }

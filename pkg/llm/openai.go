@@ -46,6 +46,7 @@ type QueryOptions struct {
 	Stream              bool                                 // is stream
 	ResponseFormat      *openai.ChatCompletionResponseFormat // format of response
 	Seed                *int                                 //  seed
+	EnableJSONOutput    bool                                 // 是否启用JSON格式化输出
 
 	// Optional context for logging (used by ChatSessionLog)
 	UserID       *uint  // 用户ID（可选，用于记录日志）
@@ -283,6 +284,12 @@ func (h *LLMHandler) QueryWithOptions(text string, options QueryOptions) (string
 		}
 		if options.Seed != nil {
 			request.Seed = options.Seed
+		}
+		// 处理 JSON 格式化输出
+		if options.EnableJSONOutput {
+			request.ResponseFormat = &openai.ChatCompletionResponseFormat{
+				Type: openai.ChatCompletionResponseFormatTypeJSONObject,
+			}
 		}
 		request.Stream = options.Stream
 
@@ -637,6 +644,13 @@ func (h *LLMHandler) QueryStream(text string, options QueryOptions, callback fun
 
 	if options.Seed != nil {
 		request.Seed = options.Seed
+	}
+
+	// 处理 JSON 格式化输出
+	if options.EnableJSONOutput {
+		request.ResponseFormat = &openai.ChatCompletionResponseFormat{
+			Type: openai.ChatCompletionResponseFormatTypeJSONObject,
+		}
 	}
 
 	// Set default model if not provided

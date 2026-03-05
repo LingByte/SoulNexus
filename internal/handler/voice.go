@@ -1365,7 +1365,7 @@ func (h *Handlers) OneShotText(c *gin.Context) {
 	// 2. 调用LLM处理文本
 	var llmResponse string
 	var errLLM error
-	if credential.LLMProvider != "" && credential.LLMApiKey != "" {
+	if credential.LLMProvider != "" && credential.LLMApiURL != "" {
 		llmBaseURL := credential.LLMApiURL
 		if llmBaseURL == "" {
 			llmBaseURL = utils.GetEnv("LLM_BASE_URL")
@@ -1509,14 +1509,15 @@ func (h *Handlers) OneShotText(c *gin.Context) {
 		}
 		credentialID := credential.ID
 		llmResponse, errLLM = llmHandler.QueryWithOptions(queryText, v2.QueryOptions{
-			Model:        llmModel,
-			Temperature:  temp,
-			MaxTokens:    maxTokens,
-			UserID:       &userID,
-			AssistantID:  &assistantID,
-			CredentialID: &credentialID,
-			SessionID:    sessionID,
-			ChatType:     models.ChatTypeText,
+			Model:            llmModel,
+			Temperature:      temp,
+			MaxTokens:        maxTokens,
+			UserID:           &userID,
+			AssistantID:      &assistantID,
+			CredentialID:     &credentialID,
+			SessionID:        sessionID,
+			ChatType:         models.ChatTypeText,
+			EnableJSONOutput: assistant.EnableJSONOutput,
 		})
 		if errLLM != nil {
 			// 提取更友好的错误信息
@@ -1716,14 +1717,15 @@ func (h *Handlers) SimpleTextChat(c *gin.Context) {
 	assistantID := int64(req.AssistantID)
 	credentialID := credential.ID
 	llmResponse, err := llmHandler.QueryWithOptions(queryText, v2.QueryOptions{
-		Model:        llmModel,
-		Temperature:  temp,
-		MaxTokens:    maxTokens,
-		UserID:       &userID,
-		AssistantID:  &assistantID,
-		CredentialID: &credentialID,
-		SessionID:    sessionID,
-		ChatType:     models.ChatTypeText,
+		Model:            llmModel,
+		Temperature:      temp,
+		MaxTokens:        maxTokens,
+		UserID:           &userID,
+		AssistantID:      &assistantID,
+		CredentialID:     &credentialID,
+		SessionID:        sessionID,
+		ChatType:         models.ChatTypeText,
+		EnableJSONOutput: assistant.EnableJSONOutput,
 	})
 	if err != nil {
 		errMsg := err.Error()
@@ -1784,7 +1786,7 @@ func (h *Handlers) PlainText(c *gin.Context) {
 	// 5. 调用LLM处理文本
 	var llmResponse string
 	var errLLM error
-	if credential.LLMProvider != "" && credential.LLMApiKey != "" {
+	if credential.LLMProvider != "" && credential.LLMApiURL != "" {
 		llmBaseURL := credential.LLMApiURL
 		if llmBaseURL == "" {
 			llmBaseURL = utils.GetEnv("LLM_BASE_URL")
@@ -1842,17 +1844,13 @@ func (h *Handlers) PlainText(c *gin.Context) {
 
 		// 如果找到了 knowledgeKey，检索知识库
 		if knowledgeKey != "" {
-			// 检索知识库
 			knowledgeResults, err := models.SearchKnowledgeBase(h.db, knowledgeKey, req.Text, 5)
 			if err != nil {
 				logrus.Warnf("Failed to search knowledge base: %v", err)
-				// 搜索失败时使用原始查询
 				queryText = req.Text
 			} else if len(knowledgeResults) > 0 {
-				// 构建上下文：使用自然的 prompt 模板格式，避免AI提到"文档"
 				var contextBuilder strings.Builder
 				contextBuilder.WriteString(fmt.Sprintf("用户问题: %s\n\n", req.Text))
-				// 直接提供信息内容，不强调"文档"或"参考信息"
 				for i, result := range knowledgeResults {
 					if i > 0 {
 						contextBuilder.WriteString("\n\n")
@@ -1863,7 +1861,6 @@ func (h *Handlers) PlainText(c *gin.Context) {
 				queryText = contextBuilder.String()
 				logrus.Infof("Retrieved %d relevant documents from knowledge base (key: %s)", len(knowledgeResults), knowledgeKey)
 			} else {
-				// 没有找到相关内容，使用原始查询
 				queryText = req.Text
 			}
 		}
@@ -1895,9 +1892,7 @@ func (h *Handlers) PlainText(c *gin.Context) {
 			}
 		}
 
-		// 如果设置了 maxTokens，在系统提示词中添加回复长度指导
 		if maxTokens != nil && *maxTokens > 0 {
-			// 估算 maxTokens 对应的中文字数（大约 1 token = 1.5 个中文字符）
 			estimatedChars := *maxTokens * 3 / 2
 			lengthGuidance := fmt.Sprintf("\n\n重要提示：你的回复有长度限制（约 %d 个字符），请确保在限制内完整回答。如果回答较长，请优先保证回答的完整性和逻辑性，可以适当精简表述，但不要被截断。", estimatedChars)
 			enhancedSystemPrompt := systemPrompt + lengthGuidance
@@ -1912,20 +1907,18 @@ func (h *Handlers) PlainText(c *gin.Context) {
 		}
 		credentialID := credential.ID
 		llmResponse, errLLM = llmHandler.QueryWithOptions(queryText, v2.QueryOptions{
-			Model:        llmModel,
-			Temperature:  temp,
-			MaxTokens:    maxTokens,
-			UserID:       &userID,
-			AssistantID:  &assistantID,
-			CredentialID: &credentialID,
-			SessionID:    sessionID,
-			ChatType:     models.ChatTypeText,
+			Model:            llmModel,
+			Temperature:      temp,
+			MaxTokens:        maxTokens,
+			UserID:           &userID,
+			AssistantID:      &assistantID,
+			CredentialID:     &credentialID,
+			SessionID:        sessionID,
+			ChatType:         models.ChatTypeText,
+			EnableJSONOutput: assistant.EnableJSONOutput,
 		})
 		if errLLM != nil {
-			// 提取更友好的错误信息
 			errMsg := errLLM.Error()
-
-			// 检查是否是模型不可用的错误
 			if strings.Contains(errMsg, "no available channels") || strings.Contains(errMsg, "model") {
 				response.Fail(c, "模型不可用", fmt.Sprintf("模型 %s 当前不可用，请检查模型配置或尝试其他模型。错误详情：%s", llmModel, errMsg))
 			} else {

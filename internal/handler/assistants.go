@@ -179,6 +179,7 @@ func (h *Handlers) UpdateAssistant(c *gin.Context) {
 		EnableVAD            *bool    `json:"enableVAD"`            // 是否启用VAD
 		VADThreshold         *float64 `json:"vadThreshold"`         // VAD阈值
 		VADConsecutiveFrames *int     `json:"vadConsecutiveFrames"` // VAD连续帧数
+		EnableJSONOutput     *bool    `json:"enableJSONOutput"`     // 是否启用JSON格式化输出
 		JsSourceId           string   `json:"jsSourceId"`           // JS模板ID
 		OpeningStatement     string   `json:"openingStatement"`     // 开场白
 	}
@@ -263,6 +264,9 @@ func (h *Handlers) UpdateAssistant(c *gin.Context) {
 	}
 	if input.VADConsecutiveFrames != nil {
 		updateData["vad_consecutive_frames"] = *input.VADConsecutiveFrames
+	}
+	if input.EnableJSONOutput != nil {
+		updateData["enable_json_output"] = *input.EnableJSONOutput
 	}
 
 	// Handle JS template ID - verify it exists if provided

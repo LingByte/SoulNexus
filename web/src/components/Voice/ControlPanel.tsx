@@ -54,6 +54,9 @@ interface ControlPanelProps {
     onEnableVADChange?: (value: boolean) => void
     onVADThresholdChange?: (value: number) => void
     onVADConsecutiveFramesChange?: (value: number) => void
+    // JSON 输出配置
+    enableJSONOutput?: boolean
+    onEnableJSONOutputChange?: (value: boolean) => void
     onSaveSettings: () => void
     isSavingSettings?: boolean // 保存状态
     onDeleteAssistant: () => void
@@ -128,6 +131,8 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                                        onEnableVADChange,
                                                        onVADThresholdChange,
                                                        onVADConsecutiveFramesChange,
+                                                       enableJSONOutput = false,
+                                                       onEnableJSONOutputChange,
                                                        onSaveSettings,
                                                        isSavingSettings = false,
                                                        onDeleteAssistant,
@@ -977,6 +982,32 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                             </div>
                                         </>
                                     )}
+
+                                    {/* JSON 输出配置 */}
+                                    <div className="space-y-2 pt-4 border-t border-gray-200 dark:border-neutral-700">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex-1">
+                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                    JSON 格式化输出
+                                                </label>
+                                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                    启用后，LLM 将返回结构化的 JSON 格式响应
+                                                </p>
+                                            </div>
+                                            <div className="ml-4 flex-shrink-0">
+                                                <Switch
+                                                    checked={enableJSONOutput}
+                                                    onCheckedChange={(checked) => {
+                                                        if (onEnableJSONOutputChange) {
+                                                            onEnableJSONOutputChange(checked)
+                                                        }
+                                                    }}
+                                                    size="md"
+                                                    className="flex-shrink-0"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </motion.div>
                         )}
