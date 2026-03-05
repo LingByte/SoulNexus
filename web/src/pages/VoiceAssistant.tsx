@@ -14,6 +14,7 @@ import IntegrationModal from '@/components/Voice/IntegrationModal'
 import GuideTooltip from '@/components/Voice/GuideTooltip'
 import LineSelector from '@/components/Voice/LineSelector'
 import TextInputBox from '@/components/Voice/TextInputBox'
+import ChatLogDetail from '@/components/ChatLogDetail'
 import { getKnowledgeBaseByUser } from '@/api/knowledge'
 // 导入API服务
 import {
@@ -171,6 +172,9 @@ const VoiceAssistant = () => {
     const [vadThreshold, setVadThreshold] = useState(500)
     const [vadConsecutiveFrames, setVadConsecutiveFrames] = useState(2)
 
+    // JSON 输出配置
+    const [enableJSONOutput, setEnableJSONOutput] = useState(false)
+
     // 保存设置状态和防抖
     const [isSavingSettings, setIsSavingSettings] = useState(false)
     const saveSettingsTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -209,6 +213,10 @@ const VoiceAssistant = () => {
                 }
                 if ((currentAssistant as any).vadConsecutiveFrames !== undefined) {
                     setVadConsecutiveFrames((currentAssistant as any).vadConsecutiveFrames)
+                }
+                // 同步 JSON 输出配置
+                if ((currentAssistant as any).enableJSONOutput !== undefined) {
+                    setEnableJSONOutput((currentAssistant as any).enableJSONOutput)
                 }
             }
         }
@@ -1495,6 +1503,8 @@ const VoiceAssistant = () => {
                             setEnableVAD(detail.enableVAD !== undefined ? detail.enableVAD : true)
                             setVadThreshold(detail.vadThreshold ?? 500)
                             setVadConsecutiveFrames(detail.vadConsecutiveFrames ?? 2)
+                            // 加载 JSON 输出配置
+                            setEnableJSONOutput(detail.enableJSONOutput !== undefined ? detail.enableJSONOutput : false)
                         }
                     } catch (err) {
                         console.warn('加载助手配置失败:', err)
@@ -1815,6 +1825,8 @@ const VoiceAssistant = () => {
                 setEnableVAD(detail.enableVAD !== undefined ? detail.enableVAD : true)
                 setVadThreshold(detail.vadThreshold ?? 500)
                 setVadConsecutiveFrames(detail.vadConsecutiveFrames ?? 2)
+                // 加载 JSON 输出配置
+                setEnableJSONOutput(detail.enableJSONOutput !== undefined ? detail.enableJSONOutput : false)
 
                 // 重新加载当前助手的聊天记录
                 try {
@@ -1918,6 +1930,7 @@ const VoiceAssistant = () => {
                     enableVAD,
                     vadThreshold,
                     vadConsecutiveFrames,
+                    enableJSONOutput,
                 })
 
                 // 使用返回的助手数据更新列表，避免额外的GET请求
@@ -1984,6 +1997,7 @@ const VoiceAssistant = () => {
                         sessionId: sessionId,
                         logs: response.data,
                         assistantName: response.data[0]?.assistantName || '未知助手',
+                        assistantIcon: assistantIcon,
                         chatType: response.data[0]?.chatType || 'text'
                     }
                     setSelectedLogDetail(sessionDetails as any)
@@ -2206,6 +2220,8 @@ const VoiceAssistant = () => {
                                 onEnableVADChange={setEnableVAD}
                                 onVADThresholdChange={setVadThreshold}
                                 onVADConsecutiveFramesChange={setVadConsecutiveFrames}
+                                enableJSONOutput={enableJSONOutput}
+                                onEnableJSONOutputChange={setEnableJSONOutput}
                                 onSaveSettings={handleSaveSettings}
                                 isSavingSettings={isSavingSettings}
                                 onDeleteAssistant={() => setShowDeleteConfirm(true)}
@@ -2329,309 +2345,14 @@ const VoiceAssistant = () => {
             )}
 
 
-            {/* 聊天记录详情模态框 */}
+            {/* 聊天记录详情模态框 - 使用优化后的组件 */}
             {showLogModal && selectedLogDetail && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white dark:bg-neutral-800 p-6 rounded-xl w-full max-w-2xl mx-4">
-                        <div className="flex justify-between items-center mb-4">
-                            <h2 className="text-lg font-semibold">
-                                {selectedLogDetail.logs ? `对话详情 (${selectedLogDetail.logs.length} 条消息)` : '对话详情'}
-                            </h2>
-                            <button
-                                onClick={() => setShowLogModal(false)}
-                                className="text-gray-400 hover:text-gray-700 dark:hover:text-white"
-                            >
-                                ✕
-                            </button>
-                        </div>
-                        <div
-                            className="max-h-[60vh] overflow-y-auto border rounded-lg p-4 bg-gray-50 dark:bg-neutral-700 space-y-4 custom-scrollbar">
-                            {/* 如果有多条记录，显示所有记录 */}
-                            {selectedLogDetail.logs && Array.isArray(selectedLogDetail.logs) ? (
-                                selectedLogDetail.logs.map((log: any, index: number) => (
-                                    <div key={log.id || index} className="space-y-3">
-                                        {/* 分隔线（除了第一条） */}
-                                        {index > 0 && (
-                                            <div className="border-t border-gray-300 dark:border-neutral-600 my-4"></div>
-                                        )}
-
-                                        {/* 用户消息 */}
-                                        {log.userMessage && (
-                                            <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
-                                                <div className="flex items-center mb-2">
-                                                    <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-medium mr-2">
-                                                        我
-                                                    </div>
-                                                    <span className="text-sm font-medium text-blue-700 dark:text-blue-300">用户</span>
-                                                    <span className="ml-auto text-xs text-gray-400 dark:text-gray-500">
-                                {new Date(log.createdAt).toLocaleString('zh-CN')}
-                              </span>
-                                                </div>
-                                                <div className="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap">
-                                                    {log.userMessage}
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {/* AI回复 */}
-                                        {log.agentMessage && (
-                                            <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded-lg">
-                                                <div className="flex items-center mb-2">
-                                                    <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center text-white text-xs font-medium mr-2">
-                                                        AI
-                                                    </div>
-                                                    <span className="text-sm font-medium text-green-700 dark:text-green-300">
-                                {log.assistantName || selectedLogDetail.assistantName || 'AI助手'}
-                              </span>
-                                                    <span className="ml-auto text-xs text-gray-400 dark:text-gray-500">
-                                {new Date(log.createdAt).toLocaleString('zh-CN')}
-                              </span>
-                                                </div>
-                                                <div className="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap">
-                                                    {log.agentMessage}
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {/* LLM Usage 信息 */}
-                                        {log.llmUsage && (
-                                            <div className="mt-2 p-3 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
-                                                <h5 className="text-xs font-semibold text-purple-900 dark:text-purple-100 mb-2">
-                                                    LLM 使用信息
-                                                </h5>
-                                                <div className="grid grid-cols-2 gap-2 text-xs">
-                                                    <div>
-                                                        <span className="text-purple-700 dark:text-purple-300 font-medium">模型:</span>
-                                                        <span className="ml-2 text-purple-900 dark:text-purple-100">{log.llmUsage.model}</span>
-                                                    </div>
-                                                    <div>
-                                                        <span className="text-purple-700 dark:text-purple-300 font-medium">Total Tokens:</span>
-                                                        <span className="ml-2 text-purple-900 dark:text-purple-100 font-semibold">{log.llmUsage.totalTokens}</span>
-                                                    </div>
-                                                    <div>
-                                                        <span className="text-purple-700 dark:text-purple-300 font-medium">Prompt:</span>
-                                                        <span className="ml-2 text-purple-900 dark:text-purple-100">{log.llmUsage.promptTokens}</span>
-                                                    </div>
-                                                    <div>
-                                                        <span className="text-purple-700 dark:text-purple-300 font-medium">Completion:</span>
-                                                        <span className="ml-2 text-purple-900 dark:text-purple-100">{log.llmUsage.completionTokens}</span>
-                                                    </div>
-                                                    {log.llmUsage.duration !== undefined && (
-                                                        <div>
-                                                            <span className="text-purple-700 dark:text-purple-300 font-medium">耗时:</span>
-                                                            <span className="ml-2 text-purple-900 dark:text-purple-100">
-                                    {log.llmUsage.duration >= 1000
-                                        ? `${(log.llmUsage.duration / 1000).toFixed(2)}s`
-                                        : `${log.llmUsage.duration}ms`}
-                                  </span>
-                                                        </div>
-                                                    )}
-                                                    {log.llmUsage.hasToolCalls && (
-                                                        <div>
-                                                            <span className="text-purple-700 dark:text-purple-300 font-medium">工具调用:</span>
-                                                            <span className="ml-2 text-purple-900 dark:text-purple-100">
-                                    {log.llmUsage.toolCallCount || 0} 个
-                                  </span>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                {/* 工具调用详情 */}
-                                                {log.llmUsage.hasToolCalls && log.llmUsage.toolCalls && log.llmUsage.toolCalls.length > 0 && (
-                                                    <div className="mt-2 pt-2 border-t border-purple-200 dark:border-purple-700">
-                                                        <div className="text-xs text-purple-700 dark:text-purple-300 font-medium mb-1">工具调用详情:</div>
-                                                        <div className="space-y-1">
-                                                            {log.llmUsage.toolCalls.map((toolCall: ToolCallInfo, idx: number) => (
-                                                                <div key={idx} className="text-xs text-purple-900 dark:text-purple-100">
-                                                                    <span className="font-medium">{toolCall.name}</span>
-                                                                    {toolCall.arguments && (
-                                                                        <span className="ml-1 text-purple-600 dark:text-purple-400">
-                                          ({toolCall.arguments.length > 30 ? `${toolCall.arguments.substring(0, 30)}...` : toolCall.arguments})
-                                        </span>
-                                                                    )}
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
-                                ))
-                            ) : (
-                                <>
-                                    {/* 单条记录显示（兼容旧格式） */}
-                                    {/* 用户消息 */}
-                                    {selectedLogDetail.userMessage && (
-                                        <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
-                                            <div className="flex items-center mb-2">
-                                                <div
-                                                    className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-medium mr-2">
-                                                    我
-                                                </div>
-                                                <span className="text-sm font-medium text-blue-700 dark:text-blue-300">用户</span>
-                                            </div>
-                                            <div className="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap">
-                                                {selectedLogDetail.userMessage}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* AI回复 */}
-                                    {selectedLogDetail.agentMessage && (
-                                        <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded-lg">
-                                            <div className="flex items-center mb-2">
-                                                <div
-                                                    className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center text-white text-xs font-medium mr-2">
-                                                    AI
-                                                </div>
-                                                <span className="text-sm font-medium text-green-700 dark:text-green-300">
-                            {selectedLogDetail.assistantName || 'AI助手'}
-                          </span>
-                                            </div>
-                                            <div className="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap">
-                                                {selectedLogDetail.agentMessage}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* LLM Usage 信息 */}
-                                    {selectedLogDetail.llmUsage && (
-                                        <div className="mt-6 p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
-                                            <h4 className="text-sm font-semibold text-purple-900 dark:text-purple-100 mb-3">
-                                                LLM 使用信息
-                                            </h4>
-                                            <div className="grid grid-cols-2 gap-3 text-xs">
-                                                <div>
-                                                    <span className="text-purple-700 dark:text-purple-300 font-medium">模型:</span>
-                                                    <span className="ml-2 text-purple-900 dark:text-purple-100">{selectedLogDetail.llmUsage.model}</span>
-                                                </div>
-                                                <div>
-                                                    <span className="text-purple-700 dark:text-purple-300 font-medium">Prompt Tokens:</span>
-                                                    <span className="ml-2 text-purple-900 dark:text-purple-100">{selectedLogDetail.llmUsage.promptTokens}</span>
-                                                </div>
-                                                <div>
-                                                    <span className="text-purple-700 dark:text-purple-300 font-medium">Completion Tokens:</span>
-                                                    <span className="ml-2 text-purple-900 dark:text-purple-100">{selectedLogDetail.llmUsage.completionTokens}</span>
-                                                </div>
-                                                <div>
-                                                    <span className="text-purple-700 dark:text-purple-300 font-medium">Total Tokens:</span>
-                                                    <span className="ml-2 text-purple-900 dark:text-purple-100 font-semibold">{selectedLogDetail.llmUsage.totalTokens}</span>
-                                                </div>
-                                                {selectedLogDetail.llmUsage.temperature !== undefined && (
-                                                    <div>
-                                                        <span className="text-purple-700 dark:text-purple-300 font-medium">Temperature:</span>
-                                                        <span className="ml-2 text-purple-900 dark:text-purple-100">{selectedLogDetail.llmUsage.temperature}</span>
-                                                    </div>
-                                                )}
-                                                {selectedLogDetail.llmUsage.maxTokens !== undefined && (
-                                                    <div>
-                                                        <span className="text-purple-700 dark:text-purple-300 font-medium">Max Tokens:</span>
-                                                        <span className="ml-2 text-purple-900 dark:text-purple-100">{selectedLogDetail.llmUsage.maxTokens}</span>
-                                                    </div>
-                                                )}
-                                                {selectedLogDetail.llmUsage.topP !== undefined && (
-                                                    <div>
-                                                        <span className="text-purple-700 dark:text-purple-300 font-medium">Top P:</span>
-                                                        <span className="ml-2 text-purple-900 dark:text-purple-100">{selectedLogDetail.llmUsage.topP}</span>
-                                                    </div>
-                                                )}
-                                                {selectedLogDetail.llmUsage.finishReason && (
-                                                    <div>
-                                                        <span className="text-purple-700 dark:text-purple-300 font-medium">Finish Reason:</span>
-                                                        <span className="ml-2 text-purple-900 dark:text-purple-100">{selectedLogDetail.llmUsage.finishReason}</span>
-                                                    </div>
-                                                )}
-                                                {selectedLogDetail.llmUsage.stream !== undefined && (
-                                                    <div>
-                                                        <span className="text-purple-700 dark:text-purple-300 font-medium">Stream:</span>
-                                                        <span className="ml-2 text-purple-900 dark:text-purple-100">{selectedLogDetail.llmUsage.stream ? '是' : '否'}</span>
-                                                    </div>
-                                                )}
-                                                {/* 时间统计 */}
-                                                {selectedLogDetail.llmUsage.duration !== undefined && (
-                                                    <div>
-                                                        <span className="text-purple-700 dark:text-purple-300 font-medium">调用耗时:</span>
-                                                        <span className="ml-2 text-purple-900 dark:text-purple-100">
-                                  {selectedLogDetail.llmUsage.duration >= 1000
-                                      ? `${(selectedLogDetail.llmUsage.duration / 1000).toFixed(2)}s`
-                                      : `${selectedLogDetail.llmUsage.duration}ms`}
-                                </span>
-                                                    </div>
-                                                )}
-                                                {selectedLogDetail.llmUsage.startTime && (
-                                                    <div>
-                                                        <span className="text-purple-700 dark:text-purple-300 font-medium">开始时间:</span>
-                                                        <span className="ml-2 text-purple-900 dark:text-purple-100">
-                                  {new Date(selectedLogDetail.llmUsage.startTime).toLocaleString('zh-CN')}
-                                </span>
-                                                    </div>
-                                                )}
-                                                {selectedLogDetail.llmUsage.endTime && (
-                                                    <div>
-                                                        <span className="text-purple-700 dark:text-purple-300 font-medium">结束时间:</span>
-                                                        <span className="ml-2 text-purple-900 dark:text-purple-100">
-                                  {new Date(selectedLogDetail.llmUsage.endTime).toLocaleString('zh-CN')}
-                                </span>
-                                                    </div>
-                                                )}
-                                                {/* 工具调用统计 */}
-                                                {selectedLogDetail.llmUsage.hasToolCalls !== undefined && (
-                                                    <div>
-                                                        <span className="text-purple-700 dark:text-purple-300 font-medium">工具调用:</span>
-                                                        <span className="ml-2 text-purple-900 dark:text-purple-100">
-                                  {selectedLogDetail.llmUsage.hasToolCalls ? '是' : '否'}
-                                                            {selectedLogDetail.llmUsage.hasToolCalls && selectedLogDetail.llmUsage.toolCallCount !== undefined && (
-                                                                <span className="ml-1">({selectedLogDetail.llmUsage.toolCallCount} 个)</span>
-                                                            )}
-                                </span>
-                                                    </div>
-                                                )}
-                                            </div>
-                                            {/* 工具调用详情 */}
-                                            {selectedLogDetail.llmUsage.hasToolCalls && selectedLogDetail.llmUsage.toolCalls && selectedLogDetail.llmUsage.toolCalls.length > 0 && (
-                                                <div className="mt-3 pt-3 border-t border-purple-200 dark:border-purple-700">
-                                                    <h5 className="text-xs font-semibold text-purple-900 dark:text-purple-100 mb-2">
-                                                        工具调用详情
-                                                    </h5>
-                                                    <div className="space-y-2">
-                                                        {selectedLogDetail.llmUsage.toolCalls.map((toolCall: ToolCallInfo, idx: number) => (
-                                                            <div key={idx} className="p-2 bg-purple-100 dark:bg-purple-800/30 rounded text-xs">
-                                                                <div className="font-medium text-purple-900 dark:text-purple-100 mb-1">
-                                                                    {idx + 1}. {toolCall.name}
-                                                                </div>
-                                                                {toolCall.id && (
-                                                                    <div className="text-purple-600 dark:text-purple-400 mb-1">
-                                                                        ID: {toolCall.id}
-                                                                    </div>
-                                                                )}
-                                                                {toolCall.arguments && (
-                                                                    <div className="text-purple-700 dark:text-purple-300">
-                                                                        <span className="font-medium">参数:</span>
-                                                                        <pre className="mt-1 p-1 bg-white dark:bg-purple-900/50 rounded text-xs overflow-x-auto">
-                                          {toolCall.arguments.length > 200
-                                              ? `${toolCall.arguments.substring(0, 200)}...`
-                                              : toolCall.arguments}
-                                        </pre>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-
-                                    {!selectedLogDetail.userMessage && !selectedLogDetail.agentMessage && selectedLogDetail.content && (
-                                        <div className="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap">
-                                            {selectedLogDetail.content}
-                                        </div>
-                                    )}
-                                </>
-                            )}
-                        </div>
-                    </div>
-                </div>
+                <ChatLogDetail
+                    logs={selectedLogDetail.logs || [selectedLogDetail]}
+                    assistantName={selectedLogDetail.assistantName || assistantName}
+                    assistantIcon={selectedLogDetail.assistantIcon || assistantIcon}
+                    onClose={() => setShowLogModal(false)}
+                />
             )}
         </div>
     )
