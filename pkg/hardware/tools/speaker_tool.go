@@ -142,7 +142,7 @@ func (m *SpeakerManager) initDefaultSpeakers() {
 			Language:    "zh-CN",
 			Gender:      "female",
 			Description: "四川话女声",
-			Keywords:    []string{"四川话", "方言", "女声"},
+			Keywords:    []string{"四川话", "方言", "女声", "四川"},
 		},
 		// 粤语
 		{
@@ -173,6 +173,52 @@ func (m *SpeakerManager) initDefaultSpeakers() {
 			Gender:      "child",
 			Description: "童声，活泼可爱",
 			Keywords:    []string{"童声", "儿童", "可爱"},
+		},
+		// 火山引擎发音人
+		{
+			ID:          "BV700_streaming",
+			Name:        "通用女声",
+			Provider:    "volcengine",
+			Language:    "zh-CN",
+			Gender:      "female",
+			Description: "火山引擎通用女声",
+			Keywords:    []string{"女声", "通用", "标准"},
+		},
+		{
+			ID:          "BV700_V2_streaming",
+			Name:        "通用女声V2",
+			Provider:    "volcengine",
+			Language:    "zh-CN",
+			Gender:      "female",
+			Description: "火山引擎通用女声V2版本",
+			Keywords:    []string{"女声", "通用", "标准"},
+		},
+		{
+			ID:          "BV213_streaming",
+			Name:        "广西老表（男声）",
+			Provider:    "volcengine",
+			Language:    "zh-CN",
+			Gender:      "male",
+			Description: "广西方言男声",
+			Keywords:    []string{"男声", "广西", "方言"},
+		},
+		{
+			ID:          "BV025_streaming",
+			Name:        "甜美台妹（女声）",
+			Provider:    "volcengine",
+			Language:    "zh-TW",
+			Gender:      "female",
+			Description: "台湾口音女声",
+			Keywords:    []string{"女声", "台湾", "甜美"},
+		},
+		{
+			ID:          "BV001_streaming",
+			Name:        "四川话女声",
+			Provider:    "volcengine",
+			Language:    "zh-CN-sichuan",
+			Gender:      "female",
+			Description: "火山引擎四川话女声",
+			Keywords:    []string{"四川话", "方言", "女声"},
 		},
 	}
 

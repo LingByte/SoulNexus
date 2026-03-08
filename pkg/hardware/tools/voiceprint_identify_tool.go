@@ -46,12 +46,13 @@ func NewVoiceprintIdentifyTool(
 	logger *zap.Logger,
 ) *VoiceprintIdentifyTool {
 	return &VoiceprintIdentifyTool{
-		db:                 db,
-		voiceprintService:  voiceprintService,
-		logger:             logger,
-		audioBuffer:        make([][]byte, 0),
-		assistantID:        assistantID,
-		minAudioBytesForID: 16000, // 最少0.5秒的音频（16000字节 = 0.5秒 @ 16kHz, 16-bit, mono）
+		db:                   db,
+		voiceprintService:    voiceprintService,
+		logger:               logger,
+		audioBuffer:          make([][]byte, 0),
+		assistantID:          assistantID,
+		minAudioBytesForID:   16000,                  // 最少0.5秒的音频（16000字节 = 0.5秒 @ 16kHz, 16-bit, mono）
+		currentSentenceAudio: make([]byte, 0, 32000), // 预分配1秒音频的容量，避免频繁扩容
 	}
 }
 
@@ -74,7 +75,8 @@ func (t *VoiceprintIdentifyTool) AddAudioFrame(data []byte) {
 func (t *VoiceprintIdentifyTool) StartNewSentence() {
 	t.sentenceAudioMutex.Lock()
 	defer t.sentenceAudioMutex.Unlock()
-	t.currentSentenceAudio = make([]byte, 0)
+	// 重用底层数组，避免重新分配
+	t.currentSentenceAudio = t.currentSentenceAudio[:0]
 }
 
 // GetSentenceAudio 获取当前句子的音频数据（在 ASR 完成时调用）

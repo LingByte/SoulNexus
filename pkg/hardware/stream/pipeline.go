@@ -151,7 +151,12 @@ func (p *TTSPipeline) processTTSSegment(segment TextSegment) {
 		zap.String("play_id", segment.PlayID))
 
 	const frameSizeBytes = 1920 // 60ms @ 16kHz, 16bit, mono
-	buffer := make([]byte, 0, frameSizeBytes*2)
+	// 预分配足够大的buffer，避免频繁扩容（假设平均每个字符生成约100字节音频）
+	estimatedSize := len(segment.Text) * 100
+	if estimatedSize < frameSizeBytes*2 {
+		estimatedSize = frameSizeBytes * 2
+	}
+	buffer := make([]byte, 0, estimatedSize)
 
 	err := p.ttsService.SynthesizeStream(segment.Text, func(pcmData []byte) error {
 		buffer = append(buffer, pcmData...)

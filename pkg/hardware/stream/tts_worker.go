@@ -146,7 +146,12 @@ func (p *TTSWorkerPool) synthesize(workerID int, segment TextSegment) {
 		zap.String("play_id", segment.PlayID))
 
 	const frameSizeBytes = 1920 // 60ms @ 16kHz, 16bit, mono = 16000 * 0.06 * 2 = 1920 bytes
-	buffer := make([]byte, 0, frameSizeBytes*2)
+	// 预分配足够大的buffer，避免频繁扩容（假设平均每个字符生成约100字节音频）
+	estimatedSize := len(segment.Text) * 100
+	if estimatedSize < frameSizeBytes*2 {
+		estimatedSize = frameSizeBytes * 2
+	}
+	buffer := make([]byte, 0, estimatedSize)
 
 	// 获取 TTS 服务（线程安全）
 	p.ttsServiceMu.RLock()

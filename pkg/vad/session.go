@@ -100,7 +100,6 @@ func (sm *SessionManager) ProcessAudio(
 	if err != nil {
 		return nil, err
 	}
-
 	// 更新会话状态
 	session.mu.Lock()
 	session.HaveVoice = result.HaveVoice
