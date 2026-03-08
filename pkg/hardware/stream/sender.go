@@ -63,7 +63,7 @@ func NewAudioSender(
 	return &AudioSender{
 		inputCh:             inputCh,
 		encoder:             opusEncoder,
-		buffer:              make([]OpusFrame, 0, 50),
+		buffer:              make([]OpusFrame, 0, 100), // 预分配更大容量，避免频繁扩容
 		sendCallback:        sendCallback,
 		getPendingCountFunc: getPendingCountFunc,
 		logger:              logger,

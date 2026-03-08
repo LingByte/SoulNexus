@@ -667,6 +667,13 @@ func (h *LLMHandler) QueryStream(text string, options QueryOptions, callback fun
 	streamID := fmt.Sprintf("stream-%s", uuid.New().String())
 	logger.Info("Starting LLM stream", zap.String("streamID", streamID))
 
+	// 清空之前可能残留的中断信号
+	select {
+	case <-h.interruptCh:
+		logger.Debug("Cleared stale interrupt signal before starting new stream")
+	default:
+	}
+
 	// Create stream
 	stream, err := h.client.CreateChatCompletionStream(h.ctx, request)
 	if err != nil {

@@ -348,6 +348,13 @@ func (p *CozeProvider) QueryStream(text string, options QueryOptions, callback f
 		zap.Int("message_count", len(additionalMessages)),
 		zap.String("bot_id", p.botID))
 
+	// 清空之前可能残留的中断信号
+	select {
+	case <-p.interruptCh:
+		logger.Debug("Cleared stale interrupt signal before starting new stream")
+	default:
+	}
+
 	requestStartTime := time.Now()
 
 	// 创建流式连接

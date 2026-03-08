@@ -86,6 +86,8 @@ type KnowledgeBaseConfig struct {
 	Elasticsearch ElasticsearchConfig `mapstructure:"elasticsearch"`
 	Pinecone      PineconeConfig      `mapstructure:"pinecone"`
 	Neo4j         Neo4jConfig         `mapstructure:"neo4j"`
+	Embedding     EmbeddingConfig     `mapstructure:"embedding"`
+	Rerank        RerankConfig        `mapstructure:"rerank"`
 }
 
 // BailianConfig Bailian configuration
@@ -141,6 +143,24 @@ type Neo4jConfig struct {
 	Username string `env:"NEO4J_USERNAME"`
 	Password string `env:"NEO4J_PASSWORD"`
 	Database string `env:"NEO4J_DATABASE"`
+}
+
+// EmbeddingConfig embedding service configuration
+type EmbeddingConfig struct {
+	Provider  string `env:"EMBEDDING_PROVIDER"`  // Provider name (e.g., "nvidia", "openai")
+	BaseURL   string `env:"EMBEDDING_BASE_URL"`  // API base URL
+	APIKey    string `env:"EMBEDDING_API_KEY"`   // API key
+	Model     string `env:"EMBEDDING_MODEL"`     // Model name
+	Dimension int    `env:"EMBEDDING_DIMENSION"` // Embedding dimension
+}
+
+// RerankConfig rerank service configuration
+type RerankConfig struct {
+	Provider string `env:"RERANK_PROVIDER"` // Provider name (e.g., "siliconflow", "cohere")
+	BaseURL  string `env:"RERANK_BASE_URL"` // API base URL
+	APIKey   string `env:"RERANK_API_KEY"`  // API key
+	Model    string `env:"RERANK_MODEL"`    // Model name
+	TopN     int    `env:"RERANK_TOP_N"`    // Number of top results to return after reranking
 }
 
 // VoiceConfig voice service configuration
@@ -352,6 +372,20 @@ func Load() error {
 					Username: getStringOrDefault("NEO4J_USERNAME", "neo4j"),
 					Password: getStringOrDefault("NEO4J_PASSWORD", ""),
 					Database: getStringOrDefault("NEO4J_DATABASE", "neo4j"),
+				},
+				Embedding: EmbeddingConfig{
+					Provider:  getStringOrDefault("EMBEDDING_PROVIDER", "nvidia"),
+					BaseURL:   getStringOrDefault("EMBEDDING_BASE_URL", "https://integrate.api.nvidia.com/v1"),
+					APIKey:    getStringOrDefault("EMBEDDING_API_KEY", ""),
+					Model:     getStringOrDefault("EMBEDDING_MODEL", "nvidia/nv-embedqa-e5-v5"),
+					Dimension: getIntOrDefault("EMBEDDING_DIMENSION", 384),
+				},
+				Rerank: RerankConfig{
+					Provider: getStringOrDefault("RERANK_PROVIDER", "siliconflow"),
+					BaseURL:  getStringOrDefault("RERANK_BASE_URL", "https://api.siliconflow.cn/v1"),
+					APIKey:   getStringOrDefault("RERANK_API_KEY", ""),
+					Model:    getStringOrDefault("RERANK_MODEL", "BAAI/bge-reranker-v2-m3"),
+					TopN:     getIntOrDefault("RERANK_TOP_N", 5),
 				},
 			},
 			Voice: VoiceConfig{

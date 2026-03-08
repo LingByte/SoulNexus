@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"time"
-
 	"github.com/LingByte/SoulNexus/pkg/knowledge"
 	"gorm.io/gorm"
+	"log"
+	"time"
 )
 
 // Knowledge represents a knowledge base entity
@@ -156,20 +156,31 @@ func DeleteKnowledge(db *gorm.DB, knowledgeKey string) error {
 	type Knowledge struct {
 		ID           int    `gorm:"column:id"`
 		KnowledgeKey string `gorm:"column:knowledge_key"`
+		IndexId      string `gorm:"column:index_id"`
 	}
 
-	// Check if knowledge base exists
+	// Check if knowledge base exists (try both knowledge_key and index_id)
 	var existing Knowledge
 	result := db.Where("knowledge_key = ?", knowledgeKey).First(&existing)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("knowledge base not found")
+			// Try to find by index_id
+			log.Printf("DEBUG: Exact key not found for deletion: %s, trying IndexId search", knowledgeKey)
+			result = db.Where("index_id = ?", knowledgeKey).First(&existing)
+			if result.Error != nil {
+				if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+					return fmt.Errorf("knowledge base not found")
+				}
+				return fmt.Errorf("database query error: %v", result.Error)
+			}
+			log.Printf("DEBUG: Found knowledge base by IndexId for deletion: %s", existing.IndexId)
+		} else {
+			return fmt.Errorf("database query error: %v", result.Error)
 		}
-		return fmt.Errorf("database query error: %v", result.Error)
 	}
 
-	// Delete knowledge base
-	result = db.Where("knowledge_key = ?", knowledgeKey).Delete(&Knowledge{})
+	// Delete knowledge base using the found ID
+	result = db.Where("id = ?", existing.ID).Delete(&Knowledge{})
 	if result.Error != nil {
 		return fmt.Errorf("failed to delete knowledge base: %v", result.Error)
 	}
@@ -179,20 +190,36 @@ func DeleteKnowledge(db *gorm.DB, knowledgeKey string) error {
 		return fmt.Errorf("delete failed, no matching knowledge base found")
 	}
 
+	log.Printf("DEBUG: Successfully deleted knowledge base - ID: %d, KnowledgeKey: %s, IndexId: %s",
+		existing.ID, existing.KnowledgeKey, existing.IndexId)
+
 	return nil
 }
 
-// GetKnowledge gets knowledge base information by knowledgeKey
+// GetKnowledge gets knowledge base information by knowledgeKey or indexId
 func GetKnowledge(db *gorm.DB, knowledgeKey string) (*Knowledge, error) {
 	var k Knowledge
+
+	// First try to find by knowledge_key
 	err := db.Where("knowledge_key = ?", knowledgeKey).First(&k).Error
-	if err != nil {
+	if err == nil {
+		return &k, nil
+	}
+
+	// If not found by knowledge_key, try to find by index_id
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		log.Printf("DEBUG: Exact key not found: %s, trying IndexId search", knowledgeKey)
+		err = db.Where("index_id = ?", knowledgeKey).First(&k).Error
+		if err == nil {
+			log.Printf("DEBUG: Found knowledge base by IndexId: %s", k.IndexId)
+			return &k, nil
+		}
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("knowledge base not found")
 		}
-		return nil, fmt.Errorf("failed to query knowledge base: %w", err)
 	}
-	return &k, nil
+
+	return nil, fmt.Errorf("failed to query knowledge base: %w", err)
 }
 
 // GetKnowledgeBaseInfo gets information from knowledge base (using new unified interface)
@@ -248,11 +275,17 @@ func GetKnowledgeBaseInfoWithQuery(db *gorm.DB, knowledgeKey string, query strin
 
 // SearchKnowledgeBase searches knowledge base and returns structured results
 func SearchKnowledgeBase(db *gorm.DB, knowledgeKey string, query string, topK int) ([]knowledge.SearchResult, error) {
+	log.Printf("DEBUG: SearchKnowledgeBase called with key: %s, query: %s, topK: %d", knowledgeKey, query, topK)
+
 	// Get knowledge base information from database
 	k, err := GetKnowledge(db, knowledgeKey)
 	if err != nil {
+		log.Printf("DEBUG: Failed to get knowledge base: %v", err)
 		return nil, err
 	}
+
+	log.Printf("DEBUG: Found knowledge base - ID: %d, Provider: %s, KnowledgeKey: %s, IndexId: %s",
+		k.ID, k.Provider, k.KnowledgeKey, k.IndexId)
 
 	// Parse configuration information
 	var config map[string]interface{}
@@ -271,23 +304,78 @@ func SearchKnowledgeBase(db *gorm.DB, knowledgeKey string, query string, topK in
 	// Execute search
 	ctx := context.Background()
 
-	// 为 Qdrant 生成 embedding
-	embedding := knowledge.GenerateEmbedding(query, 384)
+	// Generate embedding using professional API (with fallback to simple embedding)
+	// Use the dimension from knowledge base config, or from embedding provider
+	var embedding []float32
+	var embeddingDim int
 
-	// Use the correct key for search (IndexId for Aliyun, knowledgeKey for others)
-	searchKey := knowledgeKey
+	// Try to get dimension from knowledge base config first
+	if config != nil {
+		if dim, ok := config["dimension"].(int); ok && dim > 0 {
+			embeddingDim = dim
+			log.Printf("DEBUG: Using dimension from knowledge base config: %d", embeddingDim)
+		} else if dim, ok := config["dimension"].(float64); ok && dim > 0 {
+			embeddingDim = int(dim)
+			log.Printf("DEBUG: Using dimension from knowledge base config: %d", embeddingDim)
+		}
+	}
+
+	// If not found in config, try to get from embedding provider
+	if embeddingDim == 0 {
+		provider, err := knowledge.GetEmbeddingProvider()
+		if err == nil {
+			embeddingDim = provider.Dimension()
+			log.Printf("DEBUG: Using dimension from embedding provider: %d", embeddingDim)
+		} else {
+			// Fallback to default dimension (384 for compatibility with most vector DBs)
+			embeddingDim = 384
+			log.Printf("DEBUG: Using default dimension: %d", embeddingDim)
+		}
+	}
+
+	embedding = knowledge.GenerateEmbedding(query, embeddingDim)
+	log.Printf("DEBUG: Generated embedding with dimension: %d", len(embedding))
+
+	// Use the correct key for search
+	// - Aliyun: use IndexId (the actual index ID in Bailian)
+	// - Others (Qdrant, Milvus, etc.): use KnowledgeKey (the collection name)
+	searchKey := k.KnowledgeKey
 	if k.Provider == knowledge.ProviderAliyun && k.IndexId != "" {
 		searchKey = k.IndexId
 	}
 
+	log.Printf("DEBUG: Using searchKey: %s for provider: %s", searchKey, k.Provider)
+
+	// Retrieve more results for reranking (2x topK)
+	retrieveTopK := topK * 2
+	if retrieveTopK < 10 {
+		retrieveTopK = 10
+	}
+
 	options := knowledge.SearchOptions{
 		Query: query,
-		TopK:  topK,
+		TopK:  retrieveTopK,
 		Filter: map[string]interface{}{
 			"embedding": embedding,
 		},
 	}
-	return kb.Search(ctx, searchKey, options)
+
+	results, err := kb.Search(ctx, searchKey, options)
+	if err != nil {
+		return nil, err
+	}
+
+	// Apply reranking if configured
+	rerankedResults, err := knowledge.RerankSearchResults(query, results, topK)
+	if err != nil {
+		// If reranking fails, return original results (truncated to topK)
+		if len(results) > topK {
+			results = results[:topK]
+		}
+		return results, nil
+	}
+
+	return rerankedResults, nil
 }
 
 // GetStringOrDefault returns default value if string is empty

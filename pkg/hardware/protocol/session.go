@@ -491,10 +491,32 @@ func (s *HardwareSession) switchSpeaker(speakerID string, ttsProvider string, ba
 			newConfig[k] = v
 		}
 
-		// 更新 voiceType
-		var voiceType int64
-		fmt.Sscanf(speakerID, "%d", &voiceType)
-		newConfig["voiceType"] = voiceType
+		// 根据 provider 类型更新音色配置
+		provider, _ := newConfig["provider"].(string)
+		switch provider {
+		case "qcloud", "tencent":
+			// 腾讯云使用数字ID
+			var voiceType int64
+			fmt.Sscanf(speakerID, "%d", &voiceType)
+			newConfig["voiceType"] = voiceType
+			s.logger.Info("[Session] 腾讯云音色切换",
+				zap.String("speaker_id", speakerID),
+				zap.Int64("voice_type", voiceType))
+
+		case "volcengine":
+			// 火山引擎使用字符串ID
+			newConfig["voiceType"] = speakerID
+			s.logger.Info("[Session] 火山引擎音色切换",
+				zap.String("speaker_id", speakerID),
+				zap.String("voice_type", speakerID))
+
+		default:
+			// 其他provider，尝试作为字符串处理
+			newConfig["voiceType"] = speakerID
+			s.logger.Info("[Session] 通用音色切换",
+				zap.String("speaker_id", speakerID),
+				zap.String("provider", provider))
+		}
 
 		// 创建新的 TTS 服务
 		newTTSService, err := synthesizer.NewSynthesisServiceFromCredential(newConfig)
