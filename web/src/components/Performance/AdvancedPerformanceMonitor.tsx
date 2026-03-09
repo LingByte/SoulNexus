@@ -151,12 +151,12 @@ const AdvancedPerformanceMonitor = ({
         setMetrics(initialMetrics)
         onMetricsUpdate?.(initialMetrics)
 
-        // 定期更新指标
+        // 定期更新指标 - 增加更新间隔，减少重绘频率
         const interval = setInterval(() => {
             const currentMetrics = getPerformanceMetrics()
             setMetrics(currentMetrics)
             onMetricsUpdate?.(currentMetrics)
-        }, 2000)
+        }, 5000)  // 从2秒改为5秒，减少更新频率
 
         return () => {
             if (observerRef.current) {

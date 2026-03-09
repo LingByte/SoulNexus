@@ -69,10 +69,14 @@ const Sidebar = () => {
     }
   }, [showDropdown])
 
-  // 获取组织列表
+  // 获取组织列表 - 添加防抖
   useEffect(() => {
     if (isAuthenticated) {
-      fetchGroups()
+      // 延迟获取，避免频繁请求
+      const timer = setTimeout(() => {
+        fetchGroups()
+      }, 300)
+      return () => clearTimeout(timer)
     } else {
       setGroups([])
     }

@@ -8,10 +8,6 @@ import {
     Users as UsersIcon,
     MessageCircle as MessageCircleIcon,
     Activity as ActivityIcon,
-    Target,
-    Eye,
-    Award,
-    CheckCircle,
     Phone,
     Mic,
     Key,
@@ -111,44 +107,33 @@ const Home = () => {
             features: [t('tag.credentialManagement'), t('tag.apiDoc'), t('tag.devTools'), t('tag.securityAuth')]
         }
     ]
-
-    const techStack = [
-        {
-            name: t('tech.frontend'),
-            technologies: [
-                { name: t('tech.react'), version: "18.0", description: t('tech.reactDesc') },
-                { name: t('tech.typescript'), version: "5.0", description: t('tech.typescriptDesc') },
-                { name: t('tech.tailwind'), version: "3.0", description: t('tech.tailwindDesc') },
-                { name: t('tech.webrtc'), version: t('tech.latest'), description: t('tech.webrtcDesc') }
-            ]
-        },
-        {
-            name: t('tech.backend'),
-            technologies: [
-                { name: t('tech.go'), version: "1.21", description: t('tech.goDesc') },
-                { name: t('tech.gin'), version: "1.9", description: t('tech.ginDesc') },
-                { name: t('tech.websocket'), version: t('tech.latest'), description: t('tech.websocketDesc') },
-            ]
-        },
-        {
-            name: t('tech.aiml'),
-            technologies: [
-                { name: t('tech.asr'), version: "ASR", description: t('tech.asrDesc') },
-                { name: t('tech.tts'), version: "TTS", description: t('tech.ttsDesc') },
-                { name: t('tech.voiceClone'), version: "Voice Clone", description: t('tech.voiceCloneDesc') },
-                { name: t('tech.llm'), version: "LLM", description: t('tech.llmDesc') }
-            ]
-        }
-    ]
-
-    // About data
-    const aboutValues = [
-        { icon: <Target className="w-8 h-8 text-indigo-300" />, title: t('story.developer'), description: t('story.developerDesc') },
-        { icon: <Eye className="w-8 h-8 text-purple-300" />, title: t('story.animeUser'), description: t('story.animeUserDesc') },
-        { icon: <UsersIcon className="w-8 h-8 text-fuchsia-300" />, title: t('story.education'), description: t('story.educationDesc') },
-        { icon: <Award className="w-8 h-8 text-blue-300" />, title: t('story.creator'), description: t('story.creatorDesc') },
-    ]
-
+    t('tech.frontend');
+    t('tech.react');
+    t('tech.reactDesc');
+    t('tech.typescript');
+    t('tech.typescriptDesc');
+    t('tech.tailwind');
+    t('tech.tailwindDesc');
+    t('tech.webrtc');
+    t('tech.latest');
+    t('tech.webrtcDesc');
+    t('tech.backend');
+    t('tech.go');
+    t('tech.goDesc');
+    t('tech.gin');
+    t('tech.ginDesc');
+    t('tech.websocket');
+    t('tech.latest');
+    t('tech.websocketDesc');
+    t('tech.aiml');
+    t('tech.asr');
+    t('tech.asrDesc');
+    t('tech.tts');
+    t('tech.ttsDesc');
+    t('tech.voiceClone');
+    t('tech.voiceCloneDesc');
+    t('tech.llm');
+    t('tech.llmDesc');
 
     const aboutTeam = [
         { name: 'chenting', role: t('team.fullStack'), avatar: 'C', description: '' },
@@ -547,8 +532,6 @@ const Home = () => {
                 <div className="absolute bottom-10 right-10 h-72 w-72 rounded-full blur-3xl bg-gradient-to-r from-purple-400/20 via-pink-400/20 to-transparent animate-pulse"></div>
                 <div className="absolute top-1/2 right-1/4 h-64 w-64 rounded-full blur-3xl bg-gradient-to-r from-indigo-400/15 via-blue-400/15 to-transparent animate-pulse"></div>
                 <div className="max-w-6xl mx-auto px-4">
-                    {/* Core Features */}
-                    <div className="mb-2">
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-lg bg-indigo-500/20 border border-white/10 flex items-center justify-center shadow-sm">
                                 <Zap className="w-5 h-5 text-indigo-300" />
@@ -594,51 +577,8 @@ const Home = () => {
                                 )
                             })}
                         </div>
-                    </div>
-
-                    {/* Tech Stack */}
-                    <div>
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-lg bg-purple-500/20 border border-white/10 flex items-center justify-center shadow-sm">
-                                <BookOpenIcon className="w-5 h-5 text-purple-300" />
-                            </div>
-                            <div>
-                                <h3 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">{t('home.techStack')}</h3>
-                                <p className="text-gray-600 dark:text-neutral-400">{t('home.techStackDesc')}</p>
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-7 items-stretch">
-                            {techStack.map((cat: any, idx: number) => (
-                                <div key={idx} className="relative rounded-2xl p-[1px] bg-gradient-to-br from-purple-500/30 via-indigo-500/20 to-transparent h-full z-10">
-                                    <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-purple-500/20 via-fuchsia-500/15 to-indigo-500/15 backdrop-blur-md p-6 shadow-[0_1px_0_rgba(255,255,255,0.25)_inset,0_10px_30px_-10px_rgba(147,51,234,0.25)] h-[360px] flex flex-col">
-                                        <div className="absolute -inset-24 opacity-70 bg-[radial-gradient(circle_at_30%_0%,rgba(168,85,247,0.12),transparent_40%),radial-gradient(circle_at_80%_120%,rgba(59,130,246,0.12),transparent_40%)]" />
-                                        <div className="relative">
-                                            <h4 className="text-lg font-semibold mb-4 tracking-tight text-gray-900 dark:text-white">{cat.name}</h4>
-                                            <div className="space-y-3">
-                                                {cat.technologies?.map((t: any, i: number) => (
-                                                    <div key={i} className="flex items-start gap-3">
-                                                        <div className="mt-1 w-2.5 h-2.5 rounded-full bg-gradient-to-r from-indigo-400 to-purple-400 ring-2 ring-white/20" />
-                                                        <div className="flex-1">
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="font-medium tracking-tight text-gray-800 dark:text-neutral-100">{t.name}</span>
-                                                                {t.version && (
-                                                                    <span className="text-xs px-2 py-0.5 rounded-full bg-gray-800 dark:bg-neutral-900/80 text-white border border-gray-300 dark:border-white/10">{t.version}</span>
-                                                                )}
-                                                            </div>
-                                                            <p className="text-sm text-gray-600 dark:text-neutral-300">{t.description}</p>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
                 </div>
             </section>
-
             {/* About (full) */}
             <section id="about" className="relative py-24 overflow-hidden">
                 {/* 渐变背景 - 浅蓝到浅紫 */}
@@ -664,81 +604,6 @@ const Home = () => {
                 <div className="absolute bottom-10 right-10 h-80 w-80 rounded-full blur-3xl bg-gradient-to-r from-blue-400/20 via-indigo-400/20 to-transparent animate-pulse"></div>
                 <div className="absolute top-1/3 right-1/3 h-72 w-72 rounded-full blur-3xl bg-gradient-to-r from-pink-400/15 via-purple-400/15 to-transparent animate-pulse"></div>
                 <div className="max-w-6xl mx-auto px-2 space-y-20">
-                    {/* Mission */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
-                        <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur p-8 z-10">
-                            <div className="flex items-center gap-3 mb-4">
-                                <Target className="w-6 h-6 text-indigo-300" />
-                                <h3 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white">{t('home.userStories')}</h3>
-                            </div>
-                            <p className="text-gray-600 dark:text-neutral-300 mb-6 leading-relaxed">
-                                {t('story.detail')}
-                            </p>
-                            <div className="space-y-4">
-                                <div className="flex items-start gap-3">
-                                    <CheckCircle className="w-5 h-5 text-indigo-300 mt-0.5" />
-                                    <p className="text-gray-600 dark:text-neutral-300">{t('story.developerPoint')}</p>
-                                </div>
-                                <div className="flex items-start gap-3">
-                                    <CheckCircle className="w-5 h-5 text-indigo-300 mt-0.5" />
-                                    <p className="text-gray-600 dark:text-neutral-300">{t('story.animeUserPoint')}</p>
-                                </div>
-                                <div className="flex items-start gap-3">
-                                    <CheckCircle className="w-5 h-5 text-indigo-300 mt-0.5" />
-                                    <p className="text-gray-600 dark:text-neutral-300">{t('story.creatorPoint')}</p>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                            {[
-                                { icon: Eye, title: t('values.userCentric') },
-                                { icon: UsersIcon, title: t('values.communityDriven') },
-                                { icon: Award, title: t('values.excellence') },
-                            ].map((item, i) => {
-                                const Icon = item.icon as any
-                                return (
-                                    <div key={i} className="relative rounded-2xl p-[1px] bg-gradient-to-br from-indigo-500/30 via-purple-500/20 to-transparent z-10">
-                                        <div className="relative overflow-hidden rounded-2xl border border-gray-200 dark:border-white/10 bg-white/80 dark:bg-white/5 backdrop-blur p-6 h-full shadow-lg z-10">
-                                            <div className="absolute -inset-24 opacity-60 bg-[radial-gradient(circle_at_20%_0%,rgba(99,102,241,0.12),transparent_40%),radial-gradient(circle_at_80%_120%,rgba(147,51,234,0.12),transparent_40%)]" />
-                                            <div className="relative">
-                                                <Icon className="w-6 h-6 text-indigo-600 dark:text-indigo-200 mb-3" />
-                                                <div className="text-gray-800 dark:text-neutral-100 font-medium tracking-tight">{item.title}</div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )
-                            })}
-                        </div>
-                    </div>
-
-                    {/* Values */}
-                    <div>
-                        <div className="text-center mb-6">
-                            <h3 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">{t('values.title')}</h3>
-                            <p className="text-gray-600 dark:text-neutral-400">{t('values.desc')}</p>
-                        </div>
-                        <StaggeredList className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                            {aboutValues.map((value) => (
-                                <motion.div key={value.title} whileHover={{ y: -4 }} transition={{ duration: 0.2 }}>
-                                    <Card hover className="h-full text-center bg-white/80 dark:bg-white/5 border-gray-200 dark:border-white/10 shadow-lg z-10">
-                                        <CardHeader>
-                                            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 bg-gray-100 dark:bg-white/10 border border-gray-200 dark:border-white/10">
-                                                {value.icon}
-                                            </div>
-                                            <CardTitle className="text-lg text-gray-900 dark:text-white">{value.title}</CardTitle>
-                                        </CardHeader>
-                                        <CardContent>
-                                            <CardDescription className="text-sm leading-relaxed text-gray-600 dark:text-neutral-300">
-                                                {value.description}
-                                            </CardDescription>
-                                        </CardContent>
-                                    </Card>
-                                </motion.div>
-                            ))}
-                        </StaggeredList>
-                    </div>
-
-
                     {/* Team */}
                     <div>
                         <div className="text-center mb-12">

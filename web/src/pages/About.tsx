@@ -437,6 +437,52 @@ const About = () => {
             </div>
           </div>
         </section>
+
+        {/* Contact Section */}
+        <section className="py-20">
+          <div className="max-w-4xl mx-auto px-4">
+            <FadeIn direction="up">
+              <Card className="border shadow-xl">
+                <CardHeader className="text-center">
+                  <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <Building2 className="w-8 h-8 text-white" />
+                  </div>
+                  <CardTitle className="text-3xl text-foreground mb-2">联系我们</CardTitle>
+                  <CardDescription className="text-lg">
+                    欢迎与我们取得联系，了解更多关于我们的产品和服务
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="bg-muted rounded-lg p-6">
+                    <h3 className="text-xl font-semibold text-foreground mb-4">公司信息</h3>
+                    <div className="space-y-3 text-muted-foreground">
+                      <div className="flex items-start gap-3">
+                        <Building className="w-5 h-5 text-primary mt-1 flex-shrink-0" />
+                        <div>
+                          <p className="font-medium text-foreground">成都解忧造物科技有限责任公司</p>
+                          <p className="text-sm">Chengdu Jieyou Zaowu Technology Co., Ltd.</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <Target className="w-5 h-5 text-primary mt-1 flex-shrink-0" />
+                        <div>
+                          <p className="font-medium text-foreground">公司地址</p>
+                          <p className="text-sm">四川省成都市成华区一环路东一段159号1栋1层1号附17号</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="text-center pt-4">
+                    <p className="text-muted-foreground">
+                      如有任何疑问或合作意向，欢迎通过邮件与我们联系
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </FadeIn>
+          </div>
+        </section>
       </div>
   )
 }

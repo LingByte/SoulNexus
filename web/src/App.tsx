@@ -49,6 +49,9 @@ import MCPManagement from '@/pages/MCPManagement.tsx';
 import MCPMarketplace from '@/pages/MCPMarketplace.tsx';
 import Products from '@/pages/Products.tsx';
 import ProductDetail from '@/pages/ProductDetail.tsx';
+import Privacy from '@/pages/Privacy.tsx';
+import Terms from '@/pages/Terms.tsx';
+import CookieConsent from '@/components/CookieConsent.tsx';
 
 function App() {
     const [showPerformanceMonitor, setShowPerformanceMonitor] = useState(false);
@@ -67,6 +70,10 @@ function App() {
                         
                         {/* 文档页面 - 不需要登录 */}
                         <Route path="/docs" element={<Documentation />} />
+                        
+                        {/* 隐私政策和服务条款 - 不需要登录 */}
+                        <Route path="/privacy" element={<Privacy />} />
+                        <Route path="/terms" element={<Terms />} />
                         
                         {/* 重置密码页面 - 不需要登录 */}
                         <Route path="/reset-password" element={<ResetPassword />} />
@@ -338,6 +345,9 @@ function App() {
 
                     {/* 全局搜索 */}
                     <GlobalSearch />
+
+                    {/* Cookie 同意弹窗 */}
+                    <CookieConsent />
 
                     {/* 性能监控 */}
                     <div className="fixed -left-4 top-1/2 transform -translate-y-1/2 z-50">
