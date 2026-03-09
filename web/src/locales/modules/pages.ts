@@ -4,11 +4,15 @@ export const pages: Record<Language, Record<string, string>> = {
   zh: {
     // Home 页面
     'home.title': '灵枢',
-    'home.subtitle': '灵语可以进行实时通话、声音克隆、知识库管理、应用接入等',
+    'home.subtitle': '灵枢是新一代AI语音交互平台，提供实时通话、声音克隆、知识库管理、工作流自动化、应用快速接入等全方位解决方案，让AI语音助手真正融入您的业务场景',
     'home.startNow': '立即开始',
     'home.mission': '灵枢不仅是一个AI语音平台，更是连接现实与虚拟世界的桥梁。我们致力于让每个人都能拥有专属的AI语音助手，让技术真正服务于人的需求，创造更美好的交互体验。',
     'home.coreFeatures': '核心功能',
-    'home.coreFeaturesDesc': '来自文档页的功能特性汇总',
+    'home.coreFeaturesDesc': '省时省力，让你从繁琐中解放出来',
+    'home.scenarios': '适用场景',
+    'home.scenariosDesc': '它就像贴心助手，让日常工作更轻松',
+    'home.advantages': '产品优势',
+    'home.advantagesDesc': '由 AI 驱动，专注公共服务领域',
     'home.techStack': '技术栈',
     'home.techStackDesc': '后端、前端与 AI/ML 技术概览',
     'home.userStories': '用户故事',
@@ -46,6 +50,56 @@ export const pages: Record<Language, Record<string, string>> = {
     'feature.workflowDesc': '可视化工作流设计，支持流程自动化、条件分支和实时监控',
     'feature.credential': '凭证管理',
     'feature.credentialDesc': '安全的凭证管理系统，提供API文档、开发工具和安全认证',
+    
+    // Core Features (detailed)
+    'feature.aiAssistant': 'AI角色实时通话',
+    'feature.aiAssistantDesc1': '基于WebRTC技术的AI角色实时语音通话，支持高质量音频传输和低延迟交互。',
+    'feature.aiAssistantDesc2': '连接知识库后，AI可以智能回答问题，如果AI无法解答，人工可随时接管。',
+    'feature.analysis': '工作流自动化',
+    'feature.analysisDesc1': '可视化工作流设计器，支持多种触发类型（API、事件、定时、Webhook、助手）。',
+    'feature.analysisDesc2': '支持复杂业务流程自动化，提供拖拽式界面，轻松构建自动化流程。',
+    'feature.support': '声音克隆与训练',
+    'feature.supportDesc1': '支持自定义声音训练和克隆，让AI助手拥有专属的声音特征。',
+    'feature.supportDesc2': '提供个性化语音体验，可以克隆任何人的声音用于AI对话。',
+    
+    // Scenarios
+    'scenario.traffic': '企业智能客服',
+    'scenario.trafficDesc': '为企业提供7×24小时不间断的AI语音客服服务，智能识别用户意图，自动回答常见问题，支持多轮对话和上下文理解，大幅降低人工客服成本，提升客户满意度',
+    'scenario.employment': '在线教育培训',
+    'scenario.employmentDesc': '支持AI语音陪练、口语练习、发音纠正等教育场景，提供个性化学习方案，实时语音互动反馈，让学习更高效有趣，适用于语言学习、职业培训等多种教育领域',
+    'scenario.immigration': '智能硬件接入',
+    'scenario.immigrationDesc': '完整支持xiaozhi协议智能硬件设备，提供稳定的WebSocket实时通信方案，支持语音唤醒、离线识别、设备管理等功能，轻松打造智能语音交互硬件产品',
+    
+    // Advantages
+    'advantage.lowCost': '完整解决方案',
+    'advantage.lowCostDesc': '集成ASR、TTS、LLM和实时通信技术，提供企业级完整方案',
+    'advantage.available': '设备管理',
+    'advantage.availableDesc': '完整的设备管理系统，支持OTA固件更新、设备监控和远程控制',
+    'advantage.intelligent': '知识库管理',
+    'advantage.intelligentDesc': '强大的知识库管理系统，支持文档存储、检索和AI分析',
+    'advantage.flexible': '多租户架构',
+    'advantage.flexibleDesc': '支持组织管理、团队协作、成员管理和资源共享',
+    'advantage.integration': '应用快速集成',
+    'advantage.integrationDesc': '通过JS注入、API网关和密钥管理，快速集成新应用',
+    'advantage.secure': '告警与计费',
+    'advantage.secureDesc': '完善的告警系统和灵活的计费追踪系统，支持企业级运营',
+    
+    // Testimonials
+    'testimonial.title': '为什么选择灵枢',
+    'testimonial.subtitle': '高效、智能又贴心，让你放心享受每次通话带来的价值',
+    'testimonial.cta': '开始探索',
+    'testimonial.realtime': '实时通信技术',
+    'testimonial.realtimeDesc': '基于WebRTC的低延迟实时语音通话，支持高质量音频传输和多音频格式',
+    'testimonial.workflow': '工作流自动化',
+    'testimonial.workflowDesc': '可视化工作流设计器，支持拖拽式界面，轻松构建复杂业务流程自动化',
+    'testimonial.voiceClone': '声音克隆技术',
+    'testimonial.voiceCloneDesc': '先进的声音克隆和训练技术，让AI助手拥有专属的声音特征，提供个性化语音体验',
+    'testimonial.knowledge': '知识库管理',
+    'testimonial.knowledgeDesc': '智能知识库管理系统，支持文档存储、智能检索和AI分析，提供强大的知识服务',
+    'testimonial.architecture': '企业级架构',
+    'testimonial.architectureDesc': '完整的微服务架构设计，支持高并发、高可用，满足企业级应用需求',
+    'testimonial.multiTenant': '多租户支持',
+    'testimonial.multiTenantDesc': '完善的组织管理和权限控制，支持团队协作、成员管理和资源共享',
 
     // Tags
     'tag.webrtc': 'WebRTC',
@@ -207,8 +261,26 @@ export const pages: Record<Language, Record<string, string>> = {
 
     // Footer
     'footer.icp': '备案号',
-    'footer.team': '团队',
+    'footer.team': 'SoulMy团队',
     'footer.teamDesc': '成都解忧造物科技有限责任公司SoulMy团队',
+    'footer.description': '专业的语音AI平台，为开发者和企业提供智能语音解决方案',
+    'footer.products': '产品',
+    'footer.resources': '资源',
+    'footer.legal': '法律与支持',
+    'footer.privacy': '隐私政策',
+    'footer.terms': '服务条款',
+    'footer.careers': '加入我们',
+    'footer.contact': '联系我们',
+    'footer.madeWith': '用心打造',
+    'footer.by': '由',
+
+    // Cookie 同意
+    'cookie.title': 'Cookie 使用说明',
+    'cookie.description': '我们使用 Cookies 及 localStorage 来收集数据，以提升您在我们网站上的使用体验。具体说明请参见我们的',
+    'cookie.privacyLink': '隐私政策',
+    'cookie.descriptionEnd': '。',
+    'cookie.accept': '接受',
+    'cookie.reject': '拒绝',
 
     // 价值观
     'values.title': '我们的价值观',
@@ -220,11 +292,15 @@ export const pages: Record<Language, Record<string, string>> = {
   en: {
     // Home Page
     'home.title': 'SoulNexus',
-    'home.subtitle': 'SoulNexus enables real-time calls, voice cloning, knowledge base management, application integration, and more',
+    'home.subtitle': 'SoulNexus is a next-generation AI voice interaction platform, providing comprehensive solutions including real-time calls, voice cloning, knowledge base management, workflow automation, and rapid application integration, making AI voice assistants truly integrate into your business scenarios',
     'home.startNow': 'Get Started',
     'home.mission': 'SoulNexus is not just an AI voice platform, but a bridge connecting the real and virtual worlds. We are committed to enabling everyone to have their own AI voice assistant, making technology truly serve human needs and create better interactive experiences.',
     'home.coreFeatures': 'Core Features',
-    'home.coreFeaturesDesc': 'Feature summary from documentation',
+    'home.coreFeaturesDesc': 'Save time and effort, free yourself from tedious tasks',
+    'home.scenarios': 'Use Cases',
+    'home.scenariosDesc': 'Like a caring assistant, making daily work easier',
+    'home.advantages': 'Product Advantages',
+    'home.advantagesDesc': 'AI-driven, focused on public service sectors',
     'home.techStack': 'Tech Stack',
     'home.techStackDesc': 'Backend, frontend and AI/ML technology overview',
     'home.userStories': 'User Stories',
@@ -262,6 +338,56 @@ export const pages: Record<Language, Record<string, string>> = {
     'feature.workflowDesc': 'Visual workflow design with process automation, conditional branching, and real-time monitoring',
     'feature.credential': 'Credential Management',
     'feature.credentialDesc': 'Secure credential management system with API documentation, development tools, and security authentication',
+    
+    // Core Features (detailed)
+    'feature.aiAssistant': 'AI Character Real-time Calls',
+    'feature.aiAssistantDesc1': 'Real-time voice calls with AI characters based on WebRTC technology, supporting high-quality audio transmission and low-latency interaction.',
+    'feature.aiAssistantDesc2': 'After connecting to the knowledge base, AI can intelligently answer questions. If AI cannot answer, human agents can take over at any time.',
+    'feature.analysis': 'Workflow Automation',
+    'feature.analysisDesc1': 'Visual workflow designer supporting multiple trigger types (API, Event, Schedule, Webhook, Assistant).',
+    'feature.analysisDesc2': 'Support complex business process automation with drag-and-drop interface for easy workflow construction.',
+    'feature.support': 'Voice Cloning & Training',
+    'feature.supportDesc1': 'Support custom voice training and cloning, allowing AI assistants to have exclusive voice characteristics.',
+    'feature.supportDesc2': 'Provide personalized voice experiences, can clone anyone\'s voice for AI conversations.',
+    
+    // Scenarios
+    'scenario.traffic': 'Enterprise AI Customer Service',
+    'scenario.trafficDesc': 'Provide 7×24 uninterrupted AI voice customer service for enterprises, intelligently recognize user intent, automatically answer common questions, support multi-turn dialogue and context understanding, significantly reduce labor costs and improve customer satisfaction',
+    'scenario.employment': 'Online Education & Training',
+    'scenario.employmentDesc': 'Support AI voice practice, oral training, pronunciation correction and other educational scenarios, provide personalized learning plans, real-time voice interaction feedback, make learning more efficient and interesting, suitable for language learning, vocational training and other educational fields',
+    'scenario.immigration': 'Smart Hardware Integration',
+    'scenario.immigrationDesc': 'Full support for xiaozhi protocol smart hardware devices, provide stable WebSocket real-time communication solution, support voice wake-up, offline recognition, device management and other functions, easily create smart voice interaction hardware products',
+    
+    // Advantages
+    'advantage.lowCost': 'Complete Solution',
+    'advantage.lowCostDesc': 'Integrate ASR, TTS, LLM and real-time communication technology, providing enterprise-grade complete solution',
+    'advantage.available': 'Device Management',
+    'advantage.availableDesc': 'Complete device management system with OTA firmware updates, device monitoring and remote control',
+    'advantage.intelligent': 'Knowledge Base Management',
+    'advantage.intelligentDesc': 'Powerful knowledge base management system supporting document storage, retrieval and AI analysis',
+    'advantage.flexible': 'Multi-tenant Architecture',
+    'advantage.flexibleDesc': 'Support organization management, team collaboration, member management and resource sharing',
+    'advantage.integration': 'Quick Integration',
+    'advantage.integrationDesc': 'Quick integration of new applications through JS injection, API gateway and key management',
+    'advantage.secure': 'Alert & Billing',
+    'advantage.secureDesc': 'Comprehensive alert system and flexible billing tracking system, supporting enterprise-level operations',
+    
+    // Testimonials
+    'testimonial.title': 'Why Choose SoulNexus',
+    'testimonial.subtitle': 'Efficient, intelligent and caring, let you enjoy the value of every call with confidence',
+    'testimonial.cta': 'Start Exploring',
+    'testimonial.realtime': 'Real-time Communication',
+    'testimonial.realtimeDesc': 'Low-latency real-time voice calls based on WebRTC, supporting high-quality audio transmission and multiple audio formats',
+    'testimonial.workflow': 'Workflow Automation',
+    'testimonial.workflowDesc': 'Visual workflow designer with drag-and-drop interface for easy construction of complex business process automation',
+    'testimonial.voiceClone': 'Voice Cloning Technology',
+    'testimonial.voiceCloneDesc': 'Advanced voice cloning and training technology, allowing AI assistants to have exclusive voice characteristics and provide personalized voice experiences',
+    'testimonial.knowledge': 'Knowledge Base Management',
+    'testimonial.knowledgeDesc': 'Intelligent knowledge base management system supporting document storage, smart retrieval and AI analysis, providing powerful knowledge services',
+    'testimonial.architecture': 'Enterprise Architecture',
+    'testimonial.architectureDesc': 'Complete microservices architecture design, supporting high concurrency and high availability, meeting enterprise application requirements',
+    'testimonial.multiTenant': 'Multi-tenant Support',
+    'testimonial.multiTenantDesc': 'Comprehensive organization management and permission control, supporting team collaboration, member management and resource sharing',
 
     // Tags
     'tag.webrtc': 'WebRTC',
@@ -423,8 +549,26 @@ export const pages: Record<Language, Record<string, string>> = {
 
     // Footer
     'footer.icp': 'ICP License',
-    'footer.team': 'Team',
+    'footer.team': 'SoulMy Team',
     'footer.teamDesc': 'Chengdu Jieyou Zaowu Technology Co., Ltd. SoulMy Team',
+    'footer.description': 'Professional voice AI platform providing intelligent voice solutions for developers and enterprises',
+    'footer.products': 'Products',
+    'footer.resources': 'Resources',
+    'footer.legal': 'Legal & Support',
+    'footer.privacy': 'Privacy Policy',
+    'footer.terms': 'Terms of Service',
+    'footer.careers': 'Join Us',
+    'footer.contact': 'Contact Us',
+    'footer.madeWith': 'Made with',
+    'footer.by': 'by',
+
+    // Cookie Consent
+    'cookie.title': 'Cookie Usage Notice',
+    'cookie.description': 'We use Cookies and localStorage to collect data to improve your experience on our website. For details, please see our',
+    'cookie.privacyLink': 'Privacy Policy',
+    'cookie.descriptionEnd': '.',
+    'cookie.accept': 'Accept',
+    'cookie.reject': 'Reject',
 
     // Values
     'values.title': 'Our Values',
@@ -436,11 +580,15 @@ export const pages: Record<Language, Record<string, string>> = {
   ja: {
     // ホームページ
     'home.title': 'SoulNexus',
-    'home.subtitle': 'SoulNexusはリアルタイム通話、音声クローン、ナレッジベース管理、アプリケーション統合などを可能にします',
+    'home.subtitle': 'SoulNexusは次世代AI音声インタラクションプラットフォームで、リアルタイム通話、音声クローン、ナレッジベース管理、ワークフロー自動化、アプリケーション統合などの包括的なソリューションを提供し、AI音声アシスタントをビジネスシーンに真に統合します',
     'home.startNow': '今すぐ始める',
     'home.mission': 'SoulNexusは単なるAI音声プラットフォームではなく、現実と仮想世界を結ぶ橋です。私たちは、誰もが専用のAI音声アシスタントを持てるようにし、技術が真に人間のニーズに奉仕し、より良いインタラクティブ体験を創造することに取り組んでいます。',
     'home.coreFeatures': 'コア機能',
-    'home.coreFeaturesDesc': 'ドキュメントからの機能概要',
+    'home.coreFeaturesDesc': '時間と労力を節約し、面倒な作業から解放されます',
+    'home.scenarios': '適用シナリオ',
+    'home.scenariosDesc': '親切なアシスタントのように、日常業務を楽にします',
+    'home.advantages': '製品の優位性',
+    'home.advantagesDesc': 'AIによって駆動され、公共サービス分野に焦点を当てています',
     'home.techStack': '技術スタック',
     'home.techStackDesc': 'バックエンド、フロントエンド、AI/ML技術概要',
     'home.userStories': 'ユーザーストーリー',
@@ -478,6 +626,56 @@ export const pages: Record<Language, Record<string, string>> = {
     'feature.workflowDesc': 'プロセス自動化、条件分岐、リアルタイム監視をサポートするビジュアルワークフロー設計',
     'feature.credential': '認証情報管理',
     'feature.credentialDesc': 'APIドキュメント、開発ツール、セキュリティ認証を提供する安全な認証情報管理システム',
+    
+    // Core Features (detailed)
+    'feature.aiAssistant': 'AIキャラクターリアルタイム通話',
+    'feature.aiAssistantDesc1': 'WebRTC技術に基づくAIキャラクターとのリアルタイム音声通話、高品質オーディオ伝送と低遅延インタラクションをサポート。',
+    'feature.aiAssistantDesc2': 'ナレッジベースに接続後、AIがインテリジェントに質問に答えます。AIが答えられない場合、人間のエージェントがいつでも引き継ぐことができます。',
+    'feature.analysis': 'ワークフロー自動化',
+    'feature.analysisDesc1': 'ビジュアルワークフローデザイナー、複数のトリガータイプ（API、イベント、スケジュール、Webhook、アシスタント）をサポート。',
+    'feature.analysisDesc2': '複雑なビジネスプロセスの自動化をサポート、ドラッグアンドドロップインターフェースで簡単にワークフローを構築。',
+    'feature.support': '音声クローンとトレーニング',
+    'feature.supportDesc1': 'カスタム音声トレーニングとクローンをサポート、AIアシスタントに専用の音声特性を持たせます。',
+    'feature.supportDesc2': 'パーソナライズされた音声体験を提供、誰の声でもクローンしてAI会話に使用できます。',
+    
+    // Scenarios
+    'scenario.traffic': '企業向けAIカスタマーサービス',
+    'scenario.trafficDesc': '企業に7×24時間中断のないAI音声カスタマーサービスを提供、ユーザーの意図をインテリジェントに認識、一般的な質問に自動回答、マルチターン対話とコンテキスト理解をサポート、人件費を大幅に削減し、顧客満足度を向上',
+    'scenario.employment': 'オンライン教育・トレーニング',
+    'scenario.employmentDesc': 'AI音声練習、口語トレーニング、発音矯正などの教育シナリオをサポート、パーソナライズされた学習プランを提供、リアルタイム音声インタラクションフィードバック、学習をより効率的で面白くする、語学学習、職業訓練などの様々な教育分野に適用',
+    'scenario.immigration': 'スマートハードウェア統合',
+    'scenario.immigrationDesc': 'xiaozhiプロトコルスマートハードウェアデバイスを完全サポート、安定したWebSocketリアルタイム通信ソリューションを提供、音声ウェイクアップ、オフライン認識、デバイス管理などの機能をサポート、スマート音声インタラクションハードウェア製品を簡単に作成',
+    
+    // Advantages
+    'advantage.lowCost': '完全なソリューション',
+    'advantage.lowCostDesc': 'ASR、TTS、LLMとリアルタイム通信技術を統合、エンタープライズグレードの完全なソリューションを提供',
+    'advantage.available': 'デバイス管理',
+    'advantage.availableDesc': '完全なデバイス管理システム、OTAファームウェア更新、デバイス監視、リモート制御をサポート',
+    'advantage.intelligent': 'ナレッジベース管理',
+    'advantage.intelligentDesc': '強力なナレッジベース管理システム、ドキュメント保存、検索、AI分析をサポート',
+    'advantage.flexible': 'マルチテナントアーキテクチャ',
+    'advantage.flexibleDesc': '組織管理、チームコラボレーション、メンバー管理、リソース共有をサポート',
+    'advantage.integration': '迅速な統合',
+    'advantage.integrationDesc': 'JS注入、APIゲートウェイ、キー管理を通じて新しいアプリケーションを迅速に統合',
+    'advantage.secure': 'アラートと課金',
+    'advantage.secureDesc': '包括的なアラートシステムと柔軟な課金追跡システム、エンタープライズレベルの運用をサポート',
+    
+    // Testimonials
+    'testimonial.title': 'SoulNexusを選ぶ理由',
+    'testimonial.subtitle': '効率的でインテリジェント、そして親切。すべての通話がもたらす価値を安心してお楽しみください',
+    'testimonial.cta': '探索を始める',
+    'testimonial.realtime': 'リアルタイム通信',
+    'testimonial.realtimeDesc': 'WebRTCベースの低遅延リアルタイム音声通話、高品質オーディオ伝送と複数のオーディオフォーマットをサポート',
+    'testimonial.workflow': 'ワークフロー自動化',
+    'testimonial.workflowDesc': 'ドラッグアンドドロップインターフェースを備えたビジュアルワークフローデザイナー、複雑なビジネスプロセスの自動化を簡単に構築',
+    'testimonial.voiceClone': '音声クローン技術',
+    'testimonial.voiceCloneDesc': '先進的な音声クローンとトレーニング技術、AIアシスタントに専用の音声特性を持たせ、パーソナライズされた音声体験を提供',
+    'testimonial.knowledge': 'ナレッジベース管理',
+    'testimonial.knowledgeDesc': 'ドキュメント保存、スマート検索、AI分析をサポートするインテリジェントナレッジベース管理システム、強力なナレッジサービスを提供',
+    'testimonial.architecture': 'エンタープライズアーキテクチャ',
+    'testimonial.architectureDesc': '完全なマイクロサービスアーキテクチャ設計、高並行性と高可用性をサポート、エンタープライズアプリケーション要件を満たす',
+    'testimonial.multiTenant': 'マルチテナントサポート',
+    'testimonial.multiTenantDesc': '包括的な組織管理と権限制御、チームコラボレーション、メンバー管理、リソース共有をサポート',
 
     // Tags
     'tag.webrtc': 'WebRTC',
@@ -639,9 +837,26 @@ export const pages: Record<Language, Record<string, string>> = {
 
     // フッター
     'footer.icp': 'ICP許可証',
-    'footer.team': 'チーム',
+    'footer.team': 'SoulMyチーム',
     'footer.teamDesc': '成都解忧造物科技有限責任公司SoulMyチーム',
+    'footer.description': '開発者と企業向けのインテリジェント音声ソリューションを提供するプロフェッショナル音声AIプラットフォーム',
+    'footer.products': '製品',
+    'footer.resources': 'リソース',
+    'footer.legal': '法的事項とサポート',
+    'footer.privacy': 'プライバシーポリシー',
+    'footer.terms': '利用規約',
+    'footer.careers': '採用情報',
+    'footer.contact': 'お問い合わせ',
+    'footer.madeWith': '心を込めて作成',
+    'footer.by': 'by',
 
+    // Cookie 同意
+    'cookie.title': 'Cookie使用説明',
+    'cookie.description': '当社は、ウェブサイトでのユーザー体験を向上させるために、Cookieおよび localStorageを使用してデータを収集します。詳細については、',
+    'cookie.privacyLink': 'プライバシーポリシー',
+    'cookie.descriptionEnd': 'をご覧ください。',
+    'cookie.accept': '同意する',
+    'cookie.reject': '拒否する',
     // 価値観
     'values.title': '私たちの価値観',
     'values.desc': 'これらのコア価値観が、私たちのすべての決定と行動を導いています。',
