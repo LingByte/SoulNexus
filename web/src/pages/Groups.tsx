@@ -21,6 +21,7 @@ import { Users, Plus, X, UserPlus, LogOut, Trash2, Check, XCircle, Crown, Shield
 import Button from '@/components/UI/Button';
 import ConfirmDialog from '@/components/UI/ConfirmDialog';
 import { useI18nStore } from '@/stores/i18nStore';
+import LoadingAnimation from '@/components/Animations/LoadingAnimation';
 
 const Groups: React.FC = () => {
   const { t } = useI18nStore();
@@ -280,7 +281,10 @@ const Groups: React.FC = () => {
 
         {/* 组织列表 - 大卡片展示 */}
         {loading ? (
-          <div className="text-center text-gray-400 py-16">{t('groups.loading')}</div>
+          <div className="text-center py-16">
+            <LoadingAnimation type="progress" size="lg" className="mb-4" />
+            <div className="text-gray-400">{t('groups.loading')}</div>
+          </div>
         ) : groups.length === 0 ? (
           <div className="text-center py-16">
             <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />

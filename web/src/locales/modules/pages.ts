@@ -29,6 +29,7 @@ export const pages: Record<Language, Record<string, string>> = {
     // Navigation translations
     'nav.docs': 'Doc',
     'nav.about': '关于',
+    'nav.blog': '博客',
     'nav.login': '登录',
     'nav.logout': '退出登录',
     'nav.enterSystem': '进入系统',
@@ -178,6 +179,37 @@ export const pages: Record<Language, Record<string, string>> = {
     'home.platformShowcase.feature3': '智能知识库管理和AI分析',
     'home.platformShowcase.feature4': '可视化工作流自动化设计',
     'home.platformShowcase.cta': '了解更多',
+
+    // Contact
+    'contact.title': '联系我们',
+    'contact.subtitle': '我们很乐意听到您的声音',
+    'contact.form.title': '发送消息',
+    'contact.form.name': '姓名',
+    'contact.form.namePlaceholder': '请输入您的姓名',
+    'contact.form.email': '邮箱',
+    'contact.form.emailPlaceholder': '请输入您的邮箱',
+    'contact.form.message': '消息',
+    'contact.form.messagePlaceholder': '请输入您的消息内容',
+    'contact.form.send': '发送消息',
+    'contact.form.sending': '发送中...',
+    'contact.form.sent': '发送成功',
+    'contact.info.title': '联系方式',
+    'contact.info.description': '对我们的产品有疑问？需要技术支持？我们随时为您服务',
+    'contact.info.email': '邮箱',
+    'contact.info.website': '网站',
+    'contact.info.github': 'GitHub',
+    'contact.company.title': '公司信息',
+    'contact.company.name': '成都解忧造物科技有限责任公司',
+    'contact.company.nameEn': 'Chengdu Jieyou Zaowu Technology Co., Ltd.',
+    'contact.company.address': '公司地址',
+    'contact.company.addressDetail': '四川省成都市成华区一环路东一段159号1栋1层1号附17号',
+
+    // Blog
+    'blog.title': '博客',
+    'blog.subtitle': 'SoulMy团队的工程见解',
+    'blog.description': '探索AI语音技术的最新动态和技术洞察',
+    'blog.readMore': '阅读更多',
+    'blog.noPosts': '暂无博客文章',
 
     // About 页面
     'about.title': '关于灵枢',
@@ -358,6 +390,7 @@ export const pages: Record<Language, Record<string, string>> = {
     // Navigation translations
     'nav.docs': 'Docs',
     'nav.about': 'About',
+    'nav.blog': 'Blog',
     'nav.login': 'Login',
     'nav.logout': 'Logout',
     'nav.enterSystem': 'Enter System',
@@ -645,6 +678,37 @@ export const pages: Record<Language, Record<string, string>> = {
     'home.platformShowcase.feature4': 'Visual workflow automation design',
     'home.platformShowcase.cta': 'Learn More',
 
+    // Contact
+    'contact.title': 'Contact Us',
+    'contact.subtitle': "We'd love to hear from you",
+    'contact.form.title': 'Send us a message',
+    'contact.form.name': 'Name',
+    'contact.form.namePlaceholder': 'Enter your name',
+    'contact.form.email': 'Email',
+    'contact.form.emailPlaceholder': 'Enter your email',
+    'contact.form.message': 'Message',
+    'contact.form.messagePlaceholder': 'Enter your message',
+    'contact.form.send': 'Send Message',
+    'contact.form.sending': 'Sending...',
+    'contact.form.sent': 'Message Sent',
+    'contact.info.title': 'Get in touch',
+    'contact.info.description': 'Have questions about our products? Need technical support? We\'re here to help',
+    'contact.info.email': 'Email',
+    'contact.info.website': 'Website',
+    'contact.info.github': 'GitHub',
+    'contact.company.title': 'Company Information',
+    'contact.company.name': 'Chengdu Jieyou Zaowu Technology Co., Ltd.',
+    'contact.company.nameEn': 'Chengdu Jieyou Zaowu Technology Co., Ltd.',
+    'contact.company.address': 'Address',
+    'contact.company.addressDetail': 'No. 159, East Section 1, First Ring Road, Chenghua District, Chengdu, Sichuan Province',
+
+    // Blog
+    'blog.title': 'Blog',
+    'blog.subtitle': 'Engineering insights from the SoulMy team',
+    'blog.description': 'Explore the latest updates and technical insights in AI voice technology',
+    'blog.readMore': 'Read More',
+    'blog.noPosts': 'No blog posts yet',
+
     // Highlights
     'home.highlights.title': 'Highlights',
     'home.highlights.subtitle': 'A high-performance AI voice platform built with Go, providing enterprise-grade real-time communication, secure encryption, and flexible scalability',
@@ -687,6 +751,7 @@ export const pages: Record<Language, Record<string, string>> = {
     // Navigation translations
     'nav.docs': 'ドキュメント',
     'nav.about': 'について',
+    'nav.blog': 'ブログ',
     'nav.login': 'ログイン',
     'nav.logout': 'ログアウト',
     'nav.enterSystem': 'システムに入る',
@@ -972,6 +1037,37 @@ export const pages: Record<Language, Record<string, string>> = {
     'home.platformShowcase.feature3': 'インテリジェントナレッジベース管理とAI分析',
     'home.platformShowcase.feature4': 'ビジュアルワークフロー自動化設計',
     'home.platformShowcase.cta': '詳細を見る',
+
+    // Contact
+    'contact.title': 'お問い合わせ',
+    'contact.subtitle': 'お気軽にご連絡ください',
+    'contact.form.title': 'メッセージを送信',
+    'contact.form.name': '名前',
+    'contact.form.namePlaceholder': 'お名前を入力してください',
+    'contact.form.email': 'メールアドレス',
+    'contact.form.emailPlaceholder': 'メールアドレスを入力してください',
+    'contact.form.message': 'メッセージ',
+    'contact.form.messagePlaceholder': 'メッセージ内容を入力してください',
+    'contact.form.send': 'メッセージを送信',
+    'contact.form.sending': '送信中...',
+    'contact.form.sent': '送信完了',
+    'contact.info.title': 'お問い合わせ先',
+    'contact.info.description': '製品に関するご質問やテクニカルサポートが必要ですか？お気軽にお問い合わせください',
+    'contact.info.email': 'メール',
+    'contact.info.website': 'ウェブサイト',
+    'contact.info.github': 'GitHub',
+    'contact.company.title': '会社情報',
+    'contact.company.name': '成都解忧造物科技有限責任公司',
+    'contact.company.nameEn': 'Chengdu Jieyou Zaowu Technology Co., Ltd.',
+    'contact.company.address': '住所',
+    'contact.company.addressDetail': '四川省成都市成華区一環路東一段159号1棟1階1号附17号',
+
+    // Blog
+    'blog.title': 'ブログ',
+    'blog.subtitle': 'SoulMyチームからのエンジニアリングインサイト',
+    'blog.description': 'AI音声技術の最新情報と技術的洞察を探る',
+    'blog.readMore': '続きを読む',
+    'blog.noPosts': 'ブログ記事はまだありません',
 
     // Highlights
     'home.highlights.title': 'ハイライト',

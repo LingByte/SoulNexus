@@ -216,6 +216,9 @@ const Home = () => {
                             <Link to="/about" className="text-muted-foreground hover:text-foreground transition-colors">
                                 {t('nav.about')}
                             </Link>
+                            <Link to="/blog" className="text-muted-foreground hover:text-foreground transition-colors">
+                                {t('nav.blog')}
+                            </Link>
                             
                             {/* 主题切换和语言选择器 */}
                             <div className="flex items-center gap-2">
@@ -324,6 +327,13 @@ const Home = () => {
                                     onClick={() => setShowMobileMenu(false)}
                                 >
                                     {t('nav.about')}
+                                </Link>
+                                <Link 
+                                    to="/blog" 
+                                    className="text-muted-foreground hover:text-foreground transition-colors"
+                                    onClick={() => setShowMobileMenu(false)}
+                                >
+                                    {t('nav.blog')}
                                 </Link>
                                 
                                 {/* 移动端主题切换和语言选择器 */}

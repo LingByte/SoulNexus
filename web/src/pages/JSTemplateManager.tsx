@@ -13,6 +13,7 @@ import { useDebounce } from '@/hooks/useDebounce'
 import { validateJavaScript } from '@/utils/jsValidator'
 import { getApiBaseURL } from '@/config/apiConfig'
 import MarkdownPreview from '@/components/UI/MarkdownPreview.tsx'
+import LoadingAnimation from '@/components/Animations/LoadingAnimation'
 
 // 懒加载Monaco Editor，优化首次加载性能
 const MonacoEditor = lazy(() => import('@monaco-editor/react'))
@@ -519,10 +520,7 @@ const JSTemplateManager = () => {
                     <div className="w-full">
                         {isLoading ? (
                             <div className="flex flex-col items-center justify-center py-12">
-                                <div className="relative">
-                                    <div className="animate-spin rounded-full h-16 w-16 border-4 border-slate-200 dark:border-slate-700"></div>
-                                    <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-500 border-t-transparent absolute top-0 left-0"></div>
-                                </div>
+                                <LoadingAnimation type="progress" size="lg" className="mb-4" />
                                 <p className="mt-4 font-medium">{t('jsTemplate.loading')}</p>
                             </div>
                         ) : (
@@ -793,10 +791,7 @@ const JSTemplateManager = () => {
                                                     <Suspense fallback={
                                                         <div className="h-[300px] flex items-center justify-center bg-slate-50 dark:bg-slate-800">
                                                             <div className="text-center">
-                                                                <div className="relative inline-block">
-                                                                    <div className="animate-spin rounded-full h-8 w-8 border-4 border-slate-200 dark:border-slate-700"></div>
-                                                                    <div className="animate-spin rounded-full h-8 w-8 border-4 border-blue-500 border-t-transparent absolute top-0 left-0"></div>
-                                                                </div>
+                                                                <LoadingAnimation type="progress" size="md" />
                                                                 <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">{t('jsTemplate.preview.loading')}</p>
                                                             </div>
                                                         </div>

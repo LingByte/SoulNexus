@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Search, Download, Star, Trash2, Check, Zap } from 'lucide-react'
 import Button from '@/components/UI/Button'
+import LoadingAnimation from '@/components/Animations/LoadingAnimation'
 import { listMarketplace, installMCP, uninstallMCP, getCategories, getUserInstalledMCPs } from '@/api/mcp'
 
 interface MCPItem {
@@ -135,7 +136,7 @@ const MCPMarketplace = () => {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <LoadingAnimation type="progress" size="lg" className="mb-4" />
           <p className="text-muted-foreground">Loading marketplace...</p>
         </div>
       </div>

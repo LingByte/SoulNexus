@@ -48,6 +48,7 @@ import VoiceprintManagement from '@/pages/VoiceprintManagement.tsx';
 import MCPManagement from '@/pages/MCPManagement.tsx';
 import MCPMarketplace from '@/pages/MCPMarketplace.tsx';
 import Products from '@/pages/Products.tsx';
+import Blog from '@/pages/Blog.tsx';
 import ProductDetail from '@/pages/ProductDetail.tsx';
 import Privacy from '@/pages/Privacy.tsx';
 import Terms from '@/pages/Terms.tsx';
@@ -67,6 +68,9 @@ function App() {
                         
                         {/* 关于页面 - 不需要登录 */}
                         <Route path="/about" element={<About />} />
+                        
+                        {/* 博客页面 - 不需要登录 */}
+                        <Route path="/blog" element={<Blog />} />
                         
                         {/* 文档页面 - 不需要登录 */}
                         <Route path="/docs" element={<Documentation />} />

@@ -13,6 +13,7 @@ import Badge from '@/components/UI/Badge'
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/UI/Select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/UI/Tabs'
 import FadeIn from '@/components/Animations/FadeIn'
+import LoadingAnimation from '@/components/Animations/LoadingAnimation'
 import { showAlert } from '@/utils/notification'
 import {
   getUsageStatistics,
@@ -628,7 +629,7 @@ const Billing = () => {
         <TabsContent value="statistics" className="space-y-6">
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" />
+              <LoadingAnimation type="progress" size="lg" />
             </div>
           ) : statistics ? (
             <>
@@ -754,7 +755,7 @@ const Billing = () => {
           
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" />
+              <LoadingAnimation type="progress" size="lg" />
             </div>
           ) : usageRecords.length > 0 ? (
             <>
@@ -846,7 +847,7 @@ const Billing = () => {
         <TabsContent value="bills" className="space-y-6">
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" />
+              <LoadingAnimation type="progress" size="lg" />
             </div>
           ) : bills.length > 0 ? (
             <>

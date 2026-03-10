@@ -11,6 +11,7 @@ import Modal, { ModalContent, ModalFooter } from '@/components/UI/Modal'
 import FileUpload from '@/components/UI/FileUpload'
 import PageContainer from '@/components/Layout/PageContainer'
 import FadeIn from '@/components/Animations/FadeIn'
+import LoadingAnimation from '@/components/Animations/LoadingAnimation'
 
 interface Document {
     source: string;
@@ -191,7 +192,7 @@ const KnowledgeBaseDetail = () => {
             {/* 内容列表 */}
             {isLoading ? (
                 <div className="flex justify-center items-center h-64">
-                    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
+                    <LoadingAnimation type="progress" size="lg" />
                 </div>
             ) : filteredDocuments.length === 0 ? (
                 <div className="text-center py-12">
