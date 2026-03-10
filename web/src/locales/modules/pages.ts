@@ -210,6 +210,14 @@ export const pages: Record<Language, Record<string, string>> = {
     'blog.description': '探索AI语音技术的最新动态和技术洞察',
     'blog.readMore': '阅读更多',
     'blog.noPosts': '暂无博客文章',
+    'blog.loading': '加载博客文章中...',
+    'blog.notFound': '博客文章未找到',
+    'blog.notFoundDesc': '您查找的博客文章不存在。',
+    'blog.backToBlog': '返回博客',
+    'blog.minRead': '分钟阅读',
+    'blog.share': '分享',
+    'blog.linkCopied': '链接已复制到剪贴板！',
+    'blog.relatedPosts': '相关文章',
 
     // About 页面
     'about.title': '关于灵枢',
@@ -708,6 +716,14 @@ export const pages: Record<Language, Record<string, string>> = {
     'blog.description': 'Explore the latest updates and technical insights in AI voice technology',
     'blog.readMore': 'Read More',
     'blog.noPosts': 'No blog posts yet',
+    'blog.loading': 'Loading blog post...',
+    'blog.notFound': 'Blog Post Not Found',
+    'blog.notFoundDesc': 'The blog post you are looking for does not exist.',
+    'blog.backToBlog': 'Back to Blog',
+    'blog.minRead': 'min read',
+    'blog.share': 'Share',
+    'blog.linkCopied': 'Link copied to clipboard!',
+    'blog.relatedPosts': 'Related Posts',
 
     // Highlights
     'home.highlights.title': 'Highlights',
@@ -1068,6 +1084,14 @@ export const pages: Record<Language, Record<string, string>> = {
     'blog.description': 'AI音声技術の最新情報と技術的洞察を探る',
     'blog.readMore': '続きを読む',
     'blog.noPosts': 'ブログ記事はまだありません',
+    'blog.loading': 'ブログ記事を読み込み中...',
+    'blog.notFound': 'ブログ記事が見つかりません',
+    'blog.notFoundDesc': 'お探しのブログ記事は存在しません。',
+    'blog.backToBlog': 'ブログに戻る',
+    'blog.minRead': '分で読めます',
+    'blog.share': '共有',
+    'blog.linkCopied': 'リンクをクリップボードにコピーしました！',
+    'blog.relatedPosts': '関連記事',
 
     // Highlights
     'home.highlights.title': 'ハイライト',

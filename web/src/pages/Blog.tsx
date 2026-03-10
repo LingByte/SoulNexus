@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion'
+import { useNavigate } from 'react-router-dom'
 import { Calendar, User, Tag, ArrowRight } from 'lucide-react'
 import { useI18nStore } from '@/stores/i18nStore'
 import PageSEO from '@/components/SEO/PageSEO'
@@ -6,6 +7,7 @@ import blogs from '@/data/blogs.json'
 
 const Blog = () => {
   const { t, language } = useI18nStore()
+  const navigate = useNavigate()
 
   const getBlogTitle = (blog: any) => {
     if (language === 'zh') return blog.titleZh || blog.title
@@ -67,7 +69,8 @@ const Blog = () => {
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: false, margin: "-100px" }}
                   transition={{ duration: 0.6, delay: index * 0.1 }}
-                  className="group bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200/50 dark:border-gray-700/50 overflow-hidden hover:shadow-2xl transition-all duration-300 hover:-translate-y-2"
+                  onClick={() => navigate(`/blog/${blog.id}`)}
+                  className="group bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200/50 dark:border-gray-700/50 overflow-hidden hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 cursor-pointer"
                 >
                   {/* Image */}
                   <div className="relative h-48 overflow-hidden">

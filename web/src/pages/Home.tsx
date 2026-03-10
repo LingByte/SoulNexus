@@ -918,11 +918,11 @@ const Home = () => {
                             <div className="text-sm text-gray-600 dark:text-gray-400">{t('home.highlights.stat1') || '系统可用性'}</div>
                         </div>
                         <div className="text-center">
-                            <div className="text-3xl font-bold text-purple-600 dark:text-purple-400 mb-2">&lt;100ms</div>
+                            <div className="text-3xl font-bold text-purple-600 dark:text-purple-400 mb-2">&lt;600ms</div>
                             <div className="text-sm text-gray-600 dark:text-gray-400">{t('home.highlights.stat2') || '端到端延迟'}</div>
                         </div>
                         <div className="text-center">
-                            <div className="text-3xl font-bold text-purple-600 dark:text-purple-400 mb-2">10K+</div>
+                            <div className="text-3xl font-bold text-purple-600 dark:text-purple-400 mb-2">1K+</div>
                             <div className="text-sm text-gray-600 dark:text-gray-400">{t('home.highlights.stat3') || '并发通话'}</div>
                         </div>
                         <div className="text-center">
