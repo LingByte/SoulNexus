@@ -169,6 +169,16 @@ export const pages: Record<Language, Record<string, string>> = {
     'story.creator': '内容创作',
     'story.creatorDesc': '为创作者提供声音工具',
 
+    // Platform Showcase
+    'home.platformShowcase.subtitle': '强大的平台',
+    'home.platformShowcase.title': '一站式AI语音解决方案',
+    'home.platformShowcase.description': 'SoulNexus提供从实时通话到声音克隆的完整AI语音技术栈，帮助企业快速构建智能语音应用，提升用户体验，降低运营成本',
+    'home.platformShowcase.feature1': '基于WebRTC的低延迟实时语音通话',
+    'home.platformShowcase.feature2': '先进的声音克隆和训练技术',
+    'home.platformShowcase.feature3': '智能知识库管理和AI分析',
+    'home.platformShowcase.feature4': '可视化工作流自动化设计',
+    'home.platformShowcase.cta': '了解更多',
+
     // About 页面
     'about.title': '关于灵枢',
     'about.subtitle': '我们专注于AI语音技术的创新与应用，为开发者和用户提供完整的AI语音交互解决方案。通过WebRTC实时通话、声音克隆、知识库管理等核心技术，让AI语音助手真正走进用户的日常生活。',
@@ -288,6 +298,37 @@ export const pages: Record<Language, Record<string, string>> = {
     'values.userCentric': '以用户为中心',
     'values.communityDriven': '社区驱动',
     'values.excellence': '追求卓越',
+
+    // Who We Serve
+    'home.whoWeServe.title': '我们服务的客户',
+    'home.whoWeServe.subtitle': '为企业、开发者和创新团队提供完整的AI语音交互解决方案，助力业务数字化转型',
+    'home.whoWeServe.customerService': '智能客服企业',
+    'home.whoWeServe.customerServiceDesc': '为呼叫中心、在线客服平台提供AI语音助手，实现7x24小时智能应答，降低人力成本，提升服务质量',
+    'home.whoWeServe.developers': '企业应用开发者',
+    'home.whoWeServe.developersDesc': '通过RESTful API和SDK快速集成AI语音能力，支持自定义工作流、知识库和工具插件，加速产品创新',
+    'home.whoWeServe.education': '教育培训机构',
+    'home.whoWeServe.educationDesc': '打造AI语音陪练、口语评测、智能答疑系统，提供个性化学习体验，提升教学效率和学习效果',
+    'home.whoWeServe.healthcare': '医疗健康平台',
+    'home.whoWeServe.healthcareDesc': '构建智能问诊助手、健康咨询机器人、用药提醒系统，提供便捷的医疗健康服务，改善患者体验',
+    'home.whoWeServe.hardware': '智能硬件厂商',
+    'home.whoWeServe.hardwareDesc': '为智能音箱、机器人、车载设备等硬件产品赋能AI语音交互能力，支持声纹识别、音色克隆等高级功能',
+    'home.whoWeServe.creators': '内容创作者',
+    'home.whoWeServe.creatorsDesc': '利用声音克隆技术创建虚拟主播、有声读物、播客节目，降低内容制作成本，提升创作效率',
+    'home.whoWeServe.cta': '无论您是企业、开发者还是创新团队，SoulNexus都能为您提供灵活、可扩展的AI语音解决方案',
+
+    // Highlights
+    'home.highlights.title': '核心亮点',
+    'home.highlights.subtitle': '基于Go语言构建的高性能AI语音平台，提供企业级的实时通信、安全加密和灵活扩展能力',
+    'home.highlights.performance.title': '高并发性能',
+    'home.highlights.performance.desc': '基于Go语言的异步生态系统构建，提供亚毫秒级调度和稳定性能，即使在高负载下也能确保一致的通话质量',
+    'home.highlights.security.title': '安全与现代协议',
+    'home.highlights.security.desc': '原生支持WebRTC和SRTP加密会话、SIP over WebSocket，以及广泛的编解码器兼容性，为多样化的终端类型提供安全连接',
+    'home.highlights.architecture.title': '开放可扩展架构',
+    'home.highlights.architecture.desc': '完整的开源生态系统，支持社区驱动的插件和可定制的语音/AI工作流，为不断发展的业务需求提供灵活的集成和定制解决方案',
+    'home.highlights.stat1': '系统可用性',
+    'home.highlights.stat2': '端到端延迟',
+    'home.highlights.stat3': '并发通话',
+    'home.highlights.stat4': '开源免费',
   },
   en: {
     // Home Page
@@ -576,6 +617,47 @@ export const pages: Record<Language, Record<string, string>> = {
     'values.userCentric': 'User-Centric',
     'values.communityDriven': 'Community-Driven',
     'values.excellence': 'Pursuit of Excellence',
+
+    // Who We Serve
+    'home.whoWeServe.title': 'Who We Serve',
+    'home.whoWeServe.subtitle': 'Providing complete AI voice interaction solutions for enterprises, developers, and innovation teams to accelerate digital transformation',
+    'home.whoWeServe.customerService': 'Customer Service Enterprises',
+    'home.whoWeServe.customerServiceDesc': 'Provide AI voice assistants for call centers and online customer service platforms, enabling 7x24 intelligent response, reducing labor costs, and improving service quality',
+    'home.whoWeServe.developers': 'Enterprise Developers',
+    'home.whoWeServe.developersDesc': 'Quickly integrate AI voice capabilities through RESTful API and SDK, support custom workflows, knowledge bases, and tool plugins to accelerate product innovation',
+    'home.whoWeServe.education': 'Education & Training',
+    'home.whoWeServe.educationDesc': 'Build AI voice practice, oral assessment, and intelligent Q&A systems, provide personalized learning experiences, improve teaching efficiency and learning outcomes',
+    'home.whoWeServe.healthcare': 'Healthcare Platforms',
+    'home.whoWeServe.healthcareDesc': 'Build intelligent consultation assistants, health consulting robots, medication reminder systems, provide convenient healthcare services, and improve patient experience',
+    'home.whoWeServe.hardware': 'Smart Hardware Manufacturers',
+    'home.whoWeServe.hardwareDesc': 'Empower smart speakers, robots, in-vehicle devices with AI voice interaction capabilities, support voiceprint recognition, voice cloning, and other advanced features',
+    'home.whoWeServe.creators': 'Content Creators',
+    'home.whoWeServe.creatorsDesc': 'Use voice cloning technology to create virtual anchors, audiobooks, podcast programs, reduce content production costs, and improve creation efficiency',
+    'home.whoWeServe.cta': 'Whether you are an enterprise, developer, or innovation team, SoulNexus provides flexible and scalable AI voice solutions',
+
+    // Platform Showcase
+    'home.platformShowcase.subtitle': 'Powerful Platform',
+    'home.platformShowcase.title': 'All-in-One AI Voice Solution',
+    'home.platformShowcase.description': 'SoulNexus provides a complete AI voice technology stack from real-time calls to voice cloning, helping enterprises quickly build intelligent voice applications, enhance user experience, and reduce operational costs',
+    'home.platformShowcase.feature1': 'Low-latency real-time voice calls based on WebRTC',
+    'home.platformShowcase.feature2': 'Advanced voice cloning and training technology',
+    'home.platformShowcase.feature3': 'Intelligent knowledge base management and AI analysis',
+    'home.platformShowcase.feature4': 'Visual workflow automation design',
+    'home.platformShowcase.cta': 'Learn More',
+
+    // Highlights
+    'home.highlights.title': 'Highlights',
+    'home.highlights.subtitle': 'A high-performance AI voice platform built with Go, providing enterprise-grade real-time communication, secure encryption, and flexible scalability',
+    'home.highlights.performance.title': 'High-Concurrency Performance',
+    'home.highlights.performance.desc': 'Built with Go\'s async ecosystem, delivering sub-millisecond scheduling and stable performance even under heavy loads, ensuring consistent call quality at scale',
+    'home.highlights.security.title': 'Secure & Modern Protocols',
+    'home.highlights.security.desc': 'Native support for encrypted sessions via WebRTC and SRTP, SIP over WebSocket, and broad codec compatibility enhances secure connectivity for diverse endpoint types',
+    'home.highlights.architecture.title': 'Open & Extensible Architecture',
+    'home.highlights.architecture.desc': 'A full-stack open ecosystem with community-driven plugins and customizable voice/AI workflows enables flexible integration, extension, and tailored solutions for evolving business needs',
+    'home.highlights.stat1': 'System Availability',
+    'home.highlights.stat2': 'End-to-End Latency',
+    'home.highlights.stat3': 'Concurrent Calls',
+    'home.highlights.stat4': 'Open Source & Free',
   },
   ja: {
     // ホームページ
@@ -863,5 +945,46 @@ export const pages: Record<Language, Record<string, string>> = {
     'values.userCentric': 'ユーザー中心',
     'values.communityDriven': 'コミュニティ主導',
     'values.excellence': '卓越性の追求',
+
+    // Who We Serve
+    'home.whoWeServe.title': '私たちが提供するサービス',
+    'home.whoWeServe.subtitle': '企業、開発者、イノベーションチームに完全なAI音声インタラクションソリューションを提供し、ビジネスのデジタル変革を支援',
+    'home.whoWeServe.customerService': 'スマートカスタマーサービス企業',
+    'home.whoWeServe.customerServiceDesc': 'コールセンターやオンラインカスタマーサービスプラットフォームにAI音声アシスタントを提供し、7x24時間のインテリジェント応答を実現、人件費を削減し、サービス品質を向上',
+    'home.whoWeServe.developers': '企業アプリケーション開発者',
+    'home.whoWeServe.developersDesc': 'RESTful APIとSDKを通じてAI音声機能を迅速に統合、カスタムワークフロー、ナレッジベース、ツールプラグインをサポートし、製品イノベーションを加速',
+    'home.whoWeServe.education': '教育・トレーニング機関',
+    'home.whoWeServe.educationDesc': 'AI音声練習、口語評価、インテリジェントQ&Aシステムを構築し、パーソナライズされた学習体験を提供、教育効率と学習効果を向上',
+    'home.whoWeServe.healthcare': '医療・健康プラットフォーム',
+    'home.whoWeServe.healthcareDesc': 'インテリジェント診察アシスタント、健康相談ロボット、服薬リマインダーシステムを構築し、便利な医療・健康サービスを提供、患者体験を改善',
+    'home.whoWeServe.hardware': 'スマートハードウェアメーカー',
+    'home.whoWeServe.hardwareDesc': 'スマートスピーカー、ロボット、車載デバイスなどのハードウェア製品にAI音声インタラクション機能を提供、声紋認識、音声クローンなどの高度な機能をサポート',
+    'home.whoWeServe.creators': 'コンテンツクリエイター',
+    'home.whoWeServe.creatorsDesc': '音声クローン技術を使用してバーチャルアンカー、オーディオブック、ポッドキャスト番組を作成し、コンテンツ制作コストを削減、創作効率を向上',
+    'home.whoWeServe.cta': '企業、開発者、イノベーションチームのいずれであっても、SoulNexusは柔軟でスケーラブルなAI音声ソリューションを提供します',
+
+    // Platform Showcase
+    'home.platformShowcase.subtitle': '強力なプラットフォーム',
+    'home.platformShowcase.title': 'オールインワンAI音声ソリューション',
+    'home.platformShowcase.description': 'SoulNexusは、リアルタイム通話から音声クローンまでの完全なAI音声技術スタックを提供し、企業がインテリジェント音声アプリケーションを迅速に構築し、ユーザー体験を向上させ、運用コストを削減するのを支援します',
+    'home.platformShowcase.feature1': 'WebRTCベースの低遅延リアルタイム音声通話',
+    'home.platformShowcase.feature2': '高度な音声クローンとトレーニング技術',
+    'home.platformShowcase.feature3': 'インテリジェントナレッジベース管理とAI分析',
+    'home.platformShowcase.feature4': 'ビジュアルワークフロー自動化設計',
+    'home.platformShowcase.cta': '詳細を見る',
+
+    // Highlights
+    'home.highlights.title': 'ハイライト',
+    'home.highlights.subtitle': 'Go言語で構築された高性能AI音声プラットフォーム、エンタープライズグレードのリアルタイム通信、セキュア暗号化、柔軟な拡張性を提供',
+    'home.highlights.performance.title': '高並行性パフォーマンス',
+    'home.highlights.performance.desc': 'Goの非同期エコシステムで構築され、サブミリ秒のスケジューリングと安定したパフォーマンスを提供、高負荷下でも一貫した通話品質を確保',
+    'home.highlights.security.title': 'セキュアで最新のプロトコル',
+    'home.highlights.security.desc': 'WebRTCとSRTPによる暗号化セッション、SIP over WebSocket、広範なコーデック互換性をネイティブサポートし、多様なエンドポイントタイプに安全な接続を提供',
+    'home.highlights.architecture.title': 'オープンで拡張可能なアーキテクチャ',
+    'home.highlights.architecture.desc': 'コミュニティ主導のプラグインとカスタマイズ可能な音声/AIワークフローを備えた完全なオープンエコシステムにより、進化するビジネスニーズに対応する柔軟な統合と拡張、カスタマイズソリューションを実現',
+    'home.highlights.stat1': 'システム可用性',
+    'home.highlights.stat2': 'エンドツーエンド遅延',
+    'home.highlights.stat3': '同時通話',
+    'home.highlights.stat4': 'オープンソース＆無料',
   }
 }
