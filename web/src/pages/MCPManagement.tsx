@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Plus, Trash2, Power, PowerOff, Settings, X, TestTube } from 'lucide-react'
 import Button from '@/components/UI/Button'
+import LoadingAnimation from '@/components/Animations/LoadingAnimation'
 import { listMCPServers, deleteMCPServer, enableMCPServer, disableMCPServer, createMCPServer, updateMCPServer, getUserInstalledMCPs, uninstallMCP, updateInstallationConfig, getMCPTools, callMCPTool } from '@/api/mcp'
 
 interface MCPServer {
@@ -356,7 +357,7 @@ const MCPManagement = () => {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <LoadingAnimation type="progress" size="lg" className="mb-4" />
           <p className="text-muted-foreground">Loading MCP servers...</p>
         </div>
       </div>

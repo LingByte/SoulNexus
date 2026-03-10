@@ -1,0 +1,50 @@
+[
+  {
+    "id": "welcome-to-soulnexus",
+    "title": "Welcome to SoulNexus",
+    "titleZh": "欢迎来到灵枢",
+    "titleJa": "SoulNexusへようこそ",
+    "excerpt": "Introducing SoulNexus - A next-generation AI voice interaction platform",
+    "excerptZh": "介绍灵枢 - 新一代AI语音交互平台",
+    "excerptJa": "SoulNexusの紹介 - 次世代AI音声インタラクションプラットフォーム",
+    "author": "SoulMy Team",
+    "date": "2024-03-10",
+    "category": "Announcement",
+    "categoryZh": "公告",
+    "categoryJa": "お知らせ",
+    "image": "/images/workflow.png",
+    "tags": ["AI", "Voice", "Platform"]
+  },
+  {
+    "id": "webrtc-real-time-communication",
+    "title": "Building Real-Time Voice Communication with WebRTC",
+    "titleZh": "使用WebRTC构建实时语音通信",
+    "titleJa": "WebRTCでリアルタイム音声通信を構築",
+    "excerpt": "Deep dive into how we leverage WebRTC for low-latency voice calls",
+    "excerptZh": "深入了解我们如何利用WebRTC实现低延迟语音通话",
+    "excerptJa": "低遅延音声通話のためにWebRTCを活用する方法を詳しく解説",
+    "author": "Engineering Team",
+    "date": "2024-03-08",
+    "category": "Technical",
+    "categoryZh": "技术",
+    "categoryJa": "技術",
+    "image": "/images/debug-assistant.png",
+    "tags": ["WebRTC", "Real-Time", "Voice"]
+  },
+  {
+    "id": "voice-cloning-technology",
+    "title": "The Science Behind Voice Cloning",
+    "titleZh": "声音克隆背后的科学",
+    "titleJa": "音声クローン技術の科学",
+    "excerpt": "Exploring the AI models and techniques powering our voice cloning feature",
+    "excerptZh": "探索支持我们声音克隆功能的AI模型和技术",
+    "excerptJa": "音声クローン機能を支えるAIモデルと技術を探る",
+    "author": "AI Research Team",
+    "date": "2024-03-05",
+    "category": "Technical",
+    "categoryZh": "技术",
+    "categoryJa": "技術",
+    "image": "/images/voiceclone.png",
+    "tags": ["AI", "Voice Clone", "Machine Learning"]
+  }
+]

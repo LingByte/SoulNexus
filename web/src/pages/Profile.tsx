@@ -611,7 +611,7 @@ const Profile = () => {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <LoadingAnimation type="spinner" size="lg" className="mx-auto mb-4" />
+          <LoadingAnimation type="progress" size="lg" className="mx-auto mb-4" />
           <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100 mb-4">
             {t('profile.loading')}
           </p>
@@ -677,7 +677,7 @@ const Profile = () => {
                       {/* 加载状态 */}
                       {isLoading && (
                         <div className="absolute inset-0 bg-black bg-opacity-50 rounded-lg flex items-center justify-center">
-                          <LoadingAnimation type="spinner" size="sm" color="#ffffff" />
+                          <LoadingAnimation type="progress" size="sm" color="#ffffff" />
                         </div>
                       )}
                     </div>
@@ -1394,7 +1394,7 @@ const Profile = () => {
                           
                           {isLoadingDevices ? (
                             <div className="flex items-center justify-center py-8">
-                              <LoadingAnimation type="spinner" size="md" />
+                              <LoadingAnimation type="progress" size="md" />
                               <span className="ml-2 text-gray-600 dark:text-gray-400">加载中...</span>
                             </div>
                           ) : devices.length === 0 ? (
@@ -1497,7 +1497,7 @@ const Profile = () => {
                       
                       {isLoadingActivities ? (
                         <div className="flex items-center justify-center py-8">
-                          <LoadingAnimation type="spinner" size="md" />
+                          <LoadingAnimation type="progress" size="md" />
                           <span className="ml-2 text-gray-600 dark:text-gray-400">加载中...</span>
                         </div>
                       ) : activities.length === 0 ? (

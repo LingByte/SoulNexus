@@ -6,6 +6,7 @@ import { showAlert } from '@/utils/notification';
 import { useI18nStore } from '@/stores/i18nStore';
 import { Bell, Plus, Edit, Trash2, ToggleLeft, ToggleRight } from 'lucide-react';
 import Button from '@/components/UI/Button';
+import LoadingAnimation from '@/components/Animations/LoadingAnimation';
 
 const AlertRules: React.FC = () => {
   const { t } = useI18nStore();
@@ -124,6 +125,7 @@ const AlertRules: React.FC = () => {
 
         {loading ? (
           <div className="bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-lg p-16 text-center">
+            <LoadingAnimation type="progress" size="lg" className="mb-4" />
             <div className="text-gray-400 dark:text-gray-500">{t('alertRules.loading')}</div>
           </div>
         ) : rules.length === 0 ? (

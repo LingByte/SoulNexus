@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ArrowRight, Github, ExternalLink } from 'lucide-react'
 import Footer from '@/components/Layout/Footer'
+import LoadingAnimation from '@/components/Animations/LoadingAnimation'
 
 interface Product {
   id: string
@@ -87,7 +88,7 @@ export default function Products() {
           {loading ? (
             <div className="flex items-center justify-center py-20">
               <div className="text-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500 mx-auto mb-4"></div>
+                <LoadingAnimation type="progress" size="lg" className="mb-4" />
                 <p className="text-muted-foreground">Loading products...</p>
               </div>
             </div>
