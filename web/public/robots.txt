@@ -1,0 +1,12 @@
+# robots.txt for SoulNexus
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+Disallow: /private/
+
+# Sitemap
+Sitemap: https://soulnexus.com/sitemap.xml
+
+# Crawl-delay for polite crawling
+Crawl-delay: 1

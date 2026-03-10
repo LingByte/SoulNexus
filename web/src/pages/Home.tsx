@@ -29,6 +29,8 @@ import { useI18nStore } from "@/stores/i18nStore";
 import products from '@/data/products.json'
 import ProductNav from '@/components/Layout/ProductNav.tsx';
 import Footer from "@/components/Layout/Footer.tsx";
+import PageSEO from "@/components/SEO/PageSEO.tsx";
+import ContentCarousel from "@/components/Home/ContentCarousel.tsx";
 
 const iconMap: Record<string, any> = {
     Zap,
@@ -50,6 +52,17 @@ const Home = () => {
     const { user, isAuthenticated, logout } = useAuthStore()
     const { t } = useI18nStore()
     const userDropdownRef = useRef<HTMLDivElement>(null)
+
+    // 动态更新页面标题和meta标签（SEO优化）
+    useEffect(() => {
+        document.title = 'SoulNexus - 智能AI语音通话平台 | WebRTC实时通信解决方案'
+        
+        // 更新meta description
+        const metaDescription = document.querySelector('meta[name="description"]')
+        if (metaDescription) {
+            metaDescription.setAttribute('content', 'SoulNexus是基于WebRTC的智能AI语音通话平台，提供低延迟实时通信、AI语音助手、声音克隆、知识库管理等企业级解决方案。')
+        }
+    }, [])
 
     // 点击外部关闭下拉菜单
     useEffect(() => {
@@ -144,6 +157,40 @@ const Home = () => {
 
     return (
         <div className="min-h-screen relative">
+            {/* SEO优化组件 */}
+            <PageSEO
+                title="SoulNexus - 智能AI语音通话平台 | WebRTC实时通信解决方案"
+                description="SoulNexus是基于WebRTC的智能AI语音通话平台，提供低延迟实时通信、AI语音助手、声音克隆、知识库管理等企业级解决方案。支持多模态交互，助力企业数字化转型。"
+                keywords="AI语音通话,WebRTC,实时通信,语音助手,声音克隆,AI对话,智能客服,语音识别,TTS,ASR,低延迟通话,企业通信,SoulNexus"
+                ogImage="https://cetide-1325039295.cos.ap-chengdu.myqcloud.com/folder/icon-192x192.ico"
+                canonical="https://soulnexus.com/"
+                structuredData={{
+                    "@context": "https://schema.org",
+                    "@type": "WebPage",
+                    "name": "SoulNexus - 智能AI语音通话平台",
+                    "description": "基于WebRTC的企业级AI语音通话解决方案",
+                    "url": "https://soulnexus.com/",
+                    "publisher": {
+                        "@type": "Organization",
+                        "name": "成都解忧造物科技有限责任公司",
+                        "logo": {
+                            "@type": "ImageObject",
+                            "url": "https://cetide-1325039295.cos.ap-chengdu.myqcloud.com/folder/icon-192x192.ico"
+                        }
+                    },
+                    "mainEntity": {
+                        "@type": "SoftwareApplication",
+                        "name": "SoulNexus",
+                        "applicationCategory": "BusinessApplication",
+                        "offers": {
+                            "@type": "Offer",
+                            "price": "0",
+                            "priceCurrency": "CNY"
+                        }
+                    }
+                }}
+            />
+            
             {/* 顶部导航栏 */}
             <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -391,9 +438,9 @@ const Home = () => {
                 </div>
             </div>
             {/* Hero Section */}
-            <section className="relative py-15 text-center overflow-hidden">
+            <section className="relative py-15 text-center overflow-hidden" aria-label="主页横幅">
                 {/* 主要渐变背景 - 浅蓝到浅紫 */}
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-100 via-indigo-100 to-purple-100 dark:from-gray-800/50 dark:via-blue-800/20 dark:to-purple-800/20"></div>
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-100 via-indigo-100 to-purple-100 dark:from-gray-800/50 dark:via-blue-800/20 dark:to-purple-800/20" aria-hidden="true"></div>
                 
                 {/* 动态光晕效果 */}
                 <div className="absolute inset-0 bg-gradient-to-r from-blue-400/30 via-purple-400/30 to-pink-400/30 animate-pulse"></div>
@@ -507,6 +554,375 @@ const Home = () => {
                 </motion.div>
             </section>
 
+            {/* Platform Showcase Section */}
+            <section id="platform-showcase" className="relative py-24 overflow-hidden">
+                {/* 渐变背景 */}
+                <div className="absolute inset-0 bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-900 dark:to-indigo-950/30" aria-hidden="true"></div>
+                
+                {/* 装饰性光效 */}
+                <div className="absolute top-1/4 left-0 w-96 h-96 bg-indigo-400/10 rounded-full blur-3xl" aria-hidden="true"></div>
+                <div className="absolute bottom-1/4 right-0 w-96 h-96 bg-purple-400/10 rounded-full blur-3xl" aria-hidden="true"></div>
+                
+                <div className="max-w-7xl mx-auto px-4 relative z-10">
+                    <ContentCarousel
+                        subtitle={t('home.platformShowcase.subtitle')}
+                        title={t('home.platformShowcase.title')}
+                        description={t('home.platformShowcase.description')}
+                        features={[
+                            t('home.platformShowcase.feature1'),
+                            t('home.platformShowcase.feature2'),
+                            t('home.platformShowcase.feature3'),
+                            t('home.platformShowcase.feature4')
+                        ]}
+                        carouselItems={[
+                            {
+                                image: '/images/workflow.png',
+                                alt: 'Workflow Automation'
+                            },
+                            {
+                                image: '/images/voiceclone.png',
+                                alt: 'Voice Clone'
+                            },
+                            {
+                                image: '/images/debug-assistant.png',
+                                alt: 'Debug Assistant'
+                            },
+                            {
+                                image: '/images/knowledge.png',
+                                alt: 'Knowledge Base'
+                            },
+                            {
+                                image: '/images/js-template.png',
+                                alt: 'JS Template'
+                            },
+                            {
+                                image: '/images/device-log.png',
+                                alt: 'Device Log'
+                            }
+                        ]}
+                        ctaText={t('home.platformShowcase.cta')}
+                        ctaLink="/docs"
+                    />
+                </div>
+            </section>
+
+            {/* Who We Serve Section */}
+            <section id="who-we-serve" className="relative py-20 overflow-hidden">
+                {/* 渐变背景 */}
+                <div className="absolute inset-0 bg-gradient-to-br from-purple-50 via-indigo-50 to-blue-50 dark:from-gray-900 dark:via-indigo-950/30 dark:to-purple-950/30" aria-hidden="true"></div>
+                
+                {/* 装饰性网格 */}
+                <div className="absolute inset-0 opacity-20 [background-image:linear-gradient(to_right,rgba(99,102,241,0.1)_1px,transparent_1px),linear-gradient(to_bottom,rgba(99,102,241,0.1)_1px,transparent_1px)] [background-size:40px_40px]" aria-hidden="true"></div>
+                
+                {/* 光效 */}
+                <div className="absolute top-0 left-1/4 w-96 h-96 bg-indigo-400/10 rounded-full blur-3xl" aria-hidden="true"></div>
+                <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-purple-400/10 rounded-full blur-3xl" aria-hidden="true"></div>
+                
+                <div className="max-w-6xl mx-auto px-4 relative z-10">
+                    {/* 标题 */}
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: false, margin: "-100px" }}
+                        transition={{ duration: 0.6 }}
+                        className="text-center mb-12"
+                    >
+                        <h2 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-4">
+                            {t('home.whoWeServe.title') || '我们服务的客户'}
+                        </h2>
+                        <p className="text-lg text-gray-600 dark:text-gray-300 max-w-3xl mx-auto leading-relaxed">
+                            {t('home.whoWeServe.subtitle') || '为企业、开发者和创新团队提供完整的AI语音交互解决方案，助力业务数字化转型'}
+                        </p>
+                    </motion.div>
+
+                    {/* 客户类型卡片 */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {/* 智能客服企业 */}
+                        <motion.div
+                            initial={{ opacity: 0, y: 30 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: false, margin: "-100px" }}
+                            transition={{ duration: 0.6, delay: 0.1 }}
+                            className="group relative bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl p-6 border border-indigo-200/50 dark:border-indigo-800/50 hover:border-indigo-400 dark:hover:border-indigo-600 transition-all duration-300 hover:shadow-xl hover:shadow-indigo-500/20"
+                        >
+                            <div className="flex items-start gap-4 mb-4">
+                                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
+                                    <Phone className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                                        {t('home.whoWeServe.customerService') || '智能客服企业'}
+                                    </h3>
+                                    <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+                                        {t('home.whoWeServe.customerServiceDesc') || '为呼叫中心、在线客服平台提供AI语音助手，实现7x24小时智能应答，降低人力成本，提升服务质量'}
+                                    </p>
+                                </div>
+                            </div>
+                        </motion.div>
+
+                        {/* 企业应用开发者 */}
+                        <motion.div
+                            initial={{ opacity: 0, y: 30 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: false, margin: "-100px" }}
+                            transition={{ duration: 0.6, delay: 0.2 }}
+                            className="group relative bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl p-6 border border-blue-200/50 dark:border-blue-800/50 hover:border-blue-400 dark:hover:border-blue-600 transition-all duration-300 hover:shadow-xl hover:shadow-blue-500/20"
+                        >
+                            <div className="flex items-start gap-4 mb-4">
+                                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
+                                    <Code className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                                        {t('home.whoWeServe.developers') || '企业应用开发者'}
+                                    </h3>
+                                    <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+                                        {t('home.whoWeServe.developersDesc') || '通过RESTful API和SDK快速集成AI语音能力，支持自定义工作流、知识库和工具插件，加速产品创新'}
+                                    </p>
+                                </div>
+                            </div>
+                        </motion.div>
+
+                        {/* 教育培训机构 */}
+                        <motion.div
+                            initial={{ opacity: 0, y: 30 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: false, margin: "-100px" }}
+                            transition={{ duration: 0.6, delay: 0.3 }}
+                            className="group relative bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl p-6 border border-purple-200/50 dark:border-purple-800/50 hover:border-purple-400 dark:hover:border-purple-600 transition-all duration-300 hover:shadow-xl hover:shadow-purple-500/20"
+                        >
+                            <div className="flex items-start gap-4 mb-4">
+                                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
+                                    <BookOpenIcon className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                                        {t('home.whoWeServe.education') || '教育培训机构'}
+                                    </h3>
+                                    <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+                                        {t('home.whoWeServe.educationDesc') || '打造AI语音陪练、口语评测、智能答疑系统，提供个性化学习体验，提升教学效率和学习效果'}
+                                    </p>
+                                </div>
+                            </div>
+                        </motion.div>
+
+                        {/* 医疗健康平台 */}
+                        <motion.div
+                            initial={{ opacity: 0, y: 30 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: false, margin: "-100px" }}
+                            transition={{ duration: 0.6, delay: 0.4 }}
+                            className="group relative bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl p-6 border border-green-200/50 dark:border-green-800/50 hover:border-green-400 dark:hover:border-green-600 transition-all duration-300 hover:shadow-xl hover:shadow-green-500/20"
+                        >
+                            <div className="flex items-start gap-4 mb-4">
+                                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
+                                    <ActivityIcon className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                                        {t('home.whoWeServe.healthcare') || '医疗健康平台'}
+                                    </h3>
+                                    <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+                                        {t('home.whoWeServe.healthcareDesc') || '构建智能问诊助手、健康咨询机器人、用药提醒系统，提供便捷的医疗健康服务，改善患者体验'}
+                                    </p>
+                                </div>
+                            </div>
+                        </motion.div>
+
+                        {/* 智能硬件厂商 */}
+                        <motion.div
+                            initial={{ opacity: 0, y: 30 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: false, margin: "-100px" }}
+                            transition={{ duration: 0.6, delay: 0.5 }}
+                            className="group relative bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl p-6 border border-orange-200/50 dark:border-orange-800/50 hover:border-orange-400 dark:hover:border-orange-600 transition-all duration-300 hover:shadow-xl hover:shadow-orange-500/20"
+                        >
+                            <div className="flex items-start gap-4 mb-4">
+                                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
+                                    <Mic className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                                        {t('home.whoWeServe.hardware') || '智能硬件厂商'}
+                                    </h3>
+                                    <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+                                        {t('home.whoWeServe.hardwareDesc') || '为智能音箱、机器人、车载设备等硬件产品赋能AI语音交互能力，支持声纹识别、音色克隆等高级功能'}
+                                    </p>
+                                </div>
+                            </div>
+                        </motion.div>
+
+                        {/* 内容创作者 */}
+                        <motion.div
+                            initial={{ opacity: 0, y: 30 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: false, margin: "-100px" }}
+                            transition={{ duration: 0.6, delay: 0.6 }}
+                            className="group relative bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl p-6 border border-pink-200/50 dark:border-pink-800/50 hover:border-pink-400 dark:hover:border-pink-600 transition-all duration-300 hover:shadow-xl hover:shadow-pink-500/20"
+                        >
+                            <div className="flex items-start gap-4 mb-4">
+                                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-pink-500 to-rose-600 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
+                                    <MessageCircleIcon className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                                        {t('home.whoWeServe.creators') || '内容创作者'}
+                                    </h3>
+                                    <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+                                        {t('home.whoWeServe.creatorsDesc') || '利用声音克隆技术创建虚拟主播、有声读物、播客节目，降低内容制作成本，提升创作效率'}
+                                    </p>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </div>
+
+                    {/* 底部说明 */}
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: false, margin: "-100px" }}
+                        transition={{ duration: 0.6, delay: 0.7 }}
+                        className="mt-12 text-center"
+                    >
+                        <div className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-500/10 to-purple-500/10 dark:from-indigo-500/20 dark:to-purple-500/20 rounded-full border border-indigo-200/50 dark:border-indigo-700/50">
+                            <UsersIcon className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                {t('home.whoWeServe.cta') || '无论您是企业、开发者还是创新团队，SoulNexus都能为您提供灵活、可扩展的AI语音解决方案'}
+                            </p>
+                        </div>
+                    </motion.div>
+                </div>
+            </section>
+
+            {/* Highlights Section */}
+            <section id="highlights" className="relative py-24 overflow-hidden">
+                {/* 浅色渐变背景 */}
+                <div className="absolute inset-0 bg-gradient-to-br from-purple-50 via-white to-indigo-50 dark:from-purple-950/30 dark:via-gray-900 dark:to-indigo-950/30" aria-hidden="true"></div>
+                
+                {/* 动态光效 */}
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-purple-200/20 to-transparent animate-pulse" aria-hidden="true"></div>
+                
+                {/* 装饰性网格 */}
+                <div className="absolute inset-0 opacity-10 [background-image:linear-gradient(to_right,rgba(147,51,234,0.3)_1px,transparent_1px),linear-gradient(to_bottom,rgba(147,51,234,0.3)_1px,transparent_1px)] [background-size:50px_50px]" aria-hidden="true"></div>
+                
+                {/* 光球效果 */}
+                <div className="absolute top-20 left-20 w-96 h-96 bg-purple-300/20 rounded-full blur-3xl" aria-hidden="true"></div>
+                <div className="absolute bottom-20 right-20 w-96 h-96 bg-indigo-300/20 rounded-full blur-3xl" aria-hidden="true"></div>
+                
+                <div className="max-w-6xl mx-auto px-4 relative z-10">
+                    {/* 标题 */}
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: false, margin: "-100px" }}
+                        transition={{ duration: 0.6 }}
+                        className="text-center mb-16"
+                    >
+                        <h2 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-4">
+                            {t('home.highlights.title') || '核心亮点'}
+                        </h2>
+                        <p className="text-lg text-gray-600 dark:text-gray-300 max-w-3xl mx-auto leading-relaxed">
+                            {t('home.highlights.subtitle') || '基于Go语言构建的高性能AI语音平台，提供企业级的实时通信、安全加密和灵活扩展能力'}
+                        </p>
+                    </motion.div>
+
+                    {/* 亮点卡片 */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        {/* 高并发性能 */}
+                        <motion.div
+                            initial={{ opacity: 0, y: 30 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: false, margin: "-100px" }}
+                            transition={{ duration: 0.6, delay: 0.1 }}
+                            className="group relative"
+                        >
+                            <div className="absolute inset-0 bg-gradient-to-br from-purple-400/30 to-white/30 rounded-2xl blur-xl group-hover:blur-2xl transition-all duration-300" aria-hidden="true"></div>
+                            <div className="relative bg-gradient-to-br from-purple-100 via-white to-purple-50 dark:from-purple-900/30 dark:via-gray-800/50 dark:to-indigo-900/30 backdrop-blur-sm rounded-2xl p-8 border border-purple-200/50 dark:border-purple-500/30 hover:border-purple-300 dark:hover:border-purple-400/50 transition-all duration-300 h-full shadow-lg hover:shadow-xl">
+                                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300 shadow-md">
+                                    <Zap className="w-7 h-7" />
+                                </div>
+                                <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+                                    {t('home.highlights.performance.title') || '高并发性能'}
+                                </h3>
+                                <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+                                    {t('home.highlights.performance.desc') || '基于Go语言的异步生态系统构建，提供亚毫秒级调度和稳定性能，即使在高负载下也能确保一致的通话质量'}
+                                </p>
+                            </div>
+                        </motion.div>
+
+                        {/* 安全与现代协议 */}
+                        <motion.div
+                            initial={{ opacity: 0, y: 30 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: false, margin: "-100px" }}
+                            transition={{ duration: 0.6, delay: 0.2 }}
+                            className="group relative"
+                        >
+                            <div className="absolute inset-0 bg-gradient-to-br from-purple-400/30 to-white/30 rounded-2xl blur-xl group-hover:blur-2xl transition-all duration-300" aria-hidden="true"></div>
+                            <div className="relative bg-gradient-to-br from-purple-100 via-white to-purple-50 dark:from-purple-900/30 dark:via-gray-800/50 dark:to-indigo-900/30 backdrop-blur-sm rounded-2xl p-8 border border-purple-200/50 dark:border-purple-500/30 hover:border-purple-300 dark:hover:border-purple-400/50 transition-all duration-300 h-full shadow-lg hover:shadow-xl">
+                                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300 shadow-md">
+                                    <Key className="w-7 h-7" />
+                                </div>
+                                <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+                                    {t('home.highlights.security.title') || '安全与现代协议'}
+                                </h3>
+                                <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+                                    {t('home.highlights.security.desc') || '原生支持WebRTC和SRTP加密会话、SIP over WebSocket，以及广泛的编解码器兼容性，为多样化的终端类型提供安全连接'}
+                                </p>
+                            </div>
+                        </motion.div>
+
+                        {/* 开放可扩展架构 */}
+                        <motion.div
+                            initial={{ opacity: 0, y: 30 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: false, margin: "-100px" }}
+                            transition={{ duration: 0.6, delay: 0.3 }}
+                            className="group relative"
+                        >
+                            <div className="absolute inset-0 bg-gradient-to-br from-purple-400/30 to-white/30 rounded-2xl blur-xl group-hover:blur-2xl transition-all duration-300" aria-hidden="true"></div>
+                            <div className="relative bg-gradient-to-br from-purple-100 via-white to-purple-50 dark:from-purple-900/30 dark:via-gray-800/50 dark:to-indigo-900/30 backdrop-blur-sm rounded-2xl p-8 border border-purple-200/50 dark:border-purple-500/30 hover:border-purple-300 dark:hover:border-purple-400/50 transition-all duration-300 h-full shadow-lg hover:shadow-xl">
+                                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300 shadow-md">
+                                    <Code className="w-7 h-7" />
+                                </div>
+                                <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+                                    {t('home.highlights.architecture.title') || '开放可扩展架构'}
+                                </h3>
+                                <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+                                    {t('home.highlights.architecture.desc') || '完整的开源生态系统，支持社区驱动的插件和可定制的语音/AI工作流，为不断发展的业务需求提供灵活的集成和定制解决方案'}
+                                </p>
+                            </div>
+                        </motion.div>
+                    </div>
+
+                    {/* 技术特性列表 */}
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: false, margin: "-100px" }}
+                        transition={{ duration: 0.6, delay: 0.4 }}
+                        className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-6"
+                    >
+                        <div className="text-center">
+                            <div className="text-3xl font-bold text-purple-600 dark:text-purple-400 mb-2">99.9%</div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400">{t('home.highlights.stat1') || '系统可用性'}</div>
+                        </div>
+                        <div className="text-center">
+                            <div className="text-3xl font-bold text-purple-600 dark:text-purple-400 mb-2">&lt;100ms</div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400">{t('home.highlights.stat2') || '端到端延迟'}</div>
+                        </div>
+                        <div className="text-center">
+                            <div className="text-3xl font-bold text-purple-600 dark:text-purple-400 mb-2">10K+</div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400">{t('home.highlights.stat3') || '并发通话'}</div>
+                        </div>
+                        <div className="text-center">
+                            <div className="text-3xl font-bold text-purple-600 dark:text-purple-400 mb-2">100%</div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400">{t('home.highlights.stat4') || '开源免费'}</div>
+                        </div>
+                    </motion.div>
+                </div>
+            </section>
+
             {/* Learn More / Features Section */}
             <section id="more" className="relative py-24 overflow-hidden">
                 {/* 渐变背景 - 浅蓝到浅紫 */}
@@ -532,7 +948,13 @@ const Home = () => {
                 <div className="absolute bottom-10 right-10 h-72 w-72 rounded-full blur-3xl bg-gradient-to-r from-purple-400/20 via-pink-400/20 to-transparent animate-pulse"></div>
                 <div className="absolute top-1/2 right-1/4 h-64 w-64 rounded-full blur-3xl bg-gradient-to-r from-indigo-400/15 via-blue-400/15 to-transparent animate-pulse"></div>
                 <div className="max-w-6xl mx-auto px-4">
-                        <div className="flex items-center gap-3">
+                        <motion.div 
+                            initial={{ opacity: 0, y: 30 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: false, margin: "-100px" }}
+                            transition={{ duration: 0.6 }}
+                            className="flex items-center gap-3 mb-12"
+                        >
                             <div className="w-10 h-10 rounded-lg bg-indigo-500/20 border border-white/10 flex items-center justify-center shadow-sm">
                                 <Zap className="w-5 h-5 text-indigo-300" />
                             </div>
@@ -540,12 +962,19 @@ const Home = () => {
                                 <h3 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">{t('home.coreFeatures')}</h3>
                                 <p className="text-gray-600 dark:text-neutral-400">{t('home.coreFeaturesDesc')}</p>
                             </div>
-                        </div>
+                        </motion.div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-7 items-stretch">
                             {coreFeatures.map((f: any, idx: number) => {
                                 const Icon = iconMap[f.icon] || Zap
                                 return (
-                                    <div key={idx} className="relative group rounded-2xl p-[1px] bg-gradient-to-br from-indigo-500/30 via-purple-500/20 to-transparent h-full z-10">
+                                    <motion.div 
+                                        key={idx}
+                                        initial={{ opacity: 0, y: 30 }}
+                                        whileInView={{ opacity: 1, y: 0 }}
+                                        viewport={{ once: false, margin: "-100px" }}
+                                        transition={{ duration: 0.6, delay: idx * 0.1 }}
+                                        className="relative group rounded-2xl p-[1px] bg-gradient-to-br from-indigo-500/30 via-purple-500/20 to-transparent h-full z-10"
+                                    >
                                         <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md p-6 shadow-[0_1px_0_rgba(255,255,255,0.25)_inset,0_10px_30px_-10px_rgba(79,70,229,0.25)] h-[300px] flex flex-col z-10">
                                             <div className="absolute -inset-24 opacity-70 bg-[radial-gradient(circle_at_20%_20%,rgba(99,102,241,0.12),transparent_40%),radial-gradient(circle_at_80%_120%,rgba(147,51,234,0.12),transparent_40%)]" />
                                             <div className="relative flex-1">
@@ -573,7 +1002,7 @@ const Home = () => {
                                             </div>
                                             <div className="pointer-events-none absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-t from-indigo-500/0 via-purple-500/0 to-purple-500/15" />
                                         </div>
-                                    </div>
+                                    </motion.div>
                                 )
                             })}
                         </div>
