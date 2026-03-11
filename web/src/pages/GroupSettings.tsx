@@ -7,6 +7,10 @@ import {
   deleteGroup,
   getGroupSharedResources,
   uploadGroupAvatar,
+  archiveGroup,
+  restoreGroup,
+  cloneGroup,
+  exportGroup,
   type Group,
   type UpdateGroupRequest,
   type GroupSharedResources
@@ -15,13 +19,12 @@ import {
     getGroupQuotas,
     deleteGroupQuota,
     type GroupQuota,
-    getQuotaTypeLabel,
     formatQuotaValue, QuotaType
 } from '@/api/quota';
 import { showAlert } from '@/utils/notification';
 import { useAuthStore } from '@/stores/authStore';
 import { useI18nStore } from '@/stores/i18nStore';
-import { ArrowLeft, Save, Trash2, AlertTriangle, Bot, BookOpen, Upload, X, Plus, Edit, Database, LayoutDashboard } from 'lucide-react';
+import { ArrowLeft, Save, Trash2, AlertTriangle, Bot, BookOpen, Upload, X, Plus, Edit, Database, LayoutDashboard, Archive, RotateCcw, Copy, Download, Activity } from 'lucide-react';
 import Button from '@/components/UI/Button';
 import ConfirmDialog from '@/components/UI/ConfirmDialog';
 import QuotaModal from '@/components/Quota/QuotaModal';
@@ -58,6 +61,12 @@ const GroupSettings: React.FC = () => {
   const [loadingOverview, setLoadingOverview] = useState(false);
   const [showDeleteGroupConfirm, setShowDeleteGroupConfirm] = useState(false);
   const [deletingGroup, setDeletingGroup] = useState(false);
+  const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+  const [showCloneConfirm, setShowCloneConfirm] = useState(false);
+  const [cloning, setCloning] = useState(false);
+  const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
+  const [restoring, setRestoring] = useState(false);
 
   const fetchGroup = async () => {
     if (!id) return;
@@ -215,6 +224,84 @@ const GroupSettings: React.FC = () => {
     }
   };
 
+  const handleArchive = async () => {
+    if (!id) return;
+    setShowArchiveConfirm(true);
+  };
+
+  const confirmArchive = async () => {
+    if (!id) return;
+    try {
+      setArchiving(true);
+      await archiveGroup(Number(id));
+      showAlert(t('groups.archiveSuccess'), 'success');
+      navigate('/groups');
+    } catch (err: any) {
+      showAlert(err?.msg || t('groups.archiveFailed'), 'error');
+    } finally {
+      setArchiving(false);
+      setShowArchiveConfirm(false);
+    }
+  };
+
+  const handleRestore = async () => {
+    if (!id) return;
+    setShowRestoreConfirm(true);
+  };
+
+  const confirmRestore = async () => {
+    if (!id) return;
+    try {
+      setRestoring(true);
+      await restoreGroup(Number(id));
+      showAlert(t('groups.restoreSuccess'), 'success');
+      fetchGroup();
+    } catch (err: any) {
+      showAlert(err?.msg || t('groups.restoreFailed'), 'error');
+    } finally {
+      setRestoring(false);
+      setShowRestoreConfirm(false);
+    }
+  };
+
+  const handleClone = async () => {
+    if (!id) return;
+    setShowCloneConfirm(true);
+  };
+
+  const confirmClone = async () => {
+    if (!id) return;
+    try {
+      setCloning(true);
+      const res = await cloneGroup(Number(id));
+      showAlert(t('groups.cloneSuccess'), 'success');
+      navigate(`/groups/${res.data.id}/settings`);
+    } catch (err: any) {
+      showAlert(err?.msg || t('groups.cloneFailed'), 'error');
+    } finally {
+      setCloning(false);
+      setShowCloneConfirm(false);
+    }
+  };
+
+  const handleExport = async () => {
+    if (!id) return;
+    try {
+      const res = await exportGroup(Number(id));
+      // 下载JSON文件
+      const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `group_${id}_export_${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showAlert(t('groups.exportSuccess'), 'success');
+    } catch (err: any) {
+      showAlert(err?.msg || t('groups.exportFailed'), 'error');
+    }
+  };
+
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -325,6 +412,42 @@ const GroupSettings: React.FC = () => {
         type="danger"
         loading={deletingGroup}
       />
+      
+      <ConfirmDialog
+        isOpen={showArchiveConfirm}
+        onClose={() => setShowArchiveConfirm(false)}
+        onConfirm={confirmArchive}
+        title={t('groups.actions.archive')}
+        message={t('groups.archiveConfirm')}
+        confirmText={t('groups.actions.archive')}
+        cancelText={t('common.cancel') || '取消'}
+        type="warning"
+        loading={archiving}
+      />
+      
+      <ConfirmDialog
+        isOpen={showRestoreConfirm}
+        onClose={() => setShowRestoreConfirm(false)}
+        onConfirm={confirmRestore}
+        title={t('groups.actions.restore')}
+        message={t('groups.restoreConfirm')}
+        confirmText={t('groups.actions.restore')}
+        cancelText={t('common.cancel') || '取消'}
+        type="info"
+        loading={restoring}
+      />
+      
+      <ConfirmDialog
+        isOpen={showCloneConfirm}
+        onClose={() => setShowCloneConfirm(false)}
+        onConfirm={confirmClone}
+        title={t('groups.actions.clone')}
+        message={t('groups.cloneConfirm')}
+        confirmText={t('groups.actions.clone')}
+        cancelText={t('common.cancel') || '取消'}
+        type="info"
+        loading={cloning}
+      />
       <div className="max-w-4xl w-full mx-auto pt-10 pb-4 px-4">
         {/* 头部 */}
         <div className="mb-8">
@@ -337,18 +460,70 @@ const GroupSettings: React.FC = () => {
           >
             {t('groupSettings.backToList')}
           </Button>
-          <div className="relative pl-4">
-            <motion.div
-              layoutId="pageTitleIndicator"
-              className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-primary rounded-r-full"
-              transition={{ type: 'spring', bounce: 0.2, duration: 0.3 }}
-            />
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">
-              {group.name} - {t('groupSettings.title')}
-            </h1>
-            <p className="text-gray-500 dark:text-gray-400">
-              {t('groupSettings.subtitle')}
-            </p>
+          <div className="flex items-start justify-between">
+            <div className="relative pl-4 flex-1">
+              <motion.div
+                layoutId="pageTitleIndicator"
+                className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-primary rounded-r-full"
+                transition={{ type: 'spring', bounce: 0.2, duration: 0.3 }}
+              />
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+                {group.name} - {t('groupSettings.title')}
+              </h1>
+              <p className="text-gray-500 dark:text-gray-400">
+                {t('groupSettings.subtitle')}
+              </p>
+            </div>
+            
+            {/* 操作按钮 */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                onClick={() => navigate(`/groups/${id}/activity-logs`)}
+                variant="secondary"
+                size="sm"
+                leftIcon={<Activity className="w-4 h-4" />}
+              >
+                {t('groups.actions.activityLogs')}
+              </Button>
+              
+              <Button
+                onClick={handleExport}
+                variant="secondary"
+                size="sm"
+                leftIcon={<Download className="w-4 h-4" />}
+              >
+                {t('groups.actions.export')}
+              </Button>
+              
+              <Button
+                onClick={handleClone}
+                variant="secondary"
+                size="sm"
+                leftIcon={<Copy className="w-4 h-4" />}
+              >
+                {t('groups.actions.clone')}
+              </Button>
+              
+              {!(group as any).isArchived ? (
+                <Button
+                  onClick={handleArchive}
+                  variant="secondary"
+                  size="sm"
+                  leftIcon={<Archive className="w-4 h-4" />}
+                >
+                  {t('groups.actions.archive')}
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleRestore}
+                  variant="primary"
+                  size="sm"
+                  leftIcon={<RotateCcw className="w-4 h-4" />}
+                >
+                  {t('groups.actions.restore')}
+                </Button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -629,7 +804,7 @@ const GroupSettings: React.FC = () => {
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-2">
                           <h3 className="font-semibold text-gray-900 dark:text-gray-100">
-                            {getQuotaTypeLabel(quota.quotaType)}
+                            {t(`quota.type.${quota.quotaType}`)}
                           </h3>
                           <span className="px-2 py-0.5 rounded text-xs bg-gray-100 dark:bg-neutral-700 text-gray-600 dark:text-gray-400">
                             {quota.period === 'lifetime' ? t('groupSettings.period.lifetime') : quota.period === 'monthly' ? t('groupSettings.period.monthly') : t('groupSettings.period.yearly')}

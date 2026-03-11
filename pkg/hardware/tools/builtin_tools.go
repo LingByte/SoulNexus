@@ -40,6 +40,23 @@ func RegisterBuiltinTools(service *LLMService) {
 		},
 		executeGetWeather,
 	)
+
+	// 注册搜索新闻工具
+	service.RegisterTool(
+		"search_news",
+		"搜索最近的新闻资讯",
+		map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"query": map[string]interface{}{
+					"type":        "string",
+					"description": "搜索关键词，例如：科技、财经、体育等",
+				},
+			},
+			"required": []string{"query"},
+		},
+		executeSearchNews,
+	)
 }
 
 // executeGetCurrentTime 执行获取当前时间
@@ -78,4 +95,15 @@ func executeGetWeather(args map[string]interface{}) (string, error) {
 	}
 
 	return result, nil
+}
+
+// executeSearchNews 执行搜索新闻
+func executeSearchNews(args map[string]interface{}) (string, error) {
+	query, ok := args["query"].(string)
+	if !ok || query == "" {
+		query = "最新新闻" // 默认查询
+	}
+
+	// 返回提示信息，说明新闻查询功能暂未实现
+	return fmt.Sprintf("抱歉，新闻查询功能暂时不可用。您可以访问新闻网站或使用其他新闻应用获取关于'%s'的最新资讯。", query), nil
 }

@@ -13,8 +13,9 @@ import {
 import { showAlert } from '@/utils/notification';
 import { useAuthStore } from '@/stores/authStore';
 import { useI18nStore } from '@/stores/i18nStore';
-import { Users, X, UserPlus, Trash2, Crown, Shield, Search, ArrowLeft, Settings, ChevronDown } from 'lucide-react';
+import { X, UserPlus, Trash2, Crown, Shield, Search, ArrowLeft, ChevronDown, CheckSquare, Square } from 'lucide-react';
 import Button from '@/components/UI/Button';
+import LoadingAnimation from '@/components/Animations/LoadingAnimation';
 
 const GroupMembers: React.FC = () => {
   const { t } = useI18nStore();
@@ -29,6 +30,8 @@ const GroupMembers: React.FC = () => {
   const [searching, setSearching] = useState(false);
   const [loading, setLoading] = useState(false);
   const [openRoleMenu, setOpenRoleMenu] = useState<number | null>(null);
+  const [selectedMembers, setSelectedMembers] = useState<Set<number>>(new Set());
+  const [showBatchMenu, setShowBatchMenu] = useState(false);
 
   const fetchGroup = async () => {
     if (!id) return;
@@ -49,7 +52,6 @@ const GroupMembers: React.FC = () => {
     fetchGroup();
   }, [id]);
 
-  // 搜索用户
   const handleSearchUsers = async (keyword: string) => {
     if (!keyword.trim()) {
       setSearchResults([]);
@@ -66,7 +68,6 @@ const GroupMembers: React.FC = () => {
     }
   };
 
-  // 防抖搜索
   useEffect(() => {
     const timer = setTimeout(() => {
       if (showInviteModal) {
@@ -98,6 +99,11 @@ const GroupMembers: React.FC = () => {
     try {
       await removeMember(Number(id), memberId);
       await fetchGroup();
+      setSelectedMembers(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(memberId);
+        return newSet;
+      });
       showAlert(t('groupMembers.messages.removeSuccess'), 'success');
     } catch (err: any) {
       showAlert(err?.msg || t('groupMembers.messages.removeFailed'), 'error');
@@ -115,22 +121,78 @@ const GroupMembers: React.FC = () => {
     }
   };
 
+  const handleSelectMember = (memberId: number) => {
+    const newSelected = new Set(selectedMembers);
+    if (newSelected.has(memberId)) {
+      newSelected.delete(memberId);
+    } else {
+      newSelected.add(memberId);
+    }
+    setSelectedMembers(newSelected);
+  };
+
+  const handleSelectAll = () => {
+    const selectableMembers = members.filter(m => 
+      group?.creatorId !== m.userId && 
+      (user?.id ? Number(user.id) !== m.userId : true)
+    );
+    
+    if (selectedMembers.size === selectableMembers.length) {
+      setSelectedMembers(new Set());
+    } else {
+      setSelectedMembers(new Set(selectableMembers.map(m => m.id)));
+    }
+  };
+
+  const handleBatchRemove = async () => {
+    if (!id || selectedMembers.size === 0) return;
+    if (!confirm(t('groupMembers.confirmBatchRemove').replace('{count}', String(selectedMembers.size)))) {
+      return;
+    }
+    try {
+      const promises = Array.from(selectedMembers).map(memberId => 
+        removeMember(Number(id), memberId)
+      );
+      await Promise.all(promises);
+      await fetchGroup();
+      setSelectedMembers(new Set());
+      showAlert(t('groupMembers.batchRemoveSuccess'), 'success');
+    } catch (err: any) {
+      showAlert(err?.msg || t('groupMembers.batchRemoveFailed'), 'error');
+    }
+  };
+
+  const handleBatchSetRole = async (role: string) => {
+    if (!id || selectedMembers.size === 0) return;
+    try {
+      const promises = Array.from(selectedMembers).map(memberId => 
+        updateMemberRole(Number(id), memberId, role)
+      );
+      await Promise.all(promises);
+      await fetchGroup();
+      setSelectedMembers(new Set());
+      setShowBatchMenu(false);
+      showAlert(t('groupMembers.batchSetRoleSuccess'), 'success');
+    } catch (err: any) {
+      showAlert(err?.msg || t('groupMembers.batchSetRoleFailed'), 'error');
+    }
+  };
+
   const isAdmin = () => {
     if (!group || !user) return false;
     const userId = user.id ? Number(user.id) : null;
     return group.myRole === 'admin' || group.creatorId === userId;
   };
 
-  const isCreator = () => {
-    if (!group || !user) return false;
-    const userId = user.id ? Number(user.id) : null;
-    return group.creatorId === userId;
-  };
+  const selectableMembers = members.filter(m => 
+    group?.creatorId !== m.userId && 
+    (user?.id ? Number(user.id) !== m.userId : true)
+  );
 
   if (loading) {
     return (
       <div className="min-h-screen dark:bg-neutral-900 flex items-center justify-center">
-        <div className="text-gray-400">{t('groups.loading')}</div>
+        <LoadingAnimation type="progress" size="lg" />
       </div>
     );
   }
@@ -141,8 +203,7 @@ const GroupMembers: React.FC = () => {
 
   return (
     <div className="min-h-screen dark:bg-neutral-900 flex flex-col">
-      <div className="max-w-6xl w-full mx-auto pt-10 pb-4 px-4">
-        {/* 头部 */}
+      <div className="max-w-7xl w-full mx-auto pt-10 pb-4 px-4">
         <div className="mb-8">
           <Button
             onClick={() => navigate('/groups')}
@@ -175,127 +236,240 @@ const GroupMembers: React.FC = () => {
           </div>
         </div>
 
-        {/* 成员列表 */}
-        <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-gray-200 dark:border-neutral-700 p-6">
-          <div className="space-y-4">
-            {members.map((member) => {
-              const isCurrentUser = user?.id ? Number(user.id) === member.userId : false;
-              const isMemberCreator = group.creatorId === member.userId;
-              
-              return (
-                <div
-                  key={member.id}
-                  className="flex items-center justify-between p-4 border border-gray-200 dark:border-neutral-700 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-700 transition-colors"
+        {isAdmin() && (
+          <div className="bg-white dark:bg-neutral-800 rounded-xl border border-gray-200 dark:border-neutral-700 p-4 mb-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={handleSelectAll}
+                  className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
                 >
-                  <div className="flex items-center gap-4">
-                    <img
-                      src={member.user.avatar || `https://ui-avatars.com/api/?name=${member.user.displayName || member.user.email}&background=0ea5e9&color=fff`}
-                      alt={member.user.displayName || member.user.email}
-                      className="w-12 h-12 rounded-full"
-                    />
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-gray-900 dark:text-gray-100">
-                          {member.user.displayName || member.user.email}
-                        </span>
-                        {isMemberCreator && (
-                          <span className="px-2 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200 rounded-full text-xs font-medium flex items-center gap-1">
-                            <Crown className="w-3 h-3" />
-                            {t('groups.creator')}
-                          </span>
-                        )}
-                        {member.role === 'admin' && !isMemberCreator && (
-                          <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 rounded-full text-xs font-medium flex items-center gap-1">
-                            <Shield className="w-3 h-3" />
-                            {t('groups.admin')}
-                          </span>
-                        )}
-                        {member.role === 'member' && (
-                          <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-full text-xs font-medium">
-                            {t('groupMembers.member')}
-                          </span>
-                        )}
-                        {isCurrentUser && (
-                          <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 rounded-full text-xs font-medium">
-                            {t('groupMembers.me')}
-                          </span>
-                        )}
-                      </div>
-                      {member.user.displayName && (
-                        <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                          {member.user.email}
-                        </div>
-                      )}
-                      <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                        {t('groupMembers.joinedAt')} {new Date(member.createdAt).toLocaleDateString()}
-                      </div>
-                    </div>
-                  </div>
-                  {isAdmin() && !isCurrentUser && !isMemberCreator && (
-                    <div className="flex items-center gap-2">
-                      <div className="relative">
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          rightIcon={<ChevronDown className="w-4 h-4" />}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setOpenRoleMenu(openRoleMenu === member.id ? null : member.id);
-                          }}
-                        >
-                          {member.role === 'admin' ? t('groups.admin') : t('groupMembers.member')}
-                        </Button>
-                        {openRoleMenu === member.id && (
-                          <>
-                            <div 
-                              className="fixed inset-0 z-10" 
-                              onClick={() => setOpenRoleMenu(null)}
-                            />
-                            <div className="absolute right-0 mt-1 w-36 bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-lg shadow-lg z-20">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleUpdateRole(member.id, 'admin');
-                                  setOpenRoleMenu(null);
-                                }}
-                                disabled={member.role === 'admin'}
-                                className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-700 rounded-t-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                              >
-                                {t('groupMembers.setAsAdmin')}
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleUpdateRole(member.id, 'member');
-                                  setOpenRoleMenu(null);
-                                }}
-                                disabled={member.role === 'member'}
-                                className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-700 rounded-b-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                              >
-                                {t('groupMembers.setAsMember')}
-                              </button>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                      <Button
-                        onClick={() => handleRemoveMember(member.id)}
-                        variant="destructive"
-                        size="sm"
-                        leftIcon={<Trash2 className="w-4 h-4" />}
-                      >
-                        {t('groupMembers.remove')}
-                      </Button>
-                    </div>
+                  {selectedMembers.size === selectableMembers.length && selectableMembers.length > 0 ? (
+                    <CheckSquare className="w-5 h-5 text-primary" />
+                  ) : (
+                    <Square className="w-5 h-5 text-gray-400" />
                   )}
+                  {selectedMembers.size === selectableMembers.length && selectableMembers.length > 0
+                    ? t('groupMembers.deselectAll')
+                    : t('groupMembers.selectAll')}
+                </button>
+                {selectedMembers.size > 0 && (
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                    {t('groupMembers.selectedCount').replace('{count}', String(selectedMembers.size))}
+                  </span>
+                )}
+              </div>
+              
+              {selectedMembers.size > 0 && (
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <Button
+                      onClick={() => setShowBatchMenu(!showBatchMenu)}
+                      variant="secondary"
+                      size="sm"
+                      rightIcon={<ChevronDown className="w-4 h-4" />}
+                    >
+                      {t('groupMembers.batchOperations')}
+                    </Button>
+                    {showBatchMenu && (
+                      <>
+                        <div 
+                          className="fixed inset-0 z-10" 
+                          onClick={() => setShowBatchMenu(false)}
+                        />
+                        <div className="absolute right-0 mt-1 w-48 bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-lg shadow-lg z-20">
+                          <button
+                            onClick={() => handleBatchSetRole('admin')}
+                            className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-700 rounded-t-lg"
+                          >
+                            {t('groupMembers.setAsAdmin')}
+                          </button>
+                          <button
+                            onClick={() => handleBatchSetRole('member')}
+                            className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-700"
+                          >
+                            {t('groupMembers.setAsMember')}
+                          </button>
+                          <button
+                            onClick={handleBatchRemove}
+                            className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-b-lg"
+                          >
+                            {t('groupMembers.batchRemove')}
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
-              );
-            })}
+              )}
+            </div>
+          </div>
+        )}
+
+        <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-gray-200 dark:border-neutral-700 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 dark:bg-neutral-900 border-b border-gray-200 dark:border-neutral-700">
+                <tr>
+                  {isAdmin() && (
+                    <th className="px-6 py-3 text-left w-12"></th>
+                  )}
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    {t('groupMembers.member')}
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    {t('groupMembers.joinedAt')}
+                  </th>
+                  {isAdmin() && (
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      {t('groupMembers.actions')}
+                    </th>
+                  )}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200 dark:divide-neutral-700">
+                {members.length === 0 ? (
+                  <tr>
+                    <td colSpan={isAdmin() ? 4 : 2} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                      {t('groups.empty')}
+                    </td>
+                  </tr>
+                ) : (
+                  members.map((member) => {
+                    const isCurrentUser = user?.id ? Number(user.id) === member.userId : false;
+                    const isMemberCreator = group.creatorId === member.userId;
+                    const canSelect = !isCurrentUser && !isMemberCreator;
+                    
+                    return (
+                      <tr key={member.id} className="hover:bg-gray-50 dark:hover:bg-neutral-700/50">
+                        {isAdmin() && (
+                          <td className="px-6 py-4">
+                            {canSelect && (
+                              <button
+                                onClick={() => handleSelectMember(member.id)}
+                                className="flex-shrink-0"
+                              >
+                                {selectedMembers.has(member.id) ? (
+                                  <CheckSquare className="w-5 h-5 text-primary" />
+                                ) : (
+                                  <Square className="w-5 h-5 text-gray-400" />
+                                )}
+                              </button>
+                            )}
+                          </td>
+                        )}
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <img
+                              src={member.user.avatar || `https://ui-avatars.com/api/?name=${member.user.displayName || member.user.email}&background=0ea5e9&color=fff`}
+                              alt={member.user.displayName || member.user.email}
+                              className="w-10 h-10 rounded-full"
+                            />
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-gray-900 dark:text-gray-100">
+                                  {member.user.displayName || member.user.email}
+                                </span>
+                                {isMemberCreator && (
+                                  <span className="px-2 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200 rounded-full text-xs font-medium flex items-center gap-1">
+                                    <Crown className="w-3 h-3" />
+                                    {t('groups.creator')}
+                                  </span>
+                                )}
+                                {member.role === 'admin' && !isMemberCreator && (
+                                  <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 rounded-full text-xs font-medium flex items-center gap-1">
+                                    <Shield className="w-3 h-3" />
+                                    {t('groups.admin')}
+                                  </span>
+                                )}
+                                {member.role === 'member' && (
+                                  <span className="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-full text-xs font-medium">
+                                    {t('groupMembers.member')}
+                                  </span>
+                                )}
+                                {isCurrentUser && (
+                                  <span className="px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 rounded-full text-xs font-medium">
+                                    {t('groupMembers.me')}
+                                  </span>
+                                )}
+                              </div>
+                              {member.user.displayName && (
+                                <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                  {member.user.email}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
+                          {new Date(member.createdAt).toLocaleDateString()}
+                        </td>
+                        {isAdmin() && (
+                          <td className="px-6 py-4">
+                            {!isCurrentUser && !isMemberCreator && (
+                              <div className="flex items-center justify-end gap-2">
+                                <div className="relative">
+                                  <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    rightIcon={<ChevronDown className="w-4 h-4" />}
+                                    onClick={() => setOpenRoleMenu(openRoleMenu === member.id ? null : member.id)}
+                                  >
+                                    {member.role === 'admin' ? t('groups.admin') : t('groupMembers.member')}
+                                  </Button>
+                                  {openRoleMenu === member.id && (
+                                    <>
+                                      <div 
+                                        className="fixed inset-0 z-10" 
+                                        onClick={() => setOpenRoleMenu(null)}
+                                      />
+                                      <div className="absolute right-0 mt-1 w-36 bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-lg shadow-lg z-20">
+                                        <button
+                                          onClick={() => {
+                                            handleUpdateRole(member.id, 'admin');
+                                            setOpenRoleMenu(null);
+                                          }}
+                                          disabled={member.role === 'admin'}
+                                          className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-700 rounded-t-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                          {t('groupMembers.setAsAdmin')}
+                                        </button>
+                                        <button
+                                          onClick={() => {
+                                            handleUpdateRole(member.id, 'member');
+                                            setOpenRoleMenu(null);
+                                          }}
+                                          disabled={member.role === 'member'}
+                                          className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-700 rounded-b-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                          {t('groupMembers.setAsMember')}
+                                        </button>
+                                      </div>
+                                    </>
+                                  )}
+                                </div>
+                                <Button
+                                  onClick={() => handleRemoveMember(member.id)}
+                                  variant="destructive"
+                                  size="sm"
+                                  leftIcon={<Trash2 className="w-4 h-4" />}
+                                >
+                                  {t('groupMembers.remove')}
+                                </Button>
+                              </div>
+                            )}
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
 
-      {/* 邀请用户模态框 */}
       {showInviteModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-neutral-800 rounded-xl p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
@@ -388,4 +562,3 @@ const GroupMembers: React.FC = () => {
 };
 
 export default GroupMembers;
-

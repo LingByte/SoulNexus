@@ -177,6 +177,7 @@ func RunMigrations(db *gorm.DB) error {
 		&models.UserCredential{},
 		&models.GroupMember{},
 		&models.GroupInvitation{},
+		&models.GroupActivityLog{},
 		&models.Assistant{},
 		&models.AssistantTool{},
 		&models.ChatSessionLog{},

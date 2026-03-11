@@ -31,6 +31,7 @@ import Billing from '@/pages/Billing.tsx';
 import Groups from '@/pages/Groups.tsx';
 import GroupMembers from '@/pages/GroupMembers.tsx';
 import GroupSettings from '@/pages/GroupSettings.tsx';
+import GroupActivityLogs from '@/pages/GroupActivityLogs.tsx';
 import OverviewEditorPage from '@/pages/OverviewEditorPage.tsx';
 import Alerts from '@/pages/Alerts.tsx';
 import AlertRules from '@/pages/AlertRules.tsx';
@@ -240,6 +241,13 @@ function App() {
                             <ProtectedRoute>
                                 <Layout>
                                     <GroupSettings />
+                                </Layout>
+                            </ProtectedRoute>
+                        } />
+                        <Route path="/groups/:id/activity-logs" element={
+                            <ProtectedRoute>
+                                <Layout>
+                                    <GroupActivityLogs />
                                 </Layout>
                             </ProtectedRoute>
                         } />

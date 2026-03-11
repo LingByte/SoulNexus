@@ -124,7 +124,8 @@ export const deleteGroupQuota = async (groupId: number, type: QuotaType): Promis
   return del(`/quota/group/${groupId}/${type}`)
 }
 
-// 获取配额类型标签
+// 获取配额类型标签（已废弃，请使用 i18n）
+// @deprecated Use i18n translation keys instead: quota.type.{quotaType}
 export const getQuotaTypeLabel = (type: QuotaType): string => {
   const labels: Record<QuotaType, string> = {
     storage: '存储空间',

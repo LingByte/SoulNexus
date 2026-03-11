@@ -16,7 +16,7 @@ export interface UpdateProfileForm {
   avatar?: string
 }
 
-// 用户基本信息更新表单 - 对应后端 UserBasicInfoUpdate
+// 用户基本信息更新表单
 export interface UpdateBasicInfoForm {
   fatherCallName?: string
   motherCallName?: string
