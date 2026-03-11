@@ -3,10 +3,10 @@ import { Language } from './common'
 export const pages: Record<Language, Record<string, string>> = {
   zh: {
     // Home 页面
-    'home.title': '灵枢',
-    'home.subtitle': '灵枢是新一代AI语音交互平台，提供实时通话、声音克隆、知识库管理、工作流自动化、应用快速接入等全方位解决方案，让AI语音助手真正融入您的业务场景',
+    'home.title': 'SoulMy',
+    'home.subtitle': 'SoulMy是新一代AI语音交互平台，提供实时通话、声音克隆、知识库管理、工作流自动化、应用快速接入等全方位解决方案，让AI语音助手真正融入您的业务场景',
     'home.startNow': '立即开始',
-    'home.mission': '灵枢不仅是一个AI语音平台，更是连接现实与虚拟世界的桥梁。我们致力于让每个人都能拥有专属的AI语音助手，让技术真正服务于人的需求，创造更美好的交互体验。',
+    'home.mission': 'SoulMy不仅是一个AI语音平台，更是连接现实与虚拟世界的桥梁。我们致力于让每个人都能拥有专属的AI语音助手，让技术真正服务于人的需求，创造更美好的交互体验。',
     'home.coreFeatures': '核心功能',
     'home.coreFeaturesDesc': '省时省力，让你从繁琐中解放出来',
     'home.scenarios': '适用场景',
@@ -24,7 +24,7 @@ export const pages: Record<Language, Record<string, string>> = {
     'team.fullStack': '全栈开发工程师',
 
     // Brand translations
-    'brand.name': '灵枢',
+    'brand.name': 'SoulMy',
 
     // Navigation translations
     'nav.docs': 'Doc',
@@ -86,7 +86,7 @@ export const pages: Record<Language, Record<string, string>> = {
     'advantage.secureDesc': '完善的告警系统和灵活的计费追踪系统，支持企业级运营',
     
     // Testimonials
-    'testimonial.title': '为什么选择灵枢',
+    'testimonial.title': '为什么选择SoulMy',
     'testimonial.subtitle': '高效、智能又贴心，让你放心享受每次通话带来的价值',
     'testimonial.cta': '开始探索',
     'testimonial.realtime': '实时通信技术',
@@ -157,7 +157,7 @@ export const pages: Record<Language, Record<string, string>> = {
     'tech.latest': '最新版',
 
     // Story and values
-    'story.detail': '灵枢致力于为开发者、二次元用户和内容创作者提供完整的AI语音解决方案，让每个人都能拥有专属的AI语音助手。',
+    'story.detail': 'SoulMy致力于为开发者、二次元用户和内容创作者提供完整的AI语音解决方案，让每个人都能拥有专属的AI语音助手。',
     'story.developerPoint': '为开发者提供完整的API和SDK，支持快速集成AI语音功能',
     'story.animeUserPoint': '为二次元用户提供角色语音克隆和个性化AI助手体验',
     'story.creatorPoint': '为内容创作者提供声音训练和多样化的语音生成工具',
@@ -173,7 +173,7 @@ export const pages: Record<Language, Record<string, string>> = {
     // Platform Showcase
     'home.platformShowcase.subtitle': '强大的平台',
     'home.platformShowcase.title': '一站式AI语音解决方案',
-    'home.platformShowcase.description': 'SoulNexus提供从实时通话到声音克隆的完整AI语音技术栈，帮助企业快速构建智能语音应用，提升用户体验，降低运营成本',
+    'home.platformShowcase.description': 'SoulMy提供从实时通话到声音克隆的完整AI语音技术栈，帮助企业快速构建智能语音应用，提升用户体验，降低运营成本',
     'home.platformShowcase.feature1': '基于WebRTC的低延迟实时语音通话',
     'home.platformShowcase.feature2': '先进的声音克隆和训练技术',
     'home.platformShowcase.feature3': '智能知识库管理和AI分析',
@@ -220,7 +220,7 @@ export const pages: Record<Language, Record<string, string>> = {
     'blog.relatedPosts': '相关文章',
 
     // About 页面
-    'about.title': '关于灵枢',
+    'about.title': '关于SoulMy',
     'about.subtitle': '我们专注于AI语音技术的创新与应用，为开发者和用户提供完整的AI语音交互解决方案。通过WebRTC实时通话、声音克隆、知识库管理等核心技术，让AI语音助手真正走进用户的日常生活。',
     'about.mission.title': '我们的使命',
     'about.mission.desc': '让AI语音技术真正服务于用户，创造更智能、更人性化的交互体验。我们相信，通过技术创新和用户体验的完美结合，能够为每个用户带来前所未有的AI语音交互体验。',
@@ -240,9 +240,9 @@ export const pages: Record<Language, Record<string, string>> = {
     'about.values.openSource.title': '开源精神',
     'about.values.openSource.desc': '完全开源的项目，透明可信，支持自定义扩展，为开发者提供灵活的技术架构。',
     'about.timeline.title': '七天发展历程',
-    'about.timeline.desc': '从项目启动到开源发布，见证灵枢的快速成长轨迹。',
+    'about.timeline.desc': '从项目启动到开源发布，见证SoulMy的快速成长轨迹。',
     'about.timeline.day1.title': '项目启动',
-    'about.timeline.day1.desc': '开始构建灵枢AI语音解决方案，确定技术栈和产品方向。',
+    'about.timeline.day1.desc': '开始构建SoulMyAI语音解决方案，确定技术栈和产品方向。',
     'about.timeline.day2.title': '核心架构',
     'about.timeline.day2.desc': '完成WebRTC实时通话、声音克隆、语音识别等核心架构设计。',
     'about.timeline.day3.title': '功能开发',
@@ -354,7 +354,7 @@ export const pages: Record<Language, Record<string, string>> = {
     'home.whoWeServe.hardwareDesc': '为智能音箱、机器人、车载设备等硬件产品赋能AI语音交互能力，支持声纹识别、音色克隆等高级功能',
     'home.whoWeServe.creators': '内容创作者',
     'home.whoWeServe.creatorsDesc': '利用声音克隆技术创建虚拟主播、有声读物、播客节目，降低内容制作成本，提升创作效率',
-    'home.whoWeServe.cta': '无论您是企业、开发者还是创新团队，SoulNexus都能为您提供灵活、可扩展的AI语音解决方案',
+    'home.whoWeServe.cta': '无论您是企业、开发者还是创新团队，SoulMy都能为您提供灵活、可扩展的AI语音解决方案',
 
     // Highlights
     'home.highlights.title': '核心亮点',
@@ -372,10 +372,10 @@ export const pages: Record<Language, Record<string, string>> = {
   },
   en: {
     // Home Page
-    'home.title': 'SoulNexus',
-    'home.subtitle': 'SoulNexus is a next-generation AI voice interaction platform, providing comprehensive solutions including real-time calls, voice cloning, knowledge base management, workflow automation, and rapid application integration, making AI voice assistants truly integrate into your business scenarios',
+    'home.title': 'SoulMy',
+    'home.subtitle': 'SoulMy is a next-generation AI voice interaction platform, providing comprehensive solutions including real-time calls, voice cloning, knowledge base management, workflow automation, and rapid application integration, making AI voice assistants truly integrate into your business scenarios',
     'home.startNow': 'Get Started',
-    'home.mission': 'SoulNexus is not just an AI voice platform, but a bridge connecting the real and virtual worlds. We are committed to enabling everyone to have their own AI voice assistant, making technology truly serve human needs and create better interactive experiences.',
+    'home.mission': 'SoulMy is not just an AI voice platform, but a bridge connecting the real and virtual worlds. We are committed to enabling everyone to have their own AI voice assistant, making technology truly serve human needs and create better interactive experiences.',
     'home.coreFeatures': 'Core Features',
     'home.coreFeaturesDesc': 'Save time and effort, free yourself from tedious tasks',
     'home.scenarios': 'Use Cases',
@@ -393,7 +393,7 @@ export const pages: Record<Language, Record<string, string>> = {
     'team.fullStack': 'Full Stack Developer',
 
     // Brand translations
-    'brand.name': 'SoulNexus',
+    'brand.name': 'SoulMy',
 
     // Navigation translations
     'nav.docs': 'Docs',
@@ -455,7 +455,7 @@ export const pages: Record<Language, Record<string, string>> = {
     'advantage.secureDesc': 'Comprehensive alert system and flexible billing tracking system, supporting enterprise-level operations',
     
     // Testimonials
-    'testimonial.title': 'Why Choose SoulNexus',
+    'testimonial.title': 'Why Choose SoulMy',
     'testimonial.subtitle': 'Efficient, intelligent and caring, let you enjoy the value of every call with confidence',
     'testimonial.cta': 'Start Exploring',
     'testimonial.realtime': 'Real-time Communication',
@@ -526,7 +526,7 @@ export const pages: Record<Language, Record<string, string>> = {
     'tech.latest': 'Latest',
 
     // Story and values
-    'story.detail': 'SoulNexus is committed to providing complete AI voice solutions for developers, anime users, and content creators, enabling everyone to have their own AI voice assistant.',
+    'story.detail': 'SoulMy is committed to providing complete AI voice solutions for developers, anime users, and content creators, enabling everyone to have their own AI voice assistant.',
     'story.developerPoint': 'Provide developers with complete APIs and SDKs for quick AI voice integration',
     'story.animeUserPoint': 'Offer anime users character voice cloning and personalized AI assistant experiences',
     'story.creatorPoint': 'Provide content creators with voice training and diverse voice generation tools',
@@ -540,7 +540,7 @@ export const pages: Record<Language, Record<string, string>> = {
     'story.creatorDesc': 'Voice tools for creators',
 
     // About Page
-    'about.title': 'About SoulNexus',
+    'about.title': 'About SoulMy',
     'about.subtitle': 'We focus on innovation and application of AI voice technology, providing developers and users with complete AI voice interaction solutions. Through core technologies such as WebRTC real-time calls, voice cloning, and knowledge base management, we bring AI voice assistants into users\' daily lives.',
     'about.mission.title': 'Our Mission',
     'about.mission.desc': 'To make AI voice technology truly serve users and create smarter, more humanized interactive experiences. We believe that through the perfect combination of technological innovation and user experience, we can bring unprecedented AI voice interaction experiences to every user.',
@@ -560,9 +560,9 @@ export const pages: Record<Language, Record<string, string>> = {
     'about.values.openSource.title': 'Open Source Spirit',
     'about.values.openSource.desc': 'Completely open source project, transparent and trustworthy, supporting custom extensions, providing developers with flexible technical architecture.',
     'about.timeline.title': 'Seven-Day Development Journey',
-    'about.timeline.desc': 'From project launch to open source release, witness the rapid growth trajectory of SoulNexus.',
+    'about.timeline.desc': 'From project launch to open source release, witness the rapid growth trajectory of SoulMy.',
     'about.timeline.day1.title': 'Project Launch',
-    'about.timeline.day1.desc': 'Started building SoulNexus AI voice solution, determined technology stack and product direction.',
+    'about.timeline.day1.desc': 'Started building SoulMy AI voice solution, determined technology stack and product direction.',
     'about.timeline.day2.title': 'Core Architecture',
     'about.timeline.day2.desc': 'Completed core architecture design for WebRTC real-time calls, voice cloning, speech recognition, etc.',
     'about.timeline.day3.title': 'Feature Development',
@@ -674,12 +674,12 @@ export const pages: Record<Language, Record<string, string>> = {
     'home.whoWeServe.hardwareDesc': 'Empower smart speakers, robots, in-vehicle devices with AI voice interaction capabilities, support voiceprint recognition, voice cloning, and other advanced features',
     'home.whoWeServe.creators': 'Content Creators',
     'home.whoWeServe.creatorsDesc': 'Use voice cloning technology to create virtual anchors, audiobooks, podcast programs, reduce content production costs, and improve creation efficiency',
-    'home.whoWeServe.cta': 'Whether you are an enterprise, developer, or innovation team, SoulNexus provides flexible and scalable AI voice solutions',
+    'home.whoWeServe.cta': 'Whether you are an enterprise, developer, or innovation team, SoulMy provides flexible and scalable AI voice solutions',
 
     // Platform Showcase
     'home.platformShowcase.subtitle': 'Powerful Platform',
     'home.platformShowcase.title': 'All-in-One AI Voice Solution',
-    'home.platformShowcase.description': 'SoulNexus provides a complete AI voice technology stack from real-time calls to voice cloning, helping enterprises quickly build intelligent voice applications, enhance user experience, and reduce operational costs',
+    'home.platformShowcase.description': 'SoulMy provides a complete AI voice technology stack from real-time calls to voice cloning, helping enterprises quickly build intelligent voice applications, enhance user experience, and reduce operational costs',
     'home.platformShowcase.feature1': 'Low-latency real-time voice calls based on WebRTC',
     'home.platformShowcase.feature2': 'Advanced voice cloning and training technology',
     'home.platformShowcase.feature3': 'Intelligent knowledge base management and AI analysis',
@@ -741,10 +741,10 @@ export const pages: Record<Language, Record<string, string>> = {
   },
   ja: {
     // ホームページ
-    'home.title': 'SoulNexus',
-    'home.subtitle': 'SoulNexusは次世代AI音声インタラクションプラットフォームで、リアルタイム通話、音声クローン、ナレッジベース管理、ワークフロー自動化、アプリケーション統合などの包括的なソリューションを提供し、AI音声アシスタントをビジネスシーンに真に統合します',
+    'home.title': 'SoulMy',
+    'home.subtitle': 'SoulMyは次世代AI音声インタラクションプラットフォームで、リアルタイム通話、音声クローン、ナレッジベース管理、ワークフロー自動化、アプリケーション統合などの包括的なソリューションを提供し、AI音声アシスタントをビジネスシーンに真に統合します',
     'home.startNow': '今すぐ始める',
-    'home.mission': 'SoulNexusは単なるAI音声プラットフォームではなく、現実と仮想世界を結ぶ橋です。私たちは、誰もが専用のAI音声アシスタントを持てるようにし、技術が真に人間のニーズに奉仕し、より良いインタラクティブ体験を創造することに取り組んでいます。',
+    'home.mission': 'SoulMyは単なるAI音声プラットフォームではなく、現実と仮想世界を結ぶ橋です。私たちは、誰もが専用のAI音声アシスタントを持てるようにし、技術が真に人間のニーズに奉仕し、より良いインタラクティブ体験を創造することに取り組んでいます。',
     'home.coreFeatures': 'コア機能',
     'home.coreFeaturesDesc': '時間と労力を節約し、面倒な作業から解放されます',
     'home.scenarios': '適用シナリオ',
@@ -762,7 +762,7 @@ export const pages: Record<Language, Record<string, string>> = {
     'team.fullStack': 'フルスタック開発者',
 
     // Brand translations
-    'brand.name': 'SoulNexus',
+    'brand.name': 'SoulMy',
 
     // Navigation translations
     'nav.docs': 'ドキュメント',
@@ -824,7 +824,7 @@ export const pages: Record<Language, Record<string, string>> = {
     'advantage.secureDesc': '包括的なアラートシステムと柔軟な課金追跡システム、エンタープライズレベルの運用をサポート',
     
     // Testimonials
-    'testimonial.title': 'SoulNexusを選ぶ理由',
+    'testimonial.title': 'SoulMyを選ぶ理由',
     'testimonial.subtitle': '効率的でインテリジェント、そして親切。すべての通話がもたらす価値を安心してお楽しみください',
     'testimonial.cta': '探索を始める',
     'testimonial.realtime': 'リアルタイム通信',
@@ -895,7 +895,7 @@ export const pages: Record<Language, Record<string, string>> = {
     'tech.latest': '最新版',
 
     // Story and values
-    'story.detail': 'SoulNexusは、開発者、アニメユーザー、コンテンツクリエイターに完全なAI音声ソリューションを提供し、誰もが専用のAI音声アシスタントを持てるようにすることに取り組んでいます。',
+    'story.detail': 'SoulMyは、開発者、アニメユーザー、コンテンツクリエイターに完全なAI音声ソリューションを提供し、誰もが専用のAI音声アシスタントを持てるようにすることに取り組んでいます。',
     'story.developerPoint': '開発者にAI音声機能の迅速な統合のための完全なAPIとSDKを提供',
     'story.animeUserPoint': 'アニメユーザーにキャラクター音声クローンとパーソナライズされたAIアシスタント体験を提供',
     'story.creatorPoint': 'コンテンツクリエイターに音声トレーニングと多様な音声生成ツールを提供',
@@ -909,7 +909,7 @@ export const pages: Record<Language, Record<string, string>> = {
     'story.creatorDesc': 'クリエイター向けの音声ツール',
 
     // Aboutページ
-    'about.title': 'SoulNexusについて',
+    'about.title': 'SoulMyについて',
     'about.subtitle': '私たちはAI音声技術の革新と応用に焦点を当て、開発者とユーザーに完全なAI音声インタラクションソリューションを提供しています。WebRTCリアルタイム通話、音声クローン、ナレッジベース管理などのコア技術を通じて、AI音声アシスタントをユーザーの日常生活に取り入れます。',
     'about.mission.title': '私たちの使命',
     'about.mission.desc': 'AI音声技術を真にユーザーに奉仕させ、よりスマートで人間的なインタラクティブ体験を創造すること。技術革新とユーザー体験の完璧な組み合わせにより、すべてのユーザーに前例のないAI音声インタラクション体験をもたらすことができると信じています。',
@@ -929,9 +929,9 @@ export const pages: Record<Language, Record<string, string>> = {
     'about.values.openSource.title': 'オープンソース精神',
     'about.values.openSource.desc': '完全にオープンソースのプロジェクトで、透明で信頼でき、カスタム拡張をサポートし、開発者に柔軟な技術アーキテクチャを提供します。',
     'about.timeline.title': '7日間の開発の旅',
-    'about.timeline.desc': 'プロジェクト開始からオープンソースリリースまで、SoulNexusの急速な成長軌跡を目撃してください。',
+    'about.timeline.desc': 'プロジェクト開始からオープンソースリリースまで、SoulMyの急速な成長軌跡を目撃してください。',
     'about.timeline.day1.title': 'プロジェクト開始',
-    'about.timeline.day1.desc': 'SoulNexus AI音声ソリューションの構築を開始し、技術スタックと製品方向を決定しました。',
+    'about.timeline.day1.desc': 'SoulMy AI音声ソリューションの構築を開始し、技術スタックと製品方向を決定しました。',
     'about.timeline.day2.title': 'コアアーキテクチャ',
     'about.timeline.day2.desc': 'WebRTCリアルタイム通話、音声クローン、音声認識などのコアアーキテクチャ設計を完了しました。',
     'about.timeline.day3.title': '機能開発',
@@ -1042,12 +1042,12 @@ export const pages: Record<Language, Record<string, string>> = {
     'home.whoWeServe.hardwareDesc': 'スマートスピーカー、ロボット、車載デバイスなどのハードウェア製品にAI音声インタラクション機能を提供、声紋認識、音声クローンなどの高度な機能をサポート',
     'home.whoWeServe.creators': 'コンテンツクリエイター',
     'home.whoWeServe.creatorsDesc': '音声クローン技術を使用してバーチャルアンカー、オーディオブック、ポッドキャスト番組を作成し、コンテンツ制作コストを削減、創作効率を向上',
-    'home.whoWeServe.cta': '企業、開発者、イノベーションチームのいずれであっても、SoulNexusは柔軟でスケーラブルなAI音声ソリューションを提供します',
+    'home.whoWeServe.cta': '企業、開発者、イノベーションチームのいずれであっても、SoulMyは柔軟でスケーラブルなAI音声ソリューションを提供します',
 
     // Platform Showcase
     'home.platformShowcase.subtitle': '強力なプラットフォーム',
     'home.platformShowcase.title': 'オールインワンAI音声ソリューション',
-    'home.platformShowcase.description': 'SoulNexusは、リアルタイム通話から音声クローンまでの完全なAI音声技術スタックを提供し、企業がインテリジェント音声アプリケーションを迅速に構築し、ユーザー体験を向上させ、運用コストを削減するのを支援します',
+    'home.platformShowcase.description': 'SoulMyは、リアルタイム通話から音声クローンまでの完全なAI音声技術スタックを提供し、企業がインテリジェント音声アプリケーションを迅速に構築し、ユーザー体験を向上させ、運用コストを削減するのを支援します',
     'home.platformShowcase.feature1': 'WebRTCベースの低遅延リアルタイム音声通話',
     'home.platformShowcase.feature2': '高度な音声クローンとトレーニング技術',
     'home.platformShowcase.feature3': 'インテリジェントナレッジベース管理とAI分析',

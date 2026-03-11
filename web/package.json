@@ -2,7 +2,7 @@
   "name": "soul-nexus",
   "version": "1.0.0",
   "type": "module",
-  "description": "SoulNexus is an intelligent voice agent platform that brings conversations to life. With SoulNexus, you can create custom AI personas, give them unique voices, and let them interact naturally with users in real time.",
+  "description": "SoulMy is an intelligent voice agent platform that brings conversations to life. With SoulMy, you can create custom AI personas, give them unique voices, and let them interact naturally with users in real time.",
   "main": "index.js",
   "scripts": {
     "dev": "vite",

@@ -1,9 +1,9 @@
 {
   "project": {
-    "name": "SoulNexus",
+    "name": "SoulMy",
     "version": "1.0.0",
     "description": "开源智能语音开发平台",
-    "github": "https://github.com/LingByte/SoulNexus",
+    "github": "https://github.com/LingByte/SoulMy",
     "license": "MIT"
   },
   "sections": [
@@ -11,7 +11,7 @@
       "id": "getting-started",
       "title": "快速开始",
       "icon": "Zap",
-      "description": "快速安装和运行SoulNexus",
+      "description": "快速安装和运行SoulMy",
       "content": [
         {
           "type": "heading",
@@ -21,7 +21,7 @@
         {
           "type": "code",
           "language": "bash",
-          "content": "# 克隆项目\ngit clone https://github.com/LingByte/SoulNexus.git\n\n# 前端启动\ncd ui\n\n# 安装依赖\nnpm install\n\n# 启动开发服务器\nnpm run dev\n\n# 构建生产版本\nnpm run build\n\n# 后端启动\ngo run ./cmd/server/.\n"
+          "content": "# 克隆项目\ngit clone https://github.com/LingByte/SoulMy.git\n\n# 前端启动\ncd ui\n\n# 安装依赖\nnpm install\n\n# 启动开发服务器\nnpm run dev\n\n# 构建生产版本\nnpm run build\n\n# 后端启动\ngo run ./cmd/server/.\n"
         },
         {
           "type": "heading",
@@ -71,7 +71,7 @@
         {
           "type": "code",
           "language": "text",
-          "content": "SoulNexus/\n├── cmd/                 # 应用程序入口\n│   ├── server/          # Web服务器\n│   └── bootstrap/       # 数据库迁移\n├── internal/            # 内部包\n│   ├── handler/         # HTTP处理器\n│   ├── models/          # 数据模型\n│   └── listeners/       # 事件监听器\n│   └── apidocs/         # 自研api文档配置\n│   └── service/         # 网关服务\n│   └── task/            # 定时任务\n├── pkg/                 # 公共包\n│   ├── backup/          # 自动调度器\n│   ├── cache/           # 缓存\n│   └── llm/             # LLM集成\n│   ├── config/          # 读取配置文件\n│   ├── constants/       # 全局变量\n│   ├── grpcx/           # prc服务器配置\n│   ├── i18n/            # 国际化支持\n│   ├── logger/          # 全局日志\n│   ├── media/           # 语音服务\n│   ├── metrics/         # 监控器\n│   ├── middleware/      # 中间件\n│   ├── notification/    # 消息通知\n│   ├── prompt/          # mcp协议\n│   ├── response/        # http统一响应\n│   ├── search/          # 搜索服务 \n│   ├── session/         # session配置 \n│   ├── sse/             # 权限配置 \n│   ├── storage/         # 服务配置 \n│   ├── utils/           # 工具包 \n│   ├── voice/           # ai语音服务 \n│   ├── webrtc/          # 语音传输 \n│   ├── websocket/       # 传输服务 \n│   ├── workflow/        # 工作流服务 \n│   ├── xhttp/           # http服务 \n├── ui/                  # 前端应用\n│   ├── src/\n│   │   ├── components/  # React组件\n│   │   ├── pages/       # 页面组件\n│   │   └── utils/       # 工具函数\n│   │   └── api/         # 接口处理\n│   │   └── stores/      # 全局方法\n│   └── public/          # 静态资源\n└── docs/                # 文档\n    ├── api/             # API文档\n"
+          "content": "SoulMy/\n├── cmd/                 # 应用程序入口\n│   ├── server/          # Web服务器\n│   └── bootstrap/       # 数据库迁移\n├── internal/            # 内部包\n│   ├── handler/         # HTTP处理器\n│   ├── models/          # 数据模型\n│   └── listeners/       # 事件监听器\n│   └── apidocs/         # 自研api文档配置\n│   └── service/         # 网关服务\n│   └── task/            # 定时任务\n├── pkg/                 # 公共包\n│   ├── backup/          # 自动调度器\n│   ├── cache/           # 缓存\n│   └── llm/             # LLM集成\n│   ├── config/          # 读取配置文件\n│   ├── constants/       # 全局变量\n│   ├── grpcx/           # prc服务器配置\n│   ├── i18n/            # 国际化支持\n│   ├── logger/          # 全局日志\n│   ├── media/           # 语音服务\n│   ├── metrics/         # 监控器\n│   ├── middleware/      # 中间件\n│   ├── notification/    # 消息通知\n│   ├── prompt/          # mcp协议\n│   ├── response/        # http统一响应\n│   ├── search/          # 搜索服务 \n│   ├── session/         # session配置 \n│   ├── sse/             # 权限配置 \n│   ├── storage/         # 服务配置 \n│   ├── utils/           # 工具包 \n│   ├── voice/           # ai语音服务 \n│   ├── webrtc/          # 语音传输 \n│   ├── websocket/       # 传输服务 \n│   ├── workflow/        # 工作流服务 \n│   ├── xhttp/           # http服务 \n├── ui/                  # 前端应用\n│   ├── src/\n│   │   ├── components/  # React组件\n│   │   ├── pages/       # 页面组件\n│   │   └── utils/       # 工具函数\n│   │   └── api/         # 接口处理\n│   │   └── stores/      # 全局方法\n│   └── public/          # 静态资源\n└── docs/                # 文档\n    ├── api/             # API文档\n"
         },
         {
           "type": "heading",
@@ -336,7 +336,7 @@
       "id": "features",
       "title": "功能特性",
       "icon": "Star",
-      "description": "SoulNexus的核心功能特性",
+      "description": "SoulMy的核心功能特性",
       "content": [
         {
           "type": "heading",
@@ -481,7 +481,7 @@
         {
           "type": "code",
           "language": "yaml",
-          "content": "# k8s-deployment.yaml\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: SoulNexus\nspec:\n  replicas: 3\n  selector:\n    matchLabels:\n      app: SoulNexus\n  template:\n    metadata:\n      labels:\n        app: SoulNexus\n    spec:\n      containers:\n      - name: app\n        image: SoulNexus:latest\n        ports:\n        - containerPort: 7072\n        env:\n        - name: DATABASE_URL\n          valueFrom:\n            secretKeyRef:\n              name: ling-secrets\n              key: database-url\n        resources:\n          requests:\n            memory: \"256Mi\"\n            cpu: \"250m\"\n          limits:\n            memory: \"512Mi\"\n            cpu: \"500m\""
+          "content": "# k8s-deployment.yaml\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: SoulMy\nspec:\n  replicas: 3\n  selector:\n    matchLabels:\n      app: SoulMy\n  template:\n    metadata:\n      labels:\n        app: SoulMy\n    spec:\n      containers:\n      - name: app\n        image: SoulMy:latest\n        ports:\n        - containerPort: 7072\n        env:\n        - name: DATABASE_URL\n          valueFrom:\n            secretKeyRef:\n              name: ling-secrets\n              key: database-url\n        resources:\n          requests:\n            memory: \"256Mi\"\n            cpu: \"250m\"\n          limits:\n            memory: \"512Mi\"\n            cpu: \"500m\""
         },
         {
           "type": "heading",

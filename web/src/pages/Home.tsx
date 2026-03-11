@@ -55,12 +55,12 @@ const Home = () => {
 
     // 动态更新页面标题和meta标签（SEO优化）
     useEffect(() => {
-        document.title = 'SoulNexus - 智能AI语音通话平台 | WebRTC实时通信解决方案'
+        document.title = 'SoulMy - 智能AI语音通话平台 | WebRTC实时通信解决方案'
         
         // 更新meta description
         const metaDescription = document.querySelector('meta[name="description"]')
         if (metaDescription) {
-            metaDescription.setAttribute('content', 'SoulNexus是基于WebRTC的智能AI语音通话平台，提供低延迟实时通信、AI语音助手、声音克隆、知识库管理等企业级解决方案。')
+            metaDescription.setAttribute('content', 'SoulMy是基于WebRTC的智能AI语音通话平台，提供低延迟实时通信、AI语音助手、声音克隆、知识库管理等企业级解决方案。')
         }
     }, [])
 
@@ -159,17 +159,17 @@ const Home = () => {
         <div className="min-h-screen relative">
             {/* SEO优化组件 */}
             <PageSEO
-                title="SoulNexus - 智能AI语音通话平台 | WebRTC实时通信解决方案"
-                description="SoulNexus是基于WebRTC的智能AI语音通话平台，提供低延迟实时通信、AI语音助手、声音克隆、知识库管理等企业级解决方案。支持多模态交互，助力企业数字化转型。"
-                keywords="AI语音通话,WebRTC,实时通信,语音助手,声音克隆,AI对话,智能客服,语音识别,TTS,ASR,低延迟通话,企业通信,SoulNexus"
+                title="SoulMy - 智能AI语音通话平台 | WebRTC实时通信解决方案"
+                description="SoulMy是基于WebRTC的智能AI语音通话平台，提供低延迟实时通信、AI语音助手、声音克隆、知识库管理等企业级解决方案。支持多模态交互，助力企业数字化转型。"
+                keywords="AI语音通话,WebRTC,实时通信,语音助手,声音克隆,AI对话,智能客服,语音识别,TTS,ASR,低延迟通话,企业通信,SoulMy"
                 ogImage="https://cetide-1325039295.cos.ap-chengdu.myqcloud.com/folder/icon-192x192.ico"
-                canonical="https://soulnexus.com/"
+                canonical="https://SoulMy.com/"
                 structuredData={{
                     "@context": "https://schema.org",
                     "@type": "WebPage",
-                    "name": "SoulNexus - 智能AI语音通话平台",
+                    "name": "SoulMy - 智能AI语音通话平台",
                     "description": "基于WebRTC的企业级AI语音通话解决方案",
-                    "url": "https://soulnexus.com/",
+                    "url": "https://SoulMy.com/",
                     "publisher": {
                         "@type": "Organization",
                         "name": "成都解忧造物科技有限责任公司",
@@ -180,7 +180,7 @@ const Home = () => {
                     },
                     "mainEntity": {
                         "@type": "SoftwareApplication",
-                        "name": "SoulNexus",
+                        "name": "SoulMy",
                         "applicationCategory": "BusinessApplication",
                         "offers": {
                             "@type": "Offer",
@@ -199,7 +199,7 @@ const Home = () => {
                         <Link to="/" className="flex items-center gap-2">
                             <img
                                 src="https://cetide-1325039295.cos.ap-chengdu.myqcloud.com/folder/icon-192x192.ico"
-                                alt="SoulNexus Logo"
+                                alt="SoulMy Logo"
                                 className="w-8 h-8 rounded"
                             />
                             <span className="text-xl font-extrabold tracking-wider">
@@ -797,7 +797,7 @@ const Home = () => {
                         <div className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-500/10 to-purple-500/10 dark:from-indigo-500/20 dark:to-purple-500/20 rounded-full border border-indigo-200/50 dark:border-indigo-700/50">
                             <UsersIcon className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
                             <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                {t('home.whoWeServe.cta') || '无论您是企业、开发者还是创新团队，SoulNexus都能为您提供灵活、可扩展的AI语音解决方案'}
+                                {t('home.whoWeServe.cta') || '无论您是企业、开发者还是创新团队，SoulMy都能为您提供灵活、可扩展的AI语音解决方案'}
                             </p>
                         </div>
                     </motion.div>

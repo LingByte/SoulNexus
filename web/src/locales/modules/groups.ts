@@ -717,10 +717,6 @@ export const groups: Record<Language, Record<string, string>> = {
     'activityLog.resource.quota': 'クォータ',
     'activityLog.resource.group': '組織',
     'activityLog.resource.overview': '概要',
-    'activityLog.empty': 'アクティビティ記録なし',
-    'activityLog.totalRecords': '合計 {count} 件',
-    'activityLog.resourceName': 'リソース名',
-    'activityLog.viewDetails': '詳細を表示',
     'activityLog.backToSettings': '設定に戻る',
     
     // 共通

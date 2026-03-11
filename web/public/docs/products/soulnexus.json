@@ -1,19 +1,19 @@
 {
-  "id": "soulnexus",
-  "name": "SoulNexus",
-  "title": "SoulNexus - AI Voice Assistant Platform",
+  "id": "SoulMy",
+  "name": "SoulMy",
+  "title": "SoulMy - AI Voice Assistant Platform",
   "description": "A comprehensive AI voice assistant platform with real-time voice interaction, voice cloning, and intelligent workflow automation.",
   "hero": {
-    "title": "SoulNexus",
+    "title": "SoulMy",
     "subtitle": "The Next Generation AI Voice Assistant Platform",
     "description": "Build intelligent voice applications with real-time interaction, advanced voice cloning, and seamless integration.",
-    "image": "https://store.lingecho.com/uploads/buckets/default/uploads/soulnexus.png"
+    "image": "https://store.lingecho.com/uploads/buckets/default/uploads/SoulMy.png"
   },
   "sections": [
     {
       "id": "overview",
       "title": "Overview",
-      "content": "SoulNexus is a cutting-edge AI voice assistant platform designed for developers and enterprises. It provides a complete solution for building intelligent voice applications with minimal effort.",
+      "content": "SoulMy is a cutting-edge AI voice assistant platform designed for developers and enterprises. It provides a complete solution for building intelligent voice applications with minimal effort.",
       "features": [
         {
           "title": "Real-time Voice Interaction",
@@ -229,7 +229,7 @@
         {
           "number": 1,
           "title": "Sign Up",
-          "description": "Create your SoulNexus account and get API credentials"
+          "description": "Create your SoulMy account and get API credentials"
         },
         {
           "number": 2,
@@ -249,7 +249,7 @@
         {
           "number": 5,
           "title": "Integrate",
-          "description": "Embed SoulNexus into your application using SDK or API"
+          "description": "Embed SoulMy into your application using SDK or API"
         },
         {
           "number": 6,
