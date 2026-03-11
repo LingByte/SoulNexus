@@ -33,6 +33,8 @@ const Groups: React.FC = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState<number | null>(null);
   const [newGroupName, setNewGroupName] = useState('');
+  const [newGroupType, setNewGroupType] = useState('');
+  const [newGroupDescription, setNewGroupDescription] = useState('');
   const [searchKeyword, setSearchKeyword] = useState('');
   const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
@@ -113,10 +115,16 @@ const Groups: React.FC = () => {
       return;
     }
     try {
-      await createGroup({ name: newGroupName });
+      await createGroup({ 
+        name: newGroupName,
+        type: newGroupType.trim() || undefined,
+        extra: newGroupDescription.trim() || undefined
+      });
       await fetchGroups();
       setShowCreateModal(false);
       setNewGroupName('');
+      setNewGroupType('');
+      setNewGroupDescription('');
       showAlert(t('groups.messages.createSuccess'), 'success');
     } catch (err: any) {
       showAlert(err?.msg || t('groups.messages.createFailed'), 'error');
@@ -358,8 +366,8 @@ const Groups: React.FC = () => {
                           </div>
                         </div>
                         {group.extra && (
-                          <div className="text-sm text-gray-600 dark:text-gray-300 line-clamp-1">
-                            {group.extra.length > 12 ? `${group.extra.slice(0, 12)}...` : group.extra}
+                          <div className="text-sm text-gray-600 dark:text-gray-300 mt-2 line-clamp-2">
+                            {group.extra}
                           </div>
                         )}
                       </div>
@@ -424,18 +432,52 @@ const Groups: React.FC = () => {
 
       {/* 创建组织模态框 */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-neutral-800 rounded-xl p-6 w-full max-w-md">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">{t('groups.createModal.title')}</h2>
-            <input
-              type="text"
-              value={newGroupName}
-              onChange={(e) => setNewGroupName(e.target.value)}
-              placeholder={t('groups.createModal.namePlaceholder')}
-              className="w-full px-4 py-3 border border-gray-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100 mb-4"
-              onKeyPress={(e) => e.key === 'Enter' && handleCreateGroup()}
-            />
-            <div className="flex items-center gap-2">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-6">{t('groups.createModal.title')}</h2>
+            
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  {t('groupSettings.name')} <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newGroupName}
+                  onChange={(e) => setNewGroupName(e.target.value)}
+                  placeholder={t('groups.createModal.namePlaceholder')}
+                  className="w-full px-4 py-3 border border-gray-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-primary focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  {t('groupSettings.type')}
+                </label>
+                <input
+                  type="text"
+                  value={newGroupType}
+                  onChange={(e) => setNewGroupType(e.target.value)}
+                  placeholder={t('groupSettings.typePlaceholder')}
+                  className="w-full px-4 py-3 border border-gray-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-primary focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  {t('groupSettings.description')}
+                </label>
+                <textarea
+                  value={newGroupDescription}
+                  onChange={(e) => setNewGroupDescription(e.target.value)}
+                  placeholder={t('groupSettings.descriptionPlaceholder')}
+                  rows={3}
+                  className="w-full px-4 py-3 border border-gray-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
               <Button
                 onClick={handleCreateGroup}
                 variant="primary"
@@ -448,6 +490,8 @@ const Groups: React.FC = () => {
                 onClick={() => {
                   setShowCreateModal(false);
                   setNewGroupName('');
+                  setNewGroupType('');
+                  setNewGroupDescription('');
                 }}
                 variant="secondary"
                 size="md"

@@ -24,6 +24,14 @@ export interface Group {
   memberCount?: number
   myRole?: string
   members?: GroupMember[]
+  // 归档相关
+  isArchived?: boolean
+  archivedAt?: string
+  archivedBy?: number
+  // 模板相关
+  isTemplate?: boolean
+  templateId?: number
+  clonedFrom?: number
 }
 
 // 组织成员
@@ -35,6 +43,7 @@ export interface GroupMember {
     id: number
     email: string
     displayName?: string
+    avatar?: string
   }
   groupId: number
   role: string
@@ -193,3 +202,67 @@ export const updateMemberRole = async (groupId: number, memberId: number, role: 
   return put(`/group/${groupId}/members/${memberId}/role`, { role })
 }
 
+
+// 组织活动日志
+export interface GroupActivityLog {
+  id: number
+  createdAt: string
+  groupId: number
+  userId: number
+  user: {
+    id: number
+    email: string
+    displayName?: string
+  }
+  action: string
+  resourceType: string
+  resourceId?: number
+  resourceName: string
+  details: string
+  ipAddress: string
+}
+
+// 归档组织
+export const archiveGroup = async (id: number): Promise<ApiResponse<Group>> => {
+  return post(`/group/${id}/archive`)
+}
+
+// 恢复归档的组织
+export const restoreGroup = async (id: number): Promise<ApiResponse<Group>> => {
+  return post(`/group/${id}/restore`)
+}
+
+// 克隆组织
+export const cloneGroup = async (id: number): Promise<ApiResponse<Group>> => {
+  return post(`/group/${id}/clone`)
+}
+
+// 导出组织数据
+export const exportGroup = async (id: number): Promise<ApiResponse<any>> => {
+  return get(`/group/${id}/export`)
+}
+
+// 获取组织活动日志
+export const getGroupActivityLogs = async (
+  id: number,
+  params?: {
+    page?: number
+    pageSize?: number
+    action?: string
+    resourceType?: string
+  }
+): Promise<ApiResponse<{
+  logs: GroupActivityLog[]
+  total: number
+  page: number
+  pageSize: number
+}>> => {
+  const queryParams = new URLSearchParams()
+  if (params?.page) queryParams.append('page', params.page.toString())
+  if (params?.pageSize) queryParams.append('pageSize', params.pageSize.toString())
+  if (params?.action) queryParams.append('action', params.action)
+  if (params?.resourceType) queryParams.append('resourceType', params.resourceType)
+  
+  const queryString = queryParams.toString()
+  return get(`/group/${id}/activity-logs${queryString ? `?${queryString}` : ''}`)
+}

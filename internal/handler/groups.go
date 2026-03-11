@@ -131,6 +131,9 @@ func (h *Handlers) CreateGroup(c *gin.Context) {
 	// 加载创建者信息
 	h.db.Preload("Creator").First(&group, group.ID)
 
+	// 记录活动日志
+	h.logGroupActivity(group.ID, user.ID, models.ActionGroupCreated, models.ResourceTypeGroup, &group.ID, group.Name, nil, c.ClientIP())
+
 	response.Success(c, "创建组织成功", group)
 }
 
@@ -1780,4 +1783,382 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 	}
 
 	response.Success(c, "查询成功", stats)
+}
+
+// ArchiveGroup 归档组织
+func (h *Handlers) ArchiveGroup(c *gin.Context) {
+	user := models.CurrentUser(c)
+	if user == nil {
+		response.Fail(c, "未登录", nil)
+		return
+	}
+
+	groupID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Fail(c, "无效的组织ID", nil)
+		return
+	}
+
+	var group models.Group
+	if err := h.db.First(&group, groupID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, "组织不存在", nil)
+			return
+		}
+		response.Fail(c, "查询失败", err.Error())
+		return
+	}
+
+	// 检查权限（只有创建者可以归档）
+	if group.CreatorID != user.ID {
+		response.Fail(c, "权限不足", "只有创建者可以归档组织")
+		return
+	}
+
+	// 归档组织
+	now := time.Now()
+	group.IsArchived = true
+	group.ArchivedAt = &now
+	group.ArchivedBy = &user.ID
+
+	if err := h.db.Save(&group).Error; err != nil {
+		response.Fail(c, "归档失败", err.Error())
+		return
+	}
+
+	// 记录日志
+	h.logGroupActivity(group.ID, user.ID, models.ActionGroupArchived, models.ResourceTypeGroup, &group.ID, group.Name, nil, c.ClientIP())
+
+	response.Success(c, "组织已归档", group)
+}
+
+// RestoreGroup 恢复归档的组织
+func (h *Handlers) RestoreGroup(c *gin.Context) {
+	user := models.CurrentUser(c)
+	if user == nil {
+		response.Fail(c, "未登录", nil)
+		return
+	}
+
+	groupID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Fail(c, "无效的组织ID", nil)
+		return
+	}
+
+	var group models.Group
+	if err := h.db.First(&group, groupID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, "组织不存在", nil)
+			return
+		}
+		response.Fail(c, "查询失败", err.Error())
+		return
+	}
+
+	// 检查权限
+	if group.CreatorID != user.ID {
+		response.Fail(c, "权限不足", "只有创建者可以恢复组织")
+		return
+	}
+
+	// 恢复组织
+	group.IsArchived = false
+	group.ArchivedAt = nil
+	group.ArchivedBy = nil
+
+	if err := h.db.Save(&group).Error; err != nil {
+		response.Fail(c, "恢复失败", err.Error())
+		return
+	}
+
+	// 记录日志
+	h.logGroupActivity(group.ID, user.ID, models.ActionGroupRestored, models.ResourceTypeGroup, &group.ID, group.Name, nil, c.ClientIP())
+
+	response.Success(c, "组织已恢复", group)
+}
+
+// CloneGroup 克隆组织
+func (h *Handlers) CloneGroup(c *gin.Context) {
+	user := models.CurrentUser(c)
+	if user == nil {
+		response.Fail(c, "未登录", nil)
+		return
+	}
+
+	groupID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Fail(c, "无效的组织ID", nil)
+		return
+	}
+
+	var sourceGroup models.Group
+	if err := h.db.First(&sourceGroup, groupID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, "组织不存在", nil)
+			return
+		}
+		response.Fail(c, "查询失败", err.Error())
+		return
+	}
+
+	// 检查权限（只有创建者或管理员可以克隆）
+	var member models.GroupMember
+	if err := h.db.Where("group_id = ? AND user_id = ?", groupID, user.ID).First(&member).Error; err != nil {
+		response.Fail(c, "权限不足", "您不是该组织的成员")
+		return
+	}
+
+	if sourceGroup.CreatorID != user.ID && member.Role != models.GroupRoleAdmin {
+		response.Fail(c, "权限不足", "只有创建者或管理员可以克隆组织")
+		return
+	}
+
+	// 创建新组织
+	newGroup := models.Group{
+		Name:       sourceGroup.Name + " (副本)",
+		Type:       sourceGroup.Type,
+		Extra:      sourceGroup.Extra,
+		Permission: sourceGroup.Permission,
+		CreatorID:  user.ID,
+		ClonedFrom: &sourceGroup.ID,
+	}
+
+	if err := h.db.Create(&newGroup).Error; err != nil {
+		response.Fail(c, "克隆失败", err.Error())
+		return
+	}
+
+	// 添加创建者为成员
+	newMember := models.GroupMember{
+		UserID:  user.ID,
+		GroupID: newGroup.ID,
+		Role:    models.GroupRoleAdmin,
+	}
+	h.db.Create(&newMember)
+
+	// 复制配额设置（如果有）
+	var quotas []models.GroupQuota
+	if err := h.db.Where("group_id = ?", sourceGroup.ID).Find(&quotas).Error; err == nil {
+		for _, quota := range quotas {
+			newQuota := models.GroupQuota{
+				GroupID:     newGroup.ID,
+				QuotaType:   quota.QuotaType,
+				TotalQuota:  quota.TotalQuota,
+				UsedQuota:   0, // 重置使用量
+				Period:      quota.Period,
+				Description: quota.Description,
+			}
+			h.db.Create(&newQuota)
+		}
+	}
+
+	// 记录日志
+	details := map[string]interface{}{
+		"source_group_id":   sourceGroup.ID,
+		"source_group_name": sourceGroup.Name,
+	}
+	h.logGroupActivity(newGroup.ID, user.ID, models.ActionGroupCloned, models.ResourceTypeGroup, &newGroup.ID, newGroup.Name, details, c.ClientIP())
+
+	response.Success(c, "组织克隆成功", newGroup)
+}
+
+// ExportGroup 导出组织数据
+func (h *Handlers) ExportGroup(c *gin.Context) {
+	user := models.CurrentUser(c)
+	if user == nil {
+		response.Fail(c, "未登录", nil)
+		return
+	}
+
+	groupID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Fail(c, "无效的组织ID", nil)
+		return
+	}
+
+	var group models.Group
+	if err := h.db.Preload("Creator").First(&group, groupID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, "组织不存在", nil)
+			return
+		}
+		response.Fail(c, "查询失败", err.Error())
+		return
+	}
+
+	// 检查权限
+	var member models.GroupMember
+	if err := h.db.Where("group_id = ? AND user_id = ?", groupID, user.ID).First(&member).Error; err != nil {
+		response.Fail(c, "权限不足", "您不是该组织的成员")
+		return
+	}
+
+	// 获取成员列表
+	var members []models.GroupMember
+	h.db.Where("group_id = ?", groupID).Preload("User").Find(&members)
+
+	// 获取配额信息
+	var quotas []models.GroupQuota
+	h.db.Where("group_id = ?", groupID).Find(&quotas)
+
+	// 获取活动日志（最近100条）
+	var logs []models.GroupActivityLog
+	h.db.Where("group_id = ?", groupID).
+		Preload("User").
+		Order("created_at DESC").
+		Limit(100).
+		Find(&logs)
+
+	// 构建导出数据
+	exportData := map[string]interface{}{
+		"group": map[string]interface{}{
+			"id":         group.ID,
+			"name":       group.Name,
+			"type":       group.Type,
+			"extra":      group.Extra,
+			"createdAt":  group.CreatedAt,
+			"creator":    group.Creator.Email,
+			"isArchived": group.IsArchived,
+		},
+		"members": func() []map[string]interface{} {
+			result := make([]map[string]interface{}, len(members))
+			for i, m := range members {
+				result[i] = map[string]interface{}{
+					"email":       m.User.Email,
+					"displayName": m.User.DisplayName,
+					"role":        m.Role,
+					"joinedAt":    m.CreatedAt,
+				}
+			}
+			return result
+		}(),
+		"quotas": func() []map[string]interface{} {
+			result := make([]map[string]interface{}, len(quotas))
+			for i, q := range quotas {
+				result[i] = map[string]interface{}{
+					"type":        q.QuotaType,
+					"total":       q.TotalQuota,
+					"used":        q.UsedQuota,
+					"period":      q.Period,
+					"description": q.Description,
+				}
+			}
+			return result
+		}(),
+		"activityLogs": func() []map[string]interface{} {
+			result := make([]map[string]interface{}, len(logs))
+			for i, l := range logs {
+				result[i] = map[string]interface{}{
+					"action":       l.Action,
+					"resourceType": l.ResourceType,
+					"resourceName": l.ResourceName,
+					"user":         l.User.Email,
+					"createdAt":    l.CreatedAt,
+					"details":      l.Details,
+				}
+			}
+			return result
+		}(),
+		"exportedAt": time.Now(),
+		"exportedBy": user.Email,
+	}
+
+	// 记录日志
+	h.logGroupActivity(group.ID, user.ID, models.ActionGroupExported, models.ResourceTypeGroup, &group.ID, group.Name, nil, c.ClientIP())
+
+	// 返回JSON数据
+	c.Header("Content-Type", "application/json")
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=group_%d_export_%s.json", groupID, time.Now().Format("20060102_150405")))
+	response.Success(c, "导出成功", exportData)
+}
+
+// GetGroupActivityLogs 获取组织活动日志
+func (h *Handlers) GetGroupActivityLogs(c *gin.Context) {
+	user := models.CurrentUser(c)
+	if user == nil {
+		response.Fail(c, "未登录", nil)
+		return
+	}
+
+	groupID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Fail(c, "无效的组织ID", nil)
+		return
+	}
+
+	// 检查权限
+	var member models.GroupMember
+	if err := h.db.Where("group_id = ? AND user_id = ?", groupID, user.ID).First(&member).Error; err != nil {
+		response.Fail(c, "权限不足", "您不是该组织的成员")
+		return
+	}
+
+	// 获取分页参数
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "20"))
+	action := c.Query("action")
+	resourceType := c.Query("resourceType")
+
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+
+	// 构建查询
+	query := h.db.Where("group_id = ?", groupID)
+	if action != "" {
+		query = query.Where("action = ?", action)
+	}
+	if resourceType != "" {
+		query = query.Where("resource_type = ?", resourceType)
+	}
+
+	// 获取总数
+	var total int64
+	query.Model(&models.GroupActivityLog{}).Count(&total)
+
+	// 获取日志列表
+	var logs []models.GroupActivityLog
+	if err := query.
+		Preload("User").
+		Order("created_at DESC").
+		Offset((page - 1) * pageSize).
+		Limit(pageSize).
+		Find(&logs).Error; err != nil {
+		response.Fail(c, "查询失败", err.Error())
+		return
+	}
+
+	response.Success(c, "查询成功", map[string]interface{}{
+		"logs":     logs,
+		"total":    total,
+		"page":     page,
+		"pageSize": pageSize,
+	})
+}
+
+// logGroupActivity 记录组织活动日志（辅助函数）
+func (h *Handlers) logGroupActivity(groupID uint, userID uint, action string, resourceType string, resourceID *uint, resourceName string, details interface{}, ipAddress string) {
+	detailsJSON := ""
+	if details != nil {
+		if jsonBytes, err := json.Marshal(details); err == nil {
+			detailsJSON = string(jsonBytes)
+		}
+	}
+
+	log := models.GroupActivityLog{
+		GroupID:      groupID,
+		UserID:       userID,
+		Action:       action,
+		ResourceType: resourceType,
+		ResourceID:   resourceID,
+		ResourceName: resourceName,
+		Details:      detailsJSON,
+		IPAddress:    ipAddress,
+	}
+
+	h.db.Create(&log)
 }

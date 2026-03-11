@@ -372,6 +372,13 @@ func (h *Handlers) registerGroupRoutes(r *gin.RouterGroup) {
 		// Upload organization avatar - must be registered before /:id
 		group.POST("/:id/avatar", h.UploadGroupAvatar)
 
+		// Organization advanced operations - must be registered before /:id
+		group.POST("/:id/archive", h.ArchiveGroup)
+		group.POST("/:id/restore", h.RestoreGroup)
+		group.POST("/:id/clone", h.CloneGroup)
+		group.GET("/:id/export", h.ExportGroup)
+		group.GET("/:id/activity-logs", h.GetGroupActivityLogs)
+
 		// Organization details and management - parameter routes at the end
 		group.GET("/:id", h.GetGroup)
 		group.PUT("/:id", h.UpdateGroup)

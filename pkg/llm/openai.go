@@ -580,6 +580,10 @@ func (h *LLMHandler) QueryStream(text string, options QueryOptions, callback fun
 
 	h.mutex.Lock()
 
+	// Clean up any incomplete tool calls before starting new query
+	// This prevents errors from previous failed tool call processing
+	h.cleanupIncompleteToolCalls()
+
 	// Add user message to history
 	h.messages = append(h.messages, openai.ChatCompletionMessage{
 		Role:    openai.ChatMessageRoleUser,
