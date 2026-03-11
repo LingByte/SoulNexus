@@ -64,7 +64,7 @@ export const animation: Record<Language, Record<string, string>> = {
     'animation.test.subtitle2': '更多内容用于测试滚动效果',
     'animation.test.description2': '这是另一个测试区域，确保引导功能能够正确滚动到目标位置',
     
-    'animation.onboarding.complete': '引导完成！欢迎使用 SoulNexus！',
+    'animation.onboarding.complete': '引导完成！欢迎使用 SoulMy！',
     'animation.onboarding.welcome': '欢迎！',
   },
   en: {
@@ -130,7 +130,7 @@ export const animation: Record<Language, Record<string, string>> = {
     'animation.test.subtitle2': 'More content for testing scroll effects',
     'animation.test.description2': 'This is another test area to ensure the guidance feature can scroll to the target position correctly',
     
-    'animation.onboarding.complete': 'Tutorial Complete! Welcome to SoulNexus!',
+    'animation.onboarding.complete': 'Tutorial Complete! Welcome to SoulMy!',
     'animation.onboarding.welcome': 'Welcome!',
   },
   ja: {
@@ -193,7 +193,7 @@ export const animation: Record<Language, Record<string, string>> = {
     'animation.test.title2': 'テストスクロールエリア2',
     'animation.test.subtitle2': 'スクロール効果をテストするための追加コンテンツ',
     'animation.test.description2': 'これは別のテストエリアで、ガイダンス機能がターゲット位置に正しくスクロールできることを確認します',
-    'animation.onboarding.complete': 'チュートリアル完了！SoulNexusへようこそ！',
+    'animation.onboarding.complete': 'チュートリアル完了！SoulMyへようこそ！',
     'animation.onboarding.welcome': 'ようこそ！',
   }
 }

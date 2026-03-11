@@ -3,7 +3,7 @@ export type Language = 'zh' | 'en' | 'ja'
 export const common: Record<Language, Record<string, string>> = {
   zh: {
     // 品牌名称
-    'brand.name': '灵枢',
+    'brand.name': 'SoulMy',
 
     // 导航
     'nav.docs': '文档',
@@ -86,7 +86,7 @@ export const common: Record<Language, Record<string, string>> = {
   },
   en: {
     // Brand
-    'brand.name': 'SoulNexus',
+    'brand.name': 'SoulMy',
 
     // Navigation
     'nav.docs': 'Documentation',
@@ -169,7 +169,7 @@ export const common: Record<Language, Record<string, string>> = {
   },
   ja: {
     // ブランド
-    'brand.name': 'SoulNexus',
+    'brand.name': 'SoulMy',
 
     // ナビゲーション
     'nav.docs': 'ドキュメント',

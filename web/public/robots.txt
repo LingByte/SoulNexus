@@ -1,4 +1,4 @@
-# robots.txt for SoulNexus
+# robots.txt for SoulMy
 User-agent: *
 Allow: /
 Disallow: /api/
@@ -6,7 +6,7 @@ Disallow: /admin/
 Disallow: /private/
 
 # Sitemap
-Sitemap: https://soulnexus.com/sitemap.xml
+Sitemap: https://lingecho.com/sitemap.xml
 
 # Crawl-delay for polite crawling
 Crawl-delay: 1

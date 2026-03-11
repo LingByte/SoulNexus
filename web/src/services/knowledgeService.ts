@@ -239,7 +239,7 @@ class KnowledgeService {
     this.knowledgeBase = {
       id: 'system',
       name: '系统知识库',
-      description: 'SoulNexus 灵枢系统知识库',
+      description: 'SoulMy SoulMy系统知识库',
       categories: SYSTEM_CATEGORIES,
       items: SYSTEM_KNOWLEDGE,
       settings: DEFAULT_SETTINGS

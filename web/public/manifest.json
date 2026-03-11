@@ -1,7 +1,7 @@
 {
-  "name": "灵枢",
-  "short_name": "灵枢",
-  "description": "灵枢",
+  "name": "SoulMy",
+  "short_name": "SoulMy",
+  "description": "SoulMy",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

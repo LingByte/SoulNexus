@@ -400,7 +400,7 @@ class FunctionToolsService {
   // 获取系统信息处理
   private async handleGetSystemInfo(_args: Record<string, any>): Promise<FunctionResult> {
     const systemInfo = {
-      name: 'SoulNexus 灵枢',
+      name: 'SoulMy SoulMy',
       version: '1.0.0',
       description: '基于React的现代化Web应用框架',
       features: [
