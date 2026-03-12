@@ -1,5 +1,8 @@
 package recognizer
 
+// Copyright (c) 2026 LingByte. All rights reserved.
+// SPDX-License-Identifier: AGPL-3.0
+
 // AuthConfig represents authentication configuration
 type AuthConfig struct {
 	ResourceId string `json:"resource_id" yaml:"resource_id"`

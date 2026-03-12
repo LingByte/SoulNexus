@@ -1,5 +1,8 @@
 package graph
 
+// Copyright (c) 2026 LingByte. All rights reserved.
+// SPDX-License-Identifier: AGPL-3.0
+
 // ConversationSummary 对话总结
 type ConversationSummary struct {
 	AssistantID   int64       `json:"assistantId"`
