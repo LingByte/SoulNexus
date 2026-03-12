@@ -1,5 +1,8 @@
 package llm
 
+// Copyright (c) 2026 LingByte. All rights reserved.
+// SPDX-License-Identifier: AGPL-3.0
+
 // LLMProvider 统一的 LLM 提供者接口
 // 所有 LLM 提供者（OpenAI、Coze 等）都需要实现这个接口
 type LLMProvider interface {

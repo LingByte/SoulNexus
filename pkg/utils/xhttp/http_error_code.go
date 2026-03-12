@@ -1,5 +1,8 @@
 package xhttp
 
+// Copyright (c) 2026 LingByte. All rights reserved.
+// SPDX-License-Identifier: AGPL-3.0
+
 const (
 	ERROR_CODE_HTTP_JWT_TOKEN_ERR     int32 = 401 // TOKEN error
 	ERROR_CODE_HTTP_TOO_MANY_REQUESTS       = 429

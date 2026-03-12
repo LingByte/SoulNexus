@@ -1,5 +1,8 @@
 package synthesizer
 
+// Copyright (c) 2026 LingByte. All rights reserved.
+// SPDX-License-Identifier: AGPL-3.0
+
 const (
 	TTS_QCLOUD            = "tts.qcloud"
 	TTS_TENCENT           = "tts.tencent"

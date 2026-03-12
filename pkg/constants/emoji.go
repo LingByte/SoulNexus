@@ -1,5 +1,8 @@
 package constants
 
+// Copyright (c) 2026 LingByte. All rights reserved.
+// SPDX-License-Identifier: AGPL-3.0
+
 const (
 	Happy         = "\\U0001F603"
 	Smile         = "\\U0001F604"

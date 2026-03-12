@@ -1,5 +1,8 @@
 package xhttp
 
+// Copyright (c) 2026 LingByte. All rights reserved.
+// SPDX-License-Identifier: AGPL-3.0
+
 const (
 	ERROR_HTTP_JWT_TOKEN_ERR                    = "无效的会话令牌"
 	ERROR_HTTP_USER_ID_DOESNOT_EXIST            = "缺少用户ID信息"

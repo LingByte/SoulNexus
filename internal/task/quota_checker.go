@@ -1,5 +1,8 @@
 package task
 
+// Copyright (c) 2026 LingByte. All rights reserved.
+// SPDX-License-Identifier: AGPL-3.0
+
 import (
 	"github.com/LingByte/SoulNexus/pkg/alert"
 	"github.com/LingByte/SoulNexus/pkg/logger"
