@@ -22,7 +22,7 @@ func RegisterGoodbyeTool(service *LLMService, callback GoodbyeCallback) {
 			},
 			"required": []string{},
 		},
-		func(args map[string]interface{}) (string, error) {
+		func(args map[string]interface{}, llmService interface{}) (string, error) {
 			return executeGoodbye(args, callback)
 		},
 	)

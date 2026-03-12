@@ -84,6 +84,7 @@ const (
 	ErrIndexNameRequired        = "index_name is required"
 	ErrKnowledgeKeyRequired     = "knowledge key cannot be empty"
 	ErrKnowledgeNotFound        = "knowledge base not found"
+	ErrIndexNotExist            = "index does not exist in the knowledge base provider"
 	ErrConfigParseFailed        = "failed to parse config"
 	ErrKnowledgeBaseInitFailed  = "failed to initialize knowledge base instance"
 	ErrFileReceiveFailed        = "failed to receive file"

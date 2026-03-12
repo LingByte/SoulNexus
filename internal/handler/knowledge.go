@@ -221,12 +221,29 @@ func (h *Handlers) CreateKnowledgeBase(c *gin.Context) {
 	// 7. Handle file upload and index creation based on provider
 	var indexId string
 
-	// If no file is provided, just create an empty knowledge base
+	// If no file is provided, still need to create index (with auto-generated initial document)
 	if file == nil {
-		log.Printf("No file provided, creating empty knowledge base - index will be created on first file upload")
-		// For empty knowledge base, use generatedName as index ID (for Aliyun compatibility)
-		// The actual index will be created when the first file is uploaded
-		indexId = generatedName
+		log.Printf("No file provided, creating knowledge base with auto-generated initial document")
+
+		// For Aliyun, create index with auto-generated txt file
+		if provider == knowledge.ProviderAliyun {
+			indexId, err = kb.CreateIndex(context.Background(), generatedName, nil)
+			if err != nil {
+				log.Printf("ERROR: Failed to create Aliyun index - error: %v, knowledgeKey: %s", err, knowledgeKey)
+				response.Fail(c, knowledge.ErrIndexCreateFailed, err)
+				return
+			}
+			log.Printf("SUCCESS: Aliyun index created (empty) - indexId: %s, knowledgeKey: %s", indexId, knowledgeKey)
+		} else {
+			// Other providers: create empty index
+			indexId, err = kb.CreateIndex(context.Background(), knowledgeKey, config)
+			if err != nil {
+				log.Printf("ERROR: Failed to create index for provider %s - error: %v, knowledgeKey: %s", provider, err, knowledgeKey)
+				response.Fail(c, knowledge.ErrIndexCreateFailed, err)
+				return
+			}
+			log.Printf("SUCCESS: Index created for provider %s (empty) - indexId: %s, knowledgeKey: %s", provider, indexId, knowledgeKey)
+		}
 	} else if provider == knowledge.ProviderAliyun {
 		// Aliyun: need to upload file first to get fileId, then create index
 		aliyunConfig := getAliyunConfig()

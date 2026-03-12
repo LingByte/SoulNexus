@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
+	"strings"
+	"time"
+
 	"github.com/LingByte/SoulNexus/pkg/knowledge"
 	"gorm.io/gorm"
-	"log"
-	"time"
 )
 
 // Knowledge represents a knowledge base entity
@@ -362,6 +364,15 @@ func SearchKnowledgeBase(db *gorm.DB, knowledgeKey string, query string, topK in
 
 	results, err := kb.Search(ctx, searchKey, options)
 	if err != nil {
+		// Check if index doesn't exist in provider - sync delete local record
+		if err.Error() == knowledge.ErrIndexNotExist || strings.Contains(err.Error(), "index not exist") {
+			log.Printf("DEBUG: Index not exist in provider, deleting local record: %s", knowledgeKey)
+			// Delete the local knowledge base record
+			if delErr := DeleteKnowledge(db, knowledgeKey); delErr != nil {
+				log.Printf("ERROR: Failed to delete local knowledge record: %v", delErr)
+			}
+			return nil, fmt.Errorf("知识库索引已不存在，已自动删除本地记录")
+		}
 		return nil, err
 	}
 

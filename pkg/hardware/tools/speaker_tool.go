@@ -220,6 +220,43 @@ func (m *SpeakerManager) initDefaultSpeakers() {
 			Description: "火山引擎四川话女声",
 			Keywords:    []string{"四川话", "方言", "女声"},
 		},
+		// 重庆方言系列
+		{
+			ID:          "BV019_streaming",
+			Name:        "重庆小伙（男声）",
+			Provider:    "volcengine",
+			Language:    "zh-CN-chongqing",
+			Gender:      "male",
+			Description: "重庆方言男声",
+			Keywords:    []string{"重庆话", "方言", "男声", "重庆"},
+		},
+		{
+			ID:          "BV221_streaming",
+			Name:        "四川甜妹儿（女声）",
+			Provider:    "volcengine",
+			Language:    "zh-CN-sichuan",
+			Gender:      "female",
+			Description: "四川话甜美女声",
+			Keywords:    []string{"四川话", "方言", "女声", "甜美"},
+		},
+		{
+			ID:          "BV423_streaming",
+			Name:        "重庆幺妹儿（女声）",
+			Provider:    "volcengine",
+			Language:    "zh-CN-chongqing",
+			Gender:      "female",
+			Description: "重庆方言女声",
+			Keywords:    []string{"重庆话", "方言", "女声", "重庆"},
+		},
+		{
+			ID:          "BV704_streaming",
+			Name:        "方言灿灿（成都）",
+			Provider:    "volcengine",
+			Language:    "zh-CN-sichuan",
+			Gender:      "female",
+			Description: "成都方言女声",
+			Keywords:    []string{"成都话", "四川话", "方言", "女声"},
+		},
 	}
 
 	for _, speaker := range defaultSpeakers {
@@ -356,7 +393,7 @@ func RegisterSpeakerTool(service *LLMService, manager *SpeakerManager) {
 			},
 			"required": []string{"speaker_id"},
 		},
-		func(args map[string]interface{}) (string, error) {
+		func(args map[string]interface{}, llmService interface{}) (string, error) {
 			return executeSwitchSpeaker(args, manager)
 		},
 	)

@@ -57,10 +57,27 @@ func RegisterBuiltinTools(service *LLMService) {
 		},
 		executeSearchNews,
 	)
+
+	// 注册搜索大众点评美食工具
+	service.RegisterTool(
+		"search_dianping_food",
+		"搜索大众点评的城市美食推荐，包括店铺名称、地址、人均价格、评分等信息。使用前先说：您好，我这边帮您查一下大众点评，请稍后。",
+		map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"city": map[string]interface{}{
+					"type":        "string",
+					"description": "城市名称，例如：北京、上海、成都、广州",
+				},
+			},
+			"required": []string{"city"},
+		},
+		executeSearchDianpingFood,
+	)
 }
 
 // executeGetCurrentTime 执行获取当前时间
-func executeGetCurrentTime(args map[string]interface{}) (string, error) {
+func executeGetCurrentTime(args map[string]interface{}, llmService interface{}) (string, error) {
 	format, _ := args["format"].(string)
 
 	now := time.Now()
@@ -81,7 +98,7 @@ func executeGetCurrentTime(args map[string]interface{}) (string, error) {
 }
 
 // executeGetWeather 执行获取天气（使用和风天气 API）
-func executeGetWeather(args map[string]interface{}) (string, error) {
+func executeGetWeather(args map[string]interface{}, llmService interface{}) (string, error) {
 	city, ok := args["city"].(string)
 	if !ok {
 		return "", fmt.Errorf("缺少必需参数: city")
@@ -98,7 +115,7 @@ func executeGetWeather(args map[string]interface{}) (string, error) {
 }
 
 // executeSearchNews 执行搜索新闻
-func executeSearchNews(args map[string]interface{}) (string, error) {
+func executeSearchNews(args map[string]interface{}, llmService interface{}) (string, error) {
 	query, ok := args["query"].(string)
 	if !ok || query == "" {
 		query = "最新新闻" // 默认查询
