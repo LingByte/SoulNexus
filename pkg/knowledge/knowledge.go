@@ -51,50 +51,31 @@ type KnowledgeBase interface {
 	Provider() string
 
 	// Search searches for relevant information in the knowledge base
-	// knowledgeKey: knowledge base identifier (e.g., Aliyun's indexId)
-	// options: search options
-	// Returns: search result list, sorted by relevance
 	Search(ctx context.Context, knowledgeKey string, options SearchOptions) ([]SearchResult, error)
 
 	// CreateIndex creates knowledge base index
-	// name: knowledge base name
-	// config: configuration information (different providers need different configs)
-	// Returns: knowledge base identifier (knowledgeKey)
 	CreateIndex(ctx context.Context, name string, config map[string]interface{}) (string, error)
 
 	// DeleteIndex deletes knowledge base index
-	// knowledgeKey: knowledge base identifier
 	DeleteIndex(ctx context.Context, knowledgeKey string) error
 
 	// UploadDocument uploads document to knowledge base
-	// knowledgeKey: knowledge base identifier
-	// file: file content
-	// metadata: document metadata (filename, type, etc.)
 	UploadDocument(ctx context.Context, knowledgeKey string, file multipart.File, header *multipart.FileHeader, metadata map[string]interface{}) error
 
 	// DeleteDocument deletes document from knowledge base
-	// knowledgeKey: knowledge base identifier
-	// documentID: document ID
 	DeleteDocument(ctx context.Context, knowledgeKey string, documentID string) error
 
 	// ListDocuments lists all documents in the knowledge base
-	// knowledgeKey: knowledge base identifier
-	// Returns: document ID list
 	ListDocuments(ctx context.Context, knowledgeKey string) ([]string, error)
 
 	// GetDocument gets document content
-	// knowledgeKey: knowledge base identifier
-	// documentID: document ID
-	// Returns: document content stream
 	GetDocument(ctx context.Context, knowledgeKey string, documentID string) (io.ReadCloser, error)
 }
 
 // Manager knowledge base manager for creating and managing knowledge base instances based on config
 type Manager interface {
+
 	// GetKnowledgeBase gets knowledge base instance by provider type (with cache)
-	// provider: provider name (e.g., "aliyun", "zilliz", etc.)
-	// config: configuration information (different providers need different configs)
-	// Note: same provider + same config will reuse cached instance
 	GetKnowledgeBase(provider string, config map[string]interface{}) (KnowledgeBase, error)
 
 	// RegisterProvider registers a new knowledge base provider

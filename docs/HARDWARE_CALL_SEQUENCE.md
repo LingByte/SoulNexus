@@ -5,75 +5,35 @@
 ```mermaid
 sequenceDiagram
     participant User as 用户
-    participant Mic as 麦克风
-    participant WS as WebSocket
-    participant Session as HardwareSession
-    participant AudioMgr as AudioManager<br/>AEC
-    participant VAD as VADComponent
-    participant ASR as ASRPipeline
-    participant LLM as LLMService
-    participant TTS as TTSPipeline
-    participant Speaker as 扬声器
-    participant DB as Database
+    participant Device as 硬件设备
+    participant Session as 会话管理
+    participant Pipeline as 处理管道
+    participant AI as AI服务
 
-    User->>Mic: 说话
-    Mic->>WS: 发送PCM音频
-    WS->>Session: 接收二进制消息
-    
-    Session->>AudioMgr: ProcessInputAudio()
-    Note over AudioMgr: 计算输入能量<br/>与TTS能量比较<br/>过滤回声
-    
+    User->>Device: 说话
+    Device->>Session: WebSocket发送PCM音频
+    Session->>Pipeline: 音频输入处理
+
     alt 检测到用户语音
-        AudioMgr->>VAD: 传递音频数据
-        VAD->>VAD: 调用远程VAD服务
-        
-        alt 检测到语音
-            VAD->>VAD: frameCounter++
-            
-            alt frameCounter >= consecutiveFrames
-                VAD->>Session: 触发Barge-in回调
-                Session->>ASR: 停止当前TTS
-                Session->>ASR: 开始新的识别
-            end
-        else 未检测到语音
-            VAD->>VAD: frameCounter = 0
-        end
-        
-        VAD->>ASR: 传递音频数据
-        ASR->>ASR: 流式识别处理
-        
-        Note over ASR: 连接ASR服务<br/>发送音频流<br/>接收识别结果
-        
-        ASR->>LLM: 识别完成，发送文本
-        
-        Note over LLM: 调用LLM API<br/>生成回复<br/>可能调用工具
-        
-        alt LLM调用工具
-            LLM->>LLM: 执行工具逻辑
-            LLM->>LLM: 继续生成文本
-        end
-        
-        LLM->>TTS: 发送生成的文本
-        
-        Note over TTS: 创建合成任务<br/>调用TTS服务<br/>接收音频流
-        
-        TTS->>AudioMgr: RecordTTSOutput()<br/>记录TTS能量
-        
-        Note over AudioMgr: 更新能量缓冲<br/>计算平均能量<br/>用于下次AEC
-        
-        TTS->>WS: 发送合成音频
-        WS->>Speaker: 播放音频
-        Speaker->>User: 用户听到回复
-        
+        Pipeline->>AI: ASR语音识别
+        AI-->>Pipeline: 识别文本
+        Pipeline->>AI: LLM生成回复
+        AI-->>Pipeline: 回复文本
+        Pipeline->>AI: TTS语音合成
+        AI-->>Pipeline: 合成音频
+        Pipeline->>Session: 音频输出
+        Session->>Device: WebSocket发送音频
+        Device->>User: 播放回复
     else 检测到回声
-        AudioMgr->>AudioMgr: 过滤掉回声
-        Note over AudioMgr: 不传递给VAD
+        Pipeline->>Pipeline: 过滤回声
     end
-    
-    Session->>DB: 保存通话记录
-    Session->>DB: 保存聊天日志
-    
-    Note over Session: 循环处理<br/>直到通话结束
+
+    alt 用户打断(Barge-in)
+        User->>Device: 打断说话
+        Device->>Session: 检测到语音
+        Session->>Pipeline: 停止当前TTS
+        Pipeline->>AI: 重新识别
+    end
 ```
 
 ## 关键交互细节

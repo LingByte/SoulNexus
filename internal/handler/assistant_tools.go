@@ -159,7 +159,7 @@ func (h *Handlers) LoadWorkflowToolsToHandler(handler *llm.LLMHandler, assistant
 
 // createWorkflowCallback creates a callback function for workflow execution
 func (h *Handlers) createWorkflowCallback(workflowID uint, assistantID int64) llm.FunctionToolCallback {
-	return func(args map[string]interface{}) (string, error) {
+	return func(args map[string]interface{}, llmService interface{}) (string, error) {
 		// Use trigger manager to execute workflow
 		triggerManager := workflowdef.NewWorkflowTriggerManager(h.db)
 		instance, err := triggerManager.TriggerWorkflow(
@@ -192,7 +192,7 @@ func (h *Handlers) createWorkflowCallback(workflowID uint, assistantID int64) ll
 
 // createToolCallback creates a callback function for AssistantTool
 func (h *Handlers) createToolCallback(tool models.AssistantTool, assistantID int64) llm.FunctionToolCallback {
-	return func(args map[string]interface{}) (string, error) {
+	return func(args map[string]interface{}, llmService interface{}) (string, error) {
 		// If the tool defines Code, different processing logic can be executed based on Code
 		if tool.Code != "" {
 			return h.executeToolCode(tool, assistantID, args)

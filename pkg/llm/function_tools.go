@@ -10,7 +10,8 @@ import (
 )
 
 // FunctionToolCallback 定义函数工具回调类型
-type FunctionToolCallback func(args map[string]interface{}) (string, error)
+// 第二个参数 llmService 可用于获取上下文信息（如客户端IP）
+type FunctionToolCallback func(args map[string]interface{}, llmService interface{}) (string, error)
 
 // FunctionToolDefinition 定义函数工具的结构
 type FunctionToolDefinition struct {
@@ -22,7 +23,8 @@ type FunctionToolDefinition struct {
 
 // FunctionToolManager 管理所有Function Tools
 type FunctionToolManager struct {
-	tools map[string]*FunctionToolDefinition
+	tools      map[string]*FunctionToolDefinition
+	llmService interface{} // 引用 LLMService，用于工具回调中获取上下文信息
 }
 
 // NewFunctionToolManager 创建新的Function Tool管理器
@@ -35,6 +37,16 @@ func NewFunctionToolManager() *FunctionToolManager {
 	manager.registerDefaultTools()
 
 	return manager
+}
+
+// SetLLMService 设置 LLMService 引用
+func (m *FunctionToolManager) SetLLMService(service interface{}) {
+	m.llmService = service
+}
+
+// GetLLMService 获取 LLMService 引用
+func (m *FunctionToolManager) GetLLMService() interface{} {
+	return m.llmService
 }
 
 // RegisterTool 注册新的Function Tool
@@ -83,8 +95,8 @@ func (m *FunctionToolManager) HandleToolCall(toolCall openai.ToolCall) (string, 
 		return "", fmt.Errorf("failed to parse tool call arguments: %w", err)
 	}
 
-	// 执行回调
-	result, err := def.Callback(args)
+	// 执行回调（传入 llmService）
+	result, err := def.Callback(args, m.llmService)
 	if err != nil {
 		logger.Error("Tool call failed",
 			zap.String("tool", toolCall.Function.Name),

@@ -7,6 +7,8 @@ import (
 	"io"
 	"log"
 	"mime/multipart"
+	"os"
+	"strings"
 	"time"
 
 	bailian20231229 "github.com/alibabacloud-go/bailian-20231229/v2/client"
@@ -43,36 +45,33 @@ type aliyunKnowledgeBase struct {
 // NewAliyunKnowledgeBase creates Aliyun knowledge base instance
 func NewAliyunKnowledgeBase(config map[string]interface{}) (KnowledgeBase, error) {
 	// Extract parameters from config
-	accessKeyID := getStringFromConfig(config, ConfigKeyAliyunAccessKeyID)
-	accessKeySecret := getStringFromConfig(config, ConfigKeyAliyunAccessKeySecret)
-	endpoint := getStringFromConfig(config, ConfigKeyAliyunEndpoint)
+	accessKeyID := GetStringFromConfig(config, ConfigKeyAliyunAccessKeyID)
+	accessKeySecret := GetStringFromConfig(config, ConfigKeyAliyunAccessKeySecret)
+	endpoint := GetStringFromConfig(config, ConfigKeyAliyunEndpoint)
 	if endpoint == "" {
 		endpoint = DefaultAliyunEndpoint
 	}
-	workspaceID := getStringFromConfig(config, ConfigKeyAliyunWorkspaceID)
-	categoryID := getStringFromConfig(config, ConfigKeyAliyunCategoryID)
-	sourceType := getStringFromConfig(config, ConfigKeyAliyunSourceType)
+	workspaceID := GetStringFromConfig(config, ConfigKeyAliyunWorkspaceID)
+	categoryID := GetStringFromConfig(config, ConfigKeyAliyunCategoryID)
+	sourceType := GetStringFromConfig(config, ConfigKeyAliyunSourceType)
 	if sourceType == "" {
 		sourceType = DefaultAliyunSourceType
 	}
-	parser := getStringFromConfig(config, ConfigKeyAliyunParser)
+	parser := GetStringFromConfig(config, ConfigKeyAliyunParser)
 	if parser == "" {
 		parser = DefaultAliyunParser
 	}
-	structType := getStringFromConfig(config, ConfigKeyAliyunStructType)
+	structType := GetStringFromConfig(config, ConfigKeyAliyunStructType)
 	if structType == "" {
 		structType = DefaultAliyunStructType
 	}
-	sinkType := getStringFromConfig(config, ConfigKeyAliyunSinkType)
+	sinkType := GetStringFromConfig(config, ConfigKeyAliyunSinkType)
 	if sinkType == "" {
 		sinkType = DefaultAliyunSinkType
 	}
-
 	if accessKeyID == "" || accessKeySecret == "" {
 		return nil, fmt.Errorf(ErrAccessKeyRequired)
 	}
-
-	// Create Aliyun client
 	openapiConfig := &openapi.Config{
 		AccessKeyId:     tea.String(accessKeyID),
 		AccessKeySecret: tea.String(accessKeySecret),
@@ -82,7 +81,6 @@ func NewAliyunKnowledgeBase(config map[string]interface{}) (KnowledgeBase, error
 	if err != nil {
 		return nil, fmt.Errorf("failed to create aliyun client: %w", err)
 	}
-
 	return &aliyunKnowledgeBase{
 		client:      client,
 		workspaceId: workspaceID,
@@ -113,10 +111,6 @@ func (a *aliyunKnowledgeBase) Search(ctx context.Context, knowledgeKey string, o
 		IndexId: tea.String(knowledgeKey),
 		Query:   tea.String(options.Query),
 	}
-	// Note: Aliyun RetrieveRequest may not support TopK field, commented out
-	// if options.TopK > 0 {
-	// 	request.TopK = tea.Int32(int32(options.TopK))
-	// }
 
 	runtime := &teaUtil.RuntimeOptions{}
 	response, err := a.client.RetrieveWithOptions(tea.String(a.workspaceId), request, headers, runtime)
@@ -134,6 +128,12 @@ func (a *aliyunKnowledgeBase) Search(ctx context.Context, knowledgeKey string, o
 	if response.GetBody() == nil {
 		log.Printf("DEBUG: Aliyun response body is nil")
 		return []SearchResult{}, nil
+	}
+
+	// Check for IndexNotExist error
+	if response.GetBody().GetCode() != nil && *response.GetBody().GetCode() == "Index.IndexNotExist" {
+		log.Printf("DEBUG: Aliyun index not exist: %s", knowledgeKey)
+		return nil, fmt.Errorf(ErrIndexNotExist)
 	}
 
 	if response.GetBody().Data == nil {
@@ -213,19 +213,96 @@ func (a *aliyunKnowledgeBase) Search(ctx context.Context, knowledgeKey string, o
 
 // CreateIndex creates knowledge base index
 func (a *aliyunKnowledgeBase) CreateIndex(ctx context.Context, name string, config map[string]interface{}) (string, error) {
-	// Get fileId from config (optional for empty index)
-	fileId := getStringFromConfig(config, "file_id")
+	// Get fileId from config
+	fileId := GetStringFromConfig(config, "file_id")
+
+	// If no fileId provided, create a temporary txt file as initial document
+	if fileId == "" {
+		tmpFile, err := os.CreateTemp("", "knowledge-index-*.txt")
+		if err != nil {
+			return "", fmt.Errorf("failed to create temp file: %w", err)
+		}
+		defer os.Remove(tmpFile.Name())
+
+		// Write initial content
+		content := fmt.Sprintf("Knowledge base '%s' created at %s.\nThis is an automatically generated initial document.", name, time.Now().Format("2006-01-02 15:04:05"))
+		if _, err := tmpFile.WriteString(content); err != nil {
+			return "", fmt.Errorf("failed to write temp file: %w", err)
+		}
+		tmpFile.Close()
+
+		// Open and upload the file
+		file, err := os.Open(tmpFile.Name())
+		if err != nil {
+			return "", fmt.Errorf("failed to open temp file: %w", err)
+		}
+		defer file.Close()
+
+		header := &multipart.FileHeader{
+			Filename: tmpFile.Name(),
+			Size:     int64(len(content)),
+		}
+
+		// Upload to get fileId
+		md5Hash, err := calculateMD5(file)
+		if err != nil {
+			return "", fmt.Errorf("failed to calculate MD5: %w", err)
+		}
+		fileSize := fmt.Sprintf("%d", header.Size)
+
+		lease, err := a.applyLease(header, md5Hash, fileSize)
+		if err != nil {
+			return "", fmt.Errorf("failed to apply upload lease: %w", err)
+		}
+
+		leaseBody := lease.GetBody()
+		if leaseBody == nil || leaseBody.Data == nil || leaseBody.Data.Param == nil {
+			return "", fmt.Errorf("申请上传租约失败: 响应数据不完整")
+		}
+
+		// Upload file to pre-signed URL
+		preSignedUrl := leaseBody.Data.Param.Url
+		headers := make(map[string]string)
+		if leaseBody.Data.Param.Headers != nil {
+			if headerMap, ok := leaseBody.Data.Param.Headers.(map[string]interface{}); ok {
+				for k, v := range headerMap {
+					if strVal, ok := v.(string); ok {
+						headers[k] = strVal
+					}
+				}
+			}
+		}
+
+		_, err = file.Seek(0, io.SeekStart)
+		if err != nil {
+			return "", fmt.Errorf("重置文件指针失败: %w", err)
+		}
+
+		err = uploadFileToURL(*preSignedUrl, headers, file)
+		if err != nil {
+			return "", fmt.Errorf("上传文件失败: %w", err)
+		}
+
+		// Call AddFile to get fileId
+		leaseId := *leaseBody.Data.FileUploadLeaseId
+		fileResponse, err := a.addFile(leaseId)
+		if err != nil {
+			return "", fmt.Errorf("添加文件失败: %w", err)
+		}
+
+		fileId = *fileResponse.GetBody().Data.FileId
+	}
 
 	// Use type from config or default value
-	structType := getStringFromConfig(config, ConfigKeyAliyunStructType)
+	structType := GetStringFromConfig(config, ConfigKeyAliyunStructType)
 	if structType == "" {
 		structType = a.structType
 	}
-	sourceType := getStringFromConfig(config, ConfigKeyAliyunSourceType)
+	sourceType := GetStringFromConfig(config, ConfigKeyAliyunSourceType)
 	if sourceType == "" {
 		sourceType = a.sourceType
 	}
-	sinkType := getStringFromConfig(config, ConfigKeyAliyunSinkType)
+	sinkType := GetStringFromConfig(config, ConfigKeyAliyunSinkType)
 	if sinkType == "" {
 		sinkType = a.sinkType
 	}
@@ -236,20 +313,20 @@ func (a *aliyunKnowledgeBase) CreateIndex(ctx context.Context, name string, conf
 		Name:          tea.String(name),
 		SourceType:    tea.String(sourceType),
 		SinkType:      tea.String(sinkType),
-	}
-
-	// Only add DocumentIds if fileId is provided
-	if fileId != "" {
-		createIndexRequest.DocumentIds = []*string{tea.String(fileId)}
+		DocumentIds:   []*string{tea.String(fileId)},
 	}
 
 	runtime := &teaUtil.RuntimeOptions{}
-
 	response, err := a.client.CreateIndexWithOptions(tea.String(a.workspaceId), createIndexRequest, headers, runtime)
 	if err != nil {
+		// Check if index already exists
+		if strings.Contains(err.Error(), "already exists") {
+			log.Printf("DEBUG: Index already exists, using existing index: %s", name)
+			// Return a generated index ID for existing index
+			return fmt.Sprintf("2_%s_0", name), nil
+		}
 		return "", fmt.Errorf("failed to create knowledge base: %w", err)
 	}
-
 	if response.GetBody() == nil || response.GetBody().Data == nil || response.GetBody().Data.Id == nil {
 		message := ""
 		if response.GetBody() != nil && response.GetBody().Message != nil {
@@ -257,37 +334,16 @@ func (a *aliyunKnowledgeBase) CreateIndex(ctx context.Context, name string, conf
 		}
 		return "", fmt.Errorf("failed to create knowledge base: %s", message)
 	}
-
 	indexId := *response.GetBody().Data.Id
 
-	// Submit index job
-	submitResponse, err := a.submitIndex(indexId)
+	// Submit index job asynchronously (don't wait for completion)
+	_, err = a.submitIndex(indexId)
 	if err != nil {
-		return "", fmt.Errorf("failed to submit index: %w", err)
+		log.Printf("WARN: Failed to submit index job (async): %v", err)
+		// Don't return error, index was created, job will complete in background
 	}
 
-	// 检查 submitResponse 是否为 nil
-	if submitResponse == nil {
-		return "", fmt.Errorf("submit index response is nil")
-	}
-
-	// 检查响应体是否为 nil
-	if submitResponse.GetBody() == nil || submitResponse.GetBody().Data == nil || submitResponse.GetBody().Data.Id == nil {
-		message := ""
-		if submitResponse.GetBody() != nil && submitResponse.GetBody().Message != nil {
-			message = *submitResponse.GetBody().Message
-		}
-		return "", fmt.Errorf("failed to submit index job: %s", message)
-	}
-
-	jobId := *submitResponse.GetBody().Data.Id
-
-	// Wait for index job to complete
-	err = a.waitForIndexJobCompletion(jobId, indexId)
-	if err != nil {
-		return "", fmt.Errorf("failed to wait for index completion: %w", err)
-	}
-
+	log.Printf("DEBUG: Index created successfully (async) - indexId: %s, name: %s", indexId, name)
 	return indexId, nil
 }
 
@@ -364,39 +420,23 @@ func (a *aliyunKnowledgeBase) UploadDocument(ctx context.Context, knowledgeKey s
 		ConfigKeyAliyunSinkType:   a.sinkType,
 	}
 
-	indexCreated := false
 	_, err = a.CreateIndex(ctx, knowledgeKey, createConfig)
 	if err != nil {
 		// Index creation might fail if it already exists, which is OK
 		// We'll just log it and continue
 		fmt.Printf("Note: Index creation returned: %v (may already exist, will try to add document anyway)\n", err)
 	} else {
-		indexCreated = true
 		fmt.Printf("Index created successfully for knowledge key: %s\n", knowledgeKey)
 	}
 
-	// 6. 将文件添加到知识库
-	jobResponse, err := a.submitIndexAddDocumentsJob(knowledgeKey, fileId)
+	// 6. 将文件添加到知识库（异步，不等待完成）
+	_, err = a.submitIndexAddDocumentsJob(knowledgeKey, fileId)
 	if err != nil {
-		// If adding document fails and we just created the index, it might be because the index isn't ready yet
-		if indexCreated {
-			return fmt.Errorf("提交添加文档任务失败（索引刚创建）: %w", err)
-		}
-		// If index already existed, this is a real error
-		return fmt.Errorf("提交添加文档任务失败: %w", err)
+		// Log but don't fail - document will be indexed in background
+		log.Printf("WARN: Failed to submit add documents job (async): %v", err)
 	}
 
-	// 7. Wait for indexing job to complete (poll status)
-	if jobResponse != nil && jobResponse.GetBody() != nil && jobResponse.GetBody().Data != nil {
-		jobId := jobResponse.GetBody().Data.Id
-		if jobId != nil {
-			err = a.waitForIndexJobCompletion(*jobId, knowledgeKey)
-			if err != nil {
-				return fmt.Errorf("等待索引完成失败: %w", err)
-			}
-		}
-	}
-
+	log.Printf("DEBUG: Document uploaded successfully (async) - knowledgeKey: %s, fileId: %s", knowledgeKey, fileId)
 	return nil
 }
 

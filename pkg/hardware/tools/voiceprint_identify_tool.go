@@ -14,20 +14,18 @@ import (
 
 // VoiceprintIdentifyTool 声纹识别工具
 type VoiceprintIdentifyTool struct {
-	db                *gorm.DB
-	voiceprintService *voiceprint.Service
-	logger            *zap.Logger
-	audioBuffer       [][]byte
-	audioBufferMutex  sync.Mutex
-	assistantID       string
-	identifiedSpeaker *IdentifiedSpeaker
-	identifiedMutex   sync.RWMutex
-	// 用于存储当前句子的音频（直接存储字节，不分割成帧）
+	db                   *gorm.DB
+	voiceprintService    *voiceprint.Service
+	logger               *zap.Logger
+	audioBuffer          [][]byte
+	audioBufferMutex     sync.Mutex
+	assistantID          string
+	identifiedSpeaker    *IdentifiedSpeaker
+	identifiedMutex      sync.RWMutex
 	currentSentenceAudio []byte
 	sentenceAudioMutex   sync.Mutex
-	// 音频统计信息
-	totalAudioBytes    int64
-	minAudioBytesForID int // 最少需要多少字节才能进行识别（默认16000字节 = 0.5秒）
+	totalAudioBytes      int64
+	minAudioBytesForID   int // 最少需要多少字节才能进行识别（默认16000字节 = 0.5秒）
 }
 
 // IdentifiedSpeaker 已识别的说话人信息
@@ -300,7 +298,7 @@ func RegisterVoiceprintIdentifyTool(llmService *LLMService, voiceprintTool *Voic
 		"voiceprint_identify",
 		"声纹识别工具。用于识别说话人身份或获取当前用户信息。当用户问'我是谁'、'你认识我吗'等问题时，应该使用此工具进行声纹识别。",
 		parameters,
-		func(args map[string]interface{}) (string, error) {
+		func(args map[string]interface{}, llmService interface{}) (string, error) {
 			action, ok := args["action"].(string)
 			if !ok {
 				return "", fmt.Errorf("action 参数必须是字符串")

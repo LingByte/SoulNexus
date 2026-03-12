@@ -78,11 +78,24 @@ func NewHardwareSession(ctx context.Context, hardwareConfig *HardwareSessionOpti
 	}
 	sessionCtx, cancel := context.WithCancel(ctx)
 	writer := NewHardwareWriter(sessionCtx, hardwareConfig.Conn, hardwareConfig.Logger)
+	// 获取客户端 IP 地址并追加到系统提示词
+	clientIP := ""
+	if hardwareConfig.Conn != nil {
+		clientIP = hardwareConfig.Conn.RemoteAddr().String()
+		logger.Debug("获取客户端 IP", zap.String("ip", clientIP))
+	}
+
+	// 构建系统提示词，追加客户端 IP 信息
+	systemPrompt := fmt.Sprintf(constants.LLMSystemPromptTemplate, hardwareConfig.SystemPrompt, hardwareConfig.MaxToken)
+	if clientIP != "" {
+		systemPrompt += fmt.Sprintf("\n客户端地址: %s", clientIP)
+	}
+
 	llmService, err := tools.NewLLMService(&tools.LLMConfig{
 		APIKey:       hardwareConfig.Credential.LLMApiKey,
 		BaseURL:      hardwareConfig.Credential.LLMApiURL,
 		Provider:     hardwareConfig.Credential.LLMProvider,
-		SystemPrompt: fmt.Sprintf(constants.LLMSystemPromptTemplate, hardwareConfig.SystemPrompt, hardwareConfig.MaxToken),
+		SystemPrompt: systemPrompt,
 		MaxTokens:    hardwareConfig.MaxToken,
 	}, hardwareConfig.Logger)
 	if err != nil {
