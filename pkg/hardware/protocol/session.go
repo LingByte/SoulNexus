@@ -18,6 +18,7 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/hardware/tools"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/synthesizer"
+	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/LingByte/SoulNexus/pkg/voiceclone"
 	"github.com/LingByte/SoulNexus/pkg/voiceprint"
 	"github.com/LingByte/lingstorage-sdk-go"
@@ -81,17 +82,14 @@ func NewHardwareSession(ctx context.Context, hardwareConfig *HardwareSessionOpti
 	}
 	sessionCtx, cancel := context.WithCancel(ctx)
 	writer := NewHardwareWriter(sessionCtx, hardwareConfig.Conn, hardwareConfig.Logger)
-	// 获取客户端 IP 地址并追加到系统提示词
-	clientIP := ""
-	if hardwareConfig.Conn != nil {
-		clientIP = hardwareConfig.Conn.RemoteAddr().String()
-		logger.Debug("获取客户端 IP", zap.String("ip", clientIP))
-	}
-
-	// 构建系统提示词，追加客户端 IP 信息
+	// 获取客户端地理位置并追加到系统提示词
 	systemPrompt := fmt.Sprintf(constants.LLMSystemPromptTemplate, hardwareConfig.SystemPrompt, hardwareConfig.MaxToken)
-	if clientIP != "" {
-		systemPrompt += fmt.Sprintf("\n客户端地址: %s", clientIP)
+	if hardwareConfig.Conn != nil {
+		remoteAddr := hardwareConfig.Conn.RemoteAddr().String()
+		if location := utils.GetLocationFromAddr(remoteAddr, hardwareConfig.Logger); location != "" {
+			systemPrompt += fmt.Sprintf("\n用户当前位置: %s", location)
+			logger.Debug("获取客户端位置", zap.String("location", location))
+		}
 	}
 
 	llmService, err := tools.NewLLMService(&tools.LLMConfig{
@@ -116,8 +114,12 @@ func NewHardwareSession(ctx context.Context, hardwareConfig *HardwareSessionOpti
 			ttsConfig[key] = value
 		}
 	}
-	if _, exists := ttsConfig["voiceType"]; !exists {
+	// Always use the user-selected speaker, overriding any default in the credential config
+	if hardwareConfig.Speaker != "" {
 		ttsConfig["voiceType"] = hardwareConfig.Speaker
+	} else if _, exists := ttsConfig["voiceType"]; !exists {
+		// Only fall back to credential default if no speaker was specified at all
+		ttsConfig["voiceType"] = ""
 	}
 
 	var ttsService synthesizer.SynthesisService

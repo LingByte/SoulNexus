@@ -518,6 +518,8 @@ func (h *Handlers) registerCredentialsRoutes(r *gin.RouterGroup) {
 
 		credential.GET("/", models.AuthRequired, h.handleGetCredential)
 
+		credential.POST("/by-key", h.handleGetCredentialByKey) // 无需登录，通过 apikey/apisecret 查询
+
 		credential.DELETE("/:id", models.AuthRequired, h.handleDeleteCredential)
 	}
 }

@@ -48,6 +48,38 @@ func (h *Handlers) handleGetCredential(c *gin.Context) {
 	response.Success(c, "get user credentials success", models.ToResponseList(credentials))
 }
 
+// handleGetCredentialByKey 根据 apikey 和 apisecret 获取凭证信息（用于 controlpanel 调用）
+func (h *Handlers) handleGetCredentialByKey(c *gin.Context) {
+	var req struct {
+		APIKey    string `json:"apiKey" binding:"required"`
+		APISecret string `json:"apiSecret" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, "apiKey and apiSecret are required", nil)
+		return
+	}
+
+	credential, err := models.GetUserCredentialByApiSecretAndApiKey(h.db, req.APIKey, req.APISecret)
+	if err != nil {
+		response.Fail(c, "query credential failed", err)
+		return
+	}
+
+	if credential == nil {
+		response.Fail(c, "invalid credentials", nil)
+		return
+	}
+
+	response.Success(c, "success", gin.H{
+		"llmProvider": credential.LLMProvider,
+		"llmApiKey":   credential.LLMApiKey,
+		"llmApiUrl":   credential.LLMApiURL,
+		"asrProvider": credential.GetASRProvider(),
+		"ttsProvider": credential.GetTTSProvider(),
+	})
+}
+
 // handleDeleteCredential 删除用户凭证
 func (h *Handlers) handleDeleteCredential(c *gin.Context) {
 	user := models.CurrentUser(c)

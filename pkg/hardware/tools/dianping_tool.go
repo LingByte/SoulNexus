@@ -13,6 +13,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/LingByte/SoulNexus/pkg/utils"
 )
 
 // DianpingCityMap 城市名到cityId映射
@@ -267,8 +269,16 @@ func getCityId(cityName string) int {
 	if cityId, ok := DianpingCityMap[cityName]; ok {
 		return cityId
 	}
+	// 模糊匹配（包含关系）
 	for city, cityId := range DianpingCityMap {
 		if strings.Contains(cityName, city) || strings.Contains(city, cityName) {
+			return cityId
+		}
+	}
+	// 英文城市名兜底：转换为中文后再查
+	zhName := utils.TranslateCityToZh(cityName)
+	if zhName != cityName {
+		if cityId, ok := DianpingCityMap[zhName]; ok {
 			return cityId
 		}
 	}
