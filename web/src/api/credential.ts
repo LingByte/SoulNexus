@@ -56,3 +56,16 @@ export const createCredential = async (data: CreateCredentialForm): Promise<ApiR
 export const deleteCredential = async (id: number): Promise<ApiResponse<null>> => {
   return del(`/credentials/${id}`)
 }
+
+// 根据 apikey 和 apisecret 获取凭证信息（用于 controlpanel）
+export interface CredentialDetail {
+  llmProvider: string
+  llmApiKey: string
+  llmApiUrl: string
+  asrProvider: string
+  ttsProvider: string
+}
+
+export const getCredentialByKey = async (apiKey: string, apiSecret: string): Promise<ApiResponse<CredentialDetail | null>> => {
+  return post('/credentials/by-key', { apiKey, apiSecret })
+}

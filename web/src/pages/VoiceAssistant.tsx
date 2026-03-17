@@ -33,7 +33,7 @@ import {
     getChatSessionLogsByAssistant,
     type ToolCallInfo
 } from '@/api/chat'
-import { fetchUserCredentials, type Credential } from '@/api/credential'
+import { fetchUserCredentials, getCredentialByKey, type Credential } from '@/api/credential'
 // 导入类型定义
 import type { Assistant, ChatMessage, VoiceChatSession, LineMode } from './VoiceAssistant/types'
 // 导入自定义 Hooks
@@ -132,24 +132,17 @@ const VoiceAssistant = () => {
             }
 
             try {
-                const credentials = await fetchUserCredentials()
-                if (credentials.code === 200 && credentials.data) {
-                    // 查找匹配的凭证
-                    const matchedCredential = credentials.data.find(
-                        (cred: Credential) => cred.apiKey === apiKey && cred.apiSecret === apiSecret
-                    )
-
-                    if (matchedCredential && matchedCredential.ttsConfig?.provider) {
-                        setTtsProvider(matchedCredential.ttsConfig.provider.toLowerCase())
-                    } else {
-                        // 如果没有找到匹配的凭证，默认使用腾讯云（向后兼容）
-                        setTtsProvider('tencent')
-                    }
+                const response = await getCredentialByKey(apiKey, apiSecret)
+                if (response.code === 200 && response.data) {
+                    // 直接使用返回的 ttsProvider
+                    setTtsProvider(response.data.ttsProvider?.toLowerCase() || 'tencent')
+                } else {
+                    // 未找到匹配的凭证
+                    setTtsProvider(undefined)
                 }
             } catch (error) {
-                console.error('获取TTS Provider失败:', error)
-                // 默认使用腾讯云（向后兼容）
-                setTtsProvider('tencent')
+                console.error('获取凭证信息失败:', error)
+                setTtsProvider(undefined)
             }
         }
 
@@ -1647,6 +1640,13 @@ const VoiceAssistant = () => {
         if (!apiKey || !apiSecret) {
             showAlert('请先配置API密钥和密钥（右侧控制面板）', 'warning')
             // 展开控制面板提示用户
+            setIsControlPanelCollapsed(false)
+            return
+        }
+
+        // 校验凭证是否有效
+        if (!ttsProvider) {
+            showAlert('API密钥无效，请检查密钥配置', 'warning')
             setIsControlPanelCollapsed(false)
             return
         }
