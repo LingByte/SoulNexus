@@ -194,6 +194,7 @@ func (h *Handlers) Register(engine *gin.Engine) {
 	h.registerNodePluginRoutes(r)     // Add node plugin routes
 	h.registerMCPRoutes(r)            // Add MCP routes
 	h.registerMCPMarketplaceRoutes(r) // Add MCP marketplace routes
+	h.registerOpenAPIRoutes(r)        // Open API (apiKey + apiSecret auth)
 	// Register public workflow routes (no auth required)
 	h.RegisterPublicWorkflowRoutes(r)
 	objs := h.GetObjs()

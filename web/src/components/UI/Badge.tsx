@@ -127,7 +127,7 @@ const Badge = ({
         transition={{ duration: 0.2 }}
       />
       
-      <div className="relative flex items-center gap-1.5">
+      <div className="relative inline-flex items-center gap-1.5">
         {icon && (
           <motion.span 
             className={cn('flex-shrink-0', iconSizeClasses[size])}

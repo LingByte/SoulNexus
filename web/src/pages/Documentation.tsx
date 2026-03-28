@@ -6,7 +6,6 @@ import {
   Zap, 
   Users, 
   Settings, 
-  Download,
   Github,
   ExternalLink,
   Star,
@@ -62,7 +61,6 @@ const Documentation = () => {
       Zap,
       Users,
       Settings,
-      Download,
       Github,
       Star,
       Heart,
@@ -205,11 +203,9 @@ const Documentation = () => {
             </div>
             <div className="flex items-center gap-4">
               <Button variant="outline" size="sm">
-                <Download className="w-4 h-4 mr-2" />
                 {t('docs.downloadSource')}
               </Button>
               <Button size="sm">
-                <Github className="w-4 h-4 mr-2" />
                 {t('docs.contribute')}
               </Button>
             </div>

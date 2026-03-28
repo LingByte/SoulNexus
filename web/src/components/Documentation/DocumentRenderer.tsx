@@ -17,7 +17,9 @@ import {
   Lightbulb,
   BookOpen,
   Code,
-  GitBranch
+  GitBranch,
+  Play,
+  Key
 } from 'lucide-react'
 import Card, { CardContent } from '@/components/UI/Card'
 import Button from '@/components/UI/Button'
@@ -30,6 +32,9 @@ interface DocumentRendererProps {
 const DocumentRenderer = ({ content }: DocumentRendererProps) => {
   const [copiedCode, setCopiedCode] = useState<string | null>(null)
   const [expandedEndpoints, setExpandedEndpoints] = useState<Set<string>>(new Set())
+  const [apiKey, setApiKey] = useState('')
+  const [apiSecret, setApiSecret] = useState('')
+  const [testResults, setTestResults] = useState<Record<string, { loading: boolean; result: string }>>({})
 
   const getIcon = (iconName: string) => {
     const icons: { [key: string]: any } = {
@@ -313,6 +318,66 @@ const DocumentRenderer = ({ content }: DocumentRendererProps) => {
                         </div>
                       </div>
                     )}
+
+                    {/* 在线测试 */}
+                    <div className="border-t pt-4">
+                      <h5 className="font-medium mb-3 flex items-center gap-2">
+                        <Play className="w-4 h-4 text-primary" />
+                        在线测试
+                      </h5>
+                      {!apiKey || !apiSecret ? (
+                        <p className="text-xs text-muted-foreground">请先在上方填写 API Key 和 API Secret</p>
+                      ) : (
+                        <div className="space-y-3">
+                          {item.path === '/api/open/tts' && (
+                            <div>
+                              <label className="text-xs font-medium text-muted-foreground mb-1 block">合成文本</label>
+                              <input
+                                id={`${endpointId}-tts-text`}
+                                type="text"
+                                defaultValue="你好，这是一段测试语音。"
+                                className="w-full px-3 py-2 text-sm border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50"
+                              />
+                            </div>
+                          )}
+                          {item.path === '/api/open/asr' && (
+                            <div>
+                              <label className="text-xs font-medium text-muted-foreground mb-1 block">上传 WAV 文件</label>
+                              <input
+                                id={`${endpointId}-asr-file`}
+                                type="file"
+                                accept=".wav,audio/wav"
+                                className="text-sm text-muted-foreground"
+                              />
+                            </div>
+                          )}
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              let extra: any = {}
+                              if (item.path === '/api/open/tts') {
+                                const el = document.getElementById(`${endpointId}-tts-text`) as HTMLInputElement
+                                extra.text = el?.value || '你好，这是一段测试语音。'
+                              }
+                              if (item.path === '/api/open/asr') {
+                                const el = document.getElementById(`${endpointId}-asr-file`) as HTMLInputElement
+                                extra.file = el?.files?.[0]
+                              }
+                              runTest(item, extra)
+                            }}
+                            disabled={testResults[item.path]?.loading}
+                          >
+                            <Play className="w-3 h-3 mr-1" />
+                            {testResults[item.path]?.loading ? '请求中...' : '发送请求'}
+                          </Button>
+                          {testResults[item.path]?.result && (
+                            <pre className="bg-muted p-3 rounded text-xs overflow-x-auto whitespace-pre-wrap">
+                              {testResults[item.path].result}
+                            </pre>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </motion.div>
               )}
@@ -468,8 +533,89 @@ const DocumentRenderer = ({ content }: DocumentRendererProps) => {
           </div>
         )
 
+      case 'api_tester':
+        return (
+          <Card key={index} className="mb-6 border-primary/30">
+            <CardContent className="p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <Key className="w-5 h-5 text-primary" />
+                <h4 className="font-semibold text-base">API 鉴权配置</h4>
+              </div>
+              <p className="text-sm text-muted-foreground mb-4">
+                填入凭证后，可在下方各接口卡片中点击「测试」直接发起请求。
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">X-API-KEY</label>
+                  <input
+                    type="text"
+                    placeholder="your-api-key"
+                    value={apiKey}
+                    onChange={e => setApiKey(e.target.value)}
+                    className="w-full px-3 py-2 text-sm border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">X-API-SECRET</label>
+                  <input
+                    type="password"
+                    placeholder="your-api-secret"
+                    value={apiSecret}
+                    onChange={e => setApiSecret(e.target.value)}
+                    className="w-full px-3 py-2 text-sm border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 font-mono"
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )
+
       default:
         return null
+    }
+  }
+
+  const runTest = async (endpoint: any, extraData?: { text?: string; file?: File }) => {
+    const key = endpoint.path
+    setTestResults(prev => ({ ...prev, [key]: { loading: true, result: '' } }))
+
+    const baseURL = (import.meta.env.VITE_API_BASE_URL as string || 'http://localhost:7072/api').replace(/\/$/, '')
+    // endpoint.path is like /api/open/me — strip the leading /api since baseURL already ends with /api
+    const relativePath = endpoint.path.replace(/^\/api/, '')
+    const url = `${baseURL}${relativePath}`
+
+    try {
+      const headers: Record<string, string> = {
+        'X-API-KEY': apiKey,
+        'X-API-SECRET': apiSecret,
+      }
+
+      let response: Response
+
+      if (endpoint.path === '/api/open/asr') {
+        const form = new FormData()
+        if (extraData?.file) form.append('file', extraData.file)
+        response = await fetch(url, { method: 'POST', headers, body: form })
+      } else if (endpoint.method === 'POST') {
+        headers['Content-Type'] = 'application/json'
+        const body = endpoint.path === '/api/open/tts'
+          ? JSON.stringify({ text: extraData?.text || '你好，这是一段测试语音。' })
+          : '{}'
+        response = await fetch(url, { method: 'POST', headers, body })
+      } else {
+        response = await fetch(url, { method: 'GET', headers })
+      }
+
+      const json = await response.json()
+      setTestResults(prev => ({
+        ...prev,
+        [key]: { loading: false, result: JSON.stringify(json, null, 2) }
+      }))
+    } catch (err: any) {
+      setTestResults(prev => ({
+        ...prev,
+        [key]: { loading: false, result: `Error: ${err.message}` }
+      }))
     }
   }
 

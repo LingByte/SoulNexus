@@ -10,8 +10,6 @@ interface I18nState {
   t: (key: string, params?: Record<string, string | number>) => string
 }
 
-// 翻译资源已迁移到 @/locales/translations.ts
-
 export const useI18nStore = create<I18nState>()(
   persist(
     (set, get) => ({

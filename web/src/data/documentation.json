@@ -142,192 +142,86 @@
       "id": "api-reference",
       "title": "API 参考",
       "icon": "Code",
-      "description": "完整的RESTful API文档",
+      "description": "开放接口文档，使用 API Key + API Secret 鉴权",
       "content": [
         {
           "type": "heading",
           "level": 2,
-          "text": "认证 API"
+          "text": "鉴权方式"
         },
         {
           "type": "paragraph",
-          "text": "所有需要认证的API都需要在请求头中包含Authorization字段："
+          "text": "所有开放接口均通过请求头传入 API Key 和 API Secret 进行鉴权。可在控制台「凭证管理」页面创建并获取密钥。"
         },
         {
           "type": "code",
           "language": "http",
-          "content": "Authorization: Bearer <your-jwt-token>"
+          "content": "X-API-KEY: <your-api-key>\nX-API-SECRET: <your-api-secret>"
         },
         {
-          "type": "api_endpoint",
-          "method": "POST",
-          "path": "/api/auth/login",
-          "title": "用户登录",
-          "description": "使用邮箱和密码进行用户认证",
-          "auth": false,
-          "requestBody": {
-            "email": "string",
-            "password": "string"
-          },
-          "response": {
-            "code": 200,
-            "data": {
-              "token": "string",
-              "user": {
-                "id": "number",
-                "email": "string",
-                "displayName": "string",
-                "avatar": "string"
-              }
-            }
-          }
-        },
-        {
-          "type": "api_endpoint",
-          "method": "POST",
-          "path": "/api/auth/register",
-          "title": "用户注册",
-          "description": "创建新用户账户",
-          "auth": false,
-          "requestBody": {
-            "email": "string",
-            "password": "string",
-            "displayName": "string"
-          },
-          "response": {
-            "code": 201,
-            "data": {
-              "token": "string",
-              "user": {
-                "id": "number",
-                "email": "string",
-                "displayName": "string"
-              }
-            }
-          }
+          "type": "api_tester"
         },
         {
           "type": "heading",
           "level": 2,
-          "text": "文件管理 API"
-        },
-        {
-          "type": "api_endpoint",
-          "method": "POST",
-          "path": "/api/files/upload/",
-          "title": "上传单个文件",
-          "description": "上传单个文件到服务器",
-          "auth": true,
-          "requestBody": "multipart/form-data",
-          "parameters": [
-            {
-              "name": "file",
-              "type": "File",
-              "required": true,
-              "description": "要上传的文件"
-            },
-            {
-              "name": "category",
-              "type": "string",
-              "required": false,
-              "description": "文件分类"
-            },
-            {
-              "name": "description",
-              "type": "string",
-              "required": false,
-              "description": "文件描述"
-            }
-          ],
-          "response": {
-            "code": 200,
-            "data": {
-              "id": "number",
-              "name": "string",
-              "url": "string",
-              "size": "number",
-              "contentType": "string"
-            }
-          }
+          "text": "开放接口列表"
         },
         {
           "type": "api_endpoint",
           "method": "GET",
-          "path": "/api/files/",
-          "title": "获取文件列表",
-          "description": "分页获取用户的文件列表",
+          "path": "/api/open/me",
+          "title": "获取当前用户信息",
+          "description": "返回当前鉴权凭证对应的用户基本信息",
+          "auth": true,
+          "response": {
+            "code": 200,
+            "data": {
+              "id": "number",
+              "username": "string",
+              "email": "string"
+            }
+          }
+        },
+        {
+          "type": "api_endpoint",
+          "method": "POST",
+          "path": "/api/open/tts",
+          "title": "TTS 一句话合成",
+          "description": "将文本合成为语音音频，上传至存储后返回可访问的音频 URL。需在凭证中配置 ttsConfig（provider/appId/secretId/secret）。",
+          "auth": true,
+          "requestBody": {
+            "text": "string（必填，要合成的文本）"
+          },
+          "response": {
+            "code": 200,
+            "data": {
+              "url": "string（音频文件 URL）",
+              "duration": "number（音频时长，单位秒）"
+            }
+          }
+        },
+        {
+          "type": "api_endpoint",
+          "method": "POST",
+          "path": "/api/open/asr",
+          "title": "ASR 一句话识别",
+          "description": "上传 WAV 音频文件（16kHz 单声道 16bit PCM），返回识别文字及时长。需在凭证中配置 asrConfig（provider/appId/secretId/secret）。",
           "auth": true,
           "parameters": [
             {
-              "name": "page",
-              "type": "number",
-              "required": false,
-              "description": "页码，默认为1"
-            },
-            {
-              "name": "page_size",
-              "type": "number",
-              "required": false,
-              "description": "每页数量，默认为20"
-            },
-            {
-              "name": "category",
-              "type": "string",
-              "required": false,
-              "description": "文件分类筛选"
+              "name": "file",
+              "type": "File（multipart/form-data）",
+              "required": true,
+              "description": "WAV 音频文件，建议 16kHz 单声道 16bit PCM"
             }
           ],
           "response": {
             "code": 200,
             "data": {
-              "files": [
-                {
-                  "id": "number",
-                  "name": "string",
-                  "url": "string",
-                  "size": "number",
-                  "contentType": "string",
-                  "category": "string",
-                  "createdAt": "string"
-                }
-              ],
-              "total": "number",
-              "page": "number",
-              "pageSize": "number"
+              "text": "string（识别结果）",
+              "duration": "number（音频时长，单位秒）"
             }
           }
-        },
-        {
-          "type": "heading",
-          "level": 2,
-          "text": "AI 分析 API"
-        },
-        {
-          "type": "api_endpoint",
-          "method": "POST",
-          "path": "/api/ai/analyze/",
-          "title": "AI文件分析",
-          "description": "使用AI分析上传的文件",
-          "auth": true,
-          "requestBody": {
-            "fileId": "number",
-            "analysisType": "string",
-            "options": "object"
-          },
-          "response": {
-            "code": 200,
-            "data": {
-              "id": "number",
-              "status": "string",
-              "result": "object",
-              "insights": "string[]",
-              "summary": "string"
-            }
-          }
-        },
-        {
-          "type": "paragraph",
-          "text": "更多API详情请在 http://localhost:7072/api/docs 查看。"
         }
       ]
     },
