@@ -43,24 +43,6 @@ type Assistant struct {
 	UpdatedAt            time.Time `json:"updatedAt" gorm:"autoUpdateTime"`
 }
 
-// AssistantTool 表示助手自定义的Function Tool
-type AssistantTool struct {
-	ID          int64     `json:"id" gorm:"primaryKey;autoIncrement"`
-	AssistantID int64     `json:"assistantId" gorm:"index;not null"`     // 关联的助手ID
-	Name        string    `json:"name" gorm:"size:100;not null"`         // 工具名称（唯一标识）
-	Description string    `json:"description" gorm:"type:text"`          // 工具描述
-	Parameters  string    `json:"parameters" gorm:"type:text"`           // JSON格式的参数定义（JSON Schema）
-	Code        string    `json:"code,omitempty" gorm:"type:text"`       // 可选的代码实现（用于自定义执行逻辑：weather, calculator等）
-	WebhookURL  string    `json:"webhookUrl,omitempty" gorm:"type:text"` // Webhook URL（用于自定义工具执行）
-	Enabled     bool      `json:"enabled" gorm:"default:true"`           // 是否启用
-	CreatedAt   time.Time `json:"createdAt" gorm:"autoCreateTime"`
-	UpdatedAt   time.Time `json:"updatedAt" gorm:"autoUpdateTime"`
-}
-
-// TableName 指定表名
-func (AssistantTool) TableName() string {
-	return "assistant_tools"
-}
 
 // ChatSessionLog 表示一次聊天会话记录
 type ChatSessionLog struct {
@@ -670,89 +652,4 @@ func GetAssistantByJSTemplateID(db *gorm.DB, jsTemplateID string) (*Assistant, e
 		return nil, err
 	}
 	return &assistant, nil
-}
-
-// ========== AssistantTool 相关函数 ==========
-
-// GetAssistantTools 获取指定助手的所有工具
-func GetAssistantTools(db *gorm.DB, assistantID int64) ([]AssistantTool, error) {
-	var tools []AssistantTool
-	err := db.Where("assistant_id = ? AND enabled = ?", assistantID, true).
-		Order("created_at ASC").
-		Find(&tools).Error
-	return tools, err
-}
-
-// GetAssistantToolByID 根据ID获取工具
-func GetAssistantToolByID(db *gorm.DB, toolID int64, assistantID int64) (*AssistantTool, error) {
-	var tool AssistantTool
-	err := db.Where("id = ? AND assistant_id = ?", toolID, assistantID).First(&tool).Error
-	if err != nil {
-		return nil, err
-	}
-	return &tool, nil
-}
-
-// CreateAssistantTool 创建新工具
-func CreateAssistantTool(db *gorm.DB, tool *AssistantTool) error {
-	// 检查助手是否存在
-	var count int64
-	if err := db.Model(&Assistant{}).Where("id = ?", tool.AssistantID).Count(&count).Error; err != nil {
-		return err
-	}
-	if count == 0 {
-		return fmt.Errorf("assistant not found")
-	}
-
-	// 检查同一助手下是否已有同名工具
-	var existingCount int64
-	if err := db.Model(&AssistantTool{}).
-		Where("assistant_id = ? AND name = ?", tool.AssistantID, tool.Name).
-		Count(&existingCount).Error; err != nil {
-		return err
-	}
-	if existingCount > 0 {
-		return fmt.Errorf("tool with name '%s' already exists for this assistant", tool.Name)
-	}
-
-	return db.Create(tool).Error
-}
-
-// UpdateAssistantTool 更新工具
-func UpdateAssistantTool(db *gorm.DB, toolID int64, assistantID int64, updates map[string]interface{}) error {
-	// 如果更新名称，检查是否与其他工具重名
-	if name, ok := updates["name"].(string); ok {
-		var existingCount int64
-		if err := db.Model(&AssistantTool{}).
-			Where("assistant_id = ? AND name = ? AND id != ?", assistantID, name, toolID).
-			Count(&existingCount).Error; err != nil {
-			return err
-		}
-		if existingCount > 0 {
-			return fmt.Errorf("tool with name '%s' already exists for this assistant", name)
-		}
-	}
-
-	updates["updated_at"] = time.Now()
-	return db.Model(&AssistantTool{}).
-		Where("id = ? AND assistant_id = ?", toolID, assistantID).
-		Updates(updates).Error
-}
-
-// DeleteAssistantTool 删除工具
-func DeleteAssistantTool(db *gorm.DB, toolID int64, assistantID int64) error {
-	return db.Where("id = ? AND assistant_id = ?", toolID, assistantID).
-		Delete(&AssistantTool{}).Error
-}
-
-// IsAssistantToolOwner 检查工具是否属于指定助手
-func IsAssistantToolOwner(db *gorm.DB, toolID int64, assistantID int64) (bool, error) {
-	var count int64
-	err := db.Model(&AssistantTool{}).
-		Where("id = ? AND assistant_id = ?", toolID, assistantID).
-		Count(&count).Error
-	if err != nil {
-		return false, err
-	}
-	return count > 0, nil
 }

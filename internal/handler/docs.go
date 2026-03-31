@@ -427,19 +427,7 @@ func (h *Handlers) RegisterAdmin(router *gin.RouterGroup) {
 			Searchables: []string{"Email", "IPAddress", "Location", "Country", "City", "LoginType"},
 			Icon:        &models.AdminIcon{SVG: string(iconOperatorLog)},
 		},
-		// Assistant Tools
-		{
-			Model:       &models.AssistantTool{},
-			Group:       "AI Assistant",
-			Name:        "Assistant Tools",
-			Desc:        "Custom function tools for AI assistants.",
-			Shows:       []string{"ID", "AssistantID", "Name", "Description", "Enabled", "CreatedAt"},
-			Editables:   []string{"Name", "Description", "Parameters", "Code", "WebhookURL", "Enabled"},
-			Orderables:  []string{"CreatedAt", "Name"},
-			Searchables: []string{"Name", "Description"},
-			Icon:        &models.AdminIcon{SVG: string(iconChatSessionLog)},
-		},
-		// Alert Notifications
+				// Alert Notifications
 		{
 			Model:       &models.AlertNotification{},
 			Group:       "Alert",
@@ -1025,89 +1013,7 @@ func (h *Handlers) GetDocs() []apidocs.UriDoc {
 			AuthRequired: false,
 			Desc:         "Get Voice Sculptor loader JavaScript for assistant",
 		},
-		{
-			Group:        "Assistants",
-			Path:         config.GlobalConfig.Server.APIPrefix + "/assistant/:id/tools",
-			Method:       http.MethodGet,
-			AuthRequired: true,
-			Desc:         "List all tools for an assistant",
-			Response: &apidocs.DocField{
-				Type:   "array",
-				Fields: apidocs.GetDocDefine(models.AssistantTool{}).Fields,
-			},
-		},
-		{
-			Group:        "Assistants",
-			Path:         config.GlobalConfig.Server.APIPrefix + "/assistant/:id/tools",
-			Method:       http.MethodPost,
-			AuthRequired: true,
-			Desc:         "Create a new tool for an assistant",
-			Request: &apidocs.DocField{
-				Type: "object",
-				Fields: []apidocs.DocField{
-					{Name: "name", Type: apidocs.TYPE_STRING, Required: true, Desc: "Tool name (alphanumeric, underscore, hyphen only)"},
-					{Name: "description", Type: apidocs.TYPE_STRING, Required: true, Desc: "Tool description"},
-					{Name: "parameters", Type: apidocs.TYPE_STRING, Required: true, Desc: "JSON Schema format parameter definition"},
-					{Name: "code", Type: apidocs.TYPE_STRING, CanNull: true, Desc: "Optional code implementation (weather, calculator, etc.)"},
-					{Name: "webhookUrl", Type: apidocs.TYPE_STRING, CanNull: true, Desc: "Webhook URL for custom tool execution"},
-					{Name: "enabled", Type: apidocs.TYPE_BOOLEAN, Desc: "Whether the tool is enabled"},
-				},
-			},
-			Response: &apidocs.DocField{
-				Type:   "object",
-				Fields: apidocs.GetDocDefine(models.AssistantTool{}).Fields,
-			},
-		},
-		{
-			Group:        "Assistants",
-			Path:         config.GlobalConfig.Server.APIPrefix + "/assistant/:id/tools/:toolId",
-			Method:       http.MethodPut,
-			AuthRequired: true,
-			Desc:         "Update an assistant tool",
-			Request: &apidocs.DocField{
-				Type: "object",
-				Fields: []apidocs.DocField{
-					{Name: "name", Type: apidocs.TYPE_STRING, CanNull: true, Desc: "Tool name"},
-					{Name: "description", Type: apidocs.TYPE_STRING, CanNull: true, Desc: "Tool description"},
-					{Name: "parameters", Type: apidocs.TYPE_STRING, CanNull: true, Desc: "JSON Schema format parameter definition"},
-					{Name: "code", Type: apidocs.TYPE_STRING, CanNull: true, Desc: "Code implementation"},
-					{Name: "webhookUrl", Type: apidocs.TYPE_STRING, CanNull: true, Desc: "Webhook URL"},
-					{Name: "enabled", Type: apidocs.TYPE_BOOLEAN, CanNull: true, Desc: "Whether the tool is enabled"},
-				},
-			},
-			Response: &apidocs.DocField{
-				Type:   "object",
-				Fields: apidocs.GetDocDefine(models.AssistantTool{}).Fields,
-			},
-		},
-		{
-			Group:        "Assistants",
-			Path:         config.GlobalConfig.Server.APIPrefix + "/assistant/:id/tools/:toolId",
-			Method:       http.MethodDelete,
-			AuthRequired: true,
-			Desc:         "Delete an assistant tool",
-		},
-		{
-			Group:        "Assistants",
-			Path:         config.GlobalConfig.Server.APIPrefix + "/assistant/:id/tools/:toolId/test",
-			Method:       http.MethodPost,
-			AuthRequired: true,
-			Desc:         "Test tool execution with sample parameters",
-			Request: &apidocs.DocField{
-				Type: "object",
-				Fields: []apidocs.DocField{
-					{Name: "args", Type: "object", Desc: "Test parameters matching the tool's JSON Schema"},
-				},
-			},
-			Response: &apidocs.DocField{
-				Type: "object",
-				Fields: []apidocs.DocField{
-					{Name: "result", Type: apidocs.TYPE_STRING, Desc: "Tool execution result"},
-					{Name: "error", Type: apidocs.TYPE_STRING, CanNull: true, Desc: "Error message if execution failed"},
-				},
-			},
-		},
-
+		
 		// ==================== JS Templates ====================
 		{
 			Group:        "JS Templates",
