@@ -228,20 +228,7 @@
             return this.delete(`/api/assistant/${id}`);
         }
 
-        /**
-         * 获取助手工具列表
-         */
-        async getAssistantTools(assistantId) {
-            return this.get(`/api/assistant/${assistantId}/tools`);
-        }
-
-        /**
-         * 创建助手工具
-         */
-        async createAssistantTool(assistantId, toolData) {
-            return this.post(`/api/assistant/${assistantId}/tools`, toolData);
-        }
-
+        
         /**
          * ========== 语音通话功能 ==========
          */

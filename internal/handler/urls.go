@@ -449,17 +449,8 @@ func (h *Handlers) registerAssistantRoutes(r *gin.RouterGroup) {
 
 		assistant.GET("/lingecho/client/:id/loader.js", h.ServeVoiceSculptorLoaderJS)
 
-		// Assistant Tools management routes
-		assistant.GET("/:id/tools", models.AuthRequired, h.ListAssistantTools)
-
-		assistant.POST("/:id/tools", models.AuthRequired, h.CreateAssistantTool)
-
-		assistant.PUT("/:id/tools/:toolId", models.AuthRequired, h.UpdateAssistantTool)
-
-		assistant.DELETE("/:id/tools/:toolId", models.AuthRequired, h.DeleteAssistantTool)
-
-		assistant.POST("/:id/tools/:toolId/test", models.AuthRequired, h.TestAssistantTool)
-	}
+		
+			}
 }
 
 // registerJSTemplateRoutes JSTemplate Module

@@ -125,16 +125,6 @@
 //         }
 //     }
 //
-//     // ========== 示例9: 获取助手工具 ==========
-//     async function getAssistantTools() {
-//         try {
-//             const response = await sdk.getAssistantTools({{.AssistantID}});
-//             console.log('助手工具:', response.data);
-//         } catch (error) {
-//             console.error('获取工具失败:', error);
-//         }
-//     }
-//
 //     // ========== 示例10: 完整的语音助手UI示例 ==========
 //     function createVoiceAssistantUI() {
 //         const container = document.createElement('div');
