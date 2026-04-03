@@ -88,6 +88,14 @@ func (eb *EventBus) Unsubscribe(eventType EventType, handler EventHandler) {
 
 // Publish sends an event to all subscribers
 func (eb *EventBus) Publish(event *MediaEvent) {
+	if eb == nil || event == nil {
+		return
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			// Shutdown race: channel closed while a transport still emitted (see MediaSession.cleanup order).
+		}
+	}()
 	select {
 	case eb.eventQueue <- event:
 	default:

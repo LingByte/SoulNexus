@@ -35,6 +35,13 @@ type TextPacket struct {
 	StartAt        time.Time `json:"startAt"`
 }
 
+// Session value keys (sync.Map on MediaSession)
+const (
+	// KeySIPSuppressUplinkEcho: when true, output-router does not send decoded uplink
+	// microphone AudioPackets to RTP output; only synthesized (TTS) audio is sent.
+	KeySIPSuppressUplinkEcho = "sip_suppress_uplink_echo"
+)
+
 type AudioPacket struct {
 	PlayID        string `json:"id,omitempty"`
 	Sequence      int    `json:"sequence"`
@@ -44,6 +51,27 @@ type AudioPacket struct {
 	IsSynthesized bool   `json:"isSynthesized,omitempty"`
 	IsSilence     bool   `json:"isSilence,omitempty"`
 	SourceText    string `json:"sourceText,omitempty"`
+}
+
+// DTMFPacket carries one RFC 2833 / RFC 4733 telephone-event (RTP payload type typically 101).
+// Emitted by SIP RTP input when the peer sends out-of-band DTMF; not passed through audio codecs.
+type DTMFPacket struct {
+	Digit string `json:"digit"` // "0"–"9", "*", "#", "A"–"D"
+	End   bool   `json:"end"`   // RFC 2833 E (end) bit — prefer handling when true to avoid duplicate keys
+}
+
+func (d *DTMFPacket) Body() []byte {
+	if d == nil {
+		return nil
+	}
+	return []byte(d.Digit)
+}
+
+func (d *DTMFPacket) String() string {
+	if d == nil {
+		return "DTMFPacket{nil}"
+	}
+	return fmt.Sprintf("DTMFPacket{Digit:%q End:%v}", d.Digit, d.End)
 }
 
 type ClosePacket struct {
