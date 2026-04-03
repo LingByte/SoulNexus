@@ -11,6 +11,11 @@ const (
 	ACCOUNT_LOCK_TABLE_NAME     = "account_locks"
 	CALL_RECORDING_TABLE_NAME   = "call_recordings"
 	DEVICE_ERROR_LOG_TABLE_NAME = "device_error_logs"
+
+	// SIP module tables
+	SIP_USER_TABLE_NAME    = "sip_users"
+	SIP_CALL_TABLE_NAME    = "sip_calls"
+	SIP_SESSION_TABLE_NAME = "sip_sessions"
 )
 
 // Default Value: 1024

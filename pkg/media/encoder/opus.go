@@ -163,33 +163,63 @@ func createOPUSEncode(src, pcm media.CodecConfig) media.EncoderFunc {
 		}
 
 		data := res.Samples()
-		if data == nil {
+		if len(data) == 0 {
+			return nil, nil
+		}
+		// int16 PCM must be even-length
+		if len(data)%2 != 0 {
+			data = data[:len(data)-1]
+		}
+		if len(data) == 0 {
 			return nil, nil
 		}
 
-		// 转换 []byte 为 []int16
 		pcmSamples := make([]int16, len(data)/2)
 		for i := 0; i < len(pcmSamples); i++ {
 			pcmSamples[i] = int16(data[i*2]) | int16(data[i*2+1])<<8
 		}
 
-		// 计算每帧需要的样本数
 		samplesPerFrame := frameSize * channels
 		totalSamples := len(pcmSamples)
-
-		// 如果数据不足一帧，直接返回空包
-		if totalSamples < samplesPerFrame {
-			return []media.MediaPacket{}, nil
+		if totalSamples == 0 {
+			return nil, nil
 		}
 
-		// 只编码第一帧（调用者负责分帧）
-		opusBuffer := make([]byte, 4000) // 足够大的缓冲区
-		n, err := encoder.Encode(pcmSamples[:samplesPerFrame], opusBuffer)
-		if err != nil {
-			return nil, fmt.Errorf("opus encode error: %w", err)
-		}
+		// Encode every 20ms (samplesPerFrame) at target rate. Previously only the first frame
+		// was encoded and the rest was dropped; short tails were dropped entirely — causing
+		// TTS truncation and garbled playout when one MediaPacket carried multiple frames.
+		opusScratch := make([]byte, 4000)
+		var out []media.MediaPacket
+		for offset := 0; offset < totalSamples; offset += samplesPerFrame {
+			remain := totalSamples - offset
+			frame := make([]int16, samplesPerFrame)
+			if remain >= samplesPerFrame {
+				copy(frame, pcmSamples[offset:offset+samplesPerFrame])
+			} else {
+				copy(frame, pcmSamples[offset:])
+				// zero-pad last partial frame so Opus always gets a full frame
+			}
 
-		audioPacket.Payload = opusBuffer[:n]
-		return []media.MediaPacket{audioPacket}, nil
+			n, err := encoder.Encode(frame, opusScratch)
+			if err != nil {
+				return nil, fmt.Errorf("opus encode error: %w", err)
+			}
+			if n <= 0 {
+				continue
+			}
+			payload := make([]byte, n)
+			copy(payload, opusScratch[:n])
+			out = append(out, &media.AudioPacket{
+				Payload:       payload,
+				IsSynthesized: audioPacket.IsSynthesized,
+				PlayID:        audioPacket.PlayID,
+				Sequence:      audioPacket.Sequence,
+				SourceText:    audioPacket.SourceText,
+			})
+		}
+		if len(out) == 0 {
+			return nil, nil
+		}
+		return out, nil
 	}
 }

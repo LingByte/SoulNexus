@@ -221,6 +221,10 @@ func RunMigrations(db *gorm.DB) error {
 		&models.AccountLock{},
 		&models.DeviceErrorLog{},
 		&models.CallRecording{},
+		// SIP module
+		&models.SIPUser{},
+		&models.SIPCall{},
+		&models.SIPSession{},
 		&models.MCPServer{},
 		&models.MCPTool{},
 		&models.MCPCallLog{},

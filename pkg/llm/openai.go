@@ -327,6 +327,7 @@ func (h *LLMHandler) QueryWithOptions(text string, options QueryOptions) (string
 
 		response, err := h.client.CreateChatCompletion(h.ctx, request)
 		if err != nil {
+			h.rollbackLastUserMessageIfMatches(text)
 			h.mutex.Unlock()
 			logger.Error("LLM API call failed",
 				zap.String("base_url", h.baseURL),
@@ -344,6 +345,7 @@ func (h *LLMHandler) QueryWithOptions(text string, options QueryOptions) (string
 
 		// Validate response
 		if len(response.Choices) == 0 {
+			h.rollbackLastUserMessageIfMatches(text)
 			h.mutex.Unlock()
 			return "", fmt.Errorf("no choices in response")
 		}
@@ -377,6 +379,7 @@ func (h *LLMHandler) QueryWithOptions(text string, options QueryOptions) (string
 					zap.String("base_url", h.baseURL),
 					zap.String("model", request.Model),
 				)
+				h.rollbackLastUserMessageIfMatches(text)
 				h.mutex.Unlock()
 				return "", fmt.Errorf("LLM API returned user input as response - possible API configuration issue. User: %s, Response: %s", lastUserMsg, message.Content)
 			}
@@ -474,6 +477,7 @@ func (h *LLMHandler) QueryWithOptions(text string, options QueryOptions) (string
 				zap.Int("message_count", len(h.messages)),
 			)
 			// Don't add empty message to history, but still return error
+			h.rollbackLastUserMessageIfMatches(text)
 			h.mutex.Unlock()
 			return "", fmt.Errorf("empty response content from LLM")
 		}
@@ -503,6 +507,7 @@ func (h *LLMHandler) QueryWithOptions(text string, options QueryOptions) (string
 
 	// Check if we hit max iterations without getting a final response
 	if finalResponse == "" {
+		h.rollbackLastUserMessageIfMatches(text)
 		h.mutex.Unlock()
 		// Clean up incomplete tool calls before returning error
 		h.cleanupIncompleteToolCalls()
@@ -1107,6 +1112,19 @@ func (h *LLMHandler) cleanupIncompleteToolCalls() {
 				break
 			}
 		}
+	}
+}
+
+// rollbackLastUserMessageIfMatches removes the last message when it is a user turn matching
+// the given content. Used when a Query/QueryWithOptions call fails after appending the user
+// message (so callers do not accumulate failed turns in history).
+func (h *LLMHandler) rollbackLastUserMessageIfMatches(userContent string) {
+	if len(h.messages) == 0 {
+		return
+	}
+	i := len(h.messages) - 1
+	if h.messages[i].Role == openai.ChatMessageRoleUser && h.messages[i].Content == userContent {
+		h.messages = h.messages[:i]
 	}
 }
 

@@ -5,6 +5,7 @@ go 1.24.4
 require (
 	cloud.google.com/go/speech v1.28.1
 	cloud.google.com/go/texttospeech v1.16.0
+	github.com/GanymedeNil/go-webrtcvad v0.0.0-20191210081959-e18ecd7324df
 	github.com/LingByte/lingstorage-sdk-go v0.0.0-20260112052154-e5a3085361f9
 	github.com/alibabacloud-go/bailian-20231229/v2 v2.6.0
 	github.com/alibabacloud-go/darabonba-openapi/v2 v2.1.13
@@ -19,7 +20,6 @@ require (
 	github.com/carlmjohnson/requests v0.25.1
 	github.com/coze-dev/coze-go v0.0.0-20251029161603-312b7fd62d20
 	github.com/deepgram/deepgram-go-sdk v1.9.0
-	github.com/emiago/sipgo v0.18.0
 	github.com/gen2brain/malgo v0.11.24
 	github.com/gin-contrib/sessions v1.0.2
 	github.com/gin-gonic/gin v1.10.1
@@ -28,12 +28,15 @@ require (
 	github.com/go-resty/resty/v2 v2.16.5
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0
 	github.com/google/uuid v1.6.0
+	github.com/gordonklaus/portaudio v0.0.0-20230709114228-aafa478834f5
 	github.com/gorilla/csrf v1.7.3
 	github.com/gorilla/websocket v1.5.3
+	github.com/hajimehoshi/go-mp3 v0.3.4
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/hraban/opus v0.0.0-20251117090126-c76ea7e21bf3
 	github.com/jinzhu/inflection v1.0.0
 	github.com/joho/godotenv v1.5.1
+	github.com/lvow2022/goten v0.1.4
 	github.com/matoous/go-nanoid v1.5.1
 	github.com/milvus-io/milvus-sdk-go/v2 v2.4.2
 	github.com/mozillazg/go-pinyin v0.21.0
@@ -42,14 +45,17 @@ require (
 	github.com/neo4j/neo4j-go-driver/v5 v5.28.4
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pion/rtp v1.8.25
-	github.com/pion/sdp/v3 v3.0.9
 	github.com/pion/webrtc/v3 v3.3.6
+	github.com/pkg/errors v0.9.1
 	github.com/pquerna/otp v1.5.0
 	github.com/prometheus/client_golang v1.19.1
 	github.com/qdrant/go-client v1.16.2
 	github.com/redis/go-redis/v9 v9.14.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/sashabaranov/go-openai v1.41.2
+	github.com/shenjinti/dtmfdecoder v0.0.0-20240925071009-3e7fe89f6834
+	github.com/shenjinti/go-rnnoise v0.0.0-20240729070840-cd6ef1f9da67
+	github.com/shenjinti/gosilero v0.0.2
 	github.com/shirou/gopsutil/v3 v3.24.5
 	github.com/sirupsen/logrus v1.9.3
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
@@ -140,9 +146,6 @@ require (
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-playground/validator/v10 v10.27.0 // indirect
 	github.com/go-sql-driver/mysql v1.8.1 // indirect
-	github.com/gobwas/httphead v0.1.0 // indirect
-	github.com/gobwas/pool v0.2.1 // indirect
-	github.com/gobwas/ws v1.2.1 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-jwt/jwt/v5 v5.2.3 // indirect
@@ -157,7 +160,6 @@ require (
 	github.com/gorilla/sessions v1.4.0 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0 // indirect
 	github.com/hokaccha/go-prettyjson v0.0.0-20211117102719-0474bc63780f // indirect
-	github.com/icholy/digest v0.1.22 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/pgx/v5 v5.6.0 // indirect
@@ -186,11 +188,11 @@ require (
 	github.com/pion/randutil v0.1.0 // indirect
 	github.com/pion/rtcp v1.2.14 // indirect
 	github.com/pion/sctp v1.8.19 // indirect
+	github.com/pion/sdp/v3 v3.0.9 // indirect
 	github.com/pion/srtp/v2 v2.0.20 // indirect
 	github.com/pion/stun v0.6.1 // indirect
 	github.com/pion/transport/v2 v2.2.10 // indirect
 	github.com/pion/turn/v2 v2.1.6 // indirect
-	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
 	github.com/prometheus/client_model v0.5.0 // indirect
@@ -199,8 +201,6 @@ require (
 	github.com/quasoft/memstore v0.0.0-20191010062613-2bce066d2b0b // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
-	github.com/rs/zerolog v1.28.0 // indirect
-	github.com/satori/go.uuid v1.2.1-0.20181028125025-b2ce2384e17b // indirect
 	github.com/shoenig/go-m1cpu v0.1.7 // indirect
 	github.com/tidwall/gjson v1.14.4 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
@@ -214,7 +214,7 @@ require (
 	github.com/wlynxg/anet v0.0.3 // indirect
 	github.com/youpy/go-riff v0.1.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
-	github.com/zaf/g711 v0.0.0-20190814101024-76a4a538f52b // indirect
+	github.com/zaf/g711 v1.4.0 // indirect
 	go.etcd.io/bbolt v1.4.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.61.0 // indirect

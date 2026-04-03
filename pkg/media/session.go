@@ -42,7 +42,11 @@ func (tl *TransportManager) processIncoming() {
 		if r := recover(); r != nil {
 			logger.Error("input transport processing panic", zap.String("sessionID", tl.session.GetSession().ID), zap.Any("transport", tl.transport), zap.Any("error", r), zap.String("stacktrace", string(debug.Stack())))
 		}
-		tl.incomingClosedChan <- struct{}{}
+		// Always signal termination to unblock cleanup.
+		select {
+		case tl.incomingClosedChan <- struct{}{}:
+		default:
+		}
 	}()
 
 	transport := tl.transport
@@ -106,7 +110,11 @@ func (tl *TransportManager) processOutgoing() {
 		if r := recover(); r != nil {
 			logger.Error("output transport processing panic", zap.String("sessionID", tl.session.ID), zap.Any("transport", tl.transport), zap.Any("error", r), zap.String("stacktrace", string(debug.Stack())))
 		}
-		tl.outcomingClosedChan <- struct{}{}
+		// Always signal termination to unblock cleanup.
+		select {
+		case tl.outcomingClosedChan <- struct{}{}:
+		default:
+		}
 	}()
 
 	logger.Info("output transport processing started", zap.String("sessionID", tl.session.ID), zap.Any("transport", tl.transport))
@@ -189,8 +197,14 @@ func (tl *TransportManager) cleanup() {
 	}
 
 	tl.transport.Close()
-	tl.waitForIncomingLoopStop()
-	tl.waitForOutcomingLoopStop()
+	// Only wait for the loops that actually exist for this transport manager.
+	// Inputs only run processIncoming, outputs only run processOutgoing.
+	if tl.incomingClosedChan != nil {
+		tl.waitForIncomingLoopStop()
+	}
+	if tl.outcomingClosedChan != nil {
+		tl.waitForOutcomingLoopStop()
+	}
 
 	tl.transport = nil
 
@@ -498,6 +512,14 @@ func (s *MediaSession) setupOutputRouter() {
 		"output-router",
 		PriorityLow,
 		func(ctx context.Context, session *MediaSession, packet MediaPacket) error {
+			// SIP AI voice: do not loop decoded uplink PCM back to the caller (no echo).
+			if ap, ok := packet.(*AudioPacket); ok && !ap.IsSynthesized {
+				if v, ok := session.Get(KeySIPSuppressUplinkEcho); ok {
+					if suppress, ok := v.(bool); ok && suppress {
+						return nil
+					}
+				}
+			}
 			// Get active output connectors
 			var activeOutputs []*TransportConnector
 			for _, connector := range session.outputConnectors {
@@ -622,8 +644,9 @@ func (s *MediaSession) Serve() error {
 		}
 		s.Running = false
 		logger.Info("session stopped", zap.String("sessionID", s.ID))
-		s.cleanup()
+		// Emit End before cleanup (transports first, then EventBus) so shutdown stays ordered.
 		s.EmitState(s, End)
+		s.cleanup()
 		for idx := range s.postHoooks {
 			interceptor := s.postHoooks[idx]
 			interceptor(s)
@@ -675,11 +698,7 @@ func (s *MediaSession) Codec() CodecConfig {
 }
 
 func (s *MediaSession) cleanup() {
-	// Stop event bus
-	if s.eventBus != nil {
-		s.eventBus.Close()
-	}
-
+	// Stop transports first so input/output loops stop emitting to EventBus before we close it.
 	for idx := range s.inputs {
 		tl := s.inputs[idx]
 		tl.cleanup()
@@ -688,6 +707,10 @@ func (s *MediaSession) cleanup() {
 	for idx := range s.outputs {
 		tl := s.outputs[idx]
 		tl.cleanup()
+	}
+
+	if s.eventBus != nil {
+		s.eventBus.Close()
 	}
 }
 
