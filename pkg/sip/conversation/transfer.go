@@ -2,13 +2,19 @@ package conversation
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/LingByte/SoulNexus/pkg/media"
+	"github.com/LingByte/SoulNexus/pkg/media/encoder"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/sip/dtmf"
 	"github.com/LingByte/SoulNexus/pkg/sip/outbound"
+	sipSession "github.com/LingByte/SoulNexus/pkg/sip/session"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"go.uber.org/zap"
 )
@@ -29,6 +35,8 @@ var (
 	transferStarted sync.Map // inbound Call-ID -> bool (dedupe)
 	// RFC2833 often emits several events per keypress; ignore repeats within this window.
 	transferDTMFLast sync.Map // inbound Call-ID -> time.Time
+	transferRingMu   sync.Mutex
+	transferRingStop map[string]context.CancelFunc
 )
 
 const transferDTMFDebounce = 450 * time.Millisecond
@@ -130,6 +138,7 @@ func tryTransferToAgent(ctx context.Context, inboundCallID, digit string, lg *za
 			return
 		}
 		lg.Info("sip transfer: web seat — handing off to WebRTC bridge", zap.String("inbound_call_id", inboundCallID))
+		startTransferRinging(ctx, inboundCallID, lg)
 		go func() { webFn(ctx, inboundCallID, lg) }()
 		return
 	}
@@ -141,6 +150,7 @@ func tryTransferToAgent(ctx context.Context, inboundCallID, digit string, lg *za
 	}
 
 	lg.Info("sip transfer: dialing agent leg", zap.String("inbound_call_id", inboundCallID), zap.String("agent_uri", tgt.RequestURI))
+	startTransferRinging(ctx, inboundCallID, lg)
 
 	go func() {
 		cid, err := d.Dial(ctx, outbound.DialRequest{
@@ -150,10 +160,123 @@ func tryTransferToAgent(ctx context.Context, inboundCallID, digit string, lg *za
 			MediaProfile:  outbound.MediaProfileTransferBridge,
 		})
 		if err != nil {
+			stopTransferRinging(inboundCallID)
 			transferStarted.Delete(inboundCallID)
 			lg.Warn("sip transfer: outbound dial failed", zap.String("inbound_call_id", inboundCallID), zap.Error(err))
 			return
 		}
 		lg.Info("sip transfer: agent leg INVITE sent", zap.String("inbound_call_id", inboundCallID), zap.String("outbound_call_id", cid))
 	}()
+}
+
+func startTransferRinging(ctx context.Context, inboundCallID string, lg *zap.Logger) {
+	inbound := lookupInboundSession(inboundCallID)
+	if inbound == nil {
+		return
+	}
+	stopTransferRinging(inboundCallID)
+
+	runCtx, cancel := context.WithCancel(ctx)
+	transferRingMu.Lock()
+	if transferRingStop == nil {
+		transferRingStop = make(map[string]context.CancelFunc)
+	}
+	transferRingStop[inboundCallID] = cancel
+	transferRingMu.Unlock()
+
+	go func() {
+		defer stopTransferRinging(inboundCallID)
+		if err := playTransferRingingLoop(runCtx, inbound, lg); err != nil && !errorsIsCtxDone(err) {
+			lg.Warn("sip transfer ring playback failed", zap.String("inbound_call_id", inboundCallID), zap.Error(err))
+		}
+	}()
+}
+
+func stopTransferRinging(inboundCallID string) {
+	transferRingMu.Lock()
+	cancel := transferRingStop[inboundCallID]
+	delete(transferRingStop, inboundCallID)
+	transferRingMu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+}
+
+func lookupInboundSession(callID string) *sipSession.CallSession {
+	if lookupInbound == nil {
+		return nil
+	}
+	return lookupInbound(callID)
+}
+
+func playTransferRingingLoop(ctx context.Context, inbound *sipSession.CallSession, lg *zap.Logger) error {
+	if inbound == nil {
+		return fmt.Errorf("nil inbound session")
+	}
+	ms := inbound.MediaSession()
+	if ms == nil {
+		return fmt.Errorf("nil inbound media session")
+	}
+	path := strings.TrimSpace(utils.GetEnv("SIP_TRANSFER_RINGING_WAV_PATH"))
+	if path == "" {
+		path = "scripts/ringing.wav"
+	}
+	if !filepath.IsAbs(path) {
+		path = filepath.Clean(path)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read transfer ringing wav: %w", err)
+	}
+	pcm := encoder.StripWavHeader(raw)
+	if len(pcm) == 0 {
+		return fmt.Errorf("transfer ringing wav has empty pcm payload")
+	}
+	sampleRate := 16000
+	bytesPerFrame := sampleRate * 2 * 20 / 1000
+	if bytesPerFrame <= 0 {
+		bytesPerFrame = 640
+	}
+	const maxRingDuration = 35 * time.Second
+	deadline := time.Now().Add(maxRingDuration)
+	ticker := time.NewTicker(20 * time.Millisecond)
+	defer ticker.Stop()
+	if lg != nil {
+		lg.Info("sip transfer ring playback started", zap.Int("bytes", len(pcm)))
+	}
+	offset := 0
+	for {
+		if time.Now().After(deadline) {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ms.GetContext().Done():
+			return ms.GetContext().Err()
+		case <-ticker.C:
+		}
+		if ActiveTransferBridgeForCallID(inbound.CallID) || ActiveWebSeatBridge(inbound.CallID) {
+			return nil
+		}
+		end := offset + bytesPerFrame
+		if end > len(pcm) {
+			end = len(pcm)
+		}
+		frame := pcm[offset:end]
+		if len(frame) > 0 {
+			ms.SendToOutput("sip-transfer-ringing", &media.AudioPacket{
+				Payload:       frame,
+				IsSynthesized: true,
+			})
+		}
+		offset = end
+		if offset >= len(pcm) {
+			offset = 0
+		}
+	}
+}
+
+func errorsIsCtxDone(err error) bool {
+	return err == context.Canceled || err == context.DeadlineExceeded
 }

@@ -79,6 +79,7 @@ func ActiveTransferBridgeForCallID(callID string) bool {
 // restores legacy SSRC/seq/ts rewrite.
 // inboundCallID is the original caller's Call-ID (CorrelationID on the outbound DialRequest).
 func StartTransferBridge(inboundCallID string, outboundCS *sipSession.CallSession, outboundCallID string, lg *zap.Logger) {
+	stopTransferRinging(inboundCallID)
 	if lg == nil && logger.Lg != nil {
 		lg = logger.Lg
 	}
