@@ -52,6 +52,20 @@ func normalizeCodecName(name string) string {
 	}
 }
 
+// staticPayloadCodec returns the RFC 3551 static audio mapping when no a=rtpmap is present.
+func staticPayloadCodec(pt uint8) (SDPCodec, bool) {
+	switch pt {
+	case 0:
+		return SDPCodec{PayloadType: 0, Name: "pcmu", ClockRate: 8000, Channels: 1}, true
+	case 8:
+		return SDPCodec{PayloadType: 8, Name: "pcma", ClockRate: 8000, Channels: 1}, true
+	case 9:
+		return SDPCodec{PayloadType: 9, Name: "g722", ClockRate: 8000, Channels: 1}, true
+	default:
+		return SDPCodec{}, false
+	}
+}
+
 // ParseSDP extracts IP/port and codec mappings from SDP body.
 func ParseSDP(body string) (*SDPInfo, error) {
 	body = strings.TrimSpace(body)
@@ -159,17 +173,30 @@ func ParseSDP(body string) (*SDPInfo, error) {
 		return nil, fmt.Errorf("sip: unsupported media proto: %s", mediaProto)
 	}
 
-	// Many SIP clients omit a=rtpmap for static payload types (0,8,9,...).
-	// If rtpmap is missing but PTs exist, infer the common static codecs.
+	// Peers often list static PTs (0/8/9) on m=audio but omit a=rtpmap for them while still
+	// sending a=rtpmap only for dynamic types (e.g. 101 telephone-event). Without this, we would
+	// keep only the dynamic codec and fail CallSession negotiation (see staticPayloadCodec).
+	if len(payloadTypes) > 0 {
+		seen := make(map[uint8]struct{}, len(info.Codecs)+len(payloadTypes))
+		for _, c := range info.Codecs {
+			seen[c.PayloadType] = struct{}{}
+		}
+		for _, pt := range payloadTypes {
+			if _, ok := seen[pt]; ok {
+				continue
+			}
+			if sc, ok := staticPayloadCodec(pt); ok {
+				info.Codecs = append(info.Codecs, sc)
+				seen[pt] = struct{}{}
+			}
+		}
+	}
+
+	// Many SIP clients omit every a=rtpmap; infer static codecs from m= alone.
 	if len(info.Codecs) == 0 && len(payloadTypes) > 0 {
 		for _, pt := range payloadTypes {
-			switch pt {
-			case 0:
-				info.Codecs = append(info.Codecs, SDPCodec{PayloadType: 0, Name: "pcmu", ClockRate: 8000, Channels: 1})
-			case 8:
-				info.Codecs = append(info.Codecs, SDPCodec{PayloadType: 8, Name: "pcma", ClockRate: 8000, Channels: 1})
-			case 9:
-				info.Codecs = append(info.Codecs, SDPCodec{PayloadType: 9, Name: "g722", ClockRate: 8000, Channels: 1})
+			if sc, ok := staticPayloadCodec(pt); ok {
+				info.Codecs = append(info.Codecs, sc)
 			}
 		}
 	}
@@ -179,7 +206,7 @@ func ParseSDP(body string) (*SDPInfo, error) {
 		return nil, fmt.Errorf("sip: no codec found in SDP")
 	}
 
-	// If payload types were extracted, filter codecs to those payload types.
+	// If payload types were extracted, filter codecs to those payload types and order by m= line.
 	if len(payloadTypes) > 0 {
 		want := make(map[uint8]struct{}, len(payloadTypes))
 		for _, pt := range payloadTypes {
@@ -192,7 +219,17 @@ func ParseSDP(body string) (*SDPInfo, error) {
 			}
 		}
 		if len(filtered) > 0 {
-			info.Codecs = filtered
+			byPT := make(map[uint8]SDPCodec, len(filtered))
+			for _, c := range filtered {
+				byPT[c.PayloadType] = c
+			}
+			ordered := make([]SDPCodec, 0, len(filtered))
+			for _, pt := range payloadTypes {
+				if c, ok := byPT[pt]; ok {
+					ordered = append(ordered, c)
+				}
+			}
+			info.Codecs = ordered
 		}
 	}
 

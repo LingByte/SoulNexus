@@ -5,6 +5,7 @@ package encoder
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/LingByte/SoulNexus/pkg/media"
 	"github.com/hraban/opus"
@@ -19,15 +20,28 @@ func createOPUSDecode(src, pcm media.CodecConfig) media.EncoderFunc {
 		sourceSampleRate = 48000 // OPUS standard sample rate
 	}
 
-	// Determine number of channels
-	channels := src.Channels
-	if channels == 0 {
-		channels = 1 // Default mono
+	// Decoder channel count: for normal SIP+ASR with mono PCM and OPUS/48000/2, libopus often
+	// downmixes correctly with decodeCh=1. PCM bridge sets OpusPCMBridgeDecodeStereo when 1ch
+	// decode sounds broken for a peer (use 2ch + L/R average to mono).
+	pcmOutCh := pcm.Channels
+	if pcmOutCh <= 0 {
+		pcmOutCh = 1
+	}
+	decodeCh := 1
+	if pcmOutCh >= 2 {
+		decodeCh = src.Channels
+		if decodeCh == 0 {
+			decodeCh = 1
+		}
+		if src.OpusDecodeChannels >= 1 && src.OpusDecodeChannels <= 2 {
+			decodeCh = src.OpusDecodeChannels
+		}
+	} else if strings.EqualFold(strings.TrimSpace(src.Codec), "opus") && src.OpusDecodeChannels == 2 && src.OpusPCMBridgeDecodeStereo {
+		// SIP PCM bridge: mono intermediate but peer negotiated stereo Opus — decode 2ch then downmix.
+		decodeCh = 2
 	}
 
-	// 创建 OPUS 解码器
-	// OPUS 支持的采样率: 8000, 12000, 16000, 24000, 48000
-	decoder, err := opus.NewDecoder(sourceSampleRate, channels)
+	decoder, err := opus.NewDecoder(sourceSampleRate, decodeCh)
 	if err != nil {
 		panic(fmt.Errorf("failed to create opus decoder: %w", err))
 	}
@@ -45,8 +59,14 @@ func createOPUSDecode(src, pcm media.CodecConfig) media.EncoderFunc {
 		}
 	}
 
-	// 计算每帧的样本数
+	// 计算每帧的样本数（编码/分包步长）
 	frameSize := sourceSampleRate * frameDurationMs / 1000
+	// RFC 6716: one Opus packet may represent up to 120 ms of audio; the decode buffer must fit that.
+	const maxOpusFrameMs = 120
+	maxSamplesPerCh := sourceSampleRate * maxOpusFrameMs / 1000
+	if maxSamplesPerCh < frameSize {
+		maxSamplesPerCh = frameSize
+	}
 
 	return func(packet media.MediaPacket) ([]media.MediaPacket, error) {
 		audioPacket, ok := packet.(*media.AudioPacket)
@@ -54,22 +74,49 @@ func createOPUSDecode(src, pcm media.CodecConfig) media.EncoderFunc {
 			return []media.MediaPacket{packet}, nil
 		}
 
-		// 解码 OPUS 数据为 PCM (int16)
-		// 创建输出缓冲区
-		pcmBuffer := make([]int16, frameSize*channels)
+		pcmBuffer := make([]int16, maxSamplesPerCh*decodeCh)
 		n, err := decoder.Decode(audioPacket.Payload, pcmBuffer)
 		if err != nil {
 			return nil, fmt.Errorf("opus decode error: %w", err)
 		}
 
-		// 转换 int16 为 []byte
-		decodedData := make([]byte, n*channels*2)
-		for i := 0; i < n*channels; i++ {
-			decodedData[i*2] = byte(pcmBuffer[i])
-			decodedData[i*2+1] = byte(pcmBuffer[i] >> 8)
+		var decodedData []byte
+		if decodeCh == 2 {
+			if pcmOutCh >= 2 {
+				// Stereo PCM out (e.g. SIP bridge OPUS/48000/2 ↔ OPUS/48000/2): keep L/R.
+				decodedData = make([]byte, n*4)
+				for i := 0; i < n; i++ {
+					l := pcmBuffer[i*2]
+					r := pcmBuffer[i*2+1]
+					decodedData[i*4] = byte(l)
+					decodedData[i*4+1] = byte(l >> 8)
+					decodedData[i*4+2] = byte(r)
+					decodedData[i*4+3] = byte(r >> 8)
+				}
+			} else {
+				decodedData = make([]byte, n*2)
+				for i := 0; i < n; i++ {
+					v := int16((int32(pcmBuffer[i*2]) + int32(pcmBuffer[i*2+1])) / 2)
+					decodedData[i*2] = byte(v)
+					decodedData[i*2+1] = byte(v >> 8)
+				}
+			}
+		} else {
+			decodedData = make([]byte, n*2)
+			for i := 0; i < n; i++ {
+				decodedData[i*2] = byte(pcmBuffer[i])
+				decodedData[i*2+1] = byte(pcmBuffer[i] >> 8)
+			}
 		}
 
-		// 重采样到目标采样率
+		if sourceSampleRate == pcm.SampleRate {
+			audioPacket.Payload = decodedData
+			return []media.MediaPacket{audioPacket}, nil
+		}
+		if pcmOutCh >= 2 {
+			return nil, fmt.Errorf("opus decode: stereo PCM with sample-rate conversion is not supported")
+		}
+
 		if _, err = res.Write(decodedData); err != nil {
 			return nil, err
 		}
@@ -116,15 +163,18 @@ func createOPUSEncode(src, pcm media.CodecConfig) media.EncoderFunc {
 		}
 	}
 
-	// 确定声道数
+	// Encoder channel count must match SDP rtpmap (e.g. OPUS/48000/2). TTS path feeds mono PCM;
+	// when SDP is stereo we duplicate samples to L/R before Encode.
 	channels := src.Channels
-	if channels == 0 {
-		channels = 1 // 默认单声道
+	if channels < 1 {
+		channels = 1
+	}
+	if strings.EqualFold(strings.TrimSpace(src.Codec), "opus") && src.OpusDecodeChannels == 2 {
+		channels = 2
 	}
 
-	// 创建 OPUS 编码器
-	// 使用 AppAudio 模式以获得更好的音质（而不是 AppVoIP）
-	encoder, err := opus.NewEncoder(targetSampleRate, channels, opus.AppAudio)
+	// AppVoIP suits interactive speech (SIP/phone); AppAudio is broader-band music-oriented.
+	encoder, err := opus.NewEncoder(targetSampleRate, channels, opus.AppVoIP)
 	if err != nil {
 		panic(fmt.Errorf("failed to create opus encoder: %w", err))
 	}
@@ -157,12 +207,15 @@ func createOPUSEncode(src, pcm media.CodecConfig) media.EncoderFunc {
 			return []media.MediaPacket{packet}, nil
 		}
 
-		// 重采样到 OPUS 目标采样率
-		if _, err := res.Write(audioPacket.Payload); err != nil {
-			return nil, err
+		var data []byte
+		if pcm.SampleRate == targetSampleRate {
+			data = append([]byte(nil), audioPacket.Payload...)
+		} else {
+			if _, err := res.Write(audioPacket.Payload); err != nil {
+				return nil, err
+			}
+			data = res.Samples()
 		}
-
-		data := res.Samples()
 		if len(data) == 0 {
 			return nil, nil
 		}
@@ -174,9 +227,27 @@ func createOPUSEncode(src, pcm media.CodecConfig) media.EncoderFunc {
 			return nil, nil
 		}
 
-		pcmSamples := make([]int16, len(data)/2)
-		for i := 0; i < len(pcmSamples); i++ {
-			pcmSamples[i] = int16(data[i*2]) | int16(data[i*2+1])<<8
+		nPCM := len(data) / 2
+		raw := make([]int16, nPCM)
+		for i := 0; i < nPCM; i++ {
+			raw[i] = int16(data[i*2]) | int16(data[i*2+1])<<8
+		}
+
+		var pcmSamples []int16
+		if channels == 2 {
+			if pcm.Channels >= 2 {
+				// Interleaved stereo L,R,L,R,... (SIP PCM bridge)
+				pcmSamples = raw
+			} else {
+				stereo := make([]int16, len(raw)*2)
+				for i, s := range raw {
+					stereo[2*i] = s
+					stereo[2*i+1] = s
+				}
+				pcmSamples = stereo
+			}
+		} else {
+			pcmSamples = raw
 		}
 
 		samplesPerFrame := frameSize * channels

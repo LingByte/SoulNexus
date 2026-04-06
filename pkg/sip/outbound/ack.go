@@ -29,8 +29,7 @@ func buildACK(inv inviteParams, resp200 *protocol.Message, requestURI string) *p
 	msg.SetHeader("Via", via)
 	msg.SetHeader("Max-Forwards", "70")
 
-	from := fmt.Sprintf("<sip:%s@%s:%d>;tag=%s", inv.FromUser, inv.SIPHost, inv.SIPPort, inv.FromTag)
-	msg.SetHeader("From", from)
+	msg.SetHeader("From", formatOutboundFromHeader(inv.FromDisplayName, inv.FromUser, inv.SIPHost, inv.SIPPort, inv.FromTag))
 	if to := resp200.GetHeader("To"); to != "" {
 		msg.SetHeader("To", to)
 	} else {

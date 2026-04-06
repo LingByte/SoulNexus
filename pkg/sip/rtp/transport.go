@@ -2,8 +2,10 @@ package rtp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/LingByte/SoulNexus/pkg/media"
@@ -26,6 +28,11 @@ type SIPRTPTransport struct {
 	// PreserveSessionOnClose, if true, Close() does not close the underlying RTP UDP socket.
 	// Used when stopping the default MediaSession and handing media to an in-process bridge.
 	PreserveSessionOnClose bool
+
+	// OnInputPayload, if set, receives a copy of each incoming audio RTP payload (after PT filter).
+	OnInputPayload func([]byte)
+	// OnOutputPayload, if set, receives a copy of each outgoing encoded audio RTP payload (output transport only).
+	OnOutputPayload func([]byte)
 
 	attached *media.MediaSession
 }
@@ -84,6 +91,7 @@ func (t *SIPRTPTransport) Next(ctx context.Context) (media.MediaPacket, error) {
 	// If the media session is shutting down, avoid returning errors that would
 	// be published into EventBus after it is closed.
 	if ctx != nil && ctx.Err() != nil {
+		t.clearReadDeadline()
 		return nil, nil
 	}
 
@@ -91,22 +99,35 @@ func (t *SIPRTPTransport) Next(ctx context.Context) (media.MediaPacket, error) {
 	for {
 		// If the media session is shutting down, stop waiting.
 		if ctx != nil && ctx.Err() != nil {
+			t.clearReadDeadline()
 			return nil, nil
+		}
+
+		// Bounded wait so bridge teardown (cancel + WakeupRead) and PCM direct loops can exit;
+		// also avoids relying on EventBus queue depth for real-time audio.
+		if t.sess.Conn != nil {
+			_ = t.sess.Conn.SetReadDeadline(time.Now().Add(250 * time.Millisecond))
 		}
 
 		n, _, pkt, err := t.sess.ReceiveRTP(buf)
 		if err != nil {
-			// When shutdown triggers UDP close, suppress the error to avoid publishing
-			// into a closed EventBus.
 			if ctx != nil && ctx.Err() != nil {
+				t.clearReadDeadline()
 				return nil, nil
 			}
+			var ne net.Error
+			if errors.As(err, &ne) && ne.Timeout() {
+				continue
+			}
+			t.clearReadDeadline()
 			return nil, err
 		}
 		if pkt == nil {
 			if n == 0 {
+				t.clearReadDeadline()
 				return nil, nil
 			}
+			t.clearReadDeadline()
 			return nil, fmt.Errorf("siprtp: got nil packet from ReceiveRTP")
 		}
 
@@ -114,6 +135,7 @@ func (t *SIPRTPTransport) Next(ctx context.Context) (media.MediaPacket, error) {
 		if t.telephoneEventPT != 0 && pkt.Header.PayloadType == t.telephoneEventPT {
 			digit, end, ok := dtmf.EventFromRFC2833(pkt.Payload)
 			if ok && end && digit != "" {
+				t.clearReadDeadline()
 				return &media.DTMFPacket{Digit: digit, End: end}, nil
 			}
 			continue
@@ -124,8 +146,30 @@ func (t *SIPRTPTransport) Next(ctx context.Context) (media.MediaPacket, error) {
 			continue
 		}
 
+		if t.OnInputPayload != nil && len(pkt.Payload) > 0 {
+			cp := make([]byte, len(pkt.Payload))
+			copy(cp, pkt.Payload)
+			t.OnInputPayload(cp)
+		}
+
+		t.clearReadDeadline()
 		return &media.AudioPacket{Payload: pkt.Payload}, nil
 	}
+}
+
+func (t *SIPRTPTransport) clearReadDeadline() {
+	if t == nil || t.sess == nil || t.sess.Conn == nil {
+		return
+	}
+	_ = t.sess.Conn.SetReadDeadline(time.Time{})
+}
+
+// WakeupRead unblocks a goroutine stuck in Next() (same idea as transfer RTP relay stop).
+func (t *SIPRTPTransport) WakeupRead() {
+	if t == nil || t.sess == nil || t.sess.Conn == nil {
+		return
+	}
+	_ = t.sess.Conn.SetReadDeadline(time.Now())
 }
 
 // Send sends a media.AudioPacket as a single RTP packet for the output direction.
@@ -151,19 +195,30 @@ func (t *SIPRTPTransport) Send(ctx context.Context, packet media.MediaPacket) (i
 		return 0, nil
 	}
 
+	if t.OnOutputPayload != nil {
+		cp := make([]byte, len(payload))
+		copy(cp, payload)
+		t.OnOutputPayload(cp)
+	}
+
 	// RTP timestamp increment must be based on codec clock rate, not payload bytes.
 	// For codecs like OPUS (variable bitrate), deriving samples from payload length
 	// causes timestamp drift and audible artifacts (noise/choppiness).
+	clockRate := t.codec.SampleRate
+	if strings.EqualFold(strings.TrimSpace(t.codec.Codec), "g722") {
+		// G.722 SDP clock is 8000 Hz even though PCM is 16 kHz (RFC 3551).
+		clockRate = 8000
+	}
 	samples := uint32(0)
-	if t.codec.SampleRate > 0 {
+	if clockRate > 0 {
 		if t.codec.FrameDuration != "" {
 			if d, err := time.ParseDuration(t.codec.FrameDuration); err == nil && d > 0 {
-				samples = uint32((int64(t.codec.SampleRate) * d.Milliseconds()) / 1000)
+				samples = uint32((int64(clockRate) * d.Milliseconds()) / 1000)
 			}
 		}
 		// Default to 20ms frames if not specified/parsable.
 		if samples == 0 {
-			samples = uint32((t.codec.SampleRate * 20) / 1000)
+			samples = uint32((clockRate * 20) / 1000)
 		}
 	}
 	if samples == 0 {

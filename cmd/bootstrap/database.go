@@ -34,7 +34,7 @@ type Options struct {
 // SetupDatabase unified entry: connect database -> run initialization SQL -> migrate entities -> (non-production) write default configuration
 func SetupDatabase(logWriter io.Writer, opts *Options) (*gorm.DB, error) {
 	if opts == nil {
-		opts = &Options{AutoMigrate: true, SeedNonProd: true}
+		opts = &Options{AutoMigrate: false, SeedNonProd: false}
 	}
 
 	// 1) Connect to database
@@ -58,7 +58,6 @@ func SetupDatabase(logWriter io.Writer, opts *Options) (*gorm.DB, error) {
 		migrationsDir := "cmd/bootstrap/migrations"
 		if err := runMigrationScripts(db, migrationsDir); err != nil {
 			logger.Warn("run migration scripts failed", zap.String("dir", migrationsDir), zap.Error(err))
-			// 不中断流程，继续执行 GORM 迁移
 		}
 
 		if err := RunMigrations(db); err != nil {
@@ -182,7 +181,7 @@ func RunMigrations(db *gorm.DB) error {
 		&models.GroupInvitation{},
 		&models.GroupActivityLog{},
 		&models.Assistant{},
-				&models.ChatSessionLog{},
+		&models.ChatSessionLog{},
 		&notification.InternalNotification{},
 		&notification.MailLog{},
 		&models.Knowledge{},
@@ -224,7 +223,7 @@ func RunMigrations(db *gorm.DB) error {
 		// SIP module
 		&models.SIPUser{},
 		&models.SIPCall{},
-		&models.SIPSession{},
+		&models.ACDPoolTarget{},
 		&models.MCPServer{},
 		&models.MCPTool{},
 		&models.MCPCallLog{},

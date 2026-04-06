@@ -29,3 +29,24 @@ func TestDialTargetFromEnv_BuildsFromTargetAndHost(t *testing.T) {
 		t.Fatalf("SignalingAddr: %q", dt.SignalingAddr)
 	}
 }
+
+func TestTransferDialTargetFromEnv_WebSeat(t *testing.T) {
+	_ = os.Setenv(EnvSIPTransferReqURI, "")
+	_ = os.Setenv(EnvSIPTransferSigAddr, "")
+	_ = os.Setenv(EnvSIPTransferNumber, "web")
+	_ = os.Setenv(EnvSIPTransferHost, "")
+	defer func() {
+		_ = os.Unsetenv(EnvSIPTransferReqURI)
+		_ = os.Unsetenv(EnvSIPTransferSigAddr)
+		_ = os.Unsetenv(EnvSIPTransferNumber)
+		_ = os.Unsetenv(EnvSIPTransferHost)
+	}()
+
+	dt, ok := TransferDialTargetFromEnv()
+	if !ok || !dt.WebSeat {
+		t.Fatalf("expected WebSeat ok, got ok=%v dt=%+v", ok, dt)
+	}
+	if dt.RequestURI != "" || dt.SignalingAddr != "" {
+		t.Fatalf("expected empty SIP fields, got %+v", dt)
+	}
+}

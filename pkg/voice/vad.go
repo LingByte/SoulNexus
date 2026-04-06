@@ -31,9 +31,10 @@ type VADDetector struct {
 func NewVADDetector() *VADDetector {
 	return &VADDetector{
 		enabled:                 true,
-		threshold:               500.0, // 绝对值阈值（作为后备）
-		adaptiveThreshold:       0,     // 自适应阈值（0表示未初始化）
-		consecutiveFramesNeeded: 1,     // 改为1帧，更敏感
+		// Default cap: low values (e.g. 500) match normal speech but also TTS echo on phone lines → false barge-in.
+		threshold:               1500.0, // 绝对值上限（后备）；SIP 侧会再收紧（见 conversation/voice.go）
+		adaptiveThreshold:       0,      // 自适应阈值（0表示未初始化）
+		consecutiveFramesNeeded: 1,      // 改为1帧，更敏感
 		frameCounter:            0,
 		logger:                  nil,
 		lastLogTime:             time.Now(),
@@ -70,7 +71,7 @@ func (v *VADDetector) CheckBargeIn(pcmData []byte, ttsPlaying bool) bool {
 	rms := calculateRMS(pcmData)
 
 	// 更新噪音水平（使用滑动平均，只记录低能量的样本作为噪音）
-	if rms < 200 { // 只将低能量样本作为噪音
+		if rms < 350 { // 只将低能量样本作为噪音（过低则回声期无法更新 noiseLevel）
 		v.noiseSamples = append(v.noiseSamples, rms)
 		if len(v.noiseSamples) > v.maxNoiseSamples {
 			v.noiseSamples = v.noiseSamples[1:]
@@ -83,9 +84,9 @@ func (v *VADDetector) CheckBargeIn(pcmData []byte, ttsPlaying bool) bool {
 		if len(v.noiseSamples) > 0 {
 			v.noiseLevel = sum / float64(len(v.noiseSamples))
 			// 自适应阈值 = 噪音水平的 3 倍，但至少为 50，最多为绝对值阈值
-			v.adaptiveThreshold = v.noiseLevel * 3.0
-			if v.adaptiveThreshold < 50 {
-				v.adaptiveThreshold = 50
+			v.adaptiveThreshold = v.noiseLevel * 4.0
+			if v.adaptiveThreshold < 180 {
+				v.adaptiveThreshold = 180
 			}
 			if v.adaptiveThreshold > v.threshold {
 				v.adaptiveThreshold = v.threshold

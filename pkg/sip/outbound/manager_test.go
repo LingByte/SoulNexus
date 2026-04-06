@@ -2,6 +2,7 @@ package outbound
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -17,6 +18,19 @@ func TestManager_Dial_RequiresBind(t *testing.T) {
 	})
 	if err != ErrNoSignalingSender {
 		t.Fatalf("expected ErrNoSignalingSender, got %v", err)
+	}
+}
+
+func TestFormatOutboundFromHeader_CallerID(t *testing.T) {
+	const tag = "t1"
+	noDisp := formatOutboundFromHeader("", "4001880771", "192.0.2.1", 5060, tag)
+	wantNo := "<sip:4001880771@192.0.2.1:5060>;tag=t1"
+	if noDisp != wantNo {
+		t.Fatalf("no display: got %q want %q", noDisp, wantNo)
+	}
+	withDisp := formatOutboundFromHeader("客服热线", "4001880771", "192.0.2.1", 5060, tag)
+	if !strings.HasPrefix(withDisp, `"客服热线" <sip:4001880771@192.0.2.1:5060>;tag=`+tag) {
+		t.Fatalf("with display: %q", withDisp)
 	}
 }
 

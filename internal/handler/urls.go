@@ -188,6 +188,7 @@ func (h *Handlers) Register(engine *gin.Engine) {
 	h.registerVoiceTrainingRoutes(r)
 	h.registerJSTemplateRoutes(r)
 	h.registerBillingRoutes(r)
+	h.registerSIPContactCenterRoutes(r)
 	h.registerMiddlewareRoutes(r)
 	h.registerWorkflowRoutes(r)
 	h.registerWorkflowPluginRoutes(r) // Add workflow plugin routes

@@ -3,10 +3,12 @@ package conversation
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	sipasr "github.com/LingByte/SoulNexus/pkg/sip/asr"
@@ -20,6 +22,7 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/recognizer"
 	"github.com/LingByte/SoulNexus/pkg/synthesizer"
 	"github.com/LingByte/SoulNexus/pkg/utils"
+	"github.com/LingByte/SoulNexus/pkg/voice"
 	"go.uber.org/zap"
 )
 
@@ -100,11 +103,84 @@ func AttachVoicePipeline(ctx context.Context, cs *sipSession.CallSession, lg *za
 	})
 }
 
+func sipHangupPhrasesFromEnv() []string {
+	s := strings.TrimSpace(utils.GetEnv("SIP_AI_HANGUP_PHRASES"))
+	if s == "" {
+		return []string{"再见", "拜拜", "挂断", "先挂了", "挂了啊"}
+	}
+	var out []string
+	for _, p := range strings.Split(s, ",") {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	if len(out) == 0 {
+		return []string{"再见", "拜拜"}
+	}
+	return out
+}
+
+// sipVADBargeInEnabled is true unless SIP_VAD_BARGE_IN is 0/false/off/no.
+func sipVADBargeInEnabled() bool {
+	v := strings.TrimSpace(strings.ToLower(utils.GetEnv("SIP_VAD_BARGE_IN")))
+	switch v {
+	case "", "1", "true", "yes", "on":
+		return true
+	case "0", "false", "off", "no":
+		return false
+	default:
+		return true
+	}
+}
+
+// sipVADDefaultThreshold RMS 上限（16-bit PCM 与 pkg/voice 一致）：低于此值时 TTS/线路回声易误触发打断。
+const sipVADDefaultThreshold = 2200.0
+
+func sipVADThresholdFromEnv() float64 {
+	s := strings.TrimSpace(utils.GetEnv("SIP_VAD_THRESHOLD"))
+	if s == "" {
+		return 0
+	}
+	f, err := strconv.ParseFloat(s, 64)
+	if err != nil || f <= 0 {
+		return 0
+	}
+	return f
+}
+
+func sipVADConsecutiveFramesFromEnv() int {
+	s := strings.TrimSpace(utils.GetEnv("SIP_VAD_CONSEC_FRAMES"))
+	if s == "" {
+		return 0
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil || n < 1 {
+		return 0
+	}
+	return n
+}
+
+func shouldHangupFromPhrase(text string, phrases []string) bool {
+	t := strings.TrimSpace(strings.ToLower(text))
+	if t == "" {
+		return false
+	}
+	for _, p := range phrases {
+		p = strings.TrimSpace(strings.ToLower(p))
+		if p != "" && strings.Contains(t, p) {
+			return true
+		}
+	}
+	return false
+}
+
 func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env VoiceEnv, lg *zap.Logger) error {
 	ms := cs.MediaSession()
 	if ms == nil {
 		return fmt.Errorf("sip conversation: nil media session")
 	}
+	hangPhrases := sipHangupPhrasesFromEnv()
 
 	asrOpt := recognizer.NewQcloudASROption(env.ASRAppID, env.ASRSecretID, env.ASRSecretKey)
 	if env.ASRModelType != "" {
@@ -177,6 +253,32 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 		return fmt.Errorf("sip conversation: tts pipeline: %w", err)
 	}
 
+	var ttsPlaying atomic.Bool
+	var vadDet *voice.VADDetector
+	if sipVADBargeInEnabled() {
+		vadDet = voice.NewVADDetector()
+		vadDet.SetLogger(lg)
+		thrEnv := sipVADThresholdFromEnv()
+		thr := sipVADDefaultThreshold
+		if thrEnv > 0 {
+			thr = thrEnv
+		}
+		vadDet.SetThreshold(thr)
+		cf := sipVADConsecutiveFramesFromEnv()
+		if cf < 1 {
+			// ~20ms/frame; phone echo needs sustained energy above threshold (not single spikes).
+			cf = 5
+		}
+		vadDet.SetConsecutiveFrames(cf)
+		lg.Info("sip voice: RMS VAD barge-in enabled (TTS playback only)",
+			zap.Float64("threshold_effective", thr),
+			zap.Float64("threshold_env_override", thrEnv),
+			zap.Int("consecutive_frames", cf),
+		)
+	} else {
+		lg.Info("sip voice: RMS VAD barge-in disabled (SIP_VAD_BARGE_IN)")
+	}
+
 	asrInRate := 16000
 	asrOutRate := 16000
 	if strings.Contains(strings.ToLower(asrOpt.ModelType), "8k") {
@@ -200,6 +302,15 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 		}
 
 		go func(userText string, asrIsFinal bool) {
+			if asrIsFinal && shouldHangupFromPhrase(userText, hangPhrases) {
+				lg.Info("sip voice hangup phrase (before llm)",
+					zap.String("call_id", cs.CallID),
+					zap.String("user_text", userText),
+				)
+				RequestSIPHangup(cs.CallID)
+				return
+			}
+
 			turnMu.Lock()
 			if inFlight {
 				turnMu.Unlock()
@@ -226,10 +337,24 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 				return
 			}
 			lg.Info("sip voice llm reply", zap.Int("reply_chars", len(reply)))
+			// Persist after LLM succeeds so rows are written even if TTS fails; same DB as cmd/server when DSN matches.
+			asrProv := "qcloud_asr"
+			if env.ASRModelType != "" {
+				asrProv = env.ASRModelType
+			}
+			persistSIPTurn(context.Background(), cs.CallID, userText, reply, asrProv, llmModel, "qcloud_tts")
 			ttsPipe.Start(ms.GetContext())
-			defer ttsPipe.Stop()
+			defer func() {
+				ttsPlaying.Store(false)
+				ttsPipe.Stop()
+			}()
+			ttsPlaying.Store(true)
 			if err := ttsPipe.Speak(reply); err != nil {
-				lg.Warn("sip voice tts", zap.Error(err))
+				if errors.Is(err, context.Canceled) {
+					lg.Info("sip voice tts stopped (barge-in or cancel)", zap.String("call_id", cs.CallID))
+				} else {
+					lg.Warn("sip voice tts", zap.Error(err))
+				}
 			}
 		}(incremental, isFinal)
 	})
@@ -247,16 +372,27 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 			if ap.IsSynthesized {
 				return nil
 			}
-			pcm := ap.Payload
+			pcm16 := ap.Payload
+			pcmASR := pcm16
 			if asrOutRate != asrInRate {
-				out, err := media.ResamplePCM(pcm, asrInRate, asrOutRate)
+				out, err := media.ResamplePCM(pcm16, asrInRate, asrOutRate)
 				if err != nil {
 					lg.Debug("sip voice resample", zap.Error(err))
 					return nil
 				}
-				pcm = out
+				pcmASR = out
 			}
-			return pipe.ProcessPCM(c, pcm)
+			// RMS VAD on 16 kHz PCM (same as media decode path); only while TTS is playing.
+			if vadDet != nil && ttsPlaying.Load() && vadDet.CheckBargeIn(pcm16, true) {
+				lg.Info("sip voice: RMS barge-in, stopping TTS", zap.String("call_id", cs.CallID))
+				ttsPipe.Stop()
+				ttsPlaying.Store(false)
+			}
+			err := pipe.ProcessPCM(c, pcmASR)
+			if err != nil && (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
+				return nil
+			}
+			return err
 		})
 
 	ms.RegisterProcessor(proc)
@@ -279,17 +415,32 @@ func (q *qcloudTTSStream) SynthesizeStream(ctx context.Context, text string, cal
 	if q == nil || q.svc == nil {
 		return fmt.Errorf("sip conversation: nil tts")
 	}
-	h := &ttsStreamHandler{callback: callback}
-	return q.svc.Synthesize(ctx, h, text)
+	// QCloud Synthesize blocks until Wait(); tie it to ctx so barge-in Stop() returns quickly.
+	// Background avoids canceling the SDK mid-handshake; OnMessage uses ctx to drop audio after cancel.
+	done := make(chan error, 1)
+	go func() {
+		h := &ttsStreamHandler{callback: callback, ctx: ctx}
+		done <- q.svc.Synthesize(context.Background(), h, text)
+	}()
+	select {
+	case <-ctx.Done():
+		return context.Canceled
+	case err := <-done:
+		return err
+	}
 }
 
 type ttsStreamHandler struct {
+	ctx        context.Context
 	callback   func([]byte) error
 	firstChunk bool
 }
 
 func (h *ttsStreamHandler) OnMessage(data []byte) {
 	if h == nil || len(data) == 0 {
+		return
+	}
+	if h.ctx != nil && h.ctx.Err() != nil {
 		return
 	}
 	if !h.firstChunk {

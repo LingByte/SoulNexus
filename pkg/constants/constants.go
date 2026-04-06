@@ -13,9 +13,13 @@ const (
 	DEVICE_ERROR_LOG_TABLE_NAME = "device_error_logs"
 
 	// SIP module tables
-	SIP_USER_TABLE_NAME    = "sip_users"
-	SIP_CALL_TABLE_NAME    = "sip_calls"
-	SIP_SESSION_TABLE_NAME = "sip_sessions"
+	SIP_USER_TABLE_NAME          = "sip_users"
+	SIP_CALL_TABLE_NAME          = "sip_calls"
+	SIP_OUTBOUND_JOB_TABLE_NAME  = "sip_outbound_jobs"
+	SIP_OUTBOUND_EVT_TABLE_NAME  = "sip_outbound_events"
+	SIP_OUTBOUND_CMD_TABLE_NAME  = "sip_outbound_commands"
+	// ACD: unified SIP + Web routing pool (targets + weights)
+	ACD_POOL_TARGET_TABLE_NAME = "acd_pool_targets"
 )
 
 // Default Value: 1024

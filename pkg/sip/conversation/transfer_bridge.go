@@ -1,6 +1,7 @@
 package conversation
 
 import (
+	"strings"
 	"sync"
 
 	"github.com/LingByte/SoulNexus/pkg/logger"
@@ -20,12 +21,21 @@ var (
 	lookupInbound func(callID string) *sipSession.CallSession
 	callStore     CallStore
 
+	bridgeSendOutboundBYE func(callID string) error
+	bridgeHangupInbound   func(callID string) error
+
 	bridgeMu sync.Mutex
 	bridges  map[string]*transferBridgeState // keyed by inbound or outbound Call-ID
 )
 
+// legBridge is PCM transcode or raw G.711 RTP relay.
+type legBridge interface {
+	Start()
+	Stop()
+}
+
 type transferBridgeState struct {
-	br         *bridge.TwoLegPCMBridge
+	br         legBridge
 	inboundID  string
 	outboundID string
 	inboundCS  *sipSession.CallSession
@@ -42,7 +52,13 @@ func SetCallStore(cs CallStore) {
 	callStore = cs
 }
 
-// ActiveTransferBridgeForCallID is true when this Call-ID (inbound or outbound) is in an active PCM bridge.
+// SetTransferPeerCallbacks wires BYE to the peer leg when one side hangs up (outbound Manager.SendBYE, server SendUASBye).
+func SetTransferPeerCallbacks(sendOutboundBYE func(callID string) error, hangupInboundRemote func(callID string) error) {
+	bridgeSendOutboundBYE = sendOutboundBYE
+	bridgeHangupInbound = hangupInboundRemote
+}
+
+// ActiveTransferBridgeForCallID is true when this Call-ID (inbound or outbound) is in an active media bridge.
 func ActiveTransferBridgeForCallID(callID string) bool {
 	if callID == "" {
 		return false
@@ -56,7 +72,11 @@ func ActiveTransferBridgeForCallID(callID string) bool {
 	return ok
 }
 
-// StartTransferBridge stops AI media on both legs and runs PCM bridging between them.
+// StartTransferBridge stops AI media on both legs and bridges audio.
+// Raw UDP RTP relay only when both legs are the same narrowband G.711 (e.g. PCMU↔PCMU); transfer agent
+// legs are offered PCMU, so the usual path is PCM transcode (e.g. inbound Opus ↔ agent PCMU).
+// Raw relay keeps peer SSRC/seq/timestamp; only PT is remapped when needed. SIP_TRANSFER_RELAY_REWRITE_RTP=1
+// restores legacy SSRC/seq/ts rewrite.
 // inboundCallID is the original caller's Call-ID (CorrelationID on the outbound DialRequest).
 func StartTransferBridge(inboundCallID string, outboundCS *sipSession.CallSession, outboundCallID string, lg *zap.Logger) {
 	if lg == nil && logger.Lg != nil {
@@ -96,21 +116,46 @@ func StartTransferBridge(inboundCallID string, outboundCS *sipSession.CallSessio
 	inbound.StopMediaPreserveRTP()
 	outboundCS.StopMediaPreserveRTP()
 
-	callerRx := siprtp.NewSIPRTPTransport(inbound.RTPSession(), inbound.SourceCodec(), media.DirectionInput, inbound.DTMFPayloadType())
-	callerTx := siprtp.NewSIPRTPTransport(inbound.RTPSession(), inbound.SourceCodec(), media.DirectionOutput, 0)
-	agentRx := siprtp.NewSIPRTPTransport(outboundCS.RTPSession(), outboundCS.SourceCodec(), media.DirectionInput, outboundCS.DTMFPayloadType())
-	agentTx := siprtp.NewSIPRTPTransport(outboundCS.RTPSession(), outboundCS.SourceCodec(), media.DirectionOutput, 0)
-
-	br, err := bridge.NewTwoLegPCMBridge(callerRx, callerTx, agentRx, agentTx)
-	if err != nil {
-		lg.Warn("sip transfer bridge: build failed", zap.Error(err))
-		inbound.CloseRTPOnly()
-		outboundCS.CloseRTPOnly()
-		if callStore != nil {
-			callStore.RemoveCallSession(inboundCallID)
-			callStore.RemoveCallSession(outboundCallID)
+	ccIn := inbound.SourceCodec()
+	ccOut := outboundCS.SourceCodec()
+	var br legBridge
+	var err error
+	var mode string
+	var pcmReason string
+	rawOK := bridge.CanRawDatagramRelay(ccIn, ccOut)
+	if rawOK {
+		br, err = bridge.NewTwoLegPayloadRelay(
+			inbound.RTPSession(), outboundCS.RTPSession(),
+			ccIn, ccOut,
+			inbound.DTMFPayloadType(), outboundCS.DTMFPayloadType(),
+		)
+		if err != nil {
+			pcmReason = "raw_relay_error: " + err.Error()
+			lg.Warn("sip transfer bridge: raw relay failed, falling back to pcm", zap.Error(err))
+			br = nil
+		} else {
+			mode = "raw_rtp_forward"
 		}
-		return
+	} else {
+		pcmReason = "codecs_not_eligible_for_raw_relay"
+	}
+	if br == nil {
+		callerRx := siprtp.NewSIPRTPTransport(inbound.RTPSession(), ccIn, media.DirectionInput, inbound.DTMFPayloadType())
+		callerTx := siprtp.NewSIPRTPTransport(inbound.RTPSession(), ccIn, media.DirectionOutput, 0)
+		agentRx := siprtp.NewSIPRTPTransport(outboundCS.RTPSession(), ccOut, media.DirectionInput, outboundCS.DTMFPayloadType())
+		agentTx := siprtp.NewSIPRTPTransport(outboundCS.RTPSession(), ccOut, media.DirectionOutput, 0)
+		br, err = bridge.NewTwoLegPCMBridge(callerRx, callerTx, agentRx, agentTx)
+		if err != nil {
+			lg.Warn("sip transfer bridge: build failed", zap.Error(err))
+			inbound.CloseRTPOnly()
+			outboundCS.CloseRTPOnly()
+			if callStore != nil {
+				callStore.RemoveCallSession(inboundCallID)
+				callStore.RemoveCallSession(outboundCallID)
+			}
+			return
+		}
+		mode = "pcm_transcode"
 	}
 
 	bs := &transferBridgeState{
@@ -130,26 +175,44 @@ func StartTransferBridge(inboundCallID string, outboundCS *sipSession.CallSessio
 
 	br.Start()
 
-	lg.Info("sip transfer bridge started",
+	logFields := []zap.Field{
 		zap.String("inbound_call_id", inboundCallID),
-		zap.String("outbound_call_id", outboundCallID))
+		zap.String("outbound_call_id", outboundCallID),
+		zap.String("mode", mode),
+		zap.String("in_codec", ccIn.Codec),
+		zap.String("out_codec", ccOut.Codec),
+	}
+	if strings.EqualFold(strings.TrimSpace(ccIn.Codec), "opus") {
+		logFields = append(logFields, zap.Int("in_opus_decode_ch", ccIn.OpusDecodeChannels))
+	}
+	if mode == "pcm_transcode" && pcmReason != "" {
+		logFields = append(logFields, zap.String("pcm_reason", pcmReason))
+	}
+	lg.Info("sip transfer bridge started", logFields...)
+	MarkInboundHadSIPAgentTransfer(inboundCallID)
 }
 
-// HangupTransferBridgeIfAny stops bridging and RTP for both legs when either Call-ID hangs up.
-// Returns true if this call-id was part of an active transfer bridge.
-func HangupTransferBridgeIfAny(callID string) bool {
-	bridgeMu.Lock()
-	defer bridgeMu.Unlock()
-	if bridges == nil {
-		return false
+func hangPeerIfNeeded(bs *transferBridgeState, hungCallID string) {
+	if bs == nil {
+		return
 	}
-	bs, ok := bridges[callID]
-	if !ok {
-		return false
+	if hungCallID == bs.inboundID {
+		if bridgeSendOutboundBYE != nil {
+			_ = bridgeSendOutboundBYE(bs.outboundID)
+		}
+		return
 	}
-	delete(bridges, bs.inboundID)
-	delete(bridges, bs.outboundID)
+	if hungCallID == bs.outboundID {
+		if bridgeHangupInbound != nil {
+			_ = bridgeHangupInbound(bs.inboundID)
+		}
+	}
+}
 
+func teardownBridge(bs *transferBridgeState) {
+	if bs == nil {
+		return
+	}
 	if bs.br != nil {
 		bs.br.Stop()
 	}
@@ -163,8 +226,54 @@ func HangupTransferBridgeIfAny(callID string) bool {
 		callStore.RemoveCallSession(bs.inboundID)
 		callStore.RemoveCallSession(bs.outboundID)
 	}
+}
+
+// HangupTransferBridgeIfAny stops bridging and RTP for both legs when either Call-ID hangs up.
+// Notifies the peer leg with BYE before local teardown when callbacks are wired.
+// Returns true if this call-id was part of an active transfer bridge.
+func HangupTransferBridgeIfAny(callID string) bool {
+	bridgeMu.Lock()
+	defer bridgeMu.Unlock()
+	if bridges == nil {
+		return false
+	}
+	bs, ok := bridges[callID]
+	if !ok {
+		return false
+	}
+	hangPeerIfNeeded(bs, callID)
+	delete(bridges, bs.inboundID)
+	delete(bridges, bs.outboundID)
+	teardownBridge(bs)
 	if logger.Lg != nil {
 		logger.Lg.Info("sip transfer bridge ended", zap.String("hangup_call_id", callID),
+			zap.String("inbound_call_id", bs.inboundID), zap.String("outbound_call_id", bs.outboundID))
+	}
+	return true
+}
+
+// HangupTransferBridgeFull tears down an active transfer bridge and BYE both SIP legs (e.g. keyword hangup).
+func HangupTransferBridgeFull(callID string) bool {
+	bridgeMu.Lock()
+	defer bridgeMu.Unlock()
+	if bridges == nil {
+		return false
+	}
+	bs, ok := bridges[callID]
+	if !ok {
+		return false
+	}
+	if bridgeSendOutboundBYE != nil {
+		_ = bridgeSendOutboundBYE(bs.outboundID)
+	}
+	if bridgeHangupInbound != nil {
+		_ = bridgeHangupInbound(bs.inboundID)
+	}
+	delete(bridges, bs.inboundID)
+	delete(bridges, bs.outboundID)
+	teardownBridge(bs)
+	if logger.Lg != nil {
+		logger.Lg.Info("sip transfer bridge full hangup", zap.String("trigger_call_id", callID),
 			zap.String("inbound_call_id", bs.inboundID), zap.String("outbound_call_id", bs.outboundID))
 	}
 	return true

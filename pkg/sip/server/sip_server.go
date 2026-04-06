@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
+	"github.com/LingByte/SoulNexus/internal/sippersist"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/sip/conversation"
 	"github.com/LingByte/SoulNexus/pkg/sip/protocol"
@@ -18,17 +18,6 @@ import (
 	sipSession "github.com/LingByte/SoulNexus/pkg/sip/session"
 	"go.uber.org/zap"
 )
-
-// SIPRegisterStore persists REGISTER bindings for INVITE proxy and outbound dial lookup.
-// Implementations must be safe for concurrent use (e.g. GORM).
-type SIPRegisterStore interface {
-	// SaveRegister stores the resolved Contact signaling target (UDP), same as INVITE proxy destination.
-	SaveRegister(ctx context.Context, user, domain, contactURI string, sig *net.UDPAddr, expiresAt time.Time, userAgent string) error
-
-	DeleteRegister(ctx context.Context, user, domain string) error
-	// LookupRegister returns the UDP signaling target for a registered AOR (Contact / Via path).
-	LookupRegister(ctx context.Context, user, domain string) (*net.UDPAddr, bool, error)
-}
 
 // SIPServer is a minimal SIP over UDP server skeleton.
 //
@@ -49,6 +38,12 @@ type SIPServer struct {
 
 	regStoreMu sync.RWMutex
 	regStore   SIPRegisterStore // optional: persisted REGISTER (sip_users), set via SetRegisterStore
+
+	callPersistMu sync.RWMutex
+	callPersist   *sippersist.Store // optional: SIPCall / recording / dialog persistence
+
+	dlgMu  sync.RWMutex
+	uasDlg map[string]*uasDialogState // inbound Call-ID -> dialog (for server-initiated BYE)
 }
 
 type Config struct {
@@ -162,6 +157,25 @@ func (s *SIPServer) registerStore() SIPRegisterStore {
 	s.regStoreMu.RLock()
 	defer s.regStoreMu.RUnlock()
 	return s.regStore
+}
+
+// SetCallPersist wires DB-backed SIP call / session persistence and recording upload on BYE.
+func (s *SIPServer) SetCallPersist(st *sippersist.Store) {
+	if s == nil {
+		return
+	}
+	s.callPersistMu.Lock()
+	defer s.callPersistMu.Unlock()
+	s.callPersist = st
+}
+
+func (s *SIPServer) callPersistStore() *sippersist.Store {
+	if s == nil {
+		return nil
+	}
+	s.callPersistMu.RLock()
+	defer s.callPersistMu.RUnlock()
+	return s.callPersist
 }
 
 func addrString(a *net.UDPAddr) string {
@@ -350,6 +364,23 @@ func (s *SIPServer) handleInvite(msg *protocol.Message, addr *net.UDPAddr) *prot
 
 	localPort := rtpSess.LocalAddr.Port
 
+	if p := s.callPersistStore(); p != nil {
+		neg := cs.NegotiatedCodec()
+		p.OnInvite(context.Background(), sippersist.InviteParams{
+			CallID:        callID,
+			From:          msg.GetHeader("From"),
+			To:            msg.GetHeader("To"),
+			RemoteSig:     addr.String(),
+			RemoteRTP:     remoteAddr.String(),
+			LocalRTP:      fmt.Sprintf("%s:%d", s.localIP, localPort),
+			Codec:         neg.Name,
+			PayloadType:   neg.PayloadType,
+			ClockRate:     neg.ClockRate,
+			CSeqInvite:    msg.GetHeader("CSeq"),
+			Direction:     "inbound",
+		})
+	}
+
 	// Reply with negotiated audio codec; add telephone-event from offer so UAs can send RFC 2833 DTMF.
 	neg := cs.NegotiatedCodec()
 	codecs := []protocol.SDPCodec{neg}
@@ -398,6 +429,9 @@ func (s *SIPServer) handleInvite(msg *protocol.Message, addr *net.UDPAddr) *prot
 		zap.Int("answer_raw_bytes", len(respMsg.String())),
 		zap.String("answer_raw_preview", preview(respMsg.String(), 1200)),
 	)
+	if addr != nil {
+		s.rememberUASDialog(callID, addr, msg, toWithTag)
+	}
 	return respMsg
 }
 
@@ -414,9 +448,9 @@ func (s *SIPServer) handleAck(msg *protocol.Message, _ *net.UDPAddr) *protocol.M
 	cs := s.callStore[callID]
 	s.mu.Unlock()
 	if cs != nil {
-		// After transfer, media is handed to TwoLegPCMBridge; do not attach ASR/TTS again
+		// After transfer, media is bridged (raw RTP or PCM transcode); do not attach ASR/TTS again
 		// (e.g. late or duplicate ACK / re-INVITE ACK would hit a cancelled MediaSession).
-		if conversation.ActiveTransferBridgeForCallID(callID) {
+		if conversation.ActiveTransferBridgeForCallID(callID) || conversation.ActiveWebSeatSession(callID) {
 			return nil
 		}
 		var voiceLog *zap.Logger
@@ -428,6 +462,9 @@ func (s *SIPServer) handleAck(msg *protocol.Message, _ *net.UDPAddr) *protocol.M
 				zap.String("call_id", callID),
 				zap.Error(err),
 			)
+		}
+		if p := s.callPersistStore(); p != nil {
+			p.OnEstablished(context.Background(), callID)
 		}
 		cs.StartOnACK()
 	}
@@ -444,7 +481,8 @@ func (s *SIPServer) handleBye(msg *protocol.Message, _ *net.UDPAddr) *protocol.M
 		return s.makeResponse(msg, 400, "Bad Request", "", "")
 	}
 
-	if conversation.HangupTransferBridgeIfAny(callID) {
+	if conversation.HangupTransferBridgeIfAny(callID) || conversation.HangupWebSeatBridgeIfAny(callID) {
+		s.forgetUASDialog(callID)
 		return s.makeResponse(msg, 200, "OK", "", "")
 	}
 
@@ -453,9 +491,31 @@ func (s *SIPServer) handleBye(msg *protocol.Message, _ *net.UDPAddr) *protocol.M
 	delete(s.callStore, callID)
 	s.mu.Unlock()
 
+	var raw []byte
+	var codec string
+	var recSR, recOpusCh int
 	if cs != nil {
+		raw = cs.TakeRecording()
+		codec = cs.NegotiatedCodec().Name
+		src := cs.SourceCodec()
+		recSR = src.SampleRate
+		recOpusCh = src.OpusDecodeChannels
+		if recOpusCh < 1 {
+			recOpusCh = src.Channels
+		}
 		cs.Stop()
 	}
+	if p := s.callPersistStore(); p != nil {
+		go p.OnBye(context.Background(), sippersist.ByeParams{
+			CallID:             callID,
+			RawPayload:         raw,
+			CodecName:          codec,
+			Initiator:          "remote",
+			RecordSampleRate:   recSR,
+			RecordOpusChannels: recOpusCh,
+		})
+	}
+	s.forgetUASDialog(callID)
 	return s.makeResponse(msg, 200, "OK", "", "")
 }
 

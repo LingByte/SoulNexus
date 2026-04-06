@@ -274,6 +274,13 @@ type MediaSession struct {
 	MaxSessionDuration int                `json:"maxSessionDuration"` // Set the maximum session duration in seconds.
 	EffectAudios       map[string]*[]byte `json:"-"`
 	StartAt            time.Time          `json:"startAt"`
+
+	// serveScheduled is set before the Serve goroutine is launched; shutdownCh is closed after
+	// Serve's transport cleanup so another reader (e.g. SIP transfer RTP relay) can own the UDP socket.
+	shutdownCh       chan struct{}
+	shutdownOnce     sync.Once
+	serveScheduledMu sync.Mutex
+	serveScheduled   bool
 }
 
 func NewDefaultSession() *MediaSession {
@@ -289,6 +296,7 @@ func NewDefaultSession() *MediaSession {
 		Running:            false,
 		QueueSize:          128,
 		MaxSessionDuration: 10 * 60,
+		shutdownCh:         make(chan struct{}),
 	}
 
 	// Initialize new architecture components
@@ -528,16 +536,18 @@ func (s *MediaSession) setupOutputRouter() {
 				}
 			}
 
-			// Route packet to outputs
+			// Route packet to outputs. Must enqueue on each output TransportManager so
+			// processOutgoing runs the session encoder (e.g. Opus). Calling Transport.Send
+			// here would ship PCM as RTP payload with the negotiated codec PT — unreadable noise.
 			targets := session.router.Route(packet, activeOutputs)
 			for _, target := range targets {
-				if target.Transport != nil {
-					_, err := target.Transport.Send(ctx, packet)
-					if err != nil {
-						logger.Error("failed to send packet to transport",
-							zap.String("sessionID", session.ID),
-							zap.String("transportID", target.ID),
-							zap.Error(err))
+				if target.Transport == nil {
+					continue
+				}
+				for _, tl := range session.outputs {
+					if tl.transport == target.Transport {
+						tl.trySendPacket(packet)
+						break
 					}
 				}
 			}
@@ -632,8 +642,50 @@ func (s *MediaSession) IsValid() error {
 	return nil
 }
 
+// NotifyServeStarting records that Serve() is about to run. Call synchronously before starting
+// the Serve goroutine so WaitServeShutdown can block until that Serve instance has torn down.
+func (s *MediaSession) NotifyServeStarting() {
+	if s == nil {
+		return
+	}
+	s.serveScheduledMu.Lock()
+	s.serveScheduled = true
+	s.serveScheduledMu.Unlock()
+}
+
+func (s *MediaSession) markServeShutdownComplete() {
+	if s == nil || s.shutdownCh == nil {
+		return
+	}
+	s.shutdownOnce.Do(func() {
+		close(s.shutdownCh)
+	})
+}
+
+// WaitServeShutdown blocks until Serve has finished and released transport readers/writers,
+// or until ctx ends. If Serve was never scheduled for this session, returns nil immediately.
+func (s *MediaSession) WaitServeShutdown(ctx context.Context) error {
+	if s == nil || ctx == nil {
+		return nil
+	}
+	s.serveScheduledMu.Lock()
+	sched := s.serveScheduled
+	s.serveScheduledMu.Unlock()
+	if !sched {
+		return nil
+	}
+	select {
+	case <-s.shutdownCh:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
 // Serve Start the session, this will block the current goroutine
 func (s *MediaSession) Serve() error {
+	defer s.markServeShutdownComplete()
+
 	s.StartAt = time.Now()
 	s.Running = true
 

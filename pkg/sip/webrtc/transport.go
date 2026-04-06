@@ -3,6 +3,7 @@ package webrtc
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/LingByte/SoulNexus/pkg/media"
@@ -86,20 +87,22 @@ func (t *Transport) Send(ctx context.Context, packet media.MediaPacket) (int, er
 		return 0, nil
 	}
 
-	// Approximate duration:
-	// For 8kHz PCMU/PCMA, common payload is 160 bytes -> 20ms.
-	// When unknown, default to 20ms to keep pacing reasonable.
+	// WriteSample Duration drives RTP timestamp steps. For PCMU/PCMA the payload size maps to
+	// sample counts at SampleRate; for Opus (and other compressed RTP) payload bytes are NOT PCM
+	// samples — using BitDepth here produced sub-millisecond durations and silent/broken playout.
 	dur := 20 * time.Millisecond
-	if t.codec.SampleRate > 0 {
-		bytesPerSample := (t.codec.BitDepth / 8) * t.codec.Channels
-		if bytesPerSample <= 0 {
-			// For many RTP codecs, payload byte count isn't PCM byte count; so keep default.
-			bytesPerSample = 0
+	if fd := strings.TrimSpace(t.codec.FrameDuration); fd != "" {
+		if d, err := time.ParseDuration(fd); err == nil && d > 0 {
+			dur = d
 		}
+	}
+	encName := strings.ToLower(strings.TrimSpace(t.codec.Codec))
+	if encName != "opus" && t.codec.SampleRate > 0 {
+		bytesPerSample := (t.codec.BitDepth / 8) * t.codec.Channels
 		if bytesPerSample > 0 {
 			samples := len(audio.Payload) / bytesPerSample
 			if samples > 0 {
-				dur = time.Duration(float64(samples)/float64(t.codec.SampleRate)*float64(time.Second))
+				dur = time.Duration(float64(samples) / float64(t.codec.SampleRate) * float64(time.Second))
 			}
 		}
 	}
@@ -115,4 +118,7 @@ func (t *Transport) Close() error {
 	// Tracks are owned by PeerConnection; no-op here.
 	return nil
 }
+
+// WakeupRead is a no-op; closing the PeerConnection unblocks ReadRTP in Next.
+func (t *Transport) WakeupRead() {}
 

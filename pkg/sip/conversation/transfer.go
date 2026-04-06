@@ -23,7 +23,10 @@ var (
 	transferDialer   TransferDialer
 	// Optional: DB-backed dial target (e.g. sip_users) tried before TransferDialTargetFromEnv.
 	transferDialTarget func(context.Context) (outbound.DialTarget, bool)
-	transferStarted    sync.Map // inbound Call-ID -> bool (dedupe)
+	// WebSeatTransfer starts inbound ↔ browser WebRTC bridging when DialTarget.WebSeat (SIP_TRANSFER_NUMBER=web).
+	// If nil and WebSeat is requested, transfer logs a warning and releases the dedupe slot.
+	webSeatTransfer func(ctx context.Context, inboundCallID string, lg *zap.Logger)
+	transferStarted sync.Map // inbound Call-ID -> bool (dedupe)
 	// RFC2833 often emits several events per keypress; ignore repeats within this window.
 	transferDTMFLast sync.Map // inbound Call-ID -> time.Time
 )
@@ -54,6 +57,13 @@ func SetTransferDialTargetResolver(fn func(context.Context) (outbound.DialTarget
 	transferMu.Lock()
 	defer transferMu.Unlock()
 	transferDialTarget = fn
+}
+
+// SetWebSeatTransfer registers the handler for SIP_TRANSFER_NUMBER=web (browser agent). Optional until WebRTC gateway ships.
+func SetWebSeatTransfer(fn func(ctx context.Context, inboundCallID string, lg *zap.Logger)) {
+	transferMu.Lock()
+	defer transferMu.Unlock()
+	webSeatTransfer = fn
 }
 
 // HandleSIPINFODTMF parses SIP INFO (application/dtmf-relay) and triggers transfer when digit matches.
@@ -87,27 +97,46 @@ func tryTransferToAgent(ctx context.Context, inboundCallID, digit string, lg *za
 	transferMu.Lock()
 	d := transferDialer
 	resolveTgt := transferDialTarget
+	webFn := webSeatTransfer
 	transferMu.Unlock()
-	if d == nil {
-		lg.Warn("sip transfer: no TransferDialer (SetTransferDialer not called)")
-		return
-	}
 
 	var tgt outbound.DialTarget
 	var ok bool
 	if resolveTgt != nil {
 		tgt, ok = resolveTgt(ctx)
 	}
-	if !ok {
+	// When cmd/sip wires a DB resolver, targets come only from acd_pool_targets — do not fall back to SIP_TRANSFER_* env.
+	if !ok && resolveTgt == nil {
 		tgt, ok = outbound.TransferDialTargetFromEnv()
 	}
 	if !ok {
-		lg.Warn("sip transfer: set SIP_TRANSFER_REQUEST_URI + SIP_TRANSFER_SIGNALING_ADDR, or SIP_TRANSFER_NUMBER with DB (SIP_DEFAULT_DOMAIN) / SIP_TRANSFER_HOST")
+		if resolveTgt != nil {
+			lg.Warn("sip transfer: no eligible acd_pool_targets row (need weight>0, work_state=available, route sip|web; SIP internal must be registered; trunk must have host/target)")
+		} else {
+			lg.Warn("sip transfer: configure database for cmd/sip (ACD pool), or set SIP_TRANSFER_REQUEST_URI + SIP_TRANSFER_SIGNALING_ADDR, or SIP_TRANSFER_NUMBER + SIP_TRANSFER_HOST (web for browser agent)")
+		}
 		return
 	}
 
 	if _, loaded := transferStarted.LoadOrStore(inboundCallID, true); loaded {
 		lg.Info("sip transfer: already started for this call", zap.String("call_id", inboundCallID))
+		return
+	}
+
+	if tgt.WebSeat {
+		if webFn == nil {
+			lg.Warn("sip transfer: WebSeat (SIP_TRANSFER_NUMBER=web) but SetWebSeatTransfer not configured")
+			transferStarted.Delete(inboundCallID)
+			return
+		}
+		lg.Info("sip transfer: web seat — handing off to WebRTC bridge", zap.String("inbound_call_id", inboundCallID))
+		go func() { webFn(ctx, inboundCallID, lg) }()
+		return
+	}
+
+	if d == nil {
+		lg.Warn("sip transfer: no TransferDialer (SetTransferDialer not called)")
+		transferStarted.Delete(inboundCallID)
 		return
 	}
 
@@ -118,7 +147,7 @@ func tryTransferToAgent(ctx context.Context, inboundCallID, digit string, lg *za
 			Scenario:      outbound.ScenarioTransferAgent,
 			Target:        tgt,
 			CorrelationID: inboundCallID,
-			MediaProfile:  outbound.MediaProfileBridgePCM,
+			MediaProfile:  outbound.MediaProfileTransferBridge,
 		})
 		if err != nil {
 			transferStarted.Delete(inboundCallID)
