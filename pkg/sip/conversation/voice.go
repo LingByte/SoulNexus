@@ -26,6 +26,36 @@ import (
 	"go.uber.org/zap"
 )
 
+var (
+	sipSystemPromptMu sync.Mutex
+	sipSystemPromptByCallID = map[string]string{}
+)
+
+// SetSIPCallSystemPrompt overrides the default LLM system prompt for one call.
+// It is consumed when the voice pipeline is attached for this call.
+func SetSIPCallSystemPrompt(callID, prompt string) {
+	callID = strings.TrimSpace(callID)
+	prompt = strings.TrimSpace(prompt)
+	if callID == "" || prompt == "" {
+		return
+	}
+	sipSystemPromptMu.Lock()
+	sipSystemPromptByCallID[callID] = prompt
+	sipSystemPromptMu.Unlock()
+}
+
+func popSIPCallSystemPrompt(callID string) string {
+	callID = strings.TrimSpace(callID)
+	if callID == "" {
+		return ""
+	}
+	sipSystemPromptMu.Lock()
+	defer sipSystemPromptMu.Unlock()
+	v := strings.TrimSpace(sipSystemPromptByCallID[callID])
+	delete(sipSystemPromptByCallID, callID)
+	return v
+}
+
 // VoiceEnv holds SIP voice pipeline settings read with utils.GetEnv (see SoulNexus .env).
 type VoiceEnv struct {
 	LLMProvider string
@@ -134,8 +164,8 @@ func sipVADBargeInEnabled() bool {
 	}
 }
 
-// sipVADDefaultThreshold RMS 上限（16-bit PCM 与 pkg/voice 一致）：低于此值时 TTS/线路回声易误触发打断。
-const sipVADDefaultThreshold = 2200.0
+// sipVADDefaultThreshold RMS 上限（16-bit PCM 与 pkg/voice 一致）：默认提高到更保守值，降低TTS/线路回声误触发。
+const sipVADDefaultThreshold = 3200.0
 
 func sipVADThresholdFromEnv() float64 {
 	s := strings.TrimSpace(utils.GetEnv("SIP_VAD_THRESHOLD"))
@@ -202,8 +232,11 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 	if llmModel == "" {
 		llmModel = "qwen-plus"
 	}
-	llmHandler := llm.NewLLMHandler(ctx, env.LLMAPIKey, env.LLMBaseURL,
-		"You are a helpful Mandarin voice assistant on a phone call. Reply in clear spoken-style sentences, stay brief (one or two sentences when possible).")
+	systemPrompt := popSIPCallSystemPrompt(cs.CallID)
+	if systemPrompt == "" {
+		systemPrompt = "You are a helpful Mandarin voice assistant on a phone call. Reply in clear spoken-style sentences, stay brief (one or two sentences when possible)."
+	}
+	llmHandler := llm.NewLLMHandler(ctx, env.LLMAPIKey, env.LLMBaseURL, systemPrompt)
 	llmHandler.SetModel(llmModel)
 	lg.Info("sip voice pipeline config",
 		zap.String("llm_model", llmModel),
@@ -267,7 +300,7 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 		cf := sipVADConsecutiveFramesFromEnv()
 		if cf < 1 {
 			// ~20ms/frame; phone echo needs sustained energy above threshold (not single spikes).
-			cf = 5
+			cf = 8
 		}
 		vadDet.SetConsecutiveFrames(cf)
 		lg.Info("sip voice: RMS VAD barge-in enabled (TTS playback only)",

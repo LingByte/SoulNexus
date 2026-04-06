@@ -4,12 +4,15 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
+	"github.com/LingByte/SoulNexus/internal/sipcampaign"
 	"github.com/LingByte/SoulNexus/internal/sipacd"
 	"github.com/LingByte/SoulNexus/internal/sippersist"
 	"github.com/LingByte/SoulNexus/internal/sipreg"
@@ -82,8 +85,11 @@ func main() {
 	}
 
 	var sipServer *server.SIPServer
+	var outboundHTTPSrv *http.Server
+	var campaignHTTPSrv *sipcampaign.HTTPServer
 	var sipRegStore *sipreg.GormStore
 	var sipCallPersist *sippersist.Store
+	var campaignSvc *sipcampaign.Service
 	var acdDB *gorm.DB
 
 	callerUser, callerDisplay := outbound.CallerIdentityFromEnv()
@@ -108,7 +114,20 @@ func main() {
 		OnTransferBridge: func(correlationID string, cs *sipSession.CallSession, outboundCallID string) {
 			conversation.StartTransferBridge(correlationID, cs, outboundCallID, nil)
 		},
+		OnScript: func(ctx context.Context, leg outbound.EstablishedLeg, scriptID string) {
+			if campaignSvc != nil {
+				campaignSvc.RunScriptIfConfigured(ctx, leg, scriptID)
+			}
+		},
+		OnEvent: func(evt outbound.DialEvent) {
+			if campaignSvc != nil {
+				campaignSvc.HandleDialEvent(context.Background(), evt)
+			}
+		},
 		OnEstablished: func(leg outbound.EstablishedLeg) {
+			if campaignSvc != nil {
+				campaignSvc.PrepareCallPrompt(leg.CallID, leg.CorrelationID)
+			}
 			if sipCallPersist == nil || leg.Session == nil {
 				return
 			}
@@ -165,6 +184,9 @@ func main() {
 				}
 			} else {
 				acdDB = db
+				campaignSvc = sipcampaign.NewService(db)
+				_ = campaignSvc.AutoMigrate()
+				campaignSvc.StartWorker(outMgr)
 				sipRegStore = sipreg.NewGormStore(db)
 				sipServer.SetRegisterStore(sipRegStore)
 				sipCallPersist = sippersist.New(db, logger.Lg)
@@ -207,6 +229,32 @@ func main() {
 	if wsAddr := strings.TrimSpace(utils.GetEnv(webseat.EnvHTTPAddr)); wsAddr != "" {
 		if err := webseat.StartHTTPServer(wsAddr); err != nil && logger.Lg != nil {
 			logger.Lg.Warn("webseat: http server failed", zap.String("addr", wsAddr), zap.Error(err))
+		}
+	}
+	if outHTTPAddr := strings.TrimSpace(utils.GetEnv(outbound.EnvSIPOutboundHTTPAddr)); outHTTPAddr != "" {
+		srv, err := outbound.StartDialHTTPServer(
+			outHTTPAddr,
+			strings.TrimSpace(utils.GetEnv(outbound.EnvSIPOutboundHTTPToken)),
+			outMgr,
+		)
+		if err != nil && logger.Lg != nil {
+			logger.Lg.Warn("sip outbound http: start failed", zap.String("addr", outHTTPAddr), zap.Error(err))
+		} else {
+			outboundHTTPSrv = srv
+		}
+	}
+	if campaignSvc != nil {
+		if campaignAddr := strings.TrimSpace(utils.GetEnv(sipcampaign.EnvCampaignHTTPAddr)); campaignAddr != "" {
+			srv, err := sipcampaign.StartHTTPServer(
+				campaignAddr,
+				strings.TrimSpace(utils.GetEnv(sipcampaign.EnvCampaignHTTPToken)),
+				campaignSvc,
+			)
+			if err != nil && logger.Lg != nil {
+				logger.Lg.Warn("sip campaign http: start failed", zap.String("addr", campaignAddr), zap.Error(err))
+			} else {
+				campaignHTTPSrv = srv
+			}
 		}
 	}
 	conversation.SetWebSeatTransfer(conversation.StartWebSeatHandoff)
@@ -254,5 +302,18 @@ func main() {
 	<-sigCh
 
 	_, _ = fmt.Fprintln(os.Stdout, "sip: shutting down...")
+	if outboundHTTPSrv != nil {
+		shCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		_ = outboundHTTPSrv.Shutdown(shCtx)
+		cancel()
+	}
+	if campaignHTTPSrv != nil {
+		shCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		_ = campaignHTTPSrv.Shutdown(shCtx)
+		cancel()
+	}
+	if campaignSvc != nil {
+		campaignSvc.StopWorker()
+	}
 	_ = sipServer.Stop()
 }

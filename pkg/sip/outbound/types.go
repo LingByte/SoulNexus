@@ -85,3 +85,22 @@ type EstablishedLeg struct {
 // MediaAttachFunc wires ASR/LLM/TTS or other processors after RTP is live.
 // Typically set to conversation.AttachVoicePipeline for MediaProfileAI.
 type MediaAttachFunc func(ctx context.Context, cs *sipSession.CallSession) error
+
+const (
+	DialEventInvited     = "invited"
+	DialEventProvisional = "provisional"
+	DialEventEstablished = "established"
+	DialEventFailed      = "failed"
+)
+
+// DialEvent streams lightweight dial lifecycle transitions for queue/observability.
+type DialEvent struct {
+	CallID        string
+	CorrelationID string
+	Scenario      Scenario
+	MediaProfile  MediaProfile
+	State         string
+	StatusCode    int
+	Reason        string
+	At            time.Time
+}

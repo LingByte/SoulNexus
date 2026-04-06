@@ -81,6 +81,122 @@
 
 仅设置 `SIP_TARGET_NUMBER` 而不设置 `SIP_OUTBOUND_HOST`（或完整 `SIP_OUTBOUND_REQUEST_URI`）时，无法构成合法目标，进程会打印提示。
 
+### HTTP 触发纯外呼（新增）
+
+`cmd/sip` 现在可选启动一个轻量 HTTP API，用于业务侧主动触发“纯外呼”（不依赖呼入链路）：
+
+- 环境变量  
+  - `SIP_OUTBOUND_HTTP_ADDR`：监听地址（例如 `:9081`）；为空则不启动  
+  - `SIP_OUTBOUND_HTTP_TOKEN`：可选鉴权 token（支持 `X-API-Token` 或 `Authorization: Bearer <token>`）
+- 接口  
+  - `POST /sip/v1/outbound/dial`
+
+请求体（两种目标写法任选其一）：
+
+1) 完整 URI：
+
+```json
+{
+  "request_uri": "sip:1001@10.0.0.8:5060",
+  "signaling_addr": "10.0.0.8:5060",
+  "scenario": "campaign",
+  "media_profile": "ai_voice",
+  "correlation_id": "crm-123"
+}
+```
+
+2) 号码 + host 组装 URI：
+
+```json
+{
+  "target_number": "1001",
+  "outbound_host": "10.0.0.8",
+  "outbound_port": 5060,
+  "scenario": "campaign",
+  "media_profile": "ai_voice"
+}
+```
+
+若请求体未给目标，也会回退尝试 `.env` 的 `SIP_TARGET_NUMBER` + `SIP_OUTBOUND_HOST`（或 `SIP_OUTBOUND_REQUEST_URI`）。
+
+### 队列调度模式（新增，MVP）
+
+队列模式由 `cmd/sip` 进程内 Worker 执行，支持“入队 -> 调度 -> 拨号 -> 失败重试”。
+
+- 环境变量
+  - `SIP_CAMPAIGN_HTTP_ADDR`：队列 API 监听地址（例如 `:9082`）；为空则不启动
+  - `SIP_CAMPAIGN_HTTP_TOKEN`：队列 API token（`X-API-Token` 或 Bearer）
+- 数据表（自动迁移）
+  - `sip_campaigns`
+  - `sip_campaign_contacts`
+  - `sip_call_attempts`
+  - `sip_script_runs`
+- 默认策略
+  - 任务并发：`5`
+  - 全局并发：`20`
+  - 重试间隔：`5m,30m,2h`
+  - 号码去重窗口：`24h`
+
+#### 队列 API
+
+1) 创建任务  
+`POST /sip/v1/campaigns`
+
+```json
+{
+  "name": "回访任务A",
+  "scenario": "campaign",
+  "media_profile": "script",
+  "script_id": "followup-v1",
+  "script_version": "2026-04-06",
+  "script_spec": "{\"id\":\"followup-v1\",\"version\":\"2026-04-06\",\"start_id\":\"begin\",\"steps\":[{\"id\":\"begin\",\"type\":\"say\",\"prompt\":\"你好，这里是SoulNexus回访中心。\",\"next_id\":\"end\"},{\"id\":\"end\",\"type\":\"end\"}]}",
+  "system_prompt": "你是电话回访助手，先核验身份，再按流程提问，最后礼貌结束。",
+  "opening_message": "您好，我是回访助手。",
+  "closing_message": "感谢您的时间，祝您生活愉快。",
+  "outbound_host": "10.0.0.8",
+  "outbound_port": 5060,
+  "signaling_addr": "10.0.0.8:5060"
+}
+```
+
+2) 导入联系人  
+`POST /sip/v1/campaigns/{id}/contacts`
+
+```json
+[
+  { "phone": "1001", "display": "客户A", "priority": 10 },
+  { "phone": "1002", "display": "客户B", "priority": 5 }
+]
+```
+
+3) 启动 / 暂停 / 恢复  
+- `POST /sip/v1/campaigns/{id}/start`
+- `POST /sip/v1/campaigns/{id}/pause`
+- `POST /sip/v1/campaigns/{id}/resume`
+
+4) 指标快照  
+`GET /sip/v1/campaigns/metrics`  
+返回：`invited_total` / `answered_total` / `failed_total` / `retrying_total` / `suppressed_total`
+
+### 小流量灰度上线建议（MVP）
+
+1. 先只开一个活动：`task_concurrency=1`、10~20个联系人。  
+2. 先用 `media_profile=ai_voice` 验证线路，再切到 `script`。  
+3. 观察 `GET /sip/v1/campaigns/metrics` 与日志中的 `correlation_id`。  
+4. 失败码分布稳定后，把任务并发逐步提升到 `3 -> 5`。  
+5. 最后再提升全局并发，避免网关或中继突发拥塞。
+
+### VAD 打断阈值建议（避免 AI 自打断）
+
+SIP 语音链路的打断检测是基于 RMS 的 barge-in，且只在 TTS 播放期间生效。常用开关：
+
+- `SIP_VAD_BARGE_IN`：是否启用（默认启用）
+- `SIP_VAD_THRESHOLD`：RMS 阈值（越大越不容易误触发）
+- `SIP_VAD_CONSEC_FRAMES`：连续帧阈值（20ms/帧，越大越稳）
+
+当前默认值已上调为更保守：`threshold=3200`、`consecutive_frames=8`。  
+若仍有自打断，可进一步提高到 `3600~4500` 并观察日志中的 `threshold_effective`。
+
 ## 与旧 SIPServe 根目录代码的关系
 
 仓库根目录历史实现存在 **HTTP → DB 轮询 → SIP** 的长链路；本模块 **不** 复制该结构。新业务应通过 **CampaignQueue** 或独立 `internal/` 服务接入，仅调用 `outbound.Manager.Dial`。
