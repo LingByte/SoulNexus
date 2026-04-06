@@ -266,5 +266,7 @@ func (s *SIPServer) proxyInviteToRegistrar(msg *protocol.Message, dst *net.UDPAd
 		return err
 	}
 	prependProxyVia(fwd, s.localIP, s.listenPort)
+	// Ensure Content-Length matches normalized body after parse/re-serialize.
+	fwd.SetHeader("Content-Length", strconv.Itoa(protocol.BodyBytesLen(fwd.Body)))
 	return s.proto.Send(fwd, dst)
 }

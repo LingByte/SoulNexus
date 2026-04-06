@@ -39,6 +39,7 @@ export const common: Record<Language, Record<string, string>> = {
     'contactCenter.tab.calls': '通话记录',
     'contactCenter.tab.sessions': 'AI 会话',
     'contactCenter.tab.campaign': '外呼任务',
+    'contactCenter.tab.scripts': '脚本管理',
     'contactCenter.tab.agent': 'Web 坐席',
     'contactCenter.users.sipRegisterHint':
       '此处为话机向 SIP 服务注册后的在线记录。若要让分机参与 AI 转接排队，请到「号码池」手动新增 SIP 行（呼叫号码 = 注册用户名）。',
@@ -68,7 +69,7 @@ export const common: Record<Language, Record<string, string>> = {
     'contactCenter.calls.recordingLoading': '正在加载录音信息…',
     'contactCenter.calls.recordingLoadFailed': '详情加载失败，暂时无法显示录音。请检查网络后重试。',
     'contactCenter.calls.recordingEmpty':
-      '本通通话暂无录音（例如未配置对象存储、编码不支持转 WAV、通话过短或无媒体流）。',
+      '本通通话暂无录音',
     'contactCenter.calls.dialogLoading': '正在加载对话内容…',
     'contactCenter.calls.dialogLoadFailed': '对话内容加载失败，请重试。',
     'contactCenter.ai.byCall': 'AI 多轮对话保存在通话表 `sip_calls.turns`（JSON）；侧栏详情中加载全文。',
@@ -178,6 +179,16 @@ export const common: Record<Language, Record<string, string>> = {
     'contactCenter.campaign.createFirst': '请先创建任务',
     'contactCenter.campaign.contactsRequired': '请先输入联系人号码',
     'contactCenter.campaign.contactsImported': '导入成功：{count} 条',
+    'contactCenter.script.hint': '管理可复用的对话流程脚本（JSON）。创建后可在外呼任务中引用 scriptId/version。',
+    'contactCenter.script.create': '创建脚本',
+    'contactCenter.script.edit': '编辑脚本',
+    'contactCenter.script.name': '脚本名称',
+    'contactCenter.script.scriptId': '脚本ID',
+    'contactCenter.script.version': '版本',
+    'contactCenter.script.description': '描述',
+    'contactCenter.script.enabled': '启用',
+    'contactCenter.script.updatedAt': '更新时间',
+    'contactCenter.script.required': '请填写脚本名称',
 
     'webseat.notConfiguredTitle': '未配置 Web 坐席网关',
     'webseat.notConfiguredBody':
@@ -296,6 +307,7 @@ export const common: Record<Language, Record<string, string>> = {
     'contactCenter.tab.calls': 'Call records',
     'contactCenter.tab.sessions': 'AI sessions',
     'contactCenter.tab.campaign': 'Outbound campaign',
+    'contactCenter.tab.scripts': 'Script manager',
     'contactCenter.tab.agent': 'Web agent',
     'contactCenter.tab.acdPool': 'Routing pool',
     'contactCenter.users.sipRegisterHint':
@@ -436,6 +448,16 @@ export const common: Record<Language, Record<string, string>> = {
     'contactCenter.campaign.createFirst': 'Create a campaign first',
     'contactCenter.campaign.contactsRequired': 'Please provide contact phone numbers',
     'contactCenter.campaign.contactsImported': 'Imported: {count}',
+    'contactCenter.script.hint': 'Manage reusable dialog-flow scripts (JSON). Use scriptId/version in outbound campaigns.',
+    'contactCenter.script.create': 'Create script',
+    'contactCenter.script.edit': 'Edit script',
+    'contactCenter.script.name': 'Script name',
+    'contactCenter.script.scriptId': 'Script ID',
+    'contactCenter.script.version': 'Version',
+    'contactCenter.script.description': 'Description',
+    'contactCenter.script.enabled': 'Enabled',
+    'contactCenter.script.updatedAt': 'Updated at',
+    'contactCenter.script.required': 'Script name is required',
 
     'webseat.notConfiguredTitle': 'Web seat gateway not configured',
     'webseat.notConfiguredBody':

@@ -218,7 +218,20 @@ func main() {
 	})
 	conversation.SetCallStore(sipServer)
 	conversation.SetTransferPeerCallbacks(outMgr.SendBYE, sipServer.SendUASBye)
-	conversation.SetSIPHangup(sipServer.HangupInboundCall)
+	conversation.SetSIPHangup(func(callID string) {
+		callID = strings.TrimSpace(callID)
+		if callID == "" {
+			return
+		}
+		// Prefer outbound BYE for campaign legs; fallback to inbound hangup path.
+		if err := outMgr.SendBYE(callID); err == nil {
+			if logger.Lg != nil {
+				logger.Lg.Info("sip: hangup outbound BYE sent", zap.String("call_id", callID))
+			}
+			return
+		}
+		sipServer.HangupInboundCall(callID)
+	})
 
 	webseat.InitDefault(webseat.Config{
 		RemoveCallSession:     sipServer.RemoveCallSession,

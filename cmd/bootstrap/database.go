@@ -228,6 +228,8 @@ func RunMigrations(db *gorm.DB) error {
 		&models.SIPCampaignContact{},
 		&models.SIPCallAttempt{},
 		&models.SIPScriptRun{},
+		&models.SIPCampaignEvent{},
+		&models.SIPScriptTemplate{},
 		&models.MCPServer{},
 		&models.MCPTool{},
 		&models.MCPCallLog{},

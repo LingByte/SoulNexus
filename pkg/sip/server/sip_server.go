@@ -71,8 +71,25 @@ func New(cfg Config) *SIPServer {
 	}
 
 	s.proto = protocol.NewServer(cfg.Host, cfg.Port)
-	if cfg.OnSIPResponse != nil {
-		s.proto.OnSIPResponse = cfg.OnSIPResponse
+	s.proto.OnSIPResponse = func(resp *protocol.Message, addr *net.UDPAddr) {
+		if resp != nil && logger.Lg != nil {
+			status := resp.StatusCode
+			if status >= 180 || status >= 300 {
+				logger.Lg.Info("sip response dispatch",
+					zap.String("remote", addrString(addr)),
+					zap.String("call_id", resp.GetHeader("Call-ID")),
+					zap.String("cseq", resp.GetHeader("CSeq")),
+					zap.Int("status", status),
+					zap.String("reason", strings.TrimSpace(resp.StatusText)),
+					zap.String("content_type", strings.TrimSpace(resp.GetHeader("Content-Type"))),
+					zap.Int("content_length", len(resp.Body)),
+					zap.String("body_preview", preview(resp.Body, 500)),
+				)
+			}
+		}
+		if cfg.OnSIPResponse != nil {
+			cfg.OnSIPResponse(resp, addr)
+		}
 	}
 	// Default protocol-level logs for visibility during development.
 	s.proto.OnEvent = func(e protocol.Event) {

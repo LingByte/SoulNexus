@@ -114,6 +114,11 @@ export interface OutboundCampaignRow {
   id: number
   name: string
   status: string
+  scenario?: string
+  mediaProfile?: string
+  scriptId?: string
+  createdAt?: string
+  updatedAt?: string
 }
 
 export interface OutboundCampaignMetrics {
@@ -122,6 +127,46 @@ export interface OutboundCampaignMetrics {
   failed_total: number
   retrying_total: number
   suppressed_total: number
+}
+
+export interface OutboundCampaignLogRow {
+  id: number
+  at: string
+  type: string
+  contactId?: number
+  attemptId?: number
+  attemptNo?: number
+  phone?: string
+  callId?: string
+  correlationId?: string
+  level?: string
+  message: string
+}
+
+export interface OutboundCampaignContactRow {
+  id: number
+  campaignId: number
+  phone: string
+  status: string
+  attemptCount?: number
+  maxAttempts?: number
+  failureReason?: string
+  nextRunAt?: string
+  lastDialAt?: string
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface SIPScriptTemplateRow {
+  id: number
+  name: string
+  scriptId: string
+  version?: string
+  description?: string
+  enabled: boolean
+  scriptSpec: unknown
+  createdAt?: string
+  updatedAt?: string
 }
 
 export async function listACDPoolTargets(
@@ -254,30 +299,112 @@ export async function createOutboundCampaign(body: {
   outbound_port?: number
   signaling_addr?: string
 }): Promise<ApiResponse<OutboundCampaignRow>> {
-  return post('/sip/v1/campaigns', body)
+  return post('/sip-center/campaigns', body)
+}
+
+export async function listOutboundCampaigns(
+  page = 1,
+  size = 20,
+  opts?: { status?: string; name?: string }
+): Promise<ApiResponse<Paginated<OutboundCampaignRow>>> {
+  const q = new URLSearchParams({ page: String(page), size: String(size) })
+  if (opts?.status) q.set('status', opts.status)
+  if (opts?.name) q.set('name', opts.name)
+  return get(`/sip-center/campaigns?${q.toString()}`)
 }
 
 export async function enqueueOutboundCampaignContacts(
   campaignId: number,
   contacts: Array<{ phone: string; display?: string; priority?: number }>
 ): Promise<ApiResponse<{ accepted: number }>> {
-  return post(`/sip/v1/campaigns/${campaignId}/contacts`, contacts)
+  return post(`/sip-center/campaigns/${campaignId}/contacts`, contacts)
+}
+
+export async function listOutboundCampaignContacts(
+  campaignId: number,
+  page = 1,
+  size = 50
+): Promise<ApiResponse<Paginated<OutboundCampaignContactRow>>> {
+  const q = new URLSearchParams({ page: String(page), size: String(size) })
+  return get(`/sip-center/campaigns/${campaignId}/contacts?${q.toString()}`)
+}
+
+export async function resetOutboundCampaignSuppressedContacts(
+  campaignId: number
+): Promise<ApiResponse<{ updated: number }>> {
+  return post(`/sip-center/campaigns/${campaignId}/contacts/reset-suppressed`, {})
 }
 
 export async function startOutboundCampaign(campaignId: number): Promise<ApiResponse<null>> {
-  return post(`/sip/v1/campaigns/${campaignId}/start`, {})
+  return post(`/sip-center/campaigns/${campaignId}/start`, {})
 }
 
 export async function pauseOutboundCampaign(campaignId: number): Promise<ApiResponse<null>> {
-  return post(`/sip/v1/campaigns/${campaignId}/pause`, {})
+  return post(`/sip-center/campaigns/${campaignId}/pause`, {})
 }
 
 export async function resumeOutboundCampaign(campaignId: number): Promise<ApiResponse<null>> {
-  return post(`/sip/v1/campaigns/${campaignId}/resume`, {})
+  return post(`/sip-center/campaigns/${campaignId}/resume`, {})
+}
+
+export async function stopOutboundCampaign(campaignId: number): Promise<ApiResponse<null>> {
+  return post(`/sip-center/campaigns/${campaignId}/stop`, {})
+}
+
+export async function deleteOutboundCampaign(campaignId: number): Promise<ApiResponse<{ id: number }>> {
+  return del(`/sip-center/campaigns/${campaignId}`)
 }
 
 export async function getOutboundCampaignMetrics(): Promise<ApiResponse<OutboundCampaignMetrics>> {
-  return get('/sip/v1/campaigns/metrics')
+  return get('/sip-center/campaigns/metrics')
+}
+
+export async function getOutboundCampaignLogs(
+  campaignId: number,
+  limit = 100
+): Promise<ApiResponse<{ list: OutboundCampaignLogRow[]; total: number }>> {
+  const q = new URLSearchParams({ limit: String(limit) })
+  return get(`/sip-center/campaigns/${campaignId}/logs?${q.toString()}`)
+}
+
+export async function listSIPScriptTemplates(
+  page = 1,
+  size = 20,
+  opts?: { scriptId?: string; name?: string }
+): Promise<ApiResponse<Paginated<SIPScriptTemplateRow>>> {
+  const q = new URLSearchParams({ page: String(page), size: String(size) })
+  if (opts?.scriptId) q.set('scriptId', opts.scriptId)
+  if (opts?.name) q.set('name', opts.name)
+  return get(`/sip-center/scripts?${q.toString()}`)
+}
+
+export async function createSIPScriptTemplate(body: {
+  name: string
+  scriptId?: string
+  version?: string
+  description?: string
+  enabled?: boolean
+  scriptSpec: string
+}): Promise<ApiResponse<SIPScriptTemplateRow>> {
+  return post('/sip-center/scripts', body)
+}
+
+export async function updateSIPScriptTemplate(
+  id: number,
+  body: {
+    name: string
+    scriptId?: string
+    version?: string
+    description?: string
+    enabled?: boolean
+    scriptSpec?: string
+  }
+): Promise<ApiResponse<SIPScriptTemplateRow>> {
+  return put(`/sip-center/scripts/${id}`, body)
+}
+
+export async function deleteSIPScriptTemplate(id: number): Promise<ApiResponse<{ id: number }>> {
+  return del(`/sip-center/scripts/${id}`)
 }
 
 const WEBSEAT_ACD_POOL_ROW_SESSION_KEY = 'soulnexus.webseat.acdPoolTargetId'

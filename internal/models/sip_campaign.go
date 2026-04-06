@@ -133,3 +133,22 @@ func (SIPScriptRun) TableName() string {
 	return constants.SIP_SCRIPT_RUN_TABLE_NAME
 }
 
+// SIPCampaignEvent keeps campaign execution and operation logs for UI terminal.
+type SIPCampaignEvent struct {
+	BaseModel
+
+	CampaignID    uint           `json:"campaignId" gorm:"index;not null"`
+	ContactID     uint           `json:"contactId" gorm:"index"`
+	AttemptID     uint           `json:"attemptId" gorm:"index"`
+	CallID        string         `json:"callId" gorm:"size:128;index"`
+	CorrelationID string         `json:"correlationId" gorm:"size:128;index"`
+	Type          string         `json:"type" gorm:"size:32;index;not null"`   // campaign|dispatch|dial|retry|contact|script
+	Level         string         `json:"level" gorm:"size:16;index;not null"` // info|warn|error
+	Message       string         `json:"message" gorm:"type:text;not null"`
+	Meta          datatypes.JSON `json:"meta" gorm:"type:json"`
+}
+
+func (SIPCampaignEvent) TableName() string {
+	return constants.SIP_CAMPAIGN_EVENT_TABLE_NAME
+}
+

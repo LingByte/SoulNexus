@@ -283,9 +283,18 @@ func (leg *outLeg) handleResponse(ctx context.Context, resp *protocol.Message, f
 		return
 	}
 	if st != 200 {
+		reason := strings.TrimSpace(resp.StatusText)
+		if reason == "" {
+			reason = "non_200"
+		}
 		logger.Warn("sip outbound non-200 response",
 			zap.String("call_id", leg.params.CallID),
 			zap.Int("status", st),
+			zap.String("reason", reason),
+			zap.String("remote", udpAddrString(from)),
+			zap.String("content_type", strings.TrimSpace(resp.GetHeader("Content-Type"))),
+			zap.Int("content_length", len(resp.Body)),
+			zap.String("body_preview", previewBody(resp.Body, 500)),
 		)
 		if leg.m.cfg.OnEvent != nil {
 			leg.m.cfg.OnEvent(DialEvent{
@@ -295,7 +304,7 @@ func (leg *outLeg) handleResponse(ctx context.Context, resp *protocol.Message, f
 				MediaProfile:  leg.req.MediaProfile,
 				State:         DialEventFailed,
 				StatusCode:    st,
-				Reason:        "non_200",
+				Reason:        reason,
 				At:            time.Now(),
 			})
 		}
@@ -465,6 +474,24 @@ func (leg *outLeg) handleResponse(ctx context.Context, resp *protocol.Message, f
 		zap.String("scenario", string(leg.req.Scenario)),
 		zap.String("media_profile", string(leg.req.MediaProfile)),
 	)
+}
+
+func previewBody(s string, max int) string {
+	s = strings.TrimSpace(s)
+	if s == "" || max <= 0 {
+		return ""
+	}
+	if len(s) <= max {
+		return s
+	}
+	return s[:max] + "...(truncated)"
+}
+
+func udpAddrString(a *net.UDPAddr) string {
+	if a == nil {
+		return ""
+	}
+	return a.String()
 }
 
 func (leg *outLeg) cleanupLeg() {

@@ -89,6 +89,7 @@ func (s *Service) AutoMigrate() error {
 		&models.SIPCampaignContact{},
 		&models.SIPCallAttempt{},
 		&models.SIPScriptRun{},
+		&models.SIPCampaignEvent{},
 	)
 }
 
@@ -206,18 +207,61 @@ func (s *Service) HandleDialEvent(ctx context.Context, evt outbound.DialEvent) {
 	switch evt.State {
 	case outbound.DialEventInvited:
 		s.metrics.Invited.Add(1)
+		s.appendEvent(ctx, models.SIPCampaignEvent{
+			CampaignID:    campaignID,
+			ContactID:     contactID,
+			CallID:        evt.CallID,
+			CorrelationID: evt.CorrelationID,
+			Type:          "dial",
+			Level:         "info",
+			Message:       "INVITE sent to target",
+		})
+	case outbound.DialEventProvisional:
+		s.appendEvent(ctx, models.SIPCampaignEvent{
+			CampaignID:    campaignID,
+			ContactID:     contactID,
+			CallID:        evt.CallID,
+			CorrelationID: evt.CorrelationID,
+			Type:          "dial",
+			Level:         "info",
+			Message:       fmt.Sprintf("provisional response: sip=%d", evt.StatusCode),
+		})
 	case outbound.DialEventEstablished:
 		s.metrics.Answered.Add(1)
 		now := time.Now()
-		_ = s.db.WithContext(ctx).Model(&models.SIPCallAttempt{}).
-			Where("campaign_id = ? AND contact_id = ? AND attempt_no = ?", campaignID, contactID, attemptNo).
-			Updates(map[string]any{"state": "answered", "answered_at": &now, "call_id": evt.CallID, "sip_status_code": evt.StatusCode}).Error
+		attemptUpdates := map[string]any{
+			"state":       "answered",
+			"answered_at": &now,
+			"call_id":     evt.CallID,
+		}
+		if evt.StatusCode > 0 && s.hasAttemptSIPStatusCodeColumn() {
+			attemptUpdates["sip_status_code"] = evt.StatusCode
+		}
+		s.updateAttemptRow(ctx, campaignID, contactID, attemptNo, attemptUpdates)
 		_ = s.db.WithContext(ctx).Model(&models.SIPCampaignContact{}).
 			Where("id = ?", contactID).
 			Updates(map[string]any{"status": models.SIPCampaignContactAnswered, "last_call_id": evt.CallID}).Error
+		s.appendEvent(ctx, models.SIPCampaignEvent{
+			CampaignID:    campaignID,
+			ContactID:     contactID,
+			CallID:        evt.CallID,
+			CorrelationID: evt.CorrelationID,
+			Type:          "dial",
+			Level:         "info",
+			Message:       "call established",
+		})
 	case outbound.DialEventFailed:
 		s.metrics.Failed.Add(1)
 		s.markAttemptFailed(ctx, campaignID, contactID, attemptNo, evt)
+		s.appendEvent(ctx, models.SIPCampaignEvent{
+			CampaignID:    campaignID,
+			ContactID:     contactID,
+			CallID:        evt.CallID,
+			CorrelationID: evt.CorrelationID,
+			Type:          "dial",
+			Level:         "error",
+			Message:       fmt.Sprintf("dial failed: sip=%d reason=%s", evt.StatusCode, emptyOr(evt.Reason, "unknown")),
+		})
 	}
 }
 
@@ -233,21 +277,30 @@ func (s *Service) markAttemptFailed(ctx context.Context, campaignID, contactID u
 		state = models.SIPCampaignContactRetrying
 		s.metrics.Retrying.Add(1)
 	}
-	_ = s.db.WithContext(ctx).Model(&models.SIPCallAttempt{}).
-		Where("campaign_id = ? AND contact_id = ? AND attempt_no = ?", campaignID, contactID, attemptNo).
-		Updates(map[string]any{
-			"state":          "failed",
-			"sip_status_code": evt.StatusCode,
-			"failure_reason": emptyOr(evt.Reason, "failed"),
-			"ended_at":       &now,
-			"next_retry_at":  retryAt,
-		}).Error
+	attemptUpdates := map[string]any{
+		"state":         "failed",
+		"failure_reason": emptyOr(evt.Reason, "failed"),
+		"ended_at":      &now,
+		"next_retry_at": retryAt,
+	}
+	if evt.StatusCode > 0 && s.hasAttemptSIPStatusCodeColumn() {
+		attemptUpdates["sip_status_code"] = evt.StatusCode
+	}
+	s.updateAttemptRow(ctx, campaignID, contactID, attemptNo, attemptUpdates)
 	updates := map[string]any{
 		"status":         state,
 		"failure_reason": emptyOr(evt.Reason, "failed"),
 	}
 	if retryAt != nil {
 		updates["next_run_at"] = retryAt
+		s.appendEvent(ctx, models.SIPCampaignEvent{
+			CampaignID:    campaignID,
+			ContactID:     contactID,
+			CorrelationID: evt.CorrelationID,
+			Type:          "retry",
+			Level:         "warn",
+			Message:       "scheduled retry at " + retryAt.Format(time.RFC3339),
+		})
 	}
 	if state == models.SIPCampaignContactFailed && contact.AttemptCount >= contact.MaxAttempts {
 		updates["status"] = models.SIPCampaignContactExhausted
@@ -313,7 +366,52 @@ func (s *Service) RecordScriptStep(ctx context.Context, evt outbound.ScriptRunEv
 		InputText:     evt.InputText,
 		OutputText:    evt.OutputText,
 	}
-	return s.db.WithContext(ctx).Create(&row).Error
+	if err := s.db.WithContext(ctx).Create(&row).Error; err != nil {
+		return err
+	}
+	s.appendEvent(ctx, models.SIPCampaignEvent{
+		CampaignID: campaignID,
+		ContactID:  contactID,
+		CallID:     strings.TrimSpace(evt.CallID),
+		Type:       "script",
+		Level:      "info",
+		Message:    fmt.Sprintf("step=%s type=%s result=%s input=%s output=%s", evt.StepID, evt.StepType, evt.Result, nonEmptyOr(evt.InputText, "-"), nonEmptyOr(evt.OutputText, "-")),
+		Meta:       datatypes.JSON([]byte(`{}`)),
+	})
+	return nil
+}
+
+func (s *Service) appendEvent(ctx context.Context, evt models.SIPCampaignEvent) {
+	if s == nil || s.db == nil || evt.CampaignID == 0 {
+		return
+	}
+	_ = s.db.WithContext(ctx).Create(&evt).Error
+}
+
+func (s *Service) updateAttemptRow(ctx context.Context, campaignID, contactID uint, attemptNo int, updates map[string]any) {
+	if s == nil || s.db == nil {
+		return
+	}
+	err := s.db.WithContext(ctx).Model(&models.SIPCallAttempt{}).
+		Where("campaign_id = ? AND contact_id = ? AND attempt_no = ?", campaignID, contactID, attemptNo).
+		Updates(updates).Error
+	if err == nil {
+		return
+	}
+	// Compatibility fallback for old schemas that miss sip_status_code.
+	if strings.Contains(strings.ToLower(err.Error()), "unknown column") && strings.Contains(strings.ToLower(err.Error()), "sip_status_code") {
+		delete(updates, "sip_status_code")
+		_ = s.db.WithContext(ctx).Model(&models.SIPCallAttempt{}).
+			Where("campaign_id = ? AND contact_id = ? AND attempt_no = ?", campaignID, contactID, attemptNo).
+			Updates(updates).Error
+	}
+}
+
+func (s *Service) hasAttemptSIPStatusCodeColumn() bool {
+	if s == nil || s.db == nil {
+		return false
+	}
+	return s.db.Migrator().HasColumn(&models.SIPCallAttempt{}, "sip_status_code")
 }
 
 // PrepareCallPrompt binds campaign script text to this call id.
@@ -369,10 +467,132 @@ func (s *Service) RunScriptIfConfigured(ctx context.Context, leg outbound.Establ
 	if scriptID != "" {
 		script.ID = scriptID
 	}
-	runner := outbound.NewHybridScriptRunner(script, scriptRecorder{s: s})
+	lastTurnIndex := 0
+	lastTurnReply := ""
+	runner := outbound.NewHybridScriptRunner(script, scriptRecorder{s: s}).WithHooks(outbound.RuntimeHooks{
+		OnSay: func(runCtx context.Context, runLeg outbound.EstablishedLeg, prompt string) error {
+			if runLeg.Session == nil {
+				return fmt.Errorf("script say: session not ready")
+			}
+			return conversation.SpeakTextOnce(runCtx, runLeg.Session, prompt, logger.Lg)
+		},
+		OnListen: func(runCtx context.Context, runLeg outbound.EstablishedLeg, timeout time.Duration) (outbound.ListenResult, error) {
+			res, err := s.waitNextTurn(runCtx, runLeg.CallID, lastTurnIndex, timeout)
+			if err != nil {
+				return outbound.ListenResult{}, err
+			}
+			lastTurnIndex = res.Index
+			lastTurnReply = res.Turn.LLMText
+			return outbound.ListenResult{
+				InputText: strings.TrimSpace(res.Turn.ASRText),
+				ReplyText: strings.TrimSpace(res.Turn.LLMText),
+			}, nil
+		},
+		OnLLMReply: func(_ context.Context, _ outbound.EstablishedLeg, _ string, _ string) (string, error) {
+			if strings.TrimSpace(lastTurnReply) == "" {
+				return "", fmt.Errorf("script llm reply unavailable")
+			}
+			return strings.TrimSpace(lastTurnReply), nil
+		},
+		IsEndIntent: func(input string, sc outbound.HybridScript) bool {
+			in := strings.ToLower(strings.TrimSpace(input))
+			if in == "" {
+				return false
+			}
+			for _, it := range sc.EndIntents {
+				v := strings.ToLower(strings.TrimSpace(it))
+				if v != "" && strings.Contains(in, v) {
+					return true
+				}
+			}
+			return false
+		},
+	})
 	go func() {
-		_ = runner.Run(ctx, leg)
+		if err := runner.Run(ctx, leg); err != nil {
+			if logger.Lg != nil {
+				logger.Lg.Warn("campaign script run failed", zap.String("call_id", leg.CallID), zap.Error(err))
+			}
+			return
+		}
+		// Script ended normally: actively send BYE so call does not linger after farewell.
+		time.Sleep(300 * time.Millisecond)
+		conversation.RequestSIPHangup(leg.CallID)
+		cID, ctID, _, ok := parseCorrelation(leg.CorrelationID)
+		if ok {
+			s.appendEvent(context.Background(), models.SIPCampaignEvent{
+				CampaignID:    cID,
+				ContactID:     ctID,
+				CallID:        leg.CallID,
+				CorrelationID: leg.CorrelationID,
+				Type:          "script",
+				Level:         "info",
+				Message:       "script finished, hangup requested",
+				Meta:          datatypes.JSON([]byte(`{}`)),
+			})
+		}
 	}()
+}
+
+type turnFetchResult struct {
+	Index int
+	Turn  models.SIPCallDialogTurn
+}
+
+func (s *Service) waitNextTurn(ctx context.Context, callID string, afterIndex int, timeout time.Duration) (turnFetchResult, error) {
+	if s == nil || s.db == nil {
+		return turnFetchResult{}, fmt.Errorf("script listen: db unavailable")
+	}
+	if strings.TrimSpace(callID) == "" {
+		return turnFetchResult{}, fmt.Errorf("script listen: empty call id")
+	}
+	if timeout <= 0 {
+		timeout = 8 * time.Second
+	}
+	deadline := time.Now().Add(timeout)
+	ticker := time.NewTicker(350 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		res, ok := s.fetchTurn(callID, afterIndex)
+		if ok {
+			return res, nil
+		}
+		if time.Now().After(deadline) {
+			return turnFetchResult{}, fmt.Errorf("script listen timeout")
+		}
+		select {
+		case <-ctx.Done():
+			return turnFetchResult{}, ctx.Err()
+		case <-ticker.C:
+		}
+	}
+}
+
+func (s *Service) fetchTurn(callID string, afterIndex int) (turnFetchResult, bool) {
+	if s == nil || s.db == nil {
+		return turnFetchResult{}, false
+	}
+	var row models.SIPCall
+	if err := s.db.Select("id", "call_id", "turns", "turn_count").Where("call_id = ?", callID).Order("id DESC").First(&row).Error; err != nil {
+		return turnFetchResult{}, false
+	}
+	raw := strings.TrimSpace(string(row.Turns))
+	if raw == "" {
+		return turnFetchResult{}, false
+	}
+	var turns []models.SIPCallDialogTurn
+	if err := json.Unmarshal([]byte(raw), &turns); err != nil {
+		return turnFetchResult{}, false
+	}
+	if len(turns) <= afterIndex {
+		return turnFetchResult{}, false
+	}
+	t := turns[afterIndex]
+	return turnFetchResult{
+		Index: afterIndex + 1,
+		Turn:  t,
+	}, true
 }
 
 type scriptRecorder struct {
@@ -384,6 +604,14 @@ func (r scriptRecorder) Record(ctx context.Context, event outbound.ScriptRunEven
 		return nil
 	}
 	return r.s.RecordScriptStep(ctx, event)
+}
+
+func nonEmptyOr(v, fallback string) string {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return fallback
+	}
+	return v
 }
 
 func (s *Service) logInfo(msg string, fields ...zap.Field) {
