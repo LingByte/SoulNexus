@@ -99,19 +99,25 @@ func (s *Service) tick(dialer Dialer, sem chan struct{}) {
 }
 
 func (s *Service) tryClaim(ctx context.Context, contactID uint) bool {
-	now := time.Now()
 	tx := s.db.WithContext(ctx).Model(&models.SIPCampaignContact{}).
 		Where("id = ? AND status IN ?", contactID, []string{models.SIPCampaignContactReady, models.SIPCampaignContactRetrying}).
-		Updates(map[string]any{"status": models.SIPCampaignContactDialing, "last_dial_at": &now})
+		Updates(map[string]any{"status": models.SIPCampaignContactDialing})
 	return tx.Error == nil && tx.RowsAffected == 1
 }
 
 func (s *Service) processContact(ctx context.Context, dialer Dialer, campaign models.SIPCampaign, contact models.SIPCampaignContact) {
-	if s.isDuplicateWithinWindow(ctx, contact.Phone, campaign.ID) {
+	if s.isDuplicateWithinWindow(ctx, contact.ID, contact.Phone, campaign.ID) {
 		s.metrics.Suppressed.Add(1)
 		_ = s.db.WithContext(ctx).Model(&models.SIPCampaignContact{}).
 			Where("id = ?", contact.ID).
 			Updates(map[string]any{"status": models.SIPCampaignContactSuppressed, "failure_reason": "dedupe_24h"}).Error
+		s.appendEvent(ctx, models.SIPCampaignEvent{
+			CampaignID: campaign.ID,
+			ContactID:  contact.ID,
+			Type:       "dispatch",
+			Level:      "warn",
+			Message:    "suppressed by dedupe window",
+		})
 		return
 	}
 	attemptNo := contact.AttemptCount + 1
@@ -126,12 +132,31 @@ func (s *Service) processContact(ctx context.Context, dialer Dialer, campaign mo
 		DialedAt:      &now,
 	}
 	if err := s.db.WithContext(ctx).Create(&attempt).Error; err != nil {
+		s.appendEvent(ctx, models.SIPCampaignEvent{
+			CampaignID: campaign.ID,
+			ContactID:  contact.ID,
+			Type:       "dispatch",
+			Level:      "error",
+			Message:    "failed to create attempt row: " + err.Error(),
+		})
 		return
 	}
+	_ = s.db.WithContext(ctx).Model(&models.SIPCampaignContact{}).Where("id = ?", contact.ID).Updates(map[string]any{
+		"last_dial_at": &now,
+	}).Error
 	target, err := buildDialTarget(campaign, contact)
 	if err != nil {
 		_ = s.db.WithContext(ctx).Model(&models.SIPCampaignContact{}).Where("id = ?", contact.ID).
 			Updates(map[string]any{"status": models.SIPCampaignContactFailed, "failure_reason": err.Error()}).Error
+		s.appendEvent(ctx, models.SIPCampaignEvent{
+			CampaignID:    campaign.ID,
+			ContactID:     contact.ID,
+			AttemptID:     attempt.ID,
+			CorrelationID: correlationID,
+			Type:          "dispatch",
+			Level:         "error",
+			Message:       "failed to build dial target: " + err.Error(),
+		})
 		return
 	}
 	req := outbound.DialRequest{
@@ -158,11 +183,22 @@ func (s *Service) processContact(ctx context.Context, dialer Dialer, campaign mo
 		s.HandleDialEvent(context.Background(), evt)
 		return
 	}
+	s.appendEvent(ctx, models.SIPCampaignEvent{
+		CampaignID:    campaign.ID,
+		ContactID:     contact.ID,
+		AttemptID:     attempt.ID,
+		CallID:        callID,
+		CorrelationID: correlationID,
+		Type:          "dispatch",
+		Level:         "info",
+		Message:       fmt.Sprintf("dial request dispatched uri=%s signaling=%s", target.RequestURI, target.SignalingAddr),
+	})
 	_ = s.db.WithContext(ctx).Model(&models.SIPCampaignContact{}).Where("id = ?", contact.ID).Updates(map[string]any{
 		"attempt_count":  attemptNo,
 		"correlation_id": correlationID,
 		"last_call_id":   callID,
 	}).Error
+	go s.watchDialAttemptTimeout(campaign, contact.ID, attempt.ID, attemptNo, callID, correlationID)
 	s.PrepareCallPrompt(callID, correlationID)
 	if logger.Lg != nil {
 		logger.Lg.Info("campaign dial dispatched",
@@ -173,14 +209,49 @@ func (s *Service) processContact(ctx context.Context, dialer Dialer, campaign mo
 	}
 }
 
-func (s *Service) isDuplicateWithinWindow(ctx context.Context, phone string, campaignID uint) bool {
+func (s *Service) watchDialAttemptTimeout(campaign models.SIPCampaign, contactID, attemptID uint, attemptNo int, callID, correlationID string) {
+	const timeout = 45 * time.Second
+	<-time.After(timeout)
+	ctx := context.Background()
+	var attempt models.SIPCallAttempt
+	if err := s.db.WithContext(ctx).
+		Where("id = ? AND campaign_id = ? AND contact_id = ? AND attempt_no = ?", attemptID, campaign.ID, contactID, attemptNo).
+		First(&attempt).Error; err != nil {
+		return
+	}
+	if strings.TrimSpace(attempt.State) != "dialing" {
+		return
+	}
+	s.appendEvent(ctx, models.SIPCampaignEvent{
+		CampaignID:    campaign.ID,
+		ContactID:     contactID,
+		AttemptID:     attemptID,
+		CallID:        callID,
+		CorrelationID: correlationID,
+		Type:          "dial",
+		Level:         "error",
+		Message:       "dial timeout: no final SIP response within 45s",
+	})
+	s.HandleDialEvent(ctx, outbound.DialEvent{
+		CallID:        callID,
+		CorrelationID: correlationID,
+		Scenario:      outbound.Scenario(strings.TrimSpace(campaign.Scenario)),
+		MediaProfile:  outbound.MediaProfile(strings.TrimSpace(campaign.MediaProfile)),
+		State:         outbound.DialEventFailed,
+		StatusCode:    408,
+		Reason:        "timeout_no_final_response",
+		At:            time.Now(),
+	})
+}
+
+func (s *Service) isDuplicateWithinWindow(ctx context.Context, contactID uint, phone string, campaignID uint) bool {
 	if strings.TrimSpace(phone) == "" {
 		return false
 	}
 	windowStart := time.Now().Add(-s.dedupeWindow)
 	var count int64
 	_ = s.db.WithContext(ctx).Model(&models.SIPCampaignContact{}).
-		Where("phone = ? AND campaign_id = ? AND last_dial_at >= ?", phone, campaignID, windowStart).
+		Where("id <> ? AND phone = ? AND campaign_id = ? AND attempt_count > 0 AND last_dial_at >= ?", contactID, phone, campaignID, windowStart).
 		Count(&count).Error
 	return count > 0
 }

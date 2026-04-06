@@ -22,6 +22,8 @@ const (
 	SIP_CAMPAIGN_CONTACT_TABLE_NAME = "sip_campaign_contacts"
 	SIP_CALL_ATTEMPT_TABLE_NAME  = "sip_call_attempts"
 	SIP_SCRIPT_RUN_TABLE_NAME    = "sip_script_runs"
+	SIP_CAMPAIGN_EVENT_TABLE_NAME = "sip_campaign_events"
+	SIP_SCRIPT_TEMPLATE_TABLE_NAME = "sip_script_templates"
 	// ACD: unified SIP + Web routing pool (targets + weights)
 	ACD_POOL_TARGET_TABLE_NAME = "acd_pool_targets"
 )

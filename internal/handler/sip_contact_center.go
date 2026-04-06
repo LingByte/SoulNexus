@@ -44,6 +44,25 @@ func (h *Handlers) registerSIPContactCenterRoutes(r *gin.RouterGroup) {
 		g.POST("/acd-pool", h.createACDPoolTarget)
 		g.PUT("/acd-pool/:id", h.updateACDPoolTarget)
 		g.DELETE("/acd-pool/:id", h.deleteACDPoolTarget)
+
+		g.GET("/scripts", h.listSIPScriptTemplates)
+		g.GET("/scripts/:id", h.getSIPScriptTemplate)
+		g.POST("/scripts", h.createSIPScriptTemplate)
+		g.PUT("/scripts/:id", h.updateSIPScriptTemplate)
+		g.DELETE("/scripts/:id", h.deleteSIPScriptTemplate)
+
+		g.POST("/campaigns", h.createSIPCampaign)
+		g.GET("/campaigns", h.listSIPCampaigns)
+		g.POST("/campaigns/:id/contacts", h.addSIPCampaignContacts)
+		g.GET("/campaigns/:id/contacts", h.listSIPCampaignContacts)
+		g.POST("/campaigns/:id/contacts/reset-suppressed", h.resetSIPCampaignSuppressedContacts)
+		g.POST("/campaigns/:id/start", h.startSIPCampaign)
+		g.POST("/campaigns/:id/pause", h.pauseSIPCampaign)
+		g.POST("/campaigns/:id/resume", h.resumeSIPCampaign)
+		g.POST("/campaigns/:id/stop", h.stopSIPCampaign)
+		g.DELETE("/campaigns/:id", h.deleteSIPCampaign)
+		g.GET("/campaigns/metrics", h.getSIPCampaignMetrics)
+		g.GET("/campaigns/:id/logs", h.getSIPCampaignLogs)
 	}
 }
 

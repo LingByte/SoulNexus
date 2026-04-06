@@ -439,6 +439,69 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 	return nil
 }
 
+// SpeakTextOnce sends one synthesized sentence to the current SIP media output.
+// It is used by outbound script runtime for deterministic "say" steps.
+func SpeakTextOnce(ctx context.Context, cs *sipSession.CallSession, text string, lg *zap.Logger) error {
+	if cs == nil || strings.TrimSpace(cs.CallID) == "" {
+		return fmt.Errorf("sip conversation: nil call session")
+	}
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return nil
+	}
+	ms := cs.MediaSession()
+	if ms == nil {
+		return fmt.Errorf("sip conversation: media session not ready")
+	}
+	if lg == nil {
+		if logger.Lg != nil {
+			lg = logger.Lg
+		} else {
+			lg = zap.NewNop()
+		}
+	}
+	env := voiceEnvFromProcess()
+	if env.TTSAppID == "" || env.TTSSecretID == "" || env.TTSSecretKey == "" {
+		return fmt.Errorf("sip conversation: missing TTS credentials")
+	}
+	voiceType := env.TTSVoiceType
+	if voiceType == 0 {
+		voiceType = 1005
+	}
+	ttsCfg := synthesizer.NewQcloudTTSConfig(env.TTSAppID, env.TTSSecretID, env.TTSSecretKey, voiceType, "pcm", env.TTSSampleRate)
+	qcTTS := synthesizer.NewQCloudService(ttsCfg)
+	ttsStream := &qcloudTTSStream{svc: qcTTS}
+
+	ttsPipe, err := siptts.New(siptts.Config{
+		Service:       ttsStream,
+		SampleRate:    env.TTSSampleRate,
+		Channels:      1,
+		FrameDuration: 20 * time.Millisecond,
+		PaceRealtime:  true,
+		SendPCMFrame: func(frame []byte) error {
+			if len(frame) == 0 {
+				return nil
+			}
+			ms.SendToOutput("sip-script-say", &media.AudioPacket{
+				Payload:       frame,
+				IsSynthesized: true,
+			})
+			return nil
+		},
+		Logger: lg,
+	})
+	if err != nil {
+		return fmt.Errorf("sip conversation: tts pipeline: %w", err)
+	}
+	runCtx := ctx
+	if runCtx == nil {
+		runCtx = ms.GetContext()
+	}
+	ttsPipe.Start(runCtx)
+	defer ttsPipe.Stop()
+	return ttsPipe.Speak(text)
+}
+
 // qcloudTTSStream adapts synthesizer.QCloudService to siptts.Service (streaming PCM chunks).
 type qcloudTTSStream struct {
 	svc *synthesizer.QCloudService

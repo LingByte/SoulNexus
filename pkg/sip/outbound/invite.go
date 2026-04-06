@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/LingByte/SoulNexus/pkg/sip/protocol"
 )
@@ -45,10 +46,7 @@ func sipEscapeQuotedDisplay(s string) string {
 
 // formatOutboundFromHeader builds the From header value (INVITE/ACK/BYE in-dialog).
 func formatOutboundFromHeader(displayName, user, host string, port int, tag string) string {
-	user = strings.TrimSpace(user)
-	if user == "" {
-		user = "soulnexus"
-	}
+	user = sanitizeSIPUser(user)
 	host = nonEmpty(host, "127.0.0.1")
 	port = nonZero(port, 5060)
 	uri := fmt.Sprintf("<sip:%s@%s:%d>", user, host, port)
@@ -60,13 +58,30 @@ func formatOutboundFromHeader(displayName, user, host string, port int, tag stri
 }
 
 func formatOutboundContact(user, host string, port int) string {
-	user = strings.TrimSpace(user)
-	if user == "" {
-		user = "soulnexus"
-	}
+	user = sanitizeSIPUser(user)
 	host = nonEmpty(host, "127.0.0.1")
 	port = nonZero(port, 5060)
 	return fmt.Sprintf("<sip:%s@%s:%d>", user, host, port)
+}
+
+func sanitizeSIPUser(user string) string {
+	user = strings.TrimSpace(user)
+	if user == "" {
+		return "soulnexus"
+	}
+	var b strings.Builder
+	for _, r := range user {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '.' || r == '_' || r == '-' || r == '+' {
+			b.WriteRune(r)
+		} else {
+			b.WriteRune('_')
+		}
+	}
+	s := strings.Trim(strings.TrimSpace(b.String()), "._-+")
+	if s == "" {
+		return "soulnexus"
+	}
+	return s
 }
 
 func buildINVITE(p inviteParams) *protocol.Message {
