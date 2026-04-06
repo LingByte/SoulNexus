@@ -47,6 +47,7 @@ import NodePluginMarket from '@/pages/NodePluginMarket.tsx';
 import VoiceprintManagement from '@/pages/VoiceprintManagement.tsx';
 import MCPManagement from '@/pages/MCPManagement.tsx';
 import MCPMarketplace from '@/pages/MCPMarketplace.tsx';
+import ContactCenterPage from '@/pages/ContactCenter/ContactCenterPage.tsx';
 import Products from '@/pages/Products.tsx';
 import Blog from '@/pages/Blog.tsx';
 import BlogDetail from '@/pages/BlogDetail.tsx';
@@ -324,6 +325,13 @@ function App() {
                             <ProtectedRoute>
                                 <Layout>
                                     <MCPMarketplace />
+                                </Layout>
+                            </ProtectedRoute>
+                        } />
+                        <Route path="/contact-center" element={
+                            <ProtectedRoute>
+                                <Layout>
+                                    <ContactCenterPage />
                                 </Layout>
                             </ProtectedRoute>
                         } />

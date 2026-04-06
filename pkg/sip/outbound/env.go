@@ -17,6 +17,12 @@ const (
 	EnvSIPOutboundReqURI  = "SIP_OUTBOUND_REQUEST_URI"  // optional full override, e.g. sip:user@domain:5060;user=phone
 	EnvSIPOutboundAutoDial = "SIP_OUTBOUND_AUTO_DIAL" // "true"/"1" to Dial once at sip process startup
 
+	// Outbound From / Contact user part (CLI / 外显号码，对齐旧版 config transfer.caller_id).
+	// Empty → default user "soulnexus" in NewManager.
+	EnvSIPCallerID = "SIP_CALLER_ID"
+	// Optional quoted display-name in From, e.g. company title shown on callee phone (RFC 3261 display-name).
+	EnvSIPCallerDisplayName = "SIP_CALLER_DISPLAY_NAME"
+
 	// DB-backed dial (sip_users): optional domain filter and Request-URI port when building sip:user@domain:port.
 	EnvSIPDefaultDomain   = "SIP_DEFAULT_DOMAIN"
 	EnvSIPDefaultURIPort  = "SIP_DEFAULT_URI_PORT"
@@ -24,7 +30,8 @@ const (
 	// Transfer-to-agent (press 0): separate from campaign outbound.
 	EnvSIPTransferReqURI  = "SIP_TRANSFER_REQUEST_URI"
 	EnvSIPTransferSigAddr = "SIP_TRANSFER_SIGNALING_ADDR"
-	EnvSIPTransferNumber  = "SIP_TRANSFER_NUMBER"
+	// SIP_TRANSFER_NUMBER: extension for sip:user@SIP_TRANSFER_HOST, or literal "web" → browser WebRTC agent (no SIP INVITE).
+	EnvSIPTransferNumber = "SIP_TRANSFER_NUMBER"
 	EnvSIPTransferHost    = "SIP_TRANSFER_HOST"
 	EnvSIPTransferPort    = "SIP_TRANSFER_PORT"
 )
@@ -77,6 +84,14 @@ func AutoDialFromEnv() bool {
 	return v == "1" || v == "true" || v == "yes"
 }
 
+// CallerIdentityFromEnv reads SIP_CALLER_ID / SIP_CALLER_DISPLAY_NAME for outbound INVITE From/Contact.
+// User is the SIP URI user part; displayName is optional (empty → From has no quoted display-name).
+func CallerIdentityFromEnv() (user, displayName string) {
+	user = strings.TrimSpace(utils.GetEnv(EnvSIPCallerID))
+	displayName = strings.TrimSpace(utils.GetEnv(EnvSIPCallerDisplayName))
+	return user, displayName
+}
+
 func normalizeSIPRequestURI(u string) string {
 	u = strings.TrimSpace(u)
 	if u == "" {
@@ -104,6 +119,9 @@ func TransferDialTargetFromEnv() (t DialTarget, ok bool) {
 	}
 
 	num := strings.TrimSpace(utils.GetEnv(EnvSIPTransferNumber))
+	if strings.EqualFold(num, "web") {
+		return DialTarget{WebSeat: true}, true
+	}
 	host := strings.TrimSpace(utils.GetEnv(EnvSIPTransferHost))
 	if num == "" || host == "" {
 		return DialTarget{}, false

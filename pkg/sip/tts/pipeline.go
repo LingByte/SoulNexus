@@ -125,11 +125,17 @@ func (p *Pipeline) Speak(text string) error {
 
 	buffer := make([]byte, 0, bytesPerFrame*2)
 	err := cfg.Service.SynthesizeStream(ctx, text, func(pcm []byte) error {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		if len(pcm) == 0 {
 			return nil
 		}
 		buffer = append(buffer, pcm...)
 		for len(buffer) >= bytesPerFrame {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
 			frameData := make([]byte, bytesPerFrame)
 			copy(frameData, buffer[:bytesPerFrame])
 			buffer = buffer[bytesPerFrame:]
@@ -145,6 +151,9 @@ func (p *Pipeline) Speak(text string) error {
 	})
 	if err != nil {
 		return err
+	}
+	if ctx.Err() != nil {
+		return ctx.Err()
 	}
 	if len(buffer) > 0 {
 		// Pad last partial frame so downstream encoders (e.g. Opus) always receive full 20ms PCM.

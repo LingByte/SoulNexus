@@ -29,8 +29,10 @@ type ManagerConfig struct {
 	// SIPHost / SIPPort identify this UA in Via/Contact (usually listen addr).
 	SIPHost string
 	SIPPort int
-	// FromUser is the local SIP user part for From/Contact.
+	// FromUser is the local SIP user part for From/Contact (CLI / 外显号码；默认 soulnexus).
 	FromUser string
+	// FromDisplayName is optional quoted display-name in From (empty → no display-name).
+	FromDisplayName string
 
 	// MediaAttach is invoked after ACK for MediaProfileAI (e.g. conversation.AttachVoicePipeline).
 	MediaAttach MediaAttachFunc
@@ -41,7 +43,7 @@ type ManagerConfig struct {
 	// OnEstablished is optional analytics hook after media hooks succeed.
 	OnEstablished func(EstablishedLeg)
 
-	// OnTransferBridge runs after 200 OK + ACK for MediaProfileBridgePCM (in-process RTP bridge).
+	// OnTransferBridge runs after 200 OK + ACK for MediaProfileTransferBridge.
 	// CorrelationID on the request is the inbound Call-ID; cs is the outbound UAC leg.
 	OnTransferBridge func(correlationID string, cs *sipSession.CallSession, outboundCallID string)
 }
@@ -138,7 +140,11 @@ func (m *Manager) Dial(ctx context.Context, req DialRequest) (callID string, err
 		return "", fmt.Errorf("sip/outbound: rtp session: %w", err)
 	}
 	localPort = rtpSess.LocalAddr.Port
-	sdpBody := protocol.GenerateSDPWithProto(localSDP, localPort, "RTP/AVP", defaultOfferCodecs())
+	codecs := defaultOfferCodecs()
+	if req.Scenario == ScenarioTransferAgent && req.MediaProfile == MediaProfileTransferBridge {
+		codecs = transferAgentBridgeOfferCodecs()
+	}
+	sdpBody := protocol.GenerateSDPWithProto(localSDP, localPort, "RTP/AVP", codecs)
 
 	callID = newCallID(localSDP)
 	ip := m.cfg.SIPHost
@@ -150,18 +156,29 @@ func (m *Manager) Dial(ctx context.Context, req DialRequest) (callID string, err
 		port = 5060
 	}
 
+	fromUser := m.cfg.FromUser
+	fromDisp := m.cfg.FromDisplayName
+	if u := strings.TrimSpace(req.CallerUser); u != "" {
+		fromUser = u
+		fromDisp = strings.TrimSpace(req.CallerDisplayName)
+	} else if u := strings.TrimSpace(req.Target.CallerUser); u != "" {
+		fromUser = u
+		fromDisp = strings.TrimSpace(req.Target.CallerDisplayName)
+	}
+
 	params := inviteParams{
-		LocalIP:      localSDP,
-		SIPHost:      ip,
-		SIPPort:      port,
-		RequestURI:   strings.TrimSpace(req.Target.RequestURI),
-		CallID:       callID,
-		FromTag:      randomHex(8),
-		Branch:       randomHex(10),
-		CSeq:         1,
-		LocalRTPPort: localPort,
-		SDPBody:      sdpBody,
-		FromUser:     m.cfg.FromUser,
+		LocalIP:         localSDP,
+		SIPHost:         ip,
+		SIPPort:         port,
+		RequestURI:      strings.TrimSpace(req.Target.RequestURI),
+		CallID:          callID,
+		FromTag:         randomHex(8),
+		Branch:          randomHex(10),
+		CSeq:            1,
+		LocalRTPPort:    localPort,
+		SDPBody:         sdpBody,
+		FromUser:        fromUser,
+		FromDisplayName: fromDisp,
 	}
 
 	invite := buildINVITE(params)
@@ -204,6 +221,12 @@ type outLeg struct {
 	mu          sync.Mutex
 	established bool
 	callSession *sipSession.CallSession
+
+	sigMu         sync.Mutex
+	byeToHeader   string // To from 200 OK (remote tag)
+	byeRequestURI string // in-dialog Request-URI (Contact)
+	byeRemote     *net.UDPAddr
+	byeCSeqNext   int
 }
 
 func (leg *outLeg) handleResponse(ctx context.Context, resp *protocol.Message, from *net.UDPAddr) {
@@ -211,6 +234,13 @@ func (leg *outLeg) handleResponse(ctx context.Context, resp *protocol.Message, f
 		return
 	}
 	st := resp.StatusCode
+	cseqAll := strings.ToUpper(resp.GetHeader("CSeq"))
+	if strings.Contains(cseqAll, "BYE") {
+		if st >= 200 && st < 300 {
+			leg.cleanupLeg()
+		}
+		return
+	}
 	if st >= 100 && st < 200 {
 		if st != 100 && from != nil {
 			logger.Info("sip outbound provisional response",
@@ -285,6 +315,17 @@ func (leg *outLeg) handleResponse(ctx context.Context, resp *protocol.Message, f
 		return
 	}
 
+	leg.sigMu.Lock()
+	leg.byeToHeader = resp.GetHeader("To")
+	leg.byeRequestURI = ackRequestURI(resp, leg.params.RequestURI)
+	if from != nil {
+		leg.byeRemote = cloneUDPAddr(from)
+	} else {
+		leg.byeRemote = cloneUDPAddr(leg.dst)
+	}
+	leg.byeCSeqNext = leg.params.CSeq + 1
+	leg.sigMu.Unlock()
+
 	leg.mu.Lock()
 	leg.established = true
 	leg.callSession = cs
@@ -294,6 +335,9 @@ func (leg *outLeg) handleResponse(ctx context.Context, resp *protocol.Message, f
 		leg.m.cfg.OnRegisterSession(leg.params.CallID, cs)
 	}
 
+	// Bridge profile owns RTP via conversation.StartTransferBridge (raw relay or PCM transcode fallback).
+	// Starting the default MediaSession here would race ReadFromUDP on the same socket and cause noise.
+	startDefaultMedia := true
 	switch leg.req.MediaProfile {
 	case MediaProfileAI:
 		if leg.m.cfg.MediaAttach != nil {
@@ -303,7 +347,8 @@ func (leg *outLeg) handleResponse(ctx context.Context, resp *protocol.Message, f
 		}
 	case MediaProfileScript:
 		logger.Info("sip outbound script profile not wired yet", zap.String("call_id", leg.params.CallID))
-	case MediaProfileBridgePCM:
+	case MediaProfileTransferBridge:
+		startDefaultMedia = false
 		cid := strings.TrimSpace(leg.req.CorrelationID)
 		if cid == "" {
 			logger.Warn("sip outbound bridge: empty correlation id (inbound Call-ID)",
@@ -321,15 +366,23 @@ func (leg *outLeg) handleResponse(ctx context.Context, resp *protocol.Message, f
 		// MediaProfileNone
 	}
 
-	cs.StartOnACK()
+	if startDefaultMedia {
+		cs.StartOnACK()
+	}
 
 	if leg.m.cfg.OnEstablished != nil {
+		fromH := formatOutboundFromHeader(leg.params.FromDisplayName, leg.params.FromUser,
+			leg.params.SIPHost, leg.params.SIPPort, leg.params.FromTag)
 		leg.m.cfg.OnEstablished(EstablishedLeg{
-			CallID:        leg.params.CallID,
-			Scenario:      leg.req.Scenario,
-			CorrelationID: leg.req.CorrelationID,
-			Session:       cs,
-			CreatedAt:     time.Now(),
+			CallID:              leg.params.CallID,
+			Scenario:            leg.req.Scenario,
+			CorrelationID:       leg.req.CorrelationID,
+			Session:             cs,
+			CreatedAt:           time.Now(),
+			FromHeader:          fromH,
+			ToHeader:            leg.params.RequestURI,
+			RemoteSignalingAddr: leg.dst.String(),
+			CSeqInvite:          fmt.Sprintf("%d INVITE", leg.params.CSeq),
 		})
 	}
 

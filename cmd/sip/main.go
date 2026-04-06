@@ -10,16 +10,19 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/LingByte/SoulNexus/internal/models"
+	"github.com/LingByte/SoulNexus/internal/sipacd"
+	"github.com/LingByte/SoulNexus/internal/sippersist"
 	"github.com/LingByte/SoulNexus/internal/sipreg"
-	"github.com/LingByte/SoulNexus/pkg/constants"
+	"github.com/LingByte/SoulNexus/pkg/config"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/sip/conversation"
 	"github.com/LingByte/SoulNexus/pkg/sip/outbound"
 	"github.com/LingByte/SoulNexus/pkg/sip/server"
 	sipSession "github.com/LingByte/SoulNexus/pkg/sip/session"
+	"github.com/LingByte/SoulNexus/pkg/sip/webseat"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 // resolveOutboundDialTarget prefers DB (registered SIP_TARGET_NUMBER) when a store is wired; otherwise .env.
@@ -33,6 +36,19 @@ func resolveOutboundDialTarget(store *sipreg.GormStore) (outbound.DialTarget, bo
 		}
 	}
 	return outbound.DialTargetFromEnv()
+}
+
+// sipDSNForLog prints DSN for logs (truncate very long strings; same file path matters for sqlite).
+func sipDSNForLog(dsn string) string {
+	dsn = strings.TrimSpace(dsn)
+	if dsn == "" {
+		return "(empty)"
+	}
+	const max = 220
+	if len(dsn) > max {
+		return fmt.Sprintf("%s…(len=%d)", dsn[:max], len(dsn))
+	}
+	return dsn
 }
 
 func main() {
@@ -53,6 +69,13 @@ func main() {
 		Daily:      true,
 	}, "dev")
 
+	// Align with cmd/server: config.Load loads .env / .env.<APP_ENV> and fills GlobalConfig (incl. default DSN ./ling.db).
+	if err := config.Load(); err != nil {
+		if logger.Lg != nil {
+			logger.Lg.Warn("sip: config.Load failed", zap.Error(err))
+		}
+	}
+
 	sipHost := *host
 	if sipHost == "0.0.0.0" {
 		sipHost = *localIP
@@ -60,11 +83,16 @@ func main() {
 
 	var sipServer *server.SIPServer
 	var sipRegStore *sipreg.GormStore
+	var sipCallPersist *sippersist.Store
+	var acdDB *gorm.DB
 
+	callerUser, callerDisplay := outbound.CallerIdentityFromEnv()
 	outMgr := outbound.NewManager(outbound.ManagerConfig{
-		LocalIP: *localIP,
-		SIPHost: sipHost,
-		SIPPort: *port,
+		LocalIP:         *localIP,
+		SIPHost:         sipHost,
+		SIPPort:         *port,
+		FromUser:        callerUser,
+		FromDisplayName: callerDisplay,
 		MediaAttach: func(ctx context.Context, cs *sipSession.CallSession) error {
 			var voiceLog *zap.Logger
 			if logger.Lg != nil {
@@ -80,6 +108,37 @@ func main() {
 		OnTransferBridge: func(correlationID string, cs *sipSession.CallSession, outboundCallID string) {
 			conversation.StartTransferBridge(correlationID, cs, outboundCallID, nil)
 		},
+		OnEstablished: func(leg outbound.EstablishedLeg) {
+			if sipCallPersist == nil || leg.Session == nil {
+				return
+			}
+			neg := leg.Session.NegotiatedCodec()
+			rs := leg.Session.RTPSession()
+			localRTP, remoteRTP := "", ""
+			if rs != nil {
+				if la := rs.LocalAddr; la != nil {
+					localRTP = la.String()
+				}
+				if ra := rs.RemoteAddr; ra != nil {
+					remoteRTP = ra.String()
+				}
+			}
+			ctx := context.Background()
+			sipCallPersist.OnInvite(ctx, sippersist.InviteParams{
+				CallID:      leg.CallID,
+				From:        leg.FromHeader,
+				To:          leg.ToHeader,
+				RemoteSig:   leg.RemoteSignalingAddr,
+				RemoteRTP:   remoteRTP,
+				LocalRTP:    localRTP,
+				Codec:       neg.Name,
+				PayloadType: neg.PayloadType,
+				ClockRate:   neg.ClockRate,
+				CSeqInvite:  leg.CSeqInvite,
+				Direction:   "outbound",
+			})
+			sipCallPersist.OnEstablished(ctx, leg.CallID)
+		},
 	})
 
 	sipServer = server.New(server.Config{
@@ -89,29 +148,41 @@ func main() {
 		OnSIPResponse: outMgr.HandleSIPResponse,
 	})
 
-	if strings.TrimSpace(utils.GetEnv(constants.ENV_DSN)) != "" {
-		db, err := utils.InitDatabase(nil, "", "")
-		if err != nil {
+	if config.GlobalConfig != nil {
+		driver := strings.TrimSpace(config.GlobalConfig.Database.Driver)
+		dsn := strings.TrimSpace(config.GlobalConfig.Database.DSN)
+		if dsn != "" {
 			if logger.Lg != nil {
-				logger.Lg.Warn("sip: database unavailable, REGISTER not persisted", zap.Error(err))
+				logger.Lg.Info("sip: opening database for persistence",
+					zap.String("driver", driver),
+					zap.String("dsn", sipDSNForLog(dsn)),
+				)
 			}
-		} else if err := utils.MakeMigrates(db, []any{&models.SIPUser{}}); err != nil {
-			if logger.Lg != nil {
-				logger.Lg.Warn("sip: sip_users migrate failed", zap.Error(err))
+			db, err := utils.InitDatabase(nil, driver, dsn)
+			if err != nil {
+				if logger.Lg != nil {
+					logger.Lg.Warn("sip: database unavailable, REGISTER / dialog persistence disabled", zap.Error(err))
+				}
+			} else {
+				acdDB = db
+				sipRegStore = sipreg.NewGormStore(db)
+				sipServer.SetRegisterStore(sipRegStore)
+				sipCallPersist = sippersist.New(db, logger.Lg)
+				sipServer.SetCallPersist(sipCallPersist)
+				conversation.SetSIPTurnPersist(func(ctx context.Context, callID, userText, assistantText, asrProvider, llmModel, ttsProvider string) {
+					sipCallPersist.SaveConversationTurn(ctx, callID, userText, assistantText, asrProvider, llmModel, ttsProvider)
+				})
+				conversation.SetTransferDialTargetResolver(func(ctx context.Context) (outbound.DialTarget, bool) {
+					return sipacd.PickTransferDialTarget(ctx, acdDB, sipRegStore)
+				})
+				if logger.Lg != nil {
+					logger.Lg.Info("sip: database persistence enabled — AI dialog JSON on sip_calls.turns; use same DSN as web if UI should see rows",
+						zap.String("dsn", sipDSNForLog(dsn)),
+					)
+				}
 			}
-		} else {
-			sipRegStore = sipreg.NewGormStore(db)
-			sipServer.SetRegisterStore(sipRegStore)
-			conversation.SetTransferDialTargetResolver(func(ctx context.Context) (outbound.DialTarget, bool) {
-				if sipRegStore == nil {
-					return outbound.DialTarget{}, false
-				}
-				u := strings.TrimSpace(utils.GetEnv(outbound.EnvSIPTransferNumber))
-				if u == "" {
-					return outbound.DialTarget{}, false
-				}
-				return sipRegStore.DialTargetForUsername(ctx, u)
-			})
+		} else if logger.Lg != nil {
+			logger.Lg.Warn("sip: database DSN is empty in config — set DSN / DB_DRIVER like cmd/server")
 		}
 	}
 
@@ -124,6 +195,21 @@ func main() {
 		return sipServer.GetCallSession(callID)
 	})
 	conversation.SetCallStore(sipServer)
+	conversation.SetTransferPeerCallbacks(outMgr.SendBYE, sipServer.SendUASBye)
+	conversation.SetSIPHangup(sipServer.HangupInboundCall)
+
+	webseat.InitDefault(webseat.Config{
+		RemoveCallSession:     sipServer.RemoveCallSession,
+		ForgetUASDialog:       sipServer.ForgetUASDialog,
+		SendUASBye:            sipServer.SendUASBye,
+		ReleaseTransferDedupe: conversation.ReleaseTransferStartDedupe,
+	})
+	if wsAddr := strings.TrimSpace(utils.GetEnv(webseat.EnvHTTPAddr)); wsAddr != "" {
+		if err := webseat.StartHTTPServer(wsAddr); err != nil && logger.Lg != nil {
+			logger.Lg.Warn("webseat: http server failed", zap.String("addr", wsAddr), zap.Error(err))
+		}
+	}
+	conversation.SetWebSeatTransfer(conversation.StartWebSeatHandoff)
 
 	if err := sipServer.Start(); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "sip: start failed: %v\n", err)

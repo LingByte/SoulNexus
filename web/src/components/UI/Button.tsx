@@ -34,7 +34,8 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
          onMouseEnter,
          ...props
      }, ref) => {
-        const baseClasses = 'relative inline-flex items-center justify-center font-medium transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none select-none overflow-hidden whitespace-nowrap'
+        const baseClasses =
+            'relative inline-flex flex-nowrap items-center justify-center font-medium transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none select-none overflow-hidden whitespace-nowrap [&_svg]:pointer-events-none [&_svg]:shrink-0'
 
         // 获取当前主题
         const currentTheme = getCurrentTheme()
@@ -140,26 +141,31 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
                     transition={{duration: 0.3}}
                 />
 
-                <div className="relative flex items-center justify-center gap-2 min-w-0">
+                <div
+                    className={cn(
+                        'relative z-[1] flex min-w-0 flex-row flex-nowrap items-center justify-center gap-2',
+                        fullWidth && 'w-full min-w-0'
+                    )}
+                >
                     {loading && (
                         <motion.div
                             animate={{rotate: 360}}
                             transition={{duration: 1, repeat: Infinity, ease: 'linear'}}
-                            className={cn('border-2 border-current border-t-transparent rounded-full flex-shrink-0', iconSize)}
+                            className={cn('flex-shrink-0 rounded-full border-2 border-current border-t-transparent', iconSize)}
                         />
                     )}
                     {!loading && leftIcon && (
                         <motion.span
-                            className={cn('flex-shrink-0', iconSize)}
+                            className={cn('inline-flex flex-shrink-0 items-center justify-center', iconSize)}
                             whileHover={{scale: 1.1}}
                             transition={{duration: 0.2}}
                         >
                             {leftIcon}
                         </motion.span>
                     )}
-                    {children && (
+                    {children != null && children !== false && (
                         <motion.span
-                            className="whitespace-nowrap overflow-hidden text-ellipsis"
+                            className="inline-flex min-w-0 max-w-full flex-row flex-nowrap items-center justify-center gap-1.5 whitespace-nowrap [&_svg]:shrink-0"
                             initial={{opacity: 0, y: 10}}
                             animate={{opacity: 1, y: 0}}
                             transition={{duration: 0.3, delay: 0.1}}
@@ -169,7 +175,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
                     )}
                     {!loading && rightIcon && (
                         <motion.span
-                            className={cn('flex-shrink-0', iconSize)}
+                            className={cn('inline-flex flex-shrink-0 items-center justify-center', iconSize)}
                             whileHover={{scale: 1.1, x: 2}}
                             transition={{duration: 0.2}}
                         >

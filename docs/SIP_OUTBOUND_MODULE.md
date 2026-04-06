@@ -41,14 +41,14 @@
 | 场景 | Scenario | MediaProfile | 说明 |
 |------|-----------|----------------|------|
 | 手动/任务回访 | `campaign` / `callback` | `ai_voice` / `script` | 外呼接通后走 AI 或 IVR 脚本 |
-| 呼入按 0 转人工 | `transfer_agent` | `bridge_pcm`（规划） | 保持第一路，拨第二路至坐席，`pkg/sip/bridge` 桥接 PCM |
+| 呼入按 0 转人工 | `transfer_agent` | `transfer_bridge` | 保持第一路，拨第二路至坐席；`pkg/sip/bridge` 做 raw G.711 或 PCM 转码 |
 
 ## 已实现（本迭代）
 
 - `protocol.Server.OnSIPResponse`：收到 SIP **响应** 时回调（用于 UAC）。  
 - `server.Config.OnSIPResponse`、`SIPServer.SendSIP`、`SIPServer.RegisterCallSession`。  
 - `pkg/sip/outbound`：`Manager`、`Dial`、`HandleSIPResponse`、200 OK → RTP 对齐 → `NewCallSession` → ACK → `StartOnACK`；`MediaProfileAI` 通过注入的 `MediaAttach`（如 `conversation.AttachVoicePipeline`）与呼入一致。  
-- `script` / `bridge_pcm`：接口与占位，见 `script.go`、`transfer.go`。
+- `script` / `transfer_bridge`：脚本占位见 `script.go`；转接见 `transfer.go` 与 `conversation/transfer_bridge.go`。
 
 ## 待实现（后续迭代）
 

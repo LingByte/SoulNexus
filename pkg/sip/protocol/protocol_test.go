@@ -87,6 +87,34 @@ func TestParseSDP_Basic(t *testing.T) {
 	}
 }
 
+// Many UAS answer with m=audio 0 101 but only a=rtpmap for 101 (telephone-event); PT 0 is static PCMU.
+func TestParseSDP_StaticPCMU_WithoutRtpMap_PlusTelephoneEvent(t *testing.T) {
+	sdp := strings.Join([]string{
+		"v=0",
+		"o=- 1 1 IN IP4 10.0.0.2",
+		"s=-",
+		"c=IN IP4 10.0.0.2",
+		"t=0 0",
+		"m=audio 8000 RTP/AVP 0 101",
+		"a=rtpmap:101 telephone-event/8000",
+		"a=fmtp:101 0-15",
+	}, "\r\n")
+
+	info, err := ParseSDP(sdp)
+	if err != nil {
+		t.Fatalf("ParseSDP failed: %v", err)
+	}
+	if len(info.Codecs) != 2 {
+		t.Fatalf("expected 2 codecs (pcmu + telephone-event), got=%d", len(info.Codecs))
+	}
+	if info.Codecs[0].PayloadType != 0 || info.Codecs[0].Name != "pcmu" {
+		t.Fatalf("first codec should be PCMU from m= order, got %#v", info.Codecs[0])
+	}
+	if info.Codecs[1].Name != "telephone-event" {
+		t.Fatalf("second codec: got %#v", info.Codecs[1])
+	}
+}
+
 func TestGenerateSDP_RoundTrip_CanParse(t *testing.T) {
 	codecs := []SDPCodec{
 		{PayloadType: 0, Name: "pcmu", ClockRate: 8000},
@@ -105,6 +133,21 @@ func TestGenerateSDP_RoundTrip_CanParse(t *testing.T) {
 	}
 	if len(info.Codecs) == 0 {
 		t.Fatalf("expected codecs")
+	}
+}
+
+func TestIsSIPSignalingNoiseDatagram(t *testing.T) {
+	if !isSIPSignalingNoiseDatagram([]byte("\r\n\r\n")) {
+		t.Fatal("expected CRLFCRLF keepalive")
+	}
+	if !isSIPSignalingNoiseDatagram([]byte("\r\n")) {
+		t.Fatal("expected CRLF")
+	}
+	if isSIPSignalingNoiseDatagram([]byte("INVITE sip:a SIP/2.0\r\n")) {
+		t.Fatal("invite is not noise")
+	}
+	if isSIPSignalingNoiseDatagram(nil) || isSIPSignalingNoiseDatagram([]byte{}) {
+		t.Fatal("empty is not noise (handled elsewhere)")
 	}
 }
 

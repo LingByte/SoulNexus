@@ -2,15 +2,36 @@ package session
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/LingByte/SoulNexus/pkg/media"
 	"github.com/LingByte/SoulNexus/pkg/media/encoder"
 	sipprotocol "github.com/LingByte/SoulNexus/pkg/sip/protocol"
 	"github.com/LingByte/SoulNexus/pkg/sip/rtp"
+	"github.com/LingByte/SoulNexus/pkg/utils"
 )
+
+const maxInboundRecordingBytes = 50 * 1024 * 1024
+
+// SIP recording blob format (sippersist): magic "SN1" then repeated [dir u8][len u16LE][payload].
+// dir: user uplink RTP vs AI/TTS downlink RTP (same negotiated codec, e.g. Opus).
+const recBlobMagic = "SN1"
+
+const (
+	recDirUser = 0
+	recDirAI   = 1
+)
+
+// EnvSIPMediaMaxSeconds caps the SIP AI voice pipeline (MediaSession) for one call, in seconds.
+// 0 means no limit. When unset, a 1-hour default is used (legacy NewDefaultSession was 10 minutes).
+const EnvSIPMediaMaxSeconds = "SIP_MEDIA_MAX_SECONDS"
+
+const defaultSIPMediaMaxSeconds = 3600
 
 // CallSession binds an RTP session to a MediaSession for SIP calls.
 //
@@ -39,6 +60,9 @@ type CallSession struct {
 
 	voiceMu       sync.Mutex
 	voiceAttached bool
+
+	recMu  sync.Mutex
+	recBuf []byte
 }
 
 // NewCallSession creates a call session with codec negotiation from SDP.
@@ -81,9 +105,12 @@ func NewCallSession(callID string, rtpSess *rtp.Session, sdpCodecs []sipprotocol
 			negotiatedPayloadType = c.PayloadType
 			negotiatedSDP = c
 			negotiatedSDP.Channels = 1
+			// SDP rtpmap uses 8000 Hz clock (RFC 3551) but G.722 decode/encode PCM is 16 kHz.
+			// SampleRate here is the PCM rate for encoder resamplers; RTP timestamp ticks use 8 kHz
+			// in pkg/sip/rtp SIPRTPTransport.Send.
 			src = media.CodecConfig{
 				Codec:         "g722",
-				SampleRate:    c.ClockRate,
+				SampleRate:    16000,
 				Channels:      1,
 				BitDepth:      16,
 				PayloadType:   negotiatedPayloadType,
@@ -93,18 +120,25 @@ func NewCallSession(callID string, rtpSess *rtp.Session, sdpCodecs []sipprotocol
 		case "opus":
 			found = true
 			negotiatedPayloadType = c.PayloadType
-			// Force mono in the answer: stereo OPUS from softphones often degrades ASR quality
-			// when combined with 8k/16k resampling; answering OPUS/48000/1 improves consistency.
-			ch := 1
+			decodeCh := c.Channels
+			if decodeCh < 1 {
+				decodeCh = 1
+			}
+			if decodeCh > 2 {
+				decodeCh = 2
+			}
 			negotiatedSDP = c
-			negotiatedSDP.Channels = ch
+			// 200 OK SDP must match offered channel count (e.g. OPUS/48000/2). Answering /1 while
+			// the peer sends stereo RTP breaks several stacks; we still encode TTS mono (Channels:1).
+			negotiatedSDP.Channels = decodeCh
 			src = media.CodecConfig{
-				Codec:         "opus",
-				SampleRate:    c.ClockRate, // typically 48000
-				Channels:      ch,
-				BitDepth:      16,
-				PayloadType:   negotiatedPayloadType,
-				FrameDuration: "20ms",
+				Codec:              "opus",
+				SampleRate:         c.ClockRate, // typically 48000
+				Channels:           1,
+				OpusDecodeChannels: decodeCh,
+				BitDepth:           16,
+				PayloadType:        negotiatedPayloadType,
+				FrameDuration:      "20ms",
 			}
 			break
 		}
@@ -138,8 +172,21 @@ func NewCallSession(callID string, rtpSess *rtp.Session, sdpCodecs []sipprotocol
 	ctx, cancel := context.WithCancel(context.Background())
 
 	dtmfPT := telephoneEventPayloadType(sdpCodecs)
+	cs := &CallSession{
+		CallID:   callID,
+		rtpSess:  rtpSess,
+		neg:      negotiatedSDP,
+		srcCodec: src,
+		dtmfPT:   dtmfPT,
+		ctx:      ctx,
+		cancel:   cancel,
+	}
 	rxTransport := rtp.NewSIPRTPTransport(rtpSess, src, media.DirectionInput, dtmfPT)
+	rxTransport.OnInputPayload = func(p []byte) { cs.appendRecordingFrame(recDirUser, p) }
 	txTransport := rtp.NewSIPRTPTransport(rtpSess, src, media.DirectionOutput, 0)
+	txTransport.OnOutputPayload = func(p []byte) { cs.appendRecordingFrame(recDirAI, p) }
+	cs.rxTransport = rxTransport
+	cs.txTransport = txTransport
 
 	ms := media.NewDefaultSession().
 		Context(ctx).
@@ -149,19 +196,10 @@ func NewCallSession(callID string, rtpSess *rtp.Session, sdpCodecs []sipprotocol
 		Input(rxTransport).
 		Output(txTransport)
 	ms.Set(media.KeySIPSuppressUplinkEcho, true)
+	ms.MaxSessionDuration = sipMediaMaxSecondsFromEnv()
+	cs.media = ms
 
-	return &CallSession{
-		CallID:      callID,
-		rtpSess:     rtpSess,
-		media:       ms,
-		neg:         negotiatedSDP,
-		rxTransport: rxTransport,
-		txTransport: txTransport,
-		srcCodec:    src,
-		dtmfPT:      dtmfPT,
-		ctx:         ctx,
-		cancel:      cancel,
-	}, nil
+	return cs, nil
 }
 
 // MediaSession exposes the underlying media pipeline for voice processors (ASR/TTS hooks).
@@ -251,11 +289,27 @@ func (cs *CallSession) StopMediaPreserveRTP() {
 	if cs.txTransport != nil {
 		cs.txTransport.PreserveSessionOnClose = true
 	}
+	// With PreserveSessionOnClose, Transport.Close() does not close the UDP socket, so a goroutine
+	// blocked in ReceiveRTP would otherwise keep running. The transfer bridge then reads the same
+	// socket and two readers split packets → noise. Wake the blocked read before tearing down media.
+	if cs.rtpSess != nil && cs.rtpSess.Conn != nil {
+		_ = cs.rtpSess.Conn.SetReadDeadline(time.Now())
+	}
 	if cs.cancel != nil {
 		cs.cancel()
 	}
 	if cs.media != nil {
 		_ = cs.media.Close()
+		// Do not hand the RTP socket to the transfer bridge until MediaSession transport goroutines
+		// have stopped calling ReadFromUDP — two readers on one UDP socket steal packets.
+		drainCtx, drainCancel := context.WithTimeout(context.Background(), 3*time.Second)
+		_ = cs.media.WaitServeShutdown(drainCtx)
+		drainCancel()
+	}
+	// The wakeup above leaves a past deadline on the conn; the next Read (transfer bridge) would
+	// otherwise return i/o timeout immediately and silence audio. Clear the deadline for new readers.
+	if cs.rtpSess != nil && cs.rtpSess.Conn != nil {
+		_ = cs.rtpSess.Conn.SetReadDeadline(time.Time{})
 	}
 }
 
@@ -274,6 +328,7 @@ func (cs *CallSession) Start() {
 		return
 	}
 	cs.startOnce.Do(func() {
+		cs.media.NotifyServeStarting()
 		go func() {
 			_ = cs.media.Serve()
 		}()
@@ -305,5 +360,68 @@ func (cs *CallSession) Stop() {
 		_ = cs.rtpSess.Close()
 		cs.rtpSess = nil
 	}
+}
+
+func (cs *CallSession) appendRecordingFrame(dir byte, p []byte) {
+	if cs == nil || len(p) == 0 {
+		return
+	}
+	if dir != recDirUser && dir != recDirAI {
+		return
+	}
+	maxB := maxInboundRecordingBytes
+	cs.recMu.Lock()
+	defer cs.recMu.Unlock()
+	if len(cs.recBuf) >= maxB {
+		return
+	}
+	rem := maxB - len(cs.recBuf)
+	if rem <= 0 {
+		return
+	}
+	frameOverhead := 1 + 2 // dir + uint16 len
+	if len(cs.recBuf) == 0 {
+		if len(recBlobMagic) > rem {
+			return
+		}
+		cs.recBuf = append(cs.recBuf, recBlobMagic...)
+		rem = maxB - len(cs.recBuf)
+	}
+	if frameOverhead+len(p) > rem {
+		return
+	}
+	cs.recBuf = append(cs.recBuf, dir)
+	var hdr [2]byte
+	binary.LittleEndian.PutUint16(hdr[:], uint16(len(p)))
+	cs.recBuf = append(cs.recBuf, hdr[:]...)
+	cs.recBuf = append(cs.recBuf, p...)
+}
+
+// TakeRecording returns buffered RTP recording (SN1 + per-frame dir/len/payload) and clears the buffer.
+func (cs *CallSession) TakeRecording() []byte {
+	if cs == nil {
+		return nil
+	}
+	cs.recMu.Lock()
+	defer cs.recMu.Unlock()
+	if len(cs.recBuf) == 0 {
+		return nil
+	}
+	out := make([]byte, len(cs.recBuf))
+	copy(out, cs.recBuf)
+	cs.recBuf = cs.recBuf[:0]
+	return out
+}
+
+func sipMediaMaxSecondsFromEnv() int {
+	v := strings.TrimSpace(utils.GetEnv(EnvSIPMediaMaxSeconds))
+	if v == "" {
+		return defaultSIPMediaMaxSeconds
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n < 0 {
+		return defaultSIPMediaMaxSeconds
+	}
+	return n
 }
 

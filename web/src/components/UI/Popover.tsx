@@ -32,6 +32,7 @@ const Popover = ({
   const [position, setPosition] = useState({ x: 0, y: 0 })
   const triggerRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
+  const hoverCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const isControlled = controlledOpen !== undefined
   const open = isControlled ? controlledOpen : isOpen
@@ -90,6 +91,10 @@ const Popover = ({
   }
 
   const handleClose = () => {
+    if (hoverCloseTimerRef.current) {
+      clearTimeout(hoverCloseTimerRef.current)
+      hoverCloseTimerRef.current = null
+    }
     if (!isControlled) {
       setIsOpen(false)
     }
@@ -102,17 +107,51 @@ const Popover = ({
     }
   }
 
+  const clearHoverCloseTimer = () => {
+    if (hoverCloseTimerRef.current) {
+      clearTimeout(hoverCloseTimerRef.current)
+      hoverCloseTimerRef.current = null
+    }
+  }
+
   const handleTriggerMouseEnter = () => {
     if (trigger === 'hover') {
+      clearHoverCloseTimer()
       handleOpen()
     }
   }
 
+  /** Delay close so the pointer can move into the floating panel (with line-wrapped content). */
   const handleTriggerMouseLeave = () => {
+    if (trigger === 'hover') {
+      clearHoverCloseTimer()
+      hoverCloseTimerRef.current = setTimeout(() => {
+        hoverCloseTimerRef.current = null
+        handleClose()
+      }, 200)
+    }
+  }
+
+  const handleContentMouseEnter = () => {
+    if (trigger === 'hover') {
+      clearHoverCloseTimer()
+    }
+  }
+
+  const handleContentMouseLeave = () => {
     if (trigger === 'hover') {
       handleClose()
     }
   }
+
+  useEffect(() => {
+    return () => {
+      if (hoverCloseTimerRef.current) {
+        clearTimeout(hoverCloseTimerRef.current)
+        hoverCloseTimerRef.current = null
+      }
+    }
+  }, [])
 
   useEffect(() => {
     if (open) {
@@ -180,6 +219,8 @@ const Popover = ({
       {open && createPortal(
         <div
           ref={contentRef}
+          onMouseEnter={handleContentMouseEnter}
+          onMouseLeave={handleContentMouseLeave}
           className={cn(
             'fixed z-50 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg shadow-lg',
             contentClassName

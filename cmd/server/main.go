@@ -57,7 +57,8 @@ func main() {
 	}
 
 	// 2. Parse Command Line Parameters
-	init := flag.Bool("init", false, "initialize database")
+	// Deprecated: parsed for backward compatibility; bootstrap always runs GORM AutoMigrate when connecting.
+	init := flag.Bool("init", false, "deprecated: ignored; schema migration always runs at startup")
 	seed := flag.Bool("seed", false, "seed database")
 	mode := flag.String("mode", "", "running environment (development, test, production)")
 	initSQL := flag.String("init-sql", "", "path to database init .sql script (optional)")
@@ -84,9 +85,9 @@ func main() {
 
 	// 7. Load Data Source
 	db, err := bootstrap.SetupDatabase(os.Stdout, &bootstrap.Options{
-		InitSQLPath: *initSQL, // Can be specified via --init-sql
-		AutoMigrate: *init,    // Whether to migrate entities
-		SeedNonProd: *seed,    // Non-production default configuration
+		InitSQLPath: *initSQL,
+		AutoMigrate: *init,
+		SeedNonProd: *seed,
 	})
 	if err != nil {
 		logger.Error("database setup failed", zap.Error(err))

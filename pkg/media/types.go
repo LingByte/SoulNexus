@@ -242,6 +242,12 @@ type CodecConfig struct {
 	BitDepth      int    `json:"bitDepth" form:"bit_depth" default:"16"`
 	FrameDuration string `json:"frameDuration" form:"frame_duration"`
 	PayloadType   uint8  `json:"payloadType" form:"payload_type"`
+	// OpusDecodeChannels: if 1 or 2, Opus inbound decode uses this many channels (from remote SDP offer),
+	// then downmixes to mono for PCM. Encoder/answer Channels stay 1.
+	OpusDecodeChannels int `json:"opusDecodeChannels,omitempty" form:"opus_decode_channels"`
+	// OpusPCMBridgeDecodeStereo: SIP two-leg PCM bridge only — SDP OPUS/48000/2 payloads use a stereo
+	// TOC; force a 2-channel libopus decoder then downmix to mono PCM. CallSession/ASR leaves this false.
+	OpusPCMBridgeDecodeStereo bool `json:"-"`
 }
 
 func DefaultCodecConfig() CodecConfig {

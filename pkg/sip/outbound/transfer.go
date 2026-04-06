@@ -7,7 +7,7 @@ import (
 )
 
 // TransferCoordinator bridges an inbound caller to an agent reached via a second SIP leg.
-// Implementation plan: outbound Dial to agent MediaProfileBridgePCM + pkg/sip/bridge between two RTP legs.
+// Transfer: outbound Dial with MediaProfileTransferBridge + pkg/sip/bridge between two RTP legs.
 type TransferCoordinator interface {
 	// TransferToAgent places an outbound call to the agent and connects audio to the inbound leg.
 	// inbound is the existing AI (or PSTN) CallSession; agent describes the agent SIP destination.
