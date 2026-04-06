@@ -59,6 +59,29 @@ export default function OutboundCampaignTab() {
   const pageSize = 10
 
   const detailCampaign = useMemo(() => campaigns.find((c) => c.id === detailCampaignId) || null, [campaigns, detailCampaignId])
+  const queueView = useMemo(() => {
+    const waiting = contactsRows
+      .filter((row) => ['ready', 'retrying'].includes(String(row.status || '').toLowerCase()))
+      .slice()
+      .sort((a, b) => {
+        const ta = a.nextRunAt ? new Date(a.nextRunAt).getTime() : Number.MAX_SAFE_INTEGER
+        const tb = b.nextRunAt ? new Date(b.nextRunAt).getTime() : Number.MAX_SAFE_INTEGER
+        if (ta !== tb) return ta - tb
+        const ca = a.createdAt ? new Date(a.createdAt).getTime() : 0
+        const cb = b.createdAt ? new Date(b.createdAt).getTime() : 0
+        if (ca !== cb) return ca - cb
+        return a.id - b.id
+      })
+    const positionById = new Map<number, number>()
+    waiting.forEach((row, idx) => positionById.set(row.id, idx + 1))
+    return {
+      total: contactsRows.length,
+      waiting: waiting.length,
+      dialing: contactsRows.filter((r) => String(r.status || '').toLowerCase() === 'dialing').length,
+      active: contactsRows.filter((r) => ['dialing', 'retrying', 'ready'].includes(String(r.status || '').toLowerCase())).length,
+      positionById,
+    }
+  }, [contactsRows])
 
   useEffect(() => {
     void (async () => {
@@ -285,7 +308,7 @@ export default function OutboundCampaignTab() {
     }
     if (!silent) setContactsLoading(true)
     try {
-      const res = await listOutboundCampaignContacts(detailCampaignId, 1, 50)
+      const res = await listOutboundCampaignContacts(detailCampaignId, 1, 500)
       if (res.code === 200 && res.data?.list) setContactsRows(res.data.list)
       else if (!silent) showAlert(res.msg || t('common.failed'), 'error')
     } catch (e: unknown) {
@@ -547,11 +570,18 @@ export default function OutboundCampaignTab() {
                 {contactsLoading ? t('common.loading') : t('common.refresh')}
               </Button>
             </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+              <div className="rounded border border-border p-2">总联系人: {queueView.total}</div>
+              <div className="rounded border border-border p-2">队列中: {queueView.waiting}</div>
+              <div className="rounded border border-border p-2">拨号中: {queueView.dialing}</div>
+              <div className="rounded border border-border p-2">活跃任务: {queueView.active}</div>
+            </div>
             <div className="max-h-52 overflow-auto rounded border border-border">
               <table className="w-full text-xs">
                 <thead className="bg-muted/50">
                   <tr>
                     <th className="text-left p-2">号码</th>
+                    <th className="text-left p-2">队列位置</th>
                     <th className="text-left p-2">状态</th>
                     <th className="text-left p-2">尝试</th>
                     <th className="text-left p-2">失败原因</th>
@@ -562,6 +592,7 @@ export default function OutboundCampaignTab() {
                   {contactsRows.map((row) => (
                     <tr key={row.id} className="border-t">
                       <td className="p-2 font-mono">{row.phone}</td>
+                      <td className="p-2">{queueView.positionById.get(row.id) || '—'}</td>
                       <td className="p-2">{row.status || '—'}</td>
                       <td className="p-2">{`${row.attemptCount ?? 0}/${row.maxAttempts ?? 0}`}</td>
                       <td className="p-2">{row.failureReason || '—'}</td>
@@ -570,7 +601,7 @@ export default function OutboundCampaignTab() {
                   ))}
                   {contactsRows.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="p-3 text-center text-muted-foreground">暂无联系人</td>
+                      <td colSpan={6} className="p-3 text-center text-muted-foreground">暂无联系人</td>
                     </tr>
                   )}
                 </tbody>
