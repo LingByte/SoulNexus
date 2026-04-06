@@ -77,8 +77,6 @@ yarn-error.log*
 voiceserver.db
 *.mp3
 
-*.wav
-
 *.db
 
 lingecho

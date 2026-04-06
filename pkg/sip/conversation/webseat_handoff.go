@@ -27,7 +27,6 @@ func StartWebSeatHandoff(ctx context.Context, inboundCallID string, lg *zap.Logg
 		ReleaseTransferStartDedupe(inboundCallID)
 		return
 	}
-	inbound.StopMediaPreserveRTP()
 	if err := webseat.RegisterAwaiting(inboundCallID, inbound, lg); err != nil {
 		lg.Warn("web seat: register failed", zap.String("call_id", inboundCallID), zap.Error(err))
 		ReleaseTransferStartDedupe(inboundCallID)
@@ -51,7 +50,13 @@ func ActiveWebSeatSession(callID string) bool {
 	return webseat.PendingOrActive(callID)
 }
 
+// ActiveWebSeatBridge is true only after browser join completed and bridge is running.
+func ActiveWebSeatBridge(callID string) bool {
+	return webseat.ActiveOnly(callID)
+}
+
 // ReleaseTransferStartDedupe clears the per-call transfer lock (join timeout, failed register).
 func ReleaseTransferStartDedupe(callID string) {
+	stopTransferRinging(callID)
 	transferStarted.Delete(callID)
 }

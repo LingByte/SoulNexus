@@ -323,6 +323,18 @@ func PendingOrActive(callID string) bool {
 	return p || a
 }
 
+// ActiveOnly is true only when WebRTC bridge is active (browser already joined).
+func ActiveOnly(callID string) bool {
+	if defaultHub == nil || callID == "" {
+		return false
+	}
+	h := defaultHub
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	_, a := h.active[callID]
+	return a
+}
+
 // HangupIfCustomerBye tears down Web seat when the PSTN side sends BYE. Returns true if handled.
 func HangupIfCustomerBye(callID string) bool {
 	return teardownWebSeat(callID, false)
@@ -632,6 +644,10 @@ func (h *Hub) waitRemoteTrackAndBridge(
 
 	webCodec := mediaFromRemoteTrack(remoteTrack)
 	wt := sipwebrtc.NewTransport(remoteTrack, txLocal, webCodec)
+
+	// Keep caller media alive during "awaiting join" so transfer ringing can be played.
+	// Stop MediaSession right before building bridge transports to avoid dual RTP readers.
+	inbound.StopMediaPreserveRTP()
 
 	ccIn := inbound.SourceCodec()
 	callerRx := siprtp.NewSIPRTPTransport(inbound.RTPSession(), ccIn, media.DirectionInput, inbound.DTMFPayloadType())

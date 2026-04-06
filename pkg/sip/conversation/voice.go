@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -287,6 +289,7 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 	}
 
 	var ttsPlaying atomic.Bool
+	var welcomePlaying atomic.Bool
 	var vadDet *voice.VADDetector
 	if sipVADBargeInEnabled() {
 		vadDet = voice.NewVADDetector()
@@ -405,6 +408,10 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 			if ap.IsSynthesized {
 				return nil
 			}
+			// Inbound greeting is a mandatory opening. Ignore user audio until greeting finishes.
+			if welcomePlaying.Load() {
+				return nil
+			}
 			pcm16 := ap.Payload
 			pcmASR := pcm16
 			if asrOutRate != asrInRate {
@@ -435,7 +442,71 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 		tryTransferToAgent(context.Background(), cs.CallID, digit, lg)
 	})
 
+	welcomePlaying.Store(true)
+	go func() {
+		defer welcomePlaying.Store(false)
+		if err := playWelcomeWav(ms.GetContext(), ms, lg, env.TTSSampleRate); err != nil {
+			lg.Warn("sip voice welcome playback failed", zap.String("call_id", cs.CallID), zap.Error(err))
+			return
+		}
+		lg.Info("sip voice welcome playback finished", zap.String("call_id", cs.CallID))
+	}()
+
 	lg.Info("sip voice pipeline attached", zap.String("call_id", cs.CallID))
+	return nil
+}
+
+func playWelcomeWav(ctx context.Context, ms *media.MediaSession, lg *zap.Logger, sampleRate int) error {
+	if ms == nil {
+		return fmt.Errorf("media session is nil")
+	}
+	path := strings.TrimSpace(utils.GetEnv("SIP_WELCOME_WAV_PATH"))
+	if path == "" {
+		path = "scripts/welcome.wav"
+	}
+	if !filepath.IsAbs(path) {
+		path = filepath.Clean(path)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read welcome wav: %w", err)
+	}
+	pcm := encoder.StripWavHeader(raw)
+	if len(pcm) == 0 {
+		return fmt.Errorf("welcome wav has empty pcm payload")
+	}
+	if sampleRate <= 0 {
+		sampleRate = 16000
+	}
+	bytesPerFrame := sampleRate * 2 * 20 / 1000 // 16-bit mono, 20ms
+	if bytesPerFrame <= 0 {
+		bytesPerFrame = 640
+	}
+	ticker := time.NewTicker(20 * time.Millisecond)
+	defer ticker.Stop()
+
+	for off := 0; off < len(pcm); off += bytesPerFrame {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
+		end := off + bytesPerFrame
+		if end > len(pcm) {
+			end = len(pcm)
+		}
+		frame := pcm[off:end]
+		if len(frame) == 0 {
+			continue
+		}
+		ms.SendToOutput("sip-voice-welcome", &media.AudioPacket{
+			Payload:       frame,
+			IsSynthesized: true,
+		})
+	}
+	if lg != nil {
+		lg.Info("sip voice welcome playback started", zap.Int("bytes", len(pcm)))
+	}
 	return nil
 }
 
