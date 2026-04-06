@@ -145,34 +145,39 @@ func GetMediaEngine() *webrtc.MediaEngine {
 	return m
 }
 
-func (wts *WebRTCTransport) NewPeerConnection() {
+// NewPeerConnection builds the PeerConnection, local send track, and default OnTrack handler.
+func (wts *WebRTCTransport) NewPeerConnection() error {
 	wts.mu.Lock()
 	defer wts.mu.Unlock()
+
 	api := webrtc.NewAPI(webrtc.WithMediaEngine(GetMediaEngine()))
 	connection, err := api.NewPeerConnection(wts.config)
 	if err != nil {
-		logrus.WithField("transport", wts).WithError(err).Error("webrtc: NewPeerConnection")
-		return
+		return fmt.Errorf("webrtc: NewPeerConnection: %w", err)
 	}
 	wts.peerConnection = connection
 
-	// 设置 ICE candidate 回调 收集 ICE 候选者并存储到 wts.Candidates
 	wts.peerConnection.OnICECandidate(func(i *webrtc.ICECandidate) {
-		if i != nil {
-			wts.Candidates = append(wts.Candidates, i.ToJSON())
-			logrus.WithField("candidate", i.ToJSON().Candidate).Debug("ICE candidate generated")
+		if i == nil {
+			return
+		}
+		wts.mu.Lock()
+		wts.Candidates = append(wts.Candidates, i.ToJSON())
+		wts.mu.Unlock()
+		if VerboseSDP() {
+			logrus.WithField("candidate", i.ToJSON().Candidate).Debug("ICE candidate")
 		}
 	})
 
-	// 连接状态变化 监控连接状态变化，处理连接建立和断开
 	wts.peerConnection.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
-		logrus.WithField("state", state.String()).Info("Connection state changed")
-		if state == webrtc.PeerConnectionStateConnected {
-			fmt.Println("Connected")
-		} else if state == webrtc.PeerConnectionStateDisconnected ||
-			state == webrtc.PeerConnectionStateFailed ||
-			state == webrtc.PeerConnectionStateClosed {
-			// 连接断开时，停止播放
+		wts.mu.Lock()
+		wts.connectionState = state
+		wts.mu.Unlock()
+		logrus.WithField("state", state.String()).Info("webrtc: connection state")
+		switch state {
+		case webrtc.PeerConnectionStateDisconnected,
+			webrtc.PeerConnectionStateFailed,
+			webrtc.PeerConnectionStateClosed:
 			if wts.playAudioStop != nil {
 				close(wts.playAudioStop)
 				wts.playAudioStop = nil
@@ -180,43 +185,29 @@ func (wts *WebRTCTransport) NewPeerConnection() {
 		}
 	})
 
-	// 接收远程音频轨道 处理接收到的远程音轨，保存到 wts.rxTrack
-	wts.peerConnection.OnTrack(func(remoteTrack *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
-		// 先打印日志，确保能看到触发
-		fmt.Printf("[WebRTC] ===== OnTrack callback FIRED! =====\n")
-		fmt.Printf("[WebRTC] OnTrack: codec=%s, ssrc=%d, streamID=%s, kind=%s\n",
-			remoteTrack.Codec().MimeType, remoteTrack.SSRC(), remoteTrack.StreamID(), remoteTrack.Kind().String())
-
+	wts.peerConnection.OnTrack(func(remoteTrack *webrtc.TrackRemote, _ *webrtc.RTPReceiver) {
 		wts.mu.Lock()
 		wts.rxTrack = remoteTrack
 		wts.mu.Unlock()
-
 		logrus.WithFields(logrus.Fields{
 			"codec":    remoteTrack.Codec().MimeType,
 			"ssrc":     remoteTrack.SSRC(),
 			"streamID": remoteTrack.StreamID(),
-			"kind":     remoteTrack.Kind().String(),
-		}).Info("Received remote track")
-		fmt.Printf("[WebRTC] OnTrack callback completed: rxTrack saved\n")
+		}).Info("webrtc: remote track")
 	})
 
-	// 创建发送轨道 创建发送轨道
 	wts.txTrack, err = webrtc.NewTrackLocalStaticSample(
 		wts.getCodecParameters().RTPCodecCapability,
 		"audio",
 		wts.opt.StreamID,
 	)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to create track")
-		return
+		return fmt.Errorf("webrtc: NewTrackLocalStaticSample: %w", err)
 	}
-
-	// 添加发送轨道
-	_, err = wts.peerConnection.AddTrack(wts.txTrack)
-	if err != nil {
-		logrus.WithError(err).Error("Failed to add track")
-		return
+	if _, err = wts.peerConnection.AddTrack(wts.txTrack); err != nil {
+		return fmt.Errorf("webrtc: AddTrack: %w", err)
 	}
+	return nil
 }
 
 func (wts *WebRTCTransport) Codec() media2.CodecConfig {
@@ -228,52 +219,32 @@ func (wts *WebRTCTransport) Codec() media2.CodecConfig {
 // 1. JSON 格式的 SessionDescription: {"type":"offer","sdp":"v=0\r\n..."}
 // 2. 纯 SDP 字符串: "v=0\r\n..."
 func (wts *WebRTCTransport) SetRemoteDescription(sdp string) error {
-	fmt.Printf("[WebRTC] SetRemoteDescription called, OnTrack should fire if SDP contains media tracks\n")
-
 	var sessionDescription webrtc.SessionDescription
 
-	// 尝试解析为 JSON 格式
 	err := json.Unmarshal([]byte(sdp), &sessionDescription)
 	if err != nil {
-		// 如果 JSON 解析失败，假设是纯 SDP 字符串
-		// 创建一个 SessionDescription，类型默认为 "offer"
-		fmt.Printf("[WebRTC] SDP is not JSON format, treating as plain SDP string\n")
 		sessionDescription = webrtc.SessionDescription{
 			Type: webrtc.SDPTypeOffer,
 			SDP:  sdp,
 		}
 	}
 
-	// 检查 SDP 中是否包含媒体信息
-	if sessionDescription.SDP != "" {
-		// 检查 SDP 中是否包含 "m=audio"（音频媒体行）
-		if strings.Contains(sessionDescription.SDP, "m=audio") {
-			fmt.Printf("[WebRTC] ✓ SDP contains audio media line (m=audio), OnTrack should fire\n")
-		} else {
-			fmt.Printf("[WebRTC] ✗ WARNING: SDP does NOT contain audio media line, OnTrack will NOT fire\n")
+	if VerboseSDP() && sessionDescription.SDP != "" {
+		preview := sessionDescription.SDP
+		if len(preview) > 300 {
+			preview = preview[:300] + "..."
 		}
-		// 打印 SDP 的前 300 个字符用于调试
-		sdpPreview := sessionDescription.SDP
-		if len(sdpPreview) > 300 {
-			sdpPreview = sdpPreview[:300] + "..."
-		}
-		fmt.Printf("[WebRTC] SDP preview: %s\n", sdpPreview)
+		logrus.WithField("has_audio", strings.Contains(sessionDescription.SDP, "m=audio")).Debug(preview)
 	}
 
-	// 注意：SetRemoteDescription 可能会同步触发 OnTrack 回调
-	// 所以 OnTrack 必须在 SetRemoteDescription 之前注册（已经在 NewPeerConnection 中注册）
-	err = wts.peerConnection.SetRemoteDescription(sessionDescription)
-	if err != nil {
-		return err
+	if wts.peerConnection == nil {
+		return errors.New("webrtc: peer connection is nil")
 	}
-
-	fmt.Printf("[WebRTC] SetRemoteDescription completed\n")
-	return nil
+	return wts.peerConnection.SetRemoteDescription(sessionDescription)
 }
 
 func (wts *WebRTCTransport) CreateOffer() (offer string, candidates []string, err error) {
 	if wts.peerConnection == nil {
-		logrus.WithError(err).Error("peer connection is nil")
 		return "", nil, errors.New("peer connection is nil")
 	}
 	wts.mu.Lock()
@@ -332,7 +303,6 @@ func (wts *WebRTCTransport) CreateOffer() (offer string, candidates []string, er
 
 func (wts *WebRTCTransport) CreateAnswer(clientCandidates []string) (serverAnswer string, serverCandidates []string, err error) {
 	if wts.peerConnection == nil {
-		logrus.WithError(err).Error("peer connection is nil")
 		return "", nil, errors.New("peer connection is nil")
 	}
 
@@ -461,27 +431,29 @@ func (wts *WebRTCTransport) GetTxTrack() *webrtc.TrackLocalStaticSample {
 }
 
 func (wts *WebRTCTransport) Next(ctx context.Context) (media2.MediaPacket, error) {
-	if wts.rxTrack == nil {
-		time.Sleep(10 * time.Millisecond)
-		return nil, nil
-	}
+	wts.mu.RLock()
+	pc := wts.peerConnection
+	rx := wts.rxTrack
+	wts.mu.RUnlock()
 
-	switch wts.connectionState {
-	case webrtc.PeerConnectionStateConnected:
-	default:
+	if rx == nil {
 		select {
 		case <-ctx.Done():
+			return nil, ctx.Err()
 		case <-time.After(10 * time.Millisecond):
-			//wait for connection established
 		}
-		logrus.WithFields(logrus.Fields{
-			"transport":       wts,
-			"connectionState": wts.connectionState,
-		}).Info("webrtc: connection state is not connected")
+		return nil, nil
+	}
+	if pc != nil && pc.ConnectionState() != webrtc.PeerConnectionStateConnected {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(5 * time.Millisecond):
+		}
 		return nil, nil
 	}
 
-	rtpPacket, _, err := wts.rxTrack.ReadRTP()
+	rtpPacket, _, err := rx.ReadRTP()
 	if err != nil {
 		logrus.WithField("transport", wts).WithError(err).Error("webrtc: Error reading RTP packet")
 		return nil, err
@@ -530,30 +502,17 @@ func GetSampleSize(sampleRate, bitDepth, channels int) int {
 	return sampleRate * bitDepth / 1000 / 8
 }
 
-// OnTrack sets the OnTrack callback for the WebRTC connection
+// OnTrack replaces the default OnTrack handler. Call before SetRemoteDescription / signaling if you need custom behavior.
 func (wts *WebRTCTransport) OnTrack(f func(*webrtc.TrackRemote, *webrtc.RTPReceiver)) {
 	wts.mu.Lock()
 	defer wts.mu.Unlock()
-
-	if wts.peerConnection != nil {
-		wts.peerConnection.OnTrack(func(remoteTrack *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
-			// Save the remote track (this is the default behavior we want to preserve)
-			wts.mu.Lock()
-			wts.rxTrack = remoteTrack
-			wts.mu.Unlock()
-
-			// Log the received track
-			logrus.WithFields(logrus.Fields{
-				"codec": remoteTrack.Codec().MimeType,
-				"ssrc":  remoteTrack.SSRC(),
-			}).Info("Received remote track")
-			fmt.Printf("[WebRTC] OnTrack callback fired: codec=%s, ssrc=%d\n",
-				remoteTrack.Codec().MimeType, remoteTrack.SSRC())
-
-			// Call the user-provided callback
-			if f != nil {
-				f(remoteTrack, receiver)
-			}
-		})
+	if wts.peerConnection == nil || f == nil {
+		return
 	}
+	wts.peerConnection.OnTrack(func(remoteTrack *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
+		wts.mu.Lock()
+		wts.rxTrack = remoteTrack
+		wts.mu.Unlock()
+		f(remoteTrack, receiver)
+	})
 }

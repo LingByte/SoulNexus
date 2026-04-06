@@ -6,7 +6,6 @@ package transport
 import (
 	"context"
 	"fmt"
-	"log"
 	"math"
 	"strings"
 	"sync"
@@ -153,7 +152,7 @@ func NewAIClient(conn *websocket.Conn, transport *rtcmedia.WebRTCTransport, sess
 		asrService:     asrService,
 		llmProvider:    llmProvider,
 		ttsService:     ttsService,
-		audioBuffer:    make(chan []byte, 100),
+		audioBuffer:    make(chan []byte, 48),
 		audioDecoder:   nil, // Will be created when we know the actual codec
 		conversationID: fmt.Sprintf("conv_%d", time.Now().UnixNano()),
 		doneChan:       make(chan struct{}),
@@ -213,7 +212,7 @@ func NewAIClient(conn *websocket.Conn, transport *rtcmedia.WebRTCTransport, sess
 						int(duration.Seconds()),
 						audioSize,
 					); err != nil {
-						log.Printf("[Server] 记录ASR使用量失败: %v", err)
+						legacyLog("[Server] 记录ASR使用量失败: %v", err)
 					}
 				}()
 			}
@@ -221,7 +220,7 @@ func NewAIClient(conn *websocket.Conn, transport *rtcmedia.WebRTCTransport, sess
 			client.handleASRResult(text, isLast, duration)
 		},
 		func(err error, isFatal bool) {
-			log.Printf("[Server] ASR error: %v (fatal: %v)", err, isFatal)
+			legacyLog("[Server] ASR error: %v (fatal: %v)", err, isFatal)
 			if isFatal {
 				// Handle fatal error
 			} else {
@@ -310,7 +309,7 @@ func NewAIClientWithCredential(
 
 	// Set LLM model if provided
 	if llmModel != "" {
-		log.Printf("[Server] LLM Model from assistant: %s", llmModel)
+		legacyLog("[Server] LLM Model from assistant: %s", llmModel)
 	}
 
 	// Initialize TTS from credential with assistant configuration
@@ -368,7 +367,7 @@ func NewAIClientWithCredential(
 		asrService:     asrService,
 		llmProvider:    llmProvider,
 		ttsService:     ttsService,
-		audioBuffer:    make(chan []byte, 100),
+		audioBuffer:    make(chan []byte, 48),
 		audioDecoder:   nil, // Will be created when we know the actual codec
 		conversationID: fmt.Sprintf("conv_%d", time.Now().UnixNano()),
 		doneChan:       make(chan struct{}),
@@ -427,7 +426,7 @@ func NewAIClientWithCredential(
 						int(duration.Seconds()),
 						audioSize,
 					); err != nil {
-						log.Printf("[Server] 记录ASR使用量失败: %v", err)
+						legacyLog("[Server] 记录ASR使用量失败: %v", err)
 					}
 				}()
 			}
@@ -435,7 +434,7 @@ func NewAIClientWithCredential(
 			client.handleASRResult(text, isLast, duration)
 		},
 		func(err error, isFatal bool) {
-			log.Printf("[Server] ASR error: %v (fatal: %v)", err, isFatal)
+			legacyLog("[Server] ASR error: %v (fatal: %v)", err, isFatal)
 			if isFatal {
 				// Handle fatal error
 			} else {
@@ -475,7 +474,7 @@ func normalizeProviderName(provider string) string {
 
 // Close closes the AI client
 func (c *AIClient) Close() error {
-	log.Printf("[Server] Closing AI client for session: %s", c.SessionID)
+	legacyLog("[Server] Closing AI client for session: %s", c.SessionID)
 
 	// Stop TTS immediately
 	c.stopTTS()
@@ -502,7 +501,7 @@ func (c *AIClient) Close() error {
 	if c.Conn != nil {
 		c.Conn.Close()
 	}
-	log.Printf("[Server] AI client closed for session: %s", c.SessionID)
+	legacyLog("[Server] AI client closed for session: %s", c.SessionID)
 	return nil
 }
 
@@ -517,7 +516,7 @@ func (c *AIClient) setTTSPlaying(playing bool) {
 	} else {
 		c.ttsEndTime = time.Now()
 	}
-	log.Printf("[Server] TTS playing state: %v", playing)
+	legacyLog("[Server] TTS playing state: %v", playing)
 }
 
 // stopTTS signals TTS to stop immediately (for barge-in)
@@ -533,7 +532,7 @@ func (c *AIClient) stopTTS() {
 		}
 		c.isTTSPlaying = false
 		c.ttsEndTime = time.Now()
-		log.Printf("[Server] TTS stopped by barge-in")
+		legacyLog("[Server] TTS stopped by barge-in")
 	}
 }
 
@@ -557,7 +556,7 @@ func (c *AIClient) SetEnableVAD(enable bool) {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
 	c.enableVAD = enable
-	log.Printf("[Server] VAD enabled: %v", enable)
+	legacyLog("[Server] VAD enabled: %v", enable)
 }
 
 // SetVADThreshold sets the VAD threshold (0-32768, typical speech ~500-5000)
@@ -565,7 +564,7 @@ func (c *AIClient) SetVADThreshold(threshold float64) {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
 	c.vadThreshold = threshold
-	log.Printf("[Server] VAD threshold set to: %.2f", threshold)
+	legacyLog("[Server] VAD threshold set to: %.2f", threshold)
 }
 
 // SetVADConsecutiveFrames sets how many consecutive frames above threshold needed for barge-in
@@ -574,7 +573,7 @@ func (c *AIClient) SetVADConsecutiveFrames(frames int) {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
 	c.vadConsecutiveFrames = frames
-	log.Printf("[Server] VAD consecutive frames set to: %d (~%dms)", frames, frames*20)
+	legacyLog("[Server] VAD consecutive frames set to: %d (~%dms)", frames, frames*20)
 }
 
 // calculateRMS calculates the Root Mean Square of 16-bit PCM audio data
@@ -619,9 +618,8 @@ func (c *AIClient) checkBargeIn(pcmData []byte) bool {
 	// Calculate audio energy (RMS)
 	rms := calculateRMS(pcmData)
 
-	// Debug: Log RMS values periodically to help tune threshold
-	if c.vadFrameCounter%50 == 0 || rms > vadThreshold*0.5 {
-		log.Printf("[Server] VAD: RMS=%.2f, Threshold=%.2f, Counter=%d, TTS=%v",
+	if webrtcDebug() && (c.vadFrameCounter%50 == 0 || rms > vadThreshold*0.5) {
+		dbgLog("[Server] VAD: RMS=%.2f, Threshold=%.2f, Counter=%d, TTS=%v",
 			rms, vadThreshold, c.vadFrameCounter, isTTSPlaying)
 	}
 
@@ -631,7 +629,7 @@ func (c *AIClient) checkBargeIn(pcmData []byte) bool {
 		// Only trigger barge-in after consecutive frames exceed threshold
 		// This filters out short bursts from TTS echo
 		if c.vadFrameCounter >= consecutiveFramesNeeded {
-			log.Printf("[Server] Barge-in detected! RMS: %.2f, Threshold: %.2f, Consecutive frames: %d",
+			legacyLog("[Server] Barge-in detected! RMS: %.2f, Threshold: %.2f, Consecutive frames: %d",
 				rms, vadThreshold, c.vadFrameCounter)
 			c.Mu.Unlock()
 			c.stopTTS()
@@ -679,7 +677,7 @@ func (c *AIClient) handleASRResult(text string, isLast bool, duration time.Durat
 	c.lastText = text
 	c.Mu.Unlock()
 
-	log.Printf("[Server] ASR Result: %s (isLast: %v, duration: %v)", text, isLast, duration)
+	legacyLog("[Server] ASR Result: %s (isLast: %v, duration: %v)", text, isLast, duration)
 
 	// Check if it's a complete sentence (even if isLast=false)
 	isComplete := isCompleteSentence(text)
@@ -692,7 +690,7 @@ func (c *AIClient) handleASRResult(text string, isLast bool, duration time.Durat
 		// Filter meaningless text
 		filteredText := filterText(text)
 		if filteredText != "" && !isMeaninglessText(filteredText) {
-			log.Printf("[Server] Processing sentence end (isLast=false but complete): %s", filteredText)
+			legacyLog("[Server] Processing sentence end (isLast=false but complete): %s", filteredText)
 			go c.processWithLLM(filteredText)
 		}
 	}
@@ -745,7 +743,7 @@ func (c *AIClient) processWithLLM(userText string) {
 		c.Mu.Unlock()
 	}()
 
-	log.Printf("[Server] Processing with LLM: %s", userText)
+	legacyLog("[Server] Processing with LLM: %s", userText)
 
 	// Build query text (if knowledge base is provided, search knowledge base first)
 	queryText := userText
@@ -753,7 +751,7 @@ func (c *AIClient) processWithLLM(userText string) {
 		// Search knowledge base
 		knowledgeResults, err := models.SearchKnowledgeBase(c.db, c.knowledgeKey, userText, 5)
 		if err != nil {
-			log.Printf("[Server] Failed to search knowledge base: %v", err)
+			legacyLog("[Server] Failed to search knowledge base: %v", err)
 			// Use original query when search fails
 			queryText = userText
 		} else if len(knowledgeResults) > 0 {
@@ -769,7 +767,7 @@ func (c *AIClient) processWithLLM(userText string) {
 			}
 			contextBuilder.WriteString("\n\n请基于以上信息回答用户问题，回答要自然流畅，不要提及信息来源。")
 			queryText = contextBuilder.String()
-			log.Printf("[Server] Retrieved %d relevant documents from knowledge base (key: %s)", len(knowledgeResults), c.knowledgeKey)
+			legacyLog("[Server] Retrieved %d relevant documents from knowledge base (key: %s)", len(knowledgeResults), c.knowledgeKey)
 		} else {
 			// No relevant content found, use original query
 			queryText = userText
@@ -813,11 +811,11 @@ func (c *AIClient) processWithLLM(userText string) {
 	// Query LLM with options
 	response, err := c.llmProvider.QueryWithOptions(queryText, options)
 	if err != nil {
-		log.Printf("[Server] LLM error: %v", err)
+		legacyLog("[Server] LLM error: %v", err)
 		return
 	}
 
-	log.Printf("[Server] LLM Response: %s", response)
+	legacyLog("[Server] LLM Response: %s", response)
 
 	// Generate TTS
 	c.GenerateTTS(response)
@@ -825,12 +823,12 @@ func (c *AIClient) processWithLLM(userText string) {
 
 // GenerateTTS generates TTS audio and sends it via WebRTC
 func (c *AIClient) GenerateTTS(text string) {
-	log.Printf("[Server] Generating TTS for: %s", text)
+	legacyLog("[Server] Generating TTS for: %s", text)
 
 	ctx := context.Background()
 	txTrack := c.Transport.GetTxTrack()
 	if txTrack == nil {
-		log.Printf("[Server] txTrack is nil, waiting...")
+		legacyLog("[Server] txTrack is nil, waiting...")
 		// Wait for track
 		for i := 0; i < maxConnectionRetries; i++ {
 			txTrack = c.Transport.GetTxTrack()
@@ -840,7 +838,7 @@ func (c *AIClient) GenerateTTS(text string) {
 			time.Sleep(connectionRetryDelay)
 		}
 		if txTrack == nil {
-			log.Printf("[Server] Failed to get txTrack")
+			legacyLog("[Server] Failed to get txTrack")
 			return
 		}
 	}
@@ -858,7 +856,7 @@ func (c *AIClient) GenerateTTS(text string) {
 
 	// Synthesize
 	if err := c.ttsService.Synthesize(ctx, ttsHandler, text); err != nil {
-		log.Printf("[Server] TTS synthesis error: %v", err)
+		legacyLog("[Server] TTS synthesis error: %v", err)
 		c.setTTSPlaying(false) // Reset state on error
 		return
 	}
@@ -896,7 +894,7 @@ func (c *AIClient) GenerateTTS(text string) {
 				ttsDuration,
 				ttsHandler.audioSize,
 			); err != nil {
-				log.Printf("[Server] 记录TTS使用量失败: %v", err)
+				legacyLog("[Server] 记录TTS使用量失败: %v", err)
 			}
 		}()
 	}
@@ -925,7 +923,7 @@ func (t *TTSSender) OnMessage(data []byte) {
 	t.client.Mu.RUnlock()
 
 	if connClosed || transportClosed {
-		log.Printf("[Server] TTS stopped: connection closed")
+		legacyLog("[Server] TTS stopped: connection closed")
 		return
 	}
 
@@ -949,7 +947,7 @@ func (t *TTSSender) OnMessage(data []byte) {
 	if ttsFormat.SampleRate != pcmaSampleRate {
 		resampled, err := media2.ResamplePCM(data, ttsFormat.SampleRate, pcmaSampleRate)
 		if err != nil {
-			log.Printf("[Server] Resample error: %v", err)
+			legacyLog("[Server] Resample error: %v", err)
 			return
 		}
 		data = resampled
@@ -958,7 +956,7 @@ func (t *TTSSender) OnMessage(data []byte) {
 	// Encode to PCMA (now at 8kHz)
 	pcmaData, err := encoder.Pcm2pcma(data)
 	if err != nil {
-		log.Printf("[Server] Encode PCMA error: %v", err)
+		legacyLog("[Server] Encode PCMA error: %v", err)
 		return
 	}
 
@@ -981,7 +979,7 @@ func (t *TTSSender) sendPCMAFrames(pcmaData []byte) {
 	for i := 0; i < len(pcmaData); i += pcmaFrameSize {
 		// Check for barge-in: stop sending if user started speaking
 		if t.client.shouldStopTTS() {
-			log.Printf("[Server] TTS interrupted by barge-in after %d frames", frameCount)
+			legacyLog("[Server] TTS interrupted by barge-in after %d frames", frameCount)
 			return
 		}
 
@@ -992,13 +990,13 @@ func (t *TTSSender) sendPCMAFrames(pcmaData []byte) {
 		t.client.Mu.RUnlock()
 
 		if connClosed || transportClosed {
-			log.Printf("[Server] TTS stopped: connection closed after %d frames", frameCount)
+			legacyLog("[Server] TTS stopped: connection closed after %d frames", frameCount)
 			return
 		}
 
 		// Check if txTrack is still valid
 		if t.txTrack == nil {
-			log.Printf("[Server] TTS stopped: txTrack is nil after %d frames", frameCount)
+			legacyLog("[Server] TTS stopped: txTrack is nil after %d frames", frameCount)
 			return
 		}
 
@@ -1019,14 +1017,14 @@ func (t *TTSSender) sendPCMAFrames(pcmaData []byte) {
 		}
 
 		if err := t.txTrack.WriteSample(sample); err != nil {
-			log.Printf("[Server] Error writing sample: %v", err)
+			legacyLog("[Server] Error writing sample: %v", err)
 			return
 		}
 
 		frameCount++
 	}
 
-	log.Printf("[Server] Sent %d TTS frames (%d bytes)", frameCount, len(pcmaData))
+	legacyLog("[Server] Sent %d TTS frames (%d bytes)", frameCount, len(pcmaData))
 }
 
 // createDecoderForCodec creates the appropriate decoder based on codec type
@@ -1052,7 +1050,7 @@ func (c *AIClient) createDecoderForCodec(mimeType string, clockRate int) (media2
 		return nil, fmt.Errorf("unsupported codec: %s", mimeType)
 	}
 
-	fmt.Printf("[Server] Creating decoder: %s (%dHz) -> PCM (%dHz)\n",
+	dbgLog("[Server] Creating decoder: %s (%dHz) -> PCM (%dHz)\n",
 		codecName, sourceSampleRate, targetSampleRate)
 
 	// Determine bit depth based on codec
@@ -1088,18 +1086,16 @@ func (c *AIClient) createDecoderForCodec(mimeType string, clockRate int) (media2
 // This function is kept for backward compatibility but the actual processing
 // now happens in StartAudioReceiverFromTrack
 func (c *AIClient) startAudioReceiver() error {
-	// Wait for rxTrack to be available
-	// OnTrack callback should fire when client's track is received
-	// In example1, client waits for server's track - same logic here but reversed
+	// Wait for rxTrack (OnTrack fires when remote media arrives).
 	var rxTrack *webrtc.TrackRemote
 	for i := 0; i < maxConnectionRetries; i++ {
 		rxTrack = c.Transport.GetRxTrack()
 		if rxTrack != nil {
-			fmt.Printf("[Server] rxTrack received after %d attempts\n", i+1)
+			dbgLog("[Server] rxTrack received after %d attempts\n", i+1)
 			break
 		}
 		if i%connectionStateLogInterval == 0 {
-			fmt.Printf("[Server] Waiting for rxTrack... (attempt %d/%d, connection state: %s)\n",
+			dbgLog("[Server] Waiting for rxTrack... (attempt %d/%d, connection state: %s)\n",
 				i+1, maxConnectionRetries, c.Transport.GetConnectionState().String())
 		}
 		time.Sleep(connectionRetryDelay)
@@ -1120,7 +1116,7 @@ func (c *AIClient) StartAudioReceiverFromTrack(rxTrack *webrtc.TrackRemote) erro
 	}
 
 	codecParams := rxTrack.Codec()
-	fmt.Printf("[Server] Received track: %s, %dHz\n", codecParams.MimeType, codecParams.ClockRate)
+	dbgLog("[Server] Received track: %s, %dHz\n", codecParams.MimeType, codecParams.ClockRate)
 
 	// Create decoder based on actual codec type
 	decoder, err := c.createDecoderForCodec(codecParams.MimeType, int(codecParams.ClockRate))
@@ -1132,7 +1128,7 @@ func (c *AIClient) StartAudioReceiverFromTrack(rxTrack *webrtc.TrackRemote) erro
 	c.audioDecoder = decoder
 	c.Mu.Unlock()
 
-	fmt.Printf("[Server] Created decoder for codec: %s\n", codecParams.MimeType)
+	dbgLog("[Server] Created decoder for codec: %s\n", codecParams.MimeType)
 
 	packetCount := 0
 	for {
@@ -1160,7 +1156,7 @@ func (c *AIClient) StartAudioReceiverFromTrack(rxTrack *webrtc.TrackRemote) erro
 
 		// Debug: Log packet information
 		if packetCount%100 == 0 {
-			fmt.Printf("[Server] Received RTP packet #%d, payload size: %d, payload type: %d\n",
+			dbgLog("[Server] Received RTP packet #%d, payload size: %d, payload type: %d\n",
 				packetCount, len(packet.Payload), packet.PayloadType)
 		}
 
@@ -1169,7 +1165,7 @@ func (c *AIClient) StartAudioReceiverFromTrack(rxTrack *webrtc.TrackRemote) erro
 		decodedFrames, err := currentDecoder(audioFrame)
 		if err != nil {
 			if packetCount%packetLogInterval == 0 {
-				log.Printf("[Server] Decode error: %v", err)
+				legacyLog("[Server] Decode error: %v", err)
 			}
 			packetCount++
 			continue
@@ -1185,7 +1181,7 @@ func (c *AIClient) StartAudioReceiverFromTrack(rxTrack *webrtc.TrackRemote) erro
 
 		// Debug: Log decoded data
 		if packetCount%100 == 0 && len(pcmData) > 0 {
-			fmt.Printf("[Server] Decoded PCM data size: %d bytes\n", len(pcmData))
+			dbgLog("[Server] Decoded PCM data size: %d bytes\n", len(pcmData))
 		}
 
 		// Barge-in detection: Check if user is speaking while TTS is playing
@@ -1199,7 +1195,7 @@ func (c *AIClient) StartAudioReceiverFromTrack(rxTrack *webrtc.TrackRemote) erro
 		if !c.shouldProcessAudio() {
 			packetCount++
 			if packetCount%packetLogInterval == 0 {
-				fmt.Printf("[Server] Skipped %d RTP packets (TTS playing or cooldown)\n", packetCount)
+				dbgLog("[Server] Skipped %d RTP packets (TTS playing or cooldown)\n", packetCount)
 			}
 			continue
 		}
@@ -1207,16 +1203,16 @@ func (c *AIClient) StartAudioReceiverFromTrack(rxTrack *webrtc.TrackRemote) erro
 		// Send to ASR (check if ASR service is still available)
 		if len(pcmData) > 0 && asrService != nil {
 			if err := asrService.SendAudioBytes(pcmData); err != nil {
-				log.Printf("[Server] ASR send error: %v", err)
+				legacyLog("[Server] ASR send error: %v", err)
 				asrService.RestartClient()
 			} else if packetCount%100 == 0 {
-				fmt.Printf("[Server] Sent %d bytes to ASR\n", len(pcmData))
+				dbgLog("[Server] Sent %d bytes to ASR\n", len(pcmData))
 			}
 		}
 
 		packetCount++
 		if packetCount%packetLogInterval == 0 {
-			fmt.Printf("[Server] Processed %d RTP packets\n", packetCount)
+			dbgLog("[Server] Processed %d RTP packets\n", packetCount)
 		}
 	}
 }
