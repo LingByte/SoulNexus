@@ -796,7 +796,11 @@ func (h *LLMHandler) QueryStream(text string, options QueryOptions, callback fun
 				// 直接调用 callback，不等待标点符号
 				if callback != nil {
 					if err := callback(content, false); err != nil {
-						logger.Error("Failed to process stream segment", zap.Error(err))
+						if err == context.Canceled || err == context.DeadlineExceeded {
+							logger.Debug("Stream segment canceled", zap.Error(err))
+						} else {
+							logger.Error("Failed to process stream segment", zap.Error(err))
+						}
 					}
 				}
 			}

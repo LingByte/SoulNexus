@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -289,6 +288,7 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 	}
 
 	var ttsPlaying atomic.Bool
+	var ttsStartedAtNS atomic.Int64
 	var welcomePlaying atomic.Bool
 	var vadDet *voice.VADDetector
 	if sipVADBargeInEnabled() {
@@ -367,31 +367,26 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 				zap.Bool("asr_isFinal", asrIsFinal),
 			)
 
-			reply, err := llmHandler.Query(userText, llmModel)
+			ttsPipe.Start(ms.GetContext())
+			defer func() {
+				ttsPlaying.Store(false)
+				ttsStartedAtNS.Store(0)
+				ttsPipe.Stop()
+			}()
+			ttsPlaying.Store(true)
+			ttsStartedAtNS.Store(time.Now().UnixNano())
+			reply, err := streamLLMToTTS(ms.GetContext(), llmHandler, llmModel, userText, ttsPipe, lg)
 			if err != nil {
-				lg.Warn("sip voice llm", zap.Error(err))
+				lg.Warn("sip voice llm/tts", zap.Error(err))
 				return
 			}
 			lg.Info("sip voice llm reply", zap.Int("reply_chars", len(reply)))
-			// Persist after LLM succeeds so rows are written even if TTS fails; same DB as cmd/server when DSN matches.
 			asrProv := "qcloud_asr"
 			if env.ASRModelType != "" {
 				asrProv = env.ASRModelType
 			}
-			persistSIPTurn(context.Background(), cs.CallID, userText, reply, asrProv, llmModel, "qcloud_tts")
-			ttsPipe.Start(ms.GetContext())
-			defer func() {
-				ttsPlaying.Store(false)
-				ttsPipe.Stop()
-			}()
-			ttsPlaying.Store(true)
-			if err := ttsPipe.Speak(reply); err != nil {
-				if errors.Is(err, context.Canceled) {
-					lg.Info("sip voice tts stopped (barge-in or cancel)", zap.String("call_id", cs.CallID))
-				} else {
-					lg.Warn("sip voice tts", zap.Error(err))
-				}
-			}
+			// Keep DB I/O off the critical path of first audio.
+			go persistSIPTurn(context.Background(), cs.CallID, userText, reply, asrProv, llmModel, "qcloud_tts")
 		}(incremental, isFinal)
 	})
 
@@ -423,10 +418,17 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 				pcmASR = out
 			}
 			// RMS VAD on 16 kHz PCM (same as media decode path); only while TTS is playing.
+			if vadDet != nil && ttsPlaying.Load() {
+				// Ignore very early frames right after TTS starts; they are often acoustic echo artifacts.
+				if started := ttsStartedAtNS.Load(); started > 0 && time.Since(time.Unix(0, started)) < 700*time.Millisecond {
+					return nil
+				}
+			}
 			if vadDet != nil && ttsPlaying.Load() && vadDet.CheckBargeIn(pcm16, true) {
 				lg.Info("sip voice: RMS barge-in, stopping TTS", zap.String("call_id", cs.CallID))
 				ttsPipe.Stop()
 				ttsPlaying.Store(false)
+				ttsStartedAtNS.Store(0)
 			}
 			err := pipe.ProcessPCM(c, pcmASR)
 			if err != nil && (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
@@ -467,13 +469,9 @@ func playWelcomeWav(ctx context.Context, ms *media.MediaSession, lg *zap.Logger,
 	if !filepath.IsAbs(path) {
 		path = filepath.Clean(path)
 	}
-	raw, err := os.ReadFile(path)
+	pcm, err := loadWAVAsPCM16Mono(path, sampleRate)
 	if err != nil {
-		return fmt.Errorf("read welcome wav: %w", err)
-	}
-	pcm := encoder.StripWavHeader(raw)
-	if len(pcm) == 0 {
-		return fmt.Errorf("welcome wav has empty pcm payload")
+		return fmt.Errorf("load welcome wav: %w", err)
 	}
 	if sampleRate <= 0 {
 		sampleRate = 16000
@@ -484,6 +482,9 @@ func playWelcomeWav(ctx context.Context, ms *media.MediaSession, lg *zap.Logger,
 	}
 	ticker := time.NewTicker(20 * time.Millisecond)
 	defer ticker.Stop()
+	if lg != nil {
+		lg.Info("sip voice welcome playback started", zap.Int("bytes", len(pcm)))
+	}
 
 	for off := 0; off < len(pcm); off += bytesPerFrame {
 		select {
@@ -504,10 +505,70 @@ func playWelcomeWav(ctx context.Context, ms *media.MediaSession, lg *zap.Logger,
 			IsSynthesized: true,
 		})
 	}
-	if lg != nil {
-		lg.Info("sip voice welcome playback started", zap.Int("bytes", len(pcm)))
-	}
 	return nil
+}
+
+func streamLLMToTTS(ctx context.Context, llmHandler *llm.LLMHandler, model, userText string, ttsPipe *siptts.Pipeline, lg *zap.Logger) (string, error) {
+	if llmHandler == nil {
+		return "", fmt.Errorf("nil llm handler")
+	}
+	if ttsPipe == nil {
+		return "", fmt.Errorf("nil tts pipe")
+	}
+	var full strings.Builder
+	var seg strings.Builder
+	flush := func(force bool) error {
+		s := strings.TrimSpace(seg.String())
+		if s == "" {
+			return nil
+		}
+		if !force {
+			runes := []rune(s)
+			last := runes[len(runes)-1]
+			if !strings.ContainsRune("。！？.!?,，；;:", last) && len(runes) < 18 {
+				return nil
+			}
+		}
+		seg.Reset()
+		return ttsPipe.Speak(s)
+	}
+	options := llm.QueryOptions{Model: model, Stream: true}
+	reply, err := llmHandler.QueryStream(userText, options, func(piece string, _ bool) error {
+		piece = strings.TrimSpace(piece)
+		if piece == "" {
+			return nil
+		}
+		full.WriteString(piece)
+		seg.WriteString(piece)
+		return flush(false)
+	})
+	if err != nil {
+		// fallback to non-streaming so behavior stays stable even if provider stream fails.
+		reply, err = llmHandler.Query(userText, model)
+		if err != nil {
+			return "", err
+		}
+		if err := ttsPipe.Speak(reply); err != nil {
+			if errors.Is(err, context.Canceled) {
+				if lg != nil {
+					lg.Info("sip voice tts stopped (barge-in or cancel)")
+				}
+				return reply, nil
+			}
+			return "", err
+		}
+		return strings.TrimSpace(reply), nil
+	}
+	if strings.TrimSpace(reply) == "" {
+		reply = full.String()
+	}
+	if err := flush(true); err != nil {
+		if errors.Is(err, context.Canceled) {
+			return strings.TrimSpace(reply), nil
+		}
+		return "", err
+	}
+	return strings.TrimSpace(reply), nil
 }
 
 // SpeakTextOnce sends one synthesized sentence to the current SIP media output.
