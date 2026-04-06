@@ -497,7 +497,11 @@ func (h *Handlers) handleConnection(c *gin.Context) {
 		StreamID:   "lingecho_ai_server",
 		ICETimeout: constants.DefaultICETimeout,
 	})
-	transport.NewPeerConnection()
+	if err := transport.NewPeerConnection(); err != nil {
+		log.Printf("webrtc: NewPeerConnection: %v", err)
+		_ = conn.WriteMessage(websocket.TextMessage, []byte(`{"error":"webrtc init failed"}`))
+		return
+	}
 
 	// Use credential and assistant configuration to initialize services
 	aiClient, err := transports.NewAIClientWithCredential(
