@@ -18,12 +18,13 @@ import {
 } from '@/api/sipContactCenter'
 import WebSeatContactTab from '@/pages/ContactCenter/WebSeatContactTab'
 import ACDPoolTab from '@/pages/ContactCenter/ACDPoolTab'
+import OutboundCampaignTab from '@/pages/ContactCenter/OutboundCampaignTab'
 import { EllipsisHoverCell } from '@/pages/ContactCenter/EllipsisHoverCell'
 import CallAudioPlayer from '@/components/CallAudioPlayer'
 
 export default function ContactCenterPage() {
   const { t } = useI18nStore()
-  const [tab, setTab] = useState<'users' | 'calls' | 'acd' | 'agent'>('calls')
+  const [tab, setTab] = useState<'users' | 'calls' | 'acd' | 'campaign' | 'agent'>('calls')
   const [acdRefreshNonce, setAcdRefreshNonce] = useState(0)
 
   const [users, setUsers] = useState<SIPUserRow[]>([])
@@ -177,10 +178,11 @@ export default function ContactCenterPage() {
           }}
           className="w-full"
         >
-          <TabsList className="grid w-full max-w-4xl grid-cols-2 sm:grid-cols-4 gap-1 h-auto p-1">
+          <TabsList className="grid w-full max-w-5xl grid-cols-2 sm:grid-cols-5 gap-1 h-auto p-1">
             <TabsTrigger value="users">{t('contactCenter.tab.users')}</TabsTrigger>
             <TabsTrigger value="calls">{t('contactCenter.tab.calls')}</TabsTrigger>
             <TabsTrigger value="acd">{t('contactCenter.tab.acdPool')}</TabsTrigger>
+            <TabsTrigger value="campaign">{t('contactCenter.tab.campaign')}</TabsTrigger>
             <TabsTrigger value="agent">{t('contactCenter.tab.agent')}</TabsTrigger>
           </TabsList>
 
@@ -475,6 +477,10 @@ export default function ContactCenterPage() {
 
           <TabsContent value="acd" className="mt-0">
             <ACDPoolTab active={tab === 'acd'} refreshNonce={acdRefreshNonce} />
+          </TabsContent>
+
+          <TabsContent value="campaign" className="mt-0">
+            <OutboundCampaignTab />
           </TabsContent>
 
           <TabsContent value="agent" className="mt-4">

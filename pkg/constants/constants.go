@@ -18,6 +18,10 @@ const (
 	SIP_OUTBOUND_JOB_TABLE_NAME  = "sip_outbound_jobs"
 	SIP_OUTBOUND_EVT_TABLE_NAME  = "sip_outbound_events"
 	SIP_OUTBOUND_CMD_TABLE_NAME  = "sip_outbound_commands"
+	SIP_CAMPAIGN_TABLE_NAME      = "sip_campaigns"
+	SIP_CAMPAIGN_CONTACT_TABLE_NAME = "sip_campaign_contacts"
+	SIP_CALL_ATTEMPT_TABLE_NAME  = "sip_call_attempts"
+	SIP_SCRIPT_RUN_TABLE_NAME    = "sip_script_runs"
 	// ACD: unified SIP + Web routing pool (targets + weights)
 	ACD_POOL_TARGET_TABLE_NAME = "acd_pool_targets"
 )

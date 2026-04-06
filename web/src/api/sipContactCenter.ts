@@ -110,6 +110,20 @@ export const ACD_WORK_STATES = [
 
 export type ACDWorkState = (typeof ACD_WORK_STATES)[number]
 
+export interface OutboundCampaignRow {
+  id: number
+  name: string
+  status: string
+}
+
+export interface OutboundCampaignMetrics {
+  invited_total: number
+  answered_total: number
+  failed_total: number
+  retrying_total: number
+  suppressed_total: number
+}
+
 export async function listACDPoolTargets(
   page = 1,
   size = 20,
@@ -224,6 +238,46 @@ export function sipAiEndStatusI18nKey(status?: string | null): string {
     after_transfer_local: 'contactCenter.ai.endStatus.after_transfer_local',
   }
   return map[s] || 'contactCenter.ai.endStatus.unknown'
+}
+
+export async function createOutboundCampaign(body: {
+  name: string
+  scenario: string
+  media_profile: string
+  script_id?: string
+  script_version?: string
+  script_spec?: string
+  system_prompt?: string
+  opening_message?: string
+  closing_message?: string
+  outbound_host?: string
+  outbound_port?: number
+  signaling_addr?: string
+}): Promise<ApiResponse<OutboundCampaignRow>> {
+  return post('/sip/v1/campaigns', body)
+}
+
+export async function enqueueOutboundCampaignContacts(
+  campaignId: number,
+  contacts: Array<{ phone: string; display?: string; priority?: number }>
+): Promise<ApiResponse<{ accepted: number }>> {
+  return post(`/sip/v1/campaigns/${campaignId}/contacts`, contacts)
+}
+
+export async function startOutboundCampaign(campaignId: number): Promise<ApiResponse<null>> {
+  return post(`/sip/v1/campaigns/${campaignId}/start`, {})
+}
+
+export async function pauseOutboundCampaign(campaignId: number): Promise<ApiResponse<null>> {
+  return post(`/sip/v1/campaigns/${campaignId}/pause`, {})
+}
+
+export async function resumeOutboundCampaign(campaignId: number): Promise<ApiResponse<null>> {
+  return post(`/sip/v1/campaigns/${campaignId}/resume`, {})
+}
+
+export async function getOutboundCampaignMetrics(): Promise<ApiResponse<OutboundCampaignMetrics>> {
+  return get('/sip/v1/campaigns/metrics')
 }
 
 const WEBSEAT_ACD_POOL_ROW_SESSION_KEY = 'soulnexus.webseat.acdPoolTargetId'

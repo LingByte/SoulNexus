@@ -46,6 +46,12 @@ type ManagerConfig struct {
 	// OnTransferBridge runs after 200 OK + ACK for MediaProfileTransferBridge.
 	// CorrelationID on the request is the inbound Call-ID; cs is the outbound UAC leg.
 	OnTransferBridge func(correlationID string, cs *sipSession.CallSession, outboundCallID string)
+
+	// OnScript runs when MediaProfileScript is established.
+	OnScript func(ctx context.Context, leg EstablishedLeg, scriptID string)
+
+	// OnEvent reports dial lifecycle transitions for queue workers and metrics.
+	OnEvent func(DialEvent)
 }
 
 // Manager owns outbound SIP legs keyed by Call-ID.
@@ -206,8 +212,21 @@ func (m *Manager) Dial(ctx context.Context, req DialRequest) (callID string, err
 		zap.String("call_id", callID),
 		zap.String("request_uri", strings.TrimSpace(req.Target.RequestURI)),
 		zap.String("scenario", string(req.Scenario)),
+		zap.String("media_profile", string(req.MediaProfile)),
+		zap.String("correlation_id", strings.TrimSpace(req.CorrelationID)),
+		zap.String("script_id", strings.TrimSpace(req.ScriptID)),
 		zap.String("dst", addr.String()),
 	)
+	if m.cfg.OnEvent != nil {
+		m.cfg.OnEvent(DialEvent{
+			CallID:        callID,
+			CorrelationID: strings.TrimSpace(req.CorrelationID),
+			Scenario:      req.Scenario,
+			MediaProfile:  req.MediaProfile,
+			State:         DialEventInvited,
+			At:            time.Now(),
+		})
+	}
 	return callID, nil
 }
 
@@ -247,7 +266,19 @@ func (leg *outLeg) handleResponse(ctx context.Context, resp *protocol.Message, f
 				zap.String("call_id", leg.params.CallID),
 				zap.Int("status", st),
 				zap.String("remote", from.String()),
-				zap.String("scenario", string(leg.req.Scenario)))
+				zap.String("scenario", string(leg.req.Scenario)),
+				zap.String("correlation_id", strings.TrimSpace(leg.req.CorrelationID)))
+		}
+		if leg.m.cfg.OnEvent != nil {
+			leg.m.cfg.OnEvent(DialEvent{
+				CallID:        leg.params.CallID,
+				CorrelationID: strings.TrimSpace(leg.req.CorrelationID),
+				Scenario:      leg.req.Scenario,
+				MediaProfile:  leg.req.MediaProfile,
+				State:         DialEventProvisional,
+				StatusCode:    st,
+				At:            time.Now(),
+			})
 		}
 		return
 	}
@@ -256,6 +287,18 @@ func (leg *outLeg) handleResponse(ctx context.Context, resp *protocol.Message, f
 			zap.String("call_id", leg.params.CallID),
 			zap.Int("status", st),
 		)
+		if leg.m.cfg.OnEvent != nil {
+			leg.m.cfg.OnEvent(DialEvent{
+				CallID:        leg.params.CallID,
+				CorrelationID: strings.TrimSpace(leg.req.CorrelationID),
+				Scenario:      leg.req.Scenario,
+				MediaProfile:  leg.req.MediaProfile,
+				State:         DialEventFailed,
+				StatusCode:    st,
+				Reason:        "non_200",
+				At:            time.Now(),
+			})
+		}
 		leg.cleanupLeg()
 		return
 	}
@@ -346,7 +389,26 @@ func (leg *outLeg) handleResponse(ctx context.Context, resp *protocol.Message, f
 			}
 		}
 	case MediaProfileScript:
-		logger.Info("sip outbound script profile not wired yet", zap.String("call_id", leg.params.CallID))
+		if leg.m.cfg.MediaAttach != nil {
+			if err := leg.m.cfg.MediaAttach(ctx, cs); err != nil {
+				logger.Warn("sip outbound script media attach", zap.String("call_id", leg.params.CallID), zap.Error(err))
+			}
+		}
+		if leg.m.cfg.OnScript != nil {
+			fromH := formatOutboundFromHeader(leg.params.FromDisplayName, leg.params.FromUser,
+				leg.params.SIPHost, leg.params.SIPPort, leg.params.FromTag)
+			leg.m.cfg.OnScript(ctx, EstablishedLeg{
+				CallID:              leg.params.CallID,
+				Scenario:            leg.req.Scenario,
+				CorrelationID:       leg.req.CorrelationID,
+				Session:             cs,
+				CreatedAt:           time.Now(),
+				FromHeader:          fromH,
+				ToHeader:            leg.params.RequestURI,
+				RemoteSignalingAddr: leg.dst.String(),
+				CSeqInvite:          fmt.Sprintf("%d INVITE", leg.params.CSeq),
+			}, strings.TrimSpace(leg.req.ScriptID))
+		}
 	case MediaProfileTransferBridge:
 		startDefaultMedia = false
 		cid := strings.TrimSpace(leg.req.CorrelationID)
@@ -385,8 +447,24 @@ func (leg *outLeg) handleResponse(ctx context.Context, resp *protocol.Message, f
 			CSeqInvite:          fmt.Sprintf("%d INVITE", leg.params.CSeq),
 		})
 	}
+	if leg.m.cfg.OnEvent != nil {
+		leg.m.cfg.OnEvent(DialEvent{
+			CallID:        leg.params.CallID,
+			CorrelationID: strings.TrimSpace(leg.req.CorrelationID),
+			Scenario:      leg.req.Scenario,
+			MediaProfile:  leg.req.MediaProfile,
+			State:         DialEventEstablished,
+			StatusCode:    200,
+			At:            time.Now(),
+		})
+	}
 
-	logger.Info("sip outbound established", zap.String("call_id", leg.params.CallID))
+	logger.Info("sip outbound established",
+		zap.String("call_id", leg.params.CallID),
+		zap.String("correlation_id", strings.TrimSpace(leg.req.CorrelationID)),
+		zap.String("scenario", string(leg.req.Scenario)),
+		zap.String("media_profile", string(leg.req.MediaProfile)),
+	)
 }
 
 func (leg *outLeg) cleanupLeg() {
