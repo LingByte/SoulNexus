@@ -3,14 +3,12 @@ package conversation
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/LingByte/SoulNexus/pkg/media"
-	"github.com/LingByte/SoulNexus/pkg/media/encoder"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/sip/dtmf"
 	"github.com/LingByte/SoulNexus/pkg/sip/outbound"
@@ -224,16 +222,11 @@ func playTransferRingingLoop(ctx context.Context, inbound *sipSession.CallSessio
 	if !filepath.IsAbs(path) {
 		path = filepath.Clean(path)
 	}
-	raw, err := os.ReadFile(path)
+	pcm, err := loadWAVAsPCM16Mono(path, 16000)
 	if err != nil {
-		return fmt.Errorf("read transfer ringing wav: %w", err)
+		return fmt.Errorf("load transfer ringing wav: %w", err)
 	}
-	pcm := encoder.StripWavHeader(raw)
-	if len(pcm) == 0 {
-		return fmt.Errorf("transfer ringing wav has empty pcm payload")
-	}
-	sampleRate := 16000
-	bytesPerFrame := sampleRate * 2 * 20 / 1000
+	bytesPerFrame := 16000 * 2 * 20 / 1000
 	if bytesPerFrame <= 0 {
 		bytesPerFrame = 640
 	}
