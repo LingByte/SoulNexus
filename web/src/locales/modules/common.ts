@@ -189,6 +189,21 @@ export const common: Record<Language, Record<string, string>> = {
     'contactCenter.script.enabled': '启用',
     'contactCenter.script.updatedAt': '更新时间',
     'contactCenter.script.required': '请填写脚本名称',
+    'contactCenter.confirm.deleteSipUserTitle': '确认删除该 SIP 用户记录？',
+    'contactCenter.confirm.deleteSipUserMessage':
+      '删除后本条注册记录将从列表中移除；话机可再次注册并重新出现。请确认您已了解后果后再删除。',
+    'contactCenter.confirm.deleteAcdTitle': '确认删除该号码池目标？',
+    'contactCenter.confirm.deleteAcdMessage':
+      '删除后转接排队将不再分配到此目标。若该 Web 坐席仍在线，请先在坐席侧下线或确认可删。请确认您已了解后再删除。',
+    'contactCenter.confirm.deleteScriptTitle': '确认删除该脚本模板？',
+    'contactCenter.confirm.deleteScriptMessage':
+      '删除后，外呼任务若仍引用该 scriptId，需您自行调整配置。请确认您已备份或不再需要后再删除。',
+    'contactCenter.confirm.confirmDelete': '确认删除',
+    'contactCenter.toast.deleteSipUserOk': '删除成功：SIP 用户记录已移除',
+    'contactCenter.toast.deleteAcdOk': '删除成功：号码池目标已移除',
+    'contactCenter.toast.deleteScriptOk': '删除成功：脚本模板已移除',
+    'contactCenter.toast.saveAcdOk': '保存成功：号码池目标已更新',
+    'contactCenter.toast.saveScriptOk': '保存成功：脚本模板已更新',
 
     'webseat.notConfiguredTitle': '未配置 Web 坐席网关',
     'webseat.notConfiguredBody':
@@ -458,6 +473,21 @@ export const common: Record<Language, Record<string, string>> = {
     'contactCenter.script.enabled': 'Enabled',
     'contactCenter.script.updatedAt': 'Updated at',
     'contactCenter.script.required': 'Script name is required',
+    'contactCenter.confirm.deleteSipUserTitle': 'Delete this SIP user row?',
+    'contactCenter.confirm.deleteSipUserMessage':
+      'The row will be removed from the list; the phone can REGISTER again and reappear. Confirm you understand before deleting.',
+    'contactCenter.confirm.deleteAcdTitle': 'Delete this routing pool target?',
+    'contactCenter.confirm.deleteAcdMessage':
+      'Transfers will no longer select this target. If a web agent is still online, sign them off or confirm it is safe to delete.',
+    'contactCenter.confirm.deleteScriptTitle': 'Delete this script template?',
+    'contactCenter.confirm.deleteScriptMessage':
+      'Outbound tasks that still reference this scriptId must be updated separately. Confirm you have a backup or no longer need it.',
+    'contactCenter.confirm.confirmDelete': 'Delete',
+    'contactCenter.toast.deleteSipUserOk': 'Deleted: SIP user row removed',
+    'contactCenter.toast.deleteAcdOk': 'Deleted: routing pool target removed',
+    'contactCenter.toast.deleteScriptOk': 'Deleted: script template removed',
+    'contactCenter.toast.saveAcdOk': 'Saved: routing pool target updated',
+    'contactCenter.toast.saveScriptOk': 'Saved: script template updated',
 
     'webseat.notConfiguredTitle': 'Web seat gateway not configured',
     'webseat.notConfiguredBody':
@@ -694,6 +724,31 @@ export const common: Record<Language, Record<string, string>> = {
     'contactCenter.acd.workState.busy': '通話中',
     'contactCenter.acd.workState.acw': '後処理',
     'contactCenter.acd.workState.break': '休憩',
+    'contactCenter.script.hint': '再利用可能な対話スクリプト（JSON）を管理。外呼で scriptId / version を参照。',
+    'contactCenter.script.create': 'スクリプト作成',
+    'contactCenter.script.edit': 'スクリプト編集',
+    'contactCenter.script.name': 'スクリプト名',
+    'contactCenter.script.scriptId': 'スクリプトID',
+    'contactCenter.script.version': 'バージョン',
+    'contactCenter.script.description': '説明',
+    'contactCenter.script.enabled': '有効',
+    'contactCenter.script.updatedAt': '更新日時',
+    'contactCenter.script.required': 'スクリプト名を入力してください',
+    'contactCenter.confirm.deleteSipUserTitle': 'この SIP ユーザー行を削除しますか？',
+    'contactCenter.confirm.deleteSipUserMessage':
+      '一覧から削除されます。端末は再登録すると再表示されます。内容を理解したうえで削除してください。',
+    'contactCenter.confirm.deleteAcdTitle': 'このルーティング行を削除しますか？',
+    'contactCenter.confirm.deleteAcdMessage':
+      '転送先から外れます。Web 席がオンラインの場合はオフラインにするか、削除してよいか確認してください。',
+    'contactCenter.confirm.deleteScriptTitle': 'このスクリプトテンプレートを削除しますか？',
+    'contactCenter.confirm.deleteScriptMessage':
+      '外呼が同じ scriptId を参照している場合は別途修正が必要です。バックアップ済み／不要であることを確認してください。',
+    'contactCenter.confirm.confirmDelete': '削除する',
+    'contactCenter.toast.deleteSipUserOk': '削除しました：SIP ユーザー行を削除しました',
+    'contactCenter.toast.deleteAcdOk': '削除しました：ルーティング行を削除しました',
+    'contactCenter.toast.deleteScriptOk': '削除しました：スクリプトテンプレートを削除しました',
+    'contactCenter.toast.saveAcdOk': '保存しました：ルーティング行を更新しました',
+    'contactCenter.toast.saveScriptOk': '保存しました：スクリプトテンプレートを更新しました',
 
     'webseat.notConfiguredTitle': 'Web席ゲートウェイ未設定',
     'webseat.notConfiguredBody':

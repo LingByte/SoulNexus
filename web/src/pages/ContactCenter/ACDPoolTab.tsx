@@ -18,6 +18,7 @@ import {
   type ACDSipSource,
   type SIPUserRow,
 } from '@/api/sipContactCenter'
+import ConfirmDialog from '@/components/UI/ConfirmDialog'
 
 function acdTrunkGatewayCell(r: ACDPoolTargetRow): string {
   if (r.routeType !== 'sip' || (r.sipSource || '').toLowerCase() !== 'trunk') return '—'
@@ -83,6 +84,8 @@ export default function ACDPoolTab({
   const [form, setForm] = useState<FormState>(defaultForm)
   const [saving, setSaving] = useState(false)
   const [sipUsersPick, setSipUsersPick] = useState<SIPUserRow[]>([])
+  const [acdDeleteOpen, setAcdDeleteOpen] = useState(false)
+  const [acdDeleteId, setAcdDeleteId] = useState<number | null>(null)
   const pageSize = 20
   const load = useCallback(async () => {
     if (!active) return
@@ -190,7 +193,7 @@ export default function ACDPoolTab({
           ? await createACDPoolTarget(body)
           : await updateACDPoolTarget(editingId, body)
       if (res.code === 200) {
-        showAlert(t('common.success'), 'success')
+        showAlert(t('contactCenter.toast.saveAcdOk'), 'success')
         closeModal()
         void load()
       } else {
@@ -204,19 +207,28 @@ export default function ACDPoolTab({
     }
   }
 
-  const onDelete = async (id: number) => {
-    if (!window.confirm(t('common.confirm'))) return
+  const openAcdDelete = (id: number) => {
+    setAcdDeleteId(id)
+    setAcdDeleteOpen(true)
+  }
+
+  const confirmAcdDelete = async () => {
+    if (acdDeleteId == null) return
+    const id = acdDeleteId
     try {
       const res = await deleteACDPoolTarget(id)
       if (res.code === 200) {
-        showAlert(t('common.success'), 'success')
+        showAlert(t('contactCenter.toast.deleteAcdOk'), 'success')
         void load()
-      } else {
-        showAlert(res.msg || t('common.failed'), 'error')
+        return
       }
+      showAlert(res.msg || t('common.failed'), 'error')
+      throw new Error('acd-delete-failed')
     } catch (e: unknown) {
+      if (e instanceof Error && e.message === 'acd-delete-failed') throw e
       const err = e as { msg?: string }
       showAlert(err?.msg || t('common.failed'), 'error')
+      throw e
     }
   }
 
@@ -362,7 +374,7 @@ export default function ACDPoolTab({
                           variant="outline"
                           size="sm"
                           className="text-xs text-destructive border-destructive/40 hover:bg-destructive/10"
-                          onClick={() => void onDelete(r.id)}
+                          onClick={() => openAcdDelete(r.id)}
                         >
                           <Trash2 className="h-3.5 w-3.5 sm:mr-1" aria-hidden />
                           <span className="hidden sm:inline">{t('common.delete')}</span>
@@ -597,6 +609,20 @@ export default function ACDPoolTab({
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        isOpen={acdDeleteOpen}
+        onClose={() => {
+          setAcdDeleteOpen(false)
+          setAcdDeleteId(null)
+        }}
+        onConfirm={confirmAcdDelete}
+        title={t('contactCenter.confirm.deleteAcdTitle')}
+        message={t('contactCenter.confirm.deleteAcdMessage')}
+        confirmText={t('contactCenter.confirm.confirmDelete')}
+        cancelText={t('common.cancel')}
+        type="danger"
+      />
     </div>
   )
 }

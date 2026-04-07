@@ -7,7 +7,7 @@
       "description": "SoulMy is an intelligent voice interaction platform that provides a comprehensive AI voice interaction solution. It integrates advanced speech recognition (ASR), text-to-speech (TTS), large language models (LLM) and real-time communication, supporting real-time calls, voice cloning, knowledge base management and other enterprise-level features.\n\nResources\n",
       "shortDesc": "智能语音助手平台",
       "icon": "Zap",
-      "logo": "https://store.lingecho.com/uploads/buckets/default/uploads/SoulMy.png",
+      "logo": "https://store.lingecho.com/uploads/buckets/default/SoulMy.png",
       "color": "indigo",
       "features": [
         "Real-time Voice Interaction",

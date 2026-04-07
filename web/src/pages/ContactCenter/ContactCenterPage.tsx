@@ -22,6 +22,7 @@ import OutboundCampaignTab from '@/pages/ContactCenter/OutboundCampaignTab'
 import ScriptManagerTab from '@/pages/ContactCenter/ScriptManagerTab'
 import { EllipsisHoverCell } from '@/pages/ContactCenter/EllipsisHoverCell'
 import CallAudioPlayer from '@/components/CallAudioPlayer'
+import ConfirmDialog from '@/components/UI/ConfirmDialog'
 
 export default function ContactCenterPage() {
   const { t } = useI18nStore()
@@ -45,6 +46,8 @@ export default function ContactCenterPage() {
   const [callDetailDrawerFailed, setCallDetailDrawerFailed] = useState(false)
 
   const [loading, setLoading] = useState(false)
+  const [sipUserDeleteOpen, setSipUserDeleteOpen] = useState(false)
+  const [sipUserDeleteId, setSipUserDeleteId] = useState<number | null>(null)
   const pageSize = 20
 
   const loadUsers = useCallback(async () => {
@@ -121,15 +124,22 @@ export default function ContactCenterPage() {
     }
   }
 
-  const onDeleteUser = async (id: number) => {
-    if (!window.confirm(t('common.confirm'))) return
+  const openSipUserDelete = (id: number) => {
+    setSipUserDeleteId(id)
+    setSipUserDeleteOpen(true)
+  }
+
+  const confirmSipUserDelete = async () => {
+    if (sipUserDeleteId == null) return
+    const id = sipUserDeleteId
     try {
       await deleteSIPUser(id)
-      showAlert(t('common.success'), 'success')
+      showAlert(t('contactCenter.toast.deleteSipUserOk'), 'success')
       void loadUsers()
     } catch (e: unknown) {
       const err = e as { msg?: string }
       showAlert(err?.msg || t('common.failed'), 'error')
+      throw e
     }
   }
 
@@ -262,7 +272,7 @@ export default function ContactCenterPage() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => onDeleteUser(u.id)}
+                              onClick={() => openSipUserDelete(u.id)}
                               aria-label="delete"
                             >
                               <Trash2 className="w-4 h-4 text-destructive" />
@@ -723,6 +733,20 @@ export default function ContactCenterPage() {
           )}
         </AnimatePresence>
       </div>
+
+      <ConfirmDialog
+        isOpen={sipUserDeleteOpen}
+        onClose={() => {
+          setSipUserDeleteOpen(false)
+          setSipUserDeleteId(null)
+        }}
+        onConfirm={confirmSipUserDelete}
+        title={t('contactCenter.confirm.deleteSipUserTitle')}
+        message={t('contactCenter.confirm.deleteSipUserMessage')}
+        confirmText={t('contactCenter.confirm.confirmDelete')}
+        cancelText={t('common.cancel')}
+        type="danger"
+      />
     </div>
   )
 }

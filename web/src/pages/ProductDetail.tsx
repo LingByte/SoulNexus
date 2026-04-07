@@ -50,6 +50,15 @@ const iconMap: Record<string, any> = {
   Key: Lock,
 }
 
+/** Public JSON lives under `public/docs/products/`; filename may differ from route id (e.g. SoulMy → soulnexus.json). */
+function resolveProductJsonFileBase(productId: string): string {
+  const aliases: Record<string, string> = {
+    soulmy: 'soulnexus',
+    soulmynexus: 'soulnexus',
+  }
+  return aliases[productId.trim().toLowerCase()] ?? productId.trim().toLowerCase()
+}
+
 interface ProductData {
   id: string
   name: string
@@ -113,11 +122,22 @@ export default function ProductDetail() {
     const loadProduct = async () => {
       try {
         setLoading(true)
-        const response = await fetch(`/docs/products/${productId}.json`)
+        const base = import.meta.env.BASE_URL || '/'
+        const prefix = base.endsWith('/') ? base.slice(0, -1) : base
+        const fileBase = resolveProductJsonFileBase(productId || '')
+        const response = await fetch(`${prefix}/docs/products/${fileBase}.json`)
         if (!response.ok) {
           throw new Error('Product not found')
         }
-        const data = await response.json()
+        const text = await response.text()
+        let data: ProductData
+        try {
+          data = JSON.parse(text) as ProductData
+        } catch {
+          throw new Error(
+            'Product page received invalid data (expected JSON). If you use dev server SPA fallback, check that public/docs/products includes this product.',
+          )
+        }
         setProductData(data)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load product')

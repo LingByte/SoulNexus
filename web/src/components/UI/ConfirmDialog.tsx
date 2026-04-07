@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { motion } from 'framer-motion'
 import { AlertTriangle, Info, CheckCircle, XCircle } from 'lucide-react'
 import Modal, { ModalContent, ModalFooter } from './Modal'
@@ -7,7 +7,7 @@ import Button from './Button'
 interface ConfirmDialogProps {
   isOpen: boolean
   onClose: () => void
-  onConfirm: () => void
+  onConfirm: () => void | Promise<void>
   title: string
   message: string
   confirmText?: string
@@ -27,6 +27,9 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   type = 'warning',
   loading = false
 }) => {
+  const [confirmBusy, setConfirmBusy] = useState(false)
+  const busy = loading || confirmBusy
+
   const getIcon = () => {
     switch (type) {
       case 'danger':
@@ -57,10 +60,16 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
     }
   }
 
-  const handleConfirm = () => {
-    onConfirm()
-    if (!loading) {
+  const handleConfirm = async () => {
+    if (busy) return
+    setConfirmBusy(true)
+    try {
+      await Promise.resolve(onConfirm())
       onClose()
+    } catch {
+      /* keep dialog open; parent shows error toast */
+    } finally {
+      setConfirmBusy(false)
     }
   }
 
@@ -69,8 +78,8 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       size="sm"
-      closeOnOverlayClick={!loading}
-      closeOnEscape={!loading}
+      closeOnOverlayClick={!busy}
+      closeOnEscape={!busy}
       showCloseButton={false}
     >
       <ModalContent>
@@ -97,14 +106,14 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
         <Button
           variant="outline"
           onClick={onClose}
-          disabled={loading}
+          disabled={busy}
         >
           {cancelText}
         </Button>
         <Button
           variant={getConfirmButtonVariant()}
-          onClick={handleConfirm}
-          loading={loading}
+          onClick={() => void handleConfirm()}
+          loading={busy}
         >
           {confirmText}
         </Button>
