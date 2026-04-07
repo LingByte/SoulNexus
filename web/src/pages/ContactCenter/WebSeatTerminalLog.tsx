@@ -71,11 +71,6 @@ export function WebSeatTerminalLog({
       <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(ellipse_at_center,transparent_40%,rgba(0,0,0,0.55)_100%)]" />
 
       <div className={cn('relative z-[2] flex items-center gap-2 border-b px-3 py-2', a.bar)}>
-        <span className="flex gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full bg-red-500/90 shadow-[0_0_6px_rgba(239,68,68,0.6)]" />
-          <span className="h-2.5 w-2.5 rounded-full bg-amber-400/90 shadow-[0_0_6px_rgba(251,191,36,0.5)]" />
-          <span className="h-2.5 w-2.5 rounded-full bg-emerald-500/80 shadow-[0_0_6px_rgba(34,197,94,0.45)]" />
-        </span>
         <span
           className={cn(
             'font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-white/50',

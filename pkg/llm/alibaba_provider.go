@@ -24,7 +24,7 @@ type AlibabaProvider struct {
 	client          *http.Client
 	ctx             context.Context
 	systemMsg       string
-	actionHandler   func(action string)
+	pendingAction   string
 	mutex           sync.Mutex
 	messages        []Message
 	hangupChan      chan struct{}
@@ -34,12 +34,16 @@ type AlibabaProvider struct {
 	lastUsageValid  bool
 }
 
-// SetActionHandler sets business action callback (e.g. transfer_to_agent).
-func (p *AlibabaProvider) SetActionHandler(fn func(action string)) {
+// ConsumePendingAction returns and clears the latest resolved action.
+func (p *AlibabaProvider) ConsumePendingAction() string {
 	if p == nil {
-		return
+		return ""
 	}
-	p.actionHandler = fn
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+	a := p.pendingAction
+	p.pendingAction = ""
+	return a
 }
 
 type alibabaMessagePayload struct {
@@ -513,14 +517,9 @@ func (p *AlibabaProvider) maybeInvokeActions(msg alibabaMessagePayload) error {
 	action := strings.TrimSpace(strings.ToLower(msg.Action))
 	if msg.NeedPerson == 1 || action == "transfer_to_agent" || action == "transfer" {
 		logger.Info("Alibaba AI action resolved", zap.String("action", "transfer_to_agent"))
-		if p.actionHandler != nil {
-			p.actionHandler("transfer_to_agent")
-			return nil
-		}
-		if err := p.invokeToolByName("transfer_to_agent", map[string]interface{}{"source": "alibaba_message"}); err != nil {
-			logger.Warn("Alibaba AI action tool invoke failed", zap.String("tool", "transfer_to_agent"), zap.Error(err))
-			return err
-		}
+		p.mutex.Lock()
+		p.pendingAction = "transfer_to_agent"
+		p.mutex.Unlock()
 		return nil
 	}
 	// hangup action intentionally ignored in SIP voice flow (no hangup tool registered).
