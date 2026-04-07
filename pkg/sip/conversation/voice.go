@@ -61,6 +61,7 @@ func popSIPCallSystemPrompt(callID string) string {
 type VoiceEnv struct {
 	LLMProvider string
 	LLMBaseURL  string
+	LLMAppID    string
 	LLMAPIKey   string
 	LLMModel    string
 
@@ -84,10 +85,20 @@ func voiceEnvFromProcess() VoiceEnv {
 	if sr <= 0 {
 		sr = 16000
 	}
+	provider := strings.TrimSpace(utils.GetEnv("LLM_PROVIDER"))
+	appID := strings.TrimSpace(utils.GetEnv("LLM_APP_ID"))
+	if appID == "" {
+		appID = strings.TrimSpace(utils.GetEnv("ALIBABA_AI_APP_ID"))
+	}
+	apiKey := strings.TrimSpace(utils.GetEnv("LLM_APIKEY"))
+	if apiKey == "" && strings.EqualFold(provider, "alibaba") {
+		apiKey = strings.TrimSpace(utils.GetEnv("ALIBABA_AI_API_KEY"))
+	}
 	return VoiceEnv{
-		LLMProvider: strings.TrimSpace(utils.GetEnv("LLM_PROVIDER")),
+		LLMProvider: provider,
 		LLMBaseURL:  strings.TrimSpace(utils.GetEnv("LLM_BASEURL")),
-		LLMAPIKey:   strings.TrimSpace(utils.GetEnv("LLM_APIKEY")),
+		LLMAppID:    appID,
+		LLMAPIKey:   apiKey,
 		LLMModel:    strings.TrimSpace(utils.GetEnv("LLM_MODEL")),
 
 		ASRAppID:     strings.TrimSpace(utils.GetEnv("ASR_APPID")),
@@ -105,8 +116,13 @@ func voiceEnvFromProcess() VoiceEnv {
 }
 
 func (e VoiceEnv) readyForVoice() bool {
+	llmReady := e.LLMAPIKey != "" && e.LLMBaseURL != ""
+	if strings.EqualFold(e.LLMProvider, "alibaba") {
+		// Alibaba provider in pkg/llm consumes AppID in apiUrl slot.
+		llmReady = e.LLMAPIKey != "" && strings.TrimSpace(e.LLMAppID) != ""
+	}
 	return e.ASRAppID != "" && e.ASRSecretID != "" && e.ASRSecretKey != "" &&
-		e.LLMAPIKey != "" && e.LLMBaseURL != "" &&
+		llmReady &&
 		e.TTSAppID != "" && e.TTSSecretID != "" && e.TTSSecretKey != ""
 }
 
@@ -274,27 +290,11 @@ func waitFirstRTPBeforeWelcome(ctx context.Context, cs *sipSession.CallSession, 
 	}
 }
 
-func shouldHangupFromPhrase(text string, phrases []string) bool {
-	t := strings.TrimSpace(strings.ToLower(text))
-	if t == "" {
-		return false
-	}
-	for _, p := range phrases {
-		p = strings.TrimSpace(strings.ToLower(p))
-		if p != "" && strings.Contains(t, p) {
-			return true
-		}
-	}
-	return false
-}
-
 func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env VoiceEnv, lg *zap.Logger) error {
 	ms := cs.MediaSession()
 	if ms == nil {
 		return fmt.Errorf("sip conversation: nil media session")
 	}
-	hangPhrases := sipHangupPhrasesFromEnv()
-
 	asrOpt := recognizer.NewQcloudASROption(env.ASRAppID, env.ASRSecretID, env.ASRSecretKey)
 	if env.ASRModelType != "" {
 		asrOpt.ModelType = env.ASRModelType
@@ -319,11 +319,39 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 	if systemPrompt == "" {
 		systemPrompt = "你是七牛云技术支持语音助手。只用中文、直接回答、少废话：每次最多1-2句，优先给结论和下一步操作，不要举无关示例（如“比如对象存储/CDN/直播云”）。仅在必要时提1个澄清问题；不确定就明确说明并要求最关键的一条信息（报错原文或请求ID）。涉及高风险操作前先提醒并确认。"
 	}
-	llmHandler := llm.NewLLMHandler(ctx, env.LLMAPIKey, env.LLMBaseURL, systemPrompt)
-	llmHandler.SetModel(llmModel)
+	llmEndpointOrAppID := env.LLMBaseURL
+	if strings.EqualFold(env.LLMProvider, "alibaba") {
+		llmEndpointOrAppID = strings.TrimSpace(env.LLMAppID)
+	}
+	llmProvider, err := llm.NewLLMProvider(ctx, env.LLMProvider, env.LLMAPIKey, llmEndpointOrAppID, systemPrompt)
+	if err != nil {
+		return fmt.Errorf("sip conversation: llm provider init: %w", err)
+	}
+	if ap, ok := llmProvider.(*llm.AlibabaProvider); ok {
+		ap.SetActionHandler(func(action string) {
+			if action != "transfer_to_agent" {
+				return
+			}
+			if ms == nil || ms.GetContext().Err() != nil {
+				lg.Warn("sip voice: transfer action ignored, call already ended",
+					zap.String("call_id", cs.CallID))
+				return
+			}
+			wantDigit := strings.TrimSpace(utils.GetEnv("SIP_TRANSFER_TO_AGENT_DIGIT"))
+			if wantDigit == "" {
+				wantDigit = "0"
+			}
+			lg.Info("sip voice: alibaba action transfer_to_agent",
+				zap.String("call_id", cs.CallID),
+				zap.String("digit", wantDigit),
+			)
+			tryTransferToAgent(context.Background(), cs.CallID, wantDigit, lg)
+		})
+	}
 	lg.Info("sip voice pipeline config",
 		zap.String("llm_model", llmModel),
 		zap.String("llm_provider", env.LLMProvider),
+		zap.String("llm_endpoint_or_app_id", llmEndpointOrAppID),
 		zap.String("asr_model", asrOpt.ModelType),
 		zap.Int64("tts_speed", env.TTSSpeed),
 		zap.Int("tts_sample_rate", env.TTSSampleRate),
@@ -417,15 +445,9 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 			return
 		}
 		go func(userText string, asrIsFinal bool, trigger string) {
-			if asrIsFinal && shouldHangupFromPhrase(userText, hangPhrases) {
-				lg.Info("sip voice hangup phrase (before llm)",
-					zap.String("call_id", cs.CallID),
-					zap.String("user_text", userText),
-				)
-				RequestSIPHangup(cs.CallID)
+			if ms == nil || ms.GetContext().Err() != nil {
 				return
 			}
-
 			turnMu.Lock()
 			if inFlight {
 				turnMu.Unlock()
@@ -455,7 +477,7 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 			}()
 			ttsPlaying.Store(true)
 			ttsStartedAtNS.Store(time.Now().UnixNano())
-			reply, err := streamLLMToTTS(ms.GetContext(), llmHandler, llmModel, userText, ttsPipe, lg)
+			reply, err := streamLLMToTTS(ms.GetContext(), llmProvider, llmModel, userText, ttsPipe, lg)
 			if err != nil {
 				lg.Warn("sip voice llm/tts", zap.Error(err))
 				return
@@ -470,6 +492,9 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 	}
 
 	pipe.SetTextCallback(func(text string, isFinal bool) {
+		if ms == nil || ms.GetContext().Err() != nil {
+			return
+		}
 		trimmed := strings.TrimSpace(text)
 		if trimmed == "" {
 			return
@@ -521,6 +546,16 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 	pipe.SetErrorCallback(func(err error, fatal bool) {
 		lg.Warn("sip voice asr", zap.Error(err), zap.Bool("fatal", fatal))
 	})
+
+	go func() {
+		<-ms.GetContext().Done()
+		partialMu.Lock()
+		pendingPartial = ""
+		if partialTimer != nil {
+			partialTimer.Stop()
+		}
+		partialMu.Unlock()
+	}()
 
 	proc := media.NewPacketProcessor("sip-voice-asr-feed", media.PriorityHigh,
 		func(c context.Context, _ *media.MediaSession, packet media.MediaPacket) error {
@@ -643,9 +678,9 @@ func playWelcomeWav(ctx context.Context, ms *media.MediaSession, lg *zap.Logger,
 	return nil
 }
 
-func streamLLMToTTS(ctx context.Context, llmHandler *llm.LLMHandler, model, userText string, ttsPipe *siptts.Pipeline, lg *zap.Logger) (string, error) {
-	if llmHandler == nil {
-		return "", fmt.Errorf("nil llm handler")
+func streamLLMToTTS(ctx context.Context, llmProvider llm.LLMProvider, model, userText string, ttsPipe *siptts.Pipeline, lg *zap.Logger) (string, error) {
+	if llmProvider == nil {
+		return "", fmt.Errorf("nil llm provider")
 	}
 	if ttsPipe == nil {
 		return "", fmt.Errorf("nil tts pipe")
@@ -671,8 +706,27 @@ func streamLLMToTTS(ctx context.Context, llmHandler *llm.LLMHandler, model, user
 		}
 		return ttsPipe.Speak(s)
 	}
+	// Alibaba App API usually returns one JSON message per turn; non-streaming avoids long
+	// silent waits when SSE chunks are sparse on some networks.
+	if _, isAlibaba := llmProvider.(*llm.AlibabaProvider); isAlibaba {
+		reply, err := llmProvider.Query(userText, model)
+		if err != nil {
+			return "", err
+		}
+		reply = normalizeTTSText(reply)
+		if reply == "" {
+			return "", nil
+		}
+		if err := ttsPipe.Speak(reply); err != nil {
+			if errors.Is(err, context.Canceled) {
+				return reply, nil
+			}
+			return "", err
+		}
+		return strings.TrimSpace(reply), nil
+	}
 	options := llm.QueryOptions{Model: model, Stream: true}
-	reply, err := llmHandler.QueryStream(userText, options, func(piece string, _ bool) error {
+	reply, err := llmProvider.QueryStream(userText, options, func(piece string, _ bool) error {
 		piece = strings.TrimSpace(piece)
 		if piece == "" {
 			return nil
@@ -683,7 +737,7 @@ func streamLLMToTTS(ctx context.Context, llmHandler *llm.LLMHandler, model, user
 	})
 	if err != nil {
 		// fallback to non-streaming so behavior stays stable even if provider stream fails.
-		reply, err = llmHandler.Query(userText, model)
+		reply, err = llmProvider.Query(userText, model)
 		if err != nil {
 			return "", err
 		}

@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -22,6 +24,7 @@ type AlibabaProvider struct {
 	client          *http.Client
 	ctx             context.Context
 	systemMsg       string
+	actionHandler   func(action string)
 	mutex           sync.Mutex
 	messages        []Message
 	hangupChan      chan struct{}
@@ -29,6 +32,81 @@ type AlibabaProvider struct {
 	functionManager *FunctionToolManager
 	lastUsage       Usage
 	lastUsageValid  bool
+}
+
+// SetActionHandler sets business action callback (e.g. transfer_to_agent).
+func (p *AlibabaProvider) SetActionHandler(fn func(action string)) {
+	if p == nil {
+		return
+	}
+	p.actionHandler = fn
+}
+
+type alibabaMessagePayload struct {
+	Message    string `json:"message"`
+	NeedPerson int    `json:"needperson"`
+	NeedHangup int    `json:"needhangup"`
+	Action     string `json:"action"`
+}
+
+func parseAlibabaPayload(raw string) (alibabaMessagePayload, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return alibabaMessagePayload{}, false
+	}
+	var msg alibabaMessagePayload
+	if err := json.Unmarshal([]byte(raw), &msg); err != nil {
+		return alibabaMessagePayload{}, false
+	}
+	// Some app templates nest the real JSON in message as a JSON string/object.
+	nestedRaw := strings.TrimSpace(msg.Message)
+	if nestedRaw != "" && strings.HasPrefix(nestedRaw, "{") && strings.HasSuffix(nestedRaw, "}") {
+		var nested alibabaMessagePayload
+		if err := json.Unmarshal([]byte(nestedRaw), &nested); err == nil {
+			if strings.TrimSpace(nested.Message) != "" {
+				msg.Message = nested.Message
+			}
+			if strings.TrimSpace(nested.Action) != "" {
+				msg.Action = nested.Action
+			}
+			if nested.NeedPerson != 0 {
+				msg.NeedPerson = nested.NeedPerson
+			}
+			if nested.NeedHangup != 0 {
+				msg.NeedHangup = nested.NeedHangup
+			}
+		}
+	}
+	if strings.TrimSpace(msg.Message) == "" && strings.TrimSpace(msg.Action) == "" && msg.NeedPerson == 0 && msg.NeedHangup == 0 {
+		// Generic fallback for templates with different key casing/naming.
+		var anyMap map[string]interface{}
+		if err := json.Unmarshal([]byte(raw), &anyMap); err == nil {
+			if v, ok := anyMap["message"].(string); ok && strings.TrimSpace(v) != "" {
+				msg.Message = v
+			}
+			if v, ok := anyMap["action"].(string); ok {
+				msg.Action = v
+			}
+			if v, ok := anyMap["needperson"].(float64); ok {
+				msg.NeedPerson = int(v)
+			}
+			if v, ok := anyMap["needhangup"].(float64); ok {
+				msg.NeedHangup = int(v)
+			}
+		}
+	}
+	if strings.TrimSpace(msg.Message) == "" && strings.TrimSpace(msg.Action) == "" && msg.NeedPerson == 0 && msg.NeedHangup == 0 {
+		return alibabaMessagePayload{}, false
+	}
+	return msg, true
+}
+
+func previewText(s string, n int) string {
+	s = strings.TrimSpace(s)
+	if n <= 0 || len(s) <= n {
+		return s
+	}
+	return s[:n] + "...(truncated)"
 }
 
 // AlibabaAIConfig 阿里云百炼配置
@@ -42,11 +120,23 @@ type AlibabaAIConfig struct {
 
 // NewAlibabaProvider 创建阿里云百炼提供者
 func NewAlibabaProvider(ctx context.Context, apiKey, appID, systemPrompt string, endpoint ...string) *AlibabaProvider {
+	timeout := 30 * time.Second
+	firstByte := 10 * time.Second
+	if s := strings.TrimSpace(os.Getenv("ALIBABA_AI_TIMEOUT_SECONDS")); s != "" {
+		if n, err := strconv.Atoi(s); err == nil && n > 0 {
+			timeout = time.Duration(n) * time.Second
+		}
+	}
+	if s := strings.TrimSpace(os.Getenv("ALIBABA_AI_FIRST_BYTE_TIMEOUT_SECONDS")); s != "" {
+		if n, err := strconv.Atoi(s); err == nil && n > 0 {
+			firstByte = time.Duration(n) * time.Second
+		}
+	}
 	config := AlibabaAIConfig{
 		APIKey:    apiKey,
 		AppID:     appID,
-		Timeout:   30 * time.Second,
-		FirstByte: 10 * time.Second,
+		Timeout:   timeout,
+		FirstByte: firstByte,
 	}
 
 	if len(endpoint) > 0 && endpoint[0] != "" {
@@ -90,7 +180,7 @@ func (p *AlibabaProvider) QueryWithOptions(text string, options QueryOptions) (s
 	// 构建请求
 	reqBody := map[string]interface{}{
 		"input": map[string]string{
-			"prompt":     text,
+			"prompt":     p.composePrompt(text),
 			"session_id": options.SessionID,
 		},
 		"parameters": map[string]interface{}{},
@@ -119,6 +209,10 @@ func (p *AlibabaProvider) QueryWithOptions(text string, options QueryOptions) (s
 		return "", fmt.Errorf("send request: %w", err)
 	}
 	defer resp.Body.Close()
+	logger.Debug("Alibaba AI response headers received",
+		zap.Int("status_code", resp.StatusCode),
+		zap.String("url", url),
+	)
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -151,13 +245,24 @@ func (p *AlibabaProvider) QueryWithOptions(text string, options QueryOptions) (s
 
 	finalResponse := result.Output.Text
 
-	// 尝试解析业务层JSON（包含message和needperson）
-	var msgResp struct {
-		Message    string `json:"message"`
-		NeedPerson int    `json:"needperson"`
-	}
-	if err := json.Unmarshal([]byte(finalResponse), &msgResp); err == nil && msgResp.Message != "" {
-		finalResponse = msgResp.Message
+	logger.Debug("Alibaba AI raw output",
+		zap.String("output_preview", previewText(finalResponse, 300)),
+	)
+	if msgResp, ok := parseAlibabaPayload(finalResponse); ok {
+		logger.Info("Alibaba AI json parsed",
+			zap.String("action", strings.TrimSpace(msgResp.Action)),
+			zap.Int("needperson", msgResp.NeedPerson),
+			zap.Int("needhangup", msgResp.NeedHangup),
+			zap.String("message_preview", previewText(msgResp.Message, 120)),
+		)
+		if msgResp.Message != "" {
+			finalResponse = msgResp.Message
+		}
+		_ = p.maybeInvokeActions(msgResp)
+	} else {
+		logger.Warn("Alibaba AI json parse failed (non-structured response)",
+			zap.String("output_preview", previewText(finalResponse, 300)),
+		)
 	}
 
 	// 更新消息历史
@@ -203,7 +308,7 @@ func (p *AlibabaProvider) QueryStream(text string, options QueryOptions, callbac
 	// 构建请求
 	reqBody := map[string]interface{}{
 		"input": map[string]string{
-			"prompt":     text,
+			"prompt":     p.composePrompt(text),
 			"session_id": options.SessionID,
 		},
 		"parameters": map[string]interface{}{},
@@ -233,6 +338,10 @@ func (p *AlibabaProvider) QueryStream(text string, options QueryOptions, callbac
 		return "", fmt.Errorf("send request: %w", err)
 	}
 	defer resp.Body.Close()
+	logger.Debug("Alibaba AI stream response headers received",
+		zap.Int("status_code", resp.StatusCode),
+		zap.String("url", url),
+	)
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -365,19 +474,29 @@ func (p *AlibabaProvider) processSSELine(line string, fullResponse *string, call
 
 	// 提取文本内容
 	if resp.Output.Text != "" {
-		// 尝试解析业务层JSON（包含message和needperson）
-		var msgResp struct {
-			Message    string `json:"message"`
-			NeedPerson int    `json:"needperson"`
-		}
-		if err := json.Unmarshal([]byte(resp.Output.Text), &msgResp); err == nil && msgResp.Message != "" {
+		if msgResp, ok := parseAlibabaPayload(resp.Output.Text); ok && strings.TrimSpace(msgResp.Message) != "" {
+			logger.Info("Alibaba AI stream json parsed",
+				zap.String("action", strings.TrimSpace(msgResp.Action)),
+				zap.Int("needperson", msgResp.NeedPerson),
+				zap.Int("needhangup", msgResp.NeedHangup),
+				zap.String("message_preview", previewText(msgResp.Message, 120)),
+			)
 			*fullResponse += msgResp.Message
+			_ = p.maybeInvokeActions(msgResp)
 			if callback != nil {
 				if err := callback(msgResp.Message, resp.Output.FinishReason == "stop"); err != nil {
 					return err
 				}
 			}
 		} else {
+			logger.Warn("Alibaba AI stream json parse failed (using raw text)",
+				zap.String("output_preview", previewText(resp.Output.Text, 240)),
+			)
+			// Avoid speaking raw JSON payloads to callers.
+			raw := strings.TrimSpace(resp.Output.Text)
+			if strings.HasPrefix(raw, "{") && strings.HasSuffix(raw, "}") {
+				return nil
+			}
 			*fullResponse += resp.Output.Text
 			if callback != nil {
 				if err := callback(resp.Output.Text, resp.Output.FinishReason == "stop"); err != nil {
@@ -388,6 +507,57 @@ func (p *AlibabaProvider) processSSELine(line string, fullResponse *string, call
 	}
 
 	return nil
+}
+
+func (p *AlibabaProvider) maybeInvokeActions(msg alibabaMessagePayload) error {
+	action := strings.TrimSpace(strings.ToLower(msg.Action))
+	if msg.NeedPerson == 1 || action == "transfer_to_agent" || action == "transfer" {
+		logger.Info("Alibaba AI action resolved", zap.String("action", "transfer_to_agent"))
+		if p.actionHandler != nil {
+			p.actionHandler("transfer_to_agent")
+			return nil
+		}
+		if err := p.invokeToolByName("transfer_to_agent", map[string]interface{}{"source": "alibaba_message"}); err != nil {
+			logger.Warn("Alibaba AI action tool invoke failed", zap.String("tool", "transfer_to_agent"), zap.Error(err))
+			return err
+		}
+		return nil
+	}
+	// hangup action intentionally ignored in SIP voice flow (no hangup tool registered).
+	logger.Debug("Alibaba AI no actionable command in payload",
+		zap.String("action", action),
+		zap.Int("needperson", msg.NeedPerson),
+		zap.Int("needhangup", msg.NeedHangup),
+	)
+	return nil
+}
+
+func (p *AlibabaProvider) invokeToolByName(name string, args map[string]interface{}) error {
+	if p == nil || p.functionManager == nil {
+		return nil
+	}
+	def, ok := p.functionManager.GetTool(name)
+	if !ok || def == nil || def.Callback == nil {
+		return nil
+	}
+	_, err := def.Callback(args, p.functionManager.GetLLMService())
+	return err
+}
+
+func (p *AlibabaProvider) composePrompt(userText string) string {
+	sys := strings.TrimSpace(p.systemMsg)
+	userText = strings.TrimSpace(userText)
+	contract := `你必须只输出单行JSON，不要输出任何额外文本、markdown或代码块。JSON结构：
+{"message":"给用户播报的自然语言","action":"none|transfer_to_agent|hangup_call","needperson":0或1,"needhangup":0或1}
+规则：
+1) 若用户要求转人工，action=transfer_to_agent, needperson=1, needhangup=0。
+2) 若用户要求挂断/结束通话（如“再见、挂了”），action=hangup_call, needhangup=1, needperson=0。
+3) 其他情况 action=none, needperson=0, needhangup=0。
+4) message 使用中文，简短自然。`
+	if sys == "" {
+		return fmt.Sprintf("%s\n\n用户输入：%s", contract, userText)
+	}
+	return fmt.Sprintf("系统指令：%s\n\n%s\n\n用户输入：%s", sys, contract, userText)
 }
 
 // RegisterFunctionTool 注册函数工具
