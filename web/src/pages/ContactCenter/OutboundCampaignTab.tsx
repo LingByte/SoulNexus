@@ -25,6 +25,28 @@ import {
   type SIPScriptTemplateRow,
 } from '@/api/sipContactCenter'
 
+function normCampaignStatus(s?: string): string {
+  return String(s || '')
+    .trim()
+    .toLowerCase()
+}
+
+/** Backend: draft | running | paused | done — maps to start / pause / resume / stop APIs */
+function outboundCampaignActionFlags(status?: string) {
+  const raw = normCampaignStatus(status)
+  const s = ['running', 'paused', 'draft', 'done'].includes(raw) ? raw : raw === '' ? 'draft' : 'draft'
+  const running = s === 'running'
+  const paused = s === 'paused'
+  const draft = s === 'draft'
+  const done = s === 'done'
+  return {
+    canStartOrResume: draft || paused,
+    canPause: running,
+    canStop: !done && (running || paused || draft),
+    canDelete: !running,
+  }
+}
+
 export default function OutboundCampaignTab() {
   const { t } = useI18nStore()
   const [campaigns, setCampaigns] = useState<OutboundCampaignRow[]>([])
@@ -59,6 +81,11 @@ export default function OutboundCampaignTab() {
   const pageSize = 10
 
   const detailCampaign = useMemo(() => campaigns.find((c) => c.id === detailCampaignId) || null, [campaigns, detailCampaignId])
+  const detailActionFlags = useMemo(
+    () => (detailCampaign ? outboundCampaignActionFlags(detailCampaign.status) : null),
+    [detailCampaign],
+  )
+  const detailIsPaused = detailCampaign ? normCampaignStatus(detailCampaign.status) === 'paused' : false
   const queueView = useMemo(() => {
     const waiting = contactsRows
       .filter((row) => ['ready', 'retrying'].includes(String(row.status || '').toLowerCase()))
@@ -242,8 +269,8 @@ export default function OutboundCampaignTab() {
   }
 
   const removeCampaign = async (campaign: OutboundCampaignRow) => {
-    if (campaign.status === 'running') {
-      showAlert('运行中任务不可删除，请先中断或停止', 'error')
+    if (normCampaignStatus(campaign.status) === 'running') {
+      showAlert(t('contactCenter.campaign.deleteRunningDenied'), 'error')
       return
     }
     setDeletingId(campaign.id)
@@ -357,6 +384,14 @@ export default function OutboundCampaignTab() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detailCampaignId, detailModalOpen])
 
+  const campaignStatusLabel = (raw?: string) => {
+    const s = normCampaignStatus(raw)
+    if (!s) return '—'
+    const key = `contactCenter.campaign.status.${s}` as const
+    const translated = t(key)
+    return translated !== key ? translated : raw || s
+  }
+
   return (
     <div className="mt-4 space-y-4">
       <div className="flex items-center justify-between gap-3">
@@ -373,9 +408,13 @@ export default function OutboundCampaignTab() {
         </Button>
       </div>
 
+      <p className="text-xs text-foreground/90 leading-relaxed rounded-lg border border-border bg-primary/5 px-3 py-2.5">
+        {t('contactCenter.campaign.pauseVsStopHint')}
+      </p>
+
       <div className="rounded-lg border border-border bg-card p-3 space-y-3">
         <div className="flex items-center justify-between gap-2">
-          <h3 className="text-sm font-semibold">任务管理列表</h3>
+          <h3 className="text-sm font-semibold">{t('contactCenter.campaign.listTitle')}</h3>
           <Button size="sm" variant="outline" onClick={() => void loadCampaigns()}>
             {t('common.refresh')}
           </Button>
@@ -392,51 +431,81 @@ export default function OutboundCampaignTab() {
                   <th className="text-left p-2">{t('contactCenter.script.scriptId')}</th>
                   <th className="text-left p-2">{t('common.status')}</th>
                   <th className="text-left p-2">{t('common.updatedAt')}</th>
-                  <th className="text-left p-2">操作</th>
+                  <th className="text-left p-2">{t('contactCenter.ai.actions')}</th>
                 </tr>
               </thead>
               <tbody>
-                {campaigns.map((c) => (
+                {campaigns.map((c) => {
+                  const flags = outboundCampaignActionFlags(c.status)
+                  const busy = opBusyId === c.id
+                  const isPaused = normCampaignStatus(c.status) === 'paused'
+                  return (
                   <tr key={c.id} className="border-t">
                     <td className="p-2">{c.id}</td>
                     <td className="p-2">{c.name}</td>
                     <td className="p-2 font-mono">{c.scriptId || '—'}</td>
-                    <td className="p-2">{c.status || '—'}</td>
+                    <td className="p-2">{campaignStatusLabel(c.status)}</td>
                     <td className="p-2">{c.updatedAt ? new Date(c.updatedAt).toLocaleString() : '—'}</td>
                     <td className="p-2">
                       <div className="flex flex-wrap gap-1">
                         <Button
                           size="sm"
                           variant="outline"
-                          disabled={opBusyId === c.id}
+                          disabled={busy}
+                          title={t('contactCenter.campaign.detail')}
                           onClick={() => {
                             setDetailCampaignId(c.id)
                             setDetailModalOpen(true)
                           }}
                         >
-                          详情
+                          {t('contactCenter.campaign.detail')}
                         </Button>
-                        <Button size="sm" disabled={opBusyId === c.id} onClick={() => void doCampaignOp(c.id, 'start')}>
-                          启动
-                        </Button>
-                        <Button size="sm" variant="outline" disabled={opBusyId === c.id} onClick={() => void doCampaignOp(c.id, 'pause')}>
-                          中断
-                        </Button>
-                        <Button size="sm" variant="outline" disabled={opBusyId === c.id} onClick={() => void doCampaignOp(c.id, 'stop')}>
-                          停止
+                        <Button
+                          size="sm"
+                          disabled={busy || !flags.canStartOrResume}
+                          title={isPaused ? t('contactCenter.campaign.tipResume') : t('contactCenter.campaign.tipStart')}
+                          onClick={() =>
+                            void doCampaignOp(c.id, isPaused ? 'resume' : 'start')
+                          }
+                        >
+                          {isPaused ? t('contactCenter.campaign.resume') : t('contactCenter.campaign.start')}
                         </Button>
                         <Button
                           size="sm"
                           variant="outline"
-                          disabled={deletingId === c.id || c.status === 'running'}
+                          disabled={busy || !flags.canPause}
+                          title={t('contactCenter.campaign.tipInterrupt')}
+                          onClick={() => void doCampaignOp(c.id, 'pause')}
+                        >
+                          {t('contactCenter.campaign.interrupt')}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={busy || !flags.canStop}
+                          title={t('contactCenter.campaign.tipStop')}
+                          onClick={() => void doCampaignOp(c.id, 'stop')}
+                        >
+                          {t('contactCenter.campaign.stop')}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={deletingId === c.id || !flags.canDelete}
+                          title={
+                            flags.canDelete
+                              ? t('common.delete')
+                              : t('contactCenter.campaign.deleteRunningDenied')
+                          }
                           onClick={() => void removeCampaign(c)}
                         >
-                          删除
+                          {t('common.delete')}
                         </Button>
                       </div>
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
                 {campaigns.length === 0 && (
                   <tr>
                     <td colSpan={6} className="p-3 text-center text-muted-foreground">{t('common.noData')}</td>
@@ -522,33 +591,58 @@ export default function OutboundCampaignTab() {
       <Modal
         isOpen={detailModalOpen}
         onClose={() => setDetailModalOpen(false)}
-        title={detailCampaign ? `任务详情 #${detailCampaign.id} - ${detailCampaign.name}` : '任务详情'}
+        title={
+          detailCampaign
+            ? `${t('contactCenter.campaign.detail')} #${detailCampaign.id} · ${detailCampaign.name} · ${campaignStatusLabel(detailCampaign.status)}`
+            : t('contactCenter.campaign.detail')
+        }
         size="xl"
       >
         <div className="space-y-3">
+          <p className="text-xs text-foreground/90 leading-relaxed rounded-md border border-border bg-muted/20 px-3 py-2">
+            {t('contactCenter.campaign.pauseVsStopHint')}
+          </p>
           <div className="flex flex-wrap gap-2">
             <Button
               size="sm"
-              onClick={() => detailCampaignId && void doCampaignOp(detailCampaignId, 'start')}
-              disabled={!detailCampaignId || opBusyId === detailCampaignId}
+              onClick={() =>
+                detailCampaignId &&
+                void doCampaignOp(detailCampaignId, detailIsPaused ? 'resume' : 'start')
+              }
+              disabled={
+                !detailCampaignId ||
+                opBusyId === detailCampaignId ||
+                !detailActionFlags?.canStartOrResume
+              }
+              title={detailIsPaused ? t('contactCenter.campaign.tipResume') : t('contactCenter.campaign.tipStart')}
             >
-              启动
+              {detailIsPaused ? t('contactCenter.campaign.resume') : t('contactCenter.campaign.start')}
             </Button>
             <Button
               size="sm"
               variant="outline"
               onClick={() => detailCampaignId && void doCampaignOp(detailCampaignId, 'pause')}
-              disabled={!detailCampaignId || opBusyId === detailCampaignId}
+              disabled={
+                !detailCampaignId ||
+                opBusyId === detailCampaignId ||
+                !detailActionFlags?.canPause
+              }
+              title={t('contactCenter.campaign.tipInterrupt')}
             >
-              中断
+              {t('contactCenter.campaign.interrupt')}
             </Button>
             <Button
               size="sm"
               variant="outline"
               onClick={() => detailCampaignId && void doCampaignOp(detailCampaignId, 'stop')}
-              disabled={!detailCampaignId || opBusyId === detailCampaignId}
+              disabled={
+                !detailCampaignId ||
+                opBusyId === detailCampaignId ||
+                !detailActionFlags?.canStop
+              }
+              title={t('contactCenter.campaign.tipStop')}
             >
-              停止
+              {t('contactCenter.campaign.stop')}
             </Button>
           </div>
 
