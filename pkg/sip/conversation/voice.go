@@ -73,11 +73,13 @@ type VoiceEnv struct {
 	TTSSecretID    string
 	TTSSecretKey   string
 	TTSVoiceType   int64
+	TTSSpeed       int64
 	TTSSampleRate  int
 }
 
 func voiceEnvFromProcess() VoiceEnv {
 	voiceType, _ := strconv.ParseInt(strings.TrimSpace(utils.GetEnv("TTS_VOICE_TYPE")), 10, 64)
+	ttsSpeed, _ := strconv.ParseInt(strings.TrimSpace(utils.GetEnv("TTS_SPEED")), 10, 64)
 	sr, _ := strconv.Atoi(strings.TrimSpace(utils.GetEnv("TTS_SAMPLE_RATE")))
 	if sr <= 0 {
 		sr = 16000
@@ -97,6 +99,7 @@ func voiceEnvFromProcess() VoiceEnv {
 		TTSSecretID:   strings.TrimSpace(utils.GetEnv("TTS_SECRET_ID")),
 		TTSSecretKey:  strings.TrimSpace(utils.GetEnv("TTS_SECRET_KEY")),
 		TTSVoiceType:  voiceType,
+		TTSSpeed:      ttsSpeed,
 		TTSSampleRate: sr,
 	}
 }
@@ -188,6 +191,39 @@ func sipVADConsecutiveFramesFromEnv() int {
 	n, err := strconv.Atoi(s)
 	if err != nil || n < 1 {
 		return 0
+	}
+	return n
+}
+
+// sipASRTriggerPartialEnabled controls whether non-final ASR hypotheses can trigger LLM.
+// Default false to avoid premature responses ("抢话") that sound like stutter/choppy dialog.
+func sipASRTriggerPartialEnabled() bool {
+	v := strings.TrimSpace(strings.ToLower(utils.GetEnv("SIP_ASR_TRIGGER_PARTIAL")))
+	switch v {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
+}
+
+// sipASRPartialTimeoutMs is a fallback when providers keep emitting partial
+// hypotheses but delay/omit final marks on noisy phone lines.
+// <=0 disables timeout trigger.
+func sipASRPartialTimeoutMs() int {
+	s := strings.TrimSpace(utils.GetEnv("SIP_ASR_PARTIAL_TIMEOUT_MS"))
+	if s == "" {
+		return 1200
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return 1200
+	}
+	if n <= 0 {
+		return 0
+	}
+	if n < 300 {
+		return 300
 	}
 	return n
 }
@@ -289,6 +325,7 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 		zap.String("llm_model", llmModel),
 		zap.String("llm_provider", env.LLMProvider),
 		zap.String("asr_model", asrOpt.ModelType),
+		zap.Int64("tts_speed", env.TTSSpeed),
 		zap.Int("tts_sample_rate", env.TTSSampleRate),
 	)
 	if strings.Contains(strings.ToLower(asrOpt.ModelType), "8k") {
@@ -299,15 +336,20 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 
 	voiceType := env.TTSVoiceType
 	if voiceType == 0 {
-		voiceType = 1005
+		voiceType = 101007 // 知性女声（智娜）
 	}
 	ttsCfg := synthesizer.NewQcloudTTSConfig(env.TTSAppID, env.TTSSecretID, env.TTSSecretKey, voiceType, "pcm", env.TTSSampleRate)
+	ttsCfg.Speed = env.TTSSpeed
 	qcTTS := synthesizer.NewQCloudService(ttsCfg)
 	ttsStream := &qcloudTTSStream{svc: qcTTS}
 
 	var turnMu sync.Mutex
 	inFlight := false
 	asrState := NewASRStateManager()
+	partialTimeoutMs := sipASRPartialTimeoutMs()
+	var partialMu sync.Mutex
+	var partialTimer *time.Timer
+	var pendingPartial string
 
 	ttsPipe, err := siptts.New(siptts.Config{
 		Service:       ttsStream,
@@ -369,21 +411,12 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 
 	// Same incremental strategy as pkg/hardware: ASRStateManager extracts new sentences from
 	// cumulative QCloud text without restarting the recognizer.
-	pipe.SetTextCallback(func(text string, isFinal bool) {
-		trimmed := strings.TrimSpace(text)
-		if trimmed == "" {
+	triggerTurn := func(userText string, asrIsFinal bool, trigger string) {
+		userText = strings.TrimSpace(userText)
+		if userText == "" {
 			return
 		}
-		incremental := asrState.UpdateASRText(trimmed, isFinal)
-		if incremental == "" {
-			return
-		}
-		if isFillerOnlyUtterance(incremental) {
-			lg.Debug("sip voice asr skip filler-only", zap.String("text", incremental))
-			return
-		}
-
-		go func(userText string, asrIsFinal bool) {
+		go func(userText string, asrIsFinal bool, trigger string) {
 			if asrIsFinal && shouldHangupFromPhrase(userText, hangPhrases) {
 				lg.Info("sip voice hangup phrase (before llm)",
 					zap.String("call_id", cs.CallID),
@@ -411,6 +444,7 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 				zap.String("call_id", cs.CallID),
 				zap.String("user_text", userText),
 				zap.Bool("asr_isFinal", asrIsFinal),
+				zap.String("trigger", trigger),
 			)
 
 			ttsPipe.Start(ms.GetContext())
@@ -431,9 +465,57 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 			if env.ASRModelType != "" {
 				asrProv = env.ASRModelType
 			}
-			// Keep DB I/O off the critical path of first audio.
 			go persistSIPTurn(context.Background(), cs.CallID, userText, reply, asrProv, llmModel, "qcloud_tts")
-		}(incremental, isFinal)
+		}(userText, asrIsFinal, trigger)
+	}
+
+	pipe.SetTextCallback(func(text string, isFinal bool) {
+		trimmed := strings.TrimSpace(text)
+		if trimmed == "" {
+			return
+		}
+		incremental := asrState.UpdateASRText(trimmed, isFinal)
+		if incremental == "" {
+			return
+		}
+		if isFillerOnlyUtterance(incremental) {
+			lg.Debug("sip voice asr skip filler-only", zap.String("text", incremental))
+			return
+		}
+		if isFinal {
+			partialMu.Lock()
+			pendingPartial = ""
+			if partialTimer != nil {
+				partialTimer.Stop()
+			}
+			partialMu.Unlock()
+			triggerTurn(incremental, true, "final")
+			return
+		}
+		if sipASRTriggerPartialEnabled() {
+			triggerTurn(incremental, false, "partial")
+			return
+		}
+		if partialTimeoutMs <= 0 {
+			return
+		}
+		partialMu.Lock()
+		pendingPartial = incremental
+		if partialTimer == nil {
+			partialTimer = time.AfterFunc(time.Duration(partialTimeoutMs)*time.Millisecond, func() {
+				partialMu.Lock()
+				text := strings.TrimSpace(pendingPartial)
+				pendingPartial = ""
+				partialMu.Unlock()
+				if text == "" {
+					return
+				}
+				triggerTurn(text, false, "partial-timeout")
+			})
+		} else {
+			partialTimer.Reset(time.Duration(partialTimeoutMs) * time.Millisecond)
+		}
+		partialMu.Unlock()
 	})
 
 	pipe.SetErrorCallback(func(err error, fatal bool) {
@@ -662,9 +744,10 @@ func SpeakTextOnce(ctx context.Context, cs *sipSession.CallSession, text string,
 	}
 	voiceType := env.TTSVoiceType
 	if voiceType == 0 {
-		voiceType = 1005
+		voiceType = 101007 // 知性女声（智娜）
 	}
 	ttsCfg := synthesizer.NewQcloudTTSConfig(env.TTSAppID, env.TTSSecretID, env.TTSSecretKey, voiceType, "pcm", env.TTSSampleRate)
+	ttsCfg.Speed = env.TTSSpeed
 	qcTTS := synthesizer.NewQCloudService(ttsCfg)
 	ttsStream := &qcloudTTSStream{svc: qcTTS}
 

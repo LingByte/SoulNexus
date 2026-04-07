@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -77,12 +78,37 @@ func NewCallSession(callID string, rtpSess *rtp.Session, sdpCodecs []sipprotocol
 		return nil, fmt.Errorf("sip: empty sdp codecs")
 	}
 
-	// Choose the first supported codec.
+	// Prefer higher quality codecs instead of blindly following offer order.
+	// Many SIP UAs advertise PCMU/PCMA first for compatibility, which would lock
+	// us to 8k narrowband and sound "muffled" even when Opus/G.722 is available.
+	preferredCodecs := map[string]int{
+		"opus": 0,
+		"g722": 1,
+		"pcmu": 2,
+		"pcma": 3,
+	}
+	codecs := make([]sipprotocol.SDPCodec, len(sdpCodecs))
+	copy(codecs, sdpCodecs)
+	sort.SliceStable(codecs, func(i, j int) bool {
+		ci := strings.ToLower(strings.TrimSpace(codecs[i].Name))
+		cj := strings.ToLower(strings.TrimSpace(codecs[j].Name))
+		ri, okI := preferredCodecs[ci]
+		rj, okJ := preferredCodecs[cj]
+		if !okI {
+			ri = 100
+		}
+		if !okJ {
+			rj = 100
+		}
+		return ri < rj
+	})
+
+	// Choose the first supported codec by preference.
 	var src media.CodecConfig
 	negotiatedPayloadType := uint8(0)
 	var negotiatedSDP sipprotocol.SDPCodec
 	found := false
-	for _, c := range sdpCodecs {
+	for _, c := range codecs {
 		switch c.Name {
 		case "pcmu", "pcma":
 			found = true
