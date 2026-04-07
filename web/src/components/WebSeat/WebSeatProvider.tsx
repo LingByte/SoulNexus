@@ -19,7 +19,7 @@ import {
 import { showAlert } from '@/utils/notification'
 import { WebSeatContext, type WebSeatContextValue, type WebSeatWsState } from './WebSeatContext'
 import { getUserMediaAudioOnly } from './getUserMediaCompat'
-import { buildWebSeatWebSocketURL, webSeatHttpBase, webSeatWsToken } from './webseatEnv'
+import { buildWebSeatWebSocketURL, webSeatHttpBase, webSeatWsBase, webSeatWsToken } from './webseatEnv'
 import { WebSeatIncomingCallCard } from './WebSeatIncomingCallCard.tsx'
 import { WebSeatWsIndicator } from './WebSeatWsIndicator.tsx'
 
@@ -64,6 +64,7 @@ export function WebSeatProvider({ children }: WebSeatProviderProps) {
   const { t } = useI18nStore()
 
   const httpBase = useMemo(() => webSeatHttpBase(), [])
+  const wsBase = useMemo(() => webSeatWsBase(), [])
   const wsToken = useMemo(() => webSeatWsToken(), [])
   const webSeatAcdDisplayLabel = useMemo(() => {
     const base = formatUserSeatBaseName(user)
@@ -144,7 +145,7 @@ export function WebSeatProvider({ children }: WebSeatProviderProps) {
   const connectWebSocket = useCallback(() => {
     if (!configured) return
     closeWsConnection()
-    const url = buildWebSeatWebSocketURL(httpBase, wsToken)
+    const url = buildWebSeatWebSocketURL(httpBase, wsToken, wsBase)
     setWsState('connecting')
     setWsStatusText(t('webseat.wsConnecting'))
     try {
@@ -200,7 +201,7 @@ export function WebSeatProvider({ children }: WebSeatProviderProps) {
       setWsStatusText(t('webseat.wsCreateFailed'))
       log('WebSocket 错误:', e instanceof Error ? e.message : String(e))
     }
-  }, [closeWsConnection, configured, httpBase, log, stopAcdHeartbeat, t, wsToken])
+  }, [closeWsConnection, configured, httpBase, log, stopAcdHeartbeat, t, wsBase, wsToken])
 
   const reconnectWebSocket = useCallback(() => {
     if (isAuthenticated && configured) connectWebSocket()
@@ -219,7 +220,8 @@ export function WebSeatProvider({ children }: WebSeatProviderProps) {
         operatorKey,
       })
       void postWebSeatAcdHeartbeat(tid).catch(() => {})
-      acdHeartbeatTimerRef.current = window.setInterval(() => {
+      // @ts-ignore
+        acdHeartbeatTimerRef.current = window.setInterval(() => {
         void postWebSeatAcdHeartbeat(tid).catch(() => {})
       }, WEBSEAT_ACD_HEARTBEAT_MS)
       window.dispatchEvent(new CustomEvent('soulnexus-acd-refresh'))

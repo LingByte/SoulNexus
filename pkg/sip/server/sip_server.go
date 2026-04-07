@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -44,6 +45,88 @@ type SIPServer struct {
 
 	dlgMu  sync.RWMutex
 	uasDlg map[string]*uasDialogState // inbound Call-ID -> dialog (for server-initiated BYE)
+}
+
+var (
+	rtpPortAllocMu sync.Mutex
+	rtpPortNext    int
+)
+
+// newInboundRTPSession allocates RTP UDP port based on env:
+// - SIP_RTP_PORT: fixed single port
+// - SIP_RTP_PORT_START/SIP_RTP_PORT_END: rotating range
+// - fallback: ephemeral (port 0)
+func newInboundRTPSession() (*rtp.Session, error) {
+	if fixed, ok := envInt("SIP_RTP_PORT"); ok && fixed > 0 {
+		logger.Info("sip rtp port policy: fixed", zap.Int("port", fixed))
+		return rtp.NewSession(fixed)
+	}
+	start, hasStart := envInt("SIP_RTP_PORT_START")
+	end, hasEnd := envInt("SIP_RTP_PORT_END")
+	if hasStart && hasEnd && start > 0 && end >= start {
+		logger.Info("sip rtp port policy: range", zap.Int("start", start), zap.Int("end", end))
+		return newRTPSessionFromRange(start, end)
+	}
+	logger.Info("sip rtp port policy: ephemeral")
+	return rtp.NewSession(0)
+}
+
+func envInt(name string) (int, bool) {
+	v := strings.TrimSpace(os.Getenv(name))
+	if v == "" {
+		return 0, false
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		return 0, false
+	}
+	return n, true
+}
+
+func newRTPSessionFromRange(start, end int) (*rtp.Session, error) {
+	rtpPortAllocMu.Lock()
+	defer rtpPortAllocMu.Unlock()
+	span := end - start + 1
+	if span <= 0 {
+		return nil, fmt.Errorf("invalid RTP port range: %d-%d", start, end)
+	}
+	if rtpPortNext < start || rtpPortNext > end {
+		rtpPortNext = start
+	}
+	var lastErr error
+	for i := 0; i < span; i++ {
+		p := rtpPortNext
+		rtpPortNext++
+		if rtpPortNext > end {
+			rtpPortNext = start
+		}
+		sess, err := rtp.NewSession(p)
+		if err == nil {
+			return sess, nil
+		}
+		lastErr = err
+	}
+	return nil, fmt.Errorf("rtp range exhausted %d-%d: %w", start, end, lastErr)
+}
+
+func isPrivateIPv4(ip net.IP) bool {
+	if ip == nil {
+		return false
+	}
+	v4 := ip.To4()
+	if v4 == nil {
+		return false
+	}
+	switch {
+	case v4[0] == 10:
+		return true
+	case v4[0] == 172 && v4[1] >= 16 && v4[1] <= 31:
+		return true
+	case v4[0] == 192 && v4[1] == 168:
+		return true
+	default:
+		return false
+	}
 }
 
 type Config struct {
@@ -349,9 +432,24 @@ func (s *SIPServer) handleInvite(msg *protocol.Message, addr *net.UDPAddr) *prot
 	}
 
 	remoteAddr := &net.UDPAddr{IP: remoteIP, Port: sdp.Port}
+	// NAT-friendly fallback: if SDP c= carries a private IPv4 but signaling source is public/reachable,
+	// use signaling source IP with SDP media port as initial RTP destination.
+	if addr != nil && isPrivateIPv4(remoteIP) && addr.IP != nil && addr.IP.To4() != nil {
+		if !isPrivateIPv4(addr.IP) {
+			remoteAddr = &net.UDPAddr{IP: addr.IP, Port: sdp.Port}
+			logger.Info("sip invite media target overridden (private SDP IP fallback)",
+				zap.String("call_id", callID),
+				zap.String("sdp_remote_ip", remoteIP.String()),
+				zap.String("sip_source_ip", addr.IP.String()),
+				zap.Int("media_port", sdp.Port),
+				zap.String("chosen_remote_rtp", remoteAddr.String()),
+			)
+		}
+	}
 
-	// Allocate RTP session on an ephemeral port to avoid fixed-port conflicts.
-	rtpSess, err := rtp.NewSession(0)
+	// Allocate RTP session by env policy:
+	// fixed port / range (for firewall-friendly deployments) or ephemeral fallback.
+	rtpSess, err := newInboundRTPSession()
 	if err != nil {
 		return s.makeResponse(msg, 500, "Internal Server Error", "", "")
 	}

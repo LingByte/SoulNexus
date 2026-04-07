@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"net"
 	"sync"
+
+	"github.com/LingByte/SoulNexus/pkg/logger"
+	"go.uber.org/zap"
 )
 
 // Session is a minimal RTP-over-UDP session.
@@ -16,6 +19,9 @@ type Session struct {
 	RemoteAddr *net.UDPAddr
 	Conn       *net.UDPConn
 
+	// sdpRemote is a copy of the first SetRemoteAddr (from SDP c=/m=). Used only for logs vs symmetric RTP.
+	sdpRemote *net.UDPAddr
+
 	// SSRC/sequence/timestamp are advanced by this session.
 	SSRC      uint32
 	SeqNum    uint16
@@ -24,6 +30,9 @@ type Session struct {
 	// UDP read signal for "first packet received".
 	firstPacketOnce sync.Once
 	firstPacketCh   chan struct{}
+
+	logFirstUDP sync.Once
+	logFirstTX  sync.Once
 }
 
 // NewSession creates a RTP UDP session.
@@ -57,6 +66,17 @@ func (s *Session) FirstPacket() <-chan struct{} {
 // SetRemoteAddr sets the remote RTP address for outgoing packets.
 func (s *Session) SetRemoteAddr(addr *net.UDPAddr) {
 	s.RemoteAddr = addr
+	if s.sdpRemote == nil && addr != nil {
+		s.sdpRemote = cloneUDPAddr(addr)
+	}
+}
+
+func cloneUDPAddr(a *net.UDPAddr) *net.UDPAddr {
+	if a == nil {
+		return nil
+	}
+	b := *a
+	return &b
 }
 
 func (s *Session) buildPacket(payload []byte, payloadType uint8) *RTPPacket {
@@ -107,6 +127,17 @@ func (s *Session) SendRTP(payload []byte, payloadType uint8, samples uint32) err
 		return fmt.Errorf("rtp: send: %w", err)
 	}
 
+	s.logFirstTX.Do(func() {
+		if logger.Lg != nil {
+			logger.Lg.Info("rtp first outbound packet (diagnostics)",
+				zap.String("to", s.RemoteAddr.String()),
+				zap.String("local_socket", s.LocalAddr.String()),
+				zap.Int("payload_bytes", len(payload)),
+				zap.Uint8("payload_type", payloadType),
+			)
+		}
+	})
+
 	s.updateAfterSend(samples)
 	return nil
 }
@@ -127,12 +158,36 @@ func (s *Session) ReceiveRTP(buffer []byte) (n int, from *net.UDPAddr, packet *R
 		return 0, nil, nil, fmt.Errorf("rtp: read udp: %w", err)
 	}
 
+	s.logFirstUDP.Do(func() {
+		if logger.Lg != nil {
+			logger.Lg.Info("rtp first udp datagram on media socket (diagnostics)",
+				zap.String("from", addr.String()),
+				zap.String("local_socket", s.LocalAddr.String()),
+				zap.Int("bytes", n),
+			)
+		}
+	})
+
 	s.firstPacketOnce.Do(func() {
 		close(s.firstPacketCh)
 	})
 
+	before := s.RemoteAddr
 	if s.RemoteAddr == nil || !s.RemoteAddr.IP.Equal(addr.IP) || s.RemoteAddr.Port != addr.Port {
 		s.RemoteAddr = addr
+		if logger.Lg != nil && before != nil &&
+			(before.IP.String() != addr.IP.String() || before.Port != addr.Port) {
+			logger.Lg.Info("rtp symmetric path: send target updated to source of first received packet (NAT)",
+				zap.String("sdp_remote_was", func() string {
+					if s.sdpRemote != nil {
+						return s.sdpRemote.String()
+					}
+					return ""
+				}()),
+				zap.String("previous_send_target", before.String()),
+				zap.String("learned_remote", addr.String()),
+			)
+		}
 	}
 
 	pkt := &RTPPacket{}
