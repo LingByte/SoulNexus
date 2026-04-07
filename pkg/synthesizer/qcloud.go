@@ -6,6 +6,7 @@ package synthesizer
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strconv"
 	"sync"
 
@@ -29,6 +30,8 @@ type QCloudTTSConfig struct {
 	BitDepth      int    `json:"bitDepth" yaml:"bit_depth" default:"16"`
 	Codec         string `json:"codec" yaml:"codec" default:"pcm"`
 	FrameDuration string `json:"frameDuration" yaml:"frame_duration" default:"20ms"`
+	// Speed is Tencent TTS speed level (typically -2~6, 0 means default).
+	Speed int64 `json:"speed" yaml:"speed" default:"0"`
 }
 
 type QCloudService struct {
@@ -37,8 +40,8 @@ type QCloudService struct {
 }
 
 func (opt *QCloudTTSConfig) ToString() string {
-	return fmt.Sprintf("QCloudTTSOption{AppID: %d, SecretID: %s, VoiceType: %d, ModelType: %d, SampleRate: %d, Channel: %d, BitDepth: %d, Codec: %s}",
-		opt.AppID, opt.SecretID, opt.VoiceType, opt.ModelType, opt.SampleRate, opt.Channels, opt.BitDepth, opt.Codec)
+	return fmt.Sprintf("QCloudTTSOption{AppID: %d, SecretID: %s, VoiceType: %d, ModelType: %d, SampleRate: %d, Channel: %d, BitDepth: %d, Codec: %s, Speed: %d}",
+		opt.AppID, opt.SecretID, opt.VoiceType, opt.ModelType, opt.SampleRate, opt.Channels, opt.BitDepth, opt.Codec, opt.Speed)
 }
 
 func NewQcloudTTSConfig(appId string, secretId string, secretKey string, voiceType int64, codec string, sample int) QCloudTTSConfig {
@@ -90,9 +93,9 @@ func (qs *QCloudService) CacheKey(text string) string {
 	digest := media.MediaCache().BuildKey(text)
 	// 如果配置了语言，将其包含在缓存键中
 	if qs.opt.Language != "" {
-		return fmt.Sprintf("qcloud.tts-%d-%d-%d-%s-%s.pcm", qs.opt.VoiceType, qs.opt.ModelType, qs.opt.SampleRate, qs.opt.Language, digest)
+		return fmt.Sprintf("qcloud.tts-%d-%d-%d-%d-%s-%s.pcm", qs.opt.VoiceType, qs.opt.ModelType, qs.opt.SampleRate, qs.opt.Speed, qs.opt.Language, digest)
 	}
-	return fmt.Sprintf("qcloud.tts-%d-%d-%d-%s.pcm", qs.opt.VoiceType, qs.opt.ModelType, qs.opt.SampleRate, digest)
+	return fmt.Sprintf("qcloud.tts-%d-%d-%d-%d-%s.pcm", qs.opt.VoiceType, qs.opt.ModelType, qs.opt.SampleRate, qs.opt.Speed, digest)
 }
 
 func (qs *QCloudService) Synthesize(ctx context.Context, handler SynthesisHandler, text string) error {
@@ -108,6 +111,7 @@ func (qs *QCloudService) Synthesize(ctx context.Context, handler SynthesisHandle
 	synthesizer.VoiceType = opt.VoiceType
 	synthesizer.SampleRate = int64(opt.SampleRate)
 	synthesizer.Codec = opt.Codec
+	applyQCloudTTSSpeed(synthesizer, opt.Speed)
 
 	err := synthesizer.Synthesis(text)
 	if err != nil {
@@ -132,6 +136,29 @@ func (qs *QCloudService) Synthesize(ctx context.Context, handler SynthesisHandle
 
 func (qs *QCloudService) Close() error {
 	return nil
+}
+
+func applyQCloudTTSSpeed(synth *tts.SpeechSynthesizer, speed int64) {
+	if synth == nil || speed == 0 {
+		return
+	}
+	// SDK versions differ: some expose a public Speed field, some don't.
+	rv := reflect.ValueOf(synth)
+	if rv.Kind() != reflect.Ptr || rv.IsNil() {
+		return
+	}
+	ev := rv.Elem()
+	if !ev.IsValid() {
+		return
+	}
+	f := ev.FieldByName("Speed")
+	if !f.IsValid() || !f.CanSet() {
+		return
+	}
+	switch f.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		f.SetInt(speed)
+	}
 }
 
 type qcloudSpeechSynthesisListener struct {

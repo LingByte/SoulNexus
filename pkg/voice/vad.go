@@ -94,10 +94,18 @@ func (v *VADDetector) CheckBargeIn(pcmData []byte, ttsPlaying bool) bool {
 		}
 	}
 
-	// 使用自适应阈值（如果已初始化）或绝对值阈值
+	// Effective threshold should never drop too low, otherwise far-end echo/noise
+	// can constantly look like "barge-in" and cut TTS.
 	effectiveThreshold := v.threshold
 	if v.adaptiveThreshold > 0 {
+		minAdaptiveFloor := v.threshold * 0.65
+		if minAdaptiveFloor < 300 {
+			minAdaptiveFloor = 300
+		}
 		effectiveThreshold = v.adaptiveThreshold
+		if effectiveThreshold < minAdaptiveFloor {
+			effectiveThreshold = minAdaptiveFloor
+		}
 	}
 
 	// 限流日志：每秒最多记录一次
