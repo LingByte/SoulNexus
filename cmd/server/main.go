@@ -4,15 +4,19 @@ package main
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"context"
 	"flag"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/LingByte/SoulNexus"
 	"github.com/LingByte/SoulNexus/cmd/bootstrap"
 	handlers "github.com/LingByte/SoulNexus/internal/handler"
+	"github.com/LingByte/SoulNexus/internal/sipapp"
 	"github.com/LingByte/SoulNexus/internal/listeners"
 	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/internal/task"
@@ -62,6 +66,10 @@ func main() {
 	seed := flag.Bool("seed", false, "seed database")
 	mode := flag.String("mode", "", "running environment (development, test, production)")
 	initSQL := flag.String("init-sql", "", "path to database init .sql script (optional)")
+	noSIP := flag.Bool("no-sip", false, "disable embedded SIP UDP + WebSeat/outbound HTTP (env-based sidecars)")
+	sipHost := flag.String("sip-host", "0.0.0.0", "embedded SIP UDP listen host")
+	sipPort := flag.Int("sip-port", 5060, "embedded SIP UDP listen port")
+	sipLocalIP := flag.String("sip-local-ip", "127.0.0.1", "SDP c= line IP (RTP reachable from SIP peers)")
 	flag.Parse()
 
 	// 3. Set Environment Variables
@@ -347,6 +355,24 @@ func main() {
 		logger.Error("Failed to start workflow scheduler", zap.Error(err))
 	}
 
+	var sipEmbedded *sipapp.Embedded
+	if !*noSIP {
+		se, err := sipapp.Start(sipapp.Config{
+			Host:    *sipHost,
+			Port:    *sipPort,
+			LocalIP: *sipLocalIP,
+			DB:      db,
+		})
+		if err != nil {
+			logger.Fatal("embedded SIP stack failed to start", zap.Error(err))
+		}
+		sipEmbedded = se
+		logger.Info("embedded SIP stack started",
+			zap.String("sip_host", *sipHost),
+			zap.Int("sip_port", *sipPort),
+			zap.String("sip_local_ip", *sipLocalIP))
+	}
+
 	// 22. Start HTTP/HTTPS Server
 	httpServer := &http.Server{
 		Addr:           addr,
@@ -357,30 +383,47 @@ func main() {
 		MaxHeaderBytes: 1 << 20, // 1MB
 	}
 
-	// Check if SSL is enabled
+	shutdownAll := func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+		defer cancel()
+		if sipEmbedded != nil {
+			sipEmbedded.Shutdown(ctx)
+		}
+		if err := httpServer.Shutdown(ctx); err != nil {
+			logger.Error("HTTP server shutdown", zap.Error(err))
+		}
+	}
+
 	if config.GlobalConfig.Server.SSLEnabled && listeners.IsSSLEnabled() {
 		tlsConfig, err := listeners.GetTLSConfig()
 		if err != nil {
 			logger.Error("failed to get TLS config", zap.Error(err))
 			return
 		}
-
 		if tlsConfig != nil {
 			httpServer.TLSConfig = tlsConfig
-			logger.Info("Starting HTTPS server", zap.String("addr", addr))
-			if err := httpServer.ListenAndServeTLS("", ""); err != nil && err != http.ErrServerClosed {
-				logger.Error("HTTPS server run failed", zap.Error(err))
-			}
 		} else {
 			logger.Warn("SSL enabled but TLS config is nil, falling back to HTTP")
-			if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-				logger.Error("HTTP server run failed", zap.Error(err))
-			}
-		}
-	} else {
-		logger.Info("Starting HTTP server", zap.String("addr", addr))
-		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Error("HTTP server run failed", zap.Error(err))
 		}
 	}
+
+	go func() {
+		var err error
+		if httpServer.TLSConfig != nil {
+			logger.Info("Starting HTTPS server", zap.String("addr", addr))
+			err = httpServer.ListenAndServeTLS("", "")
+		} else {
+			logger.Info("Starting HTTP server", zap.String("addr", addr))
+			err = httpServer.ListenAndServe()
+		}
+		if err != nil && err != http.ErrServerClosed {
+			logger.Error("HTTP server run failed", zap.Error(err))
+		}
+	}()
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	<-sigCh
+	logger.Info("shutdown signal received")
+	shutdownAll()
 }

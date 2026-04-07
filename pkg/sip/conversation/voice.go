@@ -192,6 +192,52 @@ func sipVADConsecutiveFramesFromEnv() int {
 	return n
 }
 
+// welcomeWaitFirstRTPMs is how long we wait for the first inbound RTP datagram before playing the welcome clip.
+// Default 2000 ms gives the RTP layer time to learn symmetric NAT (remote send target updates from first packet).
+// Set SIP_WELCOME_WAIT_FIRST_RTP_MS=0 to skip waiting (e.g. same-LAN tests).
+func welcomeWaitFirstRTPMs() int {
+	s := strings.TrimSpace(utils.GetEnv("SIP_WELCOME_WAIT_FIRST_RTP_MS"))
+	if s == "" {
+		return 2000
+	}
+	v, err := strconv.Atoi(s)
+	if err != nil {
+		return 2000
+	}
+	if v < 0 {
+		return 0
+	}
+	return v
+}
+
+func waitFirstRTPBeforeWelcome(ctx context.Context, cs *sipSession.CallSession, lg *zap.Logger, waitMs int) {
+	if waitMs <= 0 || cs == nil {
+		return
+	}
+	rtpSess := cs.RTPSession()
+	if rtpSess == nil {
+		return
+	}
+	t := time.NewTimer(time.Duration(waitMs) * time.Millisecond)
+	defer t.Stop()
+	select {
+	case <-rtpSess.FirstPacket():
+		if lg != nil {
+			lg.Info("sip voice: inbound RTP before welcome (symmetric NAT can update send target)",
+				zap.String("call_id", cs.CallID))
+		}
+	case <-t.C:
+		if lg != nil {
+			lg.Warn("sip voice: no inbound RTP before welcome wait — check client/NAT/firewall or set SIP_WELCOME_WAIT_FIRST_RTP_MS=0 for lab",
+				zap.String("call_id", cs.CallID),
+				zap.Int("wait_ms", waitMs),
+			)
+		}
+	case <-ctx.Done():
+		return
+	}
+}
+
 func shouldHangupFromPhrase(text string, phrases []string) bool {
 	t := strings.TrimSpace(strings.ToLower(text))
 	if t == "" {
@@ -235,7 +281,7 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 	}
 	systemPrompt := popSIPCallSystemPrompt(cs.CallID)
 	if systemPrompt == "" {
-		systemPrompt = "You are a helpful Mandarin voice assistant on a phone call. Reply in clear spoken-style sentences, stay brief (one or two sentences when possible)."
+		systemPrompt = "你是七牛云技术支持语音助手。只用中文、直接回答、少废话：每次最多1-2句，优先给结论和下一步操作，不要举无关示例（如“比如对象存储/CDN/直播云”）。仅在必要时提1个澄清问题；不确定就明确说明并要求最关键的一条信息（报错原文或请求ID）。涉及高风险操作前先提醒并确认。"
 	}
 	llmHandler := llm.NewLLMHandler(ctx, env.LLMAPIKey, env.LLMBaseURL, systemPrompt)
 	llmHandler.SetModel(llmModel)
@@ -444,6 +490,13 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 		tryTransferToAgent(context.Background(), cs.CallID, digit, lg)
 	})
 
+	// Start RTP read/write before welcome so the first inbound packet can update symmetric RTP
+	// (see pkg/sip/rtp/session.go) before we send audio to the SDP-private address.
+	cs.StartOnACK()
+	if w := welcomeWaitFirstRTPMs(); w > 0 {
+		waitFirstRTPBeforeWelcome(ms.GetContext(), cs, lg, w)
+	}
+
 	welcomePlaying.Store(true)
 	go func() {
 		defer welcomePlaying.Store(false)
@@ -530,6 +583,10 @@ func streamLLMToTTS(ctx context.Context, llmHandler *llm.LLMHandler, model, user
 			}
 		}
 		seg.Reset()
+		s = normalizeTTSText(s)
+		if s == "" {
+			return nil
+		}
 		return ttsPipe.Speak(s)
 	}
 	options := llm.QueryOptions{Model: model, Stream: true}
@@ -547,6 +604,13 @@ func streamLLMToTTS(ctx context.Context, llmHandler *llm.LLMHandler, model, user
 		reply, err = llmHandler.Query(userText, model)
 		if err != nil {
 			return "", err
+		}
+		reply = normalizeTTSText(reply)
+		if reply == "" {
+			if lg != nil {
+				lg.Warn("sip voice tts skip empty/invalid reply after sanitize")
+			}
+			return "", nil
 		}
 		if err := ttsPipe.Speak(reply); err != nil {
 			if errors.Is(err, context.Canceled) {
@@ -683,7 +747,7 @@ func (h *ttsStreamHandler) OnTimestamp(_ synthesizer.SentenceTimestamp) {}
 // isFillerOnlyUtterance filters hesitation sounds that real-time ASR often emits on noisy or low-volume audio.
 func isFillerOnlyUtterance(text string) bool {
 	t := strings.TrimSpace(text)
-	t = strings.Trim(t, "。！？.!?…")
+	t = strings.Trim(t, "。！？.!?…~～、，,；;：:《》<>（）()[]【】“”\"'`")
 	t = strings.TrimSpace(t)
 	if t == "" {
 		return true
@@ -691,11 +755,54 @@ func isFillerOnlyUtterance(text string) bool {
 	for _, r := range t {
 		switch r {
 		case '嗯', '唔', '呃', '啊', '哦', '噢', '诶', '欸', '哈', '哼', '额',
-			' ', '\t', '\n', '\r', '，', ',':
+			' ', '\t', '\n', '\r', '，', ',', '。', '.', '！', '!', '？', '?', '、', '…', '~', '～', '-', '—':
 			continue
 		default:
 			return false
 		}
 	}
 	return true
+}
+
+// normalizeTTSText removes segments that TTS providers commonly reject:
+// empty/punctuation-only strings and strings without CJK/letters/digits after cleanup.
+func normalizeTTSText(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+	var b strings.Builder
+	for _, r := range s {
+		// strip control chars
+		if r < 0x20 {
+			continue
+		}
+		b.WriteRune(r)
+	}
+	s = strings.TrimSpace(b.String())
+	if s == "" {
+		return ""
+	}
+	onlyPunct := true
+	for _, r := range s {
+		if (r >= '0' && r <= '9') ||
+			(r >= 'a' && r <= 'z') ||
+			(r >= 'A' && r <= 'Z') ||
+			(r >= 0x4e00 && r <= 0x9fff) {
+			onlyPunct = false
+			break
+		}
+		switch r {
+		case ' ', '\t', '\n', '\r', '，', ',', '。', '.', '！', '!', '？', '?',
+			'；', ';', '：', ':', '、', '…', '-', '—', '~', '～', '“', '”', '"', '\'', '`', '(', ')', '（', '）', '[', ']', '【', '】', '<', '>', '《', '》':
+			// punctuation/noise
+		default:
+			onlyPunct = false
+			break
+		}
+	}
+	if onlyPunct {
+		return ""
+	}
+	return s
 }
