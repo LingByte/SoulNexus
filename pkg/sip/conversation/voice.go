@@ -327,27 +327,6 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 	if err != nil {
 		return fmt.Errorf("sip conversation: llm provider init: %w", err)
 	}
-	if ap, ok := llmProvider.(*llm.AlibabaProvider); ok {
-		ap.SetActionHandler(func(action string) {
-			if action != "transfer_to_agent" {
-				return
-			}
-			if ms == nil || ms.GetContext().Err() != nil {
-				lg.Warn("sip voice: transfer action ignored, call already ended",
-					zap.String("call_id", cs.CallID))
-				return
-			}
-			wantDigit := strings.TrimSpace(utils.GetEnv("SIP_TRANSFER_TO_AGENT_DIGIT"))
-			if wantDigit == "" {
-				wantDigit = "0"
-			}
-			lg.Info("sip voice: alibaba action transfer_to_agent",
-				zap.String("call_id", cs.CallID),
-				zap.String("digit", wantDigit),
-			)
-			tryTransferToAgent(context.Background(), cs.CallID, wantDigit, lg)
-		})
-	}
 	lg.Info("sip voice pipeline config",
 		zap.String("llm_model", llmModel),
 		zap.String("llm_provider", env.LLMProvider),
@@ -374,6 +353,7 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 	var turnMu sync.Mutex
 	inFlight := false
 	asrState := NewASRStateManager()
+	hotwordCorrector := NewSIPHotwordCorrector(lg)
 	partialTimeoutMs := sipASRPartialTimeoutMs()
 	var partialMu sync.Mutex
 	var partialTimer *time.Timer
@@ -406,6 +386,8 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 	var ttsPlaying atomic.Bool
 	var ttsStartedAtNS atomic.Int64
 	var welcomePlaying atomic.Bool
+	var welcomeCancelMu sync.Mutex
+	var welcomeCancel context.CancelFunc
 	var vadDet *voice.VADDetector
 	if sipVADBargeInEnabled() {
 		vadDet = voice.NewVADDetector()
@@ -418,8 +400,8 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 		vadDet.SetThreshold(thr)
 		cf := sipVADConsecutiveFramesFromEnv()
 		if cf < 1 {
-			// ~20ms/frame; phone echo needs sustained energy above threshold (not single spikes).
-			cf = 8
+			// ~20ms/frame; use shorter window so barge-in feels responsive.
+			cf = 3
 		}
 		vadDet.SetConsecutiveFrames(cf)
 		lg.Info("sip voice: RMS VAD barge-in enabled (TTS playback only)",
@@ -482,6 +464,21 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 				lg.Warn("sip voice llm/tts", zap.Error(err))
 				return
 			}
+			if ap, ok := llmProvider.(*llm.AlibabaProvider); ok {
+				if action := ap.ConsumePendingAction(); action == "transfer_to_agent" {
+					if ms != nil && ms.GetContext().Err() == nil {
+						wantDigit := strings.TrimSpace(utils.GetEnv("SIP_TRANSFER_TO_AGENT_DIGIT"))
+						if wantDigit == "" {
+							wantDigit = "0"
+						}
+						lg.Info("sip voice: transfer after ai tts confirmation",
+							zap.String("call_id", cs.CallID),
+							zap.String("digit", wantDigit),
+						)
+						tryTransferToAgent(context.Background(), cs.CallID, wantDigit, lg)
+					}
+				}
+			}
 			lg.Info("sip voice llm reply", zap.Int("reply_chars", len(reply)))
 			asrProv := "qcloud_asr"
 			if env.ASRModelType != "" {
@@ -503,6 +500,20 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 		if incremental == "" {
 			return
 		}
+		corrected := incremental
+		if hotwordCorrector != nil {
+			corrected = strings.TrimSpace(hotwordCorrector.Correct(incremental))
+			if corrected == "" {
+				corrected = incremental
+			}
+		}
+		if corrected != incremental {
+			lg.Info("sip voice asr corrected",
+				zap.String("call_id", cs.CallID),
+				zap.String("raw_text", incremental),
+				zap.String("corrected_text", corrected),
+			)
+		}
 		if isFillerOnlyUtterance(incremental) {
 			lg.Debug("sip voice asr skip filler-only", zap.String("text", incremental))
 			return
@@ -514,18 +525,18 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 				partialTimer.Stop()
 			}
 			partialMu.Unlock()
-			triggerTurn(incremental, true, "final")
+			triggerTurn(corrected, true, "final")
 			return
 		}
 		if sipASRTriggerPartialEnabled() {
-			triggerTurn(incremental, false, "partial")
+			triggerTurn(corrected, false, "partial")
 			return
 		}
 		if partialTimeoutMs <= 0 {
 			return
 		}
 		partialMu.Lock()
-		pendingPartial = incremental
+		pendingPartial = corrected
 		if partialTimer == nil {
 			partialTimer = time.AfterFunc(time.Duration(partialTimeoutMs)*time.Millisecond, func() {
 				partialMu.Lock()
@@ -566,11 +577,24 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 			if ap.IsSynthesized {
 				return nil
 			}
-			// Inbound greeting is a mandatory opening. Ignore user audio until greeting finishes.
-			if welcomePlaying.Load() {
-				return nil
-			}
 			pcm16 := ap.Payload
+			if welcomePlaying.Load() {
+				// Allow user to barge in welcome prompt by speaking above configured RMS.
+				if rmsPCM16LE(pcm16) > sipWelcomeBargeInThresholdFromEnv() {
+					welcomeCancelMu.Lock()
+					if welcomeCancel != nil {
+						welcomeCancel()
+					}
+					welcomeCancelMu.Unlock()
+					welcomePlaying.Store(false)
+					if lg != nil {
+						lg.Info("sip voice: welcome interrupted by user speech",
+							zap.String("call_id", cs.CallID))
+					}
+				} else {
+					return nil
+				}
+			}
 			pcmASR := pcm16
 			if asrOutRate != asrInRate {
 				out, err := media.ResamplePCM(pcm16, asrInRate, asrOutRate)
@@ -615,9 +639,18 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 	}
 
 	welcomePlaying.Store(true)
+	welcomeCtx, cancelWelcome := context.WithCancel(ms.GetContext())
+	welcomeCancelMu.Lock()
+	welcomeCancel = cancelWelcome
+	welcomeCancelMu.Unlock()
 	go func() {
 		defer welcomePlaying.Store(false)
-		if err := playWelcomeWav(ms.GetContext(), ms, lg, env.TTSSampleRate); err != nil {
+		defer func() {
+			welcomeCancelMu.Lock()
+			welcomeCancel = nil
+			welcomeCancelMu.Unlock()
+		}()
+		if err := playWelcomeWav(welcomeCtx, ms, lg, env.TTSSampleRate); err != nil {
 			lg.Warn("sip voice welcome playback failed", zap.String("call_id", cs.CallID), zap.Error(err))
 			return
 		}
