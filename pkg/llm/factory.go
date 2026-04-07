@@ -13,9 +13,10 @@ import (
 type ProviderType string
 
 const (
-	ProviderTypeOpenAI ProviderType = "openai" // OpenAI 兼容的 API
-	ProviderTypeCoze   ProviderType = "coze"   // Coze API
-	ProviderTypeOllama ProviderType = "ollama" // Ollama API
+	ProviderTypeOpenAI  ProviderType = "openai"  // OpenAI 兼容的 API
+	ProviderTypeCoze    ProviderType = "coze"    // Coze API
+	ProviderTypeOllama  ProviderType = "ollama"  // Ollama API
+	ProviderTypeAlibaba ProviderType = "alibaba" // Alibaba DashScope API
 )
 
 // NewLLMProvider 根据配置创建 LLM 提供者
@@ -50,6 +51,10 @@ func NewLLMProvider(ctx context.Context, provider, apiKey, apiUrl, systemPrompt 
 			apiKey = "ollama"
 		}
 		return NewOllamaProvider(ctx, apiKey, baseURL, systemPrompt), nil
+	case string(ProviderTypeAlibaba):
+		// 阿里云百炼: apiKey 是 API Key, apiUrl 是 AppID
+		appID := apiUrl
+		return NewAlibabaProvider(ctx, apiKey, appID, systemPrompt), nil
 	default:
 		// Ensure we have a valid base URL, default to OpenAI's API if not provided
 		baseURL := apiUrl
