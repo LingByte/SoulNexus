@@ -40,6 +40,7 @@ func (h *Handlers) registerSIPContactCenterRoutes(r *gin.RouterGroup) {
 		g.GET("/calls/:id", h.getSIPCall)
 
 		g.GET("/acd-pool", h.listACDPoolTargets)
+		g.POST("/acd-pool/web-seat/heartbeat", h.webSeatACDHeartbeat)
 		g.GET("/acd-pool/:id", h.getACDPoolTarget)
 		g.POST("/acd-pool", h.createACDPoolTarget)
 		g.PUT("/acd-pool/:id", h.updateACDPoolTarget)

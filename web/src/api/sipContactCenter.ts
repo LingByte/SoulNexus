@@ -68,6 +68,8 @@ export interface Paginated<T> {
 export interface ACDPoolTargetRow {
   id: number
   name?: string
+  /** Same as backend `createBy` — operator email or id string; used to dedupe web seat rows. */
+  createBy?: string
   routeType: string
   /** SIP: `internal` = registered extension; `trunk` = external PSTN dial string. Web: omit/empty. */
   sipSource?: string
@@ -87,6 +89,8 @@ export interface ACDPoolTargetRow {
   sipCallerDisplayName?: string
   /** SIP internal only: matched `sip_users.username` currently registered (`online`). */
   liveLineOnline?: boolean
+  /** Web seat: last heartbeat from browser (server clock). */
+  webSeatLastSeenAt?: string
   createdAt?: string
   updatedAt?: string
 }
@@ -431,19 +435,57 @@ export function clearWebSeatAcdPoolAnchor(): void {
   sessionStorage.removeItem(WEBSEAT_ACD_POOL_ROW_SESSION_KEY)
 }
 
-/** After Go Online: first time in this tab creates a `web` row; later visits update the same row to `available`. */
+function normOpKey(s: string): string {
+  return s.trim().toLowerCase()
+}
+
+/** Prefer the lowest-id web row for this operator so cmd/sip pick order stays stable. */
+async function findWebAcdRowIdForOperator(operatorKey: string): Promise<number | null> {
+  const k = normOpKey(operatorKey)
+  if (!k) return null
+  const res = await listACDPoolTargets(1, 100, { routeType: 'web' })
+  if (res.code !== 200 || !res.data?.list?.length) return null
+  const mine = res.data.list.filter((r) => normOpKey(r.createBy || '') === k)
+  if (!mine.length) return null
+  mine.sort((a, b) => a.id - b.id)
+  return mine[0]!.id
+}
+
+/** Keepalive for web seat row; extends `webSeatLastSeenAt` on the server. */
+export async function postWebSeatAcdHeartbeat(targetId: number): Promise<void> {
+  const r = await post<{ ok?: boolean }>('/sip-center/acd-pool/web-seat/heartbeat', {
+    targetId,
+  })
+  if (r.code !== 200) throw new Error(r.msg || 'web seat heartbeat failed')
+}
+
+/** After Go Online: reuses the same `web` row per operator (createBy); session anchor only supplements lookup. */
 export async function ensureWebSeatAcdPoolRowOnline(opts: {
   /** Shown as row name, e.g. `张三-Web` (current user + suffix). */
   displayLabel: string
-}): Promise<void> {
+  /** Typically current user email — must match server `createBy` for dedupe. */
+  operatorKey: string
+}): Promise<number> {
   const label = opts.displayLabel.trim() || 'Web'
-  let anchor = readAnchoredWebSeatAcdPoolId()
-  if (anchor != null) {
-    const cur = await getACDPoolTarget(anchor)
+  const existing = await findWebAcdRowIdForOperator(opts.operatorKey)
+  let targetId: number | null = existing
+
+  if (targetId == null) {
+    const anchor = readAnchoredWebSeatAcdPoolId()
+    if (anchor != null) {
+      const cur = await getACDPoolTarget(anchor)
+      if (cur.code === 200 && cur.data?.routeType === 'web') {
+        targetId = anchor
+      }
+    }
+  }
+
+  if (targetId != null) {
+    const cur = await getACDPoolTarget(targetId)
     if (cur.code === 200 && cur.data?.routeType === 'web') {
       const r = cur.data
       const wt = r.weight != null && r.weight > 0 ? r.weight : 10
-      const u = await updateACDPoolTarget(anchor, {
+      const u = await updateACDPoolTarget(targetId, {
         name: label,
         routeType: 'web',
         sipSource: '',
@@ -452,10 +494,12 @@ export async function ensureWebSeatAcdPoolRowOnline(opts: {
         workState: 'available',
       })
       if (u.code !== 200) throw new Error(u.msg || 'update web seat acd failed')
-      return
+      writeAnchoredWebSeatAcdPoolId(targetId)
+      return targetId
     }
     clearWebSeatAcdPoolAnchor()
   }
+
   const c = await createACDPoolTarget({
     name: label,
     routeType: 'web',
@@ -466,6 +510,7 @@ export async function ensureWebSeatAcdPoolRowOnline(opts: {
   })
   if (c.code !== 200 || !c.data?.id) throw new Error(c.msg || 'create web seat acd failed')
   writeAnchoredWebSeatAcdPoolId(c.data.id)
+  return c.data.id
 }
 
 /** After Go Offline: anchored `web` row → `offline`. */
