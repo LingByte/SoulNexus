@@ -6,6 +6,7 @@ package sipacd
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/internal/sipreg"
@@ -23,11 +24,14 @@ func PickTransferDialTarget(ctx context.Context, db *gorm.DB, reg *sipreg.GormSt
 	if db == nil {
 		return outbound.DialTarget{}, false
 	}
+	freshWebSince := time.Now().Add(-models.WebSeatStaleAfter)
 	var row models.ACDPoolTarget
 	err := db.WithContext(ctx).
 		Where("is_deleted = ? AND weight > ? AND work_state = ? AND route_type IN ?",
 			models.SoftDeleteStatusActive, 0, models.ACDWorkStateAvailable,
 			[]string{models.ACDPoolRouteTypeSIP, models.ACDPoolRouteTypeWeb}).
+		Where("(route_type != ? OR (web_seat_last_seen_at IS NOT NULL AND web_seat_last_seen_at > ?))",
+			models.ACDPoolRouteTypeWeb, freshWebSince).
 		Order("weight DESC").Order("id ASC").
 		First(&row).Error
 	if err != nil {

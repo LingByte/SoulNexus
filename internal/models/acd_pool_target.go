@@ -66,6 +66,20 @@ type ACDPoolTarget struct {
 
 	// WorkStateAt: optional last transition (ring timeouts, metrics).
 	WorkStateAt *time.Time `json:"workStateAt"`
+
+	// WebSeatLastSeenAt: route_type=web only; last heartbeat from browser (keepalive). Used for pick + admin "链路在线".
+	WebSeatLastSeenAt *time.Time `json:"webSeatLastSeenAt" gorm:"column:web_seat_last_seen_at"`
+}
+
+// WebSeatStaleAfter is the max age of WebSeatLastSeenAt for "链路在线" and sipacd.PickTransferDialTarget web eligibility.
+const WebSeatStaleAfter = 90 * time.Second
+
+// WebSeatLastSeenFresh reports whether a web seat heartbeat is recent enough to treat the row as reachable.
+func WebSeatLastSeenFresh(t *time.Time) bool {
+	if t == nil {
+		return false
+	}
+	return time.Since(*t) <= WebSeatStaleAfter
 }
 
 func (ACDPoolTarget) TableName() string {

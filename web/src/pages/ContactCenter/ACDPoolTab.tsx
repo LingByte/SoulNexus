@@ -4,7 +4,6 @@ import { useI18nStore } from '@/stores/i18nStore'
 import Button from '@/components/UI/Button'
 import Badge from '@/components/UI/Badge'
 import LoadingAnimation from '@/components/Animations/LoadingAnimation'
-import { useWebSeat } from '@/components/WebSeat/WebSeatContext'
 import { showAlert } from '@/utils/notification'
 import {
   ACD_ROUTE_TYPES,
@@ -85,8 +84,6 @@ export default function ACDPoolTab({
   const [saving, setSaving] = useState(false)
   const [sipUsersPick, setSipUsersPick] = useState<SIPUserRow[]>([])
   const pageSize = 20
-  const { wsState, presenceOnline } = useWebSeat()
-
   const load = useCallback(async () => {
     if (!active) return
     setLoading(true)
@@ -344,18 +341,13 @@ export default function ACDPoolTab({
                                 : t('contactCenter.acd.liveSipOffline')}
                             </Badge>
                           ))}
-                        {r.routeType === 'web' &&
-                          (wsState === 'open' ? (
-                            <Badge variant={presenceOnline ? 'success' : 'muted'} size="xs" shape="pill">
-                              {presenceOnline
-                                ? t('contactCenter.acd.liveWebOnline')
-                                : t('contactCenter.acd.liveWebOffline')}
-                            </Badge>
-                          ) : (
-                            <Badge variant="muted" size="xs" shape="pill">
-                              {t('contactCenter.acd.liveWebNoWs')}
-                            </Badge>
-                          ))}
+                        {r.routeType === 'web' && (
+                          <Badge variant={r.liveLineOnline ? 'success' : 'muted'} size="xs" shape="pill">
+                            {r.liveLineOnline
+                              ? t('contactCenter.acd.liveWebOnline')
+                              : t('contactCenter.acd.liveWebOffline')}
+                          </Badge>
+                        )}
                       </div>
                     </td>
                     <td className="p-3 whitespace-nowrap text-xs text-muted-foreground">

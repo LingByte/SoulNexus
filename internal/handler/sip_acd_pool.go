@@ -138,6 +138,8 @@ func (h *Handlers) listACDPoolTargets(c *gin.Context) {
 				Where("is_deleted = ? AND username = ? AND online = ?", models.SoftDeleteStatusActive, strings.TrimSpace(row.TargetValue), true).
 				Count(&n).Error
 			item.LiveLineOnline = n > 0
+		} else if row.RouteType == models.ACDPoolRouteTypeWeb {
+			item.LiveLineOnline = models.WebSeatLastSeenFresh(row.WebSeatLastSeenAt)
 		}
 		out = append(out, item)
 	}
@@ -162,6 +164,8 @@ func (h *Handlers) getACDPoolTarget(c *gin.Context) {
 			Where("is_deleted = ? AND username = ? AND online = ?", models.SoftDeleteStatusActive, strings.TrimSpace(row.TargetValue), true).
 			Count(&n).Error
 		item.LiveLineOnline = n > 0
+	} else if row.RouteType == models.ACDPoolRouteTypeWeb {
+		item.LiveLineOnline = models.WebSeatLastSeenFresh(row.WebSeatLastSeenAt)
 	}
 	response.Success(c, "success", item)
 }
@@ -191,6 +195,10 @@ func (h *Handlers) createACDPoolTarget(c *gin.Context) {
 	}
 	th, tp, ts := acdTrunkStorageFields(rt, sipSrc, &req)
 	cid, cdn := acdCallerStorageFields(rt, &req)
+	var webSeen *time.Time
+	if rt == models.ACDPoolRouteTypeWeb && ws == models.ACDWorkStateAvailable {
+		webSeen = &now
+	}
 	row := models.ACDPoolTarget{
 		Name:                  strings.TrimSpace(req.Name),
 		RouteType:             rt,
@@ -204,6 +212,7 @@ func (h *Handlers) createACDPoolTarget(c *gin.Context) {
 		Weight:                req.Weight,
 		WorkState:             ws,
 		WorkStateAt:           &now,
+		WebSeatLastSeenAt:     webSeen,
 	}
 	if op := acdOperator(c); op != "" {
 		row.SetCreateInfo(op)
@@ -267,12 +276,18 @@ func (h *Handlers) updateACDPoolTarget(c *gin.Context) {
 	if row.WorkState != ws {
 		updates["work_state_at"] = now
 	}
+	if rt == models.ACDPoolRouteTypeWeb && ws == models.ACDWorkStateAvailable {
+		updates["web_seat_last_seen_at"] = now
+	}
 	if op := acdOperator(c); op != "" {
 		updates["update_by"] = op
 	}
 	if err := h.db.Model(&row).Updates(updates).Error; err != nil {
 		response.AbortWithStatusJSON(c, http.StatusInternalServerError, err)
 		return
+	}
+	if rt == models.ACDPoolRouteTypeWeb && ws == models.ACDWorkStateOffline {
+		_ = h.db.Model(&models.ACDPoolTarget{}).Where("id = ?", id).Update("web_seat_last_seen_at", nil).Error
 	}
 	_ = h.db.Where("id = ?", id).First(&row).Error
 	response.Success(c, "success", row)
@@ -301,4 +316,57 @@ func (h *Handlers) deleteACDPoolTarget(c *gin.Context) {
 		return
 	}
 	response.Success(c, "success", gin.H{"id": id})
+}
+
+type webSeatACDHeartbeatReq struct {
+	TargetID uint `json:"targetId"`
+}
+
+func acdWebSeatActorMayTouchRow(row models.ACDPoolTarget, op string) bool {
+	op = strings.TrimSpace(op)
+	cb := strings.TrimSpace(row.CreateBy)
+	if cb == "" {
+		return true
+	}
+	return cb == op
+}
+
+// webSeatACDHeartbeat refreshes web_seat_last_seen_at for the anchored browser row (keepalive).
+func (h *Handlers) webSeatACDHeartbeat(c *gin.Context) {
+	var req webSeatACDHeartbeatReq
+	if err := c.ShouldBindJSON(&req); err != nil || req.TargetID == 0 {
+		response.Fail(c, "invalid body: need targetId", nil)
+		return
+	}
+	op := acdOperator(c)
+	if op == "" {
+		response.Fail(c, "unauthorized", nil)
+		return
+	}
+	var row models.ACDPoolTarget
+	if err := h.db.Where("id = ? AND is_deleted = ?", req.TargetID, models.SoftDeleteStatusActive).First(&row).Error; err != nil {
+		response.Fail(c, "not found", nil)
+		return
+	}
+	if row.RouteType != models.ACDPoolRouteTypeWeb {
+		response.Fail(c, "not a web target", nil)
+		return
+	}
+	if !acdWebSeatActorMayTouchRow(row, op) {
+		response.Fail(c, "forbidden", nil)
+		return
+	}
+	now := time.Now()
+	updates := map[string]interface{}{
+		"work_state":            models.ACDWorkStateAvailable,
+		"work_state_at":         now,
+		"web_seat_last_seen_at": now,
+		"updated_at":            now,
+		"update_by":             op,
+	}
+	if err := h.db.Model(&models.ACDPoolTarget{}).Where("id = ?", req.TargetID).Updates(updates).Error; err != nil {
+		response.AbortWithStatusJSON(c, http.StatusInternalServerError, err)
+		return
+	}
+	response.Success(c, "success", gin.H{"ok": true})
 }

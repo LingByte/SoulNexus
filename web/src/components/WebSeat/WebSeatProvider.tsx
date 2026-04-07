@@ -13,6 +13,7 @@ import { useI18nStore } from '@/stores/i18nStore'
 import {
   clearWebSeatAcdPoolAnchor,
   ensureWebSeatAcdPoolRowOnline,
+  postWebSeatAcdHeartbeat,
   setWebSeatAcdPoolRowOffline,
 } from '@/api/sipContactCenter'
 import { showAlert } from '@/utils/notification'
@@ -24,6 +25,8 @@ import { WebSeatWsIndicator } from './WebSeatWsIndicator.tsx'
 
 const MAX_SIGNAL_LINES = 400
 const MAX_RX_LINES = 250
+/** Should be < server `WebSeatStaleAfter` (90s) so the row stays eligible for transfer pick. */
+const WEBSEAT_ACD_HEARTBEAT_MS = 30_000
 
 function appendLog(prev: string, line: string, maxLines: number): string {
   const next = prev + line + '\n'
@@ -84,6 +87,14 @@ export function WebSeatProvider({ children }: WebSeatProviderProps) {
   const wsRef = useRef<WebSocket | null>(null)
   /** When closing WS intentionally as "go offline", onclose should show user-offline copy. */
   const wsCloseIntentRef = useRef<'user-offline' | null>(null)
+  const acdHeartbeatTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const stopAcdHeartbeat = useCallback(() => {
+    if (acdHeartbeatTimerRef.current != null) {
+      clearInterval(acdHeartbeatTimerRef.current)
+      acdHeartbeatTimerRef.current = null
+    }
+  }, [])
 
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const localStreamRef = useRef<MediaStream | null>(null)
@@ -146,12 +157,18 @@ export function WebSeatProvider({ children }: WebSeatProviderProps) {
       }
       ws.onclose = () => {
         wsRef.current = null
+        stopAcdHeartbeat()
         setWsState('closed')
         const intent = wsCloseIntentRef.current
         wsCloseIntentRef.current = null
         setWsStatusText(
           intent === 'user-offline' ? t('webseat.wsUserOffline') : t('webseat.wsDisconnected')
         )
+        if (intent !== 'user-offline') {
+          void setWebSeatAcdPoolRowOffline()
+            .then(() => window.dispatchEvent(new CustomEvent('soulnexus-acd-refresh')))
+            .catch(() => {})
+        }
       }
       ws.onerror = () => {
         log('WebSocket error')
@@ -183,7 +200,7 @@ export function WebSeatProvider({ children }: WebSeatProviderProps) {
       setWsStatusText(t('webseat.wsCreateFailed'))
       log('WebSocket 错误:', e instanceof Error ? e.message : String(e))
     }
-  }, [closeWsConnection, configured, httpBase, log, t, wsToken])
+  }, [closeWsConnection, configured, httpBase, log, stopAcdHeartbeat, t, wsToken])
 
   const reconnectWebSocket = useCallback(() => {
     if (isAuthenticated && configured) connectWebSocket()
@@ -191,26 +208,47 @@ export function WebSeatProvider({ children }: WebSeatProviderProps) {
 
   const goOnline = useCallback(async () => {
     if (!configured || !isAuthenticated) return
+    stopAcdHeartbeat()
     try {
       connectWebSocket()
       await waitForWebSocketOpen(wsRef, 15_000)
-      await ensureWebSeatAcdPoolRowOnline({
+      const operatorKey =
+        (user?.email && String(user.email).trim()) || (user?.id != null ? String(user.id) : '')
+      const tid = await ensureWebSeatAcdPoolRowOnline({
         displayLabel: webSeatAcdDisplayLabel,
+        operatorKey,
       })
+      void postWebSeatAcdHeartbeat(tid).catch(() => {})
+      acdHeartbeatTimerRef.current = window.setInterval(() => {
+        void postWebSeatAcdHeartbeat(tid).catch(() => {})
+      }, WEBSEAT_ACD_HEARTBEAT_MS)
       window.dispatchEvent(new CustomEvent('soulnexus-acd-refresh'))
       log(t('webseat.logOnlineOk'))
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : t('common.failed')
       showAlert(msg, 'error')
+      stopAcdHeartbeat()
       closeWsConnection()
       if (configured) {
         setWsState('closed')
         setWsStatusText(t('webseat.wsDisconnected'))
       }
     }
-  }, [closeWsConnection, configured, connectWebSocket, isAuthenticated, log, t, webSeatAcdDisplayLabel])
+  }, [
+    closeWsConnection,
+    configured,
+    connectWebSocket,
+    isAuthenticated,
+    log,
+    stopAcdHeartbeat,
+    t,
+    user?.email,
+    user?.id,
+    webSeatAcdDisplayLabel,
+  ])
 
   const goOffline = useCallback(async () => {
+    stopAcdHeartbeat()
     try {
       await setWebSeatAcdPoolRowOffline()
       window.dispatchEvent(new CustomEvent('soulnexus-acd-refresh'))
@@ -220,7 +258,7 @@ export function WebSeatProvider({ children }: WebSeatProviderProps) {
     }
     closeWsConnection('user-offline')
     log(t('webseat.logOfflineOk'))
-  }, [closeWsConnection, log, t])
+  }, [closeWsConnection, log, stopAcdHeartbeat, t])
 
   useEffect(() => {
     if (!configured) {
@@ -230,6 +268,7 @@ export function WebSeatProvider({ children }: WebSeatProviderProps) {
       return
     }
     if (!isAuthenticated) {
+      stopAcdHeartbeat()
       void (async () => {
         try {
           await setWebSeatAcdPoolRowOffline()
@@ -248,13 +287,14 @@ export function WebSeatProvider({ children }: WebSeatProviderProps) {
     setWsState('closed')
     setWsStatusText(t('webseat.wsClickOnline'))
     return () => {
+      stopAcdHeartbeat()
       closeWsConnection()
       if (configured) {
         setWsState('closed')
         setWsStatusText(t('webseat.wsDisconnected'))
       }
     }
-  }, [closeWsConnection, configured, isAuthenticated, t])
+  }, [closeWsConnection, configured, isAuthenticated, stopAcdHeartbeat, t])
 
   const stopRxAudioMonitor = useCallback(() => {
     if (rxMonitorStopRef.current) {
