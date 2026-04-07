@@ -32,7 +32,6 @@ const (
 var defaultHeader = []byte{0x11, 0x10, 0x11, 0x00}
 
 // VolcengineCloneConfig 火山引擎克隆配置
-// 完全效仿 voiceserver-main/pkg/synthesis/volcengine_clone.go
 type VolcengineCloneConfig struct {
 	AppID         string  `json:"app_id"`
 	Token         string  `json:"token"`          // WebSocket认证token（必需）
@@ -84,7 +83,6 @@ type VolcAddition struct {
 }
 
 // VolcengineCloneService 火山引擎语音克隆服务
-// 完全效仿 voiceserver-main/pkg/synthesis/volcengine_clone.go
 type VolcengineCloneService struct {
 	config     *VolcengineCloneConfig
 	httpClient *http.Client
@@ -362,7 +360,6 @@ func (s *VolcengineCloneService) QueryTaskStatus(ctx context.Context, taskID str
 }
 
 // parseResponse 解析火山引擎WebSocket二进制响应
-// 参考 voiceserver-main/pkg/synthesis/volcengine_llm.go 的实现
 func parseVolcengineResponse(message []byte) (*VolcengineResponse, error) {
 	if len(message) < 4 {
 		return nil, errors.New("message too short")
@@ -494,7 +491,6 @@ func parseVolcengineResponse(message []byte) (*VolcengineResponse, error) {
 }
 
 // Synthesize 使用训练好的音色合成语音
-// 完全效仿 voiceserver-main/pkg/synthesis/volcengine_clone.go，只支持 WebSocket
 func (s *VolcengineCloneService) Synthesize(ctx context.Context, req *SynthesizeRequest) (*SynthesizeResponse, error) {
 	return s.synthesizeWithWebSocket(ctx, req)
 }
@@ -505,7 +501,6 @@ func (s *VolcengineCloneService) SynthesizeStream(ctx context.Context, req *Synt
 }
 
 // synthesizeWithWebSocket 使用WebSocket合成语音
-// 参考 voiceserver-main/pkg/synthesis/volcengine_clone.go 的实现
 func (s *VolcengineCloneService) synthesizeWithWebSocket(ctx context.Context, req *SynthesizeRequest) (*SynthesizeResponse, error) {
 	if s.config.Token == "" {
 		return nil, fmt.Errorf("token is required for WebSocket API")
@@ -732,7 +727,6 @@ func (s *VolcengineCloneService) synthesizeStreamWithWebSocket(ctx context.Conte
 }
 
 // buildWebSocketRequestParams 构建WebSocket请求参数
-// 参考 voiceserver-main/pkg/synthesis/volcengine_clone.go 的实现
 func (s *VolcengineCloneService) buildWebSocketRequestParams(text, voiceType string) []byte {
 	reqID := uuid.NewString()
 	params := make(map[string]map[string]interface{})

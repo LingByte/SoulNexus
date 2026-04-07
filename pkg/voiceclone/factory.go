@@ -118,7 +118,6 @@ func (f *Factory) createXunfeiService(options map[string]interface{}) (VoiceClon
 }
 
 // createVolcengineService 创建火山引擎克隆服务
-// 完全效仿 voiceserver-main，只支持 WebSocket，需要 token
 func (f *Factory) createVolcengineService(options map[string]interface{}) (VoiceCloneService, error) {
 	appID, _ := options["app_id"].(string)
 	token, _ := options["token"].(string)
