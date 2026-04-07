@@ -143,7 +143,7 @@ const Sidebar = () => {
         {!isCollapsed && (
           <Link to="/" className="flex items-center gap-2">
             <img
-              src="https://cetide-1325039295.cos.ap-chengdu.myqcloud.com/folder/icon-192x192.ico"
+              src="/SoulMy.png"
               alt="LingEcho Logo"
               className="w-6 h-8 rounded"
             />

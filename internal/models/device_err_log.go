@@ -24,7 +24,7 @@ type DeviceErrorLog struct {
 	StackTrace string         `json:"stackTrace" gorm:"type:text"`            // 堆栈跟踪
 	Context    datatypes.JSON `json:"context" gorm:"type:json"`               // 错误上下文（JSON格式）
 	Resolved   bool           `json:"resolved" gorm:"default:false;index"`    // 是否已解决
-	ResolvedAt time.Time      `json:"resolvedAt,omitempty"`                   // 解决时间
+	ResolvedAt *time.Time     `json:"resolvedAt,omitempty"`                   // 解决时间（未解决时为 NULL，避免写入 MySQL 零日期）
 	ResolvedBy string         `json:"resolvedBy" gorm:"size:128"`             // 解决人
 }
 
@@ -119,7 +119,7 @@ func ResolveDeviceError(db *gorm.DB, errorID uint, resolvedBy string) error {
 	now := time.Now()
 	return db.Model(&DeviceErrorLog{}).Where("id = ?", errorID).Updates(map[string]interface{}{
 		"resolved":    true,
-		"resolved_at": now,
+		"resolved_at": &now,
 		"resolved_by": resolvedBy,
 	}).Error
 }

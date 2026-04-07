@@ -10,6 +10,7 @@ import {
   updateSIPScriptTemplate,
   type SIPScriptTemplateRow,
 } from '@/api/sipContactCenter'
+import ConfirmDialog from '@/components/UI/ConfirmDialog'
 
 type FormState = {
   name: string
@@ -45,6 +46,8 @@ export default function ScriptManagerTab() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<SIPScriptTemplateRow | null>(null)
   const [form, setForm] = useState<FormState>(defaultForm)
+  const [scriptDeleteOpen, setScriptDeleteOpen] = useState(false)
+  const [scriptDeleteId, setScriptDeleteId] = useState<number | null>(null)
   const pageSize = 20
 
   const load = useCallback(async () => {
@@ -104,7 +107,7 @@ export default function ScriptManagerTab() {
         ? await updateSIPScriptTemplate(editing.id, body)
         : await createSIPScriptTemplate(body)
       if (res.code === 200) {
-        showAlert(t('common.success'), 'success')
+        showAlert(t('contactCenter.toast.saveScriptOk'), 'success')
         setModalOpen(false)
         setEditing(null)
         await load()
@@ -119,19 +122,28 @@ export default function ScriptManagerTab() {
     }
   }
 
-  const onDelete = async (id: number) => {
-    if (!window.confirm(t('common.confirm'))) return
+  const openScriptDelete = (id: number) => {
+    setScriptDeleteId(id)
+    setScriptDeleteOpen(true)
+  }
+
+  const confirmScriptDelete = async () => {
+    if (scriptDeleteId == null) return
+    const id = scriptDeleteId
     try {
       const res = await deleteSIPScriptTemplate(id)
       if (res.code === 200) {
-        showAlert(t('common.success'), 'success')
+        showAlert(t('contactCenter.toast.deleteScriptOk'), 'success')
         await load()
-      } else {
-        showAlert(res.msg || t('common.failed'), 'error')
+        return
       }
+      showAlert(res.msg || t('common.failed'), 'error')
+      throw new Error('script-delete-failed')
     } catch (e: unknown) {
+      if (e instanceof Error && e.message === 'script-delete-failed') throw e
       const err = e as { msg?: string }
       showAlert(err?.msg || t('common.failed'), 'error')
+      throw e
     }
   }
 
@@ -183,7 +195,7 @@ export default function ScriptManagerTab() {
                       <Button variant="outline" size="sm" onClick={() => openEdit(r)}>
                         {t('common.edit')}
                       </Button>
-                      <Button variant="outline" size="sm" onClick={() => void onDelete(r.id)}>
+                      <Button variant="outline" size="sm" onClick={() => openScriptDelete(r.id)}>
                         {t('common.delete')}
                       </Button>
                     </td>
@@ -235,6 +247,20 @@ export default function ScriptManagerTab() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        isOpen={scriptDeleteOpen}
+        onClose={() => {
+          setScriptDeleteOpen(false)
+          setScriptDeleteId(null)
+        }}
+        onConfirm={confirmScriptDelete}
+        title={t('contactCenter.confirm.deleteScriptTitle')}
+        message={t('contactCenter.confirm.deleteScriptMessage')}
+        confirmText={t('contactCenter.confirm.confirmDelete')}
+        cancelText={t('common.cancel')}
+        type="danger"
+      />
     </div>
   )
 }
