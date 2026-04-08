@@ -1,9 +1,7 @@
 import React, {useEffect, useState} from 'react';
-import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Key, Settings, AppWindow, ChevronDown, RefreshCw, ArrowRight, Bot, MessageCircle, Users, Zap, Circle, ExternalLink, Mic } from 'lucide-react';
+import { Key, Settings, AppWindow, ChevronDown, RefreshCw, ArrowRight, Bot, MessageCircle, Users, Zap, Circle, Mic } from 'lucide-react';
 import { cn } from '@/utils/cn';
-import {getKnowledgeBaseByUser} from "@/api/knowledge.ts";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/UI/Select.tsx';
 import Button from '@/components/UI/Button';
 import { Switch } from '@/components/UI/Switch';
@@ -60,12 +58,6 @@ interface ControlPanelProps {
     onSaveSettings: () => void
     isSavingSettings?: boolean // 保存状态
     onDeleteAssistant: () => void
-    // 知识库配置
-    knowledgeBases: Array<{id: string, name: string}>
-    selectedKnowledgeBase: string | null
-    onKnowledgeBaseChange: (value: string) => void
-    onRefreshKnowledgeBases: () => void
-    onManageKnowledgeBases: () => void
     // 训练音色配置
     selectedVoiceCloneId: number | null
     onVoiceCloneChange: (value: number | null) => void
@@ -137,8 +129,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                                        isSavingSettings = false,
                                                        onDeleteAssistant,
                                                        onMethodClick,
-                                                       selectedKnowledgeBase,
-                                                       onKnowledgeBaseChange,
                                                        selectedVoiceCloneId,
                                                        onVoiceCloneChange,
                                                        voiceClones,
@@ -150,37 +140,11 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                                        className = ''
                                                    }) => {
     const { t } = useI18nStore()
-    const [localKnowledgeBases, setLocalKnowledgeBases] = useState<Array<{id: string, name: string}>>([]);
     const [voiceOptions, setVoiceOptions] = useState<VoiceOption[]>([]);
     const [loadingVoices, setLoadingVoices] = useState(false);
     const [languageOptions, setLanguageOptions] = useState<LanguageOption[]>([]);
     const [loadingLanguages, setLoadingLanguages] = useState(false);
 
-    const fetchKnowledgeBases = async () => {
-        try {
-            const response = await getKnowledgeBaseByUser();
-            if (response.code === 200 && Array.isArray(response.data)) {
-                // 修改数据转换逻辑，适应后端返回的完整格式
-                // 后端返回格式: { id, knowledge_key, knowledge_name, provider, config, ... }
-                const transformedData = response.data
-                    .filter((item: any) => item && (item.knowledge_key || item.key || item.id)) // 过滤无效数据
-                    .map((item: any, index: number) => ({
-                        id: item.knowledge_key || item.key || `kb-${item.id || index}`, // 确保唯一ID
-                        name: item.knowledge_name || item.name || '未命名知识库'
-                    }));
-                setLocalKnowledgeBases(transformedData);
-            } else {
-                setLocalKnowledgeBases([]);
-            }
-        } catch (error) {
-            console.error('获取知识库列表失败:', error);
-            setLocalKnowledgeBases([]);
-        }
-    };
-
-    const handleRefreshKnowledgeBases = () => {
-        fetchKnowledgeBases();
-    };
 
     // 根据TTS Provider加载音色列表
     const fetchVoiceOptions = async (provider: string, currentSpeaker?: string) => {
@@ -263,24 +227,17 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         }
     };
 
-    useEffect(() => {
-        fetchKnowledgeBases();
-    }, []);
-
     // 当TTS Provider变化时，重新加载音色列表和语言列表
     useEffect(() => {
         const provider = ttsProvider || 'tencent'; // 如果没有provider，使用默认的腾讯云音色列表（向后兼容）
         fetchVoiceOptions(provider, selectedSpeaker);
         fetchLanguageOptions(provider, language);
     }, [ttsProvider]); // 只依赖ttsProvider，selectedSpeaker和language的变化不影响重新加载
-    const safeKnowledgeBases = localKnowledgeBases;
-    const navigate = useNavigate();
     const [expandedSections, setExpandedSections] = useState({
         api: true,
         call: true,
         assistant: true,
         integration: true,
-        knowledge: true,
         voiceClone: true,
         vad: true,
     })
@@ -720,80 +677,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                         )}
                     </AnimatePresence>
                 </motion.div>
-                {/* 知识库配置 */}
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.15 }}
-                    className="space-y-4"
-                >
-                    <SectionHeader
-                        title={t('controlPanel.knowledge.title')}
-                        icon={<AppWindow className="w-5 h-5" />}
-                        section="knowledge"
-                    />
-
-                    <AnimatePresence>
-                        {expandedSections.knowledge && (
-                            <motion.div
-                                initial={{ height: 0, opacity: 0 }}
-                                animate={{ height: 'auto', opacity: 1 }}
-                                exit={{ height: 0, opacity: 0 }}
-                                transition={{ duration: 0.3, ease: 'easeInOut' }}
-                                className="overflow-hidden"
-                            >
-                                <div className="space-y-4 pt-4">
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('controlPanel.knowledge.select')}</label>
-                                        <select
-                                            value={selectedKnowledgeBase || ''}
-                                            onChange={(e) => onKnowledgeBaseChange(e.target.value)}
-                                            className="w-full p-2 text-sm border rounded-lg focus:ring-2 focus:ring-purple-500 dark:bg-neutral-700 dark:border-neutral-600"
-                                        >
-                                            <option value="">{t('controlPanel.knowledge.none')}</option>
-                                            {Array.isArray(safeKnowledgeBases) && safeKnowledgeBases.length > 0 ? (
-                                                safeKnowledgeBases.map((kb) => (
-                                                    <option key={kb.id} value={kb.id}>
-                                                        {kb.name}
-                                                    </option>
-                                                ))
-                                            ) : null}
-                                        </select>
-                                        {selectedKnowledgeBase && localKnowledgeBases && (
-                                            <div className="mt-3 p-3 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
-                                                <p className="text-sm text-purple-700 dark:text-purple-300">
-                                                    {t('controlPanel.knowledge.current')} <span className="font-medium">{localKnowledgeBases.find((kb) => kb.id === selectedKnowledgeBase)?.name}</span>
-                                                </p>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    <div className="flex space-x-2">
-                                        <Button
-                                            onClick={handleRefreshKnowledgeBases}
-                                            variant="outline"
-                                            size="sm"
-                                            leftIcon={<RefreshCw className="w-4 h-4" />}
-                                            className="flex-1"
-                                        >
-                                            {t('controlPanel.knowledge.refresh')}
-                                        </Button>
-                                        <Button
-                                            onClick={() => navigate('/knowledge')}
-                                            variant="primary"
-                                            size="sm"
-                                            leftIcon={<ExternalLink className="w-4 h-4" />}
-                                            className="flex-1"
-                                        >
-                                            {t('controlPanel.knowledge.manage')}
-                                        </Button>
-                                    </div>
-                                </div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-                </motion.div>
-
                 {/* 训练音色配置 */}
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}

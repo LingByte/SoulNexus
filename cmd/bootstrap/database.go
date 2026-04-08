@@ -184,7 +184,6 @@ func RunMigrations(db *gorm.DB) error {
 		&models.ChatSessionLog{},
 		&notification.InternalNotification{},
 		&notification.MailLog{},
-		&models.Knowledge{},
 		&models.VoiceTrainingTask{},
 		&models.VoiceClone{},
 		&models.Voiceprint{},

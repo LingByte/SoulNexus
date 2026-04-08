@@ -745,34 +745,7 @@ func (c *AIClient) processWithLLM(userText string) {
 
 	legacyLog("[Server] Processing with LLM: %s", userText)
 
-	// Build query text (if knowledge base is provided, search knowledge base first)
 	queryText := userText
-	if c.knowledgeKey != "" && c.db != nil {
-		// Search knowledge base
-		knowledgeResults, err := models.SearchKnowledgeBase(c.db, c.knowledgeKey, userText, 5)
-		if err != nil {
-			legacyLog("[Server] Failed to search knowledge base: %v", err)
-			// Use original query when search fails
-			queryText = userText
-		} else if len(knowledgeResults) > 0 {
-			// Build context: use natural prompt template format, avoid AI mentioning "documents"
-			var contextBuilder strings.Builder
-			contextBuilder.WriteString(fmt.Sprintf("用户问题: %s\n\n", userText))
-			// Directly provide information content, don't emphasize "documents" or "reference information"
-			for i, result := range knowledgeResults {
-				if i > 0 {
-					contextBuilder.WriteString("\n\n")
-				}
-				contextBuilder.WriteString(result.Content)
-			}
-			contextBuilder.WriteString("\n\n请基于以上信息回答用户问题，回答要自然流畅，不要提及信息来源。")
-			queryText = contextBuilder.String()
-			legacyLog("[Server] Retrieved %d relevant documents from knowledge base (key: %s)", len(knowledgeResults), c.knowledgeKey)
-		} else {
-			// No relevant content found, use original query
-			queryText = userText
-		}
-	}
 
 	// Query LLM with assistant configuration
 	c.Mu.RLock()

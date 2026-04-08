@@ -100,7 +100,7 @@ func (h *Handlers) HandleWebSocketVoice(c *gin.Context) {
 	}
 
 	// 如果开启了图记忆功能，则尝试从 Neo4j 中获取该用户的长期偏好主题，并拼接到系统提示词中
-	if config.GlobalConfig.Services.KnowledgeBase.Neo4j.Enabled && assistant.EnableGraphMemory {
+	if config.GlobalConfig.Services.GraphMemory.Neo4j.Enabled && assistant.EnableGraphMemory {
 		if store := graph.GetDefaultStore(); store != nil {
 			// 通过凭证反查用户
 			var user models.User
@@ -122,12 +122,6 @@ func (h *Handlers) HandleWebSocketVoice(c *gin.Context) {
 		}
 	}
 
-	// Get knowledge base key from assistant
-	knowledgeKey := ""
-	if assistant.KnowledgeBaseID != nil && *assistant.KnowledgeBaseID != "" {
-		knowledgeKey = *assistant.KnowledgeBaseID
-	}
-
 	// 创建WebSocket处理器
 	handler := voice.NewHandler(logger.Lg)
 
@@ -142,7 +136,7 @@ func (h *Handlers) HandleWebSocketVoice(c *gin.Context) {
 		speaker,
 		float64(temperature),
 		systemPrompt,
-		knowledgeKey,
+		"",
 		h.db,
 	)
 }
@@ -288,12 +282,6 @@ func (h *Handlers) HandleHardwareWebSocketVoice(c *gin.Context) {
 		llmModel = "deepseek-v3.1" // Default model
 	}
 
-	// Get knowledge base key from assistant
-	knowledgeKey := ""
-	if assistant.KnowledgeBaseID != nil && *assistant.KnowledgeBaseID != "" {
-		knowledgeKey = *assistant.KnowledgeBaseID
-	}
-
 	// 创建WebSocket处理器
 	handler := hardware.NewHardwareHandler(h.db, logger.Lg)
 
@@ -312,7 +300,7 @@ func (h *Handlers) HandleHardwareWebSocketVoice(c *gin.Context) {
 		Speaker:              speaker,
 		Temperature:          float64(temperature),
 		SystemPrompt:         systemPrompt,
-		KnowledgeKey:         knowledgeKey,
+		KnowledgeKey:         "",
 		UserID:               device.UserID,
 		MacAddress:           device.MacAddress,
 		LLMModel:             llmModel,

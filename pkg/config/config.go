@@ -66,11 +66,11 @@ type AuthConfig struct {
 
 // ServicesConfig services configuration
 type ServicesConfig struct {
-	LLM           LLMConfig               `mapstructure:"llm"`
-	Mail          notification.MailConfig `mapstructure:"mail"`
-	KnowledgeBase KnowledgeBaseConfig     `mapstructure:"knowledge_base"`
-	Voice         VoiceConfig             `mapstructure:"voice"`
-	Storage       StorageConfig           `mapstructure:"storage"`
+	LLM         LLMConfig               `mapstructure:"llm"`
+	Mail        notification.MailConfig `mapstructure:"mail"`
+	GraphMemory GraphMemoryConfig       `mapstructure:"graph_memory"`
+	Voice       VoiceConfig             `mapstructure:"voice"`
+	Storage     StorageConfig           `mapstructure:"storage"`
 }
 
 // LLMConfig LLM service configuration
@@ -80,63 +80,9 @@ type LLMConfig struct {
 	Model   string `env:"LLM_MODEL"`
 }
 
-// KnowledgeBaseConfig knowledge base configuration
-type KnowledgeBaseConfig struct {
-	Enabled       bool                `env:"KNOWLEDGE_BASE_ENABLED"`
-	Bailian       BailianConfig       `mapstructure:"bailian"`
-	Milvus        MilvusConfig        `mapstructure:"milvus"`
-	Qdrant        QdrantConfig        `mapstructure:"qdrant"`
-	Elasticsearch ElasticsearchConfig `mapstructure:"elasticsearch"`
-	Pinecone      PineconeConfig      `mapstructure:"pinecone"`
-	Neo4j         Neo4jConfig         `mapstructure:"neo4j"`
-	Embedding     EmbeddingConfig     `mapstructure:"embedding"`
-	Rerank        RerankConfig        `mapstructure:"rerank"`
-}
-
-// BailianConfig Bailian configuration
-type BailianConfig struct {
-	AccessKeyId     string `env:"BAILIAN_ACCESS_KEY_ID"`
-	AccessKeySecret string `env:"BAILIAN_ACCESS_KEY_SECRET"`
-	Endpoint        string `env:"BAILIAN_ENDPOINT"`
-	WorkspaceId     string `env:"BAILIAN_WORKSPACE_ID"`
-	CategoryId      string `env:"BAILIAN_CATEGORY_ID"`
-	SourceType      string `env:"BAILIAN_SOURCE_TYPE"`
-	Parser          string `env:"BAILIAN_PARSER"`
-	StructType      string `env:"BAILIAN_STRUCT_TYPE"`
-	SinkType        string `env:"BAILIAN_SINK_TYPE"`
-}
-
-// MilvusConfig Milvus configuration
-type MilvusConfig struct {
-	Address    string `env:"MILVUS_ADDRESS"`
-	Username   string `env:"MILVUS_USERNAME"`
-	Password   string `env:"MILVUS_PASSWORD"`
-	Collection string `env:"MILVUS_COLLECTION"`
-	Dimension  int    `env:"MILVUS_DIMENSION"`
-}
-
-// QdrantConfig Qdrant configuration
-type QdrantConfig struct {
-	BaseURL    string `env:"QDRANT_BASE_URL"`
-	APIKey     string `env:"QDRANT_API_KEY"`
-	Collection string `env:"QDRANT_COLLECTION"`
-	Dimension  int    `env:"QDRANT_DIMENSION"`
-}
-
-// ElasticsearchConfig Elasticsearch configuration
-type ElasticsearchConfig struct {
-	BaseURL  string `env:"ELASTICSEARCH_BASE_URL"`
-	Username string `env:"ELASTICSEARCH_USERNAME"`
-	Password string `env:"ELASTICSEARCH_PASSWORD"`
-	Index    string `env:"ELASTICSEARCH_INDEX"`
-}
-
-// PineconeConfig Pinecone configuration
-type PineconeConfig struct {
-	APIKey    string `env:"PINECONE_API_KEY"`
-	BaseURL   string `env:"PINECONE_BASE_URL"`
-	IndexName string `env:"PINECONE_INDEX_NAME"`
-	Dimension int    `env:"PINECONE_DIMENSION"`
+// GraphMemoryConfig graph memory configuration
+type GraphMemoryConfig struct {
+	Neo4j Neo4jConfig `mapstructure:"neo4j"`
 }
 
 // Neo4jConfig Neo4j configuration
@@ -148,23 +94,6 @@ type Neo4jConfig struct {
 	Database string `env:"NEO4J_DATABASE"`
 }
 
-// EmbeddingConfig embedding service configuration
-type EmbeddingConfig struct {
-	Provider  string `env:"EMBEDDING_PROVIDER"`  // Provider name (e.g., "nvidia", "openai")
-	BaseURL   string `env:"EMBEDDING_BASE_URL"`  // API base URL
-	APIKey    string `env:"EMBEDDING_API_KEY"`   // API key
-	Model     string `env:"EMBEDDING_MODEL"`     // Model name
-	Dimension int    `env:"EMBEDDING_DIMENSION"` // Embedding dimension
-}
-
-// RerankConfig rerank service configuration
-type RerankConfig struct {
-	Provider string `env:"RERANK_PROVIDER"` // Provider name (e.g., "siliconflow", "cohere")
-	BaseURL  string `env:"RERANK_BASE_URL"` // API base URL
-	APIKey   string `env:"RERANK_API_KEY"`  // API key
-	Model    string `env:"RERANK_MODEL"`    // Model name
-	TopN     int    `env:"RERANK_TOP_N"`    // Number of top results to return after reranking
-}
 
 // VoiceConfig voice service configuration
 type VoiceConfig struct {
@@ -331,64 +260,13 @@ func Load() error {
 				Model:   getStringOrDefault("LLM_MODEL", "gpt-3.5-turbo"),
 			},
 			Mail: loadMailConfig(),
-			KnowledgeBase: KnowledgeBaseConfig{
-				Enabled: getBoolOrDefault("KNOWLEDGE_BASE_ENABLED", false),
-				Bailian: BailianConfig{
-					AccessKeyId:     getStringOrDefault("BAILIAN_ACCESS_KEY_ID", ""),
-					AccessKeySecret: getStringOrDefault("BAILIAN_ACCESS_KEY_SECRET", ""),
-					Endpoint:        getStringOrDefault("BAILIAN_ENDPOINT", ""),
-					WorkspaceId:     getStringOrDefault("BAILIAN_WORKSPACE_ID", ""),
-					CategoryId:      getStringOrDefault("BAILIAN_CATEGORY_ID", ""),
-					SourceType:      getStringOrDefault("BAILIAN_SOURCE_TYPE", ""),
-					Parser:          getStringOrDefault("BAILIAN_PARSER", ""),
-					StructType:      getStringOrDefault("BAILIAN_STRUCT_TYPE", ""),
-					SinkType:        getStringOrDefault("BAILIAN_SINK_TYPE", ""),
-				},
-				Milvus: MilvusConfig{
-					Address:    getStringOrDefault("MILVUS_ADDRESS", "localhost:19530"),
-					Username:   getStringOrDefault("MILVUS_USERNAME", ""),
-					Password:   getStringOrDefault("MILVUS_PASSWORD", ""),
-					Collection: getStringOrDefault("MILVUS_COLLECTION", ""),
-					Dimension:  getIntOrDefault("MILVUS_DIMENSION", 768),
-				},
-				Qdrant: QdrantConfig{
-					BaseURL:    getStringOrDefault("QDRANT_BASE_URL", "http://localhost:6333"),
-					APIKey:     getStringOrDefault("QDRANT_API_KEY", ""),
-					Collection: getStringOrDefault("QDRANT_COLLECTION", ""),
-					Dimension:  getIntOrDefault("QDRANT_DIMENSION", 384),
-				},
-				Elasticsearch: ElasticsearchConfig{
-					BaseURL:  getStringOrDefault("ELASTICSEARCH_BASE_URL", "http://localhost:9200"),
-					Username: getStringOrDefault("ELASTICSEARCH_USERNAME", ""),
-					Password: getStringOrDefault("ELASTICSEARCH_PASSWORD", ""),
-					Index:    getStringOrDefault("ELASTICSEARCH_INDEX", ""),
-				},
-				Pinecone: PineconeConfig{
-					APIKey:    getStringOrDefault("PINECONE_API_KEY", ""),
-					BaseURL:   getStringOrDefault("PINECONE_BASE_URL", "https://api.pinecone.io"),
-					IndexName: getStringOrDefault("PINECONE_INDEX_NAME", ""),
-					Dimension: getIntOrDefault("PINECONE_DIMENSION", 1536),
-				},
+			GraphMemory: GraphMemoryConfig{
 				Neo4j: Neo4jConfig{
 					Enabled:  getBoolOrDefault("NEO4J_ENABLED", false),
 					URI:      getStringOrDefault("NEO4J_URI", "bolt://localhost:7687"),
 					Username: getStringOrDefault("NEO4J_USERNAME", "neo4j"),
 					Password: getStringOrDefault("NEO4J_PASSWORD", ""),
 					Database: getStringOrDefault("NEO4J_DATABASE", "neo4j"),
-				},
-				Embedding: EmbeddingConfig{
-					Provider:  getStringOrDefault("EMBEDDING_PROVIDER", "nvidia"),
-					BaseURL:   getStringOrDefault("EMBEDDING_BASE_URL", "https://integrate.api.nvidia.com/v1"),
-					APIKey:    getStringOrDefault("EMBEDDING_API_KEY", ""),
-					Model:     getStringOrDefault("EMBEDDING_MODEL", "nvidia/nv-embedqa-e5-v5"),
-					Dimension: getIntOrDefault("EMBEDDING_DIMENSION", 384),
-				},
-				Rerank: RerankConfig{
-					Provider: getStringOrDefault("RERANK_PROVIDER", "siliconflow"),
-					BaseURL:  getStringOrDefault("RERANK_BASE_URL", "https://api.siliconflow.cn/v1"),
-					APIKey:   getStringOrDefault("RERANK_API_KEY", ""),
-					Model:    getStringOrDefault("RERANK_MODEL", "BAAI/bge-reranker-v2-m3"),
-					TopN:     getIntOrDefault("RERANK_TOP_N", 5),
 				},
 			},
 			Voice: VoiceConfig{
@@ -458,44 +336,9 @@ func (c *Config) Validate() error {
 		return errors.New("server address is required")
 	}
 
-	// Validate knowledge base configuration
-	if c.Services.KnowledgeBase.Enabled {
-		// Provider is now selected from frontend, so we don't validate it here
-		// But we still validate individual provider configurations if they are configured
-
-		// Validate Aliyun if configured
-		if c.Services.KnowledgeBase.Bailian.AccessKeyId != "" {
-			if c.Services.KnowledgeBase.Bailian.AccessKeySecret == "" {
-				return errors.New("bailian access key secret is required when access key ID is set")
-			}
-		}
-
-		// Validate Milvus if configured
-		if c.Services.KnowledgeBase.Milvus.Address != "" {
-			// Milvus is configured, validation passed
-		}
-
-		// Validate Qdrant if configured
-		if c.Services.KnowledgeBase.Qdrant.BaseURL != "" {
-			// Qdrant is configured, validation passed
-		}
-
-		// Validate Elasticsearch if configured
-		if c.Services.KnowledgeBase.Elasticsearch.BaseURL != "" {
-			// Elasticsearch is configured, validation passed
-		}
-
-		// Validate Pinecone if configured
-		if c.Services.KnowledgeBase.Pinecone.APIKey != "" {
-			if c.Services.KnowledgeBase.Pinecone.IndexName == "" {
-				return errors.New("pinecone index name is required when API key is set")
-			}
-		}
-	}
-
 	// Validate Neo4j configuration
-	if c.Services.KnowledgeBase.Neo4j.Enabled {
-		if c.Services.KnowledgeBase.Neo4j.URI == "" {
+	if c.Services.GraphMemory.Neo4j.Enabled {
+		if c.Services.GraphMemory.Neo4j.URI == "" {
 			return errors.New("neo4j URI is required when enabled")
 		}
 	}

@@ -170,7 +170,6 @@ func (h *Handlers) UpdateAssistant(c *gin.Context) {
 		Language             string   `json:"language"`
 		Speaker              string   `json:"speaker"`
 		VoiceCloneId         *int     `json:"voiceCloneId"`
-		KnowledgeBaseId      *string  `json:"knowledgeBaseId"`
 		TtsProvider          string   `json:"ttsProvider"`
 		ApiKey               string   `json:"apiKey"`
 		ApiSecret            string   `json:"apiSecret"`
@@ -237,9 +236,6 @@ func (h *Handlers) UpdateAssistant(c *gin.Context) {
 	}
 	if _, voiceCloneIdProvided := rawBody["voiceCloneId"]; voiceCloneIdProvided {
 		updateData["voice_clone_id"] = input.VoiceCloneId
-	}
-	if input.KnowledgeBaseId != nil {
-		updateData["knowledge_base_id"] = *input.KnowledgeBaseId
 	}
 	if input.TtsProvider != "" {
 		updateData["tts_provider"] = input.TtsProvider
@@ -314,7 +310,7 @@ func (h *Handlers) GetAssistantGraphData(c *gin.Context) {
 	}
 
 	// 检查是否启用了 Neo4j
-	if !config.GlobalConfig.Services.KnowledgeBase.Neo4j.Enabled {
+	if !config.GlobalConfig.Services.GraphMemory.Neo4j.Enabled {
 		response.Fail(c, "Neo4j not enabled", "Neo4j is not enabled in the system")
 		return
 	}

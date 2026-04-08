@@ -21,7 +21,6 @@ interface UseVoiceAssistantOptions {
   pollAudioStatus: (requestId: string, messageId: string) => void
   textMode?: TextMode
   updateAIMessage?: (messageId: string, newText: string) => void
-  selectedKnowledgeBase?: string | null // 选中的知识库ID
   temperature?: number // 生成多样性
   maxTokens?: number   // 最大回复长度
 }
@@ -44,7 +43,6 @@ export const useVoiceAssistant = (options: UseVoiceAssistantOptions) => {
     pollAudioStatus,
     textMode = 'voice',
     updateAIMessage,
-    selectedKnowledgeBase,
     temperature,
     maxTokens,
   } = options
@@ -114,8 +112,6 @@ export const useVoiceAssistant = (options: UseVoiceAssistantOptions) => {
         systemPrompt,
         // 根据是否使用训练音色选择speaker或voiceCloneId（仅语音模式需要）
         ...(textMode === 'voice' && (selectedVoiceCloneId ? { voiceCloneId: selectedVoiceCloneId } : { speaker: selectedSpeaker })),
-        // 如果选择了知识库，添加到请求中
-        ...(selectedKnowledgeBase && { knowledgeBaseId: selectedKnowledgeBase }),
         // 传递 temperature 和 maxTokens
         ...(temperature !== undefined && { temperature }),
         ...(maxTokens !== undefined && { maxTokens }),

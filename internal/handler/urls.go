@@ -182,7 +182,6 @@ func (h *Handlers) Register(engine *gin.Engine) {
 	h.registerAssistantRoutes(r)
 	h.registerChatRoutes(r)
 	h.registerCredentialsRoutes(r)
-	h.registerKnowledgeRoutes(r)
 	h.registerXunfeiTTSRoutes(r)
 	h.registerVolcengineTTSRoutes(r)
 	h.registerVoiceTrainingRoutes(r)
@@ -539,26 +538,6 @@ func (h *Handlers) registerWebSocketRoutes(r *gin.RouterGroup) {
 		wsGroup.POST("/broadcast", wsHandler.BroadcastMessage)
 		wsGroup.DELETE("/user/:user_id", wsHandler.DisconnectUser)
 		wsGroup.DELETE("/group/:group", wsHandler.DisconnectGroup)
-	}
-}
-
-// registerKnowledgeRoutes Knowledge Module
-func (h *Handlers) registerKnowledgeRoutes(r *gin.RouterGroup) {
-	knowledge := r.Group("/knowledge")
-	knowledge.Use(models.AuthRequired)
-	{
-		//阿里创建知识库
-		knowledge.POST("/create", models.AuthRequired, h.CreateKnowledgeBase)
-		//阿里删除知识库
-		knowledge.DELETE("/delete", models.AuthRequired, h.DeleteKnowledgeBase)
-		//阿里获取知识库用户
-		knowledge.GET("/get", models.AuthApiRequired, h.GetKnowledgeBase)
-		//上传文件到知识库（支持多 provider）
-		knowledge.POST("/upload", models.AuthRequired, h.UploadFileToKnowledgeBase)
-		//搜索/召回知识库文档
-		knowledge.GET("/search", models.AuthRequired, h.SearchKnowledgeBase)
-		//列出知识库中的所有内容（文档和段落）
-		knowledge.GET("/list", models.AuthRequired, h.ListKnowledgeBaseContent)
 	}
 }
 

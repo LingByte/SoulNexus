@@ -626,11 +626,6 @@ func (h *Handlers) GetDeviceConfig(c *gin.Context) {
 		"vadConsecutiveFrames": assistant.VADConsecutiveFrames,
 	}
 
-	// 知识库ID（可选）
-	if assistant.KnowledgeBaseID != nil && *assistant.KnowledgeBaseID != "" {
-		config["knowledgeBaseId"] = *assistant.KnowledgeBaseID
-	}
-
 	logger.Info("Device config requested",
 		zap.String("deviceID", deviceID),
 		zap.Int64("assistantID", int64(assistantID)))

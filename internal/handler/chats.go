@@ -427,19 +427,13 @@ func (h *Handlers) handleConnection(c *gin.Context) {
 		// TODO: 可以在这里添加组织成员权限检查
 	}
 
-	// 从 assistant 中读取配置
-	knowledgeKey := ""
-	if assistant.KnowledgeBaseID != nil && *assistant.KnowledgeBaseID != "" {
-		knowledgeKey = *assistant.KnowledgeBaseID
-	}
-
 	systemPrompt := assistant.SystemPrompt
 	if systemPrompt == "" {
 		systemPrompt = "你是一个友好的AI助手，请用简洁明了的语言回答问题。"
 	}
 
 	// 如果开启了图记忆功能，则尝试从 Neo4j 中获取该用户的长期偏好主题，并拼接到系统提示词中
-	if config.GlobalConfig.Services.KnowledgeBase.Neo4j.Enabled && assistant.EnableGraphMemory {
+	if config.GlobalConfig.Services.GraphMemory.Neo4j.Enabled && assistant.EnableGraphMemory {
 		if store := graph.GetDefaultStore(); store != nil {
 			ctx := c.Request.Context()
 			if userCtx, err := store.GetUserContext(ctx, cred.UserID, assistantID); err == nil {
@@ -508,7 +502,7 @@ func (h *Handlers) handleConnection(c *gin.Context) {
 		conn,
 		transport,
 		sessionID,
-		knowledgeKey,
+		"",
 		h.db,
 		cred.UserID,
 		cred.ID,

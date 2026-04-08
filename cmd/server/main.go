@@ -209,12 +209,12 @@ func main() {
 		zap.Bool("operationLog", config.GlobalConfig.Middleware.EnableOperationLog))
 
 	// 14. Initialize Neo4j Graph Database (if enabled)
-	if config.GlobalConfig.Services.KnowledgeBase.Neo4j.Enabled {
+	if config.GlobalConfig.Services.GraphMemory.Neo4j.Enabled {
 		graphStore, err := graph.NewNeo4jStore(
-			config.GlobalConfig.Services.KnowledgeBase.Neo4j.URI,
-			config.GlobalConfig.Services.KnowledgeBase.Neo4j.Username,
-			config.GlobalConfig.Services.KnowledgeBase.Neo4j.Password,
-			config.GlobalConfig.Services.KnowledgeBase.Neo4j.Database,
+			config.GlobalConfig.Services.GraphMemory.Neo4j.URI,
+			config.GlobalConfig.Services.GraphMemory.Neo4j.Username,
+			config.GlobalConfig.Services.GraphMemory.Neo4j.Password,
+			config.GlobalConfig.Services.GraphMemory.Neo4j.Database,
 		)
 		if err != nil {
 			logger.Error("Failed to initialize Neo4j", zap.Error(err))
