@@ -1157,6 +1157,78 @@ func (h *Handlers) GetDocs() []apidocs.UriDoc {
 			Desc:         "Delete a credential",
 		},
 
+		// ==================== Knowledge Base ====================
+		{
+			Group:        "Knowledge Base",
+			Path:         config.GlobalConfig.Server.APIPrefix + "/knowledge-base",
+			Method:       http.MethodGet,
+			AuthRequired: true,
+			Desc:         "List current user's knowledge bases",
+		},
+		{
+			Group:        "Knowledge Base",
+			Path:         config.GlobalConfig.Server.APIPrefix + "/knowledge-base/supported-document-types",
+			Method:       http.MethodGet,
+			AuthRequired: true,
+			Desc:         "List supported knowledge document upload formats",
+		},
+		{
+			Group:        "Knowledge Base",
+			Path:         config.GlobalConfig.Server.APIPrefix + "/knowledge-base",
+			Method:       http.MethodPost,
+			AuthRequired: true,
+			Desc:         "Create a knowledge base",
+		},
+		{
+			Group:        "Knowledge Base",
+			Path:         config.GlobalConfig.Server.APIPrefix + "/knowledge-base/:id",
+			Method:       http.MethodGet,
+			AuthRequired: true,
+			Desc:         "Get knowledge base detail",
+		},
+		{
+			Group:        "Knowledge Base",
+			Path:         config.GlobalConfig.Server.APIPrefix + "/knowledge-base/:id",
+			Method:       http.MethodPut,
+			AuthRequired: true,
+			Desc:         "Update a knowledge base",
+		},
+		{
+			Group:        "Knowledge Base",
+			Path:         config.GlobalConfig.Server.APIPrefix + "/knowledge-base/:id",
+			Method:       http.MethodDelete,
+			AuthRequired: true,
+			Desc:         "Delete a knowledge base",
+		},
+		{
+			Group:        "Knowledge Base",
+			Path:         config.GlobalConfig.Server.APIPrefix + "/knowledge-base/:id/documents",
+			Method:       http.MethodGet,
+			AuthRequired: true,
+			Desc:         "List documents in knowledge base (aggregated from vector store)",
+		},
+		{
+			Group:        "Knowledge Base",
+			Path:         config.GlobalConfig.Server.APIPrefix + "/knowledge-base/:id/documents/upload",
+			Method:       http.MethodPost,
+			AuthRequired: true,
+			Desc:         "Upload document to knowledge base (optional Accept: application/x-ndjson for progress stream)",
+		},
+		{
+			Group:        "Knowledge Base",
+			Path:         config.GlobalConfig.Server.APIPrefix + "/knowledge-base/:id/documents",
+			Method:       http.MethodDelete,
+			AuthRequired: true,
+			Desc:         "Delete document from knowledge base",
+		},
+		{
+			Group:        "Knowledge Base",
+			Path:         config.GlobalConfig.Server.APIPrefix + "/knowledge-base/:id/recall-test",
+			Method:       http.MethodPost,
+			AuthRequired: true,
+			Desc:         "Knowledge base recall experiment",
+		},
+
 		// ==================== Xunfei TTS ====================
 		{
 			Group:        "Xunfei TTS",

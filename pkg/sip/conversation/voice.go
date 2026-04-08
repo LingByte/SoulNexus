@@ -459,7 +459,10 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 			}()
 			ttsPlaying.Store(true)
 			ttsStartedAtNS.Store(time.Now().UnixNano())
-			reply, err := streamLLMToTTS(ms.GetContext(), llmProvider, llmModel, userText, ttsPipe, lg)
+			kbCtx, kbCancel := context.WithTimeout(ms.GetContext(), 12*time.Second)
+			llmInput := augmentUserTextWithKnowledge(kbCtx, userText, lg)
+			kbCancel()
+			reply, err := streamLLMToTTS(ms.GetContext(), llmProvider, llmModel, llmInput, ttsPipe, lg)
 			if err != nil {
 				lg.Warn("sip voice llm/tts", zap.Error(err))
 				return

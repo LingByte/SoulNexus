@@ -1,0 +1,92 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Ling Knowledge Admin</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .card { border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+    .row { margin: 8px 0; }
+    input, select, textarea { width: 100%; padding: 8px; }
+    button { padding: 8px 14px; }
+    .msg { background: #f4f8ff; border-left: 4px solid #4a90e2; padding: 8px; margin-bottom: 12px; }
+    .result { border-top: 1px dashed #ccc; padding-top: 8px; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <h2>Ling Knowledge Admin</h2>
+
+  {{if .Message}}
+  <div class="msg">{{.Message}}</div>
+  {{end}}
+  {{if .LastUploadMsg}}
+  <div class="msg">上传结果（{{.LastUploadKB}}）：{{.LastUploadMsg}}</div>
+  {{end}}
+
+  <div class="card">
+    <h3>1) 创建知识库配置</h3>
+    <form method="post" action="/knowledge/create">
+      <div class="row"><label>名称</label><input name="name" value="{{.Default.Name}}" placeholder="例如: kb_qdrant_prod" /></div>
+      <div class="row">
+        <label>Provider</label>
+        <select name="provider">
+          <option value="qdrant" {{if eq .Default.Provider "qdrant"}}selected{{end}}>qdrant</option>
+          <option value="aliyun" {{if eq .Default.Provider "aliyun"}}selected{{end}}>alibaba/aliyun</option>
+        </select>
+      </div>
+      <div class="row"><label>Qdrant URL</label><input name="qdrant_url" value="{{.Default.QdrantURL}}" placeholder="http://localhost:6333" /></div>
+      <div class="row"><label>Qdrant API Key</label><input name="qdrant_api_key" value="{{.Default.QdrantAPIKey}}" /></div>
+      <div class="row"><label>Collection</label><input name="collection" value="{{.Default.Collection}}" /></div>
+      <div class="row"><label>Embedding URL</label><input name="embedding_url" value="{{.Default.EmbeddingURL}}" placeholder="https://integrate.api.nvidia.com/v1" /></div>
+      <div class="row"><label>Embedding API Key</label><input name="embedding_key" value="{{.Default.EmbeddingKey}}" /></div>
+      <div class="row"><label>Embedding Model</label><input name="embedding_model" value="{{.Default.EmbeddingModel}}" placeholder="nvidia/nv-embed-v1" /></div>
+      <div class="row"><button type="submit">保存知识库配置</button></div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h3>2) 选择知识库并上传文档</h3>
+    <form method="post" action="/knowledge/upload" enctype="multipart/form-data">
+      <div class="row">
+        <label>知识库</label>
+        <select name="kb_name">
+          {{range .Profiles}}
+          <option value="{{.Name}}" {{if eq $.SelectedKB .Name}}selected{{end}}>{{.Name}} ({{.Provider}})</option>
+          {{end}}
+        </select>
+      </div>
+      <div class="row"><label>文件</label><input type="file" name="file" /></div>
+      <div class="row"><button type="submit">上传并入库</button></div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h3>3) 召回测试</h3>
+    <form method="post" action="/knowledge/query">
+      <div class="row">
+        <label>知识库</label>
+        <select name="kb_name">
+          {{range .Profiles}}
+          <option value="{{.Name}}" {{if eq $.SelectedKB .Name}}selected{{end}}>{{.Name}} ({{.Provider}})</option>
+          {{end}}
+        </select>
+      </div>
+      <div class="row"><label>Query</label><textarea name="query" rows="3" placeholder="输入测试查询">{{.Query}}</textarea></div>
+      <div class="row"><label>TopK</label><input name="topk" value="5" /></div>
+      <div class="row"><button type="submit">执行召回</button></div>
+    </form>
+
+    {{if .QueryResults}}
+      <h4>结果列表</h4>
+      {{range .QueryResults}}
+      <div class="result">
+        <div><strong>ID:</strong> {{.ID}}</div>
+        <div><strong>Title:</strong> {{.Title}}</div>
+        <div><strong>Score:</strong> {{.Score}}</div>
+        <div><strong>Preview:</strong> {{.Preview}}</div>
+      </div>
+      {{end}}
+    {{end}}
+  </div>
+</body>
+</html>
