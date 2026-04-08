@@ -165,8 +165,11 @@ func Start(cfg Config) (*Embedded, error) {
 		acdDB = cfg.DB
 		campaignSvc = sipcampaign.NewService(cfg.DB)
 		_ = campaignSvc.AutoMigrate()
-		campaignSvc.StartWorker(outMgr)
 		sipRegStore = sipreg.NewGormStore(cfg.DB)
+		campaignSvc.SetDialTargetResolver(func(ctx context.Context, phone string) (outbound.DialTarget, bool) {
+			return sipRegStore.DialTargetForUsername(ctx, phone)
+		})
+		campaignSvc.StartWorker(outMgr)
 		sipServerPtr.SetRegisterStore(sipRegStore)
 		sipCallPersist = sippersist.New(cfg.DB, logger.Lg)
 		sipServerPtr.SetCallPersist(sipCallPersist)
@@ -199,8 +202,11 @@ func Start(cfg Config) (*Embedded, error) {
 				acdDB = db
 				campaignSvc = sipcampaign.NewService(db)
 				_ = campaignSvc.AutoMigrate()
-				campaignSvc.StartWorker(outMgr)
 				sipRegStore = sipreg.NewGormStore(db)
+				campaignSvc.SetDialTargetResolver(func(ctx context.Context, phone string) (outbound.DialTarget, bool) {
+					return sipRegStore.DialTargetForUsername(ctx, phone)
+				})
+				campaignSvc.StartWorker(outMgr)
 				sipServerPtr.SetRegisterStore(sipRegStore)
 				sipCallPersist = sippersist.New(db, logger.Lg)
 				sipServerPtr.SetCallPersist(sipCallPersist)

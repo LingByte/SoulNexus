@@ -20,6 +20,8 @@ import (
 
 type Service struct {
 	db *gorm.DB
+	// Optional resolver: map contact phone/extension to latest registered SIP target.
+	dialTargetResolver func(ctx context.Context, phone string) (outbound.DialTarget, bool)
 
 	mu      sync.Mutex
 	running bool
@@ -78,6 +80,16 @@ func NewService(db *gorm.DB) *Service {
 		globalConcurrency: 20,
 		dedupeWindow:      24 * time.Hour,
 	}
+}
+
+// SetDialTargetResolver injects dynamic dial target lookup (e.g. SIP REGISTER bindings).
+func (s *Service) SetDialTargetResolver(fn func(ctx context.Context, phone string) (outbound.DialTarget, bool)) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.dialTargetResolver = fn
+	s.mu.Unlock()
 }
 
 func (s *Service) AutoMigrate() error {
@@ -271,17 +283,17 @@ func (s *Service) markAttemptFailed(ctx context.Context, campaignID, contactID u
 		return
 	}
 	now := time.Now()
-	retryAt := s.computeNextRetry(contact.AttemptCount)
+	retryAt := s.computeNextRetry(attemptNo)
 	state := models.SIPCampaignContactFailed
-	if retryAt != nil && contact.AttemptCount < contact.MaxAttempts {
+	if retryAt != nil && attemptNo < contact.MaxAttempts {
 		state = models.SIPCampaignContactRetrying
 		s.metrics.Retrying.Add(1)
 	}
 	attemptUpdates := map[string]any{
-		"state":         "failed",
+		"state":          "failed",
 		"failure_reason": emptyOr(evt.Reason, "failed"),
-		"ended_at":      &now,
-		"next_retry_at": retryAt,
+		"ended_at":       &now,
+		"next_retry_at":  retryAt,
 	}
 	if evt.StatusCode > 0 && s.hasAttemptSIPStatusCodeColumn() {
 		attemptUpdates["sip_status_code"] = evt.StatusCode
@@ -302,7 +314,7 @@ func (s *Service) markAttemptFailed(ctx context.Context, campaignID, contactID u
 			Message:       "scheduled retry at " + retryAt.Format(time.RFC3339),
 		})
 	}
-	if state == models.SIPCampaignContactFailed && contact.AttemptCount >= contact.MaxAttempts {
+	if state == models.SIPCampaignContactFailed && attemptNo >= contact.MaxAttempts {
 		updates["status"] = models.SIPCampaignContactExhausted
 	}
 	_ = s.db.WithContext(ctx).Model(&models.SIPCampaignContact{}).Where("id = ?", contactID).Updates(updates).Error
@@ -632,4 +644,3 @@ func (s *Service) SnapshotMetrics() map[string]int64 {
 		"suppressed_total": s.metrics.Suppressed.Load(),
 	}
 }
-

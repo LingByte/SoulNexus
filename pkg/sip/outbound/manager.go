@@ -147,7 +147,11 @@ func (m *Manager) Dial(ctx context.Context, req DialRequest) (callID string, err
 	}
 	localPort = rtpSess.LocalAddr.Port
 	codecs := defaultOfferCodecs()
-	if req.Scenario == ScenarioTransferAgent && req.MediaProfile == MediaProfileTransferBridge {
+	if req.MediaProfile == MediaProfileScript {
+		// Script callbacks prioritize SIP endpoint compatibility over wideband quality.
+		// Some UAs negotiate Opus but still produce garbled playout in this path.
+		codecs = transferAgentBridgeOfferCodecs()
+	} else if req.Scenario == ScenarioTransferAgent && req.MediaProfile == MediaProfileTransferBridge {
 		codecs = transferAgentBridgeOfferCodecs()
 	}
 	sdpBody := protocol.GenerateSDPWithProto(localSDP, localPort, "RTP/AVP", codecs)
@@ -473,6 +477,9 @@ func (leg *outLeg) handleResponse(ctx context.Context, resp *protocol.Message, f
 		zap.String("correlation_id", strings.TrimSpace(leg.req.CorrelationID)),
 		zap.String("scenario", string(leg.req.Scenario)),
 		zap.String("media_profile", string(leg.req.MediaProfile)),
+		zap.String("negotiated_codec", cs.NegotiatedCodec().Name),
+		zap.Int("negotiated_clock_rate", cs.NegotiatedCodec().ClockRate),
+		zap.Int("negotiated_channels", cs.NegotiatedCodec().Channels),
 	)
 }
 
