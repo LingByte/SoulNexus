@@ -6,19 +6,58 @@ import (
 	"strings"
 )
 
-// G711TaggedRecordingToWav decodes "SN1" + [dir u8][len u16LE][pcmu/pcma payload]...; otherwise raw G.711 pass-through.
+// G711TaggedRecordingToWav decodes tagged SIP recordings:
+// - v2: "SN2" + [dir u8][seq u16LE][ts u32LE][len u16LE][payload]
+// - v1: "SN1" + [dir u8][len u16LE][payload]
+// otherwise raw G.711 pass-through.
 func G711TaggedRecordingToWav(b []byte, codec string) []byte {
+	if len(b) >= 3 && b[0] == 'S' && b[1] == 'N' && b[2] == '2' {
+		return g711TaggedFramesV2ToPcmWav(b[3:], codec)
+	}
 	if len(b) >= 3 && b[0] == 'S' && b[1] == 'N' && b[2] == '1' {
 		return g711TaggedFramesToPcmWav(b[3:], codec)
 	}
 	return G711PayloadsToWav(b, codec)
 }
 
+func g711TaggedFramesV2ToPcmWav(b []byte, codec string) []byte {
+	c := strings.ToLower(strings.TrimSpace(codec))
+	var pcm []int16
+	const aiPriorityHoldFrames = 8
+	aiPriorityLeft := 0
+	for len(b) >= 9 {
+		dir := b[0]
+		n := int(binary.LittleEndian.Uint16(b[7:9]))
+		b = b[9:]
+		if n <= 0 || n > 2000 || len(b) < n {
+			break
+		}
+		chunk := b[:n]
+		b = b[n:]
+		if dir == 1 {
+			aiPriorityLeft = aiPriorityHoldFrames
+		} else if aiPriorityLeft > 0 {
+			aiPriorityLeft--
+			continue
+		}
+		var decoded []int16
+		if strings.Contains(c, "pcma") {
+			decoded = decodeALaw(chunk)
+		} else {
+			decoded = decodeMuLaw(chunk)
+		}
+		pcm = append(pcm, decoded...)
+	}
+	return pcm16MonoToWav(pcm, 8000)
+}
+
 func g711TaggedFramesToPcmWav(b []byte, codec string) []byte {
 	c := strings.ToLower(strings.TrimSpace(codec))
 	var pcm []int16
+	const aiPriorityHoldFrames = 8
+	aiPriorityLeft := 0
 	for len(b) >= 3 {
-		_ = b[0]
+		dir := b[0]
 		n := int(binary.LittleEndian.Uint16(b[1:3]))
 		b = b[3:]
 		if n <= 0 || n > 2000 || len(b) < n {
@@ -26,11 +65,19 @@ func g711TaggedFramesToPcmWav(b []byte, codec string) []byte {
 		}
 		chunk := b[:n]
 		b = b[n:]
-		if strings.Contains(c, "pcma") {
-			pcm = append(pcm, decodeALaw(chunk)...)
-		} else {
-			pcm = append(pcm, decodeMuLaw(chunk)...)
+		if dir == 1 {
+			aiPriorityLeft = aiPriorityHoldFrames
+		} else if aiPriorityLeft > 0 {
+			aiPriorityLeft--
+			continue
 		}
+		var decoded []int16
+		if strings.Contains(c, "pcma") {
+			decoded = decodeALaw(chunk)
+		} else {
+			decoded = decodeMuLaw(chunk)
+		}
+		pcm = append(pcm, decoded...)
 	}
 	return pcm16MonoToWav(pcm, 8000)
 }

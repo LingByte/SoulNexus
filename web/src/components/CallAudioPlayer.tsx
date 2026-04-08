@@ -41,6 +41,17 @@ export default function CallAudioPlayer({
 
     const generateWaveform = async () => {
       try {
+        // Long recordings can stutter if we fetch+decode the full file on main thread.
+        // Use a lightweight synthetic waveform for long calls to keep playback smooth.
+        if ((durationSeconds || 0) > 120) {
+          const smoothBars = Array.from({ length: 100 }, (_, i) => {
+            const t = i / 100
+            return 35 + Math.sin(t * Math.PI * 6) * 15 + Math.random() * 10
+          })
+          setWaveformData(smoothBars)
+          return
+        }
+
         const response = await fetch(audio.src)
         const arrayBuffer = await response.arrayBuffer()
         const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
@@ -65,6 +76,7 @@ export default function CallAudioPlayer({
         const max = Math.max(...filteredData)
         const normalized = filteredData.map(n => (n / max) * 100)
         setWaveformData(normalized)
+        audioContext.close().catch(() => {})
       } catch (err) {
         console.error('Failed to generate waveform:', err)
         // Fallback to random data if generation fails
@@ -73,7 +85,7 @@ export default function CallAudioPlayer({
     }
 
     generateWaveform()
-  }, [audioUrl])
+  }, [audioUrl, durationSeconds])
 
   useEffect(() => {
     const audio = audioRef.current

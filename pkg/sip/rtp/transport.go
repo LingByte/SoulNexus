@@ -31,8 +31,13 @@ type SIPRTPTransport struct {
 
 	// OnInputPayload, if set, receives a copy of each incoming audio RTP payload (after PT filter).
 	OnInputPayload func([]byte)
+	// OnInputRTP, if set, receives RTP timing metadata + payload copy for recording/reconstruction.
+	OnInputRTP func(seq uint16, ts uint32, payload []byte)
 	// OnOutputPayload, if set, receives a copy of each outgoing encoded audio RTP payload (output transport only).
 	OnOutputPayload func([]byte)
+	// OnOutputRTP, if set, receives RTP timing metadata + payload copy for recording/reconstruction.
+	// seq/ts correspond to the packet values before Session.SendRTP increments counters.
+	OnOutputRTP func(seq uint16, ts uint32, payload []byte)
 
 	attached *media.MediaSession
 }
@@ -151,6 +156,11 @@ func (t *SIPRTPTransport) Next(ctx context.Context) (media.MediaPacket, error) {
 			copy(cp, pkt.Payload)
 			t.OnInputPayload(cp)
 		}
+		if t.OnInputRTP != nil && len(pkt.Payload) > 0 {
+			cp := make([]byte, len(pkt.Payload))
+			copy(cp, pkt.Payload)
+			t.OnInputRTP(pkt.Header.SequenceNumber, pkt.Header.Timestamp, cp)
+		}
 
 		t.clearReadDeadline()
 		return &media.AudioPacket{Payload: pkt.Payload}, nil
@@ -199,6 +209,11 @@ func (t *SIPRTPTransport) Send(ctx context.Context, packet media.MediaPacket) (i
 		cp := make([]byte, len(payload))
 		copy(cp, payload)
 		t.OnOutputPayload(cp)
+	}
+	if t.OnOutputRTP != nil {
+		cp := make([]byte, len(payload))
+		copy(cp, payload)
+		t.OnOutputRTP(t.sess.SeqNum, t.sess.Timestamp, cp)
 	}
 
 	// RTP timestamp increment must be based on codec clock rate, not payload bytes.
