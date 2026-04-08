@@ -19,9 +19,10 @@ import (
 
 const maxInboundRecordingBytes = 50 * 1024 * 1024
 
-// SIP recording blob format (sippersist): magic "SN1" then repeated [dir u8][len u16LE][payload].
-// dir: user uplink RTP vs AI/TTS downlink RTP (same negotiated codec, e.g. Opus).
-const recBlobMagic = "SN1"
+// SIP recording blob format v2 (sippersist): magic "SN2" then repeated
+// [dir u8][seq u16LE][ts u32LE][len u16LE][payload].
+// Includes RTP sequence/timestamp to allow reordering and smoother offline reconstruction.
+const recBlobMagic = "SN2"
 
 const (
 	recDirUser = 0
@@ -208,9 +209,9 @@ func NewCallSession(callID string, rtpSess *rtp.Session, sdpCodecs []sipprotocol
 		cancel:   cancel,
 	}
 	rxTransport := rtp.NewSIPRTPTransport(rtpSess, src, media.DirectionInput, dtmfPT)
-	rxTransport.OnInputPayload = func(p []byte) { cs.appendRecordingFrame(recDirUser, p) }
+	rxTransport.OnInputRTP = func(seq uint16, ts uint32, p []byte) { cs.appendRecordingFrame(recDirUser, seq, ts, p) }
 	txTransport := rtp.NewSIPRTPTransport(rtpSess, src, media.DirectionOutput, 0)
-	txTransport.OnOutputPayload = func(p []byte) { cs.appendRecordingFrame(recDirAI, p) }
+	txTransport.OnOutputRTP = func(seq uint16, ts uint32, p []byte) { cs.appendRecordingFrame(recDirAI, seq, ts, p) }
 	cs.rxTransport = rxTransport
 	cs.txTransport = txTransport
 
@@ -388,7 +389,7 @@ func (cs *CallSession) Stop() {
 	}
 }
 
-func (cs *CallSession) appendRecordingFrame(dir byte, p []byte) {
+func (cs *CallSession) appendRecordingFrame(dir byte, seq uint16, ts uint32, p []byte) {
 	if cs == nil || len(p) == 0 {
 		return
 	}
@@ -405,7 +406,7 @@ func (cs *CallSession) appendRecordingFrame(dir byte, p []byte) {
 	if rem <= 0 {
 		return
 	}
-	frameOverhead := 1 + 2 // dir + uint16 len
+	frameOverhead := 1 + 2 + 4 + 2 // dir + seq + ts + uint16 len
 	if len(cs.recBuf) == 0 {
 		if len(recBlobMagic) > rem {
 			return
@@ -417,13 +418,15 @@ func (cs *CallSession) appendRecordingFrame(dir byte, p []byte) {
 		return
 	}
 	cs.recBuf = append(cs.recBuf, dir)
-	var hdr [2]byte
-	binary.LittleEndian.PutUint16(hdr[:], uint16(len(p)))
+	var hdr [8]byte
+	binary.LittleEndian.PutUint16(hdr[0:2], seq)
+	binary.LittleEndian.PutUint32(hdr[2:6], ts)
+	binary.LittleEndian.PutUint16(hdr[6:8], uint16(len(p)))
 	cs.recBuf = append(cs.recBuf, hdr[:]...)
 	cs.recBuf = append(cs.recBuf, p...)
 }
 
-// TakeRecording returns buffered RTP recording (SN1 + per-frame dir/len/payload) and clears the buffer.
+// TakeRecording returns buffered RTP recording (SN2 + per-frame dir/seq/ts/len/payload) and clears the buffer.
 func (cs *CallSession) TakeRecording() []byte {
 	if cs == nil {
 		return nil

@@ -48,10 +48,6 @@ const ChatArea: React.FC<ChatAreaProps> = ({
 
   // 打字特效：仅对新增的 AI 消息触发一次，不因列表变化重置
   
-  // 调试信息
-  console.log('ChatArea渲染 - 消息数量:', messages.length)
-  console.log('ChatArea渲染 - 消息内容:', messages)
-
   // 监听新增消息：仅当最后一条是全新 id 且未出现过时，加入打字集合
   useEffect(() => {
     const lastMessage = messages[messages.length - 1]

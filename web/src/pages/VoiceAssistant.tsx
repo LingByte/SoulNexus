@@ -41,6 +41,7 @@ import { useVoiceAssistant } from '@/hooks/useVoiceAssistant'
 import { getUploadsBaseURL, buildWebSocketURL } from '@/config/apiConfig'
 
 const VoiceAssistant = () => {
+    const WS_AUDIO_DEBUG = false
     const { t } = useI18nStore()
     const navigate = useNavigate()
     const { id } = useParams();
@@ -592,22 +593,20 @@ const VoiceAssistant = () => {
                 return
             }
 
-            // 转换为Int16Array（16位PCM）
+            // 转换为Int16Array（线性PCM）
+            // 使用DataView显式按小端读取，避免手动位运算导致符号位处理不稳定。
             const pcmData = new Int16Array(samples)
-
-            // 转换为小端序Int16（假设数据已经是小端序）
+            const view = new DataView(mergedBuffer.buffer, mergedBuffer.byteOffset, mergedBuffer.byteLength)
             for (let i = 0; i < samples; i++) {
                 const byteOffset = i * bytesPerSample
                 if (bytesPerSample === 2) {
-                    // 16位：2字节
-                    pcmData[i] = mergedBuffer[byteOffset] | (mergedBuffer[byteOffset + 1] << 8)
-                    // 检查是否有符号位
-                    if (pcmData[i] & 0x8000) {
-                        pcmData[i] |= 0xFFFF0000 // 符号扩展
-                    }
+                    pcmData[i] = view.getInt16(byteOffset, true)
                 } else if (bytesPerSample === 1) {
-                    // 8位：1字节（转换为16位）
-                    pcmData[i] = (mergedBuffer[byteOffset] - 128) * 256
+                    // 8位PCM通常是无符号，转换到16位有符号区间
+                    pcmData[i] = (mergedBuffer[byteOffset] - 128) << 8
+                } else {
+                    console.warn('[WebSocket语音] 暂不支持的位深度:', bitDepth)
+                    return
                 }
             }
 
@@ -726,24 +725,32 @@ const VoiceAssistant = () => {
             // 处理二进制消息（TTS音频流）- 支持ArrayBuffer和Blob
             // WebSocket的二进制消息应该总是音频数据，不应该尝试解析为JSON
             if (event.data instanceof ArrayBuffer) {
-                console.log('[WebSocket语音] 收到ArrayBuffer音频数据，大小:', event.data.byteLength, 'isTTSActive:', isTTSActive, 'sampleRate:', ttsAudioFormat.sampleRate)
+                if (WS_AUDIO_DEBUG) {
+                    console.log('[WebSocket语音] 收到ArrayBuffer音频数据，大小:', event.data.byteLength, 'isTTSActive:', isTTSActive, 'sampleRate:', ttsAudioFormat.sampleRate)
+                }
                 // 只有在TTS激活状态时才累积音频数据
                 if (!isGlobalMuted && isTTSActive && ttsAudioFormat.sampleRate) {
                     // 累积音频数据
                     ttsAudioBuffer.push(new Uint8Array(event.data))
-                    console.log('[WebSocket语音] 累积音频数据，当前缓冲区大小:', ttsAudioBuffer.length)
+                    if (WS_AUDIO_DEBUG) {
+                        console.log('[WebSocket语音] 累积音频数据，当前缓冲区大小:', ttsAudioBuffer.length)
+                    }
                 }
                 return
             }
 
             // 处理Blob对象（某些浏览器可能将二进制数据包装为Blob）
             if (event.data instanceof Blob) {
-                console.log('[WebSocket语音] 收到Blob音频数据，大小:', event.data.size, 'isTTSActive:', isTTSActive, 'sampleRate:', ttsAudioFormat.sampleRate)
+                if (WS_AUDIO_DEBUG) {
+                    console.log('[WebSocket语音] 收到Blob音频数据，大小:', event.data.size, 'isTTSActive:', isTTSActive, 'sampleRate:', ttsAudioFormat.sampleRate)
+                }
                 // WebSocket的Blob消息在TTS激活状态下应该是音频数据
                 if (!isGlobalMuted && isTTSActive && ttsAudioFormat.sampleRate) {
                     const arrayBuffer = await event.data.arrayBuffer()
                     ttsAudioBuffer.push(new Uint8Array(arrayBuffer))
-                    console.log('[WebSocket语音] 累积音频数据，当前缓冲区大小:', ttsAudioBuffer.length)
+                    if (WS_AUDIO_DEBUG) {
+                        console.log('[WebSocket语音] 累积音频数据，当前缓冲区大小:', ttsAudioBuffer.length)
+                    }
                 } else {
                     // 如果不是TTS激活状态，尝试作为文本消息处理（但这种情况应该很少）
                     // 先检查是否是有效的文本（尝试读取前几个字节）
@@ -780,7 +787,9 @@ const VoiceAssistant = () => {
 
         // 处理WebSocket文本消息的内部函数
         const handleWebSocketMessage = (data: any) => {
-            console.log('[WebSocket语音] 收到消息:', data.type, data)
+            if (WS_AUDIO_DEBUG) {
+                console.log('[WebSocket语音] 收到消息:', data.type, data)
+            }
 
             switch (data.type) {
                 case 'connected':
@@ -954,12 +963,17 @@ const VoiceAssistant = () => {
 
             // 连接音频处理链
             source.connect(processor)
-            processor.connect(audioContext.destination)
+            // 连接到静音节点以保持处理器活跃，避免把麦克风原始音直出到扬声器导致回声干扰
+            const silentGain = audioContext.createGain()
+            silentGain.gain.value = 0
+            processor.connect(silentGain)
+            silentGain.connect(audioContext.destination)
 
             // 保存引用以便停止
             mediaRecorderRef.current = {
                 stop: () => {
                     processor.disconnect()
+                    silentGain.disconnect()
                     source.disconnect()
                     audioContext.close()
                 }

@@ -136,16 +136,14 @@ func (w *Writer) SendASRResult(text string) error {
 	})
 }
 
-// SendTTSAudio 发送TTS音频数据（异步，非阻塞）
+// SendTTSAudio 发送TTS音频数据
+// 对于流式TTS，不能在缓冲区满时直接丢包，否则客户端会出现卡顿/杂音。
+// 这里采用阻塞写入，让上游感知背压，优先保证音频连续性。
 func (w *Writer) SendTTSAudio(data []byte) error {
 	select {
 	case <-w.ctx.Done():
 		return w.ctx.Err()
 	case w.binaryChan <- data:
-		return nil
-	default:
-		// 缓冲区满，记录警告但不阻塞
-		w.logger.Warn("TTS音频缓冲区已满，丢弃数据")
 		return nil
 	}
 }

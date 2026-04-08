@@ -26,10 +26,10 @@ const Badge = ({
   delay = 0
 }: BadgeProps) => {
   const sizeClasses = {
-    xs: 'px-1.5 py-0.5 text-xs',
-    sm: 'px-2 py-1 text-xs',
-    md: 'px-3 py-1.5 text-sm',
-    lg: 'px-4 py-2 text-base'
+    xs: 'px-1.5 py-1 text-xs',
+    sm: 'px-2 py-1.5 text-xs',
+    md: 'px-3 py-2 text-sm',
+    lg: 'px-4 py-2.5 text-base'
   }
 
   const variantClasses = {
@@ -101,7 +101,7 @@ const Badge = ({
   return (
     <motion.span
       className={cn(
-        'inline-flex items-center font-medium transition-all duration-200 relative overflow-hidden',
+        'inline-flex items-center whitespace-nowrap font-medium transition-all duration-400 relative overflow-hidden',
         sizeClasses[size],
         variantClasses[variant],
         shapeClasses[shape],
@@ -127,10 +127,13 @@ const Badge = ({
         transition={{ duration: 0.2 }}
       />
       
-      <div className="relative inline-flex items-center gap-1.5">
+      <div className="relative inline-flex items-center gap-1.5 whitespace-nowrap">
         {icon && (
           <motion.span 
-            className={cn('flex-shrink-0', iconSizeClasses[size])}
+            className={cn(
+              'inline-flex items-center justify-center flex-shrink-0 align-middle leading-none',
+              iconSizeClasses[size]
+            )}
             whileHover={{ rotate: 360 }}
             transition={{ duration: 0.3 }}
           >
@@ -138,6 +141,7 @@ const Badge = ({
           </motion.span>
         )}
         <motion.span
+          className="inline-flex items-center leading-none"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.2, delay: delay + 0.1 }}
