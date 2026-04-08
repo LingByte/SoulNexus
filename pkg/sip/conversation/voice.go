@@ -3,6 +3,7 @@ package conversation
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -12,15 +13,15 @@ import (
 	"sync/atomic"
 	"time"
 
-	sipasr "github.com/LingByte/SoulNexus/pkg/sip/asr"
-	sipdtmf "github.com/LingByte/SoulNexus/pkg/sip/dtmf"
-	siptts "github.com/LingByte/SoulNexus/pkg/sip/tts"
-	sipSession "github.com/LingByte/SoulNexus/pkg/sip/session"
-	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/llm"
+	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/media"
 	"github.com/LingByte/SoulNexus/pkg/media/encoder"
 	"github.com/LingByte/SoulNexus/pkg/recognizer"
+	sipasr "github.com/LingByte/SoulNexus/pkg/sip/asr"
+	sipdtmf "github.com/LingByte/SoulNexus/pkg/sip/dtmf"
+	sipSession "github.com/LingByte/SoulNexus/pkg/sip/session"
+	siptts "github.com/LingByte/SoulNexus/pkg/sip/tts"
 	"github.com/LingByte/SoulNexus/pkg/synthesizer"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/LingByte/SoulNexus/pkg/voice"
@@ -28,8 +29,10 @@ import (
 )
 
 var (
-	sipSystemPromptMu sync.Mutex
-	sipSystemPromptByCallID = map[string]string{}
+	sipSystemPromptMu          sync.Mutex
+	sipSystemPromptByCallID    = map[string]string{}
+	sipTransferPendingMu       sync.Mutex
+	sipTransferPendingByCallID = map[string]bool{}
 )
 
 // SetSIPCallSystemPrompt overrides the default LLM system prompt for one call.
@@ -57,6 +60,45 @@ func popSIPCallSystemPrompt(callID string) string {
 	return v
 }
 
+func markSIPTransferPending(callID string) {
+	callID = strings.TrimSpace(callID)
+	if callID == "" {
+		return
+	}
+	sipTransferPendingMu.Lock()
+	sipTransferPendingByCallID[callID] = true
+	sipTransferPendingMu.Unlock()
+}
+
+func consumeSIPTransferPending(callID string) bool {
+	callID = strings.TrimSpace(callID)
+	if callID == "" {
+		return false
+	}
+	sipTransferPendingMu.Lock()
+	defer sipTransferPendingMu.Unlock()
+	v := sipTransferPendingByCallID[callID]
+	delete(sipTransferPendingByCallID, callID)
+	return v
+}
+
+func shouldFallbackTransferByText(userText string) bool {
+	s := strings.TrimSpace(userText)
+	if s == "" {
+		return false
+	}
+	// 简单兜底：用户明确要求“转人工/转客服/真人客服”等时，即使模型未触发 tool 也执行转接。
+	keywords := []string{
+		"转人工", "转接人工", "人工客服", "真人客服", "转客服", "找人工",
+	}
+	for _, kw := range keywords {
+		if strings.Contains(s, kw) {
+			return true
+		}
+	}
+	return false
+}
+
 // VoiceEnv holds SIP voice pipeline settings read with utils.GetEnv (see SoulNexus .env).
 type VoiceEnv struct {
 	LLMProvider string
@@ -65,17 +107,17 @@ type VoiceEnv struct {
 	LLMAPIKey   string
 	LLMModel    string
 
-	ASRAppID       string
-	ASRSecretID    string
-	ASRSecretKey   string
-	ASRModelType   string
+	ASRAppID     string
+	ASRSecretID  string
+	ASRSecretKey string
+	ASRModelType string
 
-	TTSAppID       string
-	TTSSecretID    string
-	TTSSecretKey   string
-	TTSVoiceType   int64
-	TTSSpeed       int64
-	TTSSampleRate  int
+	TTSAppID      string
+	TTSSecretID   string
+	TTSSecretKey  string
+	TTSVoiceType  int64
+	TTSSpeed      int64
+	TTSSampleRate int
 }
 
 func voiceEnvFromProcess() VoiceEnv {
@@ -316,31 +358,15 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 		llmModel = "qwen-plus"
 	}
 	systemPrompt := popSIPCallSystemPrompt(cs.CallID)
-	if systemPrompt == "" {
-		systemPrompt = `你是七牛云技术支持语音场景快速应答助手
-角色定义
-你是专门用于语音场景的快速应答助手，负责提供简短、自然的话术来保持对话流畅性。
-
-核心约束
-1) 严格按照下述流程执行，不得偏离。
-2) 先检查输出话术，任何情况下都禁止反问用户或要求用户澄清问题。
-3) 仅生成应答话术，不参与业务决策。
-4) 所有回复都不要加引号。
-5) 禁止输出“知识库未命中/未查询到/请查看文档链接/请自行扫描文档”等内部过程或转嫁式表述。
-
-应答流程
-你需要先判断用户输入属于哪一种情况，并按对应规则输出：
-
-情况一：询问类
-- 特征：用户包含询问、咨询、求助、需要获取信息的意图。
-- 输出：可自然承接后续回复、非业务决策性话术。
-
-禁止事项
-- 不得捏造任何真实业务信息。
-- 不得使用冗长或正式表达。
-- 不得生成可能误导用户的内容。
-- 不得偏离上述两类场景分类规则。`
-	}
+	//	if systemPrompt == "" {
+	//		systemPrompt = `你是七牛云语音通话助手。只用中文，简短直接（1-2句）。
+	//规则：
+	//1) 知道就直接说知道并给结论；不要说“我帮您查一下/稍等我查下/我为您查询”。
+	//2) 不知道就明确说“不知道/无法确定”，并给一个最小可执行建议。
+	//3) 不得捏造事实，不得假装已经查询过。
+	//4) 不反问，不让用户澄清，不说空话套话。
+	//5) 用户明确要求转人工时，必须触发 transfer_to_agent 动作，并给一句简短确认。`
+	//	}
 	llmEndpointOrAppID := env.LLMBaseURL
 	if strings.EqualFold(env.LLMProvider, "alibaba") {
 		llmEndpointOrAppID = strings.TrimSpace(env.LLMAppID)
@@ -349,6 +375,8 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 	if err != nil {
 		return fmt.Errorf("sip conversation: llm provider init: %w", err)
 	}
+	// All providers register transfer tool; Alibaba keeps native action parsing too.
+	registerSIPTransferTool(llmProvider, cs.CallID, lg)
 	lg.Info("sip voice pipeline config",
 		zap.String("llm_model", llmModel),
 		zap.String("llm_provider", env.LLMProvider),
@@ -481,10 +509,7 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 			}()
 			ttsPlaying.Store(true)
 			ttsStartedAtNS.Store(time.Now().UnixNano())
-			kbCtx, kbCancel := context.WithTimeout(ms.GetContext(), 12*time.Second)
-			llmInput := augmentUserTextWithKnowledge(kbCtx, userText, lg)
-			kbCancel()
-			reply, err := streamLLMToTTS(ms.GetContext(), llmProvider, llmModel, llmInput, ttsPipe, lg)
+			reply, err := streamLLMToTTS(ms.GetContext(), llmProvider, llmModel, userText, ttsPipe, lg)
 			if err != nil {
 				lg.Warn("sip voice llm/tts", zap.Error(err))
 				return
@@ -502,6 +527,18 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 						)
 						tryTransferToAgent(context.Background(), cs.CallID, wantDigit, lg)
 					}
+				}
+			} else if consumeSIPTransferPending(cs.CallID) || shouldFallbackTransferByText(userText) {
+				if ms != nil && ms.GetContext().Err() == nil {
+					wantDigit := strings.TrimSpace(utils.GetEnv("SIP_TRANSFER_TO_AGENT_DIGIT"))
+					if wantDigit == "" {
+						wantDigit = "0"
+					}
+					lg.Info("sip voice: transfer after ai tts confirmation (tool/fallback)",
+						zap.String("call_id", cs.CallID),
+						zap.String("digit", wantDigit),
+					)
+					tryTransferToAgent(context.Background(), cs.CallID, wantDigit, lg)
 				}
 			}
 			lg.Info("sip voice llm reply", zap.Int("reply_chars", len(reply)))
@@ -827,6 +864,42 @@ func streamLLMToTTS(ctx context.Context, llmProvider llm.LLMProvider, model, use
 		return "", err
 	}
 	return strings.TrimSpace(reply), nil
+}
+
+func registerSIPTransferTool(provider llm.LLMProvider, callID string, lg *zap.Logger) {
+	if provider == nil || strings.TrimSpace(callID) == "" {
+		return
+	}
+	params := json.RawMessage(`{
+		"type":"object",
+		"properties":{
+			"reason":{"type":"string","description":"用户请求转人工的简短原因"},
+			"confidence":{"type":"number","description":"0到1，当前意图置信度"}
+		},
+		"required":[],
+		"additionalProperties":true
+	}`)
+	provider.RegisterFunctionTool(
+		"transfer_to_agent",
+		"当且仅当用户明确要求转人工客服时调用该工具。调用后系统会执行转人工，不要让用户重复确认。",
+		params,
+		func(args map[string]interface{}, _ interface{}) (string, error) {
+			wantDigit := strings.TrimSpace(utils.GetEnv("SIP_TRANSFER_TO_AGENT_DIGIT"))
+			if wantDigit == "" {
+				wantDigit = "0"
+			}
+			if lg != nil {
+				lg.Info("sip voice: transfer tool invoked",
+					zap.String("call_id", callID),
+					zap.String("digit", wantDigit),
+					zap.Any("args", args),
+				)
+			}
+			// Keep UX consistent with Alibaba flow: transfer only after current TTS reply finishes.
+			markSIPTransferPending(callID)
+			return "transfer_requested", nil
+		},
+	)
 }
 
 // SpeakTextOnce sends one synthesized sentence to the current SIP media output.
