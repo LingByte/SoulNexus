@@ -956,17 +956,9 @@ func (h *Handlers) GetGroupSharedResources(c *gin.Context) {
 		return
 	}
 
-	// 查询组织共享的知识库
-	var knowledgeBases []models.Knowledge
-	if err := h.db.Where("group_id = ?", groupID).Order("created_at DESC").Find(&knowledgeBases).Error; err != nil {
-		response.Fail(c, "查询知识库失败", err.Error())
-		return
-	}
-
 	// 构建响应
 	result := map[string]interface{}{
-		"assistants":     assistants,
-		"knowledgeBases": knowledgeBases,
+		"assistants": assistants,
 	}
 
 	response.Success(c, "获取成功", result)
@@ -1393,7 +1385,6 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 	type countResult struct {
 		memberCount     int64
 		assistantCount  int64
-		knowledgeCount  int64
 		deviceCount     int64
 		jsTemplateCount int64
 		voiceCloneCount int64
@@ -1408,7 +1399,7 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 		var wg sync.WaitGroup
 
 		// 并行执行所有 COUNT 查询
-		wg.Add(8)
+		wg.Add(7)
 
 		go func() {
 			defer wg.Done()
@@ -1418,11 +1409,6 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 		go func() {
 			defer wg.Done()
 			h.db.Model(&models.Assistant{}).Where("group_id = ?", group.ID).Count(&result.assistantCount)
-		}()
-
-		go func() {
-			defer wg.Done()
-			h.db.Model(&models.Knowledge{}).Where("group_id = ?", group.ID).Count(&result.knowledgeCount)
 		}()
 
 		go func() {
@@ -1470,7 +1456,6 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 	counts := <-countChan
 	memberCount := counts.memberCount
 	assistantCount := counts.assistantCount
-	knowledgeCount := counts.knowledgeCount
 	deviceCount := counts.deviceCount
 	jsTemplateCount := counts.jsTemplateCount
 	voiceCloneCount := counts.voiceCloneCount
@@ -1698,19 +1683,6 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 		})
 	}
 
-	// 知识库数据
-	var knowledges []models.Knowledge
-	h.db.Where("group_id = ?", group.ID).Order("created_at DESC").Limit(3).Find(&knowledges)
-	for _, k := range knowledges {
-		tableRows = append(tableRows, []interface{}{
-			k.KnowledgeName,
-			"知识库",
-			"正常",
-			"-",
-			k.CreatedAt.Format("2006-01-02"),
-		})
-	}
-
 	// 工作流数据
 	var workflows []models.WorkflowDefinition
 	h.db.Where("group_id = ?", group.ID).Order("created_at DESC").Limit(3).Find(&workflows)
@@ -1744,18 +1716,6 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 		})
 	}
 
-	// 从知识库表获取最近创建的活动
-	var recentKnowledges []models.Knowledge
-	h.db.Where("group_id = ?", group.ID).Order("created_at DESC").Limit(2).Find(&recentKnowledges)
-	for _, k := range recentKnowledges {
-		recentActivity = append(recentActivity, map[string]interface{}{
-			"type":        "create",
-			"description": fmt.Sprintf("创建了知识库: %s", k.KnowledgeName),
-			"time":        k.CreatedAt.Format("2006-01-02 15:04:05"),
-			"user":        user.DisplayName,
-		})
-	}
-
 	// 按时间排序
 	sort.Slice(recentActivity, func(i, j int) bool {
 		timeI, _ := time.Parse("2006-01-02 15:04:05", recentActivity[i]["time"].(string))
@@ -1771,7 +1731,6 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 	stats := map[string]interface{}{
 		"totalMembers":        memberCount,
 		"totalAssistants":     assistantCount,
-		"totalKnowledgeBases": knowledgeCount,
 		"totalDevices":        deviceCount,
 		"totalScripts":        jsTemplateCount, // JS模板
 		"totalVoices":         voiceCloneCount, // 音色

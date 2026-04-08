@@ -21,7 +21,6 @@ export interface UpdateAssistantForm {
   language?: string
   speaker?: string
   voiceCloneId?: number | null
-  knowledgeBaseId?: string | null
   ttsProvider?: string
   apiKey?: string
   apiSecret?: string
@@ -49,7 +48,6 @@ export interface Assistant {
   language?: string
   speaker?: string
   voiceCloneId?: number | null
-  knowledgeBaseId?: string | null
   ttsProvider?: string
   apiKey?: string
   apiSecret?: string
@@ -129,7 +127,6 @@ export interface OneShotTextV2Request {
   systemPrompt?: string
   speaker?: string      // 音色编码
   voiceCloneId?: number // 训练音色ID（优先级高于speaker）
-  knowledgeBaseId?: string // 知识库ID（可选）
   temperature?: number  // 生成多样性 (0-2)
   maxTokens?: number   // 最大回复长度
 }

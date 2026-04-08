@@ -17,7 +17,6 @@ import {
   AlertTriangle, // 告警图标
   Database, // 配额管理图标
   Smartphone, // 设备管理图标
-  Library, // 知识库图标
   GitBranch, // 工作流图标
   LayoutDashboard, // 概览图标
   Info, // 关于我们图标
@@ -115,7 +114,6 @@ const Sidebar = () => {
     ...(systemInfo?.features?.voiceprintEnabled ? [{ name: t('voiceprint.title'), href: '/voiceprint-management', icon: Mic }] : []),
     { name: t('nav.sidebar.mcpManagement'), href: '/mcp-management', icon: Package },
     { name: t('nav.sidebar.mcpMarketplace'), href: '/mcp-marketplace', icon: Store },
-    { name: t('nav.sidebar.knowledgeBase'), href: '/knowledge', icon: Library },
     { name: t('nav.sidebar.workflow'), href: '/workflows', icon: GitBranch },
     { name: t('nav.sidebar.pluginMarket'), href: '/node-plugins', icon: Package },
     { name: t('nav.sidebar.notification'), href: '/notification', icon: Bell},
@@ -131,7 +129,7 @@ const Sidebar = () => {
 
   const publicNavs = [t('nav.docs'), t('nav.about')]
   // 受保护页面名称
-  const privateNavs = [t('nav.sidebar.overview'), t('nav.sidebar.smartAssistant'), t('nav.sidebar.voiceTraining'), t('voiceprint.title'), t('nav.sidebar.knowledgeBase'), t('nav.sidebar.workflow'), t('nav.sidebar.pluginMarket'), t('nav.sidebar.notification'), t('nav.sidebar.alerts'), t('nav.sidebar.jsTemplate'), t('nav.sidebar.billing'), t('nav.sidebar.groups'), t('nav.sidebar.deviceManagement'), t('nav.sidebar.contactCenter'), t('nav.sidebar.mcpManagement'), t('nav.sidebar.mcpMarketplace')]
+  const privateNavs = [t('nav.sidebar.overview'), t('nav.sidebar.smartAssistant'), t('nav.sidebar.voiceTraining'), t('voiceprint.title'), t('nav.sidebar.workflow'), t('nav.sidebar.pluginMarket'), t('nav.sidebar.notification'), t('nav.sidebar.alerts'), t('nav.sidebar.jsTemplate'), t('nav.sidebar.billing'), t('nav.sidebar.groups'), t('nav.sidebar.deviceManagement'), t('nav.sidebar.contactCenter'), t('nav.sidebar.mcpManagement'), t('nav.sidebar.mcpMarketplace')]
 
   const isActive = (path: string) => location.pathname === path
 

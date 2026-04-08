@@ -29,7 +29,6 @@ type Assistant struct {
 	Language             string    `json:"language" gorm:"column:language"`                                     // 语言设置
 	Speaker              string    `json:"speaker" gorm:"column:speaker"`                                       // 发音人ID
 	VoiceCloneID         *int      `json:"voiceCloneId" gorm:"column:voice_clone_id"`                           // 训练音色ID（可选）
-	KnowledgeBaseID      *string   `json:"knowledgeBaseId" gorm:"column:knowledge_base_id"`                     // 知识库ID（可选）
 	TtsProvider          string    `json:"ttsProvider" gorm:"column:tts_provider"`                              // TTS提供商
 	ApiKey               string    `json:"apiKey" gorm:"column:api_key"`                                        // API密钥
 	ApiSecret            string    `json:"apiSecret" gorm:"column:api_secret"`                                  // API密钥

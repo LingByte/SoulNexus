@@ -221,52 +221,7 @@ func IndexUserData(db *gorm.DB, engine search2.Engine) error {
 		chatOffset += chatBatchSize
 	}
 
-	// 3. Index knowledge base (batch processing)
-	knowledgeOffset := 0
-	knowledgeBatchSize := 100
-	for {
-		var knowledges []models.Knowledge
-		if err := db.Offset(knowledgeOffset).Limit(knowledgeBatchSize).Find(&knowledges).Error; err != nil {
-			logger.Error("Failed to query knowledges", zap.Error(err))
-			break
-		}
-		if len(knowledges) == 0 {
-			break
-		}
-
-		var docs []search2.Doc
-		for _, knowledge := range knowledges {
-			doc := search2.Doc{
-				ID:   fmt.Sprintf("knowledge_%s", knowledge.KnowledgeKey),
-				Type: "knowledge",
-				Fields: map[string]interface{}{
-					"userId":      strconv.Itoa(int(knowledge.UserID)),
-					"title":       knowledge.KnowledgeName,
-					"description": knowledge.KnowledgeName,
-					"content":     knowledge.KnowledgeName,
-					"type":        "knowledge",
-					"url":         "/knowledge",
-					"category":    "knowledge",
-				},
-			}
-			docs = append(docs, doc)
-		}
-
-		if len(docs) > 0 {
-			if err := indexDocsInBatches(docs, "knowledge"); err != nil {
-				logger.Error("Failed to index knowledge batch", zap.Error(err))
-			} else {
-				totalIndexed += len(docs)
-			}
-		}
-
-		if len(knowledges) < knowledgeBatchSize {
-			break
-		}
-		knowledgeOffset += knowledgeBatchSize
-	}
-
-	// 4. Index notifications (batch processing)
+	// 3. Index notifications (batch processing)
 	notificationOffset := 0
 	notificationBatchSize := 100
 	for {

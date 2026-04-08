@@ -1326,7 +1326,6 @@ type OneShotTextRequest struct {
 	SystemPrompt    string  `json:"systemPrompt"`
 	Speaker         string  `json:"speaker"`         // 音色编码
 	VoiceCloneID    int     `json:"voiceCloneId"`    // 训练音色ID（优先级高于speaker）
-	KnowledgeBaseID string  `json:"knowledgeBaseId"` // 知识库ID（可选，优先级最高）
 	Temperature     float32 `json:"temperature"`     // 生成多样性 (0-2)
 	MaxTokens       int     `json:"maxTokens"`       // 最大回复长度
 }
@@ -1432,7 +1431,7 @@ func (h *Handlers) OneShotText(c *gin.Context) {
 		}
 
 		// 如果开启了图记忆功能，则尝试从 Neo4j 中获取该用户的长期偏好主题，并拼接到系统提示词中
-		if config.GlobalConfig.Services.KnowledgeBase.Neo4j.Enabled && assistant.EnableGraphMemory {
+		if config.GlobalConfig.Services.GraphMemory.Neo4j.Enabled && assistant.EnableGraphMemory {
 			if store := graph.GetDefaultStore(); store != nil {
 				ctx := c.Request.Context()
 				if userCtx, err := store.GetUserContext(ctx, user.ID, int64(req.AssistantID)); err == nil {
@@ -1463,46 +1462,7 @@ func (h *Handlers) OneShotText(c *gin.Context) {
 			return
 		}
 
-		// 构建查询文本（如果提供了知识库，先检索知识库）
 		queryText := req.Text
-		var knowledgeKey = req.KnowledgeBaseID
-
-		// 如果前端没传，但 assistantId 有值，查询 assistant 表
-		if knowledgeKey == "" && req.AssistantID > 0 {
-			if err := h.db.First(&assistant, req.AssistantID).Error; err == nil {
-				if assistant.KnowledgeBaseID != nil && *assistant.KnowledgeBaseID != "" {
-					knowledgeKey = *assistant.KnowledgeBaseID
-				}
-			}
-		}
-
-		// 如果找到了 knowledgeKey，检索知识库
-		if knowledgeKey != "" {
-			// 检索知识库
-			knowledgeResults, err := models.SearchKnowledgeBase(h.db, knowledgeKey, req.Text, 5)
-			if err != nil {
-				logrus.Warnf("Failed to search knowledge base: %v", err)
-				// 搜索失败时使用原始查询
-				queryText = req.Text
-			} else if len(knowledgeResults) > 0 {
-				// 构建上下文：使用自然的 prompt 模板格式，避免AI提到"文档"
-				var contextBuilder strings.Builder
-				contextBuilder.WriteString(fmt.Sprintf("用户问题: %s\n\n", req.Text))
-				// 直接提供信息内容，不强调"文档"或"参考信息"
-				for i, result := range knowledgeResults {
-					if i > 0 {
-						contextBuilder.WriteString("\n\n")
-					}
-					contextBuilder.WriteString(result.Content)
-				}
-				contextBuilder.WriteString("\n\n请基于以上信息回答用户问题，回答要自然流畅，不要提及信息来源。")
-				queryText = contextBuilder.String()
-				logrus.Infof("Retrieved %d relevant documents from knowledge base (key: %s)", len(knowledgeResults), knowledgeKey)
-			} else {
-				// 没有找到相关内容，使用原始查询
-				queryText = req.Text
-			}
-		}
 
 		userID := user.ID
 		assistantID := int64(req.AssistantID)
@@ -1656,7 +1616,7 @@ func (h *Handlers) SimpleTextChat(c *gin.Context) {
 	}
 
 	// 8. 如果开启了图记忆功能，添加用户偏好
-	if config.GlobalConfig.Services.KnowledgeBase.Neo4j.Enabled && assistant.EnableGraphMemory {
+	if config.GlobalConfig.Services.GraphMemory.Neo4j.Enabled && assistant.EnableGraphMemory {
 		if store := graph.GetDefaultStore(); store != nil {
 			ctx := c.Request.Context()
 			if userCtx, err := store.GetUserContext(ctx, user.ID, int64(req.AssistantID)); err == nil {
@@ -1683,31 +1643,8 @@ func (h *Handlers) SimpleTextChat(c *gin.Context) {
 		return
 	}
 
-	// 11. 构建查询文本（如果有知识库，先检索）
+	// 11. 构建查询文本
 	queryText := req.Text
-	var knowledgeKey string
-	if assistant.KnowledgeBaseID != nil && *assistant.KnowledgeBaseID != "" {
-		knowledgeKey = *assistant.KnowledgeBaseID
-	}
-
-	if knowledgeKey != "" {
-		knowledgeResults, err := models.SearchKnowledgeBase(h.db, knowledgeKey, req.Text, 5)
-		if err != nil {
-			logrus.Warnf("Failed to search knowledge base: %v", err)
-		} else if len(knowledgeResults) > 0 {
-			var contextBuilder strings.Builder
-			contextBuilder.WriteString(fmt.Sprintf("用户问题: %s\n\n", req.Text))
-			for i, result := range knowledgeResults {
-				if i > 0 {
-					contextBuilder.WriteString("\n\n")
-				}
-				contextBuilder.WriteString(result.Content)
-			}
-			contextBuilder.WriteString("\n\n请基于以上信息回答用户问题，回答要自然流畅，不要提及信息来源。")
-			queryText = contextBuilder.String()
-			logrus.Infof("Retrieved %d relevant documents from knowledge base", len(knowledgeResults))
-		}
-	}
 
 	// 12. 生成会话ID
 	sessionID := req.SessionID
@@ -1803,7 +1740,7 @@ func (h *Handlers) PlainText(c *gin.Context) {
 		}
 
 		// 如果开启了图记忆功能，则尝试从 Neo4j 中获取该用户的长期偏好主题，并拼接到系统提示词中
-		if config.GlobalConfig.Services.KnowledgeBase.Neo4j.Enabled && assistant.EnableGraphMemory {
+		if config.GlobalConfig.Services.GraphMemory.Neo4j.Enabled && assistant.EnableGraphMemory {
 			if store := graph.GetDefaultStore(); store != nil {
 				ctx := c.Request.Context()
 				if userCtx, err := store.GetUserContext(ctx, user.ID, int64(req.AssistantID)); err == nil {
@@ -1834,39 +1771,7 @@ func (h *Handlers) PlainText(c *gin.Context) {
 			llmModel = "deepseek-v3.1" // 默认值
 		}
 
-		// 构建查询文本（如果提供了知识库，先检索知识库）
 		queryText := req.Text
-		var knowledgeKey = req.KnowledgeBaseID
-
-		// 如果前端没传，但 assistantId 有值，查询 assistant 表
-		if knowledgeKey == "" && req.AssistantID > 0 {
-			if assistant.KnowledgeBaseID != nil && *assistant.KnowledgeBaseID != "" {
-				knowledgeKey = *assistant.KnowledgeBaseID
-			}
-		}
-
-		// 如果找到了 knowledgeKey，检索知识库
-		if knowledgeKey != "" {
-			knowledgeResults, err := models.SearchKnowledgeBase(h.db, knowledgeKey, req.Text, 5)
-			if err != nil {
-				logrus.Warnf("Failed to search knowledge base: %v", err)
-				queryText = req.Text
-			} else if len(knowledgeResults) > 0 {
-				var contextBuilder strings.Builder
-				contextBuilder.WriteString(fmt.Sprintf("用户问题: %s\n\n", req.Text))
-				for i, result := range knowledgeResults {
-					if i > 0 {
-						contextBuilder.WriteString("\n\n")
-					}
-					contextBuilder.WriteString(result.Content)
-				}
-				contextBuilder.WriteString("\n\n请基于以上信息回答用户问题，回答要自然流畅，不要提及信息来源。")
-				queryText = contextBuilder.String()
-				logrus.Infof("Retrieved %d relevant documents from knowledge base (key: %s)", len(knowledgeResults), knowledgeKey)
-			} else {
-				queryText = req.Text
-			}
-		}
 
 		// 优先使用请求中的 temperature 和 maxTokens，如果没有则从 assistant 中读取
 		var temp *float32

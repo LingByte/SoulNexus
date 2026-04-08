@@ -130,7 +130,6 @@ func (h *Handlers) RegisterAdmin(router *gin.RouterGroup) {
 				"Language",
 				"Speaker",
 				"VoiceCloneID",
-				"KnowledgeBaseID",
 				"JsSourceID",
 				"EnableGraphMemory",
 			},
@@ -147,17 +146,6 @@ func (h *Handlers) RegisterAdmin(router *gin.RouterGroup) {
 			Editables:   []string{"JsSourceID", "Name", "Type", "Content", "Usage", "UserID", "GroupID"},
 			Orderables:  []string{"CreatedAt", "Name"},
 			Searchables: []string{"Name", "Type", "JsSourceID"},
-			Icon:        &models.AdminIcon{SVG: string(iconChatSessionLog)},
-		},
-		{
-			Model:       &models.Knowledge{},
-			Group:       "Knowledge Base",
-			Name:        "Knowledge",
-			Desc:        "Knowledge base articles and documents.",
-			Shows:       []string{"ID", "UserID", "KnowledgeKey", "KnowledgeName", "Provider", "CreatedAt"},
-			Editables:   []string{"UserID", "KnowledgeKey", "KnowledgeName", "Provider", "Config"},
-			Orderables:  []string{"CreatedAt"},
-			Searchables: []string{"KnowledgeKey", "KnowledgeName"},
 			Icon:        &models.AdminIcon{SVG: string(iconChatSessionLog)},
 		},
 		// Voice training management
@@ -1167,53 +1155,6 @@ func (h *Handlers) GetDocs() []apidocs.UriDoc {
 			Method:       http.MethodDelete,
 			AuthRequired: true,
 			Desc:         "Delete a credential",
-		},
-
-		// ==================== Knowledge Base ====================
-		{
-			Group:        "Knowledge Base",
-			Path:         config.GlobalConfig.Server.APIPrefix + "/knowledge/create",
-			Method:       http.MethodPost,
-			AuthRequired: true,
-			Desc:         "Create a knowledge base",
-			Request: &apidocs.DocField{
-				Type: "object",
-				Fields: []apidocs.DocField{
-					{Name: "knowledgeKey", Type: apidocs.TYPE_STRING, Required: true},
-					{Name: "knowledgeName", Type: apidocs.TYPE_STRING, Required: true},
-				},
-			},
-		},
-		{
-			Group:        "Knowledge Base",
-			Path:         config.GlobalConfig.Server.APIPrefix + "/knowledge/get",
-			Method:       http.MethodGet,
-			AuthRequired: true,
-			Desc:         "Get user's knowledge bases",
-			Response: &apidocs.DocField{
-				Type:   "array",
-				Fields: apidocs.GetDocDefine(models.Knowledge{}).Fields,
-			},
-		},
-		{
-			Group:        "Knowledge Base",
-			Path:         config.GlobalConfig.Server.APIPrefix + "/knowledge/delete",
-			Method:       http.MethodDelete,
-			AuthRequired: true,
-			Desc:         "Delete a knowledge base",
-			Request: &apidocs.DocField{
-				Type: "object",
-				Fields: []apidocs.DocField{
-					{Name: "knowledgeKey", Type: apidocs.TYPE_STRING, Required: true},
-				},
-			},
-		},
-		{
-			Group:        "Knowledge Base",
-			Path:         config.GlobalConfig.Server.APIPrefix + "/knowledge/upload",
-			Method:       http.MethodPost,
-			AuthRequired: true,
-			Desc:         "Upload file to knowledge base",
 		},
 
 		// ==================== Xunfei TTS ====================

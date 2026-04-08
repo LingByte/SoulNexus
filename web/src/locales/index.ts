@@ -3,7 +3,6 @@ import { pages } from './modules/pages'
 import { auth } from './modules/auth'
 import { assistant } from './modules/assistant'
 import { voice } from './modules/voice'
-import { knowledge } from './modules/knowledge'
 import { workflow } from './modules/workflow'
 import { billing } from './modules/billing'
 import { groups } from './modules/groups'
@@ -39,7 +38,6 @@ export const translations = mergeTranslations(
   auth,
   assistant,
   voice,
-  knowledge,
   workflow,
   billing,
   groups,

@@ -15,7 +15,6 @@ import GuideTooltip from '@/components/Voice/GuideTooltip'
 import LineSelector from '@/components/Voice/LineSelector'
 import TextInputBox from '@/components/Voice/TextInputBox'
 import ChatLogDetail from '@/components/ChatLogDetail'
-import { getKnowledgeBaseByUser } from '@/api/knowledge'
 // 导入API服务
 import {
     createAssistant,
@@ -216,8 +215,6 @@ const VoiceAssistant = () => {
     }, [assistantId, assistants])
 
     // 状态管理中新增
-    const [selectedKnowledgeBase, setSelectedKnowledgeBase] = useState<string | null>(null)
-    const [knowledgeBases, setKnowledgeBases] = useState<Array<{id: string, name: string}>>([]);
     const [ttsProvider, setTtsProvider] = useState<string | undefined>(undefined)
 
     // 引导步骤配置（支持国际化）
@@ -442,7 +439,6 @@ const VoiceAssistant = () => {
         temperature,
         maxTokens,
         updateAIMessage,
-        selectedKnowledgeBase,
     })
 
     // 处理引导下一步
@@ -502,24 +498,6 @@ const VoiceAssistant = () => {
     }
 
 
-    const fetchKnowledgeBases = async () => {
-        try {
-            const response = await getKnowledgeBaseByUser();
-            // 修改数据转换逻辑，适应新的返回格式
-            const transformedData = response.data.map((item: { name: string; key: string }) => ({
-                id: item.key,
-                name: item.name
-            }));
-            setKnowledgeBases(transformedData);
-        } catch (error) {
-            console.error('获取知识库列表失败:', error);
-        }
-    };
-
-    // 添加管理知识库的函数（导航到知识库管理页面）
-    const handleManageKnowledgeBases = () => {
-        navigate('/knowledge'); // 假设知识库管理页面的路径是 /knowledge
-    };
 
     // 停止当前播放的音频
     const stopCurrentAudio = () => {
@@ -1477,12 +1455,6 @@ const VoiceAssistant = () => {
                             } else {
                                 setSelectedVoiceCloneId(null)
                             }
-                            // 加载知识库配置
-                            if (detail.knowledgeBaseId) {
-                                setSelectedKnowledgeBase(detail.knowledgeBaseId)
-                            } else {
-                                setSelectedKnowledgeBase(null)
-                            }
                             // 加载API密钥配置（即使为空字符串也要设置）
                             setApiKey(detail.apiKey ?? '')
                             setApiSecret(detail.apiSecret ?? '')
@@ -1535,9 +1507,6 @@ const VoiceAssistant = () => {
                     console.warn('获取聊天历史失败:', historyErr)
                     setChatHistory([])
                 }
-
-                // 获取知识库列表
-                await fetchKnowledgeBases();
 
                 // 获取音色列表（但不自动选择，等待从助手配置加载）
                 try {
@@ -1806,12 +1775,6 @@ const VoiceAssistant = () => {
                 } else {
                     setSelectedVoiceCloneId(null)
                 }
-                // 加载知识库配置
-                if (detail.knowledgeBaseId) {
-                    setSelectedKnowledgeBase(detail.knowledgeBaseId)
-                } else {
-                    setSelectedKnowledgeBase(null)
-                }
                 // 加载API密钥配置（即使为空字符串也要设置）
                 setApiKey(detail.apiKey ?? '')
                 setApiSecret(detail.apiSecret ?? '')
@@ -1921,7 +1884,6 @@ const VoiceAssistant = () => {
                     language,
                     speaker: selectedSpeaker,
                     voiceCloneId: selectedVoiceCloneId,
-                    knowledgeBaseId: selectedKnowledgeBase,
                     ttsProvider: ttsProvider || '',
                     apiKey,
                     apiSecret,
@@ -2229,11 +2191,6 @@ const VoiceAssistant = () => {
                                 highlightFragments={highlightFragments}
                                 highlightResultId={highlightResultId}
                                 onMethodClick={handleMethodClick}
-                                selectedKnowledgeBase={selectedKnowledgeBase}
-                                onKnowledgeBaseChange={setSelectedKnowledgeBase}
-                                knowledgeBases={knowledgeBases}
-                                onManageKnowledgeBases={handleManageKnowledgeBases}
-                                onRefreshKnowledgeBases={fetchKnowledgeBases}
                                 // 添加训练音色相关配置
                                 selectedVoiceCloneId={selectedVoiceCloneId}
                                 onVoiceCloneChange={setSelectedVoiceCloneId}
