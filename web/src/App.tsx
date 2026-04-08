@@ -53,6 +53,7 @@ import ProductDetail from '@/pages/ProductDetail.tsx';
 import Privacy from '@/pages/Privacy.tsx';
 import Terms from '@/pages/Terms.tsx';
 import CookieConsent from '@/components/CookieConsent.tsx';
+import KnowledgeBaseManager from '@/pages/KnowledgeBaseManager.tsx';
 
 function App() {
     const [showPerformanceMonitor, setShowPerformanceMonitor] = useState(false);
@@ -190,6 +191,13 @@ function App() {
                             <ProtectedRoute>
                                 <Layout>
                                     <JSTemplateManager />
+                                </Layout>
+                            </ProtectedRoute>
+                        } />
+                        <Route path="/knowledge-base" element={
+                            <ProtectedRoute>
+                                <Layout>
+                                    <KnowledgeBaseManager />
                                 </Layout>
                             </ProtectedRoute>
                         } />

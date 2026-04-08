@@ -11,6 +11,7 @@ import {
   LogOut,
   Bell,
   BookOpen, // 加入文档图标
+  Library,
   Key, // 新增密钥图标
   FileText, // 账单图标
   Users, // 组织管理图标
@@ -119,6 +120,7 @@ const Sidebar = () => {
     { name: t('nav.sidebar.notification'), href: '/notification', icon: Bell},
     { name: t('nav.sidebar.alerts'), href: '/alerts', icon: AlertTriangle },
     { name: t('nav.sidebar.jsTemplate'), href: '/js-templates', icon: Component },
+    { name: t('nav.sidebar.knowledgeBase'), href: '/knowledge-base', icon: Library },
     { name: t('nav.sidebar.billing'), href: '/billing', icon: FileText },
     { name: t('nav.sidebar.groups'), href: '/groups', icon: Users },
     { name: t('nav.sidebar.deviceManagement'), href: '/devices', icon: Smartphone },
@@ -129,7 +131,7 @@ const Sidebar = () => {
 
   const publicNavs = [t('nav.docs'), t('nav.about')]
   // 受保护页面名称
-  const privateNavs = [t('nav.sidebar.overview'), t('nav.sidebar.smartAssistant'), t('nav.sidebar.voiceTraining'), t('voiceprint.title'), t('nav.sidebar.workflow'), t('nav.sidebar.pluginMarket'), t('nav.sidebar.notification'), t('nav.sidebar.alerts'), t('nav.sidebar.jsTemplate'), t('nav.sidebar.billing'), t('nav.sidebar.groups'), t('nav.sidebar.deviceManagement'), t('nav.sidebar.contactCenter'), t('nav.sidebar.mcpManagement'), t('nav.sidebar.mcpMarketplace')]
+  const privateNavs = [t('nav.sidebar.overview'), t('nav.sidebar.smartAssistant'), t('nav.sidebar.voiceTraining'), t('voiceprint.title'), t('nav.sidebar.workflow'), t('nav.sidebar.pluginMarket'), t('nav.sidebar.notification'), t('nav.sidebar.alerts'), t('nav.sidebar.jsTemplate'), t('nav.sidebar.knowledgeBase'), t('nav.sidebar.billing'), t('nav.sidebar.groups'), t('nav.sidebar.deviceManagement'), t('nav.sidebar.contactCenter'), t('nav.sidebar.mcpManagement'), t('nav.sidebar.mcpMarketplace')]
 
   const isActive = (path: string) => location.pathname === path
 

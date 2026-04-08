@@ -181,6 +181,7 @@ func RunMigrations(db *gorm.DB) error {
 		&models.GroupInvitation{},
 		&models.GroupActivityLog{},
 		&models.Assistant{},
+		&models.KnowledgeBase{},
 		&models.ChatSessionLog{},
 		&notification.InternalNotification{},
 		&notification.MailLog{},
