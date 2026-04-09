@@ -399,6 +399,11 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 	ttsCfg.Speed = env.TTSSpeed
 	qcTTS := synthesizer.NewQCloudService(ttsCfg)
 	ttsStream := &qcloudTTSStream{svc: qcTTS}
+	scriptMode := isSIPScriptMode(cs.CallID)
+	if scriptMode {
+		lg.Info("sip voice: script mode enabled (suppress built-in welcome and auto TTS reply)",
+			zap.String("call_id", cs.CallID))
+	}
 
 	var turnMu sync.Mutex
 	inFlight := false
@@ -501,17 +506,34 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 				zap.String("trigger", trigger),
 			)
 
-			ttsPipe.Start(ms.GetContext())
-			defer func() {
-				ttsPlaying.Store(false)
-				ttsStartedAtNS.Store(0)
-				ttsPipe.Stop()
-			}()
-			ttsPlaying.Store(true)
-			ttsStartedAtNS.Store(time.Now().UnixNano())
-			reply, err := streamLLMToTTS(ms.GetContext(), llmProvider, llmModel, userText, ttsPipe, lg)
+			var reply string
+			var err error
+			if scriptMode {
+				// Script mode needs deterministic and low-latency branching.
+				// Persist ASR text immediately so listen steps can resolve without waiting for LLM RTT.
+				asrProv := "qcloud_asr"
+				if env.ASRModelType != "" {
+					asrProv = env.ASRModelType
+				}
+				go persistSIPTurn(context.Background(), cs.CallID, userText, "", asrProv, "", "")
+			} else {
+				ttsPipe.Start(ms.GetContext())
+				defer func() {
+					ttsPlaying.Store(false)
+					ttsStartedAtNS.Store(0)
+					ttsPipe.Stop()
+				}()
+				ttsPlaying.Store(true)
+				ttsStartedAtNS.Store(time.Now().UnixNano())
+				reply, err = streamLLMToTTS(ms.GetContext(), llmProvider, llmModel, userText, ttsPipe, lg)
+			}
 			if err != nil {
 				lg.Warn("sip voice llm/tts", zap.Error(err))
+				return
+			}
+			reply = normalizeTTSText(reply)
+			if scriptMode {
+				// In script mode, output is controlled by script steps (say/llm_reply). Do not auto-play here.
 				return
 			}
 			if ap, ok := llmProvider.(*llm.AlibabaProvider); ok {
@@ -541,7 +563,11 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 					tryTransferToAgent(context.Background(), cs.CallID, wantDigit, lg)
 				}
 			}
-			lg.Info("sip voice llm reply", zap.Int("reply_chars", len(reply)))
+			if scriptMode {
+				lg.Info("sip voice llm reply (script no-autoplay)", zap.Int("reply_chars", len(reply)))
+			} else {
+				lg.Info("sip voice llm reply", zap.Int("reply_chars", len(reply)))
+			}
 			asrProv := "qcloud_asr"
 			if env.ASRModelType != "" {
 				asrProv = env.ASRModelType
@@ -700,24 +726,26 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 		waitFirstRTPBeforeWelcome(ms.GetContext(), cs, lg, w)
 	}
 
-	welcomePlaying.Store(true)
-	welcomeCtx, cancelWelcome := context.WithCancel(ms.GetContext())
-	welcomeCancelMu.Lock()
-	welcomeCancel = cancelWelcome
-	welcomeCancelMu.Unlock()
-	go func() {
-		defer welcomePlaying.Store(false)
-		defer func() {
-			welcomeCancelMu.Lock()
-			welcomeCancel = nil
-			welcomeCancelMu.Unlock()
+	if !scriptMode {
+		welcomePlaying.Store(true)
+		welcomeCtx, cancelWelcome := context.WithCancel(ms.GetContext())
+		welcomeCancelMu.Lock()
+		welcomeCancel = cancelWelcome
+		welcomeCancelMu.Unlock()
+		go func() {
+			defer welcomePlaying.Store(false)
+			defer func() {
+				welcomeCancelMu.Lock()
+				welcomeCancel = nil
+				welcomeCancelMu.Unlock()
+			}()
+			if err := playWelcomeWav(welcomeCtx, ms, lg, env.TTSSampleRate); err != nil {
+				lg.Warn("sip voice welcome playback failed", zap.String("call_id", cs.CallID), zap.Error(err))
+				return
+			}
+			lg.Info("sip voice welcome playback finished", zap.String("call_id", cs.CallID))
 		}()
-		if err := playWelcomeWav(welcomeCtx, ms, lg, env.TTSSampleRate); err != nil {
-			lg.Warn("sip voice welcome playback failed", zap.String("call_id", cs.CallID), zap.Error(err))
-			return
-		}
-		lg.Info("sip voice welcome playback finished", zap.String("call_id", cs.CallID))
-	}()
+	}
 
 	lg.Info("sip voice pipeline attached", zap.String("call_id", cs.CallID))
 	return nil

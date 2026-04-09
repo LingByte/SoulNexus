@@ -64,7 +64,7 @@ const Assistants: React.FC = () => {
 
   return (
     <div className="min-h-screen dark:bg-neutral-900 flex flex-col">
-      <div className="max-w-6xl w-full mx-auto pt-10 pb-4 flex flex-col">
+      <div className="max-w-6xl w-full mx-auto pt-8 pb-6 flex flex-col">
         <div className="flex items-center justify-between mb-7">
           <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100 relative pl-4">
             <motion.div
@@ -83,7 +83,7 @@ const Assistants: React.FC = () => {
             {t('assistants.add')}
           </Button>
         </div>
-        <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 lg:gap-6">
+        <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {(assistants?.length === 0) && (
             <motion.div 
               className="col-span-full"
@@ -209,32 +209,28 @@ const Assistants: React.FC = () => {
                 key={assistant.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05, duration: 0.3 }}
-                whileHover={{ y: -4, scale: 1.01 }}
-                className="group relative bg-white dark:bg-neutral-800 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-200/60 dark:border-neutral-700/60 hover:border-purple-300/50 dark:hover:border-purple-500/30 cursor-pointer"
+                transition={{ delay: index * 0.04, duration: 0.24 }}
+                whileHover={{ y: -2 }}
+                className="group relative bg-white dark:bg-neutral-800 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 border border-gray-200/70 dark:border-neutral-700/70 hover:border-primary/40 cursor-pointer"
                 onClick={() => navigate(`/voice-assistant/${assistant.id}`)}
               >
-                {/* 简化的顶部装饰 */}
-                <div className={`h-1 bg-gradient-to-r ${gradient} opacity-60 group-hover:opacity-100 transition-opacity duration-300`} />
-                
-                {/* 简化的背景装饰 */}
-                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-purple-50/30 to-pink-50/30 dark:from-purple-900/10 dark:to-pink-900/10 rounded-full blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 transform translate-x-12 -translate-y-12" />
-                
-                <div className="relative p-5">
+                <div className={`h-[3px] bg-gradient-to-r ${gradient} opacity-80`} />
+
+                <div className="relative p-4">
                   {/* 头部区域 - 图标和操作按钮 */}
-                  <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-start justify-between mb-3">
                     <motion.div 
                       className="relative"
-                      whileHover={{ scale: 1.05 }}
+                      whileHover={{ scale: 1.03 }}
                       transition={{ type: "spring", stiffness: 300 }}
                     >
-                      <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${gradient} flex items-center justify-center shadow-md group-hover:shadow-lg transition-all duration-300 ring-1 ring-white/20`}>
+                      <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center shadow-sm transition-all duration-200 ring-1 ring-white/20`}>
                         {ICON_MAP[iconKey] ?? ICON_MAP.Circle}
                       </div>
                     </motion.div>
                     
                     {/* 操作按钮组 */}
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                       <motion.button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -242,7 +238,7 @@ const Assistants: React.FC = () => {
                         }}
                         whileHover={{ scale: 1.1 }}
                         whileTap={{ scale: 0.9 }}
-                        className="p-2 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-900/20 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-all duration-200"
+                        className="p-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-all duration-200"
                         title="知识图谱"
                       >
                         <Network className="w-4 h-4" />
@@ -254,7 +250,7 @@ const Assistants: React.FC = () => {
                         }}
                         whileHover={{ scale: 1.1 }}
                         whileTap={{ scale: 0.9 }}
-                        className="p-2 rounded-xl hover:bg-purple-50 dark:hover:bg-purple-900/20 text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-all duration-200"
+                        className="p-1.5 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/20 text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-all duration-200"
                         title={t('assistants.manageTools')}
                       >
                         <Settings className="w-4 h-4" />
@@ -263,9 +259,9 @@ const Assistants: React.FC = () => {
                   </div>
 
                   {/* 标题和ID */}
-                  <div className="mb-3">
+                  <div className="mb-2">
                     <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-semibold text-lg text-gray-900 dark:text-gray-100 truncate group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors duration-300">
+                      <h3 className="font-semibold text-base text-gray-900 dark:text-gray-100 truncate group-hover:text-primary transition-colors duration-200">
                         {assistant.name}
                       </h3>
                       <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 dark:bg-neutral-700 text-gray-500 dark:text-gray-400 rounded-md flex-shrink-0">
@@ -275,22 +271,22 @@ const Assistants: React.FC = () => {
                   </div>
 
                   {/* 描述 */}
-                  <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed mb-4 line-clamp-2 min-h-[2.5rem]">
+                  <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed mb-3 line-clamp-2 min-h-[2.5rem]">
                     {assistant.description || t('assistants.noDescription')}
                   </p>
 
                   {/* 核心标签 - 简化布局 */}
-                  <div className="space-y-2 mb-4">
+                  <div className="space-y-2 mb-3">
                     {/* 主要标签 */}
                     <div className="flex items-center gap-2 flex-wrap">
                       {assistant.groupId && (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-xs font-medium">
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-xs font-medium">
                           <Building2 className="w-3 h-3" />
                           {t('assistants.groupShared')}
                         </span>
                       )}
                       {assistant.personaTag && (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 text-xs font-medium">
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 text-xs font-medium">
                           <TrendingUp className="w-3 h-3" />
                           {truncate(assistant.personaTag, 12)}
                         </span>
@@ -320,7 +316,7 @@ const Assistants: React.FC = () => {
                   </div>
 
                   {/* 底部信息栏 */}
-                  <div className="flex items-center justify-between pt-3 border-t border-gray-100 dark:border-neutral-700">
+                  <div className="flex items-center justify-between pt-2.5 border-t border-gray-100 dark:border-neutral-700">
                     <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                       {assistant.createdAt && (
                         <span className="flex items-center gap-1.5">
@@ -332,8 +328,7 @@ const Assistants: React.FC = () => {
                   </div>
                 </div>
 
-                {/* 简化的悬浮效果 */}
-                <div className="absolute inset-0 bg-gradient-to-br from-purple-500/3 via-transparent to-pink-500/3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+                <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.02] via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none" />
               </motion.div>
             );
           })}

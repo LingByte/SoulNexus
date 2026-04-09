@@ -794,7 +794,14 @@ func senderAsString(sender any) string {
 
 func (s *MediaSession) CauseError(sender any, err error) {
 	sender = senderAsString(sender)
-	logger.Error("cause error", zap.String("sessionID", s.ID), zap.Any("sender", sender), zap.Error(err))
+	if err != nil {
+		msg := strings.ToLower(strings.TrimSpace(err.Error()))
+		if strings.Contains(msg, "use of closed network connection") || strings.Contains(msg, "connection is closed") {
+			logger.Debug("cause error ignored (normal close)", zap.String("sessionID", s.ID), zap.Any("sender", sender), zap.Error(err))
+		} else {
+			logger.Error("cause error", zap.String("sessionID", s.ID), zap.Any("sender", sender), zap.Error(err))
+		}
+	}
 
 	// Publish error event
 	if s.eventBus != nil {
