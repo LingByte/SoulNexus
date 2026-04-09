@@ -30,7 +30,6 @@ func parsePageSize(c *gin.Context) (page, size int) {
 
 func (h *Handlers) registerSIPContactCenterRoutes(r *gin.RouterGroup) {
 	g := r.Group("sip-center")
-	g.Use(models.AuthRequired)
 	{
 		g.GET("/users", h.listSIPUsers)
 		g.GET("/users/:id", h.getSIPUser)

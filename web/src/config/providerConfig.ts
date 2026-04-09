@@ -17,24 +17,24 @@ export interface ProviderConfig {
 
 // TTS 服务商配置
 export const TTS_PROVIDERS: Record<string, ProviderConfig> = {
-  qiniu: {
-    name: '七牛云',
+  lingshu: {
+    name: '灵枢',
     fields: [
       {
         key: 'apiKey',
         label: 'API Key',
         type: 'password',
-        placeholder: '请输入七牛云 API Key',
+        placeholder: '请输入灵枢 API Key',
         required: true,
-        description: '七牛云的 API Key'
+        description: '灵枢的 API Key'
       },
       {
         key: 'baseUrl',
         label: 'Base URL',
         type: 'text',
-        placeholder: 'https://openai.qiniu.com/v1',
+        placeholder: 'https://openai.lingshu.com/v1',
         required: false,
-        description: 'API 基础地址，默认为 https://openai.qiniu.com/v1'
+        description: 'API 基础地址，默认为 https://openai.lingshu.com/v1'
       },
       {
         key: 'voiceType',
@@ -760,22 +760,22 @@ export const TTS_PROVIDERS: Record<string, ProviderConfig> = {
 
 // ASR 服务商配置
 export const ASR_PROVIDERS: Record<string, ProviderConfig> = {
-  qiniu: {
-    name: '七牛云',
+  lingshu: {
+    name: '灵枢',
     fields: [
       {
         key: 'apiKey',
         label: 'API Key',
         type: 'password',
-        placeholder: '请输入七牛云 API Key',
+        placeholder: '请输入灵枢 API Key',
         required: true,
-        description: '七牛云的 API Key'
+        description: '灵枢的 API Key'
       },
       {
         key: 'baseUrl',
         label: 'Base URL',
         type: 'text',
-        placeholder: 'https://asr.qiniu.com',
+        placeholder: 'https://asr.lingshu.com',
         required: false,
         description: 'API 基础地址'
       },
