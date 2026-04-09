@@ -7,6 +7,7 @@ import {
   type MutableRefObject,
   type ReactNode,
 } from 'react'
+import { useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 import { formatUserSeatBaseName } from '@/utils/userDisplayName'
 import { useI18nStore } from '@/stores/i18nStore'
@@ -59,6 +60,7 @@ function waitForWebSocketOpen(wsRef: MutableRefObject<WebSocket | null>, timeout
 }
 
 export function WebSeatProvider({ children }: WebSeatProviderProps) {
+  const location = useLocation()
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
   const user = useAuthStore((s) => s.user)
   const { t } = useI18nStore()
@@ -674,11 +676,12 @@ export function WebSeatProvider({ children }: WebSeatProviderProps) {
       wsStatusText,
     ]
   )
+  const showOverlay = location.pathname.startsWith('/contact-center')
 
   return (
     <WebSeatContext.Provider value={ctxValue}>
       {children}
-      {isAuthenticated && configured && (
+      {isAuthenticated && configured && showOverlay && (
         <div className="pointer-events-none fixed right-2 z-[200] flex flex-col items-end gap-3 top-[66px] lg:top-2">
           {pendingIncomingCallId && (
             <WebSeatIncomingCallCard

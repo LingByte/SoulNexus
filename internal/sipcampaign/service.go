@@ -454,6 +454,12 @@ func (s *Service) PrepareCallPrompt(callID, correlationID string) {
 
 // RunScriptIfConfigured executes hybrid script trace flow when media profile is "script".
 func (s *Service) RunScriptIfConfigured(ctx context.Context, leg outbound.EstablishedLeg, scriptID string) {
+	releaseScriptMode := true
+	defer func() {
+		if releaseScriptMode {
+			conversation.ClearSIPScriptMode(leg.CallID)
+		}
+	}()
 	if s == nil || s.db == nil {
 		return
 	}
@@ -520,7 +526,9 @@ func (s *Service) RunScriptIfConfigured(ctx context.Context, leg outbound.Establ
 			return false
 		},
 	})
+	releaseScriptMode = false
 	go func() {
+		defer conversation.ClearSIPScriptMode(leg.CallID)
 		if err := runner.Run(ctx, leg); err != nil {
 			if logger.Lg != nil {
 				logger.Lg.Warn("campaign script run failed", zap.String("call_id", leg.CallID), zap.Error(err))
@@ -600,11 +608,18 @@ func (s *Service) fetchTurn(callID string, afterIndex int) (turnFetchResult, boo
 	if len(turns) <= afterIndex {
 		return turnFetchResult{}, false
 	}
-	t := turns[afterIndex]
-	return turnFetchResult{
-		Index: afterIndex + 1,
-		Turn:  t,
-	}, true
+	// Skip assistant-only rows (empty ASRText) so listen steps always consume user utterances.
+	for i := afterIndex; i < len(turns); i++ {
+		t := turns[i]
+		if strings.TrimSpace(t.ASRText) == "" {
+			continue
+		}
+		return turnFetchResult{
+			Index: i + 1,
+			Turn:  t,
+		}, true
+	}
+	return turnFetchResult{}, false
 }
 
 type scriptRecorder struct {

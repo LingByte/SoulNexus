@@ -247,6 +247,9 @@ func Start(cfg Config) (*Embedded, error) {
 			if logger.Lg != nil {
 				logger.Lg.Info("sip: hangup outbound BYE sent", zap.String("call_id", callID))
 			}
+			// Finalize local leg persistence immediately for outbound calls:
+			// OnBye/end_status/recording_url are otherwise skipped when we only get 200 to BYE.
+			sipServerPtr.HangupInboundCall(callID)
 			return
 		}
 		sipServerPtr.HangupInboundCall(callID)

@@ -10,6 +10,7 @@ import (
 
 	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/logger"
+	"github.com/LingByte/SoulNexus/pkg/sip/conversation"
 	"github.com/LingByte/SoulNexus/pkg/sip/outbound"
 	"go.uber.org/zap"
 )
@@ -260,6 +261,9 @@ func (s *Service) processContact(ctx context.Context, dialer Dialer, campaign mo
 		}
 		s.HandleDialEvent(context.Background(), evt)
 		return
+	}
+	if req.MediaProfile == outbound.MediaProfileScript {
+		conversation.MarkSIPScriptMode(callID)
 	}
 	s.appendEvent(ctx, models.SIPCampaignEvent{
 		CampaignID:    campaign.ID,
