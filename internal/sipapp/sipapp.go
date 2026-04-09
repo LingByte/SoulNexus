@@ -257,6 +257,19 @@ func Start(cfg Config) (*Embedded, error) {
 		ForgetUASDialog:       sipServerPtr.ForgetUASDialog,
 		SendUASBye:            sipServerPtr.SendUASBye,
 		ReleaseTransferDedupe: conversation.ReleaseTransferStartDedupe,
+		FinalizeInboundPersist: func(ctx context.Context, callID, initiator string, raw []byte, codecName string, recordSampleRate, recordOpusChannels int) {
+			if sipCallPersist == nil {
+				return
+			}
+			sipCallPersist.OnBye(ctx, sippersist.ByeParams{
+				CallID:             callID,
+				RawPayload:         raw,
+				CodecName:          codecName,
+				Initiator:          initiator,
+				RecordSampleRate:   recordSampleRate,
+				RecordOpusChannels: recordOpusChannels,
+			})
+		},
 	})
 	if wsAddr := strings.TrimSpace(utils.GetEnv(webseat.EnvHTTPAddr)); wsAddr != "" {
 		if err := webseat.StartHTTPServer(wsAddr); err != nil && logger.Lg != nil {
