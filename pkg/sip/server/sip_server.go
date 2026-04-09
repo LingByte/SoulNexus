@@ -596,7 +596,21 @@ func (s *SIPServer) handleBye(msg *protocol.Message, _ *net.UDPAddr) *protocol.M
 		return s.makeResponse(msg, 400, "Bad Request", "", "")
 	}
 
-	if conversation.HangupTransferBridgeIfAny(callID) || conversation.HangupWebSeatBridgeIfAny(callID) {
+	if tb := conversation.HangupTransferBridgeIfAny(callID); tb != nil {
+		s.forgetUASDialog(callID)
+		if p := s.callPersistStore(); p != nil {
+			go p.OnBye(context.Background(), sippersist.ByeParams{
+				CallID:             tb.InboundCallID,
+				RawPayload:         tb.RawPayload,
+				CodecName:          tb.CodecName,
+				Initiator:          tb.Initiator,
+				RecordSampleRate:   tb.RecordSampleRate,
+				RecordOpusChannels: tb.RecordOpusChannels,
+			})
+		}
+		return s.makeResponse(msg, 200, "OK", "", "")
+	}
+	if conversation.HangupWebSeatBridgeIfAny(callID) {
 		s.forgetUASDialog(callID)
 		return s.makeResponse(msg, 200, "OK", "", "")
 	}

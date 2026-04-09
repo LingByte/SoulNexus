@@ -51,6 +51,9 @@ type Config struct {
 	ForgetUASDialog       func(callID string)
 	SendUASBye            func(callID string) error
 	ReleaseTransferDedupe func(callID string)
+	// FinalizeInboundPersist runs once when a web-seat handoff ends (BYE, hangup, or bridge teardown).
+	// callID is the inbound PSTN Call-ID; initiator is "remote" (customer BYE) or "local" (operator / full hangup).
+	FinalizeInboundPersist func(ctx context.Context, callID, initiator string, raw []byte, codecName string, recordSampleRate, recordOpusChannels int)
 }
 
 // Hub tracks pending joins and active bridges.
@@ -345,6 +348,33 @@ func HangupFull(callID string) bool {
 	return teardownWebSeat(callID, true)
 }
 
+func persistSnapshotInbound(cs *sipSession.CallSession) (raw []byte, codecName string, recSR, recOpusCh int) {
+	if cs == nil {
+		return nil, "", 0, 0
+	}
+	raw = cs.TakeRecording()
+	codecName = cs.NegotiatedCodec().Name
+	src := cs.SourceCodec()
+	recSR = src.SampleRate
+	recOpusCh = src.OpusDecodeChannels
+	if recOpusCh < 1 {
+		recOpusCh = src.Channels
+	}
+	return raw, codecName, recSR, recOpusCh
+}
+
+func (h *Hub) emitFinalizePersist(callID, initiator string, cs *sipSession.CallSession) {
+	if h == nil || strings.TrimSpace(callID) == "" || h.cfg.FinalizeInboundPersist == nil {
+		return
+	}
+	init := strings.TrimSpace(initiator)
+	if init == "" {
+		init = "remote"
+	}
+	raw, codec, sr, ch := persistSnapshotInbound(cs)
+	go h.cfg.FinalizeInboundPersist(context.Background(), callID, init, raw, codec, sr, ch)
+}
+
 func teardownWebSeat(callID string, sendByeToCustomer bool) bool {
 	if defaultHub == nil || callID == "" {
 		return false
@@ -357,8 +387,17 @@ func teardownWebSeat(callID string, sendByeToCustomer bool) bool {
 		if waiting {
 			delete(h.awaiting, callID)
 			h.mu.Unlock()
-			if entry != nil && entry.cs != nil {
-				entry.cs.Stop()
+			initiator := "remote"
+			if sendByeToCustomer {
+				initiator = "local"
+			}
+			var cs *sipSession.CallSession
+			if entry != nil {
+				cs = entry.cs
+			}
+			h.emitFinalizePersist(callID, initiator, cs)
+			if cs != nil {
+				cs.Stop()
 			}
 			if sendByeToCustomer && h.cfg.SendUASBye != nil {
 				_ = h.cfg.SendUASBye(callID)
@@ -379,6 +418,12 @@ func teardownWebSeat(callID string, sendByeToCustomer bool) bool {
 	}
 	delete(h.active, callID)
 	h.mu.Unlock()
+
+	initiator := "remote"
+	if sendByeToCustomer {
+		initiator = "local"
+	}
+	h.emitFinalizePersist(callID, initiator, ab.inbound)
 
 	// br is nil until the browser connects and OnTrack runs (async after join response).
 	if ab.br != nil {

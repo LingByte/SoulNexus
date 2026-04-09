@@ -42,6 +42,40 @@ type transferBridgeState struct {
 	outboundCS *sipSession.CallSession
 }
 
+// TransferBridgeByePersist carries inbound-leg recording + media metadata for sippersist.OnBye after a transfer bridge ends.
+type TransferBridgeByePersist struct {
+	InboundCallID      string
+	RawPayload         []byte
+	CodecName          string
+	Initiator          string
+	RecordSampleRate   int
+	RecordOpusChannels int
+}
+
+func transferBridgePersistSnapshot(bs *transferBridgeState, initiator string) *TransferBridgeByePersist {
+	if bs == nil || bs.inboundID == "" {
+		return nil
+	}
+	p := &TransferBridgeByePersist{
+		InboundCallID: bs.inboundID,
+		Initiator:     initiator,
+	}
+	if initiator == "" {
+		p.Initiator = "remote"
+	}
+	if bs.inboundCS != nil {
+		p.RawPayload = bs.inboundCS.TakeRecording()
+		p.CodecName = bs.inboundCS.NegotiatedCodec().Name
+		src := bs.inboundCS.SourceCodec()
+		p.RecordSampleRate = src.SampleRate
+		p.RecordOpusChannels = src.OpusDecodeChannels
+		if p.RecordOpusChannels < 1 {
+			p.RecordOpusChannels = src.Channels
+		}
+	}
+	return p
+}
+
 // SetInboundSessionLookup resolves the inbound UAS CallSession by Call-ID (set from cmd/sip).
 func SetInboundSessionLookup(fn func(string) *sipSession.CallSession) {
 	lookupInbound = fn
@@ -231,17 +265,18 @@ func teardownBridge(bs *transferBridgeState) {
 
 // HangupTransferBridgeIfAny stops bridging and RTP for both legs when either Call-ID hangs up.
 // Notifies the peer leg with BYE before local teardown when callbacks are wired.
-// Returns true if this call-id was part of an active transfer bridge.
-func HangupTransferBridgeIfAny(callID string) bool {
+// When non-nil, the caller must run sippersist.OnBye once for TransferBridgeByePersist.InboundCallID (BYE arrived on this stack).
+func HangupTransferBridgeIfAny(callID string) *TransferBridgeByePersist {
 	bridgeMu.Lock()
 	defer bridgeMu.Unlock()
 	if bridges == nil {
-		return false
+		return nil
 	}
 	bs, ok := bridges[callID]
 	if !ok {
-		return false
+		return nil
 	}
+	persist := transferBridgePersistSnapshot(bs, "remote")
 	hangPeerIfNeeded(bs, callID)
 	delete(bridges, bs.inboundID)
 	delete(bridges, bs.outboundID)
@@ -250,20 +285,22 @@ func HangupTransferBridgeIfAny(callID string) bool {
 		logger.Lg.Info("sip transfer bridge ended", zap.String("hangup_call_id", callID),
 			zap.String("inbound_call_id", bs.inboundID), zap.String("outbound_call_id", bs.outboundID))
 	}
-	return true
+	return persist
 }
 
 // HangupTransferBridgeFull tears down an active transfer bridge and BYE both SIP legs (e.g. keyword hangup).
-func HangupTransferBridgeFull(callID string) bool {
+// When non-nil, the caller must run sippersist.OnBye for TransferBridgeByePersist.InboundCallID with initiator "local".
+func HangupTransferBridgeFull(callID string) *TransferBridgeByePersist {
 	bridgeMu.Lock()
 	defer bridgeMu.Unlock()
 	if bridges == nil {
-		return false
+		return nil
 	}
 	bs, ok := bridges[callID]
 	if !ok {
-		return false
+		return nil
 	}
+	persist := transferBridgePersistSnapshot(bs, "local")
 	if bridgeSendOutboundBYE != nil {
 		_ = bridgeSendOutboundBYE(bs.outboundID)
 	}
@@ -277,5 +314,5 @@ func HangupTransferBridgeFull(callID string) bool {
 		logger.Lg.Info("sip transfer bridge full hangup", zap.String("trigger_call_id", callID),
 			zap.String("inbound_call_id", bs.inboundID), zap.String("outbound_call_id", bs.outboundID))
 	}
-	return true
+	return persist
 }

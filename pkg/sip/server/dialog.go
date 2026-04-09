@@ -170,7 +170,17 @@ func (s *SIPServer) HangupInboundCall(callID string) {
 	if conversation.HangupWebSeatBridgeFull(callID) {
 		return
 	}
-	if conversation.HangupTransferBridgeFull(callID) {
+	if tb := conversation.HangupTransferBridgeFull(callID); tb != nil {
+		if p := s.callPersistStore(); p != nil {
+			go p.OnBye(context.Background(), sippersist.ByeParams{
+				CallID:             tb.InboundCallID,
+				RawPayload:         tb.RawPayload,
+				CodecName:          tb.CodecName,
+				Initiator:          tb.Initiator,
+				RecordSampleRate:   tb.RecordSampleRate,
+				RecordOpusChannels: tb.RecordOpusChannels,
+			})
+		}
 		return
 	}
 	_ = s.SendUASBye(callID)
