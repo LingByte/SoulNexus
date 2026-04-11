@@ -1,7 +1,7 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 import { useI18nStore } from '@/stores/i18nStore'
-import { Github, Mail, FileText, Shield, BookOpen } from 'lucide-react'
+import { Github, Mail, FileText, Shield } from 'lucide-react'
 
 const Footer: React.FC = () => {
   const { t } = useI18nStore()
@@ -23,8 +23,7 @@ const Footer: React.FC = () => {
 
   // 资源链接
   const resourceLinks = [
-    { name: t('nav.docs'), href: '/docs', icon: BookOpen },
-    { name: t('nav.about'), href: '/about', icon: FileText },
+    { name: t('nav.docs'), href: 'https://docs.lingecho.com/', icon: FileText, external: true },
   ]
 
   // 法律链接
@@ -114,13 +113,25 @@ const Footer: React.FC = () => {
                 const Icon = link.icon
                 return (
                   <li key={link.href}>
-                    <Link
-                      to={link.href}
-                      className="text-sm text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-200 flex items-center gap-2 group"
-                    >
-                      <Icon className="w-4 h-4 opacity-50 group-hover:opacity-100 transition-opacity" />
-                      {link.name}
-                    </Link>
+                    {link.external ? (
+                      <a
+                        href={link.href}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-sm text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-200 flex items-center gap-2 group"
+                      >
+                        <Icon className="w-4 h-4 opacity-50 group-hover:opacity-100 transition-opacity" />
+                        {link.name}
+                      </a>
+                    ) : (
+                      <Link
+                        to={link.href}
+                        className="text-sm text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-200 flex items-center gap-2 group"
+                      >
+                        <Icon className="w-4 h-4 opacity-50 group-hover:opacity-100 transition-opacity" />
+                        {link.name}
+                      </Link>
+                    )}
                   </li>
                 )
               })}

@@ -1,4 +1,4 @@
-// 代接方案类型定义（对应后端 SipUser）
+// 代接方案类型定义
 
 export interface Scheme {
   id: number

@@ -29,10 +29,9 @@ import {
 import {
     getChatSessionLogDetail,
     getChatSessionLogsBySession,
-    getChatSessionLogsByAssistant,
-    type ToolCallInfo
+    getChatSessionLogsByAssistant
 } from '@/api/chat'
-import { fetchUserCredentials, getCredentialByKey, type Credential } from '@/api/credential'
+import { getCredentialByKey } from '@/api/credential'
 // 导入类型定义
 import type { Assistant, ChatMessage, VoiceChatSession, LineMode } from './VoiceAssistant/types'
 // 导入自定义 Hooks

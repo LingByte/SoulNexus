@@ -30,6 +30,7 @@ export interface UpdateAssistantForm {
   vadThreshold?: number // VAD阈值
   vadConsecutiveFrames?: number // VAD连续帧数
   jsSourceId?: string // JS模板ID
+    enableJSONOutput?: boolean
 }
 
 // 助手信息 - 对应后端Assistant模型的完整字段
@@ -58,6 +59,7 @@ export interface Assistant {
   vadConsecutiveFrames?: number // VAD连续帧数
   createdAt: string
   updatedAt: string
+  enableJSONOutput?: boolean
 }
 
 // 助手列表项 - 对应ListAssistants返回的字段

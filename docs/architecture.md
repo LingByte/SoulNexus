@@ -45,7 +45,6 @@
 ### Core Services
 
 - **Main Service** (`cmd/server/`) - Core backend service providing RESTful API and WebSocket support
-- **Voice/SIP Service** - Integrated into main server, providing SIP softphone and voice processing capabilities
 - **MCP Service** (`cmd/mcp/`) - Model Context Protocol service
 
 ### Standalone Services

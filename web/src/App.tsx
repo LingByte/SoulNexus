@@ -9,11 +9,9 @@ import VoiceTrainingIndex from "@/pages/VoiceTraining/VoiceTrainingIndex.tsx";
 import VoiceTrainingXunfei from "@/pages/VoiceTraining/VoiceTrainingXunfei.tsx";
 import VoiceTrainingVolcengine from "@/pages/VoiceTraining/VoiceTrainingVolcengine.tsx";
 import DevErrorHandler from "@/components/Dev/DevErrorHandler.tsx";
-import Documentation from "@/pages/Documentation.tsx";
 import GlobalSearch from "@/components/UI/GlobalSearch.tsx";
 import NotificationContainer from "@/components/UI/NotificationContainer.tsx";
 import { ToastProvider } from "@/components/UI/ToastContainer.tsx";
-import About from "@/pages/About.tsx";
 import NotificationCenter from "@/pages/NotificationCenter.tsx";
 import Profile from "@/pages/Profile.tsx";
 import AnimationShowcase from "@/pages/AnimationShowcase.tsx";
@@ -45,11 +43,6 @@ import NodePluginMarket from '@/pages/NodePluginMarket.tsx';
 import VoiceprintManagement from '@/pages/VoiceprintManagement.tsx';
 import MCPManagement from '@/pages/MCPManagement.tsx';
 import MCPMarketplace from '@/pages/MCPMarketplace.tsx';
-import ContactCenterPage from '@/pages/ContactCenter/ContactCenterPage.tsx';
-import Products from '@/pages/Products.tsx';
-import Blog from '@/pages/Blog.tsx';
-import BlogDetail from '@/pages/BlogDetail.tsx';
-import ProductDetail from '@/pages/ProductDetail.tsx';
 import Privacy from '@/pages/Privacy.tsx';
 import Terms from '@/pages/Terms.tsx';
 import CookieConsent from '@/components/CookieConsent.tsx';
@@ -66,16 +59,6 @@ function App() {
                     <Routes>
                         {/* 首页 - 独立布局，不需要 Layout */}
                         <Route path="/" element={<Home />} />
-                        
-                        {/* 关于页面 - 不需要登录 */}
-                        <Route path="/about" element={<About />} />
-                        
-                        {/* 博客页面 - 不需要登录 */}
-                        <Route path="/blog" element={<Blog />} />
-                        <Route path="/blog/:id" element={<BlogDetail />} />
-                        
-                        {/* 文档页面 - 不需要登录 */}
-                        <Route path="/docs" element={<Documentation />} />
                         
                         {/* 隐私政策和服务条款 - 不需要登录 */}
                         <Route path="/privacy" element={<Privacy />} />
@@ -320,18 +303,6 @@ function App() {
                                 </Layout>
                             </ProtectedRoute>
                         } />
-                        <Route path="/contact-center" element={
-                            <ProtectedRoute>
-                                <Layout>
-                                    <ContactCenterPage />
-                                </Layout>
-                            </ProtectedRoute>
-                        } />
-                        
-                        {/* 产品页面 - 不需要登录 */}
-                        <Route path="/products" element={<Products />} />
-                        <Route path="/product/:productId" element={<ProductDetail />} />
-                        
                         {/* 404页面 */}
                         <Route path="*" element={<NotFound />}/>
                     </Routes>
