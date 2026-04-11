@@ -251,7 +251,7 @@ const Terms = () => {
                       公司名称：成都解忧造物科技有限责任公司
                     </p>
                     <p className="text-gray-600 dark:text-gray-400">
-                      联系方式：通过<Link to="/about" className="text-purple-600 dark:text-purple-400 hover:underline">关于我们</Link>页面获取
+                      联系方式：通过<a href="https://docs.lingecho.com/" target="_blank" rel="noreferrer" className="text-purple-600 dark:text-purple-400 hover:underline">文档站</a>获取
                     </p>
                   </section>
                 </div>

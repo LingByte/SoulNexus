@@ -26,8 +26,6 @@ import { useAuthStore } from "@/stores/authStore";
 import EnhancedThemeToggle from "@/components/UI/EnhancedThemeToggle";
 import LanguageSelector from "@/components/UI/LanguageSelector";
 import { useI18nStore } from "@/stores/i18nStore";
-import products from '@/data/products.json'
-import ProductNav from '@/components/Layout/ProductNav.tsx';
 import Footer from "@/components/Layout/Footer.tsx";
 import PageSEO from "@/components/SEO/PageSEO.tsx";
 import ContentCarousel from "@/components/Home/ContentCarousel.tsx";
@@ -209,16 +207,14 @@ const Home = () => {
 
                         {/* 桌面端导航 */}
                         <div className="hidden md:flex items-center gap-4">
-                            <ProductNav />
-                            <Link to="/docs" className="text-muted-foreground hover:text-foreground transition-colors">
+                            <a
+                                href="https://docs.lingecho.com/"
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-muted-foreground hover:text-foreground transition-colors"
+                            >
                                 {t('nav.docs')}
-                            </Link>
-                            <Link to="/about" className="text-muted-foreground hover:text-foreground transition-colors">
-                                {t('nav.about')}
-                            </Link>
-                            <Link to="/blog" className="text-muted-foreground hover:text-foreground transition-colors">
-                                {t('nav.blog')}
-                            </Link>
+                            </a>
                             
                             {/* 主题切换和语言选择器 */}
                             <div className="flex items-center gap-2">
@@ -301,40 +297,15 @@ const Home = () => {
                     {showMobileMenu && (
                         <div className="md:hidden py-4 border-t border-border">
                             <div className="flex flex-col gap-4">
-                                <div className="px-3 py-2">
-                                    <p className="text-sm font-semibold text-muted-foreground mb-2">Products</p>
-                                    {products.products.map((product) => (
-                                        <Link
-                                            key={product.id}
-                                            to={`/product/${product.id}`}
-                                            className="block px-2 py-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
-                                            onClick={() => setShowMobileMenu(false)}
-                                        >
-                                            {product.name}
-                                        </Link>
-                                    ))}
-                                </div>
-                                <Link 
-                                    to="/docs" 
+                                <a
+                                    href="https://docs.lingecho.com/"
+                                    target="_blank"
+                                    rel="noreferrer"
                                     className="text-muted-foreground hover:text-foreground transition-colors"
                                     onClick={() => setShowMobileMenu(false)}
                                 >
                                     {t('nav.docs')}
-                                </Link>
-                                <Link 
-                                    to="/about" 
-                                    className="text-muted-foreground hover:text-foreground transition-colors"
-                                    onClick={() => setShowMobileMenu(false)}
-                                >
-                                    {t('nav.about')}
-                                </Link>
-                                <Link 
-                                    to="/blog" 
-                                    className="text-muted-foreground hover:text-foreground transition-colors"
-                                    onClick={() => setShowMobileMenu(false)}
-                                >
-                                    {t('nav.blog')}
-                                </Link>
+                                </a>
                                 
                                 {/* 移动端主题切换和语言选择器 */}
                                 <div className="flex items-center gap-3 pt-2 border-t border-border">
@@ -611,7 +582,7 @@ const Home = () => {
                             }
                         ]}
                         ctaText={t('home.platformShowcase.cta')}
-                        ctaLink="/docs"
+                        ctaLink="https://docs.lingecho.com/"
                     />
                 </div>
             </section>
@@ -877,7 +848,7 @@ const Home = () => {
                                     {t('home.highlights.security.title') || '安全与现代协议'}
                                 </h3>
                                 <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                                    {t('home.highlights.security.desc') || '原生支持WebRTC和SRTP加密会话、SIP over WebSocket，以及广泛的编解码器兼容性，为多样化的终端类型提供安全连接'}
+                                    {t('home.highlights.security.desc') || '原生支持 WebRTC 与 SRTP 加密会话，以及广泛的编解码器兼容性，为多样化的终端类型提供安全连接'}
                                 </p>
                             </div>
                         </motion.div>

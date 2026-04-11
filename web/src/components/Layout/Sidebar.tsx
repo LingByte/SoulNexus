@@ -10,7 +10,6 @@ import {
   User as UserIcon,
   LogOut,
   Bell,
-  BookOpen, // 加入文档图标
   Library,
   Key, // 新增密钥图标
   FileText, // 账单图标
@@ -20,11 +19,9 @@ import {
   Smartphone, // 设备管理图标
   GitBranch, // 工作流图标
   LayoutDashboard, // 概览图标
-  Info, // 关于我们图标
   Package, // 插件市场图标
   Mic, // 声纹识别图标
   Store, // MCP 广场图标
-  Phone,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import { useI18nStore } from '@/stores/i18nStore'
@@ -124,14 +121,11 @@ const Sidebar = () => {
     { name: t('nav.sidebar.billing'), href: '/billing', icon: FileText },
     { name: t('nav.sidebar.groups'), href: '/groups', icon: Users },
     { name: t('nav.sidebar.deviceManagement'), href: '/devices', icon: Smartphone },
-    { name: t('nav.sidebar.contactCenter'), href: '/contact-center', icon: Phone },
-    { name: t('nav.about'), href: '/about', icon: Info },
-    { name: t('nav.docs'), href: '/docs', icon: BookOpen },
   ]
 
-  const publicNavs = [t('nav.docs'), t('nav.about')]
+  const publicNavs = [t('nav.docs')]
   // 受保护页面名称
-  const privateNavs = [t('nav.sidebar.overview'), t('nav.sidebar.smartAssistant'), t('nav.sidebar.voiceTraining'), t('voiceprint.title'), t('nav.sidebar.workflow'), t('nav.sidebar.pluginMarket'), t('nav.sidebar.notification'), t('nav.sidebar.alerts'), t('nav.sidebar.jsTemplate'), t('nav.sidebar.knowledgeBase'), t('nav.sidebar.billing'), t('nav.sidebar.groups'), t('nav.sidebar.deviceManagement'), t('nav.sidebar.contactCenter'), t('nav.sidebar.mcpManagement'), t('nav.sidebar.mcpMarketplace')]
+  const privateNavs = [t('nav.sidebar.overview'), t('nav.sidebar.smartAssistant'), t('nav.sidebar.voiceTraining'), t('voiceprint.title'), t('nav.sidebar.workflow'), t('nav.sidebar.pluginMarket'), t('nav.sidebar.notification'), t('nav.sidebar.alerts'), t('nav.sidebar.jsTemplate'), t('nav.sidebar.knowledgeBase'), t('nav.sidebar.billing'), t('nav.sidebar.groups'), t('nav.sidebar.deviceManagement'), t('nav.sidebar.mcpManagement'), t('nav.sidebar.mcpMarketplace')]
 
   const isActive = (path: string) => location.pathname === path
 
@@ -180,9 +174,11 @@ const Sidebar = () => {
         }).map(item => {
           const Icon = item.icon
           return (
-            <Link
+            <a
               key={item.name}
-              to={item.href}
+              href={item.href}
+              target={item.href.startsWith('http') ? '_blank' : undefined}
+              rel={item.href.startsWith('http') ? 'noreferrer' : undefined}
               className={`group relative flex items-center rounded-md font-medium transition-colors ${
                 isActive(item.href) || location.pathname.startsWith(item.href + '/')
                   ? 'text-foreground bg-accent'
@@ -225,7 +221,7 @@ const Sidebar = () => {
                   transition={{ type: 'spring', bounce: 0.2, duration: 0.3 }}
                 />
               )}
-            </Link>
+            </a>
           )
         })}
       </nav>
@@ -621,9 +617,11 @@ const Sidebar = () => {
               const Icon = item.icon
               const active = isActive(item.href) || location.pathname.startsWith(item.href + '/')
               return (
-                <Link
+                <a
                   key={item.name}
-                  to={item.href}
+                  href={item.href}
+                  target={item.href.startsWith('http') ? '_blank' : undefined}
+                  rel={item.href.startsWith('http') ? 'noreferrer' : undefined}
                   className={`group relative flex items-center gap-2 px-3 py-2 rounded-md font-medium text-xs whitespace-nowrap transition-colors ${
                     active
                       ? 'text-foreground bg-accent'
@@ -639,7 +637,7 @@ const Sidebar = () => {
                       transition={{ type: 'spring', bounce: 0.2, duration: 0.3 }}
                     />
                   )}
-                </Link>
+                </a>
               )
             })}
           </nav>

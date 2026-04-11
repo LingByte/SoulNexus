@@ -45,7 +45,6 @@
 ### 核心服务
 
 - **主服务** (`cmd/server/`) - 核心后端服务，提供RESTful API和WebSocket支持
-- **语音/SIP服务** - 已集成到主服务中，提供SIP软电话和语音处理功能
 - **MCP服务** (`cmd/mcp/`) - Model Context Protocol服务
 
 ### 独立服务
