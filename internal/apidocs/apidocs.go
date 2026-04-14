@@ -10,7 +10,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/LingByte/SoulNexus"
+	LingEcho "github.com/LingByte/SoulNexus"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"gorm.io/gorm"
 

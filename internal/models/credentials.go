@@ -28,6 +28,14 @@ type UserCredentialRequest struct {
 	TtsConfig ProviderConfig `json:"ttsConfig"` // TTS配置
 }
 
+type CredentialStatus string
+
+const (
+	CredentialStatusActive    CredentialStatus = "active"
+	CredentialStatusBanned    CredentialStatus = "banned"
+	CredentialStatusSuspended CredentialStatus = "suspended"
+)
+
 // ProviderConfig 提供商的灵活配置,支持任意键值对
 type ProviderConfig map[string]interface{}
 
@@ -58,15 +66,22 @@ func (pc *ProviderConfig) Scan(value interface{}) error {
 
 type UserCredential struct {
 	BaseModel
-	UserID      uint           `gorm:"index;" json:"userId"`                                      // 关联到用户
-	Name        string         `json:"name"`                                                      // 应用名称 or 用途备注
-	APIKey      string         `gorm:"uniqueIndex:idx_api_key,length:100;not null" json:"apiKey"` // 用于认证
-	APISecret   string         `gorm:"not null" json:"apiSecret"`                                 // 用于签名校验
-	LLMProvider string         `json:"llmProvider"`
-	LLMApiKey   string         `json:"llmApiKey"`
-	LLMApiURL   string         `json:"llmApiUrl"`
-	AsrConfig   ProviderConfig `json:"asrConfig" gorm:"type:json"`
-	TtsConfig   ProviderConfig `json:"ttsConfig" gorm:"type:json"`
+	UserID       uint             `gorm:"index;" json:"userId"`
+	Name         string           `json:"name"`                                                      // 应用名称 or 用途备注
+	APIKey       string           `gorm:"uniqueIndex:idx_api_key,length:100;not null" json:"apiKey"` // 用于认证
+	APISecret    string           `gorm:"not null" json:"apiSecret"`                                 // 用于签名校验
+	Status       CredentialStatus `gorm:"type:varchar(20);default:'active'" json:"status"`           // 状态: active, banned, suspended
+	BannedAt     *time.Time       `gorm:"index" json:"bannedAt"`                                     // 封禁时间
+	BannedReason string           `gorm:"type:text" json:"bannedReason"`                             // 封禁原因
+	BannedBy     *uint            `gorm:"index" json:"bannedBy"`                                     // 封禁操作者ID
+	ExpiresAt    *time.Time       `gorm:"index" json:"expiresAt"`                                    // 过期时间
+	LastUsedAt   *time.Time       `gorm:"index" json:"lastUsedAt"`                                   // 最后使用时间
+	UsageCount   int64            `gorm:"default:0" json:"usageCount"`                               // 使用次数
+	LLMProvider  string           `json:"llmProvider"`
+	LLMApiKey    string           `json:"llmApiKey"`
+	LLMApiURL    string           `json:"llmApiUrl"`
+	AsrConfig    ProviderConfig   `json:"asrConfig" gorm:"type:json"`
+	TtsConfig    ProviderConfig   `json:"ttsConfig" gorm:"type:json"`
 }
 
 // UserCredentialResponse 用于返回给前端的凭证信息（不包含敏感信息）
@@ -108,6 +123,40 @@ func (uc *UserCredential) ToResponse() *UserCredentialResponse {
 		AsrProvider: asrProvider,
 		TtsProvider: ttsProvider,
 	}
+}
+
+func (uc *UserCredential) IsExpired() bool {
+	if uc.ExpiresAt == nil {
+		return false
+	}
+	return uc.ExpiresAt.Before(time.Now())
+}
+
+func (uc *UserCredential) IsAvailable() bool {
+	return uc.Status == CredentialStatusActive && !uc.IsExpired()
+}
+
+func (uc *UserCredential) Ban(reason string, operatorID *uint) {
+	now := time.Now()
+	uc.Status = CredentialStatusBanned
+	uc.BannedAt = &now
+	uc.BannedReason = reason
+	uc.BannedBy = operatorID
+}
+
+func (uc *UserCredential) Unban() {
+	uc.Status = CredentialStatusActive
+	uc.BannedAt = nil
+	uc.BannedReason = ""
+	uc.BannedBy = nil
+}
+
+func (uc *UserCredential) Suspend() {
+	uc.Status = CredentialStatusSuspended
+}
+
+func (uc *UserCredential) Activate() {
+	uc.Status = CredentialStatusActive
 }
 
 // ToResponseList 将 UserCredential 列表转换为 UserCredentialResponse 列表
@@ -222,15 +271,22 @@ func CreateUserCredential(db *gorm.DB, userID uint, credential *UserCredentialRe
 	ttsConfig := credential.BuildTTSConfig()
 
 	userCred := &UserCredential{
-		UserID:      userID,
-		APIKey:      apiKey,
-		APISecret:   apiSecret,
-		Name:        credential.Name,
-		LLMProvider: credential.LLMProvider,
-		LLMApiKey:   credential.LLMApiKey,
-		LLMApiURL:   credential.LLMApiURL,
-		AsrConfig:   asrConfig,
-		TtsConfig:   ttsConfig,
+		UserID:       userID,
+		APIKey:       apiKey,
+		APISecret:    apiSecret,
+		Name:         credential.Name,
+		Status:       CredentialStatusActive,
+		LLMProvider:  credential.LLMProvider,
+		LLMApiKey:    credential.LLMApiKey,
+		LLMApiURL:    credential.LLMApiURL,
+		AsrConfig:    asrConfig,
+		TtsConfig:    ttsConfig,
+		UsageCount:   0,
+		LastUsedAt:   nil,
+		BannedAt:     nil,
+		BannedReason: "",
+		BannedBy:     nil,
+		ExpiresAt:    nil,
 	}
 
 	err = db.Create(userCred).Error
@@ -262,7 +318,20 @@ func GetUserCredentialByApiSecretAndApiKey(db *gorm.DB, apiKey, apiSecret string
 		return nil, result.Error
 	}
 
+	if !credential.IsAvailable() {
+		return nil, nil
+	}
 	return &credential, nil
+}
+
+func MarkCredentialUsed(db *gorm.DB, credentialID uint) error {
+	now := time.Now()
+	return db.Model(&UserCredential{}).
+		Where("id = ?", credentialID).
+		Updates(map[string]interface{}{
+			"last_used_at": now,
+			"usage_count":  gorm.Expr("usage_count + 1"),
+		}).Error
 }
 
 // CheckAndReserveCredits 原子性校验并预占额度（可选）。need 为需要的额度。

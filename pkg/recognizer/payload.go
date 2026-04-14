@@ -6,8 +6,7 @@ package recognizer
 import (
 	"bytes"
 	"encoding/binary"
-
-	"github.com/bytedance/sonic"
+	"encoding/json"
 )
 
 type UserMeta struct {
@@ -81,7 +80,7 @@ func NewFullClientRequest(config *Config) []byte {
 			},
 		},
 	}
-	payloadArr, _ := sonic.Marshal(payload)
+	payloadArr, _ := json.Marshal(payload)
 	payloadArr = GzipCompress(payloadArr)
 	payloadSize := len(payloadArr)
 	payloadSizeArr := make([]byte, 4)
