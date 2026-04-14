@@ -5,6 +5,7 @@ package models
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -159,6 +160,8 @@ func TestCreateUserCredential(t *testing.T) {
 	assert.Equal(t, "openai", cred.LLMProvider)
 	assert.Equal(t, "qiniu", cred.GetASRProvider())
 	assert.Equal(t, "qiniu", cred.GetTTSProvider())
+	assert.Equal(t, CredentialStatusActive, cred.Status)
+	assert.Equal(t, int64(0), cred.UsageCount)
 }
 
 func TestGetUserCredentials(t *testing.T) {
@@ -209,6 +212,33 @@ func TestGetUserCredentialByApiSecretAndApiKey(t *testing.T) {
 	// Test invalid credentials
 	retrieved, err = GetUserCredentialByApiSecretAndApiKey(db, "invalid-key", "invalid-secret")
 	require.NoError(t, err) // Returns nil, not error
+	assert.Nil(t, retrieved)
+}
+
+func TestGetUserCredentialByApiSecretAndApiKey_UnavailableCredential(t *testing.T) {
+	db := setupCredentialsTestDB(t)
+
+	user, err := CreateUser(db, "test@example.com", "password123")
+	require.NoError(t, err)
+
+	req := &UserCredentialRequest{Name: "Test App"}
+	cred, err := CreateUserCredential(db, user.ID, req)
+	require.NoError(t, err)
+
+	cred.Status = CredentialStatusBanned
+	require.NoError(t, db.Save(cred).Error)
+
+	retrieved, err := GetUserCredentialByApiSecretAndApiKey(db, cred.APIKey, cred.APISecret)
+	require.NoError(t, err)
+	assert.Nil(t, retrieved)
+
+	cred.Status = CredentialStatusActive
+	expiredAt := time.Now().Add(-time.Hour)
+	cred.ExpiresAt = &expiredAt
+	require.NoError(t, db.Save(cred).Error)
+
+	retrieved, err = GetUserCredentialByApiSecretAndApiKey(db, cred.APIKey, cred.APISecret)
+	require.NoError(t, err)
 	assert.Nil(t, retrieved)
 }
 
@@ -390,4 +420,52 @@ func TestCreateUserCredential_WithoutConfigs(t *testing.T) {
 	assert.Nil(t, cred.AsrConfig)
 	assert.Nil(t, cred.TtsConfig)
 	// assert.Nil(t, cred.CloneConfig) // CloneConfig not implemented
+}
+
+func TestUserCredentialStatusMethods(t *testing.T) {
+	cred := &UserCredential{
+		Status: CredentialStatusActive,
+	}
+	assert.True(t, cred.IsAvailable())
+
+	cred.Suspend()
+	assert.Equal(t, CredentialStatusSuspended, cred.Status)
+	assert.False(t, cred.IsAvailable())
+
+	operatorID := uint(1001)
+	cred.Ban("abuse detected", &operatorID)
+	assert.Equal(t, CredentialStatusBanned, cred.Status)
+	assert.NotNil(t, cred.BannedAt)
+	assert.Equal(t, "abuse detected", cred.BannedReason)
+	assert.NotNil(t, cred.BannedBy)
+
+	cred.Unban()
+	assert.Equal(t, CredentialStatusActive, cred.Status)
+	assert.Nil(t, cred.BannedAt)
+	assert.Equal(t, "", cred.BannedReason)
+	assert.Nil(t, cred.BannedBy)
+
+	expiredAt := time.Now().Add(-time.Minute)
+	cred.ExpiresAt = &expiredAt
+	assert.True(t, cred.IsExpired())
+	assert.False(t, cred.IsAvailable())
+}
+
+func TestMarkCredentialUsed(t *testing.T) {
+	db := setupCredentialsTestDB(t)
+
+	user, err := CreateUser(db, "test@example.com", "password123")
+	require.NoError(t, err)
+
+	req := &UserCredentialRequest{Name: "Test App"}
+	cred, err := CreateUserCredential(db, user.ID, req)
+	require.NoError(t, err)
+
+	err = MarkCredentialUsed(db, cred.ID)
+	require.NoError(t, err)
+
+	var updated UserCredential
+	require.NoError(t, db.First(&updated, cred.ID).Error)
+	assert.Equal(t, int64(1), updated.UsageCount)
+	assert.NotNil(t, updated.LastUsedAt)
 }

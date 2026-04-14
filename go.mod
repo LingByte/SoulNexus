@@ -13,7 +13,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/polly v1.54.2
 	github.com/aws/aws-sdk-go-v2/service/transcribestreaming v1.32.7
 	github.com/blevesearch/bleve/v2 v2.5.4
-	github.com/bytedance/sonic v1.12.6
 	github.com/carlmjohnson/requests v0.25.1
 	github.com/coze-dev/coze-go v0.0.0-20251029161603-312b7fd62d20
 	github.com/deepgram/deepgram-go-sdk v1.9.0
@@ -114,6 +113,7 @@ require (
 	github.com/blevesearch/zapx/v15 v15.4.2 // indirect
 	github.com/blevesearch/zapx/v16 v16.2.6 // indirect
 	github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc // indirect
+	github.com/bytedance/sonic v1.11.6 // indirect
 	github.com/bytedance/sonic/loader v0.5.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/clbanning/mxj/v2 v2.7.0 // indirect
