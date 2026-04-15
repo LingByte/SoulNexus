@@ -9,6 +9,7 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha1"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
@@ -632,6 +633,15 @@ func (h *Handlers) handleOIDCAuthorize(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("client_id and redirect_uri are required"))
 		return
 	}
+	oauthClient, err := models.GetEnabledOAuthClientByClientID(h.db, clientID)
+	if err != nil {
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid oauth client"))
+		return
+	}
+	if strings.TrimSpace(oauthClient.RedirectURI) != redirectURI {
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("redirect_uri does not match registered client"))
+		return
+	}
 
 	user := models.CurrentUser(c)
 	if user == nil {
@@ -670,12 +680,46 @@ func (h *Handlers) handleOIDCAuthorize(c *gin.Context) {
 }
 
 func (h *Handlers) handleOIDCToken(c *gin.Context) {
-	type tokenReq struct {
-		GrantType string `json:"grant_type"`
-		Code      string `json:"code"`
-		ClientID  string `json:"client_id"`
+	req := readOIDCTokenReq(c)
+	if req.GrantType != "authorization_code" || req.Code == "" || req.ClientID == "" {
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid oidc token request"))
+		return
 	}
-	var req tokenReq
+	h.processOIDCTokenReq(c, req)
+}
+
+func (h *Handlers) handleOIDCExchange(c *gin.Context) {
+	req := readOIDCTokenReq(c)
+	req.GrantType = "authorization_code"
+	if req.Code == "" {
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("code is required"))
+		return
+	}
+	if configuredClientID := strings.TrimSpace(os.Getenv("OIDC_CLIENT_ID")); configuredClientID != "" {
+		req.ClientID = configuredClientID
+	}
+	if req.ClientID == "" {
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("client_id is required"))
+		return
+	}
+	req.ClientSecret = strings.TrimSpace(os.Getenv("OIDC_CLIENT_SECRET"))
+	if req.ClientSecret == "" {
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("OIDC_CLIENT_SECRET is not configured"))
+		return
+	}
+	h.processOIDCTokenReq(c, req)
+}
+
+type oidcTokenReq struct {
+	GrantType    string `json:"grant_type"`
+	Code         string `json:"code"`
+	ClientID     string `json:"client_id"`
+	ClientSecret string `json:"client_secret"`
+	RedirectURI  string `json:"redirect_uri"`
+}
+
+func readOIDCTokenReq(c *gin.Context) oidcTokenReq {
+	var req oidcTokenReq
 	_ = c.ShouldBindJSON(&req)
 	if req.GrantType == "" {
 		req.GrantType = c.PostForm("grant_type")
@@ -686,11 +730,39 @@ func (h *Handlers) handleOIDCToken(c *gin.Context) {
 	if req.ClientID == "" {
 		req.ClientID = c.PostForm("client_id")
 	}
+	if req.ClientSecret == "" {
+		req.ClientSecret = c.PostForm("client_secret")
+	}
+	if req.RedirectURI == "" {
+		req.RedirectURI = c.PostForm("redirect_uri")
+	}
 	req.GrantType = strings.TrimSpace(req.GrantType)
 	req.Code = strings.TrimSpace(req.Code)
 	req.ClientID = strings.TrimSpace(req.ClientID)
-	if req.GrantType != "authorization_code" || req.Code == "" || req.ClientID == "" {
-		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid oidc token request"))
+	req.ClientSecret = strings.TrimSpace(req.ClientSecret)
+	req.RedirectURI = strings.TrimSpace(req.RedirectURI)
+	return req
+}
+
+func (h *Handlers) processOIDCTokenReq(c *gin.Context, req oidcTokenReq) {
+	oauthClient, err := models.GetEnabledOAuthClientByClientID(h.db, req.ClientID)
+	if err != nil {
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid oauth client"))
+		return
+	}
+	if strings.TrimSpace(oauthClient.ClientSecret) != "" {
+		if req.ClientSecret == "" {
+			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("client_secret is required"))
+			return
+		}
+		// Use constant-time compare to avoid leaking secret mismatch timing.
+		if subtle.ConstantTimeCompare([]byte(req.ClientSecret), []byte(strings.TrimSpace(oauthClient.ClientSecret))) != 1 {
+			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid client_secret"))
+			return
+		}
+	}
+	if req.RedirectURI != "" && strings.TrimSpace(oauthClient.RedirectURI) != req.RedirectURI {
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("redirect_uri does not match registered client"))
 		return
 	}
 
@@ -699,6 +771,11 @@ func (h *Handlers) handleOIDCToken(c *gin.Context) {
 	if !ok || codeData.Used || time.Now().After(codeData.ExpiresAt) || codeData.ClientID != req.ClientID {
 		oidcAuthCodeStore.Unlock()
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid or expired code"))
+		return
+	}
+	if strings.TrimSpace(codeData.RedirectURI) != strings.TrimSpace(oauthClient.RedirectURI) {
+		oidcAuthCodeStore.Unlock()
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("code redirect_uri mismatch"))
 		return
 	}
 	codeData.Used = true
