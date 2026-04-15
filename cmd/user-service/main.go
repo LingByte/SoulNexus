@@ -52,7 +52,7 @@ func main() {
 	init := flag.Bool("init", false, "run GORM AutoMigrate on startup")
 	mode := flag.String("mode", "", "running environment (development, test, production)")
 	initSQL := flag.String("init-sql", "", "path to database init .sql script (optional)")
-	addrFlag := flag.String("addr", "", "HTTP listen address (overrides USER_SERVICE_HTTP_ADDR; default :7073)")
+	addrFlag := flag.String("addr", "", "HTTP listen address (overrides USER_SERVICE_HTTP_ADDR; default :7074)")
 	flag.Parse()
 
 	if *mode != "" {
@@ -88,7 +88,7 @@ func main() {
 		addr = os.Getenv("USER_SERVICE_HTTP_ADDR")
 	}
 	if addr == "" {
-		addr = ":7073"
+		addr = ":7074"
 	}
 
 	logger.Info("user-service listen", zap.String("addr", addr), zap.Bool("init", *init))
@@ -187,6 +187,9 @@ func main() {
 		apiPrefix = "/api"
 	}
 	r.StaticFS(apiPrefix+"/static", http.FS(staticAssets))
+	r.GET("/favicon.ico", func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
 
 	app.registerRoutes(r)
 

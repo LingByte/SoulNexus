@@ -1,7 +1,7 @@
 import { ReactNode, useEffect } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
-import { showAlert } from '@/utils/notification'
+import { beginSSOLogin } from '@/utils/sso'
 
 interface ProtectedRouteProps {
   children: ReactNode
@@ -10,7 +10,6 @@ interface ProtectedRouteProps {
 
 const ProtectedRoute = ({ children, requireAuth = true }: ProtectedRouteProps) => {
   const { isAuthenticated, isLoading } = useAuthStore()
-  const navigate = useNavigate()
   const location = useLocation()
 
   useEffect(() => {
@@ -19,24 +18,10 @@ const ProtectedRoute = ({ children, requireAuth = true }: ProtectedRouteProps) =
 
     // 如果需要认证但用户未登录
     if (requireAuth && !isAuthenticated) {
-      // 保存当前路径，登录后可以跳转回来
       const currentPath = location.pathname + location.search
-      if (currentPath !== '/') {
-        localStorage.setItem('redirectAfterLogin', currentPath)
-      }
-      
-      // 跳转到首页并显示登录窗口
-      navigate('/', { replace: true })
-      showAlert('请先登录后再访问此页面', 'warning')
-      
-      // 延迟打开登录窗口，确保页面已经跳转
-      setTimeout(() => {
-        // 触发登录窗口打开事件
-        const event = new CustomEvent('openAuthModal')
-        window.dispatchEvent(event)
-      }, 100)
+      beginSSOLogin(currentPath)
     }
-  }, [isAuthenticated, isLoading, requireAuth, navigate, location])
+  }, [isAuthenticated, isLoading, requireAuth, location])
 
   // 如果正在加载，显示加载状态
   if (isLoading) {
