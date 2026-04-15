@@ -1144,7 +1144,6 @@ func (h *Handlers) handleUserSignupByEmail(c *gin.Context) {
 	}
 
 	clientIP := c.ClientIP()
-
 	// 1. 输入清理和验证
 	var err error
 	form.Email, err = utils.SanitizeAndValidate(form.Email, "email")
@@ -1242,7 +1241,6 @@ func (h *Handlers) handleUserSignupByEmail(c *gin.Context) {
 		// 加密密码格式：passwordHash:encryptedHash:salt:timestamp
 		parts := strings.Split(form.Password, ":")
 		passwordHash := parts[0]
-		// 提取原始密码的哈希，加上 sha256$ 前缀（HashPassword 会检查并直接返回）
 		passwordToStore = fmt.Sprintf("sha256$%s", passwordHash)
 	}
 
