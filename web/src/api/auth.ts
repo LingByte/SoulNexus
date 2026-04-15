@@ -17,6 +17,8 @@ export interface RegisterUserForm {
   source?: string
   captchaId?: string
   captchaCode?: string
+  captchaType?: 'image' | 'click'
+  captchaData?: string
   mouseTrack?: string       // 鼠标轨迹数据（JSON字符串）
   formFillTime?: number     // 表单填写时间（毫秒）
   keystrokePattern?: string // 按键模式数据（JSON字符串）
@@ -36,6 +38,8 @@ export interface EmailRegisterForm {
   source?: string
   captchaId?: string
   captchaCode?: string
+  captchaType?: 'image' | 'click'
+  captchaData?: string
   // 智能风控字段
   mouseTrack?: string       // 鼠标轨迹数据（JSON字符串）
   formFillTime?: number     // 表单填写时间（毫秒）
@@ -45,7 +49,11 @@ export interface EmailRegisterForm {
 // 验证码响应类型
 export interface CaptchaResponse {
   id: string
+  type?: 'image' | 'click'
   image: string
+  count?: number
+  tolerance?: number
+  words?: string[]
 }
 
 // 发送邮箱验证码请求类型
@@ -72,6 +80,8 @@ export interface PasswordLoginForm {
   twoFactorCode?: string
   captchaId?: string
   captchaCode?: string
+  captchaType?: 'image' | 'click'
+  captchaData?: string
 }
 
 // 邮箱验证码登录表单类型
@@ -83,6 +93,8 @@ export interface EmailCodeLoginForm {
   authToken?: boolean
   captchaId?: string
   captchaCode?: string
+  captchaType?: 'image' | 'click'
+  captchaData?: string
 }
 
 // 登录响应数据类型
@@ -245,8 +257,12 @@ export const getCaptcha = async (): Promise<ApiResponse<CaptchaResponse>> => {
 }
 
 // 验证图形验证码
-export const verifyCaptcha = async (id: string, code: string): Promise<ApiResponse<{ valid: boolean }>> => {
-  return post<{ valid: boolean }>('/auth/captcha/verify', { id, code }, userServiceConfig)
+export const verifyCaptcha = async (
+  id: string,
+  code: string,
+  type: 'image' | 'click' = 'image'
+): Promise<ApiResponse<{ valid: boolean }>> => {
+  return post<{ valid: boolean }>('/auth/captcha/verify', { id, code, type }, userServiceConfig)
 }
 
 // 忘记密码 - 发送重置密码邮件

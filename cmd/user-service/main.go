@@ -19,13 +19,13 @@ import (
 	"github.com/LingByte/SoulNexus/internal/listeners"
 	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/cache"
-	"github.com/LingByte/SoulNexus/pkg/captcha"
 	"github.com/LingByte/SoulNexus/pkg/config"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/metrics"
 	"github.com/LingByte/SoulNexus/pkg/middleware"
 	"github.com/LingByte/SoulNexus/pkg/utils"
+	utilscaptcha "github.com/LingByte/SoulNexus/pkg/utils/captcha"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -100,7 +100,7 @@ func main() {
 	utils.InitGlobalCache(1024, 5*time.Minute)
 	utils.InitGlobalRegistrationGuard(logger.Lg)
 	utils.InitGlobalDistributedLock()
-	captcha.InitGlobalCaptchaManager(nil)
+	utilscaptcha.InitGlobalManager(nil)
 	utils.InitGlobalLoginSecurityManager(logger.Lg)
 	utils.InitGlobalIntelligentRiskControl(logger.Lg)
 

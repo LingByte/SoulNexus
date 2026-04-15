@@ -56,6 +56,8 @@ type LoginForm struct {
 	TwoFactorCode string `json:"twoFactorCode,omitempty"` // 两步验证码
 	CaptchaID     string `json:"captchaId,omitempty"`     // 图形验证码ID
 	CaptchaCode   string `json:"captchaCode,omitempty"`   // 图形验证码
+	CaptchaType   string `json:"captchaType,omitempty"`   // 验证码类型: image/click
+	CaptchaData   string `json:"captchaData,omitempty"`   // 点击验证码坐标数据(JSON)
 }
 
 type EmailOperatorForm struct {
@@ -68,6 +70,8 @@ type EmailOperatorForm struct {
 	Timezone    string `json:"timezone,omitempty"`
 	CaptchaID   string `json:"captchaId,omitempty"`
 	CaptchaCode string `json:"captchaCode,omitempty"`
+	CaptchaType string `json:"captchaType,omitempty"`
+	CaptchaData string `json:"captchaData,omitempty"`
 }
 
 type RegisterUserForm struct {
@@ -81,6 +85,8 @@ type RegisterUserForm struct {
 	Source           string `json:"source"`
 	CaptchaID        string `json:"captchaId"`
 	CaptchaCode      string `json:"captchaCode"`
+	CaptchaType      string `json:"captchaType"`
+	CaptchaData      string `json:"captchaData"`
 	MouseTrack       string `json:"mouseTrack"`
 	FormFillTime     int64  `json:"formFillTime"`
 	KeystrokePattern string `json:"keystrokePattern"`

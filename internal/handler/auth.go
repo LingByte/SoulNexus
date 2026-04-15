@@ -32,7 +32,6 @@ import (
 	"github.com/LingByte/SoulNexus"
 	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/cache"
-	"github.com/LingByte/SoulNexus/pkg/captcha"
 	"github.com/LingByte/SoulNexus/pkg/config"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/logger"
@@ -40,6 +39,7 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/notification"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/utils"
+	utilscaptcha "github.com/LingByte/SoulNexus/pkg/utils/captcha"
 	"github.com/LingByte/lingstorage-sdk-go"
 	"github.com/gin-gonic/gin"
 	"github.com/pquerna/otp/totp"
@@ -85,6 +85,41 @@ var oidcAuthCodeStore = struct {
 	items map[string]*oidcAuthCode
 }{
 	items: make(map[string]*oidcAuthCode),
+}
+
+func verifyRequestCaptcha(captchaID, captchaCode, captchaData, captchaType string) (bool, error) {
+	if utilscaptcha.GlobalManager == nil {
+		return false, errors.New("captcha service not initialized")
+	}
+	if strings.TrimSpace(captchaID) == "" {
+		return false, errors.New("captcha is required")
+	}
+	cType := utilscaptcha.Type(strings.TrimSpace(captchaType))
+	if cType == "" {
+		cType = utilscaptcha.TypeImage
+	}
+	switch cType {
+	case utilscaptcha.TypeImage:
+		if strings.TrimSpace(captchaCode) == "" {
+			return false, errors.New("captcha is required")
+		}
+		return utilscaptcha.GlobalManager.VerifyImage(captchaID, captchaCode)
+	case utilscaptcha.TypeClick:
+		raw := strings.TrimSpace(captchaData)
+		if raw == "" {
+			raw = strings.TrimSpace(captchaCode)
+		}
+		var points []utilscaptcha.Point
+		if raw == "" {
+			return false, errors.New("click captcha data is required")
+		}
+		if err := json.Unmarshal([]byte(raw), &points); err != nil {
+			return false, errors.New("invalid click captcha data")
+		}
+		return utilscaptcha.GlobalManager.VerifyClick(captchaID, points)
+	default:
+		return false, errors.New("unsupported captcha type")
+	}
 }
 
 type wechatQRCodeCreateResp struct {
@@ -1103,14 +1138,9 @@ func (h *Handlers) handleUserSigninByEmail(c *gin.Context) {
 		}
 	}
 
-	// 3. 图形验证码验证
-	if captcha.GlobalCaptchaManager != nil {
-		if form.CaptchaID == "" || form.CaptchaCode == "" {
-			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("captcha is required"))
-			return
-		}
-
-		valid, err := captcha.GlobalCaptchaManager.Verify(form.CaptchaID, form.CaptchaCode)
+	// 3. 验证码验证（随机图形/点击）
+	if utilscaptcha.GlobalManager != nil {
+		valid, err := verifyRequestCaptcha(form.CaptchaID, form.CaptchaCode, form.CaptchaData, form.CaptchaType)
 		if err != nil || !valid {
 			if utils.GlobalLoginSecurityManager != nil {
 				recordFunc := func(db *gorm.DB, email string, userID uint, ipAddress string, failedCount int) error {
@@ -1119,7 +1149,7 @@ func (h *Handlers) handleUserSigninByEmail(c *gin.Context) {
 				}
 				utils.GlobalLoginSecurityManager.RecordFailedLogin(db, form.Email, 0, clientIP, recordFunc)
 			}
-			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid captcha code"))
+			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid captcha"))
 			return
 		}
 	}
@@ -1510,17 +1540,11 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 			}
 		}
 
-		// 6. 图形验证码验证（密码登录需要）
-		if captcha.GlobalCaptchaManager != nil {
-			if form.CaptchaID == "" || form.CaptchaCode == "" {
-				logger.Warn("Login failed: captcha is required", zap.String("email", form.Email), zap.Uint("userID", user.ID), zap.String("ip", clientIP))
-				response.Fail(c, "请输入图形验证码", nil)
-				return
-			}
-
-			valid, err := captcha.GlobalCaptchaManager.Verify(form.CaptchaID, form.CaptchaCode)
+		// 6. 验证码验证（随机图形/点击）
+		if utilscaptcha.GlobalManager != nil {
+			valid, err := verifyRequestCaptcha(form.CaptchaID, form.CaptchaCode, form.CaptchaData, form.CaptchaType)
 			if err != nil || !valid {
-				logger.Warn("Login failed: invalid captcha code", zap.String("email", form.Email), zap.Uint("userID", user.ID), zap.String("ip", clientIP), zap.String("captchaID", form.CaptchaID), zap.Error(err))
+				logger.Warn("Login failed: invalid captcha", zap.String("email", form.Email), zap.Uint("userID", user.ID), zap.String("ip", clientIP), zap.String("captchaID", form.CaptchaID), zap.Error(err))
 				if utils.GlobalLoginSecurityManager != nil {
 					recordFunc := func(db *gorm.DB, email string, userID uint, ipAddress string, failedCount int) error {
 						_, err := models.CreateOrUpdateAccountLock(db, email, userID, ipAddress, failedCount)
@@ -1910,22 +1934,14 @@ func (h *Handlers) handleUserSignup(c *gin.Context) {
 		}
 	}
 
-	// 3. 图形验证码验证
-	if captcha.GlobalCaptchaManager != nil {
-		if form.CaptchaID == "" || form.CaptchaCode == "" {
-			if utils.GlobalRegistrationGuard != nil {
-				utils.GlobalRegistrationGuard.RecordRegistrationAttempt(clientIP, form.Email, false, "captcha required")
-			}
-			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("captcha is required"))
-			return
-		}
-
-		valid, err := captcha.GlobalCaptchaManager.Verify(form.CaptchaID, form.CaptchaCode)
+	// 3. 验证码验证（随机图形/点击）
+	if utilscaptcha.GlobalManager != nil {
+		valid, err := verifyRequestCaptcha(form.CaptchaID, form.CaptchaCode, form.CaptchaData, form.CaptchaType)
 		if err != nil || !valid {
 			if utils.GlobalRegistrationGuard != nil {
 				utils.GlobalRegistrationGuard.RecordRegistrationAttempt(clientIP, form.Email, false, "invalid captcha")
 			}
-			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid captcha code"))
+			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid captcha"))
 			return
 		}
 	}
@@ -2070,22 +2086,14 @@ func (h *Handlers) handleUserSignupByEmail(c *gin.Context) {
 		}
 	}
 
-	// 2. 图形验证码验证
-	if captcha.GlobalCaptchaManager != nil {
-		if form.CaptchaID == "" || form.CaptchaCode == "" {
-			if utils.GlobalRegistrationGuard != nil {
-				utils.GlobalRegistrationGuard.RecordRegistrationAttempt(clientIP, form.Email, false, "captcha required")
-			}
-			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("captcha is required"))
-			return
-		}
-
-		valid, err := captcha.GlobalCaptchaManager.Verify(form.CaptchaID, form.CaptchaCode)
+	// 2. 验证码验证（随机图形/点击）
+	if utilscaptcha.GlobalManager != nil {
+		valid, err := verifyRequestCaptcha(form.CaptchaID, form.CaptchaCode, form.CaptchaData, form.CaptchaType)
 		if err != nil || !valid {
 			if utils.GlobalRegistrationGuard != nil {
 				utils.GlobalRegistrationGuard.RecordRegistrationAttempt(clientIP, form.Email, false, "invalid captcha")
 			}
-			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid captcha code"))
+			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid captcha"))
 			return
 		}
 	}
@@ -3206,27 +3214,38 @@ func (h *Handlers) handleTwoFactorStatus(c *gin.Context) {
 
 // handleGetCaptcha 获取图形验证码
 func (h *Handlers) handleGetCaptcha(c *gin.Context) {
-	if captcha.GlobalCaptchaManager == nil {
+	if utilscaptcha.GlobalManager == nil {
 		response.Fail(c, "Captcha service not available", errors.New("captcha service not initialized"))
 		return
 	}
-
-	capt, err := captcha.GlobalCaptchaManager.Generate()
+	captchaType := utilscaptcha.TypeImage
+	if time.Now().UnixNano()%2 == 0 {
+		captchaType = utilscaptcha.TypeClick
+	}
+	capt, err := utilscaptcha.GlobalManager.Generate(captchaType)
 	if err != nil {
 		response.Fail(c, "Failed to generate captcha", err)
 		return
 	}
+	image, _ := capt.Data["image"]
 	response.Success(c, "Captcha generated", gin.H{
-		"id":    capt.ID,
-		"image": capt.Image,
+		"id":        capt.ID,
+		"type":      capt.Type,
+		"image":     image,
+		"count":     capt.Data["count"],
+		"tolerance": capt.Data["tolerance"],
+		"words":     capt.Data["words"],
 	})
 }
 
 // handleVerifyCaptcha 验证图形验证码
 func (h *Handlers) handleVerifyCaptcha(c *gin.Context) {
 	var req struct {
-		ID   string `json:"id" binding:"required"`
-		Code string `json:"code" binding:"required"`
+		ID        string               `json:"id" binding:"required"`
+		Type      string               `json:"type"`
+		Code      string               `json:"code"`
+		CaptchaData string             `json:"captchaData"`
+		Positions []utilscaptcha.Point `json:"positions"`
 	}
 
 	if err := c.BindJSON(&req); err != nil {
@@ -3234,12 +3253,37 @@ func (h *Handlers) handleVerifyCaptcha(c *gin.Context) {
 		return
 	}
 
-	if captcha.GlobalCaptchaManager == nil {
+	if utilscaptcha.GlobalManager == nil {
 		response.Fail(c, "Captcha service not available", errors.New("captcha service not initialized"))
 		return
 	}
-
-	valid, err := captcha.GlobalCaptchaManager.Verify(req.ID, req.Code)
+	captchaType := utilscaptcha.Type(strings.TrimSpace(req.Type))
+	if captchaType == "" {
+		captchaType = utilscaptcha.TypeImage
+	}
+	var verifyData interface{}
+	switch captchaType {
+	case utilscaptcha.TypeClick:
+		verifyData = req.Positions
+		if len(req.Positions) == 0 && strings.TrimSpace(req.Code) != "" {
+			var points []utilscaptcha.Point
+			if err := json.Unmarshal([]byte(req.Code), &points); err == nil {
+				verifyData = points
+			}
+		}
+		if len(req.Positions) == 0 && strings.TrimSpace(req.CaptchaData) != "" {
+			var points []utilscaptcha.Point
+			if err := json.Unmarshal([]byte(req.CaptchaData), &points); err == nil {
+				verifyData = points
+			}
+		}
+	case utilscaptcha.TypeImage:
+		verifyData = req.Code
+	default:
+		response.Fail(c, "Invalid captcha type", errors.New("unsupported captcha type"))
+		return
+	}
+	valid, err := utilscaptcha.GlobalManager.Verify(captchaType, req.ID, verifyData)
 	if err != nil {
 		response.Fail(c, "Failed to verify captcha", err)
 		return

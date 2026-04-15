@@ -21,7 +21,6 @@ import (
 	"github.com/LingByte/SoulNexus/internal/task"
 	workflowdef "github.com/LingByte/SoulNexus/internal/workflow"
 	"github.com/LingByte/SoulNexus/pkg/cache"
-	"github.com/LingByte/SoulNexus/pkg/captcha"
 	"github.com/LingByte/SoulNexus/pkg/config"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/graph"
@@ -30,6 +29,7 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/middleware"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/LingByte/SoulNexus/pkg/utils/backup"
+	utilscaptcha "github.com/LingByte/SoulNexus/pkg/utils/captcha"
 	"github.com/LingByte/SoulNexus/pkg/utils/search"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -133,7 +133,7 @@ func main() {
 	utils.InitGlobalDistributedLock()
 
 	// Initialize global captcha manager
-	captcha.InitGlobalCaptchaManager(nil) // Use memory storage, can be replaced with Redis storage
+	utilscaptcha.InitGlobalManager(nil) // Use memory storage, can be replaced with Redis storage
 
 	// Initialize global login security manager
 	utils.InitGlobalLoginSecurityManager(logger.Lg)

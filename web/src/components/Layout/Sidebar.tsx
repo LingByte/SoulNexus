@@ -128,6 +128,10 @@ const Sidebar = () => {
 
   const isActive = (path: string) => location.pathname === path
   const isExternalHref = (href: string) => href.startsWith('http')
+  const handleSidebarLogout = async () => {
+    setShowDropdown(false)
+    await logout()
+  }
 
   // 桌面端侧边栏内容
   const desktopSidebarContent = (
@@ -369,7 +373,7 @@ const Sidebar = () => {
                       variant="ghost"
                       size="sm"
                       className="flex items-center gap-2 w-full justify-start text-sm px-3 py-2"
-                      onClick={async () => { setShowDropdown(false); await logout() }}
+                      onClick={handleSidebarLogout}
                       leftIcon={<LogOut className="w-4 h-4" />}
                     >
                       {t('nav.logout')}
@@ -634,7 +638,7 @@ const Sidebar = () => {
                         variant="ghost"
                         size="sm"
                         className="flex items-center gap-2 w-full justify-start text-sm px-3 py-2"
-                        onClick={async () => { setShowDropdown(false); await logout() }}
+                        onClick={handleSidebarLogout}
                         leftIcon={<LogOut className="w-4 h-4" />}
                       >
                         {t('nav.logout')}

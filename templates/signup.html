@@ -131,6 +131,7 @@
       border: 1px solid var(--border);
       border-radius: 11px;
       background: var(--surface-soft);
+      position: relative;
       cursor: pointer;
       overflow: hidden;
       display: flex;
@@ -193,10 +194,34 @@
     .password-strength.strong { color: var(--success); }
     .message.success { color: var(--success); }
     .message.error { color: var(--danger); }
+    .modal {
+      width: 100%;
+      max-width: 420px;
+    }
+    .modal.click-mode {
+      max-width: 520px;
+    }
+    .modal-captcha-layout {
+      display: grid;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .modal-captcha-layout .input {
+      height: 44px;
+    }
+    .modal-captcha-box {
+      height: 180px !important;
+      border-radius: 12px !important;
+    }
+    .modal.click-mode .modal-captcha-box {
+      height: 260px !important;
+    }
     @media (max-width: 760px) {
       .card { padding: 18px 14px 14px; }
       .row { grid-template-columns: 1fr; }
       .captcha-row { grid-template-columns: 1fr 120px; }
+      .modal.click-mode { max-width: 94vw; }
+      .modal.click-mode .modal-captcha-box { height: 220px !important; }
     }
   </style>
 </head>
@@ -265,14 +290,13 @@
   <div id="captcha-modal" class="modal-overlay hidden">
     <div class="modal">
       <h3 class="modal-title">请输入图形验证码</h3>
-      <div class="captcha-row" style="margin-bottom: 16px;">
+      <div class="modal-captcha-layout">
         <input id="modalCaptchaCode" class="input" type="text" required placeholder="请输入图形验证码" />
-        <div id="modalCaptchaBox" class="captcha" title="点击刷新验证码">
+        <div id="modalCaptchaBox" class="captcha modal-captcha-box" title="点击刷新验证码">
           <img id="modalCaptchaImage" alt="captcha" />
         </div>
       </div>
       <div class="actions">
-        <button id="modalCaptchaCancel" class="btn secondary" type="button">取消</button>
         <button id="modalCaptchaConfirm" class="btn primary" type="button">确认</button>
       </div>
     </div>
@@ -280,7 +304,7 @@
 
   <script>
     (function () {
-      const state = { captchaId: '' };
+      const state = { captchaId: '', captchaType: 'image', captchaCount: 0, captchaWords: [], captchaPoints: [] };
       const nextTarget = document.body.dataset.next || '';
       const loginURL = '/api/auth/login' + (nextTarget ? ('?next=' + encodeURIComponent(nextTarget)) : '');
       const $ = (id) => document.getElementById(id);
@@ -306,13 +330,75 @@
         try { data = await resp.json(); } catch (_) {}
         return { resp, data };
       };
+      const resetCaptchaModalUI = () => {
+        state.captchaPoints = [];
+        const modal = document.querySelector('#captcha-modal .modal');
+        if (modal) modal.classList.remove('click-mode');
+        $('modalCaptchaCode').value = '';
+        $('modalCaptchaCode').style.display = 'block';
+        $('modalCaptchaCode').placeholder = '请输入图形验证码';
+        renderCaptchaPoints();
+        const titleEl = document.querySelector('#captcha-modal .modal-title');
+        if (titleEl) titleEl.textContent = '请输入图形验证码';
+      };
+      const renderCaptchaPoints = () => {
+        const box = $('modalCaptchaBox');
+        const img = $('modalCaptchaImage');
+        if (!box) return;
+        box.querySelectorAll('.captcha-point').forEach((el) => el.remove());
+        const rect = img ? img.getBoundingClientRect() : null;
+        const displayW = rect && rect.width ? rect.width : 1;
+        const displayH = rect && rect.height ? rect.height : 1;
+        const naturalW = img && img.naturalWidth ? img.naturalWidth : displayW;
+        const naturalH = img && img.naturalHeight ? img.naturalHeight : displayH;
+        const containScale = Math.min(displayW / (naturalW || 1), displayH / (naturalH || 1));
+        const renderedW = (naturalW || 1) * containScale;
+        const renderedH = (naturalH || 1) * containScale;
+        const padX = (displayW - renderedW) / 2;
+        const padY = (displayH - renderedH) / 2;
+        state.captchaPoints.forEach((p, idx) => {
+          const dot = document.createElement('div');
+          dot.className = 'captcha-point';
+          dot.textContent = String(idx + 1);
+          dot.style.position = 'absolute';
+          dot.style.left = `${Math.round(p.x * containScale + padX)}px`;
+          dot.style.top = `${Math.round(p.y * containScale + padY)}px`;
+          dot.style.transform = 'translate(-50%, -50%)';
+          dot.style.width = '18px';
+          dot.style.height = '18px';
+          dot.style.borderRadius = '999px';
+          dot.style.background = 'rgba(79, 71, 230, 0.92)';
+          dot.style.color = '#fff';
+          dot.style.fontSize = '11px';
+          dot.style.fontWeight = '700';
+          dot.style.display = 'flex';
+          dot.style.alignItems = 'center';
+          dot.style.justifyContent = 'center';
+          dot.style.pointerEvents = 'none';
+          box.appendChild(dot);
+        });
+      };
       const loadCaptcha = async () => {
         try {
           const resp = await fetch('/api/auth/captcha');
           const data = await resp.json();
           if (!resp.ok || data.code !== 200 || !data.data) throw new Error(data.msg || '获取图形验证码失败');
+          resetCaptchaModalUI();
           state.captchaId = data.data.id || '';
+          state.captchaType = data.data.type || 'image';
+          state.captchaCount = Number(data.data.count || 0);
+          state.captchaWords = Array.isArray(data.data.words) ? data.data.words : [];
           $('modalCaptchaImage').src = data.data.image || '';
+          if (state.captchaType === 'click') {
+            const modal = document.querySelector('#captcha-modal .modal');
+            if (modal) modal.classList.add('click-mode');
+            $('modalCaptchaCode').style.display = 'none';
+            const titleEl = document.querySelector('#captcha-modal .modal-title');
+            if (titleEl) {
+              const wordsText = state.captchaWords.length ? state.captchaWords.join('、') : '图中字符';
+              titleEl.textContent = '请依次点击图中字符：' + wordsText;
+            }
+          }
         } catch (err) {
           setMessage(err.message || '获取图形验证码失败', 'error');
         }
@@ -353,14 +439,13 @@
       $('password').addEventListener('input', (e) => {
         updatePasswordStrengthIndicator(e.target.value);
       });
-      $('modalCaptchaBox').addEventListener('click', loadCaptcha);
-      $('modalCaptchaImage').addEventListener('click', loadCaptcha);
-      $('modalCaptchaCancel').addEventListener('click', () => {
-        $('captcha-modal').classList.remove('active');
-        $('modalCaptchaCode').value = '';
+      $('modalCaptchaBox').addEventListener('click', () => {
+        if (state.captchaType !== 'click') loadCaptcha();
       });
 
+      let emailCodeCooldown = false;
       $('sendCodeBtn').addEventListener('click', async () => {
+        if (emailCodeCooldown) return;
         const email = $('email').value.trim();
         if (!email) return setMessage('请先输入邮箱地址', 'error');
         setBtnLoading('sendCodeBtn', true, '发送验证码', '发送中...');
@@ -368,6 +453,18 @@
           const { resp, data } = await apiRequest('/api/auth/send/email', { email: email });
           if (!resp.ok || data.code !== 200) throw new Error(data.msg || '发送验证码失败');
           setMessage('验证码已发送，请检查邮箱', 'success');
+          emailCodeCooldown = true;
+          let remaining = 180;
+          const btn = $('sendCodeBtn');
+          const interval = setInterval(() => {
+            btn.textContent = remaining + '秒后重发';
+            remaining--;
+            if (remaining < 0) {
+              clearInterval(interval);
+              emailCodeCooldown = false;
+              btn.textContent = '发送验证码';
+            }
+          }, 1000);
         } catch (err) {
           setMessage(err.message || '发送验证码失败', 'error');
         } finally {
@@ -375,7 +472,7 @@
         }
       });
 
-      const performSignup = async (captchaCode) => {
+      const performSignup = async (captchaCode, captchaData) => {
         const password = $('password').value;
         const confirmPassword = $('confirmPassword').value;
         if (password !== confirmPassword) return setMessage('两次输入的密码不一致', 'error');
@@ -389,7 +486,9 @@
           code: $('emailCode').value.trim(),
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
           captchaId: state.captchaId,
-          captchaCode: captchaCode,
+          captchaType: state.captchaType,
+          captchaCode: state.captchaType === 'image' ? (captchaCode || '') : '',
+          captchaData: state.captchaType === 'click' ? (captchaData || '') : '',
         };
         if (!payload.userName || !payload.displayName || !payload.email || !payload.password || !payload.code) {
           return setMessage('请完整填写注册信息', 'error');
@@ -429,13 +528,44 @@
         $('captcha-modal').classList.add('active');
       });
       $('modalCaptchaConfirm').addEventListener('click', async () => {
-        const captchaCode = $('modalCaptchaCode').value.trim();
-        if (!captchaCode) {
+        let captchaCode = $('modalCaptchaCode').value.trim();
+        if (state.captchaType === 'click') {
+          if (!state.captchaPoints.length || (state.captchaCount > 0 && state.captchaPoints.length !== state.captchaCount)) {
+            alert('请按提示完成点击验证码');
+            return;
+          }
+          const captchaData = JSON.stringify(state.captchaPoints);
+          $('captcha-modal').classList.remove('active');
+          await performSignup('', captchaData);
+          return;
+        } else if (!captchaCode) {
           alert('请输入图形验证码');
           return;
         }
         $('captcha-modal').classList.remove('active');
-        await performSignup(captchaCode);
+        await performSignup(captchaCode, '');
+      });
+      $('modalCaptchaImage').addEventListener('click', (event) => {
+        if (state.captchaType !== 'click') return;
+        const img = event.target;
+        const rect = img.getBoundingClientRect();
+        const offsetX = event.clientX - rect.left;
+        const offsetY = event.clientY - rect.top;
+        const naturalW = img.naturalWidth || rect.width || 1;
+        const naturalH = img.naturalHeight || rect.height || 1;
+        const containScale = Math.min((rect.width || 1) / naturalW, (rect.height || 1) / naturalH);
+        const renderedW = naturalW * containScale;
+        const renderedH = naturalH * containScale;
+        const padX = ((rect.width || 1) - renderedW) / 2;
+        const padY = ((rect.height || 1) - renderedH) / 2;
+        const imgX = offsetX - padX;
+        const imgY = offsetY - padY;
+        if (imgX < 0 || imgY < 0 || imgX > renderedW || imgY > renderedH) return;
+        const x = Math.round(imgX / containScale);
+        const y = Math.round(imgY / containScale);
+        if (state.captchaCount > 0 && state.captchaPoints.length >= state.captchaCount) return;
+        state.captchaPoints.push({ x, y });
+        renderCaptchaPoints();
       });
     })();
   </script>

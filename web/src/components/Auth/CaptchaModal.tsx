@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, RefreshCw, Loader2 } from 'lucide-react'
+import { X, Loader2 } from 'lucide-react'
 import { getCaptcha } from '@/api/auth'
 
 interface CaptchaModalProps {
   isOpen: boolean
   onClose: () => void
-  onVerify: (captchaId: string, captchaCode: string) => void
+  onVerify: (captchaId: string, captchaCode: string, captchaType: 'image' | 'click') => void
   title?: string
 }
 
@@ -19,6 +19,10 @@ const CaptchaModal: React.FC<CaptchaModalProps> = ({
   const [captchaImage, setCaptchaImage] = useState<string>('')
   const [captchaId, setCaptchaId] = useState<string>('')
   const [captchaCode, setCaptchaCode] = useState<string>('')
+  const [captchaType, setCaptchaType] = useState<'image' | 'click'>('image')
+  const [captchaCount, setCaptchaCount] = useState<number>(0)
+  const [captchaWords, setCaptchaWords] = useState<string[]>([])
+  const [captchaPoints, setCaptchaPoints] = useState<Array<{ x: number; y: number }>>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>('')
 
@@ -30,6 +34,10 @@ const CaptchaModal: React.FC<CaptchaModalProps> = ({
       if (response.code === 200 && response.data) {
         setCaptchaImage(response.data.image)
         setCaptchaId(response.data.id)
+        setCaptchaType(response.data.type || 'image')
+        setCaptchaCount(response.data.count || 0)
+        setCaptchaWords(response.data.words || [])
+        setCaptchaPoints([])
         setCaptchaCode('') // 清空输入
       } else {
         setError('获取验证码失败')
@@ -49,6 +57,10 @@ const CaptchaModal: React.FC<CaptchaModalProps> = ({
       setCaptchaCode('')
       setCaptchaId('')
       setCaptchaImage('')
+      setCaptchaType('image')
+      setCaptchaCount(0)
+      setCaptchaWords([])
+      setCaptchaPoints([])
       setError('')
     }
   }, [isOpen])
@@ -58,21 +70,44 @@ const CaptchaModal: React.FC<CaptchaModalProps> = ({
   }
 
   const handleVerify = () => {
-    if (!captchaCode.trim()) {
-      setError('请输入验证码')
-      return
-    }
     if (!captchaId) {
       setError('验证码未加载，请刷新重试')
       return
     }
-    onVerify(captchaId, captchaCode)
+    if (captchaType === 'click') {
+      if (!captchaPoints.length || (captchaCount > 0 && captchaPoints.length !== captchaCount)) {
+        setError('请按提示完成点击验证码')
+        return
+      }
+      onVerify(captchaId, JSON.stringify(captchaPoints), captchaType)
+      return
+    }
+    if (!captchaCode.trim()) {
+      setError('请输入验证码')
+      return
+    }
+    onVerify(captchaId, captchaCode, captchaType)
   }
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       handleVerify()
     }
+  }
+
+  const handleCaptchaImageClick = (e: React.MouseEvent<HTMLImageElement>) => {
+    if (captchaType !== 'click') {
+      fetchCaptcha()
+      return
+    }
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = Math.round(e.clientX - rect.left)
+    const y = Math.round(e.clientY - rect.top)
+    setCaptchaPoints((prev) => {
+      if (captchaCount > 0 && prev.length >= captchaCount) return prev
+      return [...prev, { x, y }]
+    })
+    setError('')
   }
 
   return (
@@ -107,7 +142,7 @@ const CaptchaModal: React.FC<CaptchaModalProps> = ({
 
               {/* 标题 */}
               <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-6 pr-8">
-                {title}
+                {captchaType === 'click' ? `请依次点击图中字符：${captchaWords.join('、') || '图中字符'}` : title}
               </h3>
 
               {/* 验证码图片 */}
@@ -120,26 +155,17 @@ const CaptchaModal: React.FC<CaptchaModalProps> = ({
                       src={captchaImage}
                       alt="验证码"
                       className="w-full h-full object-contain cursor-pointer"
-                      onClick={handleRefresh}
+                      onClick={handleCaptchaImageClick}
                       title="点击刷新验证码"
                     />
                   ) : (
                     <div className="text-sm text-gray-400">加载中...</div>
                   )}
-                  <button
-                    type="button"
-                    onClick={handleRefresh}
-                    disabled={loading}
-                    className="absolute top-2 right-2 p-2 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg shadow-md transition-colors disabled:opacity-50"
-                    title="刷新验证码"
-                  >
-                    <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                  </button>
                 </div>
               </div>
 
               {/* 输入框 */}
-              <div className="mb-4">
+              <div className={`mb-4 ${captchaType === 'click' ? 'hidden' : ''}`}>
                 <input
                   type="text"
                   value={captchaCode}
@@ -147,7 +173,7 @@ const CaptchaModal: React.FC<CaptchaModalProps> = ({
                     setCaptchaCode(e.target.value)
                     setError('')
                   }}
-                  onKeyPress={handleKeyPress}
+                  onKeyDown={handleKeyPress}
                   placeholder="请输入验证码"
                   className="w-full px-4 py-3 border-2 border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent text-center text-lg tracking-widest uppercase"
                   maxLength={6}
