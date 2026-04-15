@@ -171,7 +171,7 @@ func (h *Handlers) handleUserInfo(c *gin.Context) {
 func (h *Handlers) handleUserSigninByEmail(c *gin.Context) {
 	var form models.EmailOperatorForm
 	if err := c.BindJSON(&form); err != nil {
-		LingEcho.AbortWithJSONError(c, http.StatusBadRequest, err)
+		response.AbortWithJSONError(c, http.StatusBadRequest, err)
 		return
 	}
 	clientIP := c.ClientIP()
@@ -181,7 +181,7 @@ func (h *Handlers) handleUserSigninByEmail(c *gin.Context) {
 	// 1. IP限流检查
 	if utils.GlobalLoginSecurityManager != nil {
 		if err := utils.GlobalLoginSecurityManager.CheckIPRateLimit(clientIP); err != nil {
-			LingEcho.AbortWithJSONError(c, http.StatusTooManyRequests, err)
+			response.AbortWithJSONError(c, http.StatusTooManyRequests, err)
 			return
 		}
 	}
@@ -202,7 +202,7 @@ func (h *Handlers) handleUserSigninByEmail(c *gin.Context) {
 			}, nil
 		}
 		if err := utils.GlobalLoginSecurityManager.CheckAccountLock(db, form.Email, 0, checkLockFunc); err != nil {
-			LingEcho.AbortWithJSONError(c, http.StatusForbidden, err)
+			response.AbortWithJSONError(c, http.StatusForbidden, err)
 			return
 		}
 	}
@@ -210,7 +210,7 @@ func (h *Handlers) handleUserSigninByEmail(c *gin.Context) {
 	// 3. 图形验证码验证
 	if captcha.GlobalCaptchaManager != nil {
 		if form.CaptchaID == "" || form.CaptchaCode == "" {
-			LingEcho.AbortWithJSONError(c, http.StatusBadRequest, errors.New("captcha is required"))
+			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("captcha is required"))
 			return
 		}
 
@@ -223,14 +223,14 @@ func (h *Handlers) handleUserSigninByEmail(c *gin.Context) {
 				}
 				utils.GlobalLoginSecurityManager.RecordFailedLogin(db, form.Email, 0, clientIP, recordFunc)
 			}
-			LingEcho.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid captcha code"))
+			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid captcha code"))
 			return
 		}
 	}
 
 	// 检查邮箱是否为空
 	if form.Email == "" {
-		LingEcho.AbortWithJSONError(c, http.StatusBadRequest, errors.New("email is required"))
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("email is required"))
 		return
 	}
 
@@ -250,7 +250,7 @@ func (h *Handlers) handleUserSigninByEmail(c *gin.Context) {
 
 	// 5. 校验验证码
 	if form.Code == "" {
-		LingEcho.AbortWithJSONError(c, http.StatusBadRequest, errors.New("verification code is required"))
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("verification code is required"))
 		return
 	}
 
@@ -264,7 +264,7 @@ func (h *Handlers) handleUserSigninByEmail(c *gin.Context) {
 			}
 			utils.GlobalLoginSecurityManager.RecordFailedLogin(db, form.Email, user.ID, clientIP, recordFunc)
 		}
-		LingEcho.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid verification code"))
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid verification code"))
 		return
 	}
 
@@ -281,7 +281,7 @@ func (h *Handlers) handleUserSigninByEmail(c *gin.Context) {
 			}
 			utils.GlobalLoginSecurityManager.RecordFailedLogin(db, form.Email, user.ID, clientIP, recordFunc)
 		}
-		LingEcho.AbortWithJSONError(c, http.StatusForbidden, err)
+		response.AbortWithJSONError(c, http.StatusForbidden, err)
 		return
 	}
 
@@ -863,17 +863,17 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 func (h *Handlers) handleUserSignin(c *gin.Context) {
 	var form models.LoginForm
 	if err := c.BindJSON(&form); err != nil {
-		LingEcho.AbortWithJSONError(c, http.StatusBadRequest, err)
+		response.AbortWithJSONError(c, http.StatusBadRequest, err)
 		return
 	}
 
 	if form.AuthToken == "" && form.Email == "" {
-		LingEcho.AbortWithJSONError(c, http.StatusBadRequest, errors.New("email is required"))
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("email is required"))
 		return
 	}
 
 	if form.Password == "" && form.AuthToken == "" {
-		LingEcho.AbortWithJSONError(c, http.StatusBadRequest, errors.New("empty password"))
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("empty password"))
 		return
 	}
 
@@ -883,24 +883,24 @@ func (h *Handlers) handleUserSignin(c *gin.Context) {
 	if form.Password != "" {
 		user, err = models.GetUserByEmail(db, form.Email)
 		if err != nil {
-			LingEcho.AbortWithJSONError(c, http.StatusBadRequest, errors.New("user not exists"))
+			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("user not exists"))
 			return
 		}
 		if !models.CheckPassword(user, form.Password) {
-			LingEcho.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("unauthorized"))
+			response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("unauthorized"))
 			return
 		}
 	} else {
 		user, err = models.DecodeHashToken(db, form.AuthToken, false)
 		if err != nil {
-			LingEcho.AbortWithJSONError(c, http.StatusUnauthorized, err)
+			response.AbortWithJSONError(c, http.StatusUnauthorized, err)
 			return
 		}
 	}
 
 	err = models.CheckUserAllowLogin(db, user)
 	if err != nil {
-		LingEcho.AbortWithJSONError(c, http.StatusForbidden, err)
+		response.AbortWithJSONError(c, http.StatusForbidden, err)
 		return
 	}
 
@@ -910,7 +910,7 @@ func (h *Handlers) handleUserSignin(c *gin.Context) {
 		if form.TwoFactorCode != "" {
 			valid := totp.Validate(form.TwoFactorCode, user.TwoFactorSecret)
 			if !valid {
-				LingEcho.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("invalid 2fa code"))
+				response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("invalid 2fa code"))
 				return
 			}
 		} else {
@@ -949,7 +949,7 @@ func (h *Handlers) handleUserSignin(c *gin.Context) {
 func (h *Handlers) handleUserSignup(c *gin.Context) {
 	var form models.RegisterUserForm
 	if err := c.BindJSON(&form); err != nil {
-		LingEcho.AbortWithJSONError(c, http.StatusBadRequest, err)
+		response.AbortWithJSONError(c, http.StatusBadRequest, err)
 		return
 	}
 
@@ -959,20 +959,20 @@ func (h *Handlers) handleUserSignup(c *gin.Context) {
 	var err error
 	form.Email, err = utils.SanitizeAndValidate(form.Email, "email")
 	if err != nil {
-		LingEcho.AbortWithJSONError(c, http.StatusBadRequest, err)
+		response.AbortWithJSONError(c, http.StatusBadRequest, err)
 		return
 	}
 
 	form.Password, err = utils.SanitizeAndValidate(form.Password, "password")
 	if err != nil {
-		LingEcho.AbortWithJSONError(c, http.StatusBadRequest, err)
+		response.AbortWithJSONError(c, http.StatusBadRequest, err)
 		return
 	}
 
 	if form.DisplayName != "" {
 		form.DisplayName, err = utils.SanitizeAndValidate(form.DisplayName, "displayname")
 		if err != nil {
-			LingEcho.AbortWithJSONError(c, http.StatusBadRequest, err)
+			response.AbortWithJSONError(c, http.StatusBadRequest, err)
 			return
 		}
 	}
@@ -1009,7 +1009,7 @@ func (h *Handlers) handleUserSignup(c *gin.Context) {
 				zap.String("email", form.Email),
 				zap.String("ip", clientIP),
 				zap.Error(err))
-			LingEcho.AbortWithJSONError(c, http.StatusForbidden, errors.New("registration blocked due to suspicious behavior"))
+			response.AbortWithJSONError(c, http.StatusForbidden, errors.New("registration blocked due to suspicious behavior"))
 			return
 		}
 	}
@@ -1020,7 +1020,7 @@ func (h *Handlers) handleUserSignup(c *gin.Context) {
 			if utils.GlobalRegistrationGuard != nil {
 				utils.GlobalRegistrationGuard.RecordRegistrationAttempt(clientIP, form.Email, false, "captcha required")
 			}
-			LingEcho.AbortWithJSONError(c, http.StatusBadRequest, errors.New("captcha is required"))
+			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("captcha is required"))
 			return
 		}
 
@@ -1029,7 +1029,7 @@ func (h *Handlers) handleUserSignup(c *gin.Context) {
 			if utils.GlobalRegistrationGuard != nil {
 				utils.GlobalRegistrationGuard.RecordRegistrationAttempt(clientIP, form.Email, false, "invalid captcha")
 			}
-			LingEcho.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid captcha code"))
+			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid captcha code"))
 			return
 		}
 	}
@@ -1040,7 +1040,7 @@ func (h *Handlers) handleUserSignup(c *gin.Context) {
 		if utils.GlobalRegistrationGuard != nil {
 			utils.GlobalRegistrationGuard.RecordRegistrationAttempt(clientIP, form.Email, false, "registration in progress")
 		}
-		LingEcho.AbortWithJSONError(c, http.StatusConflict, errors.New("registration in progress for this email, please try again later"))
+		response.AbortWithJSONError(c, http.StatusConflict, errors.New("registration in progress for this email, please try again later"))
 		return
 	}
 	defer utils.ReleaseRegistrationLock(form.Email)
@@ -1049,7 +1049,7 @@ func (h *Handlers) handleUserSignup(c *gin.Context) {
 	if utils.GlobalRegistrationGuard != nil {
 		if err := utils.GlobalRegistrationGuard.CheckRegistrationAllowed(clientIP, form.Email, form.Password); err != nil {
 			utils.GlobalRegistrationGuard.RecordRegistrationAttempt(clientIP, form.Email, false, err.Error())
-			LingEcho.AbortWithJSONError(c, http.StatusTooManyRequests, err)
+			response.AbortWithJSONError(c, http.StatusTooManyRequests, err)
 			return
 		}
 	}
@@ -1059,7 +1059,7 @@ func (h *Handlers) handleUserSignup(c *gin.Context) {
 		if utils.GlobalRegistrationGuard != nil {
 			utils.GlobalRegistrationGuard.RecordRegistrationAttempt(clientIP, form.Email, false, "email already exists")
 		}
-		LingEcho.AbortWithJSONError(c, http.StatusBadRequest, errors.New("email has exists"))
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("email has exists"))
 		return
 	}
 
@@ -1079,7 +1079,7 @@ func (h *Handlers) handleUserSignup(c *gin.Context) {
 			utils.GlobalRegistrationGuard.RecordRegistrationAttempt(clientIP, form.Email, false, err.Error())
 		}
 		logger.Warn("create user failed", zap.Any("email", form.Email), zap.Error(err))
-		LingEcho.AbortWithJSONError(c, http.StatusBadRequest, err)
+		response.AbortWithJSONError(c, http.StatusBadRequest, err)
 		return
 	}
 
@@ -1127,7 +1127,7 @@ func (h *Handlers) handleUserSignup(c *gin.Context) {
 		// Check if user is allowed to login before auto-login
 		err = models.CheckUserAllowLogin(db, user)
 		if err != nil {
-			LingEcho.AbortWithJSONError(c, http.StatusForbidden, err)
+			response.AbortWithJSONError(c, http.StatusForbidden, err)
 			return
 		}
 		models.Login(c, user) //Login now
@@ -1139,7 +1139,7 @@ func (h *Handlers) handleUserSignup(c *gin.Context) {
 func (h *Handlers) handleUserSignupByEmail(c *gin.Context) {
 	var form models.EmailOperatorForm
 	if err := c.BindJSON(&form); err != nil {
-		LingEcho.AbortWithJSONError(c, http.StatusBadRequest, err)
+		response.AbortWithJSONError(c, http.StatusBadRequest, err)
 		return
 	}
 
@@ -1148,20 +1148,20 @@ func (h *Handlers) handleUserSignupByEmail(c *gin.Context) {
 	var err error
 	form.Email, err = utils.SanitizeAndValidate(form.Email, "email")
 	if err != nil {
-		LingEcho.AbortWithJSONError(c, http.StatusBadRequest, err)
+		response.AbortWithJSONError(c, http.StatusBadRequest, err)
 		return
 	}
 
 	form.Password, err = utils.SanitizeAndValidate(form.Password, "password")
 	if err != nil {
-		LingEcho.AbortWithJSONError(c, http.StatusBadRequest, err)
+		response.AbortWithJSONError(c, http.StatusBadRequest, err)
 		return
 	}
 
 	if form.UserName != "" {
 		form.UserName, err = utils.SanitizeAndValidate(form.UserName, "username")
 		if err != nil {
-			LingEcho.AbortWithJSONError(c, http.StatusBadRequest, err)
+			response.AbortWithJSONError(c, http.StatusBadRequest, err)
 			return
 		}
 	}
@@ -1169,7 +1169,7 @@ func (h *Handlers) handleUserSignupByEmail(c *gin.Context) {
 	if form.DisplayName != "" {
 		form.DisplayName, err = utils.SanitizeAndValidate(form.DisplayName, "displayname")
 		if err != nil {
-			LingEcho.AbortWithJSONError(c, http.StatusBadRequest, err)
+			response.AbortWithJSONError(c, http.StatusBadRequest, err)
 			return
 		}
 	}
@@ -1180,7 +1180,7 @@ func (h *Handlers) handleUserSignupByEmail(c *gin.Context) {
 			if utils.GlobalRegistrationGuard != nil {
 				utils.GlobalRegistrationGuard.RecordRegistrationAttempt(clientIP, form.Email, false, "captcha required")
 			}
-			LingEcho.AbortWithJSONError(c, http.StatusBadRequest, errors.New("captcha is required"))
+			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("captcha is required"))
 			return
 		}
 
@@ -1189,7 +1189,7 @@ func (h *Handlers) handleUserSignupByEmail(c *gin.Context) {
 			if utils.GlobalRegistrationGuard != nil {
 				utils.GlobalRegistrationGuard.RecordRegistrationAttempt(clientIP, form.Email, false, "invalid captcha")
 			}
-			LingEcho.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid captcha code"))
+			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid captcha code"))
 			return
 		}
 	}
@@ -1200,7 +1200,7 @@ func (h *Handlers) handleUserSignupByEmail(c *gin.Context) {
 		if utils.GlobalRegistrationGuard != nil {
 			utils.GlobalRegistrationGuard.RecordRegistrationAttempt(clientIP, form.Email, false, "registration in progress")
 		}
-		LingEcho.AbortWithJSONError(c, http.StatusConflict, errors.New("registration in progress for this email, please try again later"))
+		response.AbortWithJSONError(c, http.StatusConflict, errors.New("registration in progress for this email, please try again later"))
 		return
 	}
 	defer utils.ReleaseRegistrationLock(form.Email)
@@ -1209,7 +1209,7 @@ func (h *Handlers) handleUserSignupByEmail(c *gin.Context) {
 	if utils.GlobalRegistrationGuard != nil {
 		if err := utils.GlobalRegistrationGuard.CheckRegistrationAllowed(clientIP, form.Email, form.Password); err != nil {
 			utils.GlobalRegistrationGuard.RecordRegistrationAttempt(clientIP, form.Email, false, err.Error())
-			LingEcho.AbortWithJSONError(c, http.StatusTooManyRequests, err)
+			response.AbortWithJSONError(c, http.StatusTooManyRequests, err)
 			return
 		}
 	}
@@ -1219,7 +1219,7 @@ func (h *Handlers) handleUserSignupByEmail(c *gin.Context) {
 		if utils.GlobalRegistrationGuard != nil {
 			utils.GlobalRegistrationGuard.RecordRegistrationAttempt(clientIP, form.Email, false, "email already exists")
 		}
-		LingEcho.AbortWithJSONError(c, http.StatusBadRequest, errors.New("email has exists"))
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("email has exists"))
 		return
 	}
 	// 从缓存中获取验证码（假设你使用的是 util.GlobalCache）
@@ -1228,7 +1228,7 @@ func (h *Handlers) handleUserSignupByEmail(c *gin.Context) {
 		if utils.GlobalRegistrationGuard != nil {
 			utils.GlobalRegistrationGuard.RecordRegistrationAttempt(clientIP, form.Email, false, "invalid verification code")
 		}
-		LingEcho.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid verification code"))
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid verification code"))
 		return
 	}
 
@@ -1250,7 +1250,7 @@ func (h *Handlers) handleUserSignupByEmail(c *gin.Context) {
 			utils.GlobalRegistrationGuard.RecordRegistrationAttempt(clientIP, form.Email, false, err.Error())
 		}
 		logger.Warn("create user failed", zap.Any("email", form.Email), zap.Error(err))
-		LingEcho.AbortWithJSONError(c, http.StatusBadRequest, err)
+		response.AbortWithJSONError(c, http.StatusBadRequest, err)
 		return
 	}
 
@@ -2145,7 +2145,7 @@ func sendHashMail(db *gorm.DB, user *models.User, signame, expireKey, defaultExp
 func (h *Handlers) handleSendEmailCode(context *gin.Context) {
 	var req models.SendEmailVerifyEmail
 	if err := context.BindJSON(&req); err != nil {
-		LingEcho.AbortWithJSONError(context, http.StatusBadRequest, err)
+		response.AbortWithJSONError(context, http.StatusBadRequest, err)
 		return
 	}
 	req.UserAgent = context.Request.UserAgent()
@@ -2157,7 +2157,7 @@ func (h *Handlers) handleSendEmailCode(context *gin.Context) {
 		mailNotif := notification.NewMailNotificationWithIP(config.GlobalConfig.Services.Mail, h.db, req.ClientIp)
 		err := mailNotif.SendVerificationCode(req.Email, text)
 		if err != nil {
-			LingEcho.AbortWithJSONError(context, http.StatusBadRequest, err)
+			response.AbortWithJSONError(context, http.StatusBadRequest, err)
 			return
 		}
 	}()

@@ -38,7 +38,6 @@ func LogConfigInfo() {
 	logger.Info("api config",
 		zap.String("api_prefix", config.GlobalConfig.Server.APIPrefix),
 		zap.String("docs_prefix", config.GlobalConfig.Server.DocsPrefix),
-		zap.String("admin_prefix", config.GlobalConfig.Server.AdminPrefix),
 		zap.String("auth_prefix", config.GlobalConfig.Server.AuthPrefix),
 		zap.String("secret_expire_days", config.GlobalConfig.Auth.SecretExpireDays),
 		zap.String("session_secret", config.GlobalConfig.Auth.SessionSecret),

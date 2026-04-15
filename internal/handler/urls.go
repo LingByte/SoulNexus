@@ -7,8 +7,6 @@ import (
 	"log"
 	"time"
 
-	"github.com/LingByte/SoulNexus"
-	"github.com/LingByte/SoulNexus/internal/apidocs"
 	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/internal/service"
 	"github.com/LingByte/SoulNexus/pkg/config"
@@ -197,19 +195,6 @@ func (h *Handlers) Register(engine *gin.Engine) {
 	h.registerOpenAPIRoutes(r)        // Open API (apiKey + apiSecret auth)
 	// Register public workflow routes (no auth required)
 	h.RegisterPublicWorkflowRoutes(r)
-	objs := h.GetObjs()
-	LingEcho.RegisterObjects(r, objs)
-	if config.GlobalConfig.Server.DocsPrefix != "" {
-		var objDocs []apidocs.WebObjectDoc
-		for _, obj := range objs {
-			objDocs = append(objDocs, apidocs.GetWebObjectDocDefine(config.GlobalConfig.Server.APIPrefix, obj))
-		}
-		apidocs.RegisterHandler(config.GlobalConfig.Server.DocsPrefix, engine, h.GetDocs(), objDocs, h.db)
-	}
-	if config.GlobalConfig.Server.AdminPrefix != "" {
-		admin := r.Group(config.GlobalConfig.Server.AdminPrefix)
-		h.RegisterAdmin(admin)
-	}
 }
 
 // registerNotificationRoutes Notification Module
@@ -449,8 +434,7 @@ func (h *Handlers) registerAssistantRoutes(r *gin.RouterGroup) {
 
 		assistant.GET("/lingecho/client/:id/loader.js", h.ServeVoiceSculptorLoaderJS)
 
-		
-			}
+	}
 }
 
 // registerJSTemplateRoutes JSTemplate Module
