@@ -5,6 +5,7 @@
 
 interface ApiConfig {
   apiBaseURL: string
+  userServiceBaseURL: string
   wsBaseURL: string
   uploadsBaseURL: string
 }
@@ -32,6 +33,7 @@ function convertToWebSocketURL(httpUrl: string): string {
 function getApiConfig(): ApiConfig {
   // 优先使用环境变量
   let apiBaseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:7072/api'
+  let userServiceBaseURL = import.meta.env.VITE_USER_SERVICE_BASE_URL || apiBaseURL
   
   // 如果环境变量中有WebSocket URL，使用它；否则从API URL转换
   let wsBaseURL = import.meta.env.VITE_WS_BASE_URL
@@ -45,6 +47,7 @@ function getApiConfig(): ApiConfig {
 
   return {
     apiBaseURL,
+    userServiceBaseURL,
     wsBaseURL,
     uploadsBaseURL,
   }
@@ -68,6 +71,13 @@ export function getConfig(): ApiConfig {
  */
 export function getApiBaseURL(): string {
   return getConfig().apiBaseURL
+}
+
+/**
+ * 获取用户服务基础URL
+ */
+export function getUserServiceBaseURL(): string {
+  return getConfig().userServiceBaseURL
 }
 
 /**

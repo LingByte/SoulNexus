@@ -5,6 +5,7 @@
 
 import CryptoJS from 'crypto-js'
 import { get } from '@/utils/request'
+import { getUserServiceBaseURL } from '@/config/apiConfig'
 
 // 从后端获取随机盐的接口
 export interface SaltResponse {
@@ -24,7 +25,9 @@ export interface EncryptedPassword {
  * 获取随机盐（从后端）
  */
 export async function getSalt(): Promise<SaltResponse> {
-  const response = await get<SaltResponse>('/auth/salt')
+  const response = await get<SaltResponse>('/auth/salt', {
+    baseURL: getUserServiceBaseURL(),
+  })
   
   if (response.code !== 200) {
     throw new Error(response.msg || 'Failed to get salt')

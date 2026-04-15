@@ -6,7 +6,7 @@ package main
 import (
 	"context"
 	"flag"
-	"log"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -54,12 +54,7 @@ func (app *LingEchoApp) RegisterRoutes(r *gin.Engine) {
 }
 
 func main() {
-	// 1. Print Banner
-	if err := bootstrap.PrintBannerFromFile("banner.txt"); err != nil {
-		log.Fatalf("unload banner: %v", err)
-	}
-
-	// 2. Parse Command Line Parameters
+	// 1. Parse Command Line Parameters
 	// Deprecated: parsed for backward compatibility; bootstrap always runs GORM AutoMigrate when connecting.
 	init := flag.Bool("init", false, "deprecated: ignored; schema migration always runs at startup")
 	seed := flag.Bool("seed", false, "seed database")
@@ -67,20 +62,25 @@ func main() {
 	initSQL := flag.String("init-sql", "", "path to database init .sql script (optional)")
 	flag.Parse()
 
-	// 3. Set Environment Variables
+	// 2. Set Environment Variables
 	if *mode != "" {
 		os.Setenv("APP_ENV", *mode)
 	}
 
-	// 4. Load Global Configuration
+	// 3. Load Global Configuration
 	if err := config.Load(); err != nil {
 		panic("config load failed: " + err.Error())
 	}
 
-	// 5. Load Log Configuration
+	// 4. Load Log Configuration
 	err := logger.Init(&config.GlobalConfig.Log, config.GlobalConfig.Server.Mode)
 	if err != nil {
 		panic(err)
+	}
+
+	// 5. Print Banner
+	if err := bootstrap.PrintBannerFromFile("system-banner.txt", config.GlobalConfig.Server.Name); err != nil {
+		logger.Error(fmt.Sprintf("unload banner: %v", err))
 	}
 
 	// 6. Print Configuration
