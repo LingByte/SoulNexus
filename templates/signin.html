@@ -396,12 +396,18 @@
     }
     @media (max-width: 920px) {
       .shell { grid-template-columns: 1fr; }
-      .left { display: none; }
+      .left { display: flex; flex-direction: column; align-items: center; padding: 24px 16px; text-align: center; }
       .right { padding: 16px 14px; }
+      .wx-card { margin-top: 12px; }
     }
   </style>
 </head>
-<body data-next="{{ .LoginNext }}">
+<body
+  data-next="{{ .LoginNext }}"
+  data-oidc-client-id="{{ .OIDCClientID }}"
+  data-oidc-redirect-uri="{{ .OIDCRedirectURI }}"
+  data-oidc-state="{{ .OIDCState }}"
+>
   <header class="header">
     <div class="header-left">
       <img src="/static/logo.png" alt="Logo" class="header-logo" />
@@ -525,15 +531,29 @@
     (function () {
       const state = { mode: 'password', captchaId: '', pendingDeviceId: '', wechatSessionId: '', wechatPolling: null };
       const rawNext = document.body.dataset.next || '';
+      const oidcClientID = (document.body.dataset.oidcClientId || '').trim();
+      const oidcRedirectURI = (document.body.dataset.oidcRedirectUri || '').trim();
+      const oidcState = (document.body.dataset.oidcState || '').trim();
       const normalizeRedirectTarget = (raw) => {
-        if (!raw) return '/';
+        if (!raw) return 'https://lingecho.com';
         const lowered = raw.toLowerCase();
-        if (lowered.indexOf('/api/admin') !== -1) return '/';
-        if (lowered.indexOf('/api/auth/login') !== -1) return '/';
-        if (lowered.indexOf('localhost:7073/api/admin') !== -1) return '/';
+        if (lowered.indexOf('/api/admin') !== -1) return 'https://lingecho.com';
+        if (lowered.indexOf('/api/auth/login') !== -1) return 'https://lingecho.com';
+        if (lowered.indexOf('localhost:7073/api/admin') !== -1) return 'https://lingecho.com';
         return raw;
       };
       const redirectTarget = normalizeRedirectTarget(rawNext);
+      const buildOIDCRedirect = () => {
+        if (!oidcClientID || !oidcRedirectURI) return '';
+        const params = new URLSearchParams({
+          client_id: oidcClientID,
+          redirect_uri: oidcRedirectURI,
+        });
+        if (oidcState) {
+          params.set('state', oidcState);
+        }
+        return '/api/auth/oidc/authorize?' + params.toString();
+      };
 
       const $ = (id) => document.getElementById(id);
       const setMessage = (id, text, type) => {
@@ -601,8 +621,13 @@
             if (token) {
               localStorage.setItem('auth_token', token);
             }
-            setMessage('login-message', '微信登录成功，正在跳转...', 'success');
+            setMessage('login-message', '微信登录处理中，正在跳转...', 'info');
             setTimeout(() => {
+              const oidcURL = buildOIDCRedirect();
+              if (oidcURL) {
+                window.location.href = oidcURL;
+                return;
+              }
               window.location.href = data.data.redirect || redirectTarget;
             }, 500);
             return;
@@ -770,8 +795,15 @@
 
           const token = result.token || result.authToken || data.token;
           if (token) localStorage.setItem('auth_token', token);
-          setMessage('login-message', '登录成功，正在跳转...', 'success');
-          setTimeout(() => { window.location.href = redirectTarget; }, 650);
+          setMessage('login-message', '登录处理中，正在跳转...', 'info');
+          setTimeout(() => {
+            const oidcURL = buildOIDCRedirect();
+            if (oidcURL) {
+              window.location.href = oidcURL;
+              return;
+            }
+            window.location.href = redirectTarget;
+          }, 650);
         } catch (err) {
           setMessage('login-message', err.message || '登录失败', 'error');
           if (!skipCaptcha) loadCaptcha();

@@ -57,6 +57,15 @@ type wechatLoginSession struct {
 	LoginCode string
 }
 
+type oidcAuthCode struct {
+	Code        string
+	UserID      uint
+	ClientID    string
+	RedirectURI string
+	ExpiresAt   time.Time
+	Used        bool
+}
+
 var wechatLoginSessions = struct {
 	sync.RWMutex
 	items map[string]*wechatLoginSession
@@ -69,6 +78,13 @@ var wechatAccessTokenCache = struct {
 	Token     string
 	ExpiresAt time.Time
 }{}
+
+var oidcAuthCodeStore = struct {
+	sync.RWMutex
+	items map[string]*oidcAuthCode
+}{
+	items: make(map[string]*oidcAuthCode),
+}
 
 type wechatQRCodeCreateResp struct {
 	Ticket        string `json:"ticket"`
@@ -122,6 +138,12 @@ func (h *Handlers) handleUserResetPasswordPage(c *gin.Context) {
 func (h *Handlers) handleUserSigninPage(c *gin.Context) {
 	ctx := LingEcho.GetRenderPageContext(c)
 	ctx["SignupText"] = "Sign Up Now"
+	if redirectURL := strings.TrimSpace(c.Query("redirecturl")); redirectURL != "" {
+		ctx["LoginNext"] = redirectURL
+	}
+	ctx["OIDCClientID"] = strings.TrimSpace(c.Query("client_id"))
+	ctx["OIDCRedirectURI"] = strings.TrimSpace(c.Query("redirect_uri"))
+	ctx["OIDCState"] = strings.TrimSpace(c.Query("state"))
 	c.HTML(http.StatusOK, "signin.html", ctx)
 }
 
@@ -136,6 +158,25 @@ func newWechatSessionID() string {
 		return fmt.Sprintf("wx_%d", time.Now().UnixNano())
 	}
 	return "wx_" + hex.EncodeToString(buf)
+}
+
+func newOIDCCode() string {
+	b := make([]byte, 24)
+	if _, err := rand.Read(b); err != nil {
+		return fmt.Sprintf("oidc_%d", time.Now().UnixNano())
+	}
+	return hex.EncodeToString(b)
+}
+
+func cleanExpiredOIDCCodes() {
+	now := time.Now()
+	oidcAuthCodeStore.Lock()
+	defer oidcAuthCodeStore.Unlock()
+	for k, v := range oidcAuthCodeStore.items {
+		if now.After(v.ExpiresAt) || v.Used {
+			delete(oidcAuthCodeStore.items, k)
+		}
+	}
 }
 
 func newWechatLoginCode() string {
@@ -581,6 +622,100 @@ func (h *Handlers) handleWechatOAuthCallback(c *gin.Context) {
 
 func (h *Handlers) handleWechatHealth(c *gin.Context) {
 	c.String(http.StatusOK, "ok")
+}
+
+func (h *Handlers) handleOIDCAuthorize(c *gin.Context) {
+	clientID := strings.TrimSpace(c.Query("client_id"))
+	redirectURI := strings.TrimSpace(c.Query("redirect_uri"))
+	state := strings.TrimSpace(c.Query("state"))
+	if clientID == "" || redirectURI == "" {
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("client_id and redirect_uri are required"))
+		return
+	}
+
+	user := models.CurrentUser(c)
+	if user == nil {
+		loginURL := fmt.Sprintf("/api/auth/login?client_id=%s&redirect_uri=%s", url.QueryEscape(clientID), url.QueryEscape(redirectURI))
+		if state != "" {
+			loginURL += "&state=" + url.QueryEscape(state)
+		}
+		c.Redirect(http.StatusFound, loginURL)
+		return
+	}
+
+	code := newOIDCCode()
+	oidcAuthCodeStore.Lock()
+	oidcAuthCodeStore.items[code] = &oidcAuthCode{
+		Code:        code,
+		UserID:      user.ID,
+		ClientID:    clientID,
+		RedirectURI: redirectURI,
+		ExpiresAt:   time.Now().Add(2 * time.Minute),
+	}
+	oidcAuthCodeStore.Unlock()
+	cleanExpiredOIDCCodes()
+
+	target, err := url.Parse(redirectURI)
+	if err != nil {
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid redirect_uri"))
+		return
+	}
+	q := target.Query()
+	q.Set("code", code)
+	if state != "" {
+		q.Set("state", state)
+	}
+	target.RawQuery = q.Encode()
+	c.Redirect(http.StatusFound, target.String())
+}
+
+func (h *Handlers) handleOIDCToken(c *gin.Context) {
+	type tokenReq struct {
+		GrantType string `json:"grant_type"`
+		Code      string `json:"code"`
+		ClientID  string `json:"client_id"`
+	}
+	var req tokenReq
+	_ = c.ShouldBindJSON(&req)
+	if req.GrantType == "" {
+		req.GrantType = c.PostForm("grant_type")
+	}
+	if req.Code == "" {
+		req.Code = c.PostForm("code")
+	}
+	if req.ClientID == "" {
+		req.ClientID = c.PostForm("client_id")
+	}
+	req.GrantType = strings.TrimSpace(req.GrantType)
+	req.Code = strings.TrimSpace(req.Code)
+	req.ClientID = strings.TrimSpace(req.ClientID)
+	if req.GrantType != "authorization_code" || req.Code == "" || req.ClientID == "" {
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid oidc token request"))
+		return
+	}
+
+	oidcAuthCodeStore.Lock()
+	codeData, ok := oidcAuthCodeStore.items[req.Code]
+	if !ok || codeData.Used || time.Now().After(codeData.ExpiresAt) || codeData.ClientID != req.ClientID {
+		oidcAuthCodeStore.Unlock()
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid or expired code"))
+		return
+	}
+	codeData.Used = true
+	oidcAuthCodeStore.Unlock()
+
+	user, err := models.GetUserByUID(h.db, codeData.UserID)
+	if err != nil || user == nil {
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("user not found"))
+		return
+	}
+	accessToken := models.BuildAuthToken(user, 24*time.Hour, false)
+	response.Success(c, "oidc token issued", gin.H{
+		"access_token": accessToken,
+		"token_type":   "Bearer",
+		"expires_in":   int64((24 * time.Hour).Seconds()),
+		"user":         user,
+	})
 }
 
 func (h *Handlers) handleWechatLogin(c *gin.Context) {

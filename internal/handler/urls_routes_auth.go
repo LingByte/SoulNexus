@@ -40,6 +40,8 @@ func (h *Handlers) registerAuthRoutes(r *gin.RouterGroup) {
 		auth.POST("/wechat/callback", h.handleWechatLoginMessage)
 		auth.POST("/wechat/mp/message", h.handleWechatLoginMessage)
 		auth.GET("/wechat/mp/message", h.handleWechatLoginCallback)
+		auth.GET("/oidc/authorize", h.handleOIDCAuthorize)
+		auth.POST("/oidc/token", h.handleOIDCToken)
 
 		auth.GET("/logout", models.AuthRequired, h.handleUserLogout)
 		auth.GET("/info", models.AuthRequired, h.handleUserInfo)
