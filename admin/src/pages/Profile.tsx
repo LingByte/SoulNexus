@@ -5,7 +5,7 @@ import Card from '@/components/UI/Card'
 import Button from '@/components/UI/Button'
 import Input from '@/components/UI/Input'
 import { useAuthStore } from '@/stores/authStore'
-import { getCurrentUser, updateProfile, changePassword, ProfileUpdateRequest, ChangePasswordRequest } from '@/services/adminApi'
+import { getCurrentUser, updateProfile, changePassword, updateNotificationSettings, ProfileUpdateRequest, ChangePasswordRequest } from '@/services/adminApi'
 import { showAlert } from '@/utils/notification'
 
 const Profile = () => {
@@ -25,7 +25,13 @@ const Profile = () => {
     phone: '',
     timezone: '',
     gender: '',
+    city: '',
+    region: '',
     extra: '',
+    avatar: '',
+    emailNotifications: true,
+    pushNotifications: true,
+    systemNotifications: true,
   })
 
   useEffect(() => {
@@ -42,7 +48,13 @@ const Profile = () => {
         phone: userData.phone || '',
         timezone: userData.timezone || '',
         gender: userData.gender || '',
+        city: userData.city || '',
+        region: userData.region || '',
         extra: userData.extra || userData.bio || '',
+        avatar: userData.avatar || '',
+        emailNotifications: userData.emailNotifications ?? true,
+        pushNotifications: userData.pushNotifications ?? true,
+        systemNotifications: userData.systemNotifications ?? true,
       })
     } catch (error) {
       console.error('获取用户信息失败:', error)
@@ -55,6 +67,11 @@ const Profile = () => {
     try {
       setLoading(true)
       await updateProfile(formData)
+      await updateNotificationSettings({
+        email_notifications: (formData as any).emailNotifications,
+        push_notifications: (formData as any).pushNotifications,
+        system_notifications: (formData as any).systemNotifications,
+      })
       await refreshUserInfo()
       setIsEditing(false)
       showAlert('保存成功', 'success')
@@ -135,6 +152,11 @@ const Profile = () => {
         {/* 用户信息卡片 */}
         <Card className="p-6">
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
+            <img
+              src={formData.avatar || user?.avatar || '/favicon.png'}
+              alt="avatar"
+              className="w-20 h-20 rounded-full object-cover border border-slate-200 dark:border-slate-700"
+            />
             <div className="flex-1 text-center sm:text-left">
               <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
                 {formData.displayName || currentUser.email || '管理员'}
@@ -220,6 +242,62 @@ const Profile = () => {
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                头像 URL
+              </label>
+              {isEditing ? (
+                <Input
+                  value={(formData as any).avatar || ''}
+                  onChange={(e) => setFormData({ ...formData, avatar: e.target.value } as any)}
+                  placeholder="https://example.com/avatar.png"
+                />
+              ) : (
+                <div className="text-slate-900 dark:text-white break-all">{(formData as any).avatar || '未设置'}</div>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                城市
+              </label>
+              {isEditing ? (
+                <Input
+                  value={(formData as any).city || ''}
+                  onChange={(e) => setFormData({ ...formData, city: e.target.value } as any)}
+                  placeholder="请输入城市"
+                />
+              ) : (
+                <div className="text-slate-900 dark:text-white">{(formData as any).city || '未设置'}</div>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                地区
+              </label>
+              {isEditing ? (
+                <Input
+                  value={(formData as any).region || ''}
+                  onChange={(e) => setFormData({ ...formData, region: e.target.value } as any)}
+                  placeholder="请输入地区"
+                />
+              ) : (
+                <div className="text-slate-900 dark:text-white">{(formData as any).region || '未设置'}</div>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                性别
+              </label>
+              {isEditing ? (
+                <Input
+                  value={(formData as any).gender || ''}
+                  onChange={(e) => setFormData({ ...formData, gender: e.target.value } as any)}
+                  placeholder="male/female/other"
+                />
+              ) : (
+                <div className="text-slate-900 dark:text-white">{(formData as any).gender || '未设置'}</div>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                 时区
               </label>
               {isEditing ? (
@@ -253,6 +331,39 @@ const Profile = () => {
                 {formData.extra || '暂无简介'}
               </p>
             )}
+          </div>
+        </Card>
+
+        <Card className="p-6">
+          <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">通知偏好</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={(formData as any).emailNotifications ?? true}
+                disabled={!isEditing}
+                onChange={(e) => setFormData({ ...formData, emailNotifications: e.target.checked } as any)}
+              />
+              邮件通知
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={(formData as any).pushNotifications ?? true}
+                disabled={!isEditing}
+                onChange={(e) => setFormData({ ...formData, pushNotifications: e.target.checked } as any)}
+              />
+              推送通知
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={(formData as any).systemNotifications ?? true}
+                disabled={!isEditing}
+                onChange={(e) => setFormData({ ...formData, systemNotifications: e.target.checked } as any)}
+              />
+              系统通知
+            </label>
           </div>
         </Card>
 

@@ -9,19 +9,19 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute = ({ children, requireAuth = true }: ProtectedRouteProps) => {
-  const { isAuthenticated, isLoading } = useAuthStore()
+  const { isAuthenticated, isLoading, isLoggingOut } = useAuthStore()
   const location = useLocation()
 
   useEffect(() => {
     // 如果正在加载，等待加载完成
-    if (isLoading) return
+    if (isLoading || isLoggingOut) return
 
     // 如果需要认证但用户未登录
     if (requireAuth && !isAuthenticated) {
       const currentPath = location.pathname + location.search
       beginSSOLogin(currentPath)
     }
-  }, [isAuthenticated, isLoading, requireAuth, location])
+  }, [isAuthenticated, isLoading, isLoggingOut, requireAuth, location])
 
   // 如果正在加载，显示加载状态
   if (isLoading) {

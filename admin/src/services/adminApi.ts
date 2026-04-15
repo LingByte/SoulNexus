@@ -1,24 +1,29 @@
-import { get, post, put, del } from '@/utils/request'
-import { getApiBaseURL } from '@/config/apiConfig'
+import { get, post, put, del, patch } from '@/utils/request'
+import { getMainApiBaseURL, getAuthApiBaseURL } from '@/config/apiConfig'
 import { handleConfigCacheUpdate } from '@/utils/siteConfigCache'
 
-// Use the API base URL directly (already includes /api prefix)
-const BACKEND_BASE = getApiBaseURL()
+// 主业务服务 API（不含认证）
+const BACKEND_BASE = getMainApiBaseURL()
 
 // ==================== Users API ====================
 export interface User {
   id: number
   email: string
   displayName?: string
+  avatar?: string
   firstName?: string
   lastName?: string
   role?: string
-  isStaff: boolean
   enabled: boolean
-  activated?: boolean
   phone?: string
   locale?: string
   timezone?: string
+  city?: string
+  region?: string
+  gender?: string
+  emailNotifications?: boolean
+  pushNotifications?: boolean
+  systemNotifications?: boolean
   lastLogin?: string
   loginCount?: number
   permissions?: { [key: string]: string[] }
@@ -39,7 +44,7 @@ export interface ListUsersParams {
   search?: string
   role?: string
   enabled?: string
-  isStaff?: string
+  hasPhone?: string
 }
 
 export interface CreateUserRequest {
@@ -49,12 +54,17 @@ export interface CreateUserRequest {
   firstName?: string
   lastName?: string
   role?: string
-  isStaff?: boolean
   enabled?: boolean
-  activated?: boolean
   phone?: string
   locale?: string
   timezone?: string
+  city?: string
+  region?: string
+  gender?: string
+  avatar?: string
+  emailNotifications?: boolean
+  pushNotifications?: boolean
+  systemNotifications?: boolean
   permissions?: { [key: string]: string[] }
 }
 
@@ -65,12 +75,17 @@ export interface UpdateUserRequest {
   firstName?: string
   lastName?: string
   role?: string
-  isStaff?: boolean
   enabled?: boolean
-  activated?: boolean
   phone?: string
   locale?: string
   timezone?: string
+  city?: string
+  region?: string
+  gender?: string
+  avatar?: string
+  emailNotifications?: boolean
+  pushNotifications?: boolean
+  systemNotifications?: boolean
   permissions?: { [key: string]: string[] }
 }
 
@@ -82,7 +97,7 @@ export const listUsers = async (params?: ListUsersParams): Promise<UserListRespo
   if (params?.search) queryParams.search = params.search
   if (params?.role) queryParams.role = params.role
   if (params?.enabled) queryParams.enabled = params.enabled
-  if (params?.isStaff) queryParams.isStaff = params.isStaff
+  if (params?.hasPhone) queryParams.hasPhone = params.hasPhone
   
   const res = await get<UserListResponse>(`${BACKEND_BASE}/users`, { params: queryParams })
   return res.data
@@ -114,7 +129,6 @@ export const getUsers = async (params?: {
   search?: string
   status?: string
   role?: string
-  isStaff?: boolean
   isSuperUser?: boolean
 }) => {
   const listParams: ListUsersParams = {
@@ -123,7 +137,6 @@ export const getUsers = async (params?: {
     search: params?.search,
     role: params?.role,
     enabled: params?.status === 'enabled' || params?.status === 'active' ? 'true' : params?.status === 'disabled' ? 'false' : undefined,
-    isStaff: params?.isStaff !== undefined ? (params.isStaff ? 'true' : 'false') : undefined,
   }
   const result = await listUsers(listParams)
   return {
@@ -189,7 +202,7 @@ export const deleteNotification = async (id: number) => {
 
 // ==================== Profile API ====================
 // 管理后台专用的认证接口
-const ADMIN_AUTH_BASE = `${BACKEND_BASE}/auth`
+const ADMIN_AUTH_BASE = `${getAuthApiBaseURL()}/auth`
 
 export interface ProfileUpdateRequest {
   displayName?: string
@@ -197,7 +210,13 @@ export interface ProfileUpdateRequest {
   phone?: string
   timezone?: string
   gender?: string
+  city?: string
+  region?: string
   extra?: string
+  avatar?: string
+  emailNotifications?: boolean
+  pushNotifications?: boolean
+  systemNotifications?: boolean
 }
 
 export interface ChangePasswordRequest {
@@ -385,12 +404,12 @@ export const getLoginHistory = async (params?: {
   if (params?.user_id) queryParams.user_id = params.user_id
   if (params?.success !== undefined) queryParams.success = params.success.toString()
   if (params?.is_suspicious !== undefined) queryParams.is_suspicious = params.is_suspicious.toString()
-  const res = await get<LoginHistoryListResponse>(`${BACKEND_BASE}/auth/login-history`, { params: queryParams })
+  const res = await get<LoginHistoryListResponse>(`${BACKEND_BASE}/security/login-history`, { params: queryParams })
   return res.data
 }
 
 export const getLoginHistoryDetail = async (id: number): Promise<{ history: LoginHistory }> => {
-  const res = await get<{ history: LoginHistory }>(`${BACKEND_BASE}/auth/login-history/${id}`)
+  const res = await get<{ history: LoginHistory }>(`${BACKEND_BASE}/security/login-history/${id}`)
   return res.data
 }
 
@@ -465,6 +484,25 @@ export const changePassword = async (data: ChangePasswordRequest) => {
     return res.data
   }
   throw new Error(res.msg || '修改密码失败')
+}
+
+export const getUserActivity = async () => {
+  const res = await get(`${ADMIN_AUTH_BASE}/activity`)
+  if (res.code === 200) {
+    return res.data
+  }
+  throw new Error(res.msg || '获取用户活动失败')
+}
+
+export const updateNotificationSettings = async (settings: {
+  email_notifications?: boolean
+  push_notifications?: boolean
+  system_notifications?: boolean
+}) => {
+  const res = await put(`${ADMIN_AUTH_BASE}/notification-settings`, settings)
+  if (res.code !== 200) {
+    throw new Error(res.msg || '更新通知设置失败')
+  }
 }
 
 // ==================== Two-Factor Authentication API ====================
@@ -822,6 +860,271 @@ export const batchUpdateConfigs = async (configs: BatchUpdateConfig[]) => {
   return res.data
 }
 
+// ==================== OAuth Clients API ====================
+const OAUTH_CLIENTS_API_BASE = `${BACKEND_BASE}/oauth-clients`
+
+export interface OAuthClient {
+  id: number
+  clientId: string
+  clientSecret: string
+  name: string
+  redirectUri: string
+  status: number
+  createdAt: string
+}
+
+export interface OAuthClientListResponse {
+  clients: OAuthClient[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+export interface ListOAuthClientsParams {
+  page?: number
+  pageSize?: number
+}
+
+export interface UpsertOAuthClientRequest {
+  clientId?: string
+  clientSecret?: string
+  name?: string
+  redirectUri?: string
+  status?: number
+}
+
+export const listOAuthClients = async (params?: ListOAuthClientsParams): Promise<OAuthClientListResponse> => {
+  const queryParams: any = {}
+  if (params?.page) queryParams.page = params.page
+  if (params?.pageSize) queryParams.pageSize = params.pageSize
+  const res = await get<OAuthClientListResponse>(OAUTH_CLIENTS_API_BASE, { params: queryParams })
+  return res.data
+}
+
+export const getOAuthClient = async (id: number): Promise<OAuthClient> => {
+  const res = await get<OAuthClient>(`${OAUTH_CLIENTS_API_BASE}/${id}`)
+  return res.data
+}
+
+export const createOAuthClient = async (data: UpsertOAuthClientRequest): Promise<OAuthClient> => {
+  const res = await post<OAuthClient>(OAUTH_CLIENTS_API_BASE, data)
+  return res.data
+}
+
+export const updateOAuthClient = async (id: number, data: UpsertOAuthClientRequest): Promise<OAuthClient> => {
+  const res = await put<OAuthClient>(`${OAUTH_CLIENTS_API_BASE}/${id}`, data)
+  return res.data
+}
+
+export const deleteOAuthClient = async (id: number): Promise<void> => {
+  await del(`${OAUTH_CLIENTS_API_BASE}/${id}`)
+}
+
+// ==================== Admin Groups API ====================
+const ADMIN_GROUPS_API_BASE = `${BACKEND_BASE}/admin/groups`
+
+export interface AdminGroup {
+  id: number
+  name: string
+  type: string
+  extra?: string
+  isArchived: boolean
+  createdAt: string
+  updatedAt: string
+  creatorId: number
+  memberCount?: number
+}
+
+export interface AdminGroupListResponse {
+  groups: AdminGroup[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+export const listAdminGroups = async (params?: {
+  page?: number
+  pageSize?: number
+  search?: string
+  type?: string
+  isArchived?: boolean
+}): Promise<AdminGroupListResponse> => {
+  const queryParams: any = {}
+  if (params?.page) queryParams.page = params.page
+  if (params?.pageSize) queryParams.pageSize = params.pageSize
+  if (params?.search) queryParams.search = params.search
+  if (params?.type) queryParams.type = params.type
+  if (params?.isArchived !== undefined) queryParams.isArchived = params.isArchived.toString()
+  const res = await get<AdminGroupListResponse>(ADMIN_GROUPS_API_BASE, { params: queryParams })
+  return res.data
+}
+
+export const updateAdminGroup = async (id: number, data: Partial<AdminGroup>): Promise<AdminGroup> => {
+  const res = await put<AdminGroup>(`${ADMIN_GROUPS_API_BASE}/${id}`, data)
+  return res.data
+}
+
+export const deleteAdminGroup = async (id: number): Promise<void> => {
+  await del(`${ADMIN_GROUPS_API_BASE}/${id}`)
+}
+
+// ==================== Admin Credentials API ====================
+const ADMIN_CREDENTIALS_API_BASE = `${BACKEND_BASE}/admin/credentials`
+
+export interface AdminCredential {
+  id: number
+  userId: number
+  name: string
+  apiKey: string
+  status: 'active' | 'banned' | 'suspended'
+  llmProvider?: string
+  usageCount: number
+  lastUsedAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AdminCredentialListResponse {
+  credentials: AdminCredential[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+export const listAdminCredentials = async (params?: {
+  page?: number
+  pageSize?: number
+  search?: string
+  status?: string
+  user_id?: number
+}): Promise<AdminCredentialListResponse> => {
+  const queryParams: any = {}
+  if (params?.page) queryParams.page = params.page
+  if (params?.pageSize) queryParams.pageSize = params.pageSize
+  if (params?.search) queryParams.search = params.search
+  if (params?.status) queryParams.status = params.status
+  if (params?.user_id) queryParams.user_id = params.user_id
+  const res = await get<AdminCredentialListResponse>(ADMIN_CREDENTIALS_API_BASE, { params: queryParams })
+  return res.data
+}
+
+export const updateAdminCredentialStatus = async (
+  id: number,
+  data: { status: 'active' | 'banned' | 'suspended'; bannedReason?: string }
+): Promise<AdminCredential> => {
+  const res = await patch<AdminCredential>(`${ADMIN_CREDENTIALS_API_BASE}/${id}/status`, data)
+  return res.data
+}
+
+export const deleteAdminCredential = async (id: number): Promise<void> => {
+  await del(`${ADMIN_CREDENTIALS_API_BASE}/${id}`)
+}
+
+// ==================== Admin JS Templates API ====================
+const ADMIN_JS_TEMPLATES_API_BASE = `${BACKEND_BASE}/admin/js-templates`
+
+export interface AdminJSTemplate {
+  id: string
+  jsSourceId: string
+  name: string
+  type: string
+  status: string
+  user_id: number
+  group_id?: number
+  version: number
+  created_at: string
+  updated_at: string
+}
+
+export interface AdminJSTemplateListResponse {
+  templates: AdminJSTemplate[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+export const listAdminJSTemplates = async (params?: {
+  page?: number
+  pageSize?: number
+  search?: string
+  status?: string
+  type?: string
+  user_id?: number
+}): Promise<AdminJSTemplateListResponse> => {
+  const queryParams: any = {}
+  if (params?.page) queryParams.page = params.page
+  if (params?.pageSize) queryParams.pageSize = params.pageSize
+  if (params?.search) queryParams.search = params.search
+  if (params?.status) queryParams.status = params.status
+  if (params?.type) queryParams.type = params.type
+  if (params?.user_id) queryParams.user_id = params.user_id
+  const res = await get<AdminJSTemplateListResponse>(ADMIN_JS_TEMPLATES_API_BASE, { params: queryParams })
+  return res.data
+}
+
+export const updateAdminJSTemplate = async (id: string, data: Partial<AdminJSTemplate>) => {
+  const res = await put(`${ADMIN_JS_TEMPLATES_API_BASE}/${id}`, data)
+  return res.data
+}
+
+export const deleteAdminJSTemplate = async (id: string): Promise<void> => {
+  await del(`${ADMIN_JS_TEMPLATES_API_BASE}/${id}`)
+}
+
+// ==================== Admin Bills API ====================
+const ADMIN_BILLS_API_BASE = `${BACKEND_BASE}/admin/bills`
+
+export interface AdminBill {
+  id: number
+  userId: number
+  groupId?: number
+  credentialId?: number
+  billNo: string
+  title: string
+  status: string
+  startTime: string
+  endTime: string
+  totalLLMCalls: number
+  totalLLMTokens: number
+  totalAPICalls: number
+  createdAt: string
+}
+
+export interface AdminBillListResponse {
+  bills: AdminBill[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+export const listAdminBills = async (params?: {
+  page?: number
+  pageSize?: number
+  search?: string
+  status?: string
+  user_id?: number
+  group_id?: number
+}): Promise<AdminBillListResponse> => {
+  const queryParams: any = {}
+  if (params?.page) queryParams.page = params.page
+  if (params?.pageSize) queryParams.pageSize = params.pageSize
+  if (params?.search) queryParams.search = params.search
+  if (params?.status) queryParams.status = params.status
+  if (params?.user_id) queryParams.user_id = params.user_id
+  if (params?.group_id) queryParams.group_id = params.group_id
+  const res = await get<AdminBillListResponse>(ADMIN_BILLS_API_BASE, { params: queryParams })
+  return res.data
+}
+
+export const updateAdminBill = async (id: number, data: { title?: string; notes?: string; status?: string }) => {
+  const res = await put(`${ADMIN_BILLS_API_BASE}/${id}`, data)
+  return res.data
+}
+
+export const deleteAdminBill = async (id: number): Promise<void> => {
+  await del(`${ADMIN_BILLS_API_BASE}/${id}`)
+}
+
 
 
 // ==================== File Censor Records API ====================
@@ -920,3 +1223,81 @@ export const getCensorConfig = async (key: string) => {
   const res = await get(`${BACKEND_BASE}/configs/${key}`)
   return res.data
 }
+
+// ==================== Generic Admin Modules API ====================
+export interface AdminModuleListResponse {
+  items: Record<string, any>[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+export const listAdminVoiceTrainingTasks = async (params?: { page?: number; pageSize?: number; search?: string }) => {
+  const res = await get<AdminModuleListResponse>(`${BACKEND_BASE}/admin/voice-training/tasks`, { params })
+  return res.data
+}
+export const getAdminVoiceTrainingTask = async (id: number) => (await get(`${BACKEND_BASE}/admin/voice-training/tasks/${id}`)).data
+export const deleteAdminVoiceTrainingTask = async (id: number) => del(`${BACKEND_BASE}/admin/voice-training/tasks/${id}`)
+
+export const listAdminMCPServers = async (params?: { page?: number; pageSize?: number; search?: string }) => {
+  const res = await get<AdminModuleListResponse>(`${BACKEND_BASE}/admin/mcp-servers`, { params })
+  return res.data
+}
+export const getAdminMCPServer = async (id: number) => (await get(`${BACKEND_BASE}/admin/mcp-servers/${id}`)).data
+export const deleteAdminMCPServer = async (id: number) => del(`${BACKEND_BASE}/admin/mcp-servers/${id}`)
+
+export const listAdminMCPMarketplace = async (params?: { page?: number; pageSize?: number; search?: string }) => {
+  const res = await get<AdminModuleListResponse>(`${BACKEND_BASE}/admin/mcp-marketplace`, { params })
+  return res.data
+}
+export const getAdminMCPMarketplace = async (id: number) => (await get(`${BACKEND_BASE}/admin/mcp-marketplace/${id}`)).data
+export const deleteAdminMCPMarketplace = async (id: number) => del(`${BACKEND_BASE}/admin/mcp-marketplace/${id}`)
+
+export const listAdminWorkflows = async (params?: { page?: number; pageSize?: number; search?: string }) => {
+  const res = await get<AdminModuleListResponse>(`${BACKEND_BASE}/admin/workflows`, { params })
+  return res.data
+}
+export const getAdminWorkflow = async (id: number) => (await get(`${BACKEND_BASE}/admin/workflows/${id}`)).data
+export const deleteAdminWorkflow = async (id: number) => del(`${BACKEND_BASE}/admin/workflows/${id}`)
+
+export const listAdminWorkflowPlugins = async (params?: { page?: number; pageSize?: number; search?: string }) => {
+  const res = await get<AdminModuleListResponse>(`${BACKEND_BASE}/admin/workflow-plugins`, { params })
+  return res.data
+}
+export const getAdminWorkflowPlugin = async (id: number) => (await get(`${BACKEND_BASE}/admin/workflow-plugins/${id}`)).data
+export const deleteAdminWorkflowPlugin = async (id: number) => del(`${BACKEND_BASE}/admin/workflow-plugins/${id}`)
+
+export const listAdminNodePlugins = async (params?: { page?: number; pageSize?: number; search?: string }) => {
+  const res = await get<AdminModuleListResponse>(`${BACKEND_BASE}/admin/node-plugins`, { params })
+  return res.data
+}
+export const getAdminNodePlugin = async (id: number) => (await get(`${BACKEND_BASE}/admin/node-plugins/${id}`)).data
+export const deleteAdminNodePlugin = async (id: number) => del(`${BACKEND_BASE}/admin/node-plugins/${id}`)
+
+export const listAdminAlerts = async (params?: { page?: number; pageSize?: number; search?: string }) => {
+  const res = await get<AdminModuleListResponse>(`${BACKEND_BASE}/admin/alerts`, { params })
+  return res.data
+}
+export const getAdminAlert = async (id: number) => (await get(`${BACKEND_BASE}/admin/alerts/${id}`)).data
+export const deleteAdminAlert = async (id: number) => del(`${BACKEND_BASE}/admin/alerts/${id}`)
+
+export const listAdminNotifications = async (params?: { page?: number; pageSize?: number; search?: string }) => {
+  const res = await get<AdminModuleListResponse>(`${BACKEND_BASE}/admin/notifications`, { params })
+  return res.data
+}
+export const getAdminNotification = async (id: number) => (await get(`${BACKEND_BASE}/admin/notifications/${id}`)).data
+export const deleteAdminNotification = async (id: number) => del(`${BACKEND_BASE}/admin/notifications/${id}`)
+
+export const listAdminKnowledgeBases = async (params?: { page?: number; pageSize?: number; search?: string }) => {
+  const res = await get<AdminModuleListResponse>(`${BACKEND_BASE}/admin/knowledge-bases`, { params })
+  return res.data
+}
+export const getAdminKnowledgeBase = async (id: number) => (await get(`${BACKEND_BASE}/admin/knowledge-bases/${id}`)).data
+export const deleteAdminKnowledgeBase = async (id: number) => del(`${BACKEND_BASE}/admin/knowledge-bases/${id}`)
+
+export const listAdminDevices = async (params?: { page?: number; pageSize?: number; search?: string }) => {
+  const res = await get<AdminModuleListResponse>(`${BACKEND_BASE}/admin/devices`, { params })
+  return res.data
+}
+export const getAdminDevice = async (id: string) => (await get(`${BACKEND_BASE}/admin/devices/${encodeURIComponent(id)}`)).data
+export const deleteAdminDevice = async (id: string) => del(`${BACKEND_BASE}/admin/devices/${encodeURIComponent(id)}`)

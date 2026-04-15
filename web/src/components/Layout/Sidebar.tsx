@@ -130,6 +130,7 @@ const Sidebar = () => {
   const isExternalHref = (href: string) => href.startsWith('http')
   const handleSidebarLogout = async () => {
     setShowDropdown(false)
+    // Keep exactly same behavior as header logout flow.
     await logout()
   }
 

@@ -7,6 +7,7 @@ interface AuthState {
   user: User | null
   isAuthenticated: boolean
   isLoading: boolean
+  isLoggingOut: boolean
   token: string | null
   currentOrganizationId: number | null
   login: (token: string) => Promise<boolean>
@@ -26,6 +27,7 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       isAuthenticated: false,
       isLoading: false,
+      isLoggingOut: false,
       token: null,
       currentOrganizationId: null,
 
@@ -82,6 +84,7 @@ export const useAuthStore = create<AuthState>()(
       logout: async (next?: string) => {
         const nextURL = next || `${window.location.origin}/`
         const currentToken = localStorage.getItem('auth_token') || undefined
+        set({ isLoggingOut: true })
         try {
           // 调用登出API
           const response = await logoutUser(nextURL)
@@ -132,7 +135,7 @@ export const useAuthStore = create<AuthState>()(
         // 新增的清除用户信息方法
         clearUser: () => {
             localStorage.removeItem('auth_token')
-            set({ user: null, isAuthenticated: false, token: null, currentOrganizationId: null })
+            set({ user: null, isAuthenticated: false, token: null, currentOrganizationId: null, isLoggingOut: false })
         },
 
         // 设置当前选择的组织

@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { RefreshCw, MousePointer2 } from 'lucide-react'
-import { get, post } from '@/utils/request'
-import { getApiBaseURL } from '@/config/apiConfig'
+import { getCaptcha } from '@/api/authApi'
 
 export interface CaptchaData {
   id: string
@@ -34,22 +33,32 @@ const Captcha = ({ onVerify, onError }: CaptchaProps) => {
     setLoading(true)
     setError(null)
     try {
-      const response = await get<CaptchaData>(
-        `${getApiBaseURL()}/auth/captcha`
-      )
+      const response = await getCaptcha()
       
-      if (response.code === 200 && response.data) {
+      if (response) {
         // 后端返回扁平结构 { id, image }，适配成组件期望的 { id, type, data: { image } }
-        const raw = response.data as any
+        const raw = response as any
         let adapted: CaptchaData
         if (raw.data?.image !== undefined) {
           // 已经是嵌套结构
           adapted = raw as CaptchaData
+          // 兼容后端把 count/words/tolerance 放在顶层的情况
+          if (adapted.type === 'click') {
+            adapted.data = adapted.data || {}
+            if (adapted.data.count === undefined && raw.count !== undefined) adapted.data.count = raw.count
+            if (adapted.data.tolerance === undefined && raw.tolerance !== undefined) adapted.data.tolerance = raw.tolerance
+            if (adapted.data.words === undefined && raw.words !== undefined) adapted.data.words = raw.words
+          }
         } else {
           adapted = {
             id: raw.id,
             type: raw.type || 'image',
-            data: { image: raw.image },
+            data: {
+              image: raw.image,
+              count: raw.count,
+              tolerance: raw.tolerance,
+              words: raw.words,
+            },
             expires: raw.expires || '',
           }
         }
@@ -123,8 +132,9 @@ const Captcha = ({ onVerify, onError }: CaptchaProps) => {
     const newPositions = [...clickedPositions, { x, y }]
     setClickedPositions(newPositions)
     
+    const requiredCount = Number(captcha?.data?.count || 0)
     // If we've clicked enough positions, verify
-    if (captcha?.data?.count && newPositions.length >= captcha.data.count) {
+    if (requiredCount > 0 && newPositions.length >= requiredCount) {
       verifyCaptcha(newPositions)
     }
   }

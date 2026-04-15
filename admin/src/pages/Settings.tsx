@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react'
-import { Save, Bell, Shield, Globe, Mail, Eye, EyeOff, QrCode, Key, RefreshCw } from 'lucide-react'
+import { Bell, Shield, Globe, Mail, QrCode, Key, RefreshCw } from 'lucide-react'
 import AdminLayout from '@/components/Layout/AdminLayout'
 import Card from '@/components/UI/Card'
 import Button from '@/components/UI/Button'
 import Input from '@/components/UI/Input'
 import { Switch } from '@/components/UI/Switch'
-import { getConfig, createConfig, updateConfig, getTwoFactorStatus, setupTwoFactor, enableTwoFactor, disableTwoFactor } from '@/services/adminApi'
+import { getConfig, getTwoFactorStatus, setupTwoFactor, enableTwoFactor, disableTwoFactor } from '@/services/adminApi'
 import { showAlert } from '@/utils/notification'
 
 // 站点配置 key 列表
@@ -38,7 +38,6 @@ const Settings = () => {
     SITE_LOGO_URL: '',
   })
   const [siteConfigLoading, setSiteConfigLoading] = useState(false)
-  const [siteConfigSaving, setSiteConfigSaving] = useState(false)
   const [mailConfig, setMailConfig] = useState<{
     host?: string
     username?: string
@@ -53,9 +52,7 @@ const Settings = () => {
     port: '587',
     from: '',
   })
-  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [savingMail, setSavingMail] = useState(false)
   
   // 2FA states
   const [twoFactorStatus, setTwoFactorStatus] = useState<{
@@ -80,7 +77,8 @@ const Settings = () => {
         )
         const cfg = { ...siteConfig }
         SITE_KEYS.forEach((key, i) => {
-          if (results[i]?.value !== undefined) cfg[key] = results[i]!.value
+          const val = results[i]?.value ?? results[i]?.Value
+          if (val !== undefined) cfg[key] = val
         })
         setSiteConfig(cfg)
       } catch (e) {
@@ -92,25 +90,6 @@ const Settings = () => {
     loadSiteConfig()
   }, [])
 
-  const handleSaveSiteConfig = async () => {
-    setSiteConfigSaving(true)
-    try {
-      for (const key of SITE_KEYS) {
-        const value = siteConfig[key]
-        try {
-          await getConfig(key)
-          await updateConfig(key, { value, desc: SITE_LABELS[key], autoload: true, public: true })
-        } catch {
-          await createConfig({ key, value, desc: SITE_LABELS[key], format: 'text', autoload: true, public: true })
-        }
-      }
-      showAlert('站点配置保存成功', 'success')
-    } catch (error: any) {
-      showAlert('保存失败', 'error', error?.msg || error?.message)
-    } finally {
-      setSiteConfigSaving(false)
-    }
-  }
 
   // 加载邮件配置
   useEffect(() => {
@@ -132,9 +111,10 @@ const Settings = () => {
         const config: any = {}
         // 检查配置是否存在（即使 value 为空，只要配置对象存在就说明已配置）
         if (host) {
-          if (host.value) {
-            config.host = host.value
-            setMailFormData(prev => ({ ...prev, host: host.value }))
+          const hostVal = host.value ?? host.Value
+          if (hostVal) {
+            config.host = hostVal
+            setMailFormData(prev => ({ ...prev, host: hostVal }))
           } else {
             // 配置存在但值为空（可能是非公开配置），显示占位符
             config.host = '****'
@@ -142,9 +122,10 @@ const Settings = () => {
           }
         }
         if (username) {
-          if (username.value) {
-            config.username = username.value
-            setMailFormData(prev => ({ ...prev, username: username.value }))
+          const usernameVal = username.value ?? username.Value
+          if (usernameVal) {
+            config.username = usernameVal
+            setMailFormData(prev => ({ ...prev, username: usernameVal }))
           } else {
             // 配置存在但值为空（可能是非公开配置），显示占位符
             config.username = '****'
@@ -157,9 +138,10 @@ const Settings = () => {
           setMailFormData(prev => ({ ...prev, password: '****' }))
         }
         if (port) {
-          if (port.value) {
-            config.port = port.value
-            setMailFormData(prev => ({ ...prev, port: port.value }))
+          const portVal = port.value ?? port.Value
+          if (portVal) {
+            config.port = portVal
+            setMailFormData(prev => ({ ...prev, port: portVal }))
           } else {
             // 配置存在但值为空（可能是非公开配置），显示占位符
             config.port = '****'
@@ -167,9 +149,10 @@ const Settings = () => {
           }
         }
         if (from) {
-          if (from.value) {
-            config.from = from.value
-            setMailFormData(prev => ({ ...prev, from: from.value }))
+          const fromVal = from.value ?? from.Value
+          if (fromVal) {
+            config.from = fromVal
+            setMailFormData(prev => ({ ...prev, from: fromVal }))
           } else {
             // 配置存在但值为空（可能是非公开配置），显示占位符
             config.from = '****'
@@ -206,101 +189,6 @@ const Settings = () => {
     load2FAStatus()
   }, [])
 
-  // 保存邮件配置
-  const handleSaveMailConfig = async () => {
-    // 检查必填字段（排除占位符）
-    const hasHost = mailFormData.host && mailFormData.host !== '****'
-    const hasUsername = mailFormData.username && mailFormData.username !== '****'
-    const hasFrom = mailFormData.from && mailFormData.from !== '****'
-    
-    if (!hasHost || !hasUsername || !hasFrom) {
-      showAlert('请填写完整的邮件配置信息', 'error')
-      return
-    }
-    
-    // 检查是否有实际值需要更新（排除占位符）
-    const shouldUpdateHost = mailFormData.host && mailFormData.host !== '****'
-    const shouldUpdateUsername = mailFormData.username && mailFormData.username !== '****'
-    const shouldUpdatePort = mailFormData.port && mailFormData.port !== '****'
-    const shouldUpdateFrom = mailFormData.from && mailFormData.from !== '****'
-    const shouldUpdatePassword = mailFormData.password && mailFormData.password !== '****'
-    
-    // 如果是新配置，密码是必需的
-    if (!mailConfig && !shouldUpdatePassword) {
-      showAlert('请填写SMTP密码', 'error')
-      return
-    }
-    
-    try {
-      setSavingMail(true)
-      const configs: Array<{ key: string; value: string; desc: string; format: 'text' | 'int'; autoload: boolean; public: boolean }> = []
-      
-      // 只有在需要更新时才添加配置
-      if (shouldUpdateHost) {
-        configs.push({ key: 'MAIL_HOST', value: mailFormData.host, desc: 'Mail SMTP Host', format: 'text' as const, autoload: true, public: false })
-      }
-      if (shouldUpdateUsername) {
-        configs.push({ key: 'MAIL_USERNAME', value: mailFormData.username, desc: 'Mail SMTP Username', format: 'text' as const, autoload: true, public: false })
-      }
-      if (shouldUpdatePort) {
-        configs.push({ key: 'MAIL_PORT', value: mailFormData.port, desc: 'Mail SMTP Port', format: 'int' as const, autoload: true, public: false })
-      }
-      if (shouldUpdateFrom) {
-        configs.push({ key: 'MAIL_FROM', value: mailFormData.from, desc: 'Mail From Address', format: 'text' as const, autoload: true, public: false })
-      }
-      if (shouldUpdatePassword) {
-        configs.push({ key: 'MAIL_PASSWORD', value: mailFormData.password, desc: 'Mail SMTP Password', format: 'text' as const, autoload: true, public: false })
-      }
-      
-      for (const cfg of configs) {
-        try {
-          await getConfig(cfg.key)
-          // 存在则更新
-          await updateConfig(cfg.key, { value: cfg.value })
-        } catch {
-          // 不存在则创建
-          await createConfig(cfg)
-        }
-      }
-      
-      showAlert('邮件配置保存成功', 'success')
-      // 重新加载配置以获取最新值
-      const [host, username, password, port, from] = await Promise.all([
-        getConfig('MAIL_HOST').catch(() => null),
-        getConfig('MAIL_USERNAME').catch(() => null),
-        getConfig('MAIL_PASSWORD').catch(() => null),
-        getConfig('MAIL_PORT').catch(() => null),
-        getConfig('MAIL_FROM').catch(() => null),
-      ])
-      
-      const updatedConfig: any = {}
-      if (host?.value) {
-        updatedConfig.host = host.value
-        setMailFormData(prev => ({ ...prev, host: host.value }))
-      }
-      if (username?.value) {
-        updatedConfig.username = username.value
-        setMailFormData(prev => ({ ...prev, username: username.value }))
-      }
-      if (password?.value) {
-        updatedConfig.password = password.value
-        setMailFormData(prev => ({ ...prev, password: '****' }))
-      }
-      if (port?.value) {
-        updatedConfig.port = port.value
-        setMailFormData(prev => ({ ...prev, port: port.value }))
-      }
-      if (from?.value) {
-        updatedConfig.from = from.value
-        setMailFormData(prev => ({ ...prev, from: from.value }))
-      }
-      setMailConfig(updatedConfig)
-    } catch (error: any) {
-      showAlert('保存邮件配置失败', 'error', error?.msg || error?.message)
-    } finally {
-      setSavingMail(false)
-    }
-  }
 
   // 设置2FA
   const handleSetup2FA = async () => {
@@ -394,21 +282,11 @@ const Settings = () => {
                     </label>
                     <Input
                       value={siteConfig[key]}
-                      onChange={(e) => setSiteConfig({ ...siteConfig, [key]: e.target.value })}
+                      disabled
                       placeholder={`请输入${SITE_LABELS[key]}`}
                     />
                   </div>
                 ))}
-                <div className="flex justify-end pt-2">
-                  <Button
-                    variant="primary"
-                    onClick={handleSaveSiteConfig}
-                    disabled={siteConfigSaving}
-                    leftIcon={siteConfigSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  >
-                    {siteConfigSaving ? '保存中...' : '保存'}
-                  </Button>
-                </div>
               </>
             )}
           </div>
@@ -442,9 +320,8 @@ const Settings = () => {
               </div>
               <Switch
                 checked={settings.emailNotifications}
-                onCheckedChange={(checked) =>
-                  setSettings({ ...settings, emailNotifications: checked })
-                }
+                onCheckedChange={() => {}}
+                disabled
               />
             </div>
             
@@ -466,7 +343,7 @@ const Settings = () => {
                   <Input
                     label="SMTP 服务器 *"
                     value={mailFormData.host}
-                    onChange={(e) => setMailFormData({ ...mailFormData, host: e.target.value })}
+                      disabled
                     placeholder="smtp.example.com"
                     required
                   />
@@ -474,7 +351,7 @@ const Settings = () => {
                     <Input
                       label="端口 *"
                       value={mailFormData.port}
-                      onChange={(e) => setMailFormData({ ...mailFormData, port: e.target.value })}
+                      disabled
                       placeholder="587"
                       type="number"
                       required
@@ -482,7 +359,7 @@ const Settings = () => {
                     <Input
                       label="用户名 *"
                       value={mailFormData.username}
-                      onChange={(e) => setMailFormData({ ...mailFormData, username: e.target.value })}
+                      disabled
                       placeholder="user@example.com"
                       required
                     />
@@ -490,62 +367,19 @@ const Settings = () => {
                   <Input
                     label="密码 *"
                     value={mailFormData.password}
-                    onChange={(e) => {
-                      // 如果当前是占位符，清空让用户输入新密码
-                      const newValue = e.target.value === '****' ? '' : e.target.value
-                      setMailFormData({ ...mailFormData, password: newValue })
-                    }}
-                    onFocus={(e) => {
-                      // 如果当前是占位符，聚焦时清空
-                      if (e.target.value === '****') {
-                        setMailFormData({ ...mailFormData, password: '' })
-                      }
-                    }}
-                    type={showPassword ? 'text' : 'password'}
-                    placeholder={mailConfig && mailConfig.password ? '留空不修改密码' : '请输入SMTP密码'}
-                    required={!mailConfig || !mailConfig.password}
-                    rightIcon={
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-                      >
-                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    }
+                      disabled
+                      type="password"
+                      placeholder="已加密保存"
+                      required={false}
                   />
-                  {mailConfig && mailConfig.password && mailFormData.password === '****' && (
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      密码已配置，留空不修改，输入新值将更新密码
-                    </p>
-                  )}
                   <Input
                     label="发件人邮箱 *"
                     value={mailFormData.from}
-                    onChange={(e) => {
-                      const newValue = e.target.value === '****' ? '' : e.target.value
-                      setMailFormData({ ...mailFormData, from: newValue })
-                    }}
-                    onFocus={(e) => {
-                      if (e.target.value === '****') {
-                        setMailFormData({ ...mailFormData, from: '' })
-                      }
-                    }}
+                    disabled
                     placeholder="noreply@example.com"
                     type="email"
                     required
                   />
-                  <div className="flex justify-end pt-2">
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={handleSaveMailConfig}
-                      disabled={savingMail}
-                      leftIcon={<Save className="w-4 h-4" />}
-                    >
-                      {savingMail ? '保存中...' : '保存配置'}
-                    </Button>
-                  </div>
                 </div>
               </div>
             )}

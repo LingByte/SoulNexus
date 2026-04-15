@@ -15,9 +15,24 @@ const Settings = lazy(() => import('@/pages/Settings'))
 const Profile = lazy(() => import('@/pages/Profile'))
 const Notifications = lazy(() => import('@/pages/Notifications'))
 const Configs = lazy(() => import('@/pages/Configs'))
+const OAuthClients = lazy(() => import('@/pages/OAuthClients'))
 const Users = lazy(() => import('@/pages/Users'))
 const OperationLogs = lazy(() => import('@/pages/OperationLogs'))
-const LoginHistory = lazy(() => import('@/pages/LoginHistory'))
+const AccountLocks = lazy(() => import('@/pages/AccountLocks'))
+const Groups = lazy(() => import('@/pages/Groups'))
+const Credentials = lazy(() => import('@/pages/Credentials'))
+const JSTemplates = lazy(() => import('@/pages/JSTemplates'))
+const Bills = lazy(() => import('@/pages/Bills'))
+const VoiceTraining = lazy(() => import('@/pages/VoiceTraining'))
+const MCPServers = lazy(() => import('@/pages/MCPServers'))
+const MCPMarketplace = lazy(() => import('@/pages/MCPMarketplace'))
+const Workflows = lazy(() => import('@/pages/Workflows'))
+const WorkflowPlugins = lazy(() => import('@/pages/WorkflowPlugins'))
+const NodePlugins = lazy(() => import('@/pages/NodePlugins'))
+const NotificationCenter = lazy(() => import('@/pages/NotificationCenter'))
+const AlertCenter = lazy(() => import('@/pages/AlertCenter'))
+const KnowledgeBases = lazy(() => import('@/pages/KnowledgeBases'))
+const Devices = lazy(() => import('@/pages/Devices'))
 
 function App() {
   const { refreshUserInfo, isAuthenticated } = useAuthStore()
@@ -80,6 +95,14 @@ function App() {
               }
             />
             <Route
+              path="/oauth-clients"
+              element={
+                <ProtectedRoute>
+                  <OAuthClients />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/users"
               element={
                 <ProtectedRoute>
@@ -96,13 +119,27 @@ function App() {
               }
             />
             <Route
-              path="/login-history"
+              path="/account-locks"
               element={
                 <ProtectedRoute>
-                  <LoginHistory />
+                  <AccountLocks />
                 </ProtectedRoute>
               }
             />
+            <Route path="/groups" element={<ProtectedRoute><Groups /></ProtectedRoute>} />
+            <Route path="/credentials" element={<ProtectedRoute><Credentials /></ProtectedRoute>} />
+            <Route path="/js-templates" element={<ProtectedRoute><JSTemplates /></ProtectedRoute>} />
+            <Route path="/bills" element={<ProtectedRoute><Bills /></ProtectedRoute>} />
+            <Route path="/voice-training" element={<ProtectedRoute><VoiceTraining /></ProtectedRoute>} />
+            <Route path="/mcp-servers" element={<ProtectedRoute><MCPServers /></ProtectedRoute>} />
+            <Route path="/mcp-marketplace" element={<ProtectedRoute><MCPMarketplace /></ProtectedRoute>} />
+            <Route path="/workflows" element={<ProtectedRoute><Workflows /></ProtectedRoute>} />
+            <Route path="/workflow-plugins" element={<ProtectedRoute><WorkflowPlugins /></ProtectedRoute>} />
+            <Route path="/node-plugins" element={<ProtectedRoute><NodePlugins /></ProtectedRoute>} />
+            <Route path="/notification-center" element={<ProtectedRoute><NotificationCenter /></ProtectedRoute>} />
+            <Route path="/alerts" element={<ProtectedRoute><AlertCenter /></ProtectedRoute>} />
+            <Route path="/knowledge-bases" element={<ProtectedRoute><KnowledgeBases /></ProtectedRoute>} />
+            <Route path="/devices" element={<ProtectedRoute><Devices /></ProtectedRoute>} />
 
             {/* 默认重定向 */}
             <Route path="/" element={<Navigate to="/users" replace />} />

@@ -8,12 +8,11 @@ import Modal from '@/components/UI/Modal'
 import Captcha from '@/components/Auth/Captcha'
 import { useAuthStore } from '@/stores/authStore'
 import { showAlert } from '@/utils/notification'
-import { post } from '@/utils/request'
-import { getApiBaseURL } from '@/config/apiConfig'
+import { loginByPassword } from '@/api/authApi'
 import faviconUrl from '/favicon.png'
 
 const Login = () => {
-  const [username, setUsername] = useState('')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -36,7 +35,7 @@ const Login = () => {
     setLoading(true)
     try {
       const loginData: any = {
-        username,
+        email,
         password,
         captchaId: cId,
         captchaType: cType,
@@ -47,14 +46,14 @@ const Login = () => {
       if (cType === 'image') {
         loginData.captchaCode = cData || ''
       } else {
-        loginData.captchaData = cData
+        loginData.captchaData = typeof cData === 'string' ? cData : JSON.stringify(cData || [])
       }
 
       if (requiresTwoFactor && twoFactorCode) {
         loginData.twoFactorCode = twoFactorCode
       }
 
-      const response = await post(`${getApiBaseURL()}/auth/login/password`, loginData)
+      const response = await loginByPassword(loginData)
 
       if (response.code !== 200) {
         throw new Error(response.msg || '登录失败')
@@ -70,17 +69,16 @@ const Login = () => {
 
       if (!token) throw new Error('登录失败：未获取到 token')
 
-      if (userData?.role !== 'admin') {
+      if (!['admin', 'superadmin'].includes(userData?.role)) {
         throw new Error('权限不足，仅管理员可登录后台')
       }
 
       await login(token, {
         id: userData.id,
         email: userData.email,
-        displayName: userData.displayName || username,
+        displayName: userData.displayName || email,
         role: userData.role,
         avatar: userData.avatar,
-        isStaff: userData.isStaff,
       })
 
       showAlert('登录成功', 'success', '欢迎回来')
@@ -106,8 +104,8 @@ const Login = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!username || !password) {
-      showAlert('请输入用户名和密码', 'error', '登录失败')
+    if (!email || !password) {
+      showAlert('请输入邮箱和密码', 'error', '登录失败')
       return
     }
 
@@ -166,10 +164,10 @@ const Login = () => {
           <form onSubmit={handleSubmit} className="space-y-5">
             <Input
               type="text"
-              label="用户名"
-              placeholder="请输入用户名"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              label="邮箱"
+              placeholder="请输入邮箱"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               leftIcon={<User className="w-4 h-4" />}
               size="lg"
               required

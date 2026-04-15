@@ -41,6 +41,7 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	utilscaptcha "github.com/LingByte/SoulNexus/pkg/utils/captcha"
 	"github.com/LingByte/lingstorage-sdk-go"
+	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"github.com/pquerna/otp/totp"
 	"github.com/skip2/go-qrcode"
@@ -236,27 +237,6 @@ func getWechatMPConfig() (appID, appSecret, token string, err error) {
 
 func getWechatMPToken() string {
 	return strings.TrimSpace(os.Getenv("WECHAT_MP_TOKEN"))
-}
-
-func buildWechatOAuthURL(c *gin.Context, sceneID string) (string, error) {
-	appID := strings.TrimSpace(utils.GetEnv("WECHAT_MP_APP_ID"))
-	if appID == "" {
-		return "", errors.New("missing WECHAT_MP_APP_ID")
-	}
-	callbackURL := strings.TrimSpace(utils.GetEnv("WECHAT_MP_OAUTH_CALLBACK_URL"))
-	if callbackURL == "" {
-		scheme := "http"
-		if c.Request.TLS != nil {
-			scheme = "https"
-		}
-		callbackURL = fmt.Sprintf("%s://%s/api/auth/wechat/oauth/callback", scheme, c.Request.Host)
-	}
-	return fmt.Sprintf(
-		"https://open.weixin.qq.com/connect/oauth2/authorize?appid=%s&redirect_uri=%s&response_type=code&scope=snsapi_base&state=%s#wechat_redirect",
-		url.QueryEscape(appID),
-		url.QueryEscape(callbackURL),
-		url.QueryEscape(sceneID),
-	), nil
 }
 
 func getWechatAccessToken() (string, error) {
@@ -1069,6 +1049,10 @@ func (h *Handlers) handleUserLogout(c *gin.Context) {
 	user := models.CurrentUser(c)
 	if user != nil {
 		models.Logout(c, user)
+	} else {
+		session := sessions.Default(c)
+		session.Delete(constants.UserField)
+		_ = session.Save()
 	}
 	next := c.Query("next")
 	if next != "" {
@@ -1541,7 +1525,9 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 		}
 
 		// 6. 验证码验证（随机图形/点击）
-		if utilscaptcha.GlobalManager != nil {
+		// 如果已经进入2FA提交阶段(twoFactorCode存在)，跳过验证码二次校验，避免同一验证码重复消费导致失败
+		isTwoFactorSubmit := strings.TrimSpace(form.TwoFactorCode) != ""
+		if utilscaptcha.GlobalManager != nil && !isTwoFactorSubmit {
 			valid, err := verifyRequestCaptcha(form.CaptchaID, form.CaptchaCode, form.CaptchaData, form.CaptchaType)
 			if err != nil || !valid {
 				logger.Warn("Login failed: invalid captcha", zap.String("email", form.Email), zap.Uint("userID", user.ID), zap.String("ip", clientIP), zap.String("captchaID", form.CaptchaID), zap.Error(err))
@@ -1600,6 +1586,23 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 		logger.Warn("Login failed: user not allowed to login", zap.String("email", form.Email), zap.Uint("userID", user.ID), zap.String("ip", clientIP), zap.Error(err))
 		response.Fail(c, "user no authorization to login", err)
 		return
+	}
+
+	// 7.5. 两步验证应在真正登录流程前完成
+	if user.TwoFactorEnabled {
+		code := strings.TrimSpace(form.TwoFactorCode)
+		if code == "" {
+			response.Success(c, "Two-factor authentication required", gin.H{
+				"requiresTwoFactor": true,
+				"message":           "Please enter your two-factor authentication code",
+			})
+			return
+		}
+		valid := totp.Validate(code, user.TwoFactorSecret)
+		if !valid {
+			response.Fail(c, "两步验证码错误，请重新输入", errors.New("invalid 2fa code"))
+			return
+		}
 	}
 
 	// 8. 获取IP地理位置
@@ -1714,25 +1717,6 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 	// 15. 清除失败登录计数
 	if utils.GlobalLoginSecurityManager != nil {
 		utils.GlobalLoginSecurityManager.ClearFailedLoginCount(form.Email)
-	}
-
-	// 16. 检查是否启用了两步验证
-	if user.TwoFactorEnabled {
-		// 如果提供了两步验证码，验证它
-		if form.TwoFactorCode != "" {
-			valid := totp.Validate(form.TwoFactorCode, user.TwoFactorSecret)
-			if !valid {
-				response.Fail(c, "Invalid two-factor authentication code", errors.New("invalid 2fa code"))
-				return
-			}
-		} else {
-			// 需要两步验证码
-			response.Success(c, "Two-factor authentication required", gin.H{
-				"requiresTwoFactor": true,
-				"message":           "Please enter your two-factor authentication code",
-			})
-			return
-		}
 	}
 
 	if form.Timezone != "" {
@@ -2029,21 +2013,16 @@ func (h *Handlers) handleUserSignup(c *gin.Context) {
 	utils.Sig().Emit(constants.SigUserCreate, user, c, db)
 
 	r := gin.H{
-		"email":      user.Email,
-		"activation": user.Activated,
+		"email": user.Email,
 	}
-	if !user.Activated && utils.GetBoolValue(db, constants.KEY_USER_ACTIVATED) {
-		sendHashMail(db, user, constants.SigUserVerifyEmail, constants.KEY_VERIFY_EMAIL_EXPIRED, "180d", c.ClientIP(), c.Request.UserAgent())
-		r["expired"] = "180d"
-	} else {
-		// Check if user is allowed to login before auto-login
-		err = models.CheckUserAllowLogin(db, user)
-		if err != nil {
-			response.AbortWithJSONError(c, http.StatusForbidden, err)
-			return
-		}
-		models.Login(c, user) //Login now
+
+	// Check if user is allowed to login before auto-login
+	err = models.CheckUserAllowLogin(db, user)
+	if err != nil {
+		response.AbortWithJSONError(c, http.StatusForbidden, err)
+		return
 	}
+	models.Login(c, user) //Login now
 	c.JSON(http.StatusOK, r)
 }
 
@@ -3241,11 +3220,11 @@ func (h *Handlers) handleGetCaptcha(c *gin.Context) {
 // handleVerifyCaptcha 验证图形验证码
 func (h *Handlers) handleVerifyCaptcha(c *gin.Context) {
 	var req struct {
-		ID        string               `json:"id" binding:"required"`
-		Type      string               `json:"type"`
-		Code      string               `json:"code"`
-		CaptchaData string             `json:"captchaData"`
-		Positions []utilscaptcha.Point `json:"positions"`
+		ID          string               `json:"id" binding:"required"`
+		Type        string               `json:"type"`
+		Code        string               `json:"code"`
+		CaptchaData string               `json:"captchaData"`
+		Positions   []utilscaptcha.Point `json:"positions"`
 	}
 
 	if err := c.BindJSON(&req); err != nil {

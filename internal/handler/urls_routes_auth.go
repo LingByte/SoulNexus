@@ -44,7 +44,7 @@ func (h *Handlers) registerAuthRoutes(r *gin.RouterGroup) {
 		auth.POST("/oidc/token", h.handleOIDCToken)
 		auth.POST("/oidc/exchange", h.handleOIDCExchange)
 
-		auth.GET("/logout", models.AuthRequired, h.handleUserLogout)
+		auth.GET("/logout", h.handleUserLogout)
 		auth.GET("/info", models.AuthRequired, h.handleUserInfo)
 
 		auth.GET("/reset-password", h.handleUserResetPasswordPage)
@@ -85,5 +85,6 @@ func (h *Handlers) registerAuthRoutes(r *gin.RouterGroup) {
 		auth.GET("/two-factor/status", models.AuthRequired, h.handleTwoFactorStatus)
 
 		auth.GET("/activity", models.AuthRequired, h.handleGetUserActivity)
+
 	}
 }

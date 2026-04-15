@@ -11,14 +11,25 @@ import {
   User as UserIcon,
   Users,
   Sliders,
-  History,
   FileText,
   Lock,
+  KeyRound,
+  Building2,
+  Key,
+  Code2,
+  Receipt,
+  Mic,
+  Bot,
+  Boxes,
+  Puzzle,
+  Bell,
+  AlertTriangle,
+  BookOpen,
+  Smartphone,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import { useSidebar } from '@/contexts/SidebarContext'
 import { useSiteConfig } from '@/contexts/SiteConfigContext'
-import { buildLogoUrl } from '@/utils/logoUrl'
 import { cn } from '@/utils/cn'
 
 interface NavItem {
@@ -40,7 +51,7 @@ const AdminSidebar = () => {
   const { config } = useSiteConfig()
   const dropdownRef = useRef<HTMLDivElement>(null)
   const siteName = config?.SITE_NAME || 'SoulNexus管理'
-  const logoUrl = config?.SITE_LOGO_URL || faviconUrl
+  const logoUrl = faviconUrl
 
   // 点击外部关闭下拉菜单
   useEffect(() => {
@@ -61,6 +72,20 @@ const AdminSidebar = () => {
 
   const navigation: NavItem[] = [
     { name: '用户管理', href: '/users', icon: Users },
+    { name: '企业管理', href: '/groups', icon: Building2 },
+    { name: '密钥管理', href: '/credentials', icon: Key },
+    { name: 'OAuth 客户端', href: '/oauth-clients', icon: KeyRound },
+    { name: 'JS 模版', href: '/js-templates', icon: Code2 },
+    { name: '账单管理', href: '/bills', icon: Receipt },
+    { name: '音色训练', href: '/voice-training', icon: Mic },
+    { name: 'MCP 管理', href: '/mcp-servers', icon: Bot },
+    { name: 'MCP 广场', href: '/mcp-marketplace', icon: Boxes },
+    { name: '工作流', href: '/workflows', icon: Boxes },
+    { name: '插件市场', href: '/workflow-plugins', icon: Puzzle },
+    { name: '通知中心', href: '/notification-center', icon: Bell },
+    { name: '告警管理', href: '/alerts', icon: AlertTriangle },
+    { name: '知识库', href: '/knowledge-bases', icon: BookOpen },
+    { name: '设备管理', href: '/devices', icon: Smartphone },
     { name: '配置管理', href: '/configs', icon: Sliders },
     {
       name: '安全管理',
@@ -68,7 +93,7 @@ const AdminSidebar = () => {
       icon: Lock,
       children: [
         { name: '操作日志', href: '/operation-logs', icon: FileText },
-        { name: '登录历史', href: '/login-history', icon: History },
+        { name: '账号锁定', href: '/account-locks', icon: Lock },
       ],
     },
     { name: '系统设置', href: '/settings', icon: Settings },
@@ -94,7 +119,7 @@ const AdminSidebar = () => {
   const SidebarContent = ({ showLogo = true }: { showLogo?: boolean }) => {
     const { config: sidebarConfig } = useSiteConfig()
     const currentSiteName = sidebarConfig?.SITE_NAME || 'SoulNexus管理后台'
-    const sidebarLogoUrl = buildLogoUrl(sidebarConfig?.SITE_LOGO_URL || faviconUrl)
+    const sidebarLogoUrl = faviconUrl
     
     return (
       <>
@@ -121,7 +146,7 @@ const AdminSidebar = () => {
                     />
                   </div>
                 </div>
-                <span className="font-bold text-lg bg-clip-text">
+                <span className="font-semibold text-xs whitespace-nowrap leading-none">
                   {currentSiteName}
                 </span>
               </Link>
@@ -260,6 +285,11 @@ const AdminSidebar = () => {
               onClick={() => setShowDropdown(!showDropdown)}
               className="flex items-center gap-3 w-full p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
             >
+              <img
+                src={user?.avatar || '/favicon.png'}
+                alt="avatar"
+                className="w-9 h-9 rounded-full object-cover border border-slate-200 dark:border-slate-700"
+              />
               <div className="flex-1 min-w-0 text-left">
                 <p className="text-sm font-medium text-slate-900 truncate">
                   {user?.displayName || user?.email || '管理员'}
@@ -351,7 +381,7 @@ const AdminSidebar = () => {
                       }}
                     />
                   </div>
-                  <span className="font-bold text-lg bg-gradient-to-r from-[#4ECDC4] to-[#45b8b0] bg-clip-text">
+                  <span className="font-semibold text-xs whitespace-nowrap leading-none">
                     {siteName}
                   </span>
                 </div>

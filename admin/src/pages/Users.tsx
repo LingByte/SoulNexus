@@ -1,18 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import {
-  Users as UsersIcon,
-  Plus,
-  Search,
-  Edit,
-  Trash2,
-  RefreshCw,
-  Save,
-  Shield,
-  ShieldCheck,
-  UserCheck,
-  UserX,
-} from 'lucide-react'
+import { Users as UsersIcon, Plus, Search, Edit, Trash2, RefreshCw, Save, UserCheck, UserX } from 'lucide-react'
 import AdminLayout from '@/components/Layout/AdminLayout'
 import Card from '@/components/UI/Card'
 import Button from '@/components/UI/Button'
@@ -36,9 +24,9 @@ import {
 } from '@/services/adminApi'
 
 const ROLES = [
-  { value: 'user', label: '老师' },
+  { value: 'user', label: '普通用户' },
   { value: 'admin', label: '管理员' },
-  { value: 'student', label: '学员' },
+  { value: 'superadmin', label: '超级管理员' },
 ]
 
 
@@ -50,11 +38,12 @@ const Users = () => {
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState<string>('')
   const [enabledFilter, setEnabledFilter] = useState<string>('')
-  const [isStaffFilter, setIsStaffFilter] = useState<string>('')
+  const [hasPhoneFilter, setHasPhoneFilter] = useState<string>('')
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize] = useState(20)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
+  const [showDetailModal, setShowDetailModal] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [editingUser, setEditingUser] = useState<User | null>(null)
@@ -65,12 +54,16 @@ const Users = () => {
     firstName: '',
     lastName: '',
     role: 'user',
-    isStaff: false,
     enabled: true,
-    activated: true,
     phone: '',
     locale: '',
     timezone: '',
+    city: '',
+    region: '',
+    gender: '',
+    emailNotifications: true,
+    pushNotifications: true,
+    systemNotifications: true,
   })
 
   // 获取用户列表
@@ -84,7 +77,7 @@ const Users = () => {
       if (search) params.search = search
       if (roleFilter) params.role = roleFilter
       if (enabledFilter) params.enabled = enabledFilter
-      if (isStaffFilter) params.isStaff = isStaffFilter
+      if (hasPhoneFilter) params.hasPhone = hasPhoneFilter
 
       const response = await listUsers(params)
       setUsers(response.users || [])
@@ -99,12 +92,12 @@ const Users = () => {
   // Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1)
-  }, [search, roleFilter, enabledFilter, isStaffFilter])
+  }, [search, roleFilter, enabledFilter, hasPhoneFilter])
 
   // Fetch users when page or filters change
   useEffect(() => {
     fetchUsers()
-  }, [currentPage, search, roleFilter, enabledFilter, isStaffFilter])
+  }, [currentPage, search, roleFilter, enabledFilter, hasPhoneFilter])
 
   // 处理创建用户
   const handleCreate = () => {
@@ -114,12 +107,16 @@ const Users = () => {
       firstName: '',
       lastName: '',
       role: 'user',
-      isStaff: false,
       enabled: true,
-      activated: true,
       phone: '',
       locale: '',
       timezone: '',
+      city: '',
+      region: '',
+      gender: '',
+      emailNotifications: true,
+      pushNotifications: true,
+      systemNotifications: true,
     })
     setShowCreateModal(true)
   }
@@ -135,12 +132,16 @@ const Users = () => {
         firstName: fullUser.firstName || '',
         lastName: fullUser.lastName || '',
         role: fullUser.role || 'user',
-        isStaff: fullUser.isStaff,
         enabled: fullUser.enabled,
-        activated: fullUser.activated || false,
         phone: fullUser.phone || '',
         locale: fullUser.locale || '',
         timezone: fullUser.timezone || '',
+        city: (fullUser as any).city || '',
+        region: (fullUser as any).region || '',
+        gender: (fullUser as any).gender || '',
+        emailNotifications: (fullUser as any).emailNotifications ?? true,
+        pushNotifications: (fullUser as any).pushNotifications ?? true,
+        systemNotifications: (fullUser as any).systemNotifications ?? true,
       })
       setShowEditModal(true)
     } catch (error: any) {
@@ -152,6 +153,16 @@ const Users = () => {
   const handleDelete = (user: User) => {
     setSelectedUser(user)
     setShowDeleteConfirm(true)
+  }
+
+  const handleViewDetail = async (user: User) => {
+    try {
+      const fullUser = await getUser(user.id)
+      setSelectedUser(fullUser)
+      setShowDetailModal(true)
+    } catch (error: any) {
+      showAlert('获取用户详情失败', 'error', error?.msg || error?.message)
+    }
   }
 
   // 提交创建
@@ -180,12 +191,16 @@ const Users = () => {
         firstName: formData.firstName,
         lastName: formData.lastName,
         role: formData.role,
-        isStaff: formData.isStaff,
         enabled: formData.enabled,
-        activated: formData.activated,
         phone: formData.phone,
         locale: formData.locale,
         timezone: formData.timezone,
+        city: (formData as any).city,
+        region: (formData as any).region,
+        gender: (formData as any).gender,
+        emailNotifications: (formData as any).emailNotifications,
+        pushNotifications: (formData as any).pushNotifications,
+        systemNotifications: (formData as any).systemNotifications,
       }
       // 只有在编辑模式下且密码不为空时才更新密码
       if (formData.password) {
@@ -254,14 +269,14 @@ const Users = () => {
                   <SelectItem value="false">已禁用</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={isStaffFilter} onValueChange={setIsStaffFilter}>
-                <SelectTrigger className="w-full sm:w-32">
-                  <SelectValue placeholder="员工" />
+              <Select value={hasPhoneFilter} onValueChange={setHasPhoneFilter}>
+                <SelectTrigger className="w-full sm:w-36">
+                  <SelectValue placeholder="手机号" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">全部</SelectItem>
-                  <SelectItem value="true">是</SelectItem>
-                  <SelectItem value="false">否</SelectItem>
+                  <SelectItem value="">全部手机号</SelectItem>
+                  <SelectItem value="true">有手机号</SelectItem>
+                  <SelectItem value="false">无手机号</SelectItem>
                 </SelectContent>
               </Select>
               <Button
@@ -306,6 +321,8 @@ const Users = () => {
                     <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-300">姓名</th>
                     <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-300">角色</th>
                     <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-300">状态</th>
+                    <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-300">手机号</th>
+                    <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-300">最近登录</th>
                     <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-300">登录次数</th>
                     <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-300">操作</th>
                   </tr>
@@ -324,16 +341,9 @@ const Users = () => {
                         {user.displayName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || '-'}
                       </td>
                       <td className="py-3 px-4">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <Badge variant={user.role === 'admin' ? 'primary' : 'secondary'}>
-                            {user.role || 'user'}
-                          </Badge>
-                          {user.isStaff && (
-                            <Badge variant="success" icon={<Shield className="w-3 h-3" />}>
-                              Staff
-                            </Badge>
-                          )}
-                        </div>
+                        <Badge variant={user.role === 'admin' || user.role === 'superadmin' ? 'primary' : 'secondary'}>
+                          {user.role || 'user'}
+                        </Badge>
                       </td>
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -346,16 +356,20 @@ const Users = () => {
                               已禁用
                             </Badge>
                           )}
-                          {user.activated && (
-                            <Badge variant="success" icon={<ShieldCheck className="w-3 h-3" />}>
-                              已激活
-                            </Badge>
-                          )}
                         </div>
                       </td>
+                      <td className="py-3 px-4">{user.phone || '-'}</td>
+                      <td className="py-3 px-4">{user.lastLogin ? new Date(user.lastLogin).toLocaleString('zh-CN') : '-'}</td>
                       <td className="py-3 px-4">{user.loginCount || 0}</td>
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleViewDetail(user)}
+                          >
+                            <span>详情</span>
+                          </Button>
                           <Button
                             variant="ghost"
                             size="sm"
@@ -470,29 +484,11 @@ const Users = () => {
                 <label className="flex items-center gap-2">
                   <input
                     type="checkbox"
-                    checked={formData.isStaff}
-                    onChange={(e) => setFormData({ ...formData, isStaff: e.target.checked })}
-                    className="rounded"
-                  />
-                  <span className="text-sm">员工</span>
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
                     checked={formData.enabled}
                     onChange={(e) => setFormData({ ...formData, enabled: e.target.checked })}
                     className="rounded"
                   />
                   <span className="text-sm">启用</span>
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={formData.activated}
-                    onChange={(e) => setFormData({ ...formData, activated: e.target.checked })}
-                    className="rounded"
-                  />
-                  <span className="text-sm">激活</span>
                 </label>
               </div>
               
@@ -571,29 +567,11 @@ const Users = () => {
                 <label className="flex items-center gap-2">
                   <input
                     type="checkbox"
-                    checked={formData.isStaff}
-                    onChange={(e) => setFormData({ ...formData, isStaff: e.target.checked })}
-                    className="rounded"
-                  />
-                  <span className="text-sm">员工</span>
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
                     checked={formData.enabled}
                     onChange={(e) => setFormData({ ...formData, enabled: e.target.checked })}
                     className="rounded"
                   />
                   <span className="text-sm">启用</span>
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={formData.activated}
-                    onChange={(e) => setFormData({ ...formData, activated: e.target.checked })}
-                    className="rounded"
-                  />
-                  <span className="text-sm">激活</span>
                 </label>
               </div>
               
@@ -626,6 +604,36 @@ const Users = () => {
           cancelText="取消"
           variant="danger"
         />
+
+        <Modal
+          isOpen={showDetailModal}
+          onClose={() => {
+            setShowDetailModal(false)
+            setSelectedUser(null)
+          }}
+          title="用户详情"
+          size="lg"
+        >
+          {selectedUser && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div><span className="text-slate-500">ID：</span>{selectedUser.id}</div>
+              <div><span className="text-slate-500">邮箱：</span>{selectedUser.email}</div>
+              <div><span className="text-slate-500">显示名：</span>{selectedUser.displayName || '-'}</div>
+              <div><span className="text-slate-500">角色：</span>{selectedUser.role || 'user'}</div>
+              <div><span className="text-slate-500">手机号：</span>{selectedUser.phone || '-'}</div>
+              <div><span className="text-slate-500">时区：</span>{selectedUser.timezone || '-'}</div>
+              <div><span className="text-slate-500">城市：</span>{(selectedUser as any).city || '-'}</div>
+              <div><span className="text-slate-500">地区：</span>{(selectedUser as any).region || '-'}</div>
+              <div><span className="text-slate-500">性别：</span>{(selectedUser as any).gender || '-'}</div>
+              <div><span className="text-slate-500">最近登录：</span>{selectedUser.lastLogin ? new Date(selectedUser.lastLogin).toLocaleString('zh-CN') : '-'}</div>
+              <div><span className="text-slate-500">登录次数：</span>{selectedUser.loginCount || 0}</div>
+              <div><span className="text-slate-500">状态：</span>{selectedUser.enabled ? '启用' : '禁用'}</div>
+              <div><span className="text-slate-500">邮件通知：</span>{(selectedUser as any).emailNotifications ? '开' : '关'}</div>
+              <div><span className="text-slate-500">推送通知：</span>{(selectedUser as any).pushNotifications ? '开' : '关'}</div>
+              <div><span className="text-slate-500">系统通知：</span>{(selectedUser as any).systemNotifications ? '开' : '关'}</div>
+            </div>
+          )}
+        </Modal>
       </div>
     </AdminLayout>
   )
