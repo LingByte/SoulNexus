@@ -240,6 +240,7 @@
       border-radius: 10px;
       background: #fbfaff;
       height: 42px;
+      position: relative;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -328,10 +329,28 @@
       border-radius: 16px;
       padding: 24px;
       width: 100%;
-      max-width: 380px;
+      max-width: 420px;
       box-shadow: var(--shadow);
       transform: scale(0.95);
       transition: transform var(--duration) ease;
+    }
+    .modal.click-mode {
+      max-width: 520px;
+    }
+    .modal-captcha-layout {
+      display: grid;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .modal-captcha-layout .input {
+      height: 44px;
+    }
+    .modal-captcha-box {
+      height: 180px !important;
+      border-radius: 12px !important;
+    }
+    .modal.click-mode .modal-captcha-box {
+      height: 260px !important;
     }
     .modal-overlay.active .modal {
       transform: scale(1);
@@ -399,6 +418,8 @@
       .left { display: flex; flex-direction: column; align-items: center; padding: 24px 16px; text-align: center; }
       .right { padding: 16px 14px; }
       .wx-card { margin-top: 12px; }
+      .modal.click-mode { max-width: 94vw; }
+      .modal.click-mode .modal-captcha-box { height: 220px !important; }
     }
   </style>
 </head>
@@ -471,17 +492,6 @@
         </div>
 
 
-        <div id="device-verify-box" class="verify-box hidden">
-          <div class="field">
-            <label for="device-code">设备验证码</label>
-            <input id="device-code" class="input" type="text" inputmode="numeric" placeholder="请输入邮箱中的设备验证码" />
-          </div>
-          <div class="actions">
-            <button id="send-device-code" class="btn secondary" type="button">发送设备验证码</button>
-            <button id="verify-device-code" class="btn primary" type="button">验证设备</button>
-          </div>
-        </div>
-
         <button id="login-submit" class="btn primary" type="button">登录</button>
 
         <div class="helper">
@@ -514,22 +524,36 @@
   <div id="captcha-modal" class="modal-overlay">
     <div class="modal">
       <h3 class="modal-title">请输入图形验证码</h3>
-      <div class="captcha-row" style="margin-bottom: 16px;">
+      <div class="modal-captcha-layout">
         <input id="modal-captcha-code" class="input" type="text" required placeholder="请输入图形验证码" />
-        <div id="modal-captcha-box" class="captcha" title="点击刷新验证码">
+        <div id="modal-captcha-box" class="captcha modal-captcha-box" title="点击刷新验证码">
           <img id="modal-captcha-image" alt="captcha" />
         </div>
       </div>
       <div class="actions">
-        <button id="modal-captcha-cancel" class="btn secondary" type="button">取消</button>
         <button id="modal-captcha-confirm" class="btn primary" type="button">确认</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="device-verify-modal" class="modal-overlay">
+    <div class="modal">
+      <h3 class="modal-title">新设备验证</h3>
+      <div class="field" style="margin-bottom: 10px;">
+        <label for="device-code">设备验证码</label>
+        <input id="device-code" class="input" type="text" inputmode="numeric" placeholder="请输入邮箱中的设备验证码" />
+      </div>
+      <div id="device-verify-message" class="message"></div>
+      <div class="actions">
+        <button id="send-device-code" class="btn secondary" type="button">发送设备验证码</button>
+        <button id="verify-device-code" class="btn primary" type="button">验证设备</button>
       </div>
     </div>
   </div>
 
   <script>
     (function () {
-      const state = { mode: 'password', captchaId: '', pendingDeviceId: '', wechatSessionId: '', wechatPolling: null };
+      const state = { mode: 'password', captchaId: '', captchaType: 'image', captchaCount: 0, captchaWords: [], captchaPoints: [], pendingDeviceId: '', wechatSessionId: '', wechatPolling: null };
       const rawNext = document.body.dataset.next || '';
       const oidcClientID = (document.body.dataset.oidcClientId || '').trim();
       const oidcRedirectURI = (document.body.dataset.oidcRedirectUri || '').trim();
@@ -566,6 +590,14 @@
         btn.disabled = !!loading;
         btn.textContent = loading ? loadingText : idleText;
       };
+      const openDeviceVerifyModal = () => {
+        $('device-code').value = '';
+        setMessage('device-verify-message', '', '');
+        $('device-verify-modal').classList.add('active');
+      };
+      const closeDeviceVerifyModal = () => {
+        $('device-verify-modal').classList.remove('active');
+      };
       const setMode = (mode) => {
         state.mode = mode;
         $('mode-password').classList.toggle('active', mode === 'password');
@@ -583,6 +615,55 @@
         let data = {};
         try { data = await resp.json(); } catch (_) {}
         return { resp, data };
+      };
+
+      const resetCaptchaModalUI = () => {
+        state.captchaPoints = [];
+        const modal = document.querySelector('#captcha-modal .modal');
+        if (modal) modal.classList.remove('click-mode');
+        $('modal-captcha-code').value = '';
+        $('modal-captcha-code').style.display = 'block';
+        $('modal-captcha-code').placeholder = '请输入图形验证码';
+        renderCaptchaPoints();
+        const titleEl = document.querySelector('#captcha-modal .modal-title');
+        if (titleEl) titleEl.textContent = '请输入图形验证码';
+      };
+      const renderCaptchaPoints = () => {
+        const box = $('modal-captcha-box');
+        const img = $('modal-captcha-image');
+        if (!box) return;
+        box.querySelectorAll('.captcha-point').forEach((el) => el.remove());
+        const rect = img ? img.getBoundingClientRect() : null;
+        const displayW = rect && rect.width ? rect.width : 1;
+        const displayH = rect && rect.height ? rect.height : 1;
+        const naturalW = img && img.naturalWidth ? img.naturalWidth : displayW;
+        const naturalH = img && img.naturalHeight ? img.naturalHeight : displayH;
+        const containScale = Math.min(displayW / (naturalW || 1), displayH / (naturalH || 1));
+        const renderedW = (naturalW || 1) * containScale;
+        const renderedH = (naturalH || 1) * containScale;
+        const padX = (displayW - renderedW) / 2;
+        const padY = (displayH - renderedH) / 2;
+        state.captchaPoints.forEach((p, idx) => {
+          const dot = document.createElement('div');
+          dot.className = 'captcha-point';
+          dot.textContent = String(idx + 1);
+          dot.style.position = 'absolute';
+          dot.style.left = `${Math.round(p.x * containScale + padX)}px`;
+          dot.style.top = `${Math.round(p.y * containScale + padY)}px`;
+          dot.style.transform = 'translate(-50%, -50%)';
+          dot.style.width = '18px';
+          dot.style.height = '18px';
+          dot.style.borderRadius = '999px';
+          dot.style.background = 'rgba(79, 71, 230, 0.92)';
+          dot.style.color = '#fff';
+          dot.style.fontSize = '11px';
+          dot.style.fontWeight = '700';
+          dot.style.display = 'flex';
+          dot.style.alignItems = 'center';
+          dot.style.justifyContent = 'center';
+          dot.style.pointerEvents = 'none';
+          box.appendChild(dot);
+        });
       };
 
       const initWechatMessageLogin = async () => {
@@ -645,8 +726,22 @@
           if (!resp.ok || data.code !== 200 || !data.data) {
             throw new Error(data.msg || '获取图形验证码失败');
           }
+          resetCaptchaModalUI();
           state.captchaId = data.data.id || '';
+          state.captchaType = data.data.type || 'image';
+          state.captchaCount = Number(data.data.count || 0);
+          state.captchaWords = Array.isArray(data.data.words) ? data.data.words : [];
           $('modal-captcha-image').src = data.data.image || '';
+          if (state.captchaType === 'click') {
+            const modal = document.querySelector('#captcha-modal .modal');
+            if (modal) modal.classList.add('click-mode');
+            $('modal-captcha-code').style.display = 'none';
+            const titleEl = document.querySelector('#captcha-modal .modal-title');
+            if (titleEl) {
+              const wordsText = state.captchaWords.length ? state.captchaWords.join('、') : '图中字符';
+              titleEl.textContent = '请依次点击图中字符：' + wordsText;
+            }
+          }
         } catch (err) {
           setMessage('login-message', err.message || '获取图形验证码失败', 'error');
         }
@@ -654,14 +749,13 @@
 
       $('mode-password').addEventListener('click', () => setMode('password'));
       $('mode-email').addEventListener('click', () => setMode('email'));
-      $('modal-captcha-box').addEventListener('click', loadCaptcha);
-      $('modal-captcha-image').addEventListener('click', loadCaptcha);
-      $('modal-captcha-cancel').addEventListener('click', () => {
-        $('captcha-modal').classList.remove('active');
-        $('modal-captcha-code').value = '';
+      $('modal-captcha-box').addEventListener('click', () => {
+        if (state.captchaType !== 'click') loadCaptcha();
       });
 
+      let emailCodeCooldown = false;
       $('send-email-code').addEventListener('click', async () => {
+        if (emailCodeCooldown) return;
         const email = $('email').value.trim();
         if (!email) {
           setMessage('login-message', '请先输入邮箱地址', 'error');
@@ -672,6 +766,18 @@
           const { resp, data } = await apiRequest('/api/auth/send/email', { email: email });
           if (!resp.ok || data.code !== 200) throw new Error(data.msg || '发送邮箱验证码失败');
           setMessage('login-message', '邮箱验证码已发送，请查收', 'success');
+          emailCodeCooldown = true;
+          let remaining = 180;
+          const btn = $('send-email-code');
+          const interval = setInterval(() => {
+            btn.textContent = remaining + '秒后重发';
+            remaining--;
+            if (remaining < 0) {
+              clearInterval(interval);
+              emailCodeCooldown = false;
+              btn.textContent = '发送验证码';
+            }
+          }, 1000);
         } catch (err) {
           setMessage('login-message', err.message || '发送邮箱验证码失败', 'error');
         } finally {
@@ -682,7 +788,7 @@
       $('send-device-code').addEventListener('click', async () => {
         const email = $('email').value.trim();
         if (!email || !state.pendingDeviceId) {
-          setMessage('login-message', '缺少设备验证上下文，请重新登录', 'error');
+          setMessage('device-verify-message', '缺少设备验证上下文，请重新登录', 'error');
           return;
         }
         setBtnLoading('send-device-code', true, '发送设备验证码', '发送中...');
@@ -692,9 +798,9 @@
             deviceId: state.pendingDeviceId,
           });
           if (!resp.ok || data.code !== 200) throw new Error(data.msg || '发送设备验证码失败');
-          setMessage('login-message', '设备验证码已发送至邮箱', 'success');
+          setMessage('device-verify-message', '设备验证码已发送至邮箱', 'success');
         } catch (err) {
-          setMessage('login-message', err.message || '发送设备验证码失败', 'error');
+          setMessage('device-verify-message', err.message || '发送设备验证码失败', 'error');
         } finally {
           setBtnLoading('send-device-code', false, '发送设备验证码', '发送中...');
         }
@@ -704,7 +810,7 @@
         const email = $('email').value.trim();
         const code = $('device-code').value.trim();
         if (!email || !state.pendingDeviceId || !code) {
-          setMessage('login-message', '请输入完整设备验证码信息', 'error');
+          setMessage('device-verify-message', '请输入完整设备验证码信息', 'error');
           return;
         }
         setBtnLoading('verify-device-code', true, '验证设备', '验证中...');
@@ -715,11 +821,11 @@
             verifyCode: code,
           });
           if (!resp.ok || data.code !== 200) throw new Error(data.msg || '设备验证失败');
+          closeDeviceVerifyModal();
           setMessage('login-message', '设备验证成功，请重新登录', 'success');
-          $('device-verify-box').classList.add('hidden');
           state.pendingDeviceId = '';
         } catch (err) {
-          setMessage('login-message', err.message || '设备验证失败', 'error');
+          setMessage('device-verify-message', err.message || '设备验证失败', 'error');
         } finally {
           setBtnLoading('verify-device-code', false, '验证设备', '验证中...');
         }
@@ -757,7 +863,7 @@
         }
       });
 
-      const performLogin = async (captchaCode, skipCaptcha = false) => {
+      const performLogin = async (captchaCode, captchaData, skipCaptcha = false) => {
         const payload = {
           email: $('email').value.trim(),
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
@@ -765,7 +871,12 @@
         };
         if (!skipCaptcha) {
           payload.captchaId = state.captchaId;
-          payload.captchaCode = captchaCode;
+          payload.captchaType = state.captchaType;
+          if (state.captchaType === 'click') {
+            payload.captchaData = captchaData || '';
+          } else {
+            payload.captchaCode = captchaCode;
+          }
         }
         if (state.mode === 'password') {
           payload.password = $('password').value;
@@ -784,12 +895,15 @@
           if (result.requiresTwoFactor) {
             $('twofactor-field').classList.remove('hidden');
             setMessage('login-message', result.message || '请输入两步验证码', 'info');
+            setBtnLoading('login-submit', false, '登录', '登录中...');
             return;
           }
           if (result.requiresDeviceVerification) {
             state.pendingDeviceId = result.deviceId || '';
-            $('device-verify-box').classList.remove('hidden');
+            openDeviceVerifyModal();
+            setTimeout(() => { $('send-device-code').click(); }, 0);
             setMessage('login-message', result.message || '当前设备需要验证后才能登录', 'info');
+            setBtnLoading('login-submit', false, '登录', '登录中...');
             return;
           }
 
@@ -807,7 +921,6 @@
         } catch (err) {
           setMessage('login-message', err.message || '登录失败', 'error');
           if (!skipCaptcha) loadCaptcha();
-        } finally {
           setBtnLoading('login-submit', false, '登录', '登录中...');
         }
       };
@@ -815,7 +928,7 @@
       $('login-submit').addEventListener('click', async () => {
         const twofactorCode = $('twofactor-code').value.trim();
         if (twofactorCode) {
-          await performLogin('', true);
+          await performLogin('', '', true);
           return;
         }
         
@@ -842,13 +955,50 @@
       });
 
       $('modal-captcha-confirm').addEventListener('click', async () => {
-        const captchaCode = $('modal-captcha-code').value.trim();
-        if (!captchaCode) {
+        let captchaCode = $('modal-captcha-code').value.trim();
+        if (state.captchaType === 'click') {
+          if (!state.captchaPoints.length || (state.captchaCount > 0 && state.captchaPoints.length !== state.captchaCount)) {
+            alert('请按提示完成点击验证码');
+            return;
+          }
+          const captchaData = JSON.stringify(state.captchaPoints);
+          $('captcha-modal').classList.remove('active');
+          await performLogin('', captchaData);
+          return;
+        } else if (!captchaCode) {
           alert('请输入图形验证码');
           return;
         }
         $('captcha-modal').classList.remove('active');
-        await performLogin(captchaCode);
+        await performLogin(captchaCode, '');
+      });
+      $('device-verify-modal').addEventListener('click', (event) => {
+        if (event.target === $('device-verify-modal')) {
+          closeDeviceVerifyModal();
+        }
+      });
+
+      $('modal-captcha-image').addEventListener('click', (event) => {
+        if (state.captchaType !== 'click') return;
+        const img = event.target;
+        const rect = img.getBoundingClientRect();
+        const offsetX = event.clientX - rect.left;
+        const offsetY = event.clientY - rect.top;
+        const naturalW = img.naturalWidth || rect.width || 1;
+        const naturalH = img.naturalHeight || rect.height || 1;
+        const containScale = Math.min((rect.width || 1) / naturalW, (rect.height || 1) / naturalH);
+        const renderedW = naturalW * containScale;
+        const renderedH = naturalH * containScale;
+        const padX = ((rect.width || 1) - renderedW) / 2;
+        const padY = ((rect.height || 1) - renderedH) / 2;
+        const imgX = offsetX - padX;
+        const imgY = offsetY - padY;
+        if (imgX < 0 || imgY < 0 || imgX > renderedW || imgY > renderedH) return;
+        const x = Math.round(imgX / containScale);
+        const y = Math.round(imgY / containScale);
+        if (state.captchaCount > 0 && state.captchaPoints.length >= state.captchaCount) return;
+        state.captchaPoints.push({ x, y });
+        renderCaptchaPoints();
       });
 
       loadCaptcha();

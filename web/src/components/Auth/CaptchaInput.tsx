@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { RefreshCw, Loader2 } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { getCaptcha } from '@/api/auth'
 
 interface CaptchaInputProps {
@@ -45,10 +45,6 @@ const CaptchaInput: React.FC<CaptchaInputProps> = ({
     }
   }, [])
 
-  const handleRefresh = () => {
-    fetchCaptcha()
-  }
-
   return (
     <div className={`space-y-2 ${className}`}>
       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -71,21 +67,12 @@ const CaptchaInput: React.FC<CaptchaInputProps> = ({
               src={captchaImage}
               alt="验证码"
               className="w-full h-full object-contain cursor-pointer"
-              onClick={handleRefresh}
+              onClick={fetchCaptcha}
               title="点击刷新验证码"
             />
           ) : (
             <div className="text-xs text-gray-400">加载中...</div>
           )}
-          <button
-            type="button"
-            onClick={handleRefresh}
-            disabled={loading}
-            className="absolute top-0 right-0 p-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-bl-lg transition-colors"
-            title="刷新验证码"
-          >
-            <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
-          </button>
         </div>
       </div>
     </div>

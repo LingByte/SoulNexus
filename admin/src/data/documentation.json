@@ -1,0 +1,955 @@
+{
+  "project": {
+    "name": "LingStorage",
+    "version": "1.0.0",
+    "description": "统一存储网关 - 支持多种存储后端的文件管理平台",
+    "github": "https://github.com/LingByte/LingStorage",
+    "license": "MIT"
+  },
+  "sections": [
+    {
+      "id": "getting-started",
+      "title": "快速开始",
+      "icon": "Zap",
+      "description": "快速安装和运行 LingStorage",
+      "content": [
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "安装和运行"
+        },
+        {
+          "type": "code",
+          "language": "bash",
+          "content": "# 克隆项目\ngit clone https://github.com/LingByte/LingStorage.git\ncd LingStorage\n\n# 安装依赖\ngo mod download\n\n# 配置环境变量\ncp env.example .env\n# 编辑 .env 文件配置数据库等信息\n\n# 初始化数据库\ngo run cmd/bootstrap/main.go\n\n# 启动服务器\ngo run cmd/server/main.go"
+        },
+        {
+          "type": "heading",
+          "level": 3,
+          "text": "系统要求"
+        },
+        {
+          "type": "list",
+          "items": [
+            {
+              "text": "Go 1.21+ - 后端开发语言",
+              "icon": "CheckCircle",
+              "status": "success"
+            },
+            {
+              "text": "MySQL 8.0+ / PostgreSQL 13+ / SQLite - 数据库",
+              "icon": "CheckCircle",
+              "status": "success"
+            },
+            {
+              "text": "Node.js 18+ - 前端开发环境（可选）",
+              "icon": "CheckCircle",
+              "status": "success"
+            }
+          ]
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "项目结构"
+        },
+        {
+          "type": "code",
+          "language": "text",
+          "content": "LingStorage/\n├── cmd/                 # 应用程序入口\n│   ├── server/          # Web服务器\n│   └── bootstrap/       # 数据库初始化\n├── internal/            # 内部包\n│   ├── handlers/        # HTTP处理器\n│   ├── models/          # 数据模型\n│   └── listeners/       # 事件监听器\n├── pkg/                 # 公共包\n│   ├── auth/            # 认证授权\n│   ├── storage/         # 存储管理\n│   ├── config/          # 配置管理\n│   ├── logger/          # 日志系统\n│   ├── middleware/      # 中间件\n│   └── utils/           # 工具函数\n├── admin/               # 前端管理后台\n│   ├── src/\n│   │   ├── components/  # React组件\n│   │   ├── pages/       # 页面组件\n│   │   └── services/    # API服务\n└── templates/           # 邮件模板"
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "环境配置"
+        },
+        {
+          "type": "paragraph",
+          "text": "创建环境配置文件 .env，以下是主要配置项："
+        },
+        {
+          "type": "code",
+          "language": "env",
+          "content": "# 应用环境\nAPP_ENV=development\n\n# 服务器配置\nADDR=:7075\nSERVER_NAME=LingStorage\nSERVER_URL=http://localhost:7075\n\n# 数据库配置\nDB_DRIVER=sqlite\nDSN=./ling.db\n\n# 日志配置\nLOG_LEVEL=info\nLOG_FILENAME=logs/app.log\n\n# API路径配置\nAPI_PREFIX=/api\nDOCS_PREFIX=/api/docs\n\n# 存储配置\nSTORAGE_KIND=local\n\n# 安全配置\nSESSION_SECRET=your-session-secret\nKEY_AUTH_TOKEN_EXPIRED=86400"
+        }
+      ]
+    },
+    {
+      "id": "api-reference",
+      "title": "API 参考",
+      "icon": "Code",
+      "description": "完整的 RESTful API 文档",
+      "content": [
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "认证 API"
+        },
+        {
+          "type": "paragraph",
+          "text": "所有需要认证的 API 都需要在请求头中包含 Authorization 字段："
+        },
+        {
+          "type": "code",
+          "language": "http",
+          "content": "Authorization: Bearer <your-jwt-token>"
+        },
+        {
+          "type": "api_endpoint",
+          "method": "POST",
+          "path": "/api/auth/login/password",
+          "title": "用户登录",
+          "description": "使用邮箱和密码进行用户认证，支持多种验证码类型",
+          "auth": false,
+          "requestBody": {
+            "email": "string",
+            "password": "string",
+            "captchaId": "string",
+            "captchaType": "string",
+            "captchaCode": "string",
+            "captchaData": "object"
+          },
+          "response": {
+            "code": 200,
+            "data": {
+              "token": "string",
+              "user": {
+                "id": "number",
+                "email": "string",
+                "displayName": "string"
+              }
+            }
+          }
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "存储管理 API"
+        },
+        {
+          "type": "api_endpoint",
+          "method": "GET",
+          "path": "/api/storage/info",
+          "title": "获取存储信息",
+          "description": "获取当前存储配置信息",
+          "auth": true
+        },
+        {
+          "type": "api_endpoint",
+          "method": "GET",
+          "path": "/api/storage/buckets",
+          "title": "获取存储桶列表",
+          "description": "列出所有存储桶",
+          "auth": true
+        },
+        {
+          "type": "api_endpoint",
+          "method": "POST",
+          "path": "/api/storage/buckets",
+          "title": "创建存储桶",
+          "description": "创建新的存储桶",
+          "auth": true,
+          "requestBody": {
+            "name": "string",
+            "region": "string"
+          }
+        },
+        {
+          "type": "api_endpoint",
+          "method": "POST",
+          "path": "/api/storage/buckets/:bucketName/files",
+          "title": "上传文件",
+          "description": "上传文件到指定存储桶",
+          "auth": true,
+          "requestBody": "multipart/form-data",
+          "parameters": [
+            {
+              "name": "file",
+              "type": "File",
+              "required": true,
+              "description": "要上传的文件"
+            },
+            {
+              "name": "key",
+              "type": "string",
+              "required": false,
+              "description": "文件存储路径"
+            }
+          ]
+        },
+        {
+          "type": "api_endpoint",
+          "method": "GET",
+          "path": "/api/storage/buckets/:bucketName/files",
+          "title": "获取文件列表",
+          "description": "列出存储桶中的文件",
+          "auth": true,
+          "parameters": [
+            {
+              "name": "prefix",
+              "type": "string",
+              "required": false,
+              "description": "文件路径前缀"
+            },
+            {
+              "name": "marker",
+              "type": "string",
+              "required": false,
+              "description": "分页标记"
+            }
+          ]
+        },
+        {
+          "type": "api_endpoint",
+          "method": "POST",
+          "path": "/api/public/upload",
+          "title": "公共上传接口",
+          "description": "无需认证的文件上传接口（统一存储网关）",
+          "auth": false,
+          "requestBody": "multipart/form-data",
+          "parameters": [
+            {
+              "name": "file",
+              "type": "File",
+              "required": true,
+              "description": "要上传的文件"
+            },
+            {
+              "name": "bucket",
+              "type": "string",
+              "required": false,
+              "description": "存储桶名称（默认：default）"
+            },
+            {
+              "name": "key",
+              "type": "string",
+              "required": false,
+              "description": "文件存储路径"
+            },
+            {
+              "name": "allowedTypes",
+              "type": "string[]",
+              "required": false,
+              "description": "允许的文件类型"
+            }
+          ]
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "配置管理 API"
+        },
+        {
+          "type": "api_endpoint",
+          "method": "GET",
+          "path": "/api/configs",
+          "title": "获取配置列表",
+          "description": "分页获取系统配置列表",
+          "auth": true,
+          "parameters": [
+            {
+              "name": "page",
+              "type": "number",
+              "required": false,
+              "description": "页码"
+            },
+            {
+              "name": "pageSize",
+              "type": "number",
+              "required": false,
+              "description": "每页数量"
+            },
+            {
+              "name": "autoload",
+              "type": "boolean",
+              "required": false,
+              "description": "是否自动加载"
+            },
+            {
+              "name": "public",
+              "type": "boolean",
+              "required": false,
+              "description": "是否公开"
+            },
+            {
+              "name": "search",
+              "type": "string",
+              "required": false,
+              "description": "搜索关键词"
+            }
+          ]
+        },
+        {
+          "type": "api_endpoint",
+          "method": "POST",
+          "path": "/api/configs",
+          "title": "创建配置",
+          "description": "创建新的系统配置",
+          "auth": true,
+          "requestBody": {
+            "key": "string",
+            "value": "string",
+            "desc": "string",
+            "format": "string",
+            "autoload": "boolean",
+            "public": "boolean"
+          }
+        },
+        {
+          "type": "paragraph",
+          "text": "更多 API 详情请在 http://localhost:7075/api/docs 查看。"
+        }
+      ]
+    },
+    {
+      "id": "file-upload-integration",
+      "title": "文件上传接口对接",
+      "icon": "Upload",
+      "description": "如何对接系统的文件上传接口进行文件上传",
+      "content": [
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "公共上传接口"
+        },
+        {
+          "type": "paragraph",
+          "text": "LingStorage 提供了公共文件上传接口，无需认证即可使用。该接口支持多种存储后端，提供统一的文件上传服务。"
+        },
+        {
+          "type": "api_endpoint",
+          "method": "POST",
+          "path": "/api/public/upload",
+          "title": "公共文件上传接口",
+          "description": "无需认证的文件上传接口，支持多种存储后端（本地存储、七牛云、腾讯云COS、阿里云OSS、MinIO、AWS S3等）",
+          "auth": false,
+          "requestBody": "multipart/form-data",
+          "parameters": [
+            {
+              "name": "file",
+              "type": "File",
+              "required": true,
+              "description": "要上传的文件（支持任意文件类型）"
+            },
+            {
+              "name": "bucket",
+              "type": "string",
+              "required": false,
+              "description": "存储桶名称，默认为 'default'"
+            },
+            {
+              "name": "key",
+              "type": "string",
+              "required": false,
+              "description": "文件存储路径，如果不提供则自动生成（格式：uploads/时间戳_文件名）"
+            },
+            {
+              "name": "allowedTypes",
+              "type": "string[]",
+              "required": false,
+              "description": "允许的文件类型列表（通过查询参数传递，如：?allowedTypes=jpg&allowedTypes=png）"
+            }
+          ],
+          "response": {
+            "code": 200,
+            "message": "File uploaded successfully",
+            "data": {
+              "key": "uploads/1234567890_example.jpg",
+              "bucket": "default",
+              "filename": "example.jpg",
+              "size": 1024000,
+              "url": "http://localhost:7075/uploads/1234567890_example.jpg"
+            }
+          }
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "JavaScript/TypeScript 示例"
+        },
+        {
+          "type": "paragraph",
+          "text": "使用原生 JavaScript 或 Fetch API 上传文件："
+        },
+        {
+          "type": "code",
+          "language": "javascript",
+          "content": "// 基础文件上传示例\nasync function uploadFile(file, bucket = 'default', key = '') {\n  const formData = new FormData()\n  formData.append('file', file)\n  formData.append('bucket', bucket)\n  if (key) {\n    formData.append('key', key)\n  }\n\n  try {\n    const response = await fetch('http://localhost:7075/api/public/upload', {\n      method: 'POST',\n      body: formData\n    })\n\n    const result = await response.json()\n    \n    if (result.code === 200) {\n      console.log('上传成功:', result.data.url)\n      return result.data\n    } else {\n      console.error('上传失败:', result.message)\n      throw new Error(result.message)\n    }\n  } catch (error) {\n    console.error('上传错误:', error)\n    throw error\n  }\n}\n\n// 使用示例\nconst fileInput = document.querySelector('input[type=\"file\"]')\nfileInput.addEventListener('change', async (e) => {\n  const file = e.target.files[0]\n  if (file) {\n    try {\n      const result = await uploadFile(file, 'default', 'my-files/example.jpg')\n      console.log('文件URL:', result.url)\n    } catch (error) {\n      console.error('上传失败:', error)\n    }\n  }\n})"
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "React 示例"
+        },
+        {
+          "type": "code",
+          "language": "typescript",
+          "content": "import { useState } from 'react'\n\ninterface UploadResult {\n  key: string\n  bucket: string\n  filename: string\n  size: number\n  url: string\n}\n\nfunction FileUpload() {\n  const [uploading, setUploading] = useState(false)\n  const [result, setResult] = useState<UploadResult | null>(null)\n  const [error, setError] = useState<string | null>(null)\n\n  const handleFileUpload = async (file: File, bucket = 'default', key = '') => {\n    setUploading(true)\n    setError(null)\n\n    const formData = new FormData()\n    formData.append('file', file)\n    formData.append('bucket', bucket)\n    if (key) {\n      formData.append('key', key)\n    }\n\n    try {\n      const response = await fetch('http://localhost:7075/api/public/upload', {\n        method: 'POST',\n        body: formData\n      })\n\n      const data = await response.json()\n\n      if (data.code === 200) {\n        setResult(data.data)\n      } else {\n        setError(data.message || '上传失败')\n      }\n    } catch (err) {\n      setError(err instanceof Error ? err.message : '上传失败')\n    } finally {\n      setUploading(false)\n    }\n  }\n\n  return (\n    <div>\n      <input\n        type=\"file\"\n        onChange={(e) => {\n          const file = e.target.files?.[0]\n          if (file) {\n            handleFileUpload(file)\n          }\n        }}\n        disabled={uploading}\n      />\n      {uploading && <p>上传中...</p>}\n      {error && <p style={{ color: 'red' }}>错误: {error}</p>}\n      {result && (\n        <div>\n          <p>上传成功！</p>\n          <p>文件URL: <a href={result.url}>{result.url}</a></p>\n        </div>\n      )}\n    </div>\n  )\n}\n\nexport default FileUpload"
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "使用 Axios 示例"
+        },
+        {
+          "type": "code",
+          "language": "javascript",
+          "content": "import axios from 'axios'\n\nasync function uploadFileWithAxios(file, bucket = 'default', key = '') {\n  const formData = new FormData()\n  formData.append('file', file)\n  formData.append('bucket', bucket)\n  if (key) {\n    formData.append('key', key)\n  }\n\n  try {\n    const response = await axios.post(\n      'http://localhost:7075/api/public/upload',\n      formData,\n      {\n        headers: {\n          'Content-Type': 'multipart/form-data'\n        },\n        onUploadProgress: (progressEvent) => {\n          const percentCompleted = Math.round(\n            (progressEvent.loaded * 100) / progressEvent.total\n          )\n          console.log(`上传进度: ${percentCompleted}%`)\n        }\n      }\n    )\n\n    if (response.data.code === 200) {\n      return response.data.data\n    } else {\n      throw new Error(response.data.message)\n    }\n  } catch (error) {\n    console.error('上传失败:', error)\n    throw error\n  }\n}"
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "Java 使用 Hutool 工具包示例"
+        },
+        {
+          "type": "paragraph",
+          "text": "使用 Hutool 的 HttpUtil 工具类发送文件上传请求："
+        },
+        {
+          "type": "code",
+          "language": "java",
+          "content": "import cn.hutool.core.io.FileUtil;\nimport cn.hutool.http.HttpRequest;\nimport cn.hutool.http.HttpResponse;\nimport cn.hutool.json.JSONObject;\nimport cn.hutool.json.JSONUtil;\nimport java.io.File;\n\npublic class FileUploadClient {\n    private static final String UPLOAD_URL = \"http://localhost:7075/api/public/upload\";\n    \n    /**\n     * 上传文件\n     * @param filePath 文件路径\n     * @param bucket 存储桶名称（可选，默认为 default）\n     * @param key 文件存储路径（可选）\n     * @return 上传结果\n     */\n    public static UploadResult uploadFile(String filePath, String bucket, String key) {\n        File file = new File(filePath);\n        if (!file.exists()) {\n            throw new RuntimeException(\"文件不存在: \" + filePath);\n        }\n        \n        try {\n            HttpRequest request = HttpRequest.post(UPLOAD_URL)\n                    .form(\"file\", file);\n            \n            // 添加可选参数\n            if (bucket != null && !bucket.isEmpty()) {\n                request.form(\"bucket\", bucket);\n            }\n            if (key != null && !key.isEmpty()) {\n                request.form(\"key\", key);\n            }\n            \n            HttpResponse response = request.execute();\n            \n            if (response.getStatus() == 200) {\n                JSONObject json = JSONUtil.parseObj(response.body());\n                if (json.getInt(\"code\") == 200) {\n                    JSONObject data = json.getJSONObject(\"data\");\n                    UploadResult result = new UploadResult();\n                    result.setKey(data.getStr(\"key\"));\n                    result.setBucket(data.getStr(\"bucket\"));\n                    result.setFilename(data.getStr(\"filename\"));\n                    result.setSize(data.getLong(\"size\"));\n                    result.setUrl(data.getStr(\"url\"));\n                    return result;\n                } else {\n                    throw new RuntimeException(\"上传失败: \" + json.getStr(\"message\"));\n                }\n            } else {\n                throw new RuntimeException(\"HTTP 请求失败，状态码: \" + response.getStatus());\n            }\n        } catch (Exception e) {\n            throw new RuntimeException(\"上传文件失败\", e);\n        }\n    }\n    \n    /**\n     * 上传文件（带文件类型限制）\n     */\n    public static UploadResult uploadFileWithTypeLimit(String filePath, String[] allowedTypes) {\n        File file = new File(filePath);\n        \n        // 构建 URL，添加文件类型限制参数\n        StringBuilder url = new StringBuilder(UPLOAD_URL);\n        if (allowedTypes != null && allowedTypes.length > 0) {\n            url.append(\"?\");\n            for (int i = 0; i < allowedTypes.length; i++) {\n                if (i > 0) url.append(\"&\");\n                url.append(\"allowedTypes=\").append(allowedTypes[i]);\n            }\n        }\n        \n        HttpRequest request = HttpRequest.post(url.toString())\n                .form(\"file\", file);\n        \n        HttpResponse response = request.execute();\n        JSONObject json = JSONUtil.parseObj(response.body());\n        \n        if (json.getInt(\"code\") == 200) {\n            JSONObject data = json.getJSONObject(\"data\");\n            UploadResult result = new UploadResult();\n            result.setKey(data.getStr(\"key\"));\n            result.setBucket(data.getStr(\"bucket\"));\n            result.setFilename(data.getStr(\"filename\"));\n            result.setSize(data.getLong(\"size\"));\n            result.setUrl(data.getStr(\"url\"));\n            return result;\n        } else {\n            throw new RuntimeException(\"上传失败: \" + json.getStr(\"message\"));\n        }\n    }\n    \n    // 使用示例\n    public static void main(String[] args) {\n        try {\n            // 基础上传\n            UploadResult result = uploadFile(\"/path/to/file.jpg\", \"default\", \"my-files/example.jpg\");\n            System.out.println(\"上传成功，文件URL: \" + result.getUrl());\n            \n            // 带文件类型限制的上传\n            UploadResult result2 = uploadFileWithTypeLimit(\"/path/to/image.png\", \n                    new String[]{\"jpg\", \"png\"});\n            System.out.println(\"上传成功，文件URL: \" + result2.getUrl());\n        } catch (Exception e) {\n            e.printStackTrace();\n        }\n    }\n}\n\n// 上传结果类\nclass UploadResult {\n    private String key;\n    private String bucket;\n    private String filename;\n    private Long size;\n    private String url;\n    \n    // Getters and Setters\n    public String getKey() { return key; }\n    public void setKey(String key) { this.key = key; }\n    public String getBucket() { return bucket; }\n    public void setBucket(String bucket) { this.bucket = bucket; }\n    public String getFilename() { return filename; }\n    public void setFilename(String filename) { this.filename = filename; }\n    public Long getSize() { return size; }\n    public void setSize(Long size) { this.size = size; }\n    public String getUrl() { return url; }\n    public void setUrl(String url) { this.url = url; }\n}"
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "Go 语言示例"
+        },
+        {
+          "type": "paragraph",
+          "text": "使用 Go 标准库或第三方库发送文件上传请求："
+        },
+        {
+          "type": "code",
+          "language": "go",
+          "content": "package main\n\nimport (\n\t\"bytes\"\n\t\"encoding/json\"\n\t\"fmt\"\n\t\"io\"\n\t\"mime/multipart\"\n\t\"net/http\"\n\t\"os\"\n\t\"path/filepath\"\n)\n\ntype UploadResult struct {\n\tKey      string `json:\"key\"`\n\tBucket   string `json:\"bucket\"`\n\tFilename string `json:\"filename\"`\n\tSize     int64  `json:\"size\"`\n\tURL      string `json:\"url\"`\n}\n\ntype UploadResponse struct {\n\tCode    int          `json:\"code\"`\n\tMessage string       `json:\"message\"`\n\tData    UploadResult `json:\"data\"`\n}\n\n// UploadFile 上传文件到 LingStorage\nfunc UploadFile(filePath string, bucket string, key string) (*UploadResult, error) {\n\t// 打开文件\n\tfile, err := os.Open(filePath)\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"打开文件失败: %w\", err)\n\t}\n\tdefer file.Close()\n\t\n\t// 获取文件信息\n\tfileInfo, err := file.Stat()\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"获取文件信息失败: %w\", err)\n\t}\n\t\n\t// 创建 multipart writer\n\tbody := &bytes.Buffer{}\n\twriter := multipart.NewWriter(body)\n\t\n\t// 添加文件字段\n\tpart, err := writer.CreateFormFile(\"file\", filepath.Base(filePath))\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"创建文件字段失败: %w\", err)\n\t}\n\t\n\t_, err = io.Copy(part, file)\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"复制文件内容失败: %w\", err)\n\t}\n\t\n\t// 添加可选参数\n\tif bucket != \"\" {\n\t\twriter.WriteField(\"bucket\", bucket)\n\t}\n\tif key != \"\" {\n\t\twriter.WriteField(\"key\", key)\n\t}\n\t\n\t// 关闭 writer\n\twriter.Close()\n\t\n\t// 创建 HTTP 请求\n\treq, err := http.NewRequest(\"POST\", \"http://localhost:7075/api/public/upload\", body)\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"创建请求失败: %w\", err)\n\t}\n\t\n\treq.Header.Set(\"Content-Type\", writer.FormDataContentType())\n\t\n\t// 发送请求\n\tclient := &http.Client{}\n\tresp, err := client.Do(req)\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"发送请求失败: %w\", err)\n\t}\n\tdefer resp.Body.Close()\n\t\n\t// 读取响应\n\tvar uploadResp UploadResponse\n\tif err := json.NewDecoder(resp.Body).Decode(&uploadResp); err != nil {\n\t\treturn nil, fmt.Errorf(\"解析响应失败: %w\", err)\n\t}\n\t\n\tif uploadResp.Code != 200 {\n\t\treturn nil, fmt.Errorf(\"上传失败: %s\", uploadResp.Message)\n\t}\n\t\n\treturn &uploadResp.Data, nil\n}\n\n// UploadFileWithTypeLimit 上传文件（带文件类型限制）\nfunc UploadFileWithTypeLimit(filePath string, allowedTypes []string) (*UploadResult, error) {\n\t// 打开文件\n\tfile, err := os.Open(filePath)\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"打开文件失败: %w\", err)\n\t}\n\tdefer file.Close()\n\t\n\t// 创建 multipart writer\n\tbody := &bytes.Buffer{}\n\twriter := multipart.NewWriter(body)\n\t\n\t// 添加文件字段\n\tpart, err := writer.CreateFormFile(\"file\", filepath.Base(filePath))\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"创建文件字段失败: %w\", err)\n\t}\n\t\n\t_, err = io.Copy(part, file)\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"复制文件内容失败: %w\", err)\n\t}\n\t\n\twriter.Close()\n\t\n\t// 构建 URL，添加文件类型限制参数\n\turl := \"http://localhost:7075/api/public/upload\"\n\tif len(allowedTypes) > 0 {\n\t\turl += \"?\"\n\t\tfor i, t := range allowedTypes {\n\t\t\tif i > 0 {\n\t\t\t\turl += \"&\"\n\t\t\t}\n\t\t\turl += \"allowedTypes=\" + t\n\t\t}\n\t}\n\t\n\t// 创建 HTTP 请求\n\treq, err := http.NewRequest(\"POST\", url, body)\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"创建请求失败: %w\", err)\n\t}\n\t\n\treq.Header.Set(\"Content-Type\", writer.FormDataContentType())\n\t\n\t// 发送请求\n\tclient := &http.Client{}\n\tresp, err := client.Do(req)\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"发送请求失败: %w\", err)\n\t}\n\tdefer resp.Body.Close()\n\t\n\t// 读取响应\n\tvar uploadResp UploadResponse\n\tif err := json.NewDecoder(resp.Body).Decode(&uploadResp); err != nil {\n\t\treturn nil, fmt.Errorf(\"解析响应失败: %w\", err)\n\t}\n\t\n\tif uploadResp.Code != 200 {\n\t\treturn nil, fmt.Errorf(\"上传失败: %s\", uploadResp.Message)\n\t}\n\t\n\treturn &uploadResp.Data, nil\n}\n\n// 使用示例\nfunc main() {\n\t// 基础上传\n\tresult, err := UploadFile(\"/path/to/file.jpg\", \"default\", \"my-files/example.jpg\")\n\tif err != nil {\n\t\tfmt.Printf(\"上传失败: %v\\n\", err)\n\t\treturn\n\t}\n\tfmt.Printf(\"上传成功，文件URL: %s\\n\", result.URL)\n\t\n\t// 带文件类型限制的上传\n\tresult2, err := UploadFileWithTypeLimit(\"/path/to/image.png\", []string{\"jpg\", \"png\"})\n\tif err != nil {\n\t\tfmt.Printf(\"上传失败: %v\\n\", err)\n\t\treturn\n\t}\n\tfmt.Printf(\"上传成功，文件URL: %s\\n\", result2.URL)\n}"
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "使用 Go 第三方库（推荐）"
+        },
+        {
+          "type": "paragraph",
+          "text": "使用 go-resty 或 httpclient 等第三方库可以简化代码："
+        },
+        {
+          "type": "code",
+          "language": "go",
+          "content": "package main\n\nimport (\n\t\"fmt\"\n\t\"github.com/go-resty/resty/v2\"\n)\n\ntype UploadResult struct {\n\tKey      string `json:\"key\"`\n\tBucket   string `json:\"bucket\"`\n\tFilename string `json:\"filename\"`\n\tSize     int64  `json:\"size\"`\n\tURL      string `json:\"url\"`\n}\n\ntype UploadResponse struct {\n\tCode    int          `json:\"code\"`\n\tMessage string       `json:\"message\"`\n\tData    UploadResult `json:\"data\"`\n}\n\n// UploadFileWithResty 使用 go-resty 上传文件\nfunc UploadFileWithResty(filePath string, bucket string, key string) (*UploadResult, error) {\n\tclient := resty.New()\n\t\n\tvar resp UploadResponse\n\t\n\t_, err := client.R().\n\t\tSetFile(\"file\", filePath).\n\t\tSetFormData(map[string]string{\n\t\t\t\"bucket\": bucket,\n\t\t\t\"key\":    key,\n\t\t}).\n\t\tSetResult(&resp).\n\t\tPost(\"http://localhost:7075/api/public/upload\")\n\t\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"上传失败: %w\", err)\n\t}\n\t\n\tif resp.Code != 200 {\n\t\treturn nil, fmt.Errorf(\"上传失败: %s\", resp.Message)\n\t}\n\t\n\treturn &resp.Data, nil\n}\n\nfunc main() {\n\tresult, err := UploadFileWithResty(\"/path/to/file.jpg\", \"default\", \"my-files/example.jpg\")\n\tif err != nil {\n\t\tfmt.Printf(\"上传失败: %v\\n\", err)\n\t\treturn\n\t}\n\tfmt.Printf(\"上传成功，文件URL: %s\\n\", result.URL)\n}"
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "gRPC 对接说明"
+        },
+        {
+          "type": "paragraph",
+          "text": "LingStorage 目前主要提供 RESTful API 接口。如果需要使用 gRPC 进行对接，有以下几种方案："
+        },
+        {
+          "type": "heading",
+          "level": 3,
+          "text": "方案一：通过 gRPC-Gateway 代理"
+        },
+        {
+          "type": "paragraph",
+          "text": "可以使用 gRPC-Gateway 将现有的 REST API 转换为 gRPC 接口。gRPC-Gateway 是一个插件，它读取 gRPC 服务定义并生成反向代理服务器，将 RESTful JSON API 转换为 gRPC。"
+        },
+        {
+          "type": "code",
+          "language": "protobuf",
+          "content": "syntax = \"proto3\";\n\npackage lingstorage;\n\noption go_package = \"./pb\";\n\nimport \"google/api/annotations.proto\";\n\n// 文件上传服务\ndefine FileUploadService {\n  // 上传文件\n  rpc UploadFile(UploadFileRequest) returns (UploadFileResponse) {\n    option (google.api.http) = {\n      post: \"/api/public/upload\"\n      body: \"*\"\n    };\n  }\n}\n\n// 上传文件请求\nmessage UploadFileRequest {\n  bytes file_content = 1;  // 文件内容\n  string filename = 2;      // 文件名\n  string bucket = 3;        // 存储桶名称（可选）\n  string key = 4;           // 文件存储路径（可选）\n  repeated string allowed_types = 5; // 允许的文件类型（可选）\n}\n\n// 上传文件响应\nmessage UploadFileResponse {\n  int32 code = 1;\n  string message = 2;\n  FileData data = 3;\n}\n\n// 文件数据\nmessage FileData {\n  string key = 1;\n  string bucket = 2;\n  string filename = 3;\n  int64 size = 4;\n  string url = 5;\n}"
+        },
+        {
+          "type": "heading",
+          "level": 3,
+          "text": "方案二：直接调用 REST API（推荐）"
+        },
+        {
+          "type": "paragraph",
+          "text": "由于文件上传通常涉及大文件传输，使用 HTTP multipart/form-data 格式更加高效。建议直接使用 REST API 进行文件上传，而不是通过 gRPC。"
+        },
+        {
+          "type": "code",
+          "language": "go",
+          "content": "// 在 gRPC 服务中调用 REST API\npackage main\n\nimport (\n\t\"bytes\"\n\t\"context\"\n\t\"io\"\n\t\"mime/multipart\"\n\t\"net/http\"\n)\n\n// FileUploadService 实现 gRPC 服务\nfunc (s *FileUploadService) UploadFile(ctx context.Context, req *pb.UploadFileRequest) (*pb.UploadFileResponse, error) {\n\t// 将 gRPC 请求转换为 HTTP multipart 请求\n\tbody := &bytes.Buffer{}\n\twriter := multipart.NewWriter(body)\n\t\n\t// 添加文件\n\tpart, _ := writer.CreateFormFile(\"file\", req.Filename)\n\tpart.Write(req.FileContent)\n\t\n\t// 添加其他字段\n\tif req.Bucket != \"\" {\n\t\twriter.WriteField(\"bucket\", req.Bucket)\n\t}\n\tif req.Key != \"\" {\n\t\twriter.WriteField(\"key\", req.Key)\n\t}\n\t\n\twriter.Close()\n\t\n\t// 调用 REST API\n\thttpReq, _ := http.NewRequestWithContext(ctx, \"POST\", \n\t\t\"http://localhost:7075/api/public/upload\", body)\n\thttpReq.Header.Set(\"Content-Type\", writer.FormDataContentType())\n\t\n\tclient := &http.Client{}\n\tresp, err := client.Do(httpReq)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tdefer resp.Body.Close()\n\t\n\t// 解析响应并转换为 gRPC 响应\n\t// ...\n\t\n\treturn &pb.UploadFileResponse{\n\t\tCode:    200,\n\t\tMessage: \"success\",\n\t\tData:    &pb.FileData{...},\n\t}, nil\n}"
+        },
+        {
+          "type": "heading",
+          "level": 3,
+          "text": "方案三：使用 gRPC-Web"
+        },
+        {
+          "type": "paragraph",
+          "text": "如果需要在前端使用 gRPC，可以考虑使用 gRPC-Web，它允许浏览器客户端通过 HTTP/1.1 或 HTTP/2 直接调用 gRPC 服务。"
+        },
+        {
+          "type": "code",
+          "language": "javascript",
+          "content": "// 使用 @improbable-eng/grpc-web 客户端\nimport { grpc } from '@improbable-eng/grpc-web';\nimport { FileUploadServiceClient } from './pb/file_upload_grpc_web_pb';\nimport { UploadFileRequest } from './pb/file_upload_pb';\n\nconst client = new FileUploadServiceClient('http://localhost:7075');\n\nconst request = new UploadFileRequest();\nrequest.setFileContent(fileBytes);\nrequest.setFilename('example.jpg');\nrequest.setBucket('default');\n\nclient.uploadFile(request, {}, (err, response) => {\n  if (err) {\n    console.error('上传失败:', err);\n    return;\n  }\n  console.log('上传成功:', response.getData().getUrl());\n});"
+        },
+        {
+          "type": "heading",
+          "level": 3,
+          "text": "注意事项"
+        },
+        {
+          "type": "list",
+          "items": [
+            {
+              "text": "文件上传通常涉及大文件，gRPC 的流式传输可能比 HTTP multipart 更复杂",
+              "icon": "CheckCircle",
+              "status": "info"
+            },
+            {
+              "text": "REST API 更易于调试和测试，支持标准的 HTTP 工具（如 curl、Postman）",
+              "icon": "CheckCircle",
+              "status": "info"
+            },
+            {
+              "text": "如果必须使用 gRPC，建议通过 gRPC-Gateway 或代理层进行转换",
+              "icon": "CheckCircle",
+              "status": "info"
+            },
+            {
+              "text": "对于文件上传场景，REST API 是更推荐的选择",
+              "icon": "CheckCircle",
+              "status": "success"
+            }
+          ]
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "文件类型限制"
+        },
+        {
+          "type": "paragraph",
+          "text": "如果需要限制上传的文件类型，可以通过查询参数传递 allowedTypes："
+        },
+        {
+          "type": "code",
+          "language": "javascript",
+          "content": "// 只允许上传 jpg 和 png 图片\nconst formData = new FormData()\nformData.append('file', file)\n\nconst response = await fetch(\n  'http://localhost:7075/api/public/upload?allowedTypes=jpg&allowedTypes=png',\n  {\n    method: 'POST',\n    body: formData\n  }\n)"
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "文件大小限制"
+        },
+        {
+          "type": "paragraph",
+          "text": "默认文件大小限制为 100MB。如果文件超过此限制，接口会返回错误。"
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "响应格式"
+        },
+        {
+          "type": "paragraph",
+          "text": "成功响应示例："
+        },
+        {
+          "type": "code",
+          "language": "json",
+          "content": "{\n  \"code\": 200,\n  \"message\": \"File uploaded successfully\",\n  \"data\": {\n    \"key\": \"uploads/1703123456_example.jpg\",\n    \"bucket\": \"default\",\n    \"filename\": \"example.jpg\",\n    \"size\": 1024000,\n    \"url\": \"http://localhost:7075/uploads/1703123456_example.jpg\"\n  }\n}"
+        },
+        {
+          "type": "paragraph",
+          "text": "错误响应示例："
+        },
+        {
+          "type": "code",
+          "language": "json",
+          "content": "{\n  \"code\": 400,\n  \"message\": \"File too large\",\n  \"error\": \"file size must be less than 100 MB\"\n}"
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "注意事项"
+        },
+        {
+          "type": "list",
+          "items": [
+            {
+              "text": "接口无需认证，可直接调用",
+              "icon": "CheckCircle",
+              "status": "success"
+            },
+            {
+              "text": "文件会自动存储到配置的存储后端（本地、云存储等）",
+              "icon": "CheckCircle",
+              "status": "success"
+            },
+            {
+              "text": "如果不指定 key，系统会自动生成唯一路径",
+              "icon": "CheckCircle",
+              "status": "success"
+            },
+            {
+              "text": "返回的 URL 可以直接用于访问文件",
+              "icon": "CheckCircle",
+              "status": "success"
+            },
+            {
+              "text": "支持所有存储后端：本地存储、七牛云、腾讯云COS、阿里云OSS、MinIO、AWS S3",
+              "icon": "CheckCircle",
+              "status": "success"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "features",
+      "title": "功能特性",
+      "icon": "Star",
+      "description": "LingStorage 的核心功能特性",
+      "content": [
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "核心功能"
+        },
+        {
+          "type": "feature_grid",
+          "features": [
+            {
+              "title": "统一存储网关",
+              "icon": "Zap",
+              "color": "blue",
+              "description": "支持多种存储后端，提供统一的文件管理接口。",
+              "features": [
+                "本地存储",
+                "七牛云存储",
+                "腾讯云 COS",
+                "阿里云 OSS",
+                "MinIO",
+                "AWS S3"
+              ]
+            },
+            {
+              "title": "存储桶管理",
+              "icon": "Settings",
+              "color": "green",
+              "description": "灵活的存储桶管理，支持创建、删除、权限设置等操作。",
+              "features": [
+                "存储桶列表",
+                "创建和删除",
+                "权限管理",
+                "域名配置"
+              ]
+            },
+            {
+              "title": "文件管理",
+              "icon": "BookOpen",
+              "color": "purple",
+              "description": "完整的文件管理功能，支持上传、下载、复制、移动等操作。",
+              "features": [
+                "文件上传",
+                "文件下载",
+                "文件复制",
+                "文件移动",
+                "文件删除",
+                "文件预览"
+              ]
+            },
+            {
+              "title": "配置管理",
+              "icon": "Database",
+              "color": "cyan",
+              "description": "系统配置管理，支持公开/私有配置，自动加载等功能。",
+              "features": [
+                "配置列表",
+                "配置创建",
+                "配置更新",
+                "配置删除",
+                "批量更新"
+              ]
+            },
+            {
+              "title": "用户管理",
+              "icon": "Users",
+              "color": "red",
+              "description": "完善的用户管理系统，支持角色权限、状态管理等。",
+              "features": [
+                "用户列表",
+                "用户创建",
+                "用户更新",
+                "用户删除",
+                "权限管理"
+              ]
+            },
+            {
+              "title": "API 平台计量",
+              "icon": "Activity",
+              "color": "orange",
+              "description": "API 调用统计和监控，包括带宽、延迟、错误率等指标。",
+              "features": [
+                "API 调用统计",
+                "带宽消耗",
+                "响应延迟",
+                "错误率监控",
+                "成功率统计"
+              ]
+            }
+          ]
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "技术栈"
+        },
+        {
+          "type": "tech_stack",
+          "categories": [
+            {
+              "name": "后端技术",
+              "technologies": [
+                { "name": "Go", "version": "1.21+", "description": "高性能后端语言" },
+                { "name": "Gin", "version": "1.9+", "description": "轻量级 Web 框架" },
+                { "name": "GORM", "version": "1.25+", "description": "ORM 数据库操作" },
+                { "name": "MySQL/PostgreSQL/SQLite", "version": "8.0+/13+", "description": "关系型数据库" }
+              ]
+            },
+            {
+              "name": "前端技术",
+              "technologies": [
+                { "name": "React", "version": "18+", "description": "用户界面库" },
+                { "name": "TypeScript", "version": "5.0+", "description": "类型安全的 JavaScript" },
+                { "name": "Vite", "version": "4.0+", "description": "快速构建工具" },
+                { "name": "Tailwind CSS", "version": "3.0+", "description": "实用优先的 CSS 框架" },
+                { "name": "Framer Motion", "version": "10+", "description": "动画库" }
+              ]
+            },
+            {
+              "name": "存储技术",
+              "technologies": [
+                { "name": "本地存储", "version": "-", "description": "本地文件系统存储" },
+                { "name": "七牛云", "version": "-", "description": "对象存储服务" },
+                { "name": "腾讯云 COS", "version": "-", "description": "对象存储服务" },
+                { "name": "阿里云 OSS", "version": "-", "description": "对象存储服务" },
+                { "name": "MinIO", "version": "-", "description": "开源对象存储" },
+                { "name": "AWS S3", "version": "-", "description": "Amazon S3 兼容存储" }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "deployment",
+      "title": "部署指南",
+      "icon": "Download",
+      "description": "生产环境部署和运维指南",
+      "content": [
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "Docker 部署"
+        },
+        {
+          "type": "paragraph",
+          "text": "推荐使用 Docker 进行部署，确保环境一致性。"
+        },
+        {
+          "type": "code",
+          "language": "yaml",
+          "content": "# docker-compose.yml\nversion: '3.8'\n\nservices:\n  app:\n    build: .\n    ports:\n      - \"7075:7075\"\n    environment:\n      - APP_ENV=production\n      - DB_DRIVER=mysql\n      - DSN=user:password@tcp(db:3306)/lingstorage\n    depends_on:\n      - db\n    volumes:\n      - ./uploads:/app/uploads\n      - ./logs:/app/logs\n\n  db:\n    image: mysql:8.0\n    environment:\n      - MYSQL_ROOT_PASSWORD=password\n      - MYSQL_DATABASE=lingstorage\n    volumes:\n      - mysql_data:/var/lib/mysql\n\nvolumes:\n  mysql_data:"
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "环境变量配置"
+        },
+        {
+          "type": "env_vars",
+          "variables": [
+            {
+              "name": "APP_ENV",
+              "type": "string",
+              "required": true,
+              "description": "应用环境（development/production）",
+              "example": "production"
+            },
+            {
+              "name": "ADDR",
+              "type": "string",
+              "required": false,
+              "description": "服务器监听地址",
+              "example": ":7075"
+            },
+            {
+              "name": "DB_DRIVER",
+              "type": "string",
+              "required": true,
+              "description": "数据库驱动（mysql/postgres/sqlite）",
+              "example": "mysql"
+            },
+            {
+              "name": "DSN",
+              "type": "string",
+              "required": true,
+              "description": "数据库连接字符串",
+              "example": "user:password@tcp(localhost:3306)/lingstorage"
+            },
+            {
+              "name": "STORAGE_KIND",
+              "type": "string",
+              "required": false,
+              "description": "存储类型（local/qiniu/cos/oss/minio/s3）",
+              "example": "local"
+            }
+          ]
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "生产环境优化"
+        },
+        {
+          "type": "optimization_tips",
+          "tips": [
+            {
+              "title": "启用 HTTPS",
+              "description": "配置 SSL 证书确保安全传输",
+              "icon": "Shield"
+            },
+            {
+              "title": "配置反向代理",
+              "description": "使用 Nginx 或 Apache 进行负载均衡",
+              "icon": "Server"
+            },
+            {
+              "title": "监控和日志",
+              "description": "配置日志轮转和监控告警",
+              "icon": "Activity"
+            },
+            {
+              "title": "数据库优化",
+              "description": "配置连接池和索引优化",
+              "icon": "Database"
+            },
+            {
+              "title": "存储优化",
+              "description": "合理配置存储后端和 CDN",
+              "icon": "Zap"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "contributing",
+      "title": "贡献指南",
+      "icon": "GitBranch",
+      "description": "如何为项目贡献代码和文档",
+      "content": [
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "如何贡献"
+        },
+        {
+          "type": "paragraph",
+          "text": "我们欢迎所有形式的贡献，包括但不限于："
+        },
+        {
+          "type": "list",
+          "items": [
+            {
+              "text": "报告 Bug 和问题",
+              "icon": "Bug",
+              "status": "info"
+            },
+            {
+              "text": "提交新功能请求",
+              "icon": "Lightbulb",
+              "status": "info"
+            },
+            {
+              "text": "改进文档",
+              "icon": "BookOpen",
+              "status": "info"
+            },
+            {
+              "text": "提交代码修复",
+              "icon": "Code",
+              "status": "info"
+            },
+            {
+              "text": "优化性能",
+              "icon": "Zap",
+              "status": "info"
+            }
+          ]
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "开发流程"
+        },
+        {
+          "type": "step_list",
+          "steps": [
+            {
+              "step": 1,
+              "title": "Fork 项目",
+              "description": "在 GitHub 上 Fork 本项目到你的账户"
+            },
+            {
+              "step": 2,
+              "title": "创建分支",
+              "description": "从 main 分支创建新的功能分支"
+            },
+            {
+              "step": 3,
+              "title": "编写代码",
+              "description": "实现你的功能或修复，确保代码质量"
+            },
+            {
+              "step": 4,
+              "title": "运行测试",
+              "description": "确保所有测试通过，添加必要的测试用例"
+            },
+            {
+              "step": 5,
+              "title": "提交 PR",
+              "description": "创建 Pull Request，详细描述你的更改"
+            }
+          ]
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "代码规范"
+        },
+        {
+          "type": "code_standards",
+          "languages": [
+            {
+              "name": "Go",
+              "standards": [
+                "使用 gofmt 格式化代码",
+                "遵循 Go 官方代码规范",
+                "添加必要的注释和文档",
+                "使用有意义的变量和函数名"
+              ]
+            },
+            {
+              "name": "TypeScript/React",
+              "standards": [
+                "使用 ESLint 和 Prettier",
+                "遵循 React 最佳实践",
+                "使用 TypeScript 严格模式",
+                "组件使用函数式组件和 Hooks"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
