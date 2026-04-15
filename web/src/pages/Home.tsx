@@ -21,7 +21,6 @@ import {Typewriter} from "@/components/UX/MicroInteractions.tsx";
 import Card, { CardContent, CardDescription, CardHeader, CardTitle } from "@/components/UI/Card";
 import StaggeredList from "@/components/Animations/StaggeredList";
 import Button from "@/components/UI/Button";
-import AuthModal from "@/components/Auth/AuthModal";
 import { useAuthStore } from "@/stores/authStore";
 import EnhancedThemeToggle from "@/components/UI/EnhancedThemeToggle";
 import LanguageSelector from "@/components/UI/LanguageSelector";
@@ -29,6 +28,7 @@ import { useI18nStore } from "@/stores/i18nStore";
 import Footer from "@/components/Layout/Footer.tsx";
 import PageSEO from "@/components/SEO/PageSEO.tsx";
 import ContentCarousel from "@/components/Home/ContentCarousel.tsx";
+import { beginSSOLogin } from '@/utils/sso';
 
 const iconMap: Record<string, any> = {
     Zap,
@@ -44,7 +44,6 @@ const iconMap: Record<string, any> = {
 }
 
 const Home = () => {
-    const [showAuthModal, setShowAuthModal] = useState(false)
     const [showMobileMenu, setShowMobileMenu] = useState(false)
     const [showUserDropdown, setShowUserDropdown] = useState(false)
     const { user, isAuthenticated, logout } = useAuthStore()
@@ -276,7 +275,7 @@ const Home = () => {
                             ) : (
                                 <Button
                                     variant="primary"
-                                    onClick={() => setShowAuthModal(true)}
+                                    onClick={() => beginSSOLogin('/assistants')}
                                     leftIcon={<UserIcon className="w-4 h-4" />}
                                 >
                                     {t('nav.login')}
@@ -360,7 +359,10 @@ const Home = () => {
                                     <Button
                                         variant="primary"
                                         className="w-full"
-                                        onClick={() => { setShowAuthModal(true); setShowMobileMenu(false); }}
+                                        onClick={() => {
+                                            beginSSOLogin('/assistants')
+                                            setShowMobileMenu(false)
+                                        }}
                                         leftIcon={<UserIcon className="w-4 h-4" />}
                                     >
                                         {t('nav.login')}
@@ -371,9 +373,6 @@ const Home = () => {
                     )}
                 </div>
             </nav>
-
-            {/* 登录弹窗 */}
-            <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
 
             {/* 主要内容区域 */}
             <div className="relative space-y-20 overflow-hidden pt-16">

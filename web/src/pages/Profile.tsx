@@ -20,7 +20,7 @@ import { sendEmailCode, sendEmailVerification } from '../api/auth'
 import { motion, AnimatePresence } from 'framer-motion'
 import ConfirmDialog from '../components/UI/ConfirmDialog'
 import AudioController from '../components/UI/AudioController'
-import AuthModal from '../components/Auth/AuthModal'
+import { beginSSOLogin } from '@/utils/sso'
 
 const Profile = () => {
   const { user, isAuthenticated, updateProfile: updateAuthStore } = useAuthStore()
@@ -144,6 +144,12 @@ const Profile = () => {
 
     fetchUserProfile()
   }, [isAuthenticated, user, updateAuthStore])
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      beginSSOLogin('/profile')
+    }
+  }, [isAuthenticated])
 
   // 当切换到活动记录标签页时加载活动记录
   useEffect(() => {
@@ -599,12 +605,7 @@ const Profile = () => {
 
 
   if (!isAuthenticated) {
-    return (
-      <>
-        <AuthModal isOpen={true} onClose={() => { window.location.href = '/' }} />
-        {/* 只保留弹窗，移除下方警告区域，避免h1嵌套 */}
-      </>
-    )
+    return null
   }
 
   if (isPageLoading) {

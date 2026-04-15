@@ -25,18 +25,17 @@ import {
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import { useI18nStore } from '@/stores/i18nStore'
-import AuthModal from '../Auth/AuthModal'
 import Button from '../UI/Button'
 import { getGroupList, type Group } from '@/api/group'
 import { getSystemInit, type SystemInitInfo } from '@/api/system'
 import { prefetch } from '@/utils/prefetch'
+import { beginSSOLogin } from '@/utils/sso'
 
 const Sidebar = () => {
   const [isCollapsed, setIsCollapsed] = useState(false)
   const location = useLocation()
   const { user, isAuthenticated, logout, currentOrganizationId, setCurrentOrganization } = useAuthStore()
   const { t } = useI18nStore()
-  const [showAuthModal, setShowAuthModal] = useState(false)
   const [showDropdown, setShowDropdown] = useState(false)
   const [groups, setGroups] = useState<Group[]>([])
   const [systemInfo, setSystemInfo] = useState<SystemInitInfo | null>(null)
@@ -383,14 +382,12 @@ const Sidebar = () => {
             <Button
               variant="primary"
               className="w-full justify-center"
-              onClick={() => setShowAuthModal(true)}
+              onClick={() => beginSSOLogin(location.pathname + location.search)}
               leftIcon={<UserIcon className="w-4 h-4" />}
             >
               {!isCollapsed && t('nav.loginRegister')}
             </Button>
           )}
-          {/* 登录弹窗AuthModal */}
-          <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
         </div>
         
         {/* 组织选择器 - 横向图标展示，放在最底部 */}
@@ -650,13 +647,12 @@ const Sidebar = () => {
               <Button
                 variant="primary"
                 size="sm"
-                onClick={() => setShowAuthModal(true)}
+                onClick={() => beginSSOLogin(location.pathname + location.search)}
                 leftIcon={<UserIcon className="w-4 h-4" />}
               >
                 {t('nav.loginRegister')}
               </Button>
             )}
-            <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
           </div>
         </div>
 

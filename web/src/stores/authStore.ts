@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { registerUser, getUserInfo, logoutUser, type User, type RegisterUserForm } from '../api/auth'
+import { buildSSOLogoutURL } from '@/utils/sso'
 
 interface AuthState {
   user: User | null
@@ -51,6 +52,8 @@ export const useAuthStore = create<AuthState>()(
             throw new Error(userResponse.msg || '获取用户信息失败')
           }
         } catch (error) {
+          localStorage.removeItem('auth_token')
+          set({ user: null, isAuthenticated: false, token: null })
           set({ isLoading: false })
           console.error('Login failed:', error)
           return false
@@ -77,9 +80,11 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: async (next?: string) => {
+        const nextURL = next || `${window.location.origin}/`
+        const currentToken = localStorage.getItem('auth_token') || undefined
         try {
           // 调用登出API
-          const response = await logoutUser(next)
+          const response = await logoutUser(nextURL)
           if (response.code !== 200) {
             console.warn('Logout API warning:', response.msg)
           }
@@ -89,6 +94,8 @@ export const useAuthStore = create<AuthState>()(
           // 清除本地存储
           localStorage.removeItem('auth_token')
           set({ user: null, isAuthenticated: false, token: null, currentOrganizationId: null })
+          // 通过浏览器重定向触发 SSO 端会话清理，避免再次无感登录
+          window.location.assign(buildSSOLogoutURL(nextURL, currentToken))
         }
       },
 

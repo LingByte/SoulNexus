@@ -47,6 +47,7 @@ import Privacy from '@/pages/Privacy.tsx';
 import Terms from '@/pages/Terms.tsx';
 import CookieConsent from '@/components/CookieConsent.tsx';
 import KnowledgeBaseManager from '@/pages/KnowledgeBaseManager.tsx';
+import OIDCCallback from '@/pages/OIDCCallback.tsx';
 
 function App() {
     const [showPerformanceMonitor, setShowPerformanceMonitor] = useState(false);
@@ -66,6 +67,7 @@ function App() {
                         
                         {/* 重置密码页面 - 不需要登录 */}
                         <Route path="/reset-password" element={<ResetPassword />} />
+                        <Route path="/auth/callback" element={<OIDCCallback />} />
                         
                         {/* 需要登录的页面 */}
                         <Route path="/overview" element={
