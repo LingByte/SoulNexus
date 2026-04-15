@@ -57,9 +57,6 @@ var NewDeviceLoginHTML string
 //go:embed static/js/client.js
 var AssistantJsModule string
 
-//go:embed static/js/lingecho-sdk.js
-var LingEchoSDKModule string
-
 type CombineEmbedFS struct {
 	embeds    []EmbedFS
 	assertDir string
@@ -379,19 +376,6 @@ func WithStaticAssets(r *gin.Engine, staticPrefix, staticRootDir string) gin.Han
 	r.StaticFS(staticPrefix, http.FS(staticAssets))
 	return func(ctx *gin.Context) {
 		ctx.Set(constants.AssetsField, staticAssets)
-		ctx.Next()
-	}
-}
-
-func WithTemplates(r *gin.Engine, templateRootDir string) gin.HandlerFunc {
-	if templateRootDir == "" {
-		templateRootDir = "templates"
-	}
-	templatesAssets := NewCombineEmbedFS(HintAssetsRoot(templateRootDir), EmbedFS{"templates", EmbedTemplates})
-	r.HTMLRender = NewCombineTemplates(templatesAssets)
-
-	return func(ctx *gin.Context) {
-		ctx.Set(constants.TemplatesField, templatesAssets)
 		ctx.Next()
 	}
 }

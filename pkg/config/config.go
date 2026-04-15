@@ -42,7 +42,6 @@ type ServerConfig struct {
 	Mode          string `env:"MODE"`
 	DocsPrefix    string `env:"DOCS_PREFIX"`
 	APIPrefix     string `env:"API_PREFIX"`
-	AdminPrefix   string `env:"ADMIN_PREFIX"`
 	AuthPrefix    string `env:"AUTH_PREFIX"`
 	MonitorPrefix string `env:"MONITOR_PREFIX"`
 	SSLEnabled    bool   `env:"SSL_ENABLED"`
@@ -93,7 +92,6 @@ type Neo4jConfig struct {
 	Password string `env:"NEO4J_PASSWORD"`
 	Database string `env:"NEO4J_DATABASE"`
 }
-
 
 // VoiceConfig voice service configuration
 type VoiceConfig struct {
@@ -227,7 +225,6 @@ func Load() error {
 			Mode:          getStringOrDefault("MODE", "development"),
 			DocsPrefix:    getStringOrDefault("DOCS_PREFIX", "/api/docs"),
 			APIPrefix:     getStringOrDefault("API_PREFIX", "/api"),
-			AdminPrefix:   getStringOrDefault("ADMIN_PREFIX", "/admin"),
 			AuthPrefix:    getStringOrDefault("AUTH_PREFIX", "/auth"),
 			MonitorPrefix: getStringOrDefault("MONITOR_PREFIX", "/metrics"),
 			SSLEnabled:    getBoolOrDefault("SSL_ENABLED", false),

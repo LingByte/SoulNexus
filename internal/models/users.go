@@ -15,11 +15,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LingByte/SoulNexus"
 	"github.com/LingByte/SoulNexus/pkg/config"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/metrics"
+	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -165,7 +165,7 @@ func Login(c *gin.Context, user *User) {
 	err := SetLastLogin(db, user, c.ClientIP())
 	if err != nil {
 		logger.Error("user.login", zap.Error(err))
-		LingEcho.AbortWithJSONError(c, http.StatusInternalServerError, err)
+		response.AbortWithJSONError(c, http.StatusInternalServerError, err)
 		return
 	}
 
@@ -173,7 +173,7 @@ func Login(c *gin.Context, user *User) {
 	err = IncrementLoginCount(db, user)
 	if err != nil {
 		logger.Error("user.login", zap.Error(err))
-		LingEcho.AbortWithJSONError(c, http.StatusInternalServerError, err)
+		response.AbortWithJSONError(c, http.StatusInternalServerError, err)
 		return
 	}
 
@@ -181,7 +181,7 @@ func Login(c *gin.Context, user *User) {
 	err = UpdateProfileComplete(db, user)
 	if err != nil {
 		logger.Error("user.login", zap.Error(err))
-		LingEcho.AbortWithJSONError(c, http.StatusInternalServerError, err)
+		response.AbortWithJSONError(c, http.StatusInternalServerError, err)
 		return
 	}
 
@@ -207,7 +207,7 @@ func AuthRequired(c *gin.Context) {
 
 	// 检查配置是否存在
 	if config.GlobalConfig == nil {
-		LingEcho.AbortWithJSONError(c, http.StatusInternalServerError, errors.New("server configuration not initialized"))
+		response.AbortWithJSONError(c, http.StatusInternalServerError, errors.New("server configuration not initialized"))
 		return
 	}
 
@@ -217,14 +217,14 @@ func AuthRequired(c *gin.Context) {
 	}
 
 	if token == "" {
-		LingEcho.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("authorization required"))
+		response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("authorization required"))
 		return
 	}
 	db := c.MustGet(constants.DbField).(*gorm.DB)
 	token = strings.TrimPrefix(token, constants.AUTHORIZATION_PREFIX)
 	user, err := DecodeHashToken(db, token, false)
 	if err != nil {
-		LingEcho.AbortWithJSONError(c, http.StatusUnauthorized, err)
+		response.AbortWithJSONError(c, http.StatusUnauthorized, err)
 		return
 	}
 	c.Set(constants.UserField, user)
@@ -397,7 +397,7 @@ func AuthApiRequired(c *gin.Context) {
 	if apiKey != "" && apiSecret != "" {
 		user, err := GetUserByAPIKey(c, apiKey, apiSecret)
 		if err != nil {
-			LingEcho.AbortWithJSONError(c, http.StatusUnauthorized, err)
+			response.AbortWithJSONError(c, http.StatusUnauthorized, err)
 			return
 		}
 		c.Set(constants.UserField, user)
@@ -410,7 +410,7 @@ func AuthApiRequired(c *gin.Context) {
 	if apiKey != "" && apiSecret != "" {
 		user, err := GetUserByAPIKey(c, apiKey, apiSecret)
 		if err != nil {
-			LingEcho.AbortWithJSONError(c, http.StatusUnauthorized, err)
+			response.AbortWithJSONError(c, http.StatusUnauthorized, err)
 			return
 		}
 		c.Set(constants.UserField, user)
@@ -424,7 +424,7 @@ func AuthApiRequired(c *gin.Context) {
 	}
 
 	if token == "" {
-		LingEcho.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("authorization required"))
+		response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("authorization required"))
 		return
 	}
 
@@ -433,7 +433,7 @@ func AuthApiRequired(c *gin.Context) {
 	token = strings.TrimPrefix(token, "Bearer ")
 	user, err := DecodeHashToken(db, token, false)
 	if err != nil {
-		LingEcho.AbortWithJSONError(c, http.StatusUnauthorized, err)
+		response.AbortWithJSONError(c, http.StatusUnauthorized, err)
 		return
 	}
 	c.Set(constants.UserField, user)
