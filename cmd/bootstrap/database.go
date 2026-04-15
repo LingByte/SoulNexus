@@ -227,5 +227,6 @@ func RunMigrations(db *gorm.DB) error {
 		&models.MCPUserInstallation{},
 		&models.MCPReview{},
 		&models.MCPCategory{},
+		&models.OAuthClient{},
 	})
 }
