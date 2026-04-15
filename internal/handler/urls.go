@@ -215,12 +215,12 @@ func (h *Handlers) Register(engine *gin.Engine) {
 	h.registerJSTemplateRoutes(r)
 	h.registerBillingRoutes(r)
 	h.registerMiddlewareRoutes(r)
+	h.registerAdminManagementRoutes(r)
 	h.registerWorkflowRoutes(r)
 	h.registerWorkflowPluginRoutes(r) // Add workflow plugin routes
 	h.registerNodePluginRoutes(r)     // Add node plugin routes
 	h.registerMCPRoutes(r)            // Add MCP routes
 	h.registerMCPMarketplaceRoutes(r) // Add MCP marketplace routes
 	h.registerOpenAPIRoutes(r)        // Open API (apiKey + apiSecret auth)
-	// Register public workflow routes (no auth required)
 	h.RegisterPublicWorkflowRoutes(r)
 }

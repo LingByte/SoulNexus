@@ -5,6 +5,8 @@
 
 interface ApiConfig {
   apiBaseURL: string
+  mainApiBaseURL: string
+  authApiBaseURL: string
   wsBaseURL: string
   uploadsBaseURL: string
 }
@@ -30,9 +32,11 @@ function convertToWebSocketURL(httpUrl: string): string {
  * 获取API配置
  */
 function getApiConfig(): ApiConfig {
-  // 优先使用环境变量；如果未配置，则使用 /api 作为基础前缀
-  // 这个值会作为 BACKEND_BASE（如 /api），由各个服务自行在其后追加路径，避免出现 /api/api 的情况
-  let apiBaseURL = import.meta.env.VITE_API_BASE_URL || '/api'
+  // 兼容旧变量 VITE_API_BASE_URL；支持新变量区分两个服务
+  const fallbackApiBaseURL = import.meta.env.VITE_API_BASE_URL || '/api'
+  const mainApiBaseURL = import.meta.env.VITE_MAIN_API_BASE_URL || fallbackApiBaseURL
+  const authApiBaseURL = import.meta.env.VITE_AUTH_API_BASE_URL || fallbackApiBaseURL
+  const apiBaseURL = mainApiBaseURL
   
   // 如果环境变量中有WebSocket URL，使用它；否则从API URL转换
   let wsBaseURL = import.meta.env.VITE_WS_BASE_URL
@@ -46,6 +50,8 @@ function getApiConfig(): ApiConfig {
 
   return {
     apiBaseURL,
+    mainApiBaseURL,
+    authApiBaseURL,
     wsBaseURL,
     uploadsBaseURL,
   }
@@ -69,6 +75,14 @@ export function getConfig(): ApiConfig {
  */
 export function getApiBaseURL(): string {
   return getConfig().apiBaseURL
+}
+
+export function getMainApiBaseURL(): string {
+  return getConfig().mainApiBaseURL
+}
+
+export function getAuthApiBaseURL(): string {
+  return getConfig().authApiBaseURL
 }
 
 /**

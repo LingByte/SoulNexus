@@ -131,7 +131,7 @@ type User struct {
 	FirstName             string     `json:"firstName,omitempty" gorm:"size:128"`
 	LastName              string     `json:"lastName,omitempty" gorm:"size:128"`
 	DisplayName           string     `json:"displayName,omitempty" gorm:"size:128"`
-	IsStaff               bool       `json:"isStaff,omitempty"`
+	IsStaff               bool       `json:"-"`
 	Enabled               bool       `json:"-"`
 	Activated             bool       `json:"-"`
 	LastLogin             *time.Time `json:"lastLogin,omitempty"`
@@ -591,10 +591,6 @@ func DecodeHashToken(db *gorm.DB, hash string, useLastLogin bool) (user *User, e
 func CheckUserAllowLogin(db *gorm.DB, user *User) error {
 	if !user.Enabled {
 		return errors.New("user not allow login")
-	}
-
-	if utils.GetBoolValue(db, constants.KEY_USER_ACTIVATED) && !user.Activated {
-		return errors.New("waiting for activation")
 	}
 
 	// Role validation - ensure user has a valid role

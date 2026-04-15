@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { getCurrentUser } from '@/services/adminApi'
+import { getAuthApiBaseURL } from '@/config/apiConfig'
 
 // 用户类型定义（可以根据实际需求修改）
 export interface User {
@@ -63,7 +64,7 @@ export const useAuthStore = create<AuthState>()(
         try {
           const token = localStorage.getItem('auth_token')
           if (token) {
-            await fetch(`${import.meta.env.VITE_API_BASE_URL || '/api'}/auth/logout`, {
+            await fetch(`${getAuthApiBaseURL()}/auth/logout`, {
               method: 'POST',
               headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
             }).catch(() => {}) // 忽略登出接口错误

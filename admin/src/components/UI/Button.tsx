@@ -34,7 +34,8 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
          onMouseEnter,
          ...props
      }, ref) => {
-        const baseClasses = 'relative inline-flex items-center justify-center font-medium transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none select-none overflow-hidden'
+        const baseClasses =
+            'relative inline-flex flex-nowrap items-center justify-center font-medium transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none select-none overflow-hidden whitespace-nowrap [&_svg]:pointer-events-none [&_svg]:shrink-0'
 
         // 获取当前主题
         const currentTheme = getCurrentTheme()
@@ -44,19 +45,19 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
             default: `${themeClasses.bg} ${themeClasses.text} ${themeClasses.hover} focus:ring-${themeClasses.ring} shadow-sm hover:shadow-lg active:shadow-md`,
             primary: `${themeClasses.bg} ${themeClasses.text} ${themeClasses.hover} focus:ring-${themeClasses.ring} shadow-sm hover:shadow-lg active:shadow-md`,
             secondary: 'bg-gray-100 text-gray-900 hover:bg-gray-200 focus:ring-gray-500 shadow-sm hover:shadow-lg active:shadow-md',
-            outline: 'border border-gray-300 text-gray-700 hover:bg-gray-50 focus:ring-blue-500 shadow-sm hover:shadow-lg active:shadow-md',
+            outline: 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 focus:ring-blue-500 shadow-sm hover:shadow-lg active:shadow-md',
             ghost: 'text-gray-700 hover:bg-gray-100 focus:ring-gray-500 hover:shadow-sm',
-            destructive: 'bg-red-600 hover:bg-red-700 focus:ring-red-500 shadow-sm hover:shadow-lg active:shadow-md',
-            success: 'bg-green-600 hover:bg-green-700 focus:ring-green-500 shadow-sm hover:shadow-lg active:shadow-md',
-            warning: 'bg-yellow-500 hover:bg-yellow-600 focus:ring-yellow-500 shadow-sm hover:shadow-lg active:shadow-md',
+            destructive: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500 shadow-sm hover:shadow-lg active:shadow-md',
+            success: 'bg-green-600 text-white hover:bg-green-700 focus:ring-green-500 shadow-sm hover:shadow-lg active:shadow-md',
+            warning: 'bg-yellow-500 text-white hover:bg-yellow-600 focus:ring-yellow-500 shadow-sm hover:shadow-lg active:shadow-md',
         }
 
         const sizeClasses = {
-            xs: 'h-7 px-2 text-xs rounded-md',
-            sm: 'h-8 px-3 text-sm rounded-md',
-            md: 'h-9 px-4 text-sm rounded-lg',
-            lg: 'h-10 px-6 text-base rounded-lg',
-            xl: 'h-12 px-8 text-lg rounded-xl',
+            xs: 'h-7 px-2 text-xs rounded-md min-w-fit',
+            sm: 'h-8 px-3 text-sm rounded-md min-w-fit',
+            md: 'h-9 px-4 text-sm rounded-lg min-w-fit',
+            lg: 'h-10 px-6 text-base rounded-lg min-w-fit',
+            xl: 'h-12 px-8 text-lg rounded-xl min-w-fit',
             icon: 'h-9 w-9 rounded-lg',
         }
 
@@ -85,7 +86,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
             pulse: {
                 hover: {
                     scale: 1.05,
-                    boxShadow: "0 0 0 8px rgba(78, 205, 196, 0.18)"
+                    boxShadow: "0 0 0 8px rgba(59, 130, 246, 0.1)"
                 },
                 tap: {scale: 0.95}
             },
@@ -99,9 +100,6 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         }
 
         const iconSize = iconSizeClasses[size]
-        
-        // 检测是否使用垂直布局
-        const isVertical = className?.includes('flex-col')
 
         const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
             if (enableAudio && !disabled && !loading) {
@@ -121,12 +119,10 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
             <motion.button
                 ref={ref}
                 className={cn(
-                    isVertical ? 'relative flex' : baseClasses,
-                    isVertical ? 'flex-col items-center' : '',
+                    baseClasses,
                     variantClasses[variant],
                     sizeClasses[size],
                     fullWidth && 'w-full',
-                    'font-medium transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none select-none overflow-hidden',
                     className
                 )}
                 disabled={disabled || loading}
@@ -145,54 +141,48 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
                     transition={{duration: 0.3}}
                 />
 
-                {/* 如果有leftIcon或rightIcon props，使用原来的布局；否则直接渲染children（支持flex-col） */}
-                {(leftIcon || rightIcon) && !isVertical ? (
-                    <div className={cn('relative flex items-center justify-center gap-2 whitespace-nowrap')}>
-                        {loading && (
-                            <motion.div
-                                animate={{rotate: 360}}
-                                transition={{duration: 1, repeat: Infinity, ease: 'linear'}}
-                                className={cn('border-2 border-current border-t-transparent rounded-full flex-shrink-0', iconSize)}
-                            />
-                        )}
-                        {!loading && leftIcon && (
-                            <span className={cn('flex-shrink-0 inline-flex items-center', iconSize)}>
-                                {leftIcon}
-                            </span>
-                        )}
-                        {children && (
-                            <span className="truncate inline-block">
-                                {children}
-                            </span>
-                        )}
-                        {!loading && rightIcon && (
-                            <span className={cn('flex-shrink-0 inline-flex items-center', iconSize)}>
-                                {rightIcon}
-                            </span>
-                        )}
-                    </div>
-                ) : (
-                    <div className={cn('relative', isVertical ? 'flex flex-col items-center gap-1' : 'flex items-center gap-2')}>
-                        {loading && (
-                            <motion.div
-                                animate={{rotate: 360}}
-                                transition={{duration: 1, repeat: Infinity, ease: 'linear'}}
-                                className={cn('border-2 border-current border-t-transparent rounded-full flex-shrink-0', iconSize)}
-                            />
-                        )}
-                        {!loading && leftIcon && (
-                            <span className={cn('flex-shrink-0 inline-flex items-center', iconSize)}>
-                                {leftIcon}
-                            </span>
-                        )}
-                        {children}
-                        {!loading && rightIcon && (
-                            <span className={cn('flex-shrink-0 inline-flex items-center', iconSize)}>
-                                {rightIcon}
-                            </span>
-                        )}
-                    </div>
-                )}
+                <div
+                    className={cn(
+                        'relative z-[1] flex min-w-0 flex-row flex-nowrap items-center justify-center gap-2',
+                        fullWidth && 'w-full min-w-0'
+                    )}
+                >
+                    {loading && (
+                        <motion.div
+                            animate={{rotate: 360}}
+                            transition={{duration: 1, repeat: Infinity, ease: 'linear'}}
+                            className={cn('flex-shrink-0 rounded-full border-2 border-current border-t-transparent', iconSize)}
+                        />
+                    )}
+                    {!loading && leftIcon && (
+                        <motion.span
+                            className={cn('inline-flex flex-shrink-0 items-center justify-center', iconSize)}
+                            whileHover={{scale: 1.1}}
+                            transition={{duration: 0.2}}
+                        >
+                            {leftIcon}
+                        </motion.span>
+                    )}
+                    {children != null && children !== false && (
+                        <motion.span
+                            className="inline-flex min-w-0 max-w-full flex-row flex-nowrap items-center justify-center gap-1.5 whitespace-nowrap [&_svg]:shrink-0"
+                            initial={{opacity: 0, y: 10}}
+                            animate={{opacity: 1, y: 0}}
+                            transition={{duration: 0.3, delay: 0.1}}
+                        >
+                            {children}
+                        </motion.span>
+                    )}
+                    {!loading && rightIcon && (
+                        <motion.span
+                            className={cn('inline-flex flex-shrink-0 items-center justify-center', iconSize)}
+                            whileHover={{scale: 1.1, x: 2}}
+                            transition={{duration: 0.2}}
+                        >
+                            {rightIcon}
+                        </motion.span>
+                    )}
+                </div>
             </motion.button>
         )
     }
