@@ -6,32 +6,79 @@
   <title>登录 - SoulNexus</title>
   <style>
     :root {
-      --bg: #f8f8ff;
-      --bg-secondary: #f3f0ff;
+      --bg: #ffffff;
       --card: #ffffff;
       --text: #2a2240;
       --muted: #6f6591;
-      --primary: #5f3dc4;
-      --primary-hover: #5235a7;
-      --primary-soft: rgba(95, 61, 196, 0.16);
-      --border: #ddd6f7;
+      --primary: #4f47e6;
+      --primary-hover: #4239d4;
+      --primary-soft: rgba(79, 71, 230, 0.1);
+      --border: #e0d4f7;
       --danger: #d92d20;
       --success: #0a7f48;
-      --info: #5f3dc4;
-      --shadow: 0 20px 48px rgba(79, 57, 140, 0.12);
+      --info: #4f47e6;
+      --shadow: 0 20px 48px rgba(79, 71, 230, 0.08);
       --radius: 14px;
-      --duration: 240ms;
+      --duration: 280ms;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
       min-height: 100vh;
       font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background:
-        radial-gradient(900px 500px at 8% -8%, rgba(109, 76, 204, 0.12), transparent 56%),
-        radial-gradient(860px 460px at 100% -14%, rgba(142, 102, 234, 0.12), transparent 58%),
-        var(--bg);
+      background: var(--bg);
       color: var(--text);
+      display: flex;
+      flex-direction: column;
+      padding: 0;
+    }
+    .header {
+      width: 100%;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      background: #fff;
+    }
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .header-logo {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+    }
+    .header-title {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.5px;
+    }
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+    .header-link {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      padding: 8px 16px;
+      border-radius: 8px;
+      transition: all var(--duration) ease;
+    }
+    .header-link:hover {
+      color: var(--primary);
+      background: var(--primary-soft);
+    }
+    .main {
+      flex: 1;
       display: grid;
       place-items: center;
       padding: 16px;
@@ -48,61 +95,39 @@
       grid-template-columns: 1.1fr 1fr;
     }
     .left {
-      background:
-        linear-gradient(160deg, rgba(95, 61, 196, 0.08), rgba(95, 61, 196, 0.02)),
-        var(--bg-secondary);
+      background: var(--card);
       border-right: 1px solid var(--border);
       padding: 36px 32px;
-      display: grid;
-      align-content: center;
-      gap: 18px;
-    }
-    .brand {
-      display: inline-flex;
+      display: flex;
+      flex-direction: column;
       align-items: center;
-      gap: 10px;
-      font-weight: 800;
-      letter-spacing: 0.2px;
-      color: #3f2f75;
-      font-size: 20px;
-    }
-    .brand-dot {
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-      background: linear-gradient(135deg, #6d4ccc, #9a72f2);
-      box-shadow: 0 0 0 8px rgba(95, 61, 196, 0.14);
+      justify-content: center;
+      gap: 28px;
     }
     .left h1 {
       margin: 0;
-      font-size: 32px;
+      font-size: 24px;
       line-height: 1.2;
-      color: #2f2352;
-    }
-    .left p {
-      margin: 0;
-      color: var(--muted);
-      line-height: 1.7;
-      font-size: 14px;
+      color: #2a2240;
+      font-weight: 600;
+      text-align: center;
     }
     .wx-card {
-      margin-top: 2px;
-      border: 1px solid #d6cdf8;
-      border-radius: 14px;
-      background: rgba(255, 255, 255, 0.7);
-      padding: 12px;
-      display: grid;
-      gap: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
     }
     .wx-qr {
-      width: 220px;
-      height: 220px;
-      border-radius: 12px;
-      border: 1px solid #dacefc;
+      width: 240px;
+      height: 240px;
+      border-radius: 16px;
+      border: 1px solid var(--border);
       background: #fff;
       position: relative;
       overflow: hidden;
       transition: transform var(--duration) ease, box-shadow var(--duration) ease;
+      cursor: pointer;
     }
     .wx-qr img {
       width: 100%;
@@ -110,48 +135,24 @@
       object-fit: cover;
       display: block;
     }
-    .wx-expired-mask {
-      position: absolute;
-      inset: 0;
-      background: rgba(32, 22, 61, 0.68);
-      color: #fff;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      padding: 16px;
-      font-size: 14px;
-      line-height: 1.7;
-      font-weight: 600;
-    }
-    .wx-expired-mask.active {
-      display: flex;
-    }
     .wx-qr:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 10px 20px rgba(95, 61, 196, 0.16);
+      transform: scale(1.01);
+      box-shadow: 0 8px 20px rgba(79, 71, 230, 0.12);
     }
-    .wx-btn {
-      width: max-content;
-      border: 1px solid #35b26d;
-      background: #3cc26f;
-      color: #fff;
-      border-radius: 10px;
-      height: 38px;
-      padding: 0 16px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all var(--duration) ease;
-    }
-    .wx-btn:hover {
-      background: #2ea65d;
-      transform: translateY(-1px);
+    .wx-tips {
+      margin-top: 12px;
+      text-align: center;
+      color: var(--primary);
+      font-size: 14px;
+      line-height: 1.8;
+      font-weight: 500;
     }
     .right {
       padding: 24px 22px 20px;
       display: grid;
       align-content: start;
       gap: 14px;
+      position: relative;
     }
     .top-links {
       display: flex;
@@ -188,7 +189,7 @@
     .switch button.active {
       background: var(--primary);
       color: #fff;
-      box-shadow: 0 8px 18px var(--primary-soft);
+      box-shadow: 0 4px 12px var(--primary-soft);
       transform: translateY(-1px);
     }
     .panel {
@@ -198,7 +199,13 @@
       background: #fff;
       display: grid;
       gap: 10px;
-      transition: opacity var(--duration) ease, transform var(--duration) ease;
+      transition: opacity var(--duration) ease, transform var(--duration) ease, visibility var(--duration) ease;
+    }
+    .panel.faded {
+      opacity: 0;
+      transform: translateY(-4px);
+      visibility: hidden;
+      pointer-events: none;
     }
     .panel-title {
       margin: 0;
@@ -219,7 +226,7 @@
       transition: border-color var(--duration) ease, box-shadow var(--duration) ease;
     }
     .input:focus {
-      border-color: #7b5de0;
+      border-color: var(--primary);
       box-shadow: 0 0 0 3px var(--primary-soft);
     }
     .captcha-row {
@@ -242,7 +249,7 @@
     }
     .captcha:hover {
       transform: translateY(-1px);
-      box-shadow: 0 8px 16px rgba(95, 61, 196, 0.12);
+      box-shadow: 0 6px 14px rgba(79, 71, 230, 0.1);
     }
     .captcha img {
       width: 100%;
@@ -262,19 +269,19 @@
     .btn.primary {
       flex: 1;
       color: #fff;
-      background: linear-gradient(135deg, var(--primary), #7c4dff);
-      box-shadow: 0 10px 22px var(--primary-soft);
+      background: linear-gradient(135deg, var(--primary), #6b5ce6);
+      box-shadow: 0 6px 18px var(--primary-soft);
     }
     .btn.primary:hover {
       transform: translateY(-1px);
-      background: linear-gradient(135deg, var(--primary-hover), #6d42de);
+      background: linear-gradient(135deg, var(--primary-hover), #5a4ad4);
     }
     .btn.secondary {
-      background: #efeafe;
-      color: #50389a;
-      border: 1px solid #d8cff7;
+      background: #f5f3ff;
+      color: var(--primary);
+      border: 1px solid var(--border);
     }
-    .btn.secondary:hover { background: #e4dcff; }
+    .btn.secondary:hover { background: #ebe9ff; }
     .btn:disabled { opacity: 0.68; cursor: not-allowed; transform: none; }
     .helper {
       display: flex;
@@ -299,15 +306,65 @@
     .message.success { color: var(--success); }
     .message.info { color: var(--info); }
     .hidden { display: none !important; }
-    .verify-box, .forgot-box {
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(42, 34, 64, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity var(--duration) ease, visibility var(--duration) ease;
+    }
+    .modal-overlay.active {
+      opacity: 1;
+      visibility: visible;
+    }
+    .modal {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      width: 100%;
+      max-width: 380px;
+      box-shadow: var(--shadow);
+      transform: scale(0.95);
+      transition: transform var(--duration) ease;
+    }
+    .modal-overlay.active .modal {
+      transform: scale(1);
+    }
+    .modal-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text);
+      margin: 0 0 16px 0;
+    }
+    .verify-box {
       border: 1px solid var(--border);
       border-radius: 12px;
       padding: 12px;
       background: #faf8ff;
       display: grid;
       gap: 10px;
-      transform-origin: top;
       animation: slideIn var(--duration) ease;
+    }
+    .forgot-box {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: calc(100% - 44px);
+      max-width: 400px;
+      margin: 0;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      background: #faf8ff;
+      display: grid;
+      gap: 10px;
     }
     .forgot-box h3 {
       margin: 0;
@@ -319,13 +376,22 @@
       font-size: 13px;
       color: var(--muted);
     }
-    .tiny {
+    .footer {
       font-size: 12px;
       color: var(--muted);
       text-align: center;
+      margin-top: 8px;
     }
     @keyframes slideIn {
-      from { opacity: 0; transform: translateY(-8px); }
+      from { opacity: 0; transform: translateY(-6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeOut {
+      from { opacity: 1; transform: translateY(0); }
+      to { opacity: 0; transform: translateY(-6px); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
       to { opacity: 1; transform: translateY(0); }
     }
     @media (max-width: 920px) {
@@ -336,29 +402,38 @@
   </style>
 </head>
 <body data-next="{{ .LoginNext }}">
+  <header class="header">
+    <div class="header-left">
+      <img src="/static/logo.png" alt="Logo" class="header-logo" />
+      <span class="header-title">SoulNexus</span>
+    </div>
+    <div class="header-right">
+      <a href="https://docs.lingecho.com/" class="header-link" target="_blank">文档中心</a>
+      <a href="https://lingecho.com/" class="header-link" target="_blank">官网</a>
+    </div>
+  </header>
+  <main class="main">
   <div class="shell">
     <aside class="left">
-      <div class="brand">
-        <span class="brand-dot"></span>
-        <span>{{ .Site.Name }}</span>
-      </div>
       <h1>微信公众号登录</h1>
-      <p>请使用微信扫一扫登录</p>
       <div class="wx-card">
-        <div class="wx-qr" id="wechat-qr-box">
-          <img id="wechat-qr-image" alt="微信登录二维码" />
-          <div id="wechat-expired-mask" class="wx-expired-mask">二维码已失效<br />点击刷新</div>
+        <div class="wx-qr">
+          <img src="/static/qrcode_official_account.jpg" alt="公众号二维码" />
         </div>
-        <button id="wechat-refresh-btn" type="button" class="wx-btn">刷新</button>
+        <div class="wx-tips">
+          扫码关注公众号：Code百分百<br />
+          发送：<span id="wechat-login-code">------</span><br />
+          即可完成登录
+        </div>
       </div>
     </aside>
 
     <section class="right">
-      <div class="top-links">
+      <div class="top-links" id="top-links">
         <span>还没有账号？<a href="/api/auth/register">立即注册</a></span>
       </div>
 
-      <div class="switch">
+      <div class="switch" id="switch">
         <button id="mode-password" class="active" type="button">密码登录</button>
         <button id="mode-email" type="button">邮箱验证码登录</button>
       </div>
@@ -389,12 +464,6 @@
           <input id="twofactor-code" class="input" type="text" inputmode="numeric" placeholder="请输入 6 位验证码" />
         </div>
 
-        <div class="captcha-row">
-          <input id="captcha-code" class="input" type="text" required placeholder="请输入图形验证码" />
-          <div id="captcha-box" class="captcha" title="点击刷新验证码">
-            <img id="captcha-image" alt="captcha" />
-          </div>
-        </div>
 
         <div id="device-verify-box" class="verify-box hidden">
           <div class="field">
@@ -407,7 +476,7 @@
           </div>
         </div>
 
-        <button id="login-submit" class="btn primary" type="submit">登录</button>
+        <button id="login-submit" class="btn primary" type="button">登录</button>
 
         <div class="helper">
           <a id="show-forgot" href="javascript:void(0)">忘记密码？</a>
@@ -429,9 +498,27 @@
         </div>
         <div id="forgot-message" class="message"></div>
       </div>
+  </div>
+      </section>
+          <div class="footer">
+        © 2026 解忧造物责任有限公司 版权所有 蜀ICP备2025169908号-3
+      </div>
+  </main>
 
-      <div class="tiny">Powered by SoulNexus User Service</div>
-    </section>
+  <div id="captcha-modal" class="modal-overlay">
+    <div class="modal">
+      <h3 class="modal-title">请输入图形验证码</h3>
+      <div class="captcha-row" style="margin-bottom: 16px;">
+        <input id="modal-captcha-code" class="input" type="text" required placeholder="请输入图形验证码" />
+        <div id="modal-captcha-box" class="captcha" title="点击刷新验证码">
+          <img id="modal-captcha-image" alt="captcha" />
+        </div>
+      </div>
+      <div class="actions">
+        <button id="modal-captcha-cancel" class="btn secondary" type="button">取消</button>
+        <button id="modal-captcha-confirm" class="btn primary" type="button">确认</button>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -459,10 +546,6 @@
         btn.disabled = !!loading;
         btn.textContent = loading ? loadingText : idleText;
       };
-      const setWechatExpired = (expired) => {
-        $('wechat-expired-mask').classList.toggle('active', !!expired);
-      };
-
       const setMode = (mode) => {
         state.mode = mode;
         $('mode-password').classList.toggle('active', mode === 'password');
@@ -482,24 +565,20 @@
         return { resp, data };
       };
 
-      const loadWechatQRCode = async () => {
+      const initWechatMessageLogin = async () => {
         try {
-          setWechatExpired(false);
-          const resp = await fetch('/api/auth/wechat/qrcode');
+          const resp = await fetch('/api/auth/wechat/login-code');
           const data = await resp.json();
           if (!resp.ok || data.code !== 200 || !data.data) {
-            throw new Error(data.msg || '获取微信二维码失败');
+            return;
           }
           state.wechatSessionId = data.data.sessionId || '';
-          $('wechat-qr-image').src = data.data.qrCode || data.data.qrcodeUrl || '';
+          $('wechat-login-code').textContent = data.data.loginCode || '------';
           if (state.wechatPolling) {
             clearInterval(state.wechatPolling);
           }
           state.wechatPolling = setInterval(checkWechatStatus, 2500);
-        } catch (err) {
-          setWechatExpired(true);
-          setMessage('login-message', err.message || '获取微信二维码失败', 'error');
-        }
+        } catch (_) {}
       };
 
       const checkWechatStatus = async () => {
@@ -509,16 +588,8 @@
           const data = await resp.json();
           if (!resp.ok || data.code !== 200 || !data.data) return;
           const status = data.data.status;
-          if (status === 'expired') {
-            setWechatExpired(true);
-            if (state.wechatPolling) {
-              clearInterval(state.wechatPolling);
-              state.wechatPolling = null;
-            }
-            return;
-          }
           if (status === 'scanned') {
-            setMessage('login-message', '已扫码，请在微信中确认登录', 'info');
+            setMessage('login-message', '公众号已收到消息，正在完成登录...', 'info');
             return;
           }
           if (status === 'success' || status === 'authorized') {
@@ -530,7 +601,14 @@
             if (token) {
               localStorage.setItem('auth_token', token);
             }
-            window.location.href = data.data.redirect || '/';
+            setMessage('login-message', '微信登录成功，正在跳转...', 'success');
+            setTimeout(() => {
+              window.location.href = data.data.redirect || redirectTarget;
+            }, 500);
+            return;
+          }
+          if (status === 'expired') {
+            await initWechatMessageLogin();
           }
         } catch (_) {}
       };
@@ -543,7 +621,7 @@
             throw new Error(data.msg || '获取图形验证码失败');
           }
           state.captchaId = data.data.id || '';
-          $('captcha-image').src = data.data.image || '';
+          $('modal-captcha-image').src = data.data.image || '';
         } catch (err) {
           setMessage('login-message', err.message || '获取图形验证码失败', 'error');
         }
@@ -551,8 +629,12 @@
 
       $('mode-password').addEventListener('click', () => setMode('password'));
       $('mode-email').addEventListener('click', () => setMode('email'));
-      $('captcha-box').addEventListener('click', loadCaptcha);
-      $('captcha-image').addEventListener('click', loadCaptcha);
+      $('modal-captcha-box').addEventListener('click', loadCaptcha);
+      $('modal-captcha-image').addEventListener('click', loadCaptcha);
+      $('modal-captcha-cancel').addEventListener('click', () => {
+        $('captcha-modal').classList.remove('active');
+        $('modal-captcha-code').value = '';
+      });
 
       $('send-email-code').addEventListener('click', async () => {
         const email = $('email').value.trim();
@@ -619,12 +701,17 @@
       });
 
       $('show-forgot').addEventListener('click', () => {
+        $('top-links').classList.add('hidden');
+        $('switch').classList.add('hidden');
+        $('login-form').classList.add('hidden');
         $('forgot-box').classList.remove('hidden');
         $('forgot-message').textContent = '';
+        $('forgot-box').style.animation = 'none';
       });
-      $('wechat-refresh-btn').addEventListener('click', loadWechatQRCode);
-      $('wechat-expired-mask').addEventListener('click', loadWechatQRCode);
       $('forgot-cancel').addEventListener('click', () => {
+        $('top-links').classList.remove('hidden');
+        $('switch').classList.remove('hidden');
+        $('login-form').classList.remove('hidden');
         $('forgot-box').classList.add('hidden');
       });
       $('forgot-submit').addEventListener('click', async () => {
@@ -645,23 +732,20 @@
         }
       });
 
-      $('login-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
+      const performLogin = async (captchaCode, skipCaptcha = false) => {
         const payload = {
           email: $('email').value.trim(),
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
-          captchaId: state.captchaId,
-          captchaCode: $('captcha-code').value.trim(),
           twoFactorCode: $('twofactor-code').value.trim(),
         };
+        if (!skipCaptcha) {
+          payload.captchaId = state.captchaId;
+          payload.captchaCode = captchaCode;
+        }
         if (state.mode === 'password') {
           payload.password = $('password').value;
         } else {
           payload.code = $('email-code').value.trim();
-        }
-        if (!payload.email || !payload.captchaCode || (state.mode === 'password' && !payload.password) || (state.mode === 'email' && !payload.code)) {
-          setMessage('login-message', '请完整填写登录信息', 'error');
-          return;
         }
 
         const apiPath = state.mode === 'password' ? '/api/auth/login/password' : '/api/auth/login/email';
@@ -690,14 +774,53 @@
           setTimeout(() => { window.location.href = redirectTarget; }, 650);
         } catch (err) {
           setMessage('login-message', err.message || '登录失败', 'error');
-          loadCaptcha();
+          if (!skipCaptcha) loadCaptcha();
         } finally {
           setBtnLoading('login-submit', false, '登录', '登录中...');
         }
+      };
+
+      $('login-submit').addEventListener('click', async () => {
+        const twofactorCode = $('twofactor-code').value.trim();
+        if (twofactorCode) {
+          await performLogin('', true);
+          return;
+        }
+        
+        const email = $('email').value.trim();
+        const password = $('password').value;
+        const emailCode = $('email-code').value.trim();
+        
+        if (!email) {
+          setMessage('login-message', '请输入邮箱地址', 'error');
+          return;
+        }
+        if (state.mode === 'password' && !password) {
+          setMessage('login-message', '请输入密码', 'error');
+          return;
+        }
+        if (state.mode === 'email' && !emailCode) {
+          setMessage('login-message', '请输入邮箱验证码', 'error');
+          return;
+        }
+        
+        await loadCaptcha();
+        $('modal-captcha-code').value = '';
+        $('captcha-modal').classList.add('active');
+      });
+
+      $('modal-captcha-confirm').addEventListener('click', async () => {
+        const captchaCode = $('modal-captcha-code').value.trim();
+        if (!captchaCode) {
+          alert('请输入图形验证码');
+          return;
+        }
+        $('captcha-modal').classList.remove('active');
+        await performLogin(captchaCode);
       });
 
       loadCaptcha();
-      loadWechatQRCode();
+      initWechatMessageLogin();
     })();
   </script>
 </body>

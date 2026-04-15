@@ -49,7 +49,7 @@ func (app *userServiceApp) registerRoutes(r *gin.Engine) {
 
 func main() {
 	seed := flag.Bool("seed", false, "seed database")
-	migrate := flag.Bool("migrate", false, "run GORM AutoMigrate on startup")
+	init := flag.Bool("init", false, "run GORM AutoMigrate on startup")
 	mode := flag.String("mode", "", "running environment (development, test, production)")
 	initSQL := flag.String("init-sql", "", "path to database init .sql script (optional)")
 	addrFlag := flag.String("addr", "", "HTTP listen address (overrides USER_SERVICE_HTTP_ADDR; default :7073)")
@@ -75,7 +75,7 @@ func main() {
 
 	db, err := bootstrap.SetupDatabase(os.Stdout, &bootstrap.Options{
 		InitSQLPath: *initSQL,
-		AutoMigrate: *migrate,
+		AutoMigrate: *init,
 		SeedNonProd: *seed,
 	})
 	if err != nil {
@@ -91,7 +91,7 @@ func main() {
 		addr = ":7073"
 	}
 
-	logger.Info("user-service listen", zap.String("addr", addr), zap.Bool("migrate", *migrate))
+	logger.Info("user-service listen", zap.String("addr", addr), zap.Bool("init", *init))
 
 	if err := cache.InitGlobalCache(config.GlobalConfig.Cache); err != nil {
 		logger.Error("failed to initialize cache", zap.Error(err))

@@ -6,29 +6,77 @@
   <title>注册 - SoulNexus</title>
   <style>
     :root {
-      --bg: #f6f5ff;
+      --bg: #ffffff;
       --surface: #ffffff;
-      --surface-soft: #faf8ff;
-      --text: #2b2342;
-      --muted: #766c97;
-      --primary: #5e3dc4;
-      --primary-hover: #5033a5;
-      --primary-soft: rgba(94, 61, 196, 0.14);
-      --border: #dfd8fb;
-      --success: #087443;
+      --surface-soft: #f5f3ff;
+      --text: #2a2240;
+      --muted: #6f6591;
+      --primary: #4f47e6;
+      --primary-hover: #4239d4;
+      --primary-soft: rgba(79, 71, 230, 0.1);
+      --border: #e0d4f7;
+      --success: #0a7f48;
       --danger: #d92d20;
-      --duration: 220ms;
+      --duration: 280ms;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
       min-height: 100vh;
       font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
       color: var(--text);
-      background:
-        radial-gradient(900px 520px at 0% -10%, rgba(116, 87, 216, 0.14), transparent 55%),
-        radial-gradient(760px 460px at 100% -15%, rgba(158, 127, 245, 0.11), transparent 58%),
-        var(--bg);
+      display: flex;
+      flex-direction: column;
+      padding: 0;
+    }
+    .header {
+      width: 100%;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      background: #fff;
+    }
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .header-logo {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+    }
+    .header-title {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.5px;
+    }
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+    .header-link {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      padding: 8px 16px;
+      border-radius: 8px;
+      transition: all var(--duration) ease;
+    }
+    .header-link:hover {
+      color: var(--primary);
+      background: var(--primary-soft);
+    }
+    .main {
+      flex: 1;
       display: grid;
       place-items: center;
       padding: 20px 14px;
@@ -39,7 +87,7 @@
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 22px;
-      box-shadow: 0 24px 56px rgba(75, 52, 143, 0.13);
+      box-shadow: 0 24px 56px rgba(79, 71, 230, 0.08);
       padding: 26px 22px 18px;
       display: grid;
       gap: 14px;
@@ -47,7 +95,8 @@
     .head h1 {
       margin: 0;
       font-size: 30px;
-      color: #362960;
+      color: #2a2240;
+      font-weight: 600;
     }
     .head p {
       margin: 6px 0 0;
@@ -71,7 +120,7 @@
       transition: border-color var(--duration) ease, box-shadow var(--duration) ease;
     }
     .input:focus {
-      border-color: #7a5bdd;
+      border-color: var(--primary);
       box-shadow: 0 0 0 3px var(--primary-soft);
     }
     .inline { display: flex; gap: 10px; }
@@ -91,7 +140,7 @@
     }
     .captcha:hover {
       transform: translateY(-1px);
-      box-shadow: 0 10px 18px rgba(98, 65, 196, 0.15);
+      box-shadow: 0 6px 14px rgba(79, 71, 230, 0.1);
     }
     .captcha img { width: 100%; height: 100%; object-fit: contain; }
     .btn {
@@ -107,16 +156,16 @@
     .btn.primary {
       width: 100%;
       color: #fff;
-      background: linear-gradient(135deg, var(--primary), #7a4eff);
-      box-shadow: 0 12px 24px var(--primary-soft);
+      background: linear-gradient(135deg, var(--primary), #6b5ce6);
+      box-shadow: 0 6px 18px var(--primary-soft);
     }
-    .btn.primary:hover { background: linear-gradient(135deg, var(--primary-hover), #6a42e0); }
+    .btn.primary:hover { background: linear-gradient(135deg, var(--primary-hover), #5a4ad4); }
     .btn.secondary {
-      background: #eee9ff;
-      color: #4f359b;
-      border: 1px solid #d7cdfb;
+      background: #f5f3ff;
+      color: var(--primary);
+      border: 1px solid var(--border);
     }
-    .btn.secondary:hover { background: #e4dcff; }
+    .btn.secondary:hover { background: #ebe9ff; }
     .btn:disabled { opacity: 0.7; cursor: not-allowed; }
     .meta {
       display: flex;
@@ -127,6 +176,21 @@
     }
     .meta a { color: var(--primary); text-decoration: none; }
     .message { min-height: 18px; font-size: 13px; }
+    .hidden { display: none !important; }
+    .footer {
+      font-size: 12px;
+      color: var(--muted);
+      text-align: center;
+      margin-top: 8px;
+    }
+    .password-strength {
+      font-size: 11px;
+      margin-top: 4px;
+      min-height: 16px;
+    }
+    .password-strength.weak { color: var(--danger); }
+    .password-strength.medium { color: #f59e0b; }
+    .password-strength.strong { color: var(--success); }
     .message.success { color: var(--success); }
     .message.error { color: var(--danger); }
     @media (max-width: 760px) {
@@ -137,9 +201,19 @@
   </style>
 </head>
 <body data-next="{{ .LoginNext }}">
+  <header class="header">
+    <div class="header-left">
+      <img src="/static/logo.png" alt="Logo" class="header-logo" />
+      <span class="header-title">SoulNexus</span>
+    </div>
+    <div class="header-right">
+      <a href="https://docs.lingecho.com/" class="header-link" target="_blank">文档中心</a>
+      <a href="https://lingecho.com/" class="header-link" target="_blank">官网</a>
+    </div>
+  </header>
+  <main class="main">
   <div class="card">
     <div class="head">
-      <h1>创建账号</h1>
       <p>填写账号信息并完成邮箱验证，即可开始使用 SoulNexus。</p>
     </div>
     <form id="signup-form" class="form" autocomplete="on">
@@ -161,6 +235,7 @@
         <div class="field">
           <label for="password">密码</label>
           <input id="password" class="input" type="password" required placeholder="请输入密码" />
+          <div id="password-strength" class="password-strength"></div>
         </div>
         <div class="field">
           <label for="confirmPassword">确认密码</label>
@@ -174,16 +249,7 @@
           <button id="sendCodeBtn" class="btn secondary" type="button">发送验证码</button>
         </div>
       </div>
-      <div class="field">
-        <label for="captchaCode">图形验证码</label>
-        <div class="captcha-row">
-          <input id="captchaCode" class="input" type="text" required placeholder="请输入图形验证码" />
-          <div id="captchaBox" class="captcha" title="点击刷新验证码">
-            <img id="captchaImage" alt="captcha" />
-          </div>
-        </div>
-      </div>
-      <button id="submitBtn" class="btn primary" type="submit">立即注册</button>
+      <button id="submitBtn" class="btn primary" type="button">立即注册</button>
       <div id="message" class="message"></div>
     </form>
     <div class="meta">
@@ -191,6 +257,27 @@
       <a id="backLogin" href="/api/auth/login">返回登录</a>
     </div>
   </div>
+      <div class="footer">
+      © 2026 解忧造物责任有限公司 版权所有 蜀ICP备2025169908号-3
+    </div>
+  </main>
+
+  <div id="captcha-modal" class="modal-overlay hidden">
+    <div class="modal">
+      <h3 class="modal-title">请输入图形验证码</h3>
+      <div class="captcha-row" style="margin-bottom: 16px;">
+        <input id="modalCaptchaCode" class="input" type="text" required placeholder="请输入图形验证码" />
+        <div id="modalCaptchaBox" class="captcha" title="点击刷新验证码">
+          <img id="modalCaptchaImage" alt="captcha" />
+        </div>
+      </div>
+      <div class="actions">
+        <button id="modalCaptchaCancel" class="btn secondary" type="button">取消</button>
+        <button id="modalCaptchaConfirm" class="btn primary" type="button">确认</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     (function () {
       const state = { captchaId: '' };
@@ -225,12 +312,53 @@
           const data = await resp.json();
           if (!resp.ok || data.code !== 200 || !data.data) throw new Error(data.msg || '获取图形验证码失败');
           state.captchaId = data.data.id || '';
-          $('captchaImage').src = data.data.image || '';
+          $('modalCaptchaImage').src = data.data.image || '';
         } catch (err) {
           setMessage(err.message || '获取图形验证码失败', 'error');
         }
       };
-      $('captchaBox').addEventListener('click', loadCaptcha);
+      const checkPasswordStrength = (password) => {
+        let score = 0;
+        if (password.length < 8) return 0;
+        if (password.length >= 8) score++;
+        if (password.length >= 12) score++;
+        if (/[a-z]/.test(password)) score++;
+        if (/[A-Z]/.test(password)) score++;
+        if (/[0-9]/.test(password)) score++;
+        if (/[^a-zA-Z0-9]/.test(password)) score++;
+        return score;
+      };
+      const updatePasswordStrengthIndicator = (password) => {
+        const strength = checkPasswordStrength(password);
+        const el = $('password-strength');
+        el.className = 'password-strength';
+        if (!password) {
+          el.textContent = '';
+          return;
+        }
+        if (strength === 0) {
+          el.textContent = '密码强度：弱（至少需要8位字符）';
+          el.classList.add('weak');
+        } else if (strength < 3) {
+          el.textContent = '密码强度：弱（建议添加大小写字母、数字或特殊字符）';
+          el.classList.add('weak');
+        } else if (strength < 5) {
+          el.textContent = '密码强度：中等';
+          el.classList.add('medium');
+        } else {
+          el.textContent = '密码强度：强';
+          el.classList.add('strong');
+        }
+      };
+      $('password').addEventListener('input', (e) => {
+        updatePasswordStrengthIndicator(e.target.value);
+      });
+      $('modalCaptchaBox').addEventListener('click', loadCaptcha);
+      $('modalCaptchaImage').addEventListener('click', loadCaptcha);
+      $('modalCaptchaCancel').addEventListener('click', () => {
+        $('captcha-modal').classList.remove('active');
+        $('modalCaptchaCode').value = '';
+      });
 
       $('sendCodeBtn').addEventListener('click', async () => {
         const email = $('email').value.trim();
@@ -247,11 +375,12 @@
         }
       });
 
-      $('signup-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
+      const performSignup = async (captchaCode) => {
         const password = $('password').value;
         const confirmPassword = $('confirmPassword').value;
         if (password !== confirmPassword) return setMessage('两次输入的密码不一致', 'error');
+        const strength = checkPasswordStrength(password);
+        if (strength < 3) return setMessage('密码强度不足，请使用至少8位且包含大小写字母、数字或特殊字符的密码', 'error');
         const payload = {
           userName: $('username').value.trim(),
           displayName: $('displayName').value.trim(),
@@ -260,9 +389,9 @@
           code: $('emailCode').value.trim(),
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
           captchaId: state.captchaId,
-          captchaCode: $('captchaCode').value.trim(),
+          captchaCode: captchaCode,
         };
-        if (!payload.userName || !payload.displayName || !payload.email || !payload.password || !payload.code || !payload.captchaCode) {
+        if (!payload.userName || !payload.displayName || !payload.email || !payload.password || !payload.code) {
           return setMessage('请完整填写注册信息', 'error');
         }
         setBtnLoading('submitBtn', true, '立即注册', '注册中...');
@@ -278,9 +407,36 @@
         } finally {
           setBtnLoading('submitBtn', false, '立即注册', '注册中...');
         }
+      };
+      $('submitBtn').addEventListener('click', async () => {
+        const username = $('username').value.trim();
+        const displayName = $('displayName').value.trim();
+        const email = $('email').value.trim();
+        const password = $('password').value;
+        const confirmPassword = $('confirmPassword').value;
+        const emailCode = $('emailCode').value.trim();
+        
+        if (!username) return setMessage('请输入用户名', 'error');
+        if (!displayName) return setMessage('请输入显示名称', 'error');
+        if (!email) return setMessage('请输入邮箱地址', 'error');
+        if (!password) return setMessage('请输入密码', 'error');
+        if (!confirmPassword) return setMessage('请确认密码', 'error');
+        if (password !== confirmPassword) return setMessage('两次输入的密码不一致', 'error');
+        if (!emailCode) return setMessage('请输入邮箱验证码', 'error');
+        
+        await loadCaptcha();
+        $('modalCaptchaCode').value = '';
+        $('captcha-modal').classList.add('active');
       });
-
-      loadCaptcha();
+      $('modalCaptchaConfirm').addEventListener('click', async () => {
+        const captchaCode = $('modalCaptchaCode').value.trim();
+        if (!captchaCode) {
+          alert('请输入图形验证码');
+          return;
+        }
+        $('captcha-modal').classList.remove('active');
+        await performSignup(captchaCode);
+      });
     })();
   </script>
 </body>
