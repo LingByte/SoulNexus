@@ -1,5 +1,6 @@
 import axiosInstance from '@/utils/axios'
 import { InternalAxiosRequestConfig, AxiosResponse } from 'axios'
+import { getUserServiceBaseURL } from '@/config/apiConfig'
 
 // 通用响应类型
 export interface ApiResponse<T = any> {
@@ -14,9 +15,18 @@ const request = async <T = any>(
   options: Partial<InternalAxiosRequestConfig> = {}
 ): Promise<ApiResponse<T>> => {
   try {
+    // Fallback routing: any /auth/* call should go to user-service
+    // unless caller explicitly sets baseURL.
+    const requestOptions: Partial<InternalAxiosRequestConfig> = {
+      ...options,
+    }
+    if (!requestOptions.baseURL && /^\/auth(\/|$)/.test(url)) {
+      requestOptions.baseURL = getUserServiceBaseURL()
+    }
+
     const response: AxiosResponse<ApiResponse<T>> = await axiosInstance({
       url,
-      ...options,
+      ...requestOptions,
     })
     
     // 返回完整的响应结构，让业务层处理

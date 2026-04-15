@@ -128,6 +128,7 @@ const Sidebar = () => {
   const privateNavs = [t('nav.sidebar.overview'), t('nav.sidebar.smartAssistant'), t('nav.sidebar.voiceTraining'), t('voiceprint.title'), t('nav.sidebar.workflow'), t('nav.sidebar.pluginMarket'), t('nav.sidebar.notification'), t('nav.sidebar.alerts'), t('nav.sidebar.jsTemplate'), t('nav.sidebar.knowledgeBase'), t('nav.sidebar.billing'), t('nav.sidebar.groups'), t('nav.sidebar.deviceManagement'), t('nav.sidebar.mcpManagement'), t('nav.sidebar.mcpMarketplace')]
 
   const isActive = (path: string) => location.pathname === path
+  const isExternalHref = (href: string) => href.startsWith('http')
 
   // 桌面端侧边栏内容
   const desktopSidebarContent = (
@@ -174,54 +175,103 @@ const Sidebar = () => {
         }).map(item => {
           const Icon = item.icon
           return (
-            <a
-              key={item.name}
-              href={item.href}
-              target={item.href.startsWith('http') ? '_blank' : undefined}
-              rel={item.href.startsWith('http') ? 'noreferrer' : undefined}
-              className={`group relative flex items-center rounded-md font-medium transition-colors ${
-                isActive(item.href) || location.pathname.startsWith(item.href + '/')
-                  ? 'text-foreground bg-accent'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-              } ${isCollapsed ? 'justify-center px-2 py-3 hover:bg-accent/50' : 'px-3 py-2'}`}
-              title={isCollapsed ? item.name : ''}
-            >
-              <Icon
-                className={`${
-                  isCollapsed 
-                    ? 'w-5 h-5' 
-                    : 'w-4 h-4 mr-3'
-                } ${
-                  isActive(item.href)
-                    ? 'text-foreground'
-                    : isCollapsed
-                      ? 'text-foreground group-hover:text-foreground'
-                      : 'text-muted-foreground group-hover:text-foreground'
-                }`}
-                style={{ 
-                  display: 'block',
-                  minWidth: isCollapsed ? '20px' : '16px',
-                  minHeight: isCollapsed ? '20px' : '16px'
-                }}
-              />
-              {!isCollapsed && (
-                <motion.span
-                  initial={false}
-                  animate={{ opacity: 1 }}
-                  transition={{ duration: 0.2 }}
-                  className="text-xs whitespace-nowrap"
-                >
-                  {item.name}
-                </motion.span>
-              )}
-              {(isActive(item.href) || location.pathname.startsWith(item.href + '/')) && !isCollapsed && (
-                <motion.div
-                  layoutId="activeSidebarItem"
-                  className="absolute right-0 w-1 h-6 bg-primary rounded-l-full"
-                  transition={{ type: 'spring', bounce: 0.2, duration: 0.3 }}
+            isExternalHref(item.href) ? (
+              <a
+                key={item.name}
+                href={item.href}
+                target="_blank"
+                rel="noreferrer"
+                className={`group relative flex items-center rounded-md font-medium transition-colors ${
+                  isActive(item.href) || location.pathname.startsWith(item.href + '/')
+                    ? 'text-foreground bg-accent'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                } ${isCollapsed ? 'justify-center px-2 py-3 hover:bg-accent/50' : 'px-3 py-2'}`}
+                title={isCollapsed ? item.name : ''}
+              >
+                <Icon
+                  className={`${
+                    isCollapsed 
+                      ? 'w-5 h-5' 
+                      : 'w-4 h-4 mr-3'
+                  } ${
+                    isActive(item.href)
+                      ? 'text-foreground'
+                      : isCollapsed
+                        ? 'text-foreground group-hover:text-foreground'
+                        : 'text-muted-foreground group-hover:text-foreground'
+                  }`}
+                  style={{ 
+                    display: 'block',
+                    minWidth: isCollapsed ? '20px' : '16px',
+                    minHeight: isCollapsed ? '20px' : '16px'
+                  }}
                 />
-              )}
-            </a>
+                {!isCollapsed && (
+                  <motion.span
+                    initial={false}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.2 }}
+                    className="text-xs whitespace-nowrap"
+                  >
+                    {item.name}
+                  </motion.span>
+                )}
+                {(isActive(item.href) || location.pathname.startsWith(item.href + '/')) && !isCollapsed && (
+                  <motion.div
+                    layoutId="activeSidebarItem"
+                    className="absolute right-0 w-1 h-6 bg-primary rounded-l-full pointer-events-none"
+                    transition={{ type: 'spring', bounce: 0.2, duration: 0.3 }}
+                  />
+                )}
+              </a>
+            ) : (
+              <Link
+                key={item.name}
+                to={item.href}
+                className={`group relative flex items-center rounded-md font-medium transition-colors ${
+                  isActive(item.href) || location.pathname.startsWith(item.href + '/')
+                    ? 'text-foreground bg-accent'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                } ${isCollapsed ? 'justify-center px-2 py-3 hover:bg-accent/50' : 'px-3 py-2'}`}
+                title={isCollapsed ? item.name : ''}
+              >
+                <Icon
+                  className={`${
+                    isCollapsed 
+                      ? 'w-5 h-5' 
+                      : 'w-4 h-4 mr-3'
+                  } ${
+                    isActive(item.href)
+                      ? 'text-foreground'
+                      : isCollapsed
+                        ? 'text-foreground group-hover:text-foreground'
+                        : 'text-muted-foreground group-hover:text-foreground'
+                  }`}
+                  style={{ 
+                    display: 'block',
+                    minWidth: isCollapsed ? '20px' : '16px',
+                    minHeight: isCollapsed ? '20px' : '16px'
+                  }}
+                />
+                {!isCollapsed && (
+                  <motion.span
+                    initial={false}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.2 }}
+                    className="text-xs whitespace-nowrap"
+                  >
+                    {item.name}
+                  </motion.span>
+                )}
+                {(isActive(item.href) || location.pathname.startsWith(item.href + '/')) && !isCollapsed && (
+                  <motion.div
+                    layoutId="activeSidebarItem"
+                    className="absolute right-0 w-1 h-6 bg-primary rounded-l-full pointer-events-none"
+                    transition={{ type: 'spring', bounce: 0.2, duration: 0.3 }}
+                  />
+                )}
+              </Link>
+            )
           )
         })}
       </nav>
@@ -617,27 +667,49 @@ const Sidebar = () => {
               const Icon = item.icon
               const active = isActive(item.href) || location.pathname.startsWith(item.href + '/')
               return (
-                <a
-                  key={item.name}
-                  href={item.href}
-                  target={item.href.startsWith('http') ? '_blank' : undefined}
-                  rel={item.href.startsWith('http') ? 'noreferrer' : undefined}
-                  className={`group relative flex items-center gap-2 px-3 py-2 rounded-md font-medium text-xs whitespace-nowrap transition-colors ${
-                    active
-                      ? 'text-foreground bg-accent'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
-                  }`}
-                >
-                  <Icon className="w-4 h-4 flex-shrink-0" />
-                  <span>{item.name}</span>
-                  {active && (
-                    <motion.div
-                      layoutId="activeMobileNavItem"
-                      className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t-full"
-                      transition={{ type: 'spring', bounce: 0.2, duration: 0.3 }}
-                    />
-                  )}
-                </a>
+                isExternalHref(item.href) ? (
+                  <a
+                    key={item.name}
+                    href={item.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={`group relative flex items-center gap-2 px-3 py-2 rounded-md font-medium text-xs whitespace-nowrap transition-colors ${
+                      active
+                        ? 'text-foreground bg-accent'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                    }`}
+                  >
+                    <Icon className="w-4 h-4 flex-shrink-0" />
+                    <span>{item.name}</span>
+                    {active && (
+                      <motion.div
+                        layoutId="activeMobileNavItem"
+                        className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t-full pointer-events-none"
+                        transition={{ type: 'spring', bounce: 0.2, duration: 0.3 }}
+                      />
+                    )}
+                  </a>
+                ) : (
+                  <Link
+                    key={item.name}
+                    to={item.href}
+                    className={`group relative flex items-center gap-2 px-3 py-2 rounded-md font-medium text-xs whitespace-nowrap transition-colors ${
+                      active
+                        ? 'text-foreground bg-accent'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                    }`}
+                  >
+                    <Icon className="w-4 h-4 flex-shrink-0" />
+                    <span>{item.name}</span>
+                    {active && (
+                      <motion.div
+                        layoutId="activeMobileNavItem"
+                        className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t-full pointer-events-none"
+                        transition={{ type: 'spring', bounce: 0.2, duration: 0.3 }}
+                      />
+                    )}
+                  </Link>
+                )
               )
             })}
           </nav>

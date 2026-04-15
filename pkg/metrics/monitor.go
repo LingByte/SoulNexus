@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/LingByte/SoulNexus"
-	"github.com/LingByte/SoulNexus/pkg/config"
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -102,16 +101,12 @@ func RegisterMonitorUI(grp *gin.RouterGroup, api *MonitorAPI) {
 	})
 	grp.GET("/ui.json", func(c *gin.Context) {
 		m := api.monitor
-		serverName := config.GlobalConfig.Server.Name
-		if serverName == "" {
-			serverName = "LingEcho"
-		}
 		c.JSON(http.StatusOK, gin.H{
 			"success": true,
 			"data": gin.H{
 				"site": gin.H{
-					"name":        serverName + " Monitor",
-					"server_name": serverName,
+					"name":        "SoulNexus Monitor",
+					"server_name": "SoulNexus",
 					"description": "系统与业务可观测性面板",
 				},
 				"capabilities": gin.H{
