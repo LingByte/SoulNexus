@@ -49,7 +49,6 @@ func NewLingEchoApp(db *gorm.DB) *LingEchoApp {
 }
 
 func (app *LingEchoApp) RegisterRoutes(r *gin.Engine) {
-	// Register system routes (with /api prefix)
 	app.handlers.Register(r)
 }
 
@@ -244,7 +243,11 @@ func main() {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()        // Use gin.New() instead of gin.Default() to avoid automatic redirects
 	r.Use(gin.Recovery()) // Manually add Recovery middleware
-	r.LoadHTMLGlob("templates/**/**")
+	templatesFS := LingEcho.NewCombineEmbedFS(
+		LingEcho.HintAssetsRoot("templates"),
+		LingEcho.EmbedFS{"templates", LingEcho.EmbedTemplates},
+	)
+	r.HTMLRender = LingEcho.NewCombineTemplates(templatesFS)
 	r.RedirectTrailingSlash = false
 	r.RedirectFixedPath = false
 	r.MaxMultipartMemory = 32 << 20 // 32 MB
@@ -254,6 +257,9 @@ func main() {
 
 	// Cookie Register
 	secret := utils.GetEnv(constants.ENV_SESSION_SECRET)
+	if secret == "" && config.GlobalConfig != nil {
+		secret = config.GlobalConfig.Auth.SessionSecret
+	}
 	if secret != "" {
 		expireDays := utils.GetIntEnv(constants.ENV_SESSION_EXPIRE_DAYS)
 		if expireDays <= 0 {

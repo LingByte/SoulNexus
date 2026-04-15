@@ -148,7 +148,11 @@ func main() {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	r.Use(gin.Recovery())
-	r.LoadHTMLGlob("templates/**/**")
+	templatesFS := LingEcho.NewCombineEmbedFS(
+		LingEcho.HintAssetsRoot("templates"),
+		LingEcho.EmbedFS{"templates", LingEcho.EmbedTemplates},
+	)
+	r.HTMLRender = LingEcho.NewCombineTemplates(templatesFS)
 	r.RedirectTrailingSlash = false
 	r.RedirectFixedPath = false
 	r.MaxMultipartMemory = 32 << 20
@@ -156,6 +160,9 @@ func main() {
 	r.Use(metrics.MonitorMiddleware(monitor))
 
 	secret := utils.GetEnv(constants.ENV_SESSION_SECRET)
+	if secret == "" && config.GlobalConfig != nil {
+		secret = config.GlobalConfig.Auth.SessionSecret
+	}
 	if secret != "" {
 		expireDays := utils.GetIntEnv(constants.ENV_SESSION_EXPIRE_DAYS)
 		if expireDays <= 0 {

@@ -4,14 +4,22 @@ package handlers
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"crypto/sha1"
+	"crypto/rand"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
+	"encoding/xml"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/LingByte/SoulNexus"
@@ -33,6 +41,62 @@ import (
 	"gorm.io/gorm"
 )
 
+type wechatLoginSession struct {
+	SceneID   string
+	Status    string
+	ExpiresAt time.Time
+	ScannedAt *time.Time
+	OpenID    string
+	UserID    uint
+}
+
+var wechatLoginSessions = struct {
+	sync.RWMutex
+	items map[string]*wechatLoginSession
+}{
+	items: make(map[string]*wechatLoginSession),
+}
+
+var wechatAccessTokenCache = struct {
+	sync.Mutex
+	Token     string
+	ExpiresAt time.Time
+}{}
+
+type wechatQRCodeCreateResp struct {
+	Ticket        string `json:"ticket"`
+	ExpireSeconds int    `json:"expire_seconds"`
+	URL           string `json:"url"`
+	ErrCode       int    `json:"errcode"`
+	ErrMsg        string `json:"errmsg"`
+}
+
+type wechatAccessTokenResp struct {
+	AccessToken string `json:"access_token"`
+	ExpiresIn   int    `json:"expires_in"`
+	ErrCode     int    `json:"errcode"`
+	ErrMsg      string `json:"errmsg"`
+}
+
+type wechatUserInfoResp struct {
+	Subscribe int    `json:"subscribe"`
+	OpenID    string `json:"openid"`
+	UnionID   string `json:"unionid"`
+	Nickname  string `json:"nickname"`
+	HeadImg   string `json:"headimgurl"`
+	ErrCode   int    `json:"errcode"`
+	ErrMsg    string `json:"errmsg"`
+}
+
+type wechatMessageXML struct {
+	XMLName      xml.Name `xml:"xml"`
+	ToUserName   string   `xml:"ToUserName"`
+	FromUserName string   `xml:"FromUserName"`
+	MsgType      string   `xml:"MsgType"`
+	Event        string   `xml:"Event"`
+	EventKey     string   `xml:"EventKey"`
+}
+
 // handleUserSignupPage handle user signup page
 func (h *Handlers) handleUserSignupPage(c *gin.Context) {
 	ctx := LingEcho.GetRenderPageContext(c)
@@ -51,6 +115,425 @@ func (h *Handlers) handleUserSigninPage(c *gin.Context) {
 	ctx := LingEcho.GetRenderPageContext(c)
 	ctx["SignupText"] = "Sign Up Now"
 	c.HTML(http.StatusOK, "signin.html", ctx)
+}
+
+// RenderSigninPage exposes the signin template rendering for external router composition.
+func (h *Handlers) RenderSigninPage(c *gin.Context) {
+	h.handleUserSigninPage(c)
+}
+
+func newWechatSessionID() string {
+	buf := make([]byte, 16)
+	if _, err := rand.Read(buf); err != nil {
+		return fmt.Sprintf("wx_%d", time.Now().UnixNano())
+	}
+	return "wx_" + hex.EncodeToString(buf)
+}
+
+func getWechatMPConfig() (appID, appSecret, token string, err error) {
+	appID = strings.TrimSpace(os.Getenv("WECHAT_MP_APP_ID"))
+	appSecret = strings.TrimSpace(os.Getenv("WECHAT_MP_SECRET"))
+	token = strings.TrimSpace(os.Getenv("WECHAT_MP_TOKEN"))
+	if appID == "" || appSecret == "" {
+		return "", "", "", errors.New("missing WECHAT_MP_APP_ID or WECHAT_MP_SECRET")
+	}
+	return appID, appSecret, token, nil
+}
+
+func getWechatAccessToken() (string, error) {
+	wechatAccessTokenCache.Lock()
+	defer wechatAccessTokenCache.Unlock()
+
+	if wechatAccessTokenCache.Token != "" && time.Now().Before(wechatAccessTokenCache.ExpiresAt) {
+		return wechatAccessTokenCache.Token, nil
+	}
+
+	appID, appSecret, _, err := getWechatMPConfig()
+	if err != nil {
+		return "", err
+	}
+	url := fmt.Sprintf("https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=%s&secret=%s", appID, appSecret)
+	resp, err := http.Get(url)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	var tokenResp wechatAccessTokenResp
+	if err = json.Unmarshal(body, &tokenResp); err != nil {
+		return "", err
+	}
+	if tokenResp.ErrCode != 0 || tokenResp.AccessToken == "" {
+		return "", fmt.Errorf("wechat token error: %d %s", tokenResp.ErrCode, tokenResp.ErrMsg)
+	}
+
+	exp := tokenResp.ExpiresIn - 300
+	if exp < 300 {
+		exp = tokenResp.ExpiresIn
+	}
+	wechatAccessTokenCache.Token = tokenResp.AccessToken
+	wechatAccessTokenCache.ExpiresAt = time.Now().Add(time.Duration(exp) * time.Second)
+	return tokenResp.AccessToken, nil
+}
+
+func cleanExpiredWechatSessions() {
+	now := time.Now()
+	wechatLoginSessions.Lock()
+	defer wechatLoginSessions.Unlock()
+	for k, v := range wechatLoginSessions.items {
+		if now.After(v.ExpiresAt) {
+			delete(wechatLoginSessions.items, k)
+		}
+	}
+}
+
+func verifyWechatSignature(token, signature, timestamp, nonce string) bool {
+	items := []string{token, timestamp, nonce}
+	sort.Strings(items)
+	sum := sha1.Sum([]byte(strings.Join(items, "")))
+	return fmt.Sprintf("%x", sum) == signature
+}
+
+func extractSceneID(eventKey string) string {
+	k := strings.TrimSpace(eventKey)
+	k = strings.TrimPrefix(k, "qrscene_")
+	k = strings.TrimPrefix(k, "login_")
+	return k
+}
+
+func sendWechatReplyText(c *gin.Context, toUser, fromUser, text string) {
+	reply := fmt.Sprintf("<xml><ToUserName><![CDATA[%s]]></ToUserName><FromUserName><![CDATA[%s]]></FromUserName><CreateTime>%d</CreateTime><MsgType><![CDATA[text]]></MsgType><Content><![CDATA[%s]]></Content></xml>",
+		toUser, fromUser, time.Now().Unix(), text)
+	c.Header("Content-Type", "application/xml; charset=utf-8")
+	c.String(http.StatusOK, reply)
+}
+
+func (h *Handlers) findOrCreateWechatUser(openID string, info *wechatUserInfoResp) (*models.User, error) {
+	if openID == "" {
+		return nil, errors.New("empty openid")
+	}
+
+	var user models.User
+	if err := h.db.Where("wechat_open_id = ?", openID).First(&user).Error; err == nil {
+		updates := map[string]any{
+			"wechat_union_id": info.UnionID,
+		}
+		if info.HeadImg != "" {
+			updates["avatar"] = info.HeadImg
+		}
+		_ = h.db.Model(&user).Updates(updates).Error
+		return &user, nil
+	}
+
+	nickname := strings.TrimSpace(info.Nickname)
+	if nickname == "" {
+		nickname = "微信用户"
+	}
+	suffix := openID
+	if len(suffix) > 8 {
+		suffix = suffix[len(suffix)-8:]
+	}
+	email := fmt.Sprintf("wechat_%s@temp.local", suffix)
+	password := newWechatSessionID()
+	created, err := models.CreateUserByEmail(h.db, nickname, nickname, email, password)
+	if err != nil {
+		email = fmt.Sprintf("wechat_%d@temp.local", time.Now().UnixNano())
+		created, err = models.CreateUserByEmail(h.db, nickname, nickname, email, password)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	updates := map[string]any{
+		"wechat_open_id": openID,
+		"wechat_union_id": info.UnionID,
+	}
+	if info.HeadImg != "" {
+		updates["avatar"] = info.HeadImg
+	}
+	if err = h.db.Model(created).Updates(updates).Error; err != nil {
+		return nil, err
+	}
+	_ = h.db.First(created, created.ID).Error
+	return created, nil
+}
+
+func (h *Handlers) finishWechatSessionSuccess(c *gin.Context, session *wechatLoginSession) (gin.H, error) {
+	user, err := models.GetUserByUID(h.db, session.UserID)
+	if err != nil || user == nil {
+		return nil, errors.New("wechat user is not bound")
+	}
+	models.Login(c, user)
+	user.AuthToken = models.BuildAuthToken(user, 7*24*time.Hour, false)
+	return gin.H{
+		"status": "success",
+		"token":  user.AuthToken,
+		"user":   user,
+	}, nil
+}
+
+func (h *Handlers) handleWechatLoginQRCode(c *gin.Context) {
+	accessToken, err := getWechatAccessToken()
+	if err != nil {
+		response.Fail(c, "wechat config invalid", err)
+		return
+	}
+	sceneID := newWechatSessionID()
+	reqBody := map[string]any{
+		"expire_seconds": 600,
+		"action_name":    "QR_STR_SCENE",
+		"action_info": map[string]any{
+			"scene": map[string]any{
+				"scene_str": "login_" + sceneID,
+			},
+		},
+	}
+	jsonData, _ := json.Marshal(reqBody)
+	apiURL := fmt.Sprintf("https://api.weixin.qq.com/cgi-bin/qrcode/create?access_token=%s", accessToken)
+	resp, err := http.Post(apiURL, "application/json", strings.NewReader(string(jsonData)))
+	if err != nil {
+		response.Fail(c, "failed to request wechat qrcode", err)
+		return
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		response.Fail(c, "failed to read wechat response", err)
+		return
+	}
+	var qrResp wechatQRCodeCreateResp
+	if err = json.Unmarshal(body, &qrResp); err != nil {
+		response.Fail(c, "invalid wechat qrcode response", err)
+		return
+	}
+	if qrResp.ErrCode != 0 || qrResp.Ticket == "" {
+		response.Fail(c, "wechat qrcode error", fmt.Errorf("%d %s", qrResp.ErrCode, qrResp.ErrMsg))
+		return
+	}
+
+	expiresIn := qrResp.ExpireSeconds
+	if expiresIn <= 0 {
+		expiresIn = 600
+	}
+	expiresAt := time.Now().Add(time.Duration(expiresIn) * time.Second)
+	session := &wechatLoginSession{
+		SceneID:   sceneID,
+		Status:    "pending",
+		ExpiresAt:  expiresAt,
+	}
+	wechatLoginSessions.Lock()
+	wechatLoginSessions.items[sceneID] = session
+	wechatLoginSessions.Unlock()
+	cleanExpiredWechatSessions()
+
+	response.Success(c, "wechat qrcode generated", gin.H{
+		"sessionId":    sceneID,
+		"qrcodeUrl":    fmt.Sprintf("https://mp.weixin.qq.com/cgi-bin/showqrcode?ticket=%s", qrResp.Ticket),
+		"expiresAt":    expiresAt.Unix(),
+		"expiresInSec": expiresIn,
+		"expiresIn":    expiresIn,
+	})
+}
+
+func (h *Handlers) handleWechatConfigCheck(c *gin.Context) {
+	appID := strings.TrimSpace(os.Getenv("WECHAT_MP_APP_ID"))
+	appSecret := strings.TrimSpace(os.Getenv("WECHAT_MP_SECRET"))
+	token := strings.TrimSpace(os.Getenv("WECHAT_MP_TOKEN"))
+	aesKey := strings.TrimSpace(os.Getenv("WECHAT_MP_AES_KEY"))
+	response.Success(c, "wechat config check", gin.H{
+		"appId":               appID,
+		"appIdLength":         len(appID),
+		"appSecretConfigured": appSecret != "",
+		"appSecretLength":     len(appSecret),
+		"tokenConfigured":     token != "",
+		"aesKeyConfigured":    aesKey != "",
+	})
+}
+
+func (h *Handlers) handleWechatLoginStatus(c *gin.Context) {
+	sessionID := strings.TrimSpace(c.Query("sessionId"))
+	if sessionID == "" {
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("sessionId is required"))
+		return
+	}
+	wechatLoginSessions.RLock()
+	session, ok := wechatLoginSessions.items[sessionID]
+	wechatLoginSessions.RUnlock()
+	if !ok {
+		response.Success(c, "wechat session status", gin.H{"status": "expired"})
+		return
+	}
+	if time.Now().After(session.ExpiresAt) {
+		response.Success(c, "wechat session status", gin.H{"status": "expired"})
+		return
+	}
+	if session.Status != "success" {
+		status := session.Status
+		if status == "" {
+			status = "pending"
+		}
+		response.Success(c, "wechat session status", gin.H{
+			"status":    status,
+			"expiresAt": session.ExpiresAt.Unix(),
+		})
+		return
+	}
+
+	data, err := h.finishWechatSessionSuccess(c, session)
+	if err != nil {
+		response.Success(c, "wechat session status", gin.H{"status": "authorized_but_unbound"})
+		return
+	}
+	wechatLoginSessions.Lock()
+	delete(wechatLoginSessions.items, sessionID)
+	wechatLoginSessions.Unlock()
+	response.Success(c, "wechat session status", data)
+}
+
+func (h *Handlers) handleWechatCheckLogin(c *gin.Context) {
+	sceneID := strings.TrimSpace(c.Param("sceneId"))
+	if sceneID == "" {
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("sceneId is required"))
+		return
+	}
+	wechatLoginSessions.RLock()
+	session, ok := wechatLoginSessions.items[sceneID]
+	wechatLoginSessions.RUnlock()
+	if !ok || time.Now().After(session.ExpiresAt) {
+		response.Success(c, "wechat check login", gin.H{"status": "expired"})
+		return
+	}
+	if session.Status != "success" {
+		status := session.Status
+		if status == "" {
+			status = "pending"
+		}
+		response.Success(c, "wechat check login", gin.H{"status": status})
+		return
+	}
+	data, err := h.finishWechatSessionSuccess(c, session)
+	if err != nil {
+		response.Success(c, "wechat check login", gin.H{"status": "pending"})
+		return
+	}
+	wechatLoginSessions.Lock()
+	delete(wechatLoginSessions.items, sceneID)
+	wechatLoginSessions.Unlock()
+	response.Success(c, "wechat check login", data)
+}
+
+func (h *Handlers) handleWechatLogin(c *gin.Context) {
+	c.Redirect(http.StatusFound, "/api/auth/login")
+}
+
+func (h *Handlers) handleWechatLoginCallback(c *gin.Context) {
+	signature := c.Query("signature")
+	timestamp := c.Query("timestamp")
+	nonce := c.Query("nonce")
+	echostr := c.Query("echostr")
+	_, _, token, err := getWechatMPConfig()
+	if err != nil || token == "" {
+		c.String(http.StatusBadRequest, "wechat token is not configured")
+		return
+	}
+	if !verifyWechatSignature(token, signature, timestamp, nonce) {
+		c.String(http.StatusForbidden, "invalid signature")
+		return
+	}
+	c.String(http.StatusOK, echostr)
+}
+
+func (h *Handlers) handleWechatLoginMessage(c *gin.Context) {
+	signature := c.Query("signature")
+	timestamp := c.Query("timestamp")
+	nonce := c.Query("nonce")
+	_, _, token, err := getWechatMPConfig()
+	if err != nil || token == "" || !verifyWechatSignature(token, signature, timestamp, nonce) {
+		c.String(http.StatusForbidden, "invalid signature")
+		return
+	}
+
+	raw, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		c.String(http.StatusOK, "success")
+		return
+	}
+	var msg wechatMessageXML
+	if err = xml.Unmarshal(raw, &msg); err != nil {
+		c.String(http.StatusOK, "success")
+		return
+	}
+	if strings.ToLower(msg.MsgType) != "event" {
+		c.String(http.StatusOK, "success")
+		return
+	}
+	event := strings.ToUpper(strings.TrimSpace(msg.Event))
+	if event != "SCAN" && event != "SUBSCRIBE" {
+		c.String(http.StatusOK, "success")
+		return
+	}
+
+	sceneID := extractSceneID(msg.EventKey)
+	if sceneID == "" {
+		c.String(http.StatusOK, "success")
+		return
+	}
+	wechatLoginSessions.Lock()
+	session, ok := wechatLoginSessions.items[sceneID]
+	if !ok || time.Now().After(session.ExpiresAt) {
+		wechatLoginSessions.Unlock()
+		c.String(http.StatusOK, "success")
+		return
+	}
+	now := time.Now()
+	session.ScannedAt = &now
+	session.Status = "scanned"
+	session.OpenID = msg.FromUserName
+	wechatLoginSessions.Unlock()
+
+	var wechatUserInfo wechatUserInfoResp
+	if accessToken, tokenErr := getWechatAccessToken(); tokenErr == nil && msg.FromUserName != "" {
+		userInfoURL := fmt.Sprintf("https://api.weixin.qq.com/cgi-bin/user/info?access_token=%s&openid=%s&lang=zh_CN", accessToken, msg.FromUserName)
+		if userResp, reqErr := http.Get(userInfoURL); reqErr == nil {
+			defer userResp.Body.Close()
+			if userRaw, readErr := io.ReadAll(userResp.Body); readErr == nil {
+				_ = json.Unmarshal(userRaw, &wechatUserInfo)
+			}
+		}
+	}
+
+	var loginUser *models.User
+	if bindEmail := strings.TrimSpace(os.Getenv("WECHAT_LOGIN_BIND_EMAIL")); bindEmail != "" {
+		if u, findErr := models.GetUserByEmail(h.db, bindEmail); findErr == nil && u != nil {
+			loginUser = u
+		}
+	}
+	if loginUser == nil {
+		openID := msg.FromUserName
+		if wechatUserInfo.OpenID != "" {
+			openID = wechatUserInfo.OpenID
+		}
+		if u, userErr := h.findOrCreateWechatUser(openID, &wechatUserInfo); userErr == nil {
+			loginUser = u
+		}
+	}
+	if loginUser != nil {
+		wechatLoginSessions.Lock()
+		if s, exists := wechatLoginSessions.items[sceneID]; exists {
+			s.UserID = loginUser.ID
+			s.Status = "success"
+		}
+		wechatLoginSessions.Unlock()
+	}
+
+	if event == "SUBSCRIBE" {
+		sendWechatReplyText(c, msg.FromUserName, msg.ToUserName, "欢迎关注，正在为您登录...")
+		return
+	}
+	sendWechatReplyText(c, msg.FromUserName, msg.ToUserName, "正在为您登录...")
 }
 
 // handleUserLogout handle user logout
