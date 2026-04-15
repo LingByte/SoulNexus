@@ -125,6 +125,9 @@ func (h *Handlers) RegisterUserServiceRoutes(engine *gin.Engine) {
 	}
 
 	h.registerAuthRoutes(r)
+
+	// Rendered login page for browser access in user-service.
+	engine.GET("/login", h.RenderSigninPage)
 }
 
 func (h *Handlers) Register(engine *gin.Engine) {

@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>登录 - SoulNexus</title>
+  <style>
+    :root {
+      --bg: #f8f8ff;
+      --bg-secondary: #f3f0ff;
+      --card: #ffffff;
+      --text: #2a2240;
+      --muted: #6f6591;
+      --primary: #5f3dc4;
+      --primary-hover: #5235a7;
+      --primary-soft: rgba(95, 61, 196, 0.16);
+      --border: #ddd6f7;
+      --danger: #d92d20;
+      --success: #0a7f48;
+      --info: #5f3dc4;
+      --shadow: 0 20px 48px rgba(79, 57, 140, 0.12);
+      --radius: 14px;
+      --duration: 240ms;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background:
+        radial-gradient(900px 500px at 8% -8%, rgba(109, 76, 204, 0.12), transparent 56%),
+        radial-gradient(860px 460px at 100% -14%, rgba(142, 102, 234, 0.12), transparent 58%),
+        var(--bg);
+      color: var(--text);
+      display: grid;
+      place-items: center;
+      padding: 16px;
+    }
+    .shell {
+      width: 100%;
+      max-width: 980px;
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      background: var(--card);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      display: grid;
+      grid-template-columns: 1.1fr 1fr;
+    }
+    .left {
+      background:
+        linear-gradient(160deg, rgba(95, 61, 196, 0.08), rgba(95, 61, 196, 0.02)),
+        var(--bg-secondary);
+      border-right: 1px solid var(--border);
+      padding: 36px 32px;
+      display: grid;
+      align-content: center;
+      gap: 18px;
+    }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 800;
+      letter-spacing: 0.2px;
+      color: #3f2f75;
+      font-size: 20px;
+    }
+    .brand-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #6d4ccc, #9a72f2);
+      box-shadow: 0 0 0 8px rgba(95, 61, 196, 0.14);
+    }
+    .left h1 {
+      margin: 0;
+      font-size: 32px;
+      line-height: 1.2;
+      color: #2f2352;
+    }
+    .left p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.7;
+      font-size: 14px;
+    }
+    .wx-card {
+      margin-top: 2px;
+      border: 1px solid #d6cdf8;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.7);
+      padding: 12px;
+      display: grid;
+      gap: 10px;
+    }
+    .wx-qr {
+      width: 220px;
+      height: 220px;
+      border-radius: 12px;
+      border: 1px solid #dacefc;
+      background: #fff;
+      position: relative;
+      overflow: hidden;
+      transition: transform var(--duration) ease, box-shadow var(--duration) ease;
+    }
+    .wx-qr img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .wx-expired-mask {
+      position: absolute;
+      inset: 0;
+      background: rgba(32, 22, 61, 0.68);
+      color: #fff;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 16px;
+      font-size: 14px;
+      line-height: 1.7;
+      font-weight: 600;
+    }
+    .wx-expired-mask.active {
+      display: flex;
+    }
+    .wx-qr:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 10px 20px rgba(95, 61, 196, 0.16);
+    }
+    .wx-btn {
+      width: max-content;
+      border: 1px solid #35b26d;
+      background: #3cc26f;
+      color: #fff;
+      border-radius: 10px;
+      height: 38px;
+      padding: 0 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all var(--duration) ease;
+    }
+    .wx-btn:hover {
+      background: #2ea65d;
+      transform: translateY(-1px);
+    }
+    .right {
+      padding: 24px 22px 20px;
+      display: grid;
+      align-content: start;
+      gap: 14px;
+    }
+    .top-links {
+      display: flex;
+      justify-content: flex-end;
+      gap: 16px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .top-links a {
+      color: var(--primary);
+      text-decoration: none;
+      transition: color var(--duration) ease;
+    }
+    .top-links a:hover { color: var(--primary-hover); }
+    .switch {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 5px;
+      background: #faf9ff;
+    }
+    .switch button {
+      border: none;
+      height: 38px;
+      border-radius: 9px;
+      background: transparent;
+      color: var(--muted);
+      font-weight: 600;
+      cursor: pointer;
+      transition: all var(--duration) ease;
+    }
+    .switch button.active {
+      background: var(--primary);
+      color: #fff;
+      box-shadow: 0 8px 18px var(--primary-soft);
+      transform: translateY(-1px);
+    }
+    .panel {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 12px;
+      background: #fff;
+      display: grid;
+      gap: 10px;
+      transition: opacity var(--duration) ease, transform var(--duration) ease;
+    }
+    .panel-title {
+      margin: 0;
+      font-size: 18px;
+      color: #32275a;
+    }
+    .field { display: grid; gap: 6px; }
+    .field label { font-size: 12px; color: var(--muted); }
+    .input {
+      width: 100%;
+      height: 42px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--text);
+      padding: 0 12px;
+      outline: none;
+      transition: border-color var(--duration) ease, box-shadow var(--duration) ease;
+    }
+    .input:focus {
+      border-color: #7b5de0;
+      box-shadow: 0 0 0 3px var(--primary-soft);
+    }
+    .captcha-row {
+      display: grid;
+      grid-template-columns: 1fr 126px;
+      gap: 10px;
+      align-items: center;
+    }
+    .captcha {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #fbfaff;
+      height: 42px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform var(--duration) ease, box-shadow var(--duration) ease;
+    }
+    .captcha:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 16px rgba(95, 61, 196, 0.12);
+    }
+    .captcha img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+    .actions { display: flex; gap: 10px; align-items: center; }
+    .btn {
+      border: none;
+      border-radius: 10px;
+      height: 42px;
+      padding: 0 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all var(--duration) ease;
+    }
+    .btn.primary {
+      flex: 1;
+      color: #fff;
+      background: linear-gradient(135deg, var(--primary), #7c4dff);
+      box-shadow: 0 10px 22px var(--primary-soft);
+    }
+    .btn.primary:hover {
+      transform: translateY(-1px);
+      background: linear-gradient(135deg, var(--primary-hover), #6d42de);
+    }
+    .btn.secondary {
+      background: #efeafe;
+      color: #50389a;
+      border: 1px solid #d8cff7;
+    }
+    .btn.secondary:hover { background: #e4dcff; }
+    .btn:disabled { opacity: 0.68; cursor: not-allowed; transform: none; }
+    .helper {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .helper a {
+      color: var(--primary);
+      text-decoration: none;
+      transition: color var(--duration) ease;
+    }
+    .helper a:hover { color: var(--primary-hover); }
+    .message {
+      min-height: 18px;
+      font-size: 13px;
+      transition: all var(--duration) ease;
+    }
+    .message.error { color: var(--danger); }
+    .message.success { color: var(--success); }
+    .message.info { color: var(--info); }
+    .hidden { display: none !important; }
+    .verify-box, .forgot-box {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      background: #faf8ff;
+      display: grid;
+      gap: 10px;
+      transform-origin: top;
+      animation: slideIn var(--duration) ease;
+    }
+    .forgot-box h3 {
+      margin: 0;
+      font-size: 18px;
+      color: #38296c;
+    }
+    .forgot-box p {
+      margin: 0;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .tiny {
+      font-size: 12px;
+      color: var(--muted);
+      text-align: center;
+    }
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(-8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @media (max-width: 920px) {
+      .shell { grid-template-columns: 1fr; }
+      .left { display: none; }
+      .right { padding: 16px 14px; }
+    }
+  </style>
+</head>
+<body data-next="{{ .LoginNext }}">
+  <div class="shell">
+    <aside class="left">
+      <div class="brand">
+        <span class="brand-dot"></span>
+        <span>{{ .Site.Name }}</span>
+      </div>
+      <h1>微信公众号登录</h1>
+      <p>请使用微信扫一扫登录</p>
+      <div class="wx-card">
+        <div class="wx-qr" id="wechat-qr-box">
+          <img id="wechat-qr-image" alt="微信登录二维码" />
+          <div id="wechat-expired-mask" class="wx-expired-mask">二维码已失效<br />点击刷新</div>
+        </div>
+        <button id="wechat-refresh-btn" type="button" class="wx-btn">刷新</button>
+      </div>
+    </aside>
+
+    <section class="right">
+      <div class="top-links">
+        <span>还没有账号？<a href="/api/auth/register">立即注册</a></span>
+      </div>
+
+      <div class="switch">
+        <button id="mode-password" class="active" type="button">密码登录</button>
+        <button id="mode-email" type="button">邮箱验证码登录</button>
+      </div>
+
+      <form id="login-form" class="panel" autocomplete="on">
+        <h2 class="panel-title">登录账号</h2>
+
+        <div class="field">
+          <label for="email">邮箱</label>
+          <input id="email" class="input" type="email" required placeholder="请输入邮箱地址" />
+        </div>
+
+        <div id="password-field" class="field">
+          <label for="password">密码</label>
+          <input id="password" class="input" type="password" placeholder="请输入登录密码" />
+        </div>
+
+        <div id="emailcode-field" class="field hidden">
+          <label for="email-code">邮箱验证码</label>
+          <div class="actions">
+            <input id="email-code" class="input" type="text" placeholder="请输入验证码" style="flex:1;" />
+            <button id="send-email-code" type="button" class="btn secondary">发送验证码</button>
+          </div>
+        </div>
+
+        <div id="twofactor-field" class="field hidden">
+          <label for="twofactor-code">两步验证码</label>
+          <input id="twofactor-code" class="input" type="text" inputmode="numeric" placeholder="请输入 6 位验证码" />
+        </div>
+
+        <div class="captcha-row">
+          <input id="captcha-code" class="input" type="text" required placeholder="请输入图形验证码" />
+          <div id="captcha-box" class="captcha" title="点击刷新验证码">
+            <img id="captcha-image" alt="captcha" />
+          </div>
+        </div>
+
+        <div id="device-verify-box" class="verify-box hidden">
+          <div class="field">
+            <label for="device-code">设备验证码</label>
+            <input id="device-code" class="input" type="text" inputmode="numeric" placeholder="请输入邮箱中的设备验证码" />
+          </div>
+          <div class="actions">
+            <button id="send-device-code" class="btn secondary" type="button">发送设备验证码</button>
+            <button id="verify-device-code" class="btn primary" type="button">验证设备</button>
+          </div>
+        </div>
+
+        <button id="login-submit" class="btn primary" type="submit">登录</button>
+
+        <div class="helper">
+          <a id="show-forgot" href="javascript:void(0)">忘记密码？</a>
+          <span>登录后将自动跳转</span>
+        </div>
+        <div id="login-message" class="message"></div>
+      </form>
+
+      <div id="forgot-box" class="forgot-box hidden">
+        <h3>重置您的密码</h3>
+        <p>输入您的邮箱地址，我们将向您发送重置密码的链接</p>
+        <div class="field">
+          <label for="forgot-email">邮箱*</label>
+          <input id="forgot-email" class="input" type="email" placeholder="请输入您的邮箱地址" />
+        </div>
+        <div class="actions">
+          <button id="forgot-submit" class="btn primary" type="button">发送重置链接</button>
+          <button id="forgot-cancel" class="btn secondary" type="button">取消</button>
+        </div>
+        <div id="forgot-message" class="message"></div>
+      </div>
+
+      <div class="tiny">Powered by SoulNexus User Service</div>
+    </section>
+  </div>
+
+  <script>
+    (function () {
+      const state = { mode: 'password', captchaId: '', pendingDeviceId: '', wechatSessionId: '', wechatPolling: null };
+      const rawNext = document.body.dataset.next || '';
+      const normalizeRedirectTarget = (raw) => {
+        if (!raw) return '/';
+        const lowered = raw.toLowerCase();
+        if (lowered.indexOf('/api/admin') !== -1) return '/';
+        if (lowered.indexOf('/api/auth/login') !== -1) return '/';
+        if (lowered.indexOf('localhost:7073/api/admin') !== -1) return '/';
+        return raw;
+      };
+      const redirectTarget = normalizeRedirectTarget(rawNext);
+
+      const $ = (id) => document.getElementById(id);
+      const setMessage = (id, text, type) => {
+        const el = $(id);
+        el.textContent = text || '';
+        el.className = 'message' + (type ? ' ' + type : '');
+      };
+      const setBtnLoading = (id, loading, idleText, loadingText) => {
+        const btn = $(id);
+        btn.disabled = !!loading;
+        btn.textContent = loading ? loadingText : idleText;
+      };
+      const setWechatExpired = (expired) => {
+        $('wechat-expired-mask').classList.toggle('active', !!expired);
+      };
+
+      const setMode = (mode) => {
+        state.mode = mode;
+        $('mode-password').classList.toggle('active', mode === 'password');
+        $('mode-email').classList.toggle('active', mode === 'email');
+        $('password-field').classList.toggle('hidden', mode !== 'password');
+        $('emailcode-field').classList.toggle('hidden', mode !== 'email');
+      };
+
+      const apiRequest = async (url, payload) => {
+        const resp = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload || {}),
+        });
+        let data = {};
+        try { data = await resp.json(); } catch (_) {}
+        return { resp, data };
+      };
+
+      const loadWechatQRCode = async () => {
+        try {
+          setWechatExpired(false);
+          const resp = await fetch('/api/auth/wechat/qrcode');
+          const data = await resp.json();
+          if (!resp.ok || data.code !== 200 || !data.data) {
+            throw new Error(data.msg || '获取微信二维码失败');
+          }
+          state.wechatSessionId = data.data.sessionId || '';
+          $('wechat-qr-image').src = data.data.qrCode || data.data.qrcodeUrl || '';
+          if (state.wechatPolling) {
+            clearInterval(state.wechatPolling);
+          }
+          state.wechatPolling = setInterval(checkWechatStatus, 2500);
+        } catch (err) {
+          setWechatExpired(true);
+          setMessage('login-message', err.message || '获取微信二维码失败', 'error');
+        }
+      };
+
+      const checkWechatStatus = async () => {
+        if (!state.wechatSessionId) return;
+        try {
+          const resp = await fetch('/api/auth/wechat/status?sessionId=' + encodeURIComponent(state.wechatSessionId));
+          const data = await resp.json();
+          if (!resp.ok || data.code !== 200 || !data.data) return;
+          const status = data.data.status;
+          if (status === 'expired') {
+            setWechatExpired(true);
+            if (state.wechatPolling) {
+              clearInterval(state.wechatPolling);
+              state.wechatPolling = null;
+            }
+            return;
+          }
+          if (status === 'scanned') {
+            setMessage('login-message', '已扫码，请在微信中确认登录', 'info');
+            return;
+          }
+          if (status === 'success' || status === 'authorized') {
+            if (state.wechatPolling) {
+              clearInterval(state.wechatPolling);
+              state.wechatPolling = null;
+            }
+            const token = data.data.token;
+            if (token) {
+              localStorage.setItem('auth_token', token);
+            }
+            window.location.href = data.data.redirect || '/';
+          }
+        } catch (_) {}
+      };
+
+      const loadCaptcha = async () => {
+        try {
+          const resp = await fetch('/api/auth/captcha');
+          const data = await resp.json();
+          if (!resp.ok || data.code !== 200 || !data.data) {
+            throw new Error(data.msg || '获取图形验证码失败');
+          }
+          state.captchaId = data.data.id || '';
+          $('captcha-image').src = data.data.image || '';
+        } catch (err) {
+          setMessage('login-message', err.message || '获取图形验证码失败', 'error');
+        }
+      };
+
+      $('mode-password').addEventListener('click', () => setMode('password'));
+      $('mode-email').addEventListener('click', () => setMode('email'));
+      $('captcha-box').addEventListener('click', loadCaptcha);
+      $('captcha-image').addEventListener('click', loadCaptcha);
+
+      $('send-email-code').addEventListener('click', async () => {
+        const email = $('email').value.trim();
+        if (!email) {
+          setMessage('login-message', '请先输入邮箱地址', 'error');
+          return;
+        }
+        setBtnLoading('send-email-code', true, '发送验证码', '发送中...');
+        try {
+          const { resp, data } = await apiRequest('/api/auth/send/email', { email: email });
+          if (!resp.ok || data.code !== 200) throw new Error(data.msg || '发送邮箱验证码失败');
+          setMessage('login-message', '邮箱验证码已发送，请查收', 'success');
+        } catch (err) {
+          setMessage('login-message', err.message || '发送邮箱验证码失败', 'error');
+        } finally {
+          setBtnLoading('send-email-code', false, '发送验证码', '发送中...');
+        }
+      });
+
+      $('send-device-code').addEventListener('click', async () => {
+        const email = $('email').value.trim();
+        if (!email || !state.pendingDeviceId) {
+          setMessage('login-message', '缺少设备验证上下文，请重新登录', 'error');
+          return;
+        }
+        setBtnLoading('send-device-code', true, '发送设备验证码', '发送中...');
+        try {
+          const { resp, data } = await apiRequest('/api/auth/devices/send-verification', {
+            email: email,
+            deviceId: state.pendingDeviceId,
+          });
+          if (!resp.ok || data.code !== 200) throw new Error(data.msg || '发送设备验证码失败');
+          setMessage('login-message', '设备验证码已发送至邮箱', 'success');
+        } catch (err) {
+          setMessage('login-message', err.message || '发送设备验证码失败', 'error');
+        } finally {
+          setBtnLoading('send-device-code', false, '发送设备验证码', '发送中...');
+        }
+      });
+
+      $('verify-device-code').addEventListener('click', async () => {
+        const email = $('email').value.trim();
+        const code = $('device-code').value.trim();
+        if (!email || !state.pendingDeviceId || !code) {
+          setMessage('login-message', '请输入完整设备验证码信息', 'error');
+          return;
+        }
+        setBtnLoading('verify-device-code', true, '验证设备', '验证中...');
+        try {
+          const { resp, data } = await apiRequest('/api/auth/devices/verify', {
+            email: email,
+            deviceId: state.pendingDeviceId,
+            verifyCode: code,
+          });
+          if (!resp.ok || data.code !== 200) throw new Error(data.msg || '设备验证失败');
+          setMessage('login-message', '设备验证成功，请重新登录', 'success');
+          $('device-verify-box').classList.add('hidden');
+          state.pendingDeviceId = '';
+        } catch (err) {
+          setMessage('login-message', err.message || '设备验证失败', 'error');
+        } finally {
+          setBtnLoading('verify-device-code', false, '验证设备', '验证中...');
+        }
+      });
+
+      $('show-forgot').addEventListener('click', () => {
+        $('forgot-box').classList.remove('hidden');
+        $('forgot-message').textContent = '';
+      });
+      $('wechat-refresh-btn').addEventListener('click', loadWechatQRCode);
+      $('wechat-expired-mask').addEventListener('click', loadWechatQRCode);
+      $('forgot-cancel').addEventListener('click', () => {
+        $('forgot-box').classList.add('hidden');
+      });
+      $('forgot-submit').addEventListener('click', async () => {
+        const email = $('forgot-email').value.trim();
+        if (!email) {
+          setMessage('forgot-message', '请输入您的邮箱地址', 'error');
+          return;
+        }
+        setBtnLoading('forgot-submit', true, '发送重置链接', '发送中...');
+        try {
+          const { resp, data } = await apiRequest('/api/auth/reset-password', { email: email });
+          if (!resp.ok || data.code !== 200) throw new Error(data.msg || '发送重置链接失败');
+          setMessage('forgot-message', '重置密码邮件已发送，请检查您的邮箱', 'success');
+        } catch (err) {
+          setMessage('forgot-message', err.message || '发送重置链接失败', 'error');
+        } finally {
+          setBtnLoading('forgot-submit', false, '发送重置链接', '发送中...');
+        }
+      });
+
+      $('login-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const payload = {
+          email: $('email').value.trim(),
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+          captchaId: state.captchaId,
+          captchaCode: $('captcha-code').value.trim(),
+          twoFactorCode: $('twofactor-code').value.trim(),
+        };
+        if (state.mode === 'password') {
+          payload.password = $('password').value;
+        } else {
+          payload.code = $('email-code').value.trim();
+        }
+        if (!payload.email || !payload.captchaCode || (state.mode === 'password' && !payload.password) || (state.mode === 'email' && !payload.code)) {
+          setMessage('login-message', '请完整填写登录信息', 'error');
+          return;
+        }
+
+        const apiPath = state.mode === 'password' ? '/api/auth/login/password' : '/api/auth/login/email';
+        setBtnLoading('login-submit', true, '登录', '登录中...');
+        setMessage('login-message', '', '');
+        try {
+          const { resp, data } = await apiRequest(apiPath, payload);
+          if (!resp.ok || data.code !== 200) throw new Error(data.msg || '登录失败');
+          const result = data.data || {};
+
+          if (result.requiresTwoFactor) {
+            $('twofactor-field').classList.remove('hidden');
+            setMessage('login-message', result.message || '请输入两步验证码', 'info');
+            return;
+          }
+          if (result.requiresDeviceVerification) {
+            state.pendingDeviceId = result.deviceId || '';
+            $('device-verify-box').classList.remove('hidden');
+            setMessage('login-message', result.message || '当前设备需要验证后才能登录', 'info');
+            return;
+          }
+
+          const token = result.token || result.authToken || data.token;
+          if (token) localStorage.setItem('auth_token', token);
+          setMessage('login-message', '登录成功，正在跳转...', 'success');
+          setTimeout(() => { window.location.href = redirectTarget; }, 650);
+        } catch (err) {
+          setMessage('login-message', err.message || '登录失败', 'error');
+          loadCaptcha();
+        } finally {
+          setBtnLoading('login-submit', false, '登录', '登录中...');
+        }
+      });
+
+      loadCaptcha();
+      loadWechatQRCode();
+    })();
+  </script>
+</body>
+</html>
+

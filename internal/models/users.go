@@ -118,6 +118,8 @@ type UpdateUserRequest struct {
 type User struct {
 	BaseModel
 	Email                 string     `json:"email" gorm:"size:128;uniqueIndex"`
+	WechatOpenID          string     `json:"wechatOpenId,omitempty" gorm:"size:128;index"`
+	WechatUnionID         string     `json:"wechatUnionId,omitempty" gorm:"size:128;index"`
 	Password              string     `json:"-" gorm:"size:128"`
 	Phone                 string     `json:"phone,omitempty" gorm:"size:64;index"`
 	FirstName             string     `json:"firstName,omitempty" gorm:"size:128"`
