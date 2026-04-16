@@ -5,141 +5,128 @@ package voice
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/LingByte/SoulNexus/internal/models"
-	"github.com/LingByte/SoulNexus/pkg/voice/asr"
+	"github.com/LingByte/SoulNexus/pkg/cache"
+	"github.com/LingByte/SoulNexus/pkg/voice/constants"
+	"github.com/LingByte/SoulNexus/pkg/voice/protocol"
+	"github.com/LingByte/SoulNexus/pkg/voiceprint"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
-// Handler WebSocket处理器
-type Handler struct {
-	logger           *zap.Logger
-	asrPool          *asr.Pool // ASR连接池
-	maxASRConcurrent int       // 最大ASR并发数
+// HardwareOptions hardware options
+type HardwareOptions struct {
+	Conn                 *websocket.Conn        // websocket connection
+	AssistantID          uint                   // assistant id
+	Credential           *models.UserCredential // credential
+	Language             string                 // language
+	Speaker              string                 // speaker
+	Temperature          float64                // temperature
+	SystemPrompt         string                 // ai system prompt
+	KnowledgeKey         string                 // knowledge key
+	UserID               uint                   // user id
+	DeviceID             *string                // device id
+	MacAddress           string                 // mac address
+	LLMModel             string                 // chat llm model for assistant
+	MaxLLMToken          int                    // max llm token
+	EnableVAD            bool                   // enable VAD
+	VADThreshold         float64                // VAD threshold
+	VADConsecutiveFrames int                    // VAD consecutive frames
+	VoiceCloneID         *int                   // voice clone id (optional)
+	LowLatency           bool                   // enable low-latency profile (web default)
 }
 
-// NewHandler 创建新的处理器
-func NewHandler(logger *zap.Logger) *Handler {
+// HardwareHandler hardware handler
+type HardwareHandler struct {
+	logger *zap.Logger
+	db     *gorm.DB
+}
+
+// NewHardwareHandler create hardware handler
+func NewHardwareHandler(db *gorm.DB, logger *zap.Logger) *HardwareHandler {
 	if logger == nil {
 		logger = zap.L()
 	}
-	// 默认最大并发数为50，可以通过环境变量或配置调整
-	maxConcurrent := 50
-	pool := asr.GetGlobalPool(maxConcurrent, logger)
-	return &Handler{
-		logger:           logger,
-		asrPool:          pool,
-		maxASRConcurrent: maxConcurrent,
+	return &HardwareHandler{
+		logger: logger,
+		db:     db,
 	}
 }
 
-// NewHandlerWithPool 创建带自定义连接池的处理器
-func NewHandlerWithPool(logger *zap.Logger, maxASRConcurrent int) *Handler {
-	if logger == nil {
-		logger = zap.L()
-	}
-	if maxASRConcurrent <= 0 {
-		maxASRConcurrent = 50
-	}
-	pool := asr.GetGlobalPool(maxASRConcurrent, logger)
-	return &Handler{
-		logger:           logger,
-		asrPool:          pool,
-		maxASRConcurrent: maxASRConcurrent,
-	}
-}
-
-// HandleWebSocket 处理WebSocket连接
-func (h *Handler) HandleWebSocket(
+// HandlerHardwareWebsocket handler hardware websocket
+func (h *HardwareHandler) HandlerHardwareWebsocket(
 	ctx context.Context,
-	conn *websocket.Conn,
-	credential *models.UserCredential,
-	assistantID int,
-	language, speaker string,
-	temperature float64,
-	systemPrompt string,
-	knowledgeKey string,
-	db *gorm.DB,
-) {
-	defer conn.Close()
-
-	// 查询助手配置（获取LLM模型等）
-	llmModel := "gpt-3.5-turbo"
-	assistantTemperature := 0.6
-	assistantMaxTokens := 0
-	enableVAD := true
-	vadThreshold := 500.0
-	vadConsecutiveFrames := 2
-	if assistantID > 0 && db != nil {
-		var assistant models.Assistant
-		if err := db.First(&assistant, assistantID).Error; err == nil {
-			if assistant.LLMModel != "" {
-				llmModel = assistant.LLMModel
-			}
-			if assistant.Temperature > 0 {
-				assistantTemperature = float64(assistant.Temperature)
-			}
-			if assistant.MaxTokens > 0 {
-				assistantMaxTokens = assistant.MaxTokens
-			}
-			// 读取 VAD 配置
-			enableVAD = assistant.EnableVAD
-			if assistant.VADThreshold > 0 {
-				vadThreshold = assistant.VADThreshold
-			}
-			if assistant.VADConsecutiveFrames > 0 {
-				vadConsecutiveFrames = assistant.VADConsecutiveFrames
-			}
-		}
+	options *HardwareOptions) {
+	if options == nil || options.AssistantID == 0 {
+		h.logger.Error("options is nil or assistantID is 0 please check")
+		return
 	}
-
-	// 如果temperature为0或未设置，使用assistant的temperature
-	if temperature <= 0 {
-		temperature = assistantTemperature
+	options.loadConfigs()
+	defer options.Conn.Close()
+	h.logger.Info(fmt.Sprintf("create hardwareSession assistantID: %d", options.AssistantID))
+	voiceprintConfig := voiceprint.DefaultConfig()
+	if err := voiceprintConfig.Validate(); err != nil {
+		h.logger.Warn("[Handler] --- 验证声纹识别服务配置失败", zap.Error(err))
 	}
-
-	// 创建会话配置
-	config := &SessionConfig{
-		Conn:         conn,
-		Credential:   credential,
-		AssistantID:  assistantID,
-		Language:     language,
-		Speaker:      speaker,
-		Temperature:  temperature,
-		MaxTokens:    assistantMaxTokens,
-		SystemPrompt: systemPrompt,
-		KnowledgeKey: knowledgeKey,
-		LLMModel:     llmModel,
-		DB:           db,
-		Logger:       h.logger,
-		Context:      ctx,
-		ASRPool:      h.asrPool, // 设置ASR连接池
-		// VAD 配置
-		EnableVAD:            enableVAD,
-		VADThreshold:         vadThreshold,
-		VADConsecutiveFrames: vadConsecutiveFrames,
-	}
-
-	// 创建会话
-	session, err := NewSession(config)
+	voiceprintService, err := voiceprint.NewService(voiceprintConfig, cache.GetGlobalCache())
 	if err != nil {
-		h.logger.Error("创建会话失败", zap.Error(err))
-		return
+		h.logger.Warn("[Handler] --- 初始化声纹识别服务失败", zap.Error(err))
+		voiceprintService = nil
 	}
-
-	// 启动会话
+	session := protocol.NewHardwareSession(ctx, &protocol.HardwareSessionOption{
+		Conn:                 options.Conn,
+		Logger:               h.logger,
+		AssistantID:          options.AssistantID,
+		LLMModel:             options.LLMModel,
+		Credential:           options.Credential,
+		SystemPrompt:         options.SystemPrompt,
+		MaxToken:             options.MaxLLMToken,
+		Speaker:              options.Speaker,
+		EnableVAD:            options.EnableVAD,
+		VADThreshold:         options.VADThreshold,
+		VADConsecutiveFrames: options.VADConsecutiveFrames,
+		DB:                   h.db,
+		VoiceprintService:    voiceprintService,
+		DeviceID:             options.DeviceID,
+		MacAddress:           options.MacAddress,
+		VoiceCloneID:         options.VoiceCloneID,
+		LowLatency:           options.LowLatency,
+	})
 	if err := session.Start(); err != nil {
-		h.logger.Error("启动会话失败", zap.Error(err))
+		h.logger.Error("[Handler] start session failed: ", zap.Error(err))
 		return
 	}
-
-	// 等待会话结束
 	<-ctx.Done()
-
-	// 停止会话
 	if err := session.Stop(); err != nil {
-		h.logger.Error("停止会话失败", zap.Error(err))
+		h.logger.Error("[Handler] stop session failed: ", zap.Error(err))
 	}
+}
+
+func (ho *HardwareOptions) loadConfigs() *HardwareOptions {
+	if ho.LLMModel == "" {
+		ho.LLMModel = constants.DefaultLLMModel
+	}
+	if ho.Temperature <= 0 {
+		ho.Temperature = constants.DefaultTemperature
+	}
+	if ho.EnableVAD == false {
+		ho.EnableVAD = constants.DefaultEnabledVAD
+	}
+	if ho.VADThreshold <= 0 {
+		ho.VADThreshold = constants.DefaultVADThreshold
+	}
+	if ho.VADConsecutiveFrames <= 0 {
+		ho.VADConsecutiveFrames = constants.DefaultVADConsecutiveFrames
+	}
+	if ho.MaxLLMToken <= 0 {
+		ho.MaxLLMToken = constants.DefaultMaxLLMToken
+	}
+	// 网页端默认启用低延迟档位：更快起播、允许更积极的流控。
+	if ho.DeviceID == nil && !ho.LowLatency {
+		ho.LowLatency = true
+	}
+	return ho
 }

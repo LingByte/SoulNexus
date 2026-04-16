@@ -14,10 +14,10 @@ import (
 	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/config"
 	"github.com/LingByte/SoulNexus/pkg/graph"
-	"github.com/LingByte/SoulNexus/pkg/hardware"
-	"github.com/LingByte/SoulNexus/pkg/hardware/constants"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/response"
+	"github.com/LingByte/SoulNexus/pkg/voice"
+	"github.com/LingByte/SoulNexus/pkg/voice/constants"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
@@ -120,8 +120,8 @@ func (h *Handlers) HandleWebSocketVoice(c *gin.Context) {
 			}
 		}
 	}
-	handler := hardware.NewHardwareHandler(h.db, logger.Lg)
-	handler.HandlerHardwareWebsocket(c.Request.Context(), &hardware.HardwareOptions{
+	handler := voice.NewHardwareHandler(h.db, logger.Lg)
+	handler.HandlerHardwareWebsocket(c.Request.Context(), &voice.HardwareOptions{
 		Conn:                 conn,
 		AssistantID:          uint(assistantID),
 		Language:             language,
@@ -283,7 +283,7 @@ func (h *Handlers) HandleHardwareWebSocketVoice(c *gin.Context) {
 	}
 
 	// 创建WebSocket处理器
-	handler := hardware.NewHardwareHandler(h.db, logger.Lg)
+	handler := voice.NewHardwareHandler(h.db, logger.Lg)
 
 	ctx := context.Background()
 
@@ -292,7 +292,7 @@ func (h *Handlers) HandleHardwareWebSocketVoice(c *gin.Context) {
 	vadThreshold := constants.DefaultVADThreshold
 	vadConsecutiveFrames := constants.DefaultVADConsecutiveFrames
 
-	handler.HandlerHardwareWebsocket(ctx, &hardware.HardwareOptions{
+	handler.HandlerHardwareWebsocket(ctx, &voice.HardwareOptions{
 		Conn:                 conn,
 		AssistantID:          assistantID,
 		DeviceID:             &device.ID,

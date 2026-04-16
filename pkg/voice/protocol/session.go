@@ -12,13 +12,13 @@ import (
 
 	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/config"
-	"github.com/LingByte/SoulNexus/pkg/hardware/constants"
-	"github.com/LingByte/SoulNexus/pkg/hardware/sessions"
-	"github.com/LingByte/SoulNexus/pkg/hardware/stream"
-	"github.com/LingByte/SoulNexus/pkg/hardware/tools"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/synthesizer"
 	"github.com/LingByte/SoulNexus/pkg/utils"
+	"github.com/LingByte/SoulNexus/pkg/voice/constants"
+	"github.com/LingByte/SoulNexus/pkg/voice/sessions"
+	"github.com/LingByte/SoulNexus/pkg/voice/stream"
+	"github.com/LingByte/SoulNexus/pkg/voice/tools"
 	"github.com/LingByte/SoulNexus/pkg/voiceclone"
 	"github.com/LingByte/SoulNexus/pkg/voiceprint"
 	"github.com/LingByte/lingstorage-sdk-go"
@@ -203,7 +203,7 @@ func NewHardwareSession(ctx context.Context, hardwareConfig *HardwareSessionOpti
 	var session *HardwareSession
 	var sessionRef *HardwareSession
 	pipeline, err := stream.NewTTSPipeline(&stream.TTSPipelineConfig{
-		TTSService: stream.NewTTSServiceAdapter(ttsService),
+		TTSService:  stream.NewTTSServiceAdapter(ttsService),
 		OutputCodec: "opus",
 		SendCallback: func(data []byte) error {
 			sendDelay := 60

@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LingByte/SoulNexus/pkg/hardware/constants"
-	"github.com/LingByte/SoulNexus/pkg/hardware/sessions"
 	"github.com/LingByte/SoulNexus/pkg/llm"
 	"github.com/LingByte/SoulNexus/pkg/recognizer"
 	"github.com/LingByte/SoulNexus/pkg/utils"
+	"github.com/LingByte/SoulNexus/pkg/voice/constants"
+	"github.com/LingByte/SoulNexus/pkg/voice/sessions"
 	"go.uber.org/zap"
 )
 
