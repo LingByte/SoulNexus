@@ -486,7 +486,18 @@ func (h *Handlers) handleConnection(c *gin.Context) {
 	transport := rtcmedia.NewWebRTCTransport(rtcmedia.WebRTCOption{
 		Codec: constants.CodecPCMA,
 		ICEServers: []webrtc.ICEServer{
-			{URLs: []string{"stun:stun.l.google.com:19302"}},
+			{URLs: []string{
+				"stun:stun.l.google.com:19302",
+				"stun:stun1.l.google.com:19302",
+				"stun:stun2.l.google.com:19302",
+				"stun:stun3.l.google.com:19302",
+				"stun:stun4.l.google.com:19302",
+				"stun:stun.cloudflare.com:3478",
+				"stun:stun.voipbuster.com:3478",
+				"stun:stun.voipstunt.com:3478",
+				"stun:stun.sipgate.net:3478",
+				"stun:stun.miwifi.com:3478",
+			}},
 		},
 		StreamID:   "lingecho_ai_server",
 		ICETimeout: constants.DefaultICETimeout,
@@ -522,6 +533,37 @@ func (h *Handlers) handleConnection(c *gin.Context) {
 
 	// Set up OnTrack callback BEFORE handling any signaling messages
 	// This is critical - OnTrack must be set up early to catch the track when it arrives
+	var wsWriteMu sync.Mutex
+	sendSignal := func(msg SignalMessage) {
+		wsWriteMu.Lock()
+		defer wsWriteMu.Unlock()
+		if err := conn.WriteJSON(msg); err != nil {
+			log.Printf("[Server] Failed to push signal message %s: %v", msg.Type, err)
+		}
+	}
+
+	aiClient.SetEventCallbacks(
+		func(text string, isFinal bool) {
+			sendSignal(SignalMessage{
+				Type:      "asrFinal",
+				SessionID: sessionID,
+				Data: map[string]interface{}{
+					"text":    text,
+					"isFinal": isFinal,
+				},
+			})
+		},
+		func(text string) {
+			sendSignal(SignalMessage{
+				Type:      "llm_response",
+				SessionID: sessionID,
+				Data: map[string]interface{}{
+					"text": text,
+				},
+			})
+		},
+	)
+
 	transport.OnTrack(func(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
 		aiClient.Mu.Lock()
 		if !aiClient.AudioReceived {
@@ -593,10 +635,28 @@ func handleSignalMessage(client *transports.AIClient, msg SignalMessage) {
 	switch msg.Type {
 	case "offer":
 		handleOffer(client, msg)
+	case "ice-candidate":
+		handleICECandidate(client, msg)
 	case "connected":
 		handleConnection(client, msg)
 	default:
 		log.Printf("[Server] Unknown message type: %s", msg.Type)
+	}
+}
+
+// handleICECandidate handles trickle ICE candidates from client
+func handleICECandidate(client *transports.AIClient, msg SignalMessage) {
+	data, ok := msg.Data.(map[string]interface{})
+	if !ok {
+		log.Println("[Server] Invalid ice-candidate data")
+		return
+	}
+	candidate, _ := data["candidate"].(string)
+	if candidate == "" {
+		return
+	}
+	if err := client.Transport.AddICECandidate(candidate); err != nil {
+		log.Printf("[Server] Failed to add ICE candidate: %v", err)
 	}
 }
 
@@ -710,8 +770,8 @@ func handleConnection(client *transports.AIClient, msg SignalMessage) {
 			time.Sleep(50 * time.Millisecond)
 		}
 
-		// Wait a bit more for client's audio receiver to be ready
-		time.Sleep(connectionReadyDelay * 2)
+		// Keep this short to reduce first-response latency after connected.
+		time.Sleep(80 * time.Millisecond)
 
 		// Send greeting to start the conversation
 		greeting := "你好，我是AI助手，很高兴和你对话。"

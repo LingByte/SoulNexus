@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Routes, Navigate, useLocation } from 'react-router-dom';
 import { useState } from 'react';
 import Home from '@/pages/Home.tsx';
 import NotFound from "@/pages/NotFound.tsx";
@@ -49,14 +49,13 @@ import CookieConsent from '@/components/CookieConsent.tsx';
 import KnowledgeBaseManager from '@/pages/KnowledgeBaseManager.tsx';
 import OIDCCallback from '@/pages/OIDCCallback.tsx';
 
-function App() {
+function AppRoutes() {
     const [showPerformanceMonitor, setShowPerformanceMonitor] = useState(false);
+    const location = useLocation();
+    const isHomePage = location.pathname === '/';
     
     return (
-        <ErrorBoundary>
-            <ToastProvider>
-                <Router>
-                <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
                     <Routes>
                         {/* 首页 - 独立布局，不需要 Layout */}
                         <Route path="/" element={<Home />} />
@@ -309,12 +308,14 @@ function App() {
                         <Route path="*" element={<NotFound />}/>
                     </Routes>
 
-                    {/* PWA 安装提示 */}
-                    <PWAInstaller
-                        showOnLoad={true}
-                        delay={5000}
-                        position="bottom-right"
-                    />
+                    {/* PWA 安装提示：首页不展示，其它页面展示 */}
+                    {!isHomePage && (
+                        <PWAInstaller
+                            showOnLoad={true}
+                            delay={5000}
+                            position="bottom-right"
+                        />
+                    )}
 
                     {/* 自定义通知系统 */}
                     <NotificationContainer />
@@ -373,8 +374,17 @@ function App() {
                             )}
                         </div>
                     </div>
-                </div>
-            </Router>
+        </div>
+    );
+}
+
+function App() {
+    return (
+        <ErrorBoundary>
+            <ToastProvider>
+                <Router>
+                    <AppRoutes />
+                </Router>
             </ToastProvider>
         </ErrorBoundary>
     );
