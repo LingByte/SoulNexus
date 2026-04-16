@@ -4,7 +4,6 @@ package handlers
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -264,14 +263,6 @@ func (h *Handlers) getChatSessionLogsBySession(c *gin.Context) {
 			UpdatedAt:     log.UpdatedAt,
 		}
 
-		// 解析LLM Usage信息
-		if log.LLMUsage != "" {
-			var usage models.LLMUsage
-			if err := json.Unmarshal([]byte(log.LLMUsage), &usage); err == nil {
-				detail.LLMUsage = &usage
-			}
-		}
-
 		details = append(details, detail)
 	}
 
@@ -320,23 +311,20 @@ func (h *Handlers) getChatSessionLogByAssistant(c *gin.Context) {
 		}
 	}
 
-	// 查询指定助手的聊天记录
-	var logs []models.ChatSessionLogSummary
-	query := h.db.Table("chat_session_logs csl").
-		Select("csl.id, csl.session_id, csl.assistant_id, a.name as assistant_name, csl.chat_type, "+
-			"COALESCE(SUBSTR(csl.user_message, 1, 50), SUBSTR(csl.agent_message, 1, 50)) as preview, csl.created_at").
-		Joins("LEFT JOIN assistants a ON csl.assistant_id = a.id").
-		Where("csl.user_id = ? AND csl.assistant_id = ? AND csl.id IN (SELECT MAX(id) FROM chat_session_logs WHERE user_id = ? AND assistant_id = ? GROUP BY session_id)",
-			user.ID, assistantID, user.ID, assistantID)
-
-	if cursorID > 0 {
-		query = query.Where("csl.id < ?", cursorID)
-	}
-
-	err = query.Order("csl.id DESC").Limit(pageSizeInt).Scan(&logs).Error
+	// 使用新会话表查询并在内存中过滤助手
+	allLogs, err := models.GetChatSessionLogs(h.db, user.ID, pageSizeInt*5, cursorID)
 	if err != nil {
 		response.Fail(c, "Failed to fetch chat logs", err.Error())
 		return
+	}
+	logs := make([]models.ChatSessionLogSummary, 0, pageSizeInt)
+	for _, item := range allLogs {
+		if item.AssistantID == assistantID {
+			logs = append(logs, item)
+			if len(logs) >= pageSizeInt {
+				break
+			}
+		}
 	}
 
 	// 获取下一页的游标

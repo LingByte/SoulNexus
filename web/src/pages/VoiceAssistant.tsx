@@ -154,6 +154,7 @@ const VoiceAssistant = () => {
     const [temperature, setTemperature] = useState(0.6)
     const [maxTokens, setMaxTokens] = useState(150)
     const [llmModel, setLlmModel] = useState('')
+    const [jsSourceIdState, setJsSourceIdState] = useState('')
 
     // 助手基本信息
     const [assistantName, setAssistantName] = useState('')
@@ -210,6 +211,7 @@ const VoiceAssistant = () => {
                 // 同步 JSON 输出配置
                 if ((currentAssistant as any).enableJSONOutput !== undefined) {
                     setEnableJSONOutput((currentAssistant as any).enableJSONOutput)
+                    setJsSourceIdState((currentAssistant as any).jsSourceId || '')
                 }
             }
         }
@@ -1546,6 +1548,7 @@ const VoiceAssistant = () => {
                             setVadConsecutiveFrames(detail.vadConsecutiveFrames ?? 2)
                             // 加载 JSON 输出配置
                             setEnableJSONOutput(detail.enableJSONOutput !== undefined ? detail.enableJSONOutput : false)
+                            setJsSourceIdState(detail.jsSourceId ?? '')
                         }
                     } catch (err) {
                         console.warn('加载助手配置失败:', err)
@@ -1869,6 +1872,7 @@ const VoiceAssistant = () => {
                 setVadConsecutiveFrames(detail.vadConsecutiveFrames ?? 2)
                 // 加载 JSON 输出配置
                 setEnableJSONOutput(detail.enableJSONOutput !== undefined ? detail.enableJSONOutput : false)
+                setJsSourceIdState(detail.jsSourceId ?? '')
 
                 // 重新加载当前助手的聊天记录
                 try {
@@ -1972,6 +1976,7 @@ const VoiceAssistant = () => {
                     vadThreshold,
                     vadConsecutiveFrames,
                     enableJSONOutput,
+                    jsSourceId: jsSourceIdState || '',
                 })
 
                 // 使用返回的助手数据更新列表，避免额外的GET请求
@@ -2241,12 +2246,14 @@ const VoiceAssistant = () => {
                                 temperature={temperature}
                                 maxTokens={maxTokens}
                                 llmModel={llmModel}
+                                jsSourceId={jsSourceIdState}
                                 onLanguageChange={setLanguage}
                                 onSpeakerChange={setSelectedSpeaker}
                                 onSystemPromptChange={setSystemPrompt}
                                 onTemperatureChange={setTemperature}
                                 onMaxTokensChange={setMaxTokens}
                                 onLlmModelChange={setLlmModel}
+                                onJsSourceIdChange={setJsSourceIdState}
                                 assistantName={assistantName}
                                 assistantDescription={assistantDescription}
                                 assistantIcon={assistantIcon}

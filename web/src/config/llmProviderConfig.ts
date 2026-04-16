@@ -7,6 +7,11 @@ export interface LLMProviderOption {
 
 export const LLM_PROVIDER_SUGGESTIONS: LLMProviderOption[] = [
   {
+    value: 'openi',
+    label: 'OpenI (OpenAI Compatible)',
+    description: 'OpenAI兼容协议，默认地址: https://api.openai.com/v1',
+  },
+  {
     value: 'openai',
     label: 'OpenAI',
     description: 'GPT-4, GPT-3.5等模型，API地址: https://api.openai.com/v1',
@@ -97,6 +102,11 @@ export const LLM_PROVIDER_SUGGESTIONS: LLMProviderOption[] = [
     description: '本地部署模型，API地址: http://localhost:11434/v1',
   },
   {
+    value: 'lmstudio',
+    label: 'LM Studio',
+    description: '本地LM Studio OpenAI兼容服务，API地址: http://localhost:1234/v1',
+  },
+  {
     value: 'localai',
     label: 'LocalAI',
     description: '本地AI服务，API地址: http://localhost:8080/v1',
@@ -135,6 +145,15 @@ export const getDefaultApiUrl = (provider: string): string => {
   if (providerLower === 'ollama') {
     return 'http://localhost:11434/v1'
   }
+
+  // LM Studio 使用默认本地地址
+  if (providerLower === 'lmstudio') {
+    return 'http://localhost:1234/v1'
+  }
+
+  if (providerLower === 'openi') {
+    return 'https://api.openai.com/v1'
+  }
   
   const suggestion = LLM_PROVIDER_SUGGESTIONS.find(
     p => p.value.toLowerCase() === providerLower
@@ -164,6 +183,13 @@ export const isCozeProvider = (provider: string): boolean => {
  */
 export const isOllamaProvider = (provider: string): boolean => {
   return provider?.toLowerCase() === 'ollama'
+}
+
+/**
+ * 检查是否为 LM Studio 提供者
+ */
+export const isLMStudioProvider = (provider: string): boolean => {
+  return provider?.toLowerCase() === 'lmstudio'
 }
 
 /**

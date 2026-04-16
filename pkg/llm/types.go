@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/LingByte/SoulNexus/pkg/constants"
 	"go.uber.org/zap"
 )
 
@@ -31,15 +32,15 @@ const (
 )
 
 const (
-	SignalLLMRequestStart = "llm.request.start"
-	SignalLLMRequestEnd   = "llm.request.end"
-	SignalLLMRequestError = "llm.request.error"
-	SignalSessionCreated  = "session.created"
-	SignalSessionUpdated  = "session.updated"
-	SignalSessionDeleted  = "session.deleted"
-	SignalMessageCreated  = "message.created"
-	SignalMessageUpdated  = "message.updated"
-	SignalMessageDeleted  = "message.deleted"
+	SignalLLMRequestStart = constants.SignalLLMRequestStart
+	SignalLLMRequestEnd   = constants.SignalLLMRequestEnd
+	SignalLLMRequestError = constants.SignalLLMRequestError
+	SignalSessionCreated  = constants.SignalSessionCreated
+	SignalSessionUpdated  = constants.SignalSessionUpdated
+	SignalSessionDeleted  = constants.SignalSessionDeleted
+	SignalMessageCreated  = constants.SignalMessageCreated
+	SignalMessageUpdated  = constants.SignalMessageUpdated
+	SignalMessageDeleted  = constants.SignalMessageDeleted
 )
 
 // LLMProvider common provider type
