@@ -282,7 +282,8 @@ func CombinedTimeoutCircuitMiddleware() gin.HandlerFunc {
 		if endpoint == "/api/voice/lingecho/v1/" ||
 			endpoint == "/api/voice/lingecho/v2/" ||
 			endpoint == "/api/voice/websocket" ||
-			endpoint == "/api/rtcsfu/v1/signal/ws" {
+			endpoint == "/api/rtcsfu/v1/signal/ws" ||
+			endpoint == "/api/chat/call" {
 			c.Next()
 			return
 		}

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/llm"
@@ -18,6 +19,7 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/recognizer"
 	"github.com/LingByte/SoulNexus/pkg/synthesizer"
 	"github.com/LingByte/SoulNexus/pkg/utils"
+	voicesessions "github.com/LingByte/SoulNexus/pkg/voice/sessions"
 	"github.com/LingByte/SoulNexus/pkg/webrtc/rtcmedia"
 	"github.com/gorilla/websocket"
 	"github.com/pion/webrtc/v3"
@@ -103,6 +105,21 @@ type AIClient struct {
 	bargeInCooldown      int           // Cooldown after barge-in before processing (ms)
 	vadConsecutiveFrames int           // Number of consecutive frames needed to trigger barge-in
 	vadFrameCounter      int           // Current count of consecutive frames above threshold
+
+	// Optional callbacks for pushing text events to frontend
+	onASRResult   func(text string, isFinal bool)
+	onLLMResponse func(text string)
+
+	// ASR 文本去重 / 相似度（与 pkg/voice/sessions 一致）
+	asrState *voicesessions.ASRStateManager
+}
+
+// SetEventCallbacks registers optional callbacks for ASR/LLM text events.
+func (c *AIClient) SetEventCallbacks(onASR func(text string, isFinal bool), onLLM func(text string)) {
+	c.Mu.Lock()
+	defer c.Mu.Unlock()
+	c.onASRResult = onASR
+	c.onLLMResponse = onLLM
 }
 
 // NewAIClient creates a new AI-powered client (legacy, uses environment variables)
@@ -174,6 +191,7 @@ func NewAIClient(conn *websocket.Conn, transport *rtcmedia.WebRTCTransport, sess
 		bargeInCooldown:      100,
 		vadConsecutiveFrames: 5,
 		vadFrameCounter:      0,
+		asrState:             voicesessions.NewASRStateManager(),
 	}
 
 	// Note: OnTrack callback is now set up in websocketHandler after NewAIClient
@@ -391,6 +409,7 @@ func NewAIClientWithCredential(
 		bargeInCooldown:      100,
 		vadConsecutiveFrames: 5,
 		vadFrameCounter:      0,
+		asrState:             voicesessions.NewASRStateManager(),
 	}
 
 	// Initialize ASR service
@@ -489,6 +508,9 @@ func (c *AIClient) Close() error {
 	c.isTTSPlaying = false
 	c.Mu.Unlock()
 
+	if c.asrState != nil {
+		c.asrState.Clear()
+	}
 	if c.asrService != nil {
 		c.asrService.StopConn()
 	}
@@ -669,37 +691,43 @@ func (c *AIClient) shouldProcessAudio() bool {
 
 // handleASRResult handles ASR recognition results
 func (c *AIClient) handleASRResult(text string, isLast bool, duration time.Duration) {
-	if text == "" {
+	trimmed := strings.TrimSpace(text)
+	if trimmed == "" {
 		return
 	}
 
+	var incremental string
+	if c.asrState != nil {
+		incremental = c.asrState.UpdateASRText(trimmed, isLast)
+	} else {
+		incremental = trimmed
+	}
+
 	c.Mu.Lock()
-	c.lastText = text
+	c.lastText = trimmed
+	onASR := c.onASRResult
 	c.Mu.Unlock()
 
-	legacyLog("[Server] ASR Result: %s (isLast: %v, duration: %v)", text, isLast, duration)
-
-	// Check if it's a complete sentence (even if isLast=false)
-	isComplete := isCompleteSentence(text)
-
-	if isLast {
-		// Final result - process with LLM
-		go c.processWithLLM(text)
-	} else if isComplete {
-		// Sentence end - also process if it's a meaningful sentence
-		// Filter meaningless text
-		filteredText := filterText(text)
-		if filteredText != "" && !isMeaninglessText(filteredText) {
-			legacyLog("[Server] Processing sentence end (isLast=false but complete): %s", filteredText)
-			go c.processWithLLM(filteredText)
-		}
+	ftInc := filterText(incremental)
+	if ftInc != "" && !isMeaninglessText(ftInc) && onASR != nil {
+		onASR(ftInc, isLast)
 	}
-}
 
-// isCompleteSentence checks if text contains sentence ending markers
-func isCompleteSentence(text string) bool {
-	// 简化处理：任何非空文本都视为完整句子
-	return text != ""
+	legacyLog("[Server] ASR Result: %s (isLast: %v, duration: %v, incremental: %q)", trimmed, isLast, duration, incremental)
+
+	var llmInput string
+	if isLast {
+		if incremental == "" {
+			return
+		}
+		llmInput = filterText(incremental)
+	} else if incremental != "" && asrTextHasSentenceEnd(incremental) {
+		llmInput = filterText(incremental)
+	}
+	if llmInput == "" || isMeaninglessText(llmInput) {
+		return
+	}
+	go c.processWithLLM(llmInput)
 }
 
 // filterText removes whitespace only
@@ -707,24 +735,53 @@ func filterText(text string) string {
 	return strings.TrimSpace(text)
 }
 
-// isMeaninglessText checks if text is meaningless (should be filtered)
+func asrTextHasSentenceEnd(s string) bool {
+	for _, r := range strings.TrimSpace(s) {
+		switch r {
+		case '。', '！', '？', '.', '!', '?':
+			return true
+		}
+	}
+	return false
+}
+
+// isMeaninglessText checks if text is meaningless (对齐 voice 侧语气词过滤)
 func isMeaninglessText(text string) bool {
-	if text == "" {
+	cleaned := strings.TrimSpace(text)
+	if cleaned == "" {
 		return true
 	}
-	// Filter single character meaningless words
-	meaninglessWords := []string{"嗯", "啊", "哦", "额", "呃", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9"}
-	cleaned := strings.TrimSpace(text)
+	meaninglessWords := []string{
+		"嗯", "啊", "哦", "额", "呃", "哎", "诶", "哈", "呵", "唔",
+		"0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+	}
 	for _, word := range meaninglessWords {
 		if cleaned == word {
 			return true
 		}
 	}
-	// Filter very short text (less than 2 characters after cleaning)
 	if len([]rune(cleaned)) < 2 {
 		return true
 	}
-	return false
+	stripped := strings.TrimRight(cleaned, "。.!！?？…，,、 \t·")
+	if stripped == "" {
+		return true
+	}
+	allFiller := true
+	for _, r := range stripped {
+		switch r {
+		case '嗯', '啊', '哦', '额', '呃', '哎', '诶', '哈', '呵', '唔':
+			continue
+		case '…':
+			continue
+		default:
+			if unicode.Is(unicode.Han, r) || unicode.IsLetter(r) || unicode.IsNumber(r) {
+				allFiller = false
+				break
+			}
+		}
+	}
+	return allFiller
 }
 
 // processWithLLM processes text with LLM and generates TTS
@@ -789,6 +846,13 @@ func (c *AIClient) processWithLLM(userText string) {
 	}
 
 	legacyLog("[Server] LLM Response: %s", response)
+
+	c.Mu.RLock()
+	onLLM := c.onLLMResponse
+	c.Mu.RUnlock()
+	if onLLM != nil && response != "" {
+		onLLM(response)
+	}
 
 	// Generate TTS
 	c.GenerateTTS(response)

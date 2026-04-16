@@ -8,7 +8,10 @@ import (
 )
 
 const (
-	DefaultICETimeout = 10 * time.Second
+	DefaultICETimeout = 25 * time.Second
+	// ICEGatherSignalingMaxWait caps how long CreateOffer/CreateAnswer block waiting for
+	// ICE gathering. Full ICETimeout is not needed for signaling; trickle adds candidates later.
+	ICEGatherSignalingMaxWait = 2 * time.Second
 	DefaultStreamID   = "ling-echo"
 	DefaultCodec      = "pcmu"
 	WebRTCOffer       = "offer"

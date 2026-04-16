@@ -53,6 +53,7 @@ const VoiceAssistant = () => {
 
     // 状态管理
     const [isCalling, setIsCalling] = useState(false)
+    const [isConnecting, setIsConnecting] = useState(false)
     const [assistants, setAssistants] = useState<Assistant[]>([])
     const [chatHistory, setChatHistory] = useState<VoiceChatSession[]>([])
     const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
@@ -678,6 +679,7 @@ const VoiceAssistant = () => {
         if (!apiKey || !apiSecret) {
             showAlert('请先在配置面板中设置API Key和API Secret', 'warning')
             setIsCalling(false)
+            setIsConnecting(false)
             return
         }
 
@@ -726,6 +728,7 @@ const VoiceAssistant = () => {
                 console.error('[WebSocket语音] 获取麦克风失败:', error)
                 showAlert('获取麦克风权限失败', 'error')
                 setIsCalling(false)
+                setIsConnecting(false)
             }
         }
 
@@ -811,6 +814,8 @@ const VoiceAssistant = () => {
                     // 服务端握手确认，现在可以开始录音了
                     console.log('[WebSocket语音] 服务端 hello:', data)
                     showAlert('WebSocket语音连接已建立', 'success')
+                    setIsConnecting(false)
+                    setIsCalling(true)
 
                     // 启动录音（如果还没开始）
                     if (!isRecordingStarted && (newSocket as any)._pendingStream) {
@@ -911,6 +916,7 @@ const VoiceAssistant = () => {
                     console.error('[WebSocket语音] 错误:', data.message)
                     showAlert(data.message, 'error')
                     setIsCalling(false)
+                    setIsConnecting(false)
                     break
                 case 'session_cleared':
                     console.log('[WebSocket语音]', data.message)
@@ -925,11 +931,13 @@ const VoiceAssistant = () => {
             console.error('[WebSocket语音] WebSocket错误:', error)
             showAlert('WebSocket语音连接出错', 'error')
             setIsCalling(false)
+            setIsConnecting(false)
         }
 
         newSocket.onclose = () => {
             console.log('[WebSocket语音] WebSocket连接关闭')
             setIsCalling(false)
+            setIsConnecting(false)
         }
 
         setSocket(newSocket)
@@ -1086,6 +1094,7 @@ const VoiceAssistant = () => {
         let sessionId = ''
         let localPeerConnection: RTCPeerConnection | null = null
         const collectedCandidates: string[] = []
+        let offerSent = false
 
         // 初始化 WebRTC 连接的函数
         const initWebRTC = async () => {
@@ -1112,17 +1121,26 @@ const VoiceAssistant = () => {
                     newPeerConnection.addTrack(track, stream)
                 })
 
-                // 3. 收集 ICE 候选（使用 ICE bundling 模式，收集完毕后一起发送）
+                // 3. 收集 ICE 候选（Trickle ICE：先发 offer，候选增量发送）
                 newPeerConnection.onicecandidate = (event) => {
                     if (event.candidate) {
                         // 收集 candidate 字符串
                         collectedCandidates.push(event.candidate.candidate)
                         console.log('[WebRTC] 收集 ICE 候选:', event.candidate.candidate)
+
+                        // offer 已发送后，增量推送 candidate，减少建连等待
+                        if (offerSent && newSocket.readyState === WebSocket.OPEN) {
+                            newSocket.send(JSON.stringify({
+                                type: 'ice-candidate',
+                                session_id: sessionId,
+                                data: {
+                                    candidate: event.candidate.candidate,
+                                }
+                            }))
+                        }
                     } else {
                         // ICE 收集完成（event.candidate 为 null）
                         console.log('[WebRTC] ICE 候选收集完成，共收集:', collectedCandidates.length)
-                        // 发送 offer（包含所有 candidates）
-                        sendOfferWithCandidates(newPeerConnection)
                     }
                 }
 
@@ -1142,6 +1160,8 @@ const VoiceAssistant = () => {
                     switch (newPeerConnection.connectionState) {
                         case 'connected':
                             console.log('[WebRTC] 已连接')
+                            setIsConnecting(false)
+                            setIsCalling(true)
                             // 发送 connected 确认消息
                             if (newSocket.readyState === WebSocket.OPEN) {
                                 newSocket.send(JSON.stringify({
@@ -1156,6 +1176,8 @@ const VoiceAssistant = () => {
                         case 'failed':
                         case 'closed':
                             console.log('[WebRTC] 连接关闭/失败')
+                            setIsCalling(false)
+                            setIsConnecting(false)
                             break
                     }
                 }
@@ -1168,11 +1190,14 @@ const VoiceAssistant = () => {
                 setPeerConnection(newPeerConnection)
                 setLocalStream(stream)
 
-                // 注意：offer 会在 ICE 收集完成后通过 sendOfferWithCandidates 发送
+                // Trickle ICE：localDescription 就绪后立即发送 offer，不等待 ICE 收集完成
+                sendOfferWithCandidates(newPeerConnection)
 
             } catch (error) {
                 console.error('[WebRTC] 初始化失败:', error)
                 showAlert('音频设备初始化失败', 'error')
+                setIsCalling(false)
+                setIsConnecting(false)
             }
         }
 
@@ -1195,6 +1220,7 @@ const VoiceAssistant = () => {
 
             console.log('[WebRTC] 发送 offer，包含', collectedCandidates.length, '个 ICE 候选')
             newSocket.send(JSON.stringify(offerMsg))
+            offerSent = true
         }
 
         // 处理 answer 消息
@@ -1382,8 +1408,23 @@ const VoiceAssistant = () => {
                     break
 
                 case 'asrFinal':
-                    console.log('[WebSocket] 收到 ASR 结果:', data.text)
-                    addAIMessage(data.text)
+                    {
+                        const asrText = data?.data?.text || data?.text
+                        if (asrText) {
+                            console.log('[WebSocket] 收到 ASR 结果:', asrText)
+                            addUserMessage(asrText)
+                        }
+                    }
+                    break
+
+                case 'llm_response':
+                    {
+                        const llmText = data?.data?.text || data?.text
+                        if (llmText) {
+                            console.log('[WebSocket] 收到 LLM 回复:', llmText)
+                            addAIMessage(llmText)
+                        }
+                    }
                     break
 
                 case 'ice-candidate':
@@ -1429,10 +1470,14 @@ const VoiceAssistant = () => {
         newSocket.onerror = (error) => {
             console.error('[WebSocket] 连接出错:', error)
             showAlert('WebSocket连接出错', 'error')
+            setIsCalling(false)
+            setIsConnecting(false)
         }
 
         newSocket.onclose = () => {
             console.log('[WebSocket] 连接关闭')
+            setIsCalling(false)
+            setIsConnecting(false)
         }
 
         setSocket(newSocket)
@@ -1652,7 +1697,8 @@ const VoiceAssistant = () => {
         }
 
         try {
-            setIsCalling(true)
+            setIsCalling(false)
+            setIsConnecting(true)
             setCallDuration(0)
             setChatMessages([]) // 清空当前聊天记录
 
@@ -1676,6 +1722,7 @@ const VoiceAssistant = () => {
         } catch (err: any) {
             console.error('通话启动失败:', err)
             setIsCalling(false)
+            setIsConnecting(false)
             showAlert('通话启动失败', 'error')
         }
     }
@@ -1736,6 +1783,7 @@ const VoiceAssistant = () => {
             }
 
             setIsCalling(false)
+            setIsConnecting(false)
             setCallDuration(0)
             setPendingCandidates([])
 
@@ -1782,7 +1830,7 @@ const VoiceAssistant = () => {
 
     // 切换助手
     const handleSelectAgent = async (agentId: number) => {
-        if (isCalling) {
+        if (isCalling || isConnecting) {
             setPendingAgent(agentId)
             setShowConfirmModal(true)
             return
@@ -2054,9 +2102,9 @@ const VoiceAssistant = () => {
                             className={highlightedElement === 'voice-ball' ? 'ring-2 ring-blue-500 rounded-xl p-1' : ''}
                         >
                             <VoiceBall
-                                isCalling={isCalling}
+                                isCalling={isCalling || isConnecting}
                                 onToggleCall={() => {
-                                    return isCalling ? stopCall() : startCall()
+                                    return (isCalling || isConnecting) ? stopCall() : startCall()
                                 }}
                             />
                             {showOnboarding && highlightedElement === 'voice-ball' && (
@@ -2072,9 +2120,9 @@ const VoiceAssistant = () => {
                         {/* 状态指示 */}
                         <div className="mt-4 text-center">
                             <h2 className={`text-lg font-bold transition-all duration-300 ${
-                                isCalling ? 'text-purple-600' : 'text-blue-500'
+                                (isCalling || isConnecting) ? 'text-purple-600' : 'text-blue-500'
                             }`}>
-                                {isCalling ? '通话中...' : '待机中'}
+                                {isCalling ? '通话中...' : isConnecting ? '连接中...' : '待机中'}
                             </h2>
                             <p className="text-xs text-gray-500 mt-1">
                                 {assistants.find(a => a.id === assistantId)?.name || '未选择助手'}

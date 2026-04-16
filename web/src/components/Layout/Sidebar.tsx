@@ -42,14 +42,18 @@ const Sidebar = () => {
   const navigate = useNavigate()
   const dropdownRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
+  const mobileDropdownRef = useRef<HTMLDivElement>(null)
+  const mobileButtonRef = useRef<HTMLButtonElement>(null)
   const dropdownContainerRef = useRef<HTMLDivElement>(null)
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // 点击外部关闭下拉菜单
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node) &&
-          buttonRef.current && !buttonRef.current.contains(event.target as Node)) {
+      const target = event.target as Node
+      const inDesktopDropdown = dropdownRef.current?.contains(target) || buttonRef.current?.contains(target)
+      const inMobileDropdown = mobileDropdownRef.current?.contains(target) || mobileButtonRef.current?.contains(target)
+      if (!inDesktopDropdown && !inMobileDropdown) {
         setShowDropdown(false)
       }
     }
@@ -304,7 +308,7 @@ const Sidebar = () => {
                 hoverTimeoutRef.current = setTimeout(() => {
                   setShowDropdown(false)
                   hoverTimeoutRef.current = null
-                }, 150)
+                }, 280)
               }}
             >
               <button
@@ -324,7 +328,7 @@ const Sidebar = () => {
               {showDropdown && !isCollapsed && (
                 <div 
                   ref={dropdownRef}
-                  className="absolute right-0 bottom-full mb-2 w-40 bg-popover rounded-md shadow-lg border z-50"
+                  className="absolute right-0 bottom-full w-40 bg-popover rounded-md shadow-lg border z-50"
                   onMouseEnter={() => {
                     if (hoverTimeoutRef.current) {
                       clearTimeout(hoverTimeoutRef.current)
@@ -339,7 +343,7 @@ const Sidebar = () => {
                     hoverTimeoutRef.current = setTimeout(() => {
                       setShowDropdown(false)
                       hoverTimeoutRef.current = null
-                    }, 150)
+                    }, 280)
                   }}
                 >
                   <div className="flex flex-col p-2">
@@ -594,8 +598,9 @@ const Sidebar = () => {
             )}
             
             {isAuthenticated && user ? (
-              <div className="relative" ref={dropdownRef}>
+              <div className="relative" ref={mobileDropdownRef}>
                 <button
+                  ref={mobileButtonRef}
                   onClick={() => setShowDropdown(!showDropdown)}
                   className="flex items-center gap-2 p-1 rounded hover:bg-accent transition-colors"
                 >

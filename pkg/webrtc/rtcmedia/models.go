@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -264,18 +265,23 @@ func (wts *WebRTCTransport) CreateOffer() (offer string, candidates []string, er
 		return
 	}
 
-	// 等待 ICE gathering 完成 等待所有 ICE 候选者收集完毕
+	// 等待 ICE gathering（短超时即可，后续由 trickle 补候选，避免阻塞数十秒才返回 SDP）
+	gatherWait := wts.opt.ICETimeout
+	if gatherWait > constants.ICEGatherSignalingMaxWait {
+		gatherWait = constants.ICEGatherSignalingMaxWait
+	}
+	if gatherWait <= 0 {
+		gatherWait = constants.ICEGatherSignalingMaxWait
+	}
 	gatherComplete := webrtc.GatheringCompletePromise(wts.peerConnection)
 	select {
-	case <-time.After(wts.opt.ICETimeout):
-		err = fmt.Errorf("ICE gathering timeout")
-		return
+	case <-time.After(gatherWait):
+		logrus.WithField("timeout", gatherWait).Warn("ICE gathering timeout, continue with partial candidates")
 	case <-gatherComplete:
 	}
 
 	if len(wts.Candidates) == 0 {
-		err = fmt.Errorf("no ICE candidates generated")
-		return
+		logrus.Warn("no ICE candidates generated yet, continue with SDP only")
 	}
 
 	// 提取 candidate 字符串
@@ -323,18 +329,22 @@ func (wts *WebRTCTransport) CreateAnswer(clientCandidates []string) (serverAnswe
 		return
 	}
 
-	// 等待 ICE gathering
+	gatherWait := wts.opt.ICETimeout
+	if gatherWait > constants.ICEGatherSignalingMaxWait {
+		gatherWait = constants.ICEGatherSignalingMaxWait
+	}
+	if gatherWait <= 0 {
+		gatherWait = constants.ICEGatherSignalingMaxWait
+	}
 	gatherComplete := webrtc.GatheringCompletePromise(wts.peerConnection)
 	select {
-	case <-time.After(wts.opt.ICETimeout):
-		err = fmt.Errorf("ICE gathering timeout")
-		return
+	case <-time.After(gatherWait):
+		logrus.WithField("timeout", gatherWait).Warn("ICE gathering timeout while creating answer, continue with partial candidates")
 	case <-gatherComplete:
 	}
 
 	if len(wts.Candidates) == 0 {
-		err = fmt.Errorf("no ICE candidates generated")
-		return
+		logrus.Warn("no server ICE candidates generated yet, continue with SDP only")
 	}
 
 	// 添加客户端的 ICE candidates
@@ -515,4 +525,10 @@ func (wts *WebRTCTransport) OnTrack(f func(*webrtc.TrackRemote, *webrtc.RTPRecei
 		wts.mu.Unlock()
 		f(remoteTrack, receiver)
 	})
+}
+
+// VerboseSDP enables SDP preview and ICE debug logs (set WEBRTC_DEBUG=1).
+func VerboseSDP() bool {
+	return strings.TrimSpace(os.Getenv("WEBRTC_DEBUG")) == "1" ||
+		strings.EqualFold(strings.TrimSpace(os.Getenv("WEBRTC_DEBUG")), "true")
 }
