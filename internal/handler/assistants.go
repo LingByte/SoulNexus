@@ -77,7 +77,7 @@ func (h *Handlers) CreateAssistant(c *gin.Context) {
 		PersonaTag:   "mentor",
 		Temperature:  0.6,
 		MaxTokens:    150,
-		JsSourceID:   strconv.FormatInt(utils.SnowflakeUtil.NextID(), 20),
+		JsSourceID:   utils.SnowflakeUtil.GenID(),
 		Language:     "zh-cn",
 		Speaker:      "101016",
 		CreatedAt:    time.Now(),

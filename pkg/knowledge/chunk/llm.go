@@ -11,7 +11,7 @@ import (
 )
 
 type LLMChunker struct {
-	LLM   llm.LLMProvider
+	LLM   llm.LLMHandler
 	Model string
 }
 

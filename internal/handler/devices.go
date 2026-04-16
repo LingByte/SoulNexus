@@ -15,8 +15,8 @@ import (
 
 	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/cache"
-	"github.com/LingByte/SoulNexus/pkg/llm"
 	"github.com/LingByte/SoulNexus/pkg/logger"
+	"github.com/LingByte/SoulNexus/pkg/llm"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -1091,17 +1091,11 @@ func (h *Handlers) AnalyzeCallRecording(c *gin.Context) {
 		}
 
 		// 创建 LLM 提供者
-		var provider llm.LLMProvider
+		var provider llm.LLMHandler
 		var err2 error
 
 		// 根据 LLM 提供商类型创建对应的提供者
-		if strings.Contains(strings.ToLower(llmProvider), "coze") {
-			// 使用 Coze 提供者 - 使用 credential 的 APISecret 作为认证信息
-			provider, err2 = llm.NewCozeProvider(ctx, llmApiKey, credential.APISecret, fmt.Sprintf("user_%d", user.ID), "你是一个专业的对话分析助手")
-		} else {
-			// 默认使用 OpenAI 兼容的提供者
-			provider = llm.NewOpenAIProvider(ctx, llmApiKey, llmApiURL, "你是一个专业的对话分析助手")
-		}
+		provider, err2 = llm.NewLLMProvider(ctx, llmProvider, llmApiKey, llmApiURL, "你是一个专业的对话分析助手")
 
 		if err2 != nil {
 			logger.Error("创建 LLM 提供者失败", zap.Error(err2), zap.String("llmProvider", llmProvider))
@@ -1126,10 +1120,15 @@ func (h *Handlers) AnalyzeCallRecording(c *gin.Context) {
 请返回有效的 JSON 格式。`, conversationText)
 
 		// 调用 LLM 进行分析
-		result, err := provider.QueryWithOptions(analysisPrompt, llm.QueryOptions{
+		respLLM, err := provider.QueryWithOptions(analysisPrompt, &llm.QueryOptions{
 			Model:       recording.LLMModel,
-			Temperature: llm.Float32Ptr(0.7),
+			Temperature: 0.7,
 		})
+		result := ""
+		if respLLM != nil && len(respLLM.Choices) > 0 {
+			result = respLLM.Choices[0].Content
+		}
+
 
 		if err != nil {
 			logger.Error("LLM 分析失败", zap.Error(err), zap.Uint("recordingID", recording.ID))

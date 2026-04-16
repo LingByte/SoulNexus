@@ -20,34 +20,30 @@ func (f *fakeLLM) Query(text, model string) (string, error) {
 }
 
 func (f *fakeLLM) Provider() string { return "fake" }
-func (f *fakeLLM) QueryWithOptions(text string, options llm.QueryOptions) (string, error) {
+func (f *fakeLLM) QueryWithOptions(text string, options *llm.QueryOptions) (*llm.QueryResponse, error) {
 	_ = text
 	_ = options
-	return f.resp, f.err
+	return &llm.QueryResponse{Choices: []llm.QueryChoice{{Content: f.resp}}}, f.err
 }
-func (f *fakeLLM) QueryStream(text string, options llm.QueryOptions, callback func(segment string, isComplete bool) error) (string, error) {
+func (f *fakeLLM) QueryStream(text string, options *llm.QueryOptions, callback func(segment string, isComplete bool) error) (*llm.QueryResponse, error) {
 	_ = text
 	_ = options
 	if callback != nil {
 		_ = callback(f.resp, false)
 		_ = callback("", true)
 	}
-	return f.resp, f.err
+	return &llm.QueryResponse{Choices: []llm.QueryChoice{{Content: f.resp}}}, f.err
 }
 func (f *fakeLLM) RegisterFunctionTool(name, description string, parameters interface{}, callback llm.FunctionToolCallback) {
 	_, _, _, _ = name, description, parameters, callback
 }
 func (f *fakeLLM) RegisterFunctionToolDefinition(def *llm.FunctionToolDefinition) { _ = def }
-func (f *fakeLLM) GetFunctionTools() []interface{}                                 { return nil }
-func (f *fakeLLM) ListFunctionTools() []string                                     { return nil }
-func (f *fakeLLM) GetLastUsage() (llm.Usage, bool)                                 { return llm.Usage{}, false }
-func (f *fakeLLM) ResetMessages()                                                   {}
-func (f *fakeLLM) SetSystemPrompt(systemPrompt string)                              { _ = systemPrompt }
-func (f *fakeLLM) GetMessages() []llm.Message                                       { return nil }
-func (f *fakeLLM) Interrupt()                                                       {}
-func (f *fakeLLM) Hangup()                                                          {}
+func (f *fakeLLM) GetFunctionTools() []interface{}                                { return nil }
+func (f *fakeLLM) ListFunctionTools() []string                                    { return nil }
+func (f *fakeLLM) Interrupt()                                                     {}
+func (f *fakeLLM) Hangup()                                                        {}
 
-var _ llm.LLMProvider = (*fakeLLM)(nil)
+var _ llm.LLMHandler = (*fakeLLM)(nil)
 
 func TestLLMChunker_Chunk_PureJSON(t *testing.T) {
 	c := &LLMChunker{LLM: &fakeLLM{resp: `[{"title":"A","text":"hello"},{"title":"B","text":"world"}]`}}

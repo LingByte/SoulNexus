@@ -111,12 +111,11 @@ func (a *AIChatNode) executeAIChat(ctx *WorkflowContext, inputs map[string]inter
 	}
 
 	if a.Config.Temperature != nil {
-		temp := float32(*a.Config.Temperature)
-		options.Temperature = &temp
+		options.Temperature = float32(*a.Config.Temperature)
 	}
 
 	if a.Config.MaxTokens != nil {
-		options.MaxTokens = a.Config.MaxTokens
+		options.MaxTokens = *a.Config.MaxTokens
 	}
 
 	// 执行查询
@@ -124,7 +123,7 @@ func (a *AIChatNode) executeAIChat(ctx *WorkflowContext, inputs map[string]inter
 	if a.Config.EnableStream {
 		// 流式输出
 		var fullResponse strings.Builder
-		response, err = provider.QueryStream(userInput, options, func(segment string, isComplete bool) error {
+		_, err = provider.QueryStream(userInput, &options, func(segment string, isComplete bool) error {
 			fullResponse.WriteString(segment)
 			// 可以在这里添加流式处理的日志
 			ctx.AddLog("info", fmt.Sprintf("Stream segment: %s", segment), a.ID, a.Name)
@@ -133,19 +132,17 @@ func (a *AIChatNode) executeAIChat(ctx *WorkflowContext, inputs map[string]inter
 		if err != nil {
 			return nil, fmt.Errorf("query LLM failed: %w", err)
 		}
+		response = fullResponse.String()
 	} else {
 		// 非流式输出
-		response, err = provider.QueryWithOptions(userInput, options)
+		resp, err2 := provider.QueryWithOptions(userInput, &options)
+		err = err2
 		if err != nil {
 			return nil, fmt.Errorf("query LLM failed: %w", err)
 		}
-	}
-
-	// 获取使用统计信息
-	usage, hasUsage := provider.GetLastUsage()
-	if hasUsage {
-		ctx.AddLog("info", fmt.Sprintf("LLM Usage - Prompt: %d, Completion: %d, Total: %d",
-			usage.PromptTokens, usage.CompletionTokens, usage.TotalTokens), a.ID, a.Name)
+		if resp != nil && len(resp.Choices) > 0 {
+			response = resp.Choices[0].Content
+		}
 	}
 
 	// 构建输出
@@ -153,12 +150,7 @@ func (a *AIChatNode) executeAIChat(ctx *WorkflowContext, inputs map[string]inter
 		a.Config.OutputVariable: response,
 	}
 
-	// 如果启用了历史持久化，保存对话历史
-	if a.Config.PersistHistory {
-		messages := provider.GetMessages()
-		messagesJSON, _ := json.Marshal(messages)
-		outputs["_chat_history"] = string(messagesJSON)
-	}
+	_ = a.Config.PersistHistory
 
 	return outputs, nil
 }

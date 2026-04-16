@@ -23,7 +23,7 @@ type LLMConfig struct {
 
 // LLMService LLM 服务封装
 type LLMService struct {
-	provider llm.LLMProvider
+	provider llm.LLMHandler
 	config   *LLMConfig
 	logger   *zap.Logger
 }
@@ -75,7 +75,14 @@ func (s *LLMService) Query(text string, model string) (string, error) {
 // QueryWithOptions 带选项的同步查询
 func (s *LLMService) QueryWithOptions(text string, options llm.QueryOptions) (string, error) {
 	opts := s.buildOptions(options)
-	return s.provider.QueryWithOptions(text, opts)
+	resp, err := s.provider.QueryWithOptions(text, &opts)
+	if err != nil {
+		return "", err
+	}
+	if resp == nil || len(resp.Choices) == 0 {
+		return "", nil
+	}
+	return resp.Choices[0].Content, nil
 }
 
 // QueryStream 流式查询
@@ -86,7 +93,7 @@ func (s *LLMService) QueryStream(text string, callback func(string, bool) error,
 	}
 	opts = s.buildOptions(opts)
 
-	_, err := s.provider.QueryStream(text, opts, callback)
+	_, err := s.provider.QueryStream(text, &opts, callback)
 	return err
 }
 
@@ -95,22 +102,14 @@ func (s *LLMService) buildOptions(options llm.QueryOptions) llm.QueryOptions {
 	if options.Model == "" {
 		options.Model = s.config.Model
 	}
-	if options.MaxTokens == nil && options.MaxCompletionTokens == nil {
-		maxTokens := s.config.MaxTokens
-		options.MaxTokens = &maxTokens
-	}
-	if options.MaxTokens == nil {
-		maxTokens := s.config.MaxTokens
-		options.MaxTokens = &maxTokens
-	}
-	if !options.Stream {
-		options.Stream = true
+	if options.MaxTokens <= 0 {
+		options.MaxTokens = s.config.MaxTokens
 	}
 	return options
 }
 
 // GetProvider 获取底层 Provider（用于特殊场景）
-func (s *LLMService) GetProvider() llm.LLMProvider {
+func (s *LLMService) GetProvider() llm.LLMHandler {
 	return s.provider
 }
 
@@ -125,17 +124,16 @@ func (s *LLMService) ListTools() []string {
 }
 
 // GetLastUsage 获取最后一次调用的使用统计
-func (s *LLMService) GetLastUsage() (llm.Usage, bool) {
-	return s.provider.GetLastUsage()
+func (s *LLMService) GetLastUsage() (llm.TokenUsage, bool) {
+	return llm.TokenUsage{}, false
 }
 
 // ResetMessages 重置对话历史
 func (s *LLMService) ResetMessages() {
-	s.provider.ResetMessages()
+	// 新 llm 默认不暴露历史重置接口，暂保持空实现。
 }
 
 // SetSystemPrompt 设置系统提示词
 func (s *LLMService) SetSystemPrompt(prompt string) {
-	s.provider.SetSystemPrompt(prompt)
 	s.config.SystemPrompt = prompt
 }

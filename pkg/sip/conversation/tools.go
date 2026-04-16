@@ -10,7 +10,8 @@ import (
 // Copyright (c) 2026 LingByte
 // SPDX-License-Identifier: MIT
 
-func registerSIPTransferTool(provider llm.LLMProvider, callID string, lg *zap.Logger) {
+func registerSIPTransferTool(provider llm.LLMHandler, callID string, lg *zap.Logger) {
+	_ = provider
 	if strings.TrimSpace(callID) == "" {
 		return
 	}
