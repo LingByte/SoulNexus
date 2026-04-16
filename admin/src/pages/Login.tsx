@@ -8,7 +8,7 @@ import Modal from '@/components/UI/Modal'
 import Captcha from '@/components/Auth/Captcha'
 import { useAuthStore } from '@/stores/authStore'
 import { showAlert } from '@/utils/notification'
-import { loginByPassword } from '@/api/authApi'
+import { loginByPassword, sendDeviceVerificationCode, verifyDeviceForLogin } from '@/api/authApi'
 import faviconUrl from '/favicon.png'
 
 const Login = () => {
@@ -26,6 +26,14 @@ const Login = () => {
   // 两步验证
   const [requiresTwoFactor, setRequiresTwoFactor] = useState(false)
   const [twoFactorCode, setTwoFactorCode] = useState('')
+
+  // 新设备验证
+  const [requiresDeviceVerification, setRequiresDeviceVerification] = useState(false)
+  const [showDeviceVerifyModal, setShowDeviceVerifyModal] = useState(false)
+  const [deviceId, setDeviceId] = useState('')
+  const [deviceVerifyCode, setDeviceVerifyCode] = useState('')
+  const [deviceVerifyLoading, setDeviceVerifyLoading] = useState(false)
+  const [deviceSendLoading, setDeviceSendLoading] = useState(false)
 
   const { login } = useAuthStore()
   const navigate = useNavigate()
@@ -65,6 +73,19 @@ const Login = () => {
         return
       }
 
+      if (response.data?.requiresDeviceVerification) {
+        const incomingDeviceId = response.data?.deviceId || ''
+        setDeviceId(incomingDeviceId)
+        setRequiresDeviceVerification(true)
+        setShowDeviceVerifyModal(true)
+        setDeviceVerifyCode('')
+        if (response.data?.verificationSent) {
+          showAlert('新设备验证码已发送到邮箱', 'success')
+        }
+        setLoading(false)
+        return
+      }
+
       const { token, user: userData } = response.data
 
       if (!token) throw new Error('登录失败：未获取到 token')
@@ -100,6 +121,51 @@ const Login = () => {
 
   const handleCaptchaError = (error: string) => {
     showAlert(error, 'error', '验证码错误')
+  }
+
+  const handleSendDeviceCode = async () => {
+    if (!email || !deviceId) {
+      showAlert('设备信息不完整，请重新登录', 'error')
+      return
+    }
+    try {
+      setDeviceSendLoading(true)
+      const res = await sendDeviceVerificationCode({ email, deviceId })
+      if (res.code !== 200) throw new Error(res.msg || '发送验证码失败')
+      showAlert('验证码已发送到邮箱', 'success')
+    } catch (error: any) {
+      showAlert(error?.msg || error?.message || '发送验证码失败', 'error')
+    } finally {
+      setDeviceSendLoading(false)
+    }
+  }
+
+  const handleVerifyDevice = async () => {
+    if (!email || !deviceId || !deviceVerifyCode) {
+      showAlert('请输入完整设备验证码', 'error')
+      return
+    }
+    try {
+      setDeviceVerifyLoading(true)
+      const res = await verifyDeviceForLogin({
+        email,
+        deviceId,
+        verifyCode: deviceVerifyCode,
+      })
+      if (res.code !== 200) throw new Error(res.msg || '设备验证失败')
+      showAlert('设备验证成功，正在继续登录', 'success')
+      setRequiresDeviceVerification(false)
+      setShowDeviceVerifyModal(false)
+      if (captchaId) {
+        await performLogin(captchaId, captchaType, captchaCode)
+      } else {
+        setShowCaptchaModal(true)
+      }
+    } catch (error: any) {
+      showAlert(error?.msg || error?.message || '设备验证失败', 'error')
+    } finally {
+      setDeviceVerifyLoading(false)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -225,7 +291,7 @@ const Login = () => {
               leftIcon={<LogIn className="w-4 h-4" />}
               className="mt-6"
             >
-              {loading ? '登录中...' : requiresTwoFactor ? '验证并登录' : '登录'}
+              {loading ? '登录中...' : requiresTwoFactor ? '验证并登录' : requiresDeviceVerification ? '验证设备后登录' : '登录'}
             </Button>
           </form>
         </div>
@@ -243,6 +309,42 @@ const Login = () => {
           onVerify={handleCaptchaVerify}
           onError={handleCaptchaError}
         />
+      </Modal>
+
+      {/* 新设备验证弹窗 */}
+      <Modal
+        isOpen={showDeviceVerifyModal}
+        onClose={() => setShowDeviceVerifyModal(false)}
+        title="新设备登录验证"
+        size="md"
+        closeOnOverlayClick={false}
+      >
+        <div className="space-y-4">
+          <div className="text-sm text-slate-600 dark:text-slate-400">
+            检测到新设备登录，请输入邮箱验证码完成验证。
+          </div>
+          <Input
+            label="设备ID"
+            value={deviceId}
+            disabled
+          />
+          <Input
+            label="验证码"
+            placeholder="请输入6位验证码"
+            value={deviceVerifyCode}
+            onChange={(e) => setDeviceVerifyCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            maxLength={6}
+            disabled={deviceVerifyLoading}
+          />
+          <div className="flex gap-3 justify-end">
+            <Button variant="outline" onClick={handleSendDeviceCode} loading={deviceSendLoading}>
+              发送验证码
+            </Button>
+            <Button variant="primary" onClick={handleVerifyDevice} loading={deviceVerifyLoading}>
+              验证并继续登录
+            </Button>
+          </div>
+        </div>
       </Modal>
     </div>
   )

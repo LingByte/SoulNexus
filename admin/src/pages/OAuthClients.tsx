@@ -160,7 +160,9 @@ const OAuthClients = () => {
                     <tr key={client.id} className="border-b border-slate-100 dark:border-slate-800">
                       <td className="py-3 px-4 font-mono text-xs">{client.clientId}</td>
                       <td className="py-3 px-4">{client.name}</td>
-                      <td className="py-3 px-4 text-xs">{client.redirectUri}</td>
+                      <td className="py-3 px-4 text-xs whitespace-pre-wrap break-all">
+                        {client.redirectUri?.split(';').map((uri) => uri.trim()).filter(Boolean).join('\n')}
+                      </td>
                       <td className="py-3 px-4">
                         <Badge variant={client.status === 1 ? 'success' : 'secondary'}>
                           {client.status === 1 ? '启用' : '禁用'}
@@ -189,7 +191,12 @@ const OAuthClients = () => {
             <Input label="Client ID *" value={formData.clientId || ''} onChange={(e) => setFormData({ ...formData, clientId: e.target.value })} />
             <Input label="名称 *" value={formData.name || ''} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
             <Input label="Client Secret（可选）" value={formData.clientSecret || ''} onChange={(e) => setFormData({ ...formData, clientSecret: e.target.value })} />
-            <Input label="Redirect URI *" value={formData.redirectUri || ''} onChange={(e) => setFormData({ ...formData, redirectUri: e.target.value })} />
+            <Input
+              label="Redirect URI *（多个用 ; 分隔）"
+              placeholder="https://a.com/callback;https://b.com/callback"
+              value={formData.redirectUri || ''}
+              onChange={(e) => setFormData({ ...formData, redirectUri: e.target.value })}
+            />
             <div className="flex justify-end gap-3">
               <Button variant="outline" onClick={() => setShowCreateModal(false)}>取消</Button>
               <Button onClick={submitCreate} leftIcon={<Save className="w-4 h-4" />}>创建</Button>
@@ -202,7 +209,12 @@ const OAuthClients = () => {
             <Input label="Client ID *" value={formData.clientId || ''} onChange={(e) => setFormData({ ...formData, clientId: e.target.value })} />
             <Input label="名称 *" value={formData.name || ''} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
             <Input label="Client Secret（留空则不改）" value={formData.clientSecret || ''} onChange={(e) => setFormData({ ...formData, clientSecret: e.target.value })} />
-            <Input label="Redirect URI *" value={formData.redirectUri || ''} onChange={(e) => setFormData({ ...formData, redirectUri: e.target.value })} />
+            <Input
+              label="Redirect URI *（多个用 ; 分隔）"
+              placeholder="https://a.com/callback;https://b.com/callback"
+              value={formData.redirectUri || ''}
+              onChange={(e) => setFormData({ ...formData, redirectUri: e.target.value })}
+            />
             <div className="flex justify-end gap-3">
               <Button variant="outline" onClick={() => setShowEditModal(false)}>取消</Button>
               <Button onClick={submitEdit} leftIcon={<Save className="w-4 h-4" />}>保存</Button>

@@ -1125,6 +1125,58 @@ export const deleteAdminBill = async (id: number): Promise<void> => {
   await del(`${ADMIN_BILLS_API_BASE}/${id}`)
 }
 
+// ==================== Admin Assistants API ====================
+const ADMIN_ASSISTANTS_API_BASE = `${BACKEND_BASE}/admin/assistants`
+
+export interface AdminAssistant {
+  id: number
+  userId: number
+  groupId?: number
+  name: string
+  description?: string
+  systemPrompt?: string
+  temperature?: number
+  maxTokens?: number
+  language?: string
+  speaker?: string
+  ttsProvider?: string
+  llmModel?: string
+  enableGraphMemory?: boolean
+  enableJSONOutput?: boolean
+  createdAt: string
+  updatedAt?: string
+}
+
+export interface AdminAssistantListResponse {
+  assistants: AdminAssistant[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+export const listAdminAssistants = async (params?: { page?: number; pageSize?: number; search?: string }) => {
+  const queryParams: any = {}
+  if (params?.page) queryParams.page = params.page
+  if (params?.pageSize) queryParams.pageSize = params.pageSize
+  if (params?.search) queryParams.search = params.search
+  const res = await get<AdminAssistantListResponse>(ADMIN_ASSISTANTS_API_BASE, { params: queryParams })
+  return res.data
+}
+
+export const getAdminAssistant = async (id: number): Promise<AdminAssistant> => {
+  const res = await get<AdminAssistant>(`${ADMIN_ASSISTANTS_API_BASE}/${id}`)
+  return res.data
+}
+
+export const updateAdminAssistant = async (id: number, data: Partial<AdminAssistant>) => {
+  const res = await put(`${ADMIN_ASSISTANTS_API_BASE}/${id}`, data)
+  return res.data
+}
+
+export const deleteAdminAssistant = async (id: number): Promise<void> => {
+  await del(`${ADMIN_ASSISTANTS_API_BASE}/${id}`)
+}
+
 
 
 // ==================== File Censor Records API ====================

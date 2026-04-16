@@ -72,6 +72,7 @@ const AdminSidebar = () => {
 
   const navigation: NavItem[] = [
     { name: '用户管理', href: '/users', icon: Users },
+    { name: '助手管理', href: '/assistants', icon: Bot },
     { name: '企业管理', href: '/groups', icon: Building2 },
     { name: '密钥管理', href: '/credentials', icon: Key },
     { name: 'OAuth 客户端', href: '/oauth-clients', icon: KeyRound },

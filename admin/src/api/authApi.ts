@@ -24,6 +24,12 @@ export interface LoginPasswordRequest {
   twoFactorCode?: string
 }
 
+export interface DeviceVerifyRequest {
+  email: string
+  deviceId: string
+  verifyCode: string
+}
+
 export const getCaptcha = async (): Promise<CaptchaData> => {
   const res = await authGet<CaptchaData>('/auth/captcha')
   return res.data
@@ -31,6 +37,16 @@ export const getCaptcha = async (): Promise<CaptchaData> => {
 
 export const loginByPassword = async (payload: LoginPasswordRequest) => {
   const res = await authPost('/auth/login/password', payload)
+  return res
+}
+
+export const sendDeviceVerificationCode = async (payload: { email: string; deviceId: string }) => {
+  const res = await authPost('/auth/devices/send-verification', payload)
+  return res
+}
+
+export const verifyDeviceForLogin = async (payload: DeviceVerifyRequest) => {
+  const res = await authPost('/auth/devices/verify', payload)
   return res
 }
 

@@ -653,7 +653,7 @@ func (h *Handlers) handleOIDCAuthorize(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid oauth client"))
 		return
 	}
-	if strings.TrimSpace(oauthClient.RedirectURI) != redirectURI {
+	if !oauthClient.MatchRedirectURI(redirectURI) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("redirect_uri does not match registered client"))
 		return
 	}
@@ -776,7 +776,7 @@ func (h *Handlers) processOIDCTokenReq(c *gin.Context, req oidcTokenReq) {
 			return
 		}
 	}
-	if req.RedirectURI != "" && strings.TrimSpace(oauthClient.RedirectURI) != req.RedirectURI {
+	if req.RedirectURI != "" && !oauthClient.MatchRedirectURI(req.RedirectURI) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("redirect_uri does not match registered client"))
 		return
 	}
@@ -788,7 +788,7 @@ func (h *Handlers) processOIDCTokenReq(c *gin.Context, req oidcTokenReq) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid or expired code"))
 		return
 	}
-	if strings.TrimSpace(codeData.RedirectURI) != strings.TrimSpace(oauthClient.RedirectURI) {
+	if !oauthClient.MatchRedirectURI(codeData.RedirectURI) {
 		oidcAuthCodeStore.Unlock()
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("code redirect_uri mismatch"))
 		return

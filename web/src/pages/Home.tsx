@@ -5,7 +5,9 @@ import {
     Zap,
     Settings as SettingsIcon,
     BookOpen as BookOpenIcon,
-    Users as UsersIcon,
+    Building2,
+    MapPin,
+    Mail,
     MessageCircle as MessageCircleIcon,
     Activity as ActivityIcon,
     Phone,
@@ -18,8 +20,6 @@ import {
     X
 } from 'lucide-react'
 import {Typewriter} from "@/components/UX/MicroInteractions.tsx";
-import Card, { CardContent, CardDescription, CardHeader, CardTitle } from "@/components/UI/Card";
-import StaggeredList from "@/components/Animations/StaggeredList";
 import Button from "@/components/UI/Button";
 import { useAuthStore } from "@/stores/authStore";
 import EnhancedThemeToggle from "@/components/UI/EnhancedThemeToggle";
@@ -34,7 +34,7 @@ const iconMap: Record<string, any> = {
     Zap,
     Settings: SettingsIcon,
     BookOpen: BookOpenIcon,
-    Users: UsersIcon,
+    Users: UserIcon,
     MessageCircle: MessageCircleIcon,
     Activity: ActivityIcon,
     Phone,
@@ -46,6 +46,7 @@ const iconMap: Record<string, any> = {
 const Home = () => {
     const [showMobileMenu, setShowMobileMenu] = useState(false)
     const [showUserDropdown, setShowUserDropdown] = useState(false)
+    const [hoveredContactPanel, setHoveredContactPanel] = useState<'company' | 'contact' | null>(null)
     const { user, isAuthenticated, logout } = useAuthStore()
     const { t } = useI18nStore()
     const userDropdownRef = useRef<HTMLDivElement>(null)
@@ -144,13 +145,6 @@ const Home = () => {
     t('tech.voiceCloneDesc');
     t('tech.llm');
     t('tech.llmDesc');
-
-    const aboutTeam = [
-        { name: 'chenting', role: t('team.fullStack'), avatar: 'C', description: '' },
-        { name: 'wangyueran', role: t('team.fullStack'), avatar: 'W', description: '' },
-        { name: 'quenanlin', role: t('team.fullStack'), avatar: 'Q', description: '' },
-        { name: 'jianghaotian', role: t('team.fullStack'), avatar: 'J', description: '' },
-    ]
 
     return (
         <div className="min-h-screen relative">
@@ -373,6 +367,94 @@ const Home = () => {
                     )}
                 </div>
             </nav>
+
+            {/* Floating contact dock + expandable card */}
+            <aside
+                className="fixed right-4 top-[62%] -translate-y-1/2 z-40 hidden lg:block"
+                onMouseLeave={() => setHoveredContactPanel(null)}
+            >
+                {hoveredContactPanel && (
+                    <div
+                        className="absolute right-[4.8rem] top-1/2 -translate-y-1/2 w-[21rem] rounded-2xl border border-white/20 bg-white/90 dark:bg-gray-900/85 backdrop-blur-md shadow-2xl p-5"
+                        onMouseEnter={() => setHoveredContactPanel(hoveredContactPanel)}
+                    >
+                        {hoveredContactPanel === 'company' ? (
+                            <div className="space-y-4 text-sm text-gray-700 dark:text-gray-200">
+                                <div className="flex items-start gap-2">
+                                    <Building2 className="w-4 h-4 mt-0.5 text-indigo-500 shrink-0" />
+                                    <div>
+                                        <p className="text-xs text-muted-foreground">公司</p>
+                                        <p>成都解忧造物科技有限责任公司</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-start gap-2">
+                                    <MapPin className="w-4 h-4 mt-0.5 text-indigo-500 shrink-0" />
+                                    <div>
+                                        <p className="text-xs text-muted-foreground">地址</p>
+                                        <p>四川省成都市成华区一环路东一段159号1栋1层1号附17号</p>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="space-y-4 text-sm text-gray-700 dark:text-gray-200">
+                                <div className="flex items-start gap-2">
+                                    <Mail className="w-4 h-4 mt-0.5 text-indigo-500 shrink-0" />
+                                    <div>
+                                        <p className="text-xs text-muted-foreground">联系</p>
+                                        <a
+                                            href="mailto:19511899044@163.com"
+                                            className="text-indigo-600 hover:text-indigo-700 dark:text-indigo-300 dark:hover:text-indigo-200"
+                                        >
+                                            19511899044@163.com
+                                        </a>
+                                    </div>
+                                </div>
+                                <div>
+                                    <a
+                                        href="https://github.com/LingByte/SoulNexus"
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="text-indigo-600 hover:text-indigo-700 dark:text-indigo-300 dark:hover:text-indigo-200"
+                                    >
+                                        社区开源项目: https://github.com/LingByte/SoulNexus
+                                    </a>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+                <div className="ml-auto w-16 rounded-[32px] bg-white/95 dark:bg-gray-100 shadow-xl py-4 px-1.5 flex flex-col items-center gap-4 border border-black/5">
+                    <button
+                        type="button"
+                        onMouseEnter={() => setHoveredContactPanel('company')}
+                        className="w-full flex flex-col items-center text-gray-700 hover:text-indigo-600 transition-colors"
+                        aria-label="公司信息"
+                        title="公司信息"
+                    >
+                        <Building2 className="w-6 h-6 mb-1" />
+                        <span className="text-[12px] leading-4 tracking-wide text-center">
+                            公司
+                            <br />
+                            信息
+                        </span>
+                    </button>
+                    <div className="w-8 h-px bg-gray-300" />
+                    <button
+                        type="button"
+                        onMouseEnter={() => setHoveredContactPanel('contact')}
+                        className="w-full flex flex-col items-center text-gray-700 hover:text-indigo-600 transition-colors"
+                        aria-label="联系方式"
+                        title="联系方式"
+                    >
+                        <Mail className="w-6 h-6 mb-1" />
+                        <span className="text-[12px] leading-4 tracking-wide text-center">
+                            联系
+                            <br />
+                            方式
+                        </span>
+                    </button>
+                </div>
+            </aside>
 
             {/* 主要内容区域 */}
             <div className="relative space-y-20 overflow-hidden pt-16">
@@ -765,7 +847,7 @@ const Home = () => {
                         className="mt-12 text-center"
                     >
                         <div className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-500/10 to-purple-500/10 dark:from-indigo-500/20 dark:to-purple-500/20 rounded-full border border-indigo-200/50 dark:border-indigo-700/50">
-                            <UsersIcon className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                            <UserIcon className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
                             <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
                                 {t('home.whoWeServe.cta') || '无论您是企业、开发者还是创新团队，SoulMy都能为您提供灵活、可扩展的AI语音解决方案'}
                             </p>
@@ -986,58 +1068,6 @@ const Home = () => {
                                 )
                             })}
                         </div>
-                </div>
-            </section>
-            {/* About (full) */}
-            <section id="about" className="relative py-24 overflow-hidden">
-                {/* 渐变背景 - 浅蓝到浅紫 */}
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-100 via-indigo-100 to-purple-100 dark:from-gray-900 dark:via-purple-900/30 dark:to-blue-900/30"></div>
-                
-                {/* 动态光效 */}
-                <div className="absolute inset-0 bg-gradient-to-l from-transparent via-purple-400/20 to-transparent animate-pulse"></div>
-                
-                {/* 若隐若现的网格背景 */}
-                <div className="absolute inset-0 z-0 opacity-30 [background-image:linear-gradient(to_right,rgba(168,85,247,0.1)_1px,transparent_1px),linear-gradient(to_bottom,rgba(168,85,247,0.1)_1px,transparent_1px)] [background-size:36px_36px] pointer-events-none"></div>
-                
-                {/* 网格阴影效果 */}
-                <div className="absolute inset-0 z-0 opacity-12 [background-image:linear-gradient(to_right,rgba(168,85,247,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(168,85,247,0.05)_1px,transparent_1px)] [background-size:36px_36px] [background-position:1px_1px] pointer-events-none"></div>
-                
-                {/* 边缘模糊遮罩 - 增强上下边缘 */}
-                <div className="absolute inset-0 z-0 bg-gradient-to-t from-purple-100/80 via-purple-100/20 to-transparent dark:from-purple-900/60 dark:via-purple-900/10 dark:to-transparent pointer-events-none"></div>
-                <div className="absolute inset-0 z-0 bg-gradient-to-b from-purple-100/80 via-purple-100/20 to-transparent dark:from-purple-900/60 dark:via-purple-900/10 dark:to-transparent pointer-events-none"></div>
-                <div className="absolute inset-0 z-0 bg-gradient-to-l from-transparent via-transparent to-purple-100/40 dark:to-purple-900/20 pointer-events-none"></div>
-                <div className="absolute inset-0 z-0 bg-gradient-to-r from-transparent via-transparent to-purple-100/40 dark:to-purple-900/20 pointer-events-none"></div>
-                
-                {/* 浮动光球 */}
-                <div className="absolute top-10 left-10 h-96 w-96 rounded-full blur-3xl bg-gradient-to-r from-purple-400/25 via-pink-400/25 to-transparent animate-pulse"></div>
-                <div className="absolute bottom-10 right-10 h-80 w-80 rounded-full blur-3xl bg-gradient-to-r from-blue-400/20 via-indigo-400/20 to-transparent animate-pulse"></div>
-                <div className="absolute top-1/3 right-1/3 h-72 w-72 rounded-full blur-3xl bg-gradient-to-r from-pink-400/15 via-purple-400/15 to-transparent animate-pulse"></div>
-                <div className="max-w-6xl mx-auto px-2 space-y-20">
-                    {/* Team */}
-                    <div>
-                        <div className="text-center mb-12">
-                            <h3 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">{t('team.title')}</h3>
-                            <p className="text-gray-600 dark:text-neutral-400">{t('team.desc')}</p>
-                        </div>
-                        <StaggeredList className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                            {aboutTeam.map((member) => (
-                                <motion.div key={member.name} whileHover={{ y: -4 }} transition={{ duration: 0.2 }}>
-                                    <Card hover className="text-center bg-white/80 dark:bg-white/5 border-gray-200 dark:border-white/10 shadow-lg z-10">
-                                        <CardHeader>
-                                            <div className="w-20 h-20 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4 font-bold text-2xl shadow-lg">
-                                                {member.avatar}
-                                            </div>
-                                            <CardTitle className="text-lg text-gray-900 dark:text-white">{member.name}</CardTitle>
-                                            <CardDescription className="text-indigo-600 dark:text-indigo-200">{member.role}</CardDescription>
-                                        </CardHeader>
-                                        <CardContent>
-                                            <p className="text-gray-600 dark:text-neutral-300 text-sm">{member.description}</p>
-                                        </CardContent>
-                                    </Card>
-                                </motion.div>
-                            ))}
-                        </StaggeredList>
-                    </div>
                 </div>
             </section>
             </div>
