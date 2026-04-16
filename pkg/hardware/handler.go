@@ -36,6 +36,7 @@ type HardwareOptions struct {
 	VADThreshold         float64                // VAD threshold
 	VADConsecutiveFrames int                    // VAD consecutive frames
 	VoiceCloneID         *int                   // voice clone id (optional)
+	LowLatency           bool                   // enable low-latency profile (web default)
 }
 
 // HardwareHandler hardware handler
@@ -92,6 +93,7 @@ func (h *HardwareHandler) HandlerHardwareWebsocket(
 		DeviceID:             options.DeviceID,
 		MacAddress:           options.MacAddress,
 		VoiceCloneID:         options.VoiceCloneID,
+		LowLatency:           options.LowLatency,
 	})
 	if err := session.Start(); err != nil {
 		h.logger.Error("[Handler] start session failed: ", zap.Error(err))
@@ -121,6 +123,10 @@ func (ho *HardwareOptions) loadConfigs() *HardwareOptions {
 	}
 	if ho.MaxLLMToken <= 0 {
 		ho.MaxLLMToken = constants.DefaultMaxLLMToken
+	}
+	// 网页端默认启用低延迟档位：更快起播、允许更积极的流控。
+	if ho.DeviceID == nil && !ho.LowLatency {
+		ho.LowLatency = true
 	}
 	return ho
 }

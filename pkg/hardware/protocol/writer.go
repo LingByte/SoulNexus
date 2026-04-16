@@ -205,7 +205,10 @@ func (hw *HardwareWriter) SendLLMResponse(text string) error {
 }
 
 // SendTTSStart 发送TTS开始消息
-func (hw *HardwareWriter) SendTTSStart() error {
+func (hw *HardwareWriter) SendTTSStartWithCodec(codec string) error {
+	if codec == "" {
+		codec = "opus"
+	}
 	// xiaozhi协议格式：{"type": "tts", "state": "start", "session_id": "...", "audio_params": {...}}
 	hw.logger.Info("[Websocket Writer] 发送 TTS 开始消息", zap.String("session_id", hw.sessionID))
 	return hw.sendJSON(map[string]interface{}{
@@ -213,13 +216,18 @@ func (hw *HardwareWriter) SendTTSStart() error {
 		"state":      "start",
 		"session_id": hw.sessionID,
 		"audio_params": map[string]interface{}{
-			"codec":          "opus",
+			"codec":          codec,
 			"sample_rate":    16000,
 			"channels":       1,
 			"frame_duration": 60, // 毫秒
 			"bit_depth":      16,
 		},
 	})
+}
+
+// SendTTSStart 兼容旧调用，默认 opus。
+func (hw *HardwareWriter) SendTTSStart() error {
+	return hw.SendTTSStartWithCodec("opus")
 }
 
 // SendTTSEnd 发送TTS结束消息
@@ -304,8 +312,13 @@ func (hw *HardwareWriter) SendTTSAudioWithFlowControl(data []byte, frameDuration
 	flowControl.packetCount++
 	hw.ttsFlowControlMu.Unlock()
 
+	preBufferCount := TTSPreBufferCount
+	// 低延迟档位缩小预缓冲，减少首音等待。
+	if sendDelay > 0 && sendDelay <= 20 {
+		preBufferCount = 2
+	}
 	// 流控逻辑：前N个包直接发送（预缓冲），之后根据配置延迟
-	if packetCount >= TTSPreBufferCount {
+	if packetCount >= preBufferCount {
 		hw.ttsFlowControlMu.Lock()
 		lastSendTime := flowControl.lastSendTime
 		hw.ttsFlowControlMu.Unlock()

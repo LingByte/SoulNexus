@@ -18,7 +18,6 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/hardware/constants"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/response"
-	"github.com/LingByte/SoulNexus/pkg/voice"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
@@ -121,24 +120,25 @@ func (h *Handlers) HandleWebSocketVoice(c *gin.Context) {
 			}
 		}
 	}
-
-	// 创建WebSocket处理器
-	handler := voice.NewHandler(logger.Lg)
-
-	// 处理WebSocket连接
-	// 使用 gin 的 context，这样可以继承请求的取消信号
-	handler.HandleWebSocket(
-		c.Request.Context(),
-		conn,
-		cred,
-		assistantID,
-		language,
-		speaker,
-		float64(temperature),
-		systemPrompt,
-		"",
-		h.db,
-	)
+	handler := hardware.NewHardwareHandler(h.db, logger.Lg)
+	handler.HandlerHardwareWebsocket(c.Request.Context(), &hardware.HardwareOptions{
+		Conn:                 conn,
+		AssistantID:          uint(assistantID),
+		Language:             language,
+		Speaker:              speaker,
+		Temperature:          float64(temperature),
+		SystemPrompt:         systemPrompt,
+		KnowledgeKey:         "",
+		UserID:               cred.UserID,
+		MacAddress:           "",
+		LLMModel:             assistant.LLMModel,
+		Credential:           cred,
+		EnableVAD:            assistant.EnableVAD,
+		VADThreshold:         assistant.VADThreshold,
+		VADConsecutiveFrames: assistant.VADConsecutiveFrames,
+		VoiceCloneID:         assistant.VoiceCloneID,
+		LowLatency:           true,
+	})
 }
 
 // HandleHardwareWebSocketVoice 处理硬件WebSocket语音连接

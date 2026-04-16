@@ -6,10 +6,10 @@ package sessions
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
-	"github.com/LingByte/SoulNexus/pkg/hardware/constants"
 	"github.com/LingByte/SoulNexus/pkg/media"
 	"github.com/LingByte/SoulNexus/pkg/media/encoder"
 	"github.com/LingByte/SoulNexus/pkg/recognizer"
@@ -44,6 +44,7 @@ type PipelineMetrics struct {
 
 type ASRPipelineOption struct {
 	Asr                  recognizer.TranscribeService
+	InputFormat          string
 	SampleRate           int
 	Channels             int
 	FrameDuration        string
@@ -87,28 +88,37 @@ func NewASRPipeline(option *ASRPipelineOption, logger *zap.Logger) (*ASRPipeline
 		metrics:   &PipelineMetrics{},
 		asrOption: option, // 保存配置用于重连
 	}
-	decode, err := encoder.CreateDecode(
-		media.CodecConfig{
-			Codec:         "opus",
-			SampleRate:    option.SampleRate,
-			Channels:      option.Channels,
-			BitDepth:      16,
-			FrameDuration: option.FrameDuration,
-		},
-		media.CodecConfig{
-			Codec:         "pcm",
-			SampleRate:    option.SampleRate,
-			Channels:      option.Channels,
-			BitDepth:      16,
-			FrameDuration: option.FrameDuration,
-		},
-	)
-	if err != nil {
-		return nil, err
+	inputFormat := strings.ToLower(strings.TrimSpace(option.InputFormat))
+	if inputFormat == "" {
+		inputFormat = "opus"
 	}
-
-	pipeline.inputStages = []PipelineComponent{
-		&OpusDecodeComponent{logger: logger, decoder: decode},
+	if inputFormat == "pcm" {
+		pipeline.inputStages = []PipelineComponent{
+			&PCMInputComponent{},
+		}
+	} else {
+		decode, err := encoder.CreateDecode(
+			media.CodecConfig{
+				Codec:         "opus",
+				SampleRate:    option.SampleRate,
+				Channels:      option.Channels,
+				BitDepth:      16,
+				FrameDuration: option.FrameDuration,
+			},
+			media.CodecConfig{
+				Codec:         "pcm",
+				SampleRate:    option.SampleRate,
+				Channels:      option.Channels,
+				BitDepth:      16,
+				FrameDuration: option.FrameDuration,
+			},
+		)
+		if err != nil {
+			return nil, err
+		}
+		pipeline.inputStages = []PipelineComponent{
+			&OpusDecodeComponent{logger: logger, decoder: decode},
+		}
 	}
 	if option.EnableVAD {
 		vadServiceURL := option.VADServiceURL
@@ -253,8 +263,8 @@ func (p *ASRPipeline) ProcessInput(ctx context.Context, audioData []byte) error 
 			return nil
 		}
 
-		// 在 OpusDecodeComponent 之后保存 PCM 数据
-		if i == 0 && stage.Name() == constants.COMPONENT_OPUS_DECODE {
+		// 在首个输入阶段后保存 PCM 数据（可能是 opus_decode 或 pcm_input）
+		if i == 0 {
 			if data, ok := result.([]byte); ok {
 				pcmData = data
 			}

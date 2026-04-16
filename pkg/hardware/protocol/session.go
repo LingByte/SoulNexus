@@ -45,6 +45,7 @@ type HardwareSessionOption struct {
 	DeviceID             *string // 设备ID
 	MacAddress           string  // MAC地址
 	VoiceCloneID         *int    // 克隆音色ID（可选）
+	LowLatency           bool    // 低延迟档位（网页端建议开启）
 }
 
 // HardwareSession hardware session
@@ -67,6 +68,7 @@ type HardwareSession struct {
 	goodbyePending    bool
 	llmProcessing     bool
 	currentSpeakerID  string                                  // current speaker ID, for switch speaker
+	outputAudioCodec  string                                  // 当前下行音频编码（opus/pcm）
 	ttsServiceCache   map[string]synthesizer.SynthesisService // TTS service cache：speakerID -> service
 	db                *gorm.DB
 	voiceprintService *voiceprint.Service
@@ -202,8 +204,16 @@ func NewHardwareSession(ctx context.Context, hardwareConfig *HardwareSessionOpti
 	var sessionRef *HardwareSession
 	pipeline, err := stream.NewTTSPipeline(&stream.TTSPipelineConfig{
 		TTSService: stream.NewTTSServiceAdapter(ttsService),
+		OutputCodec: "opus",
 		SendCallback: func(data []byte) error {
-			return writer.SendTTSAudioWithFlowControl(data, 60, 60)
+			sendDelay := 60
+			if hardwareConfig.LowLatency {
+				sendDelay = 20
+			}
+			if sessionRef != nil && sessionRef.outputAudioCodec == "pcm" {
+				sendDelay = 10
+			}
+			return writer.SendTTSAudioWithFlowControl(data, 60, sendDelay)
 		},
 		RecordCallback: func(data []byte) error {
 			if sessionRef != nil && sessionRef.recorder != nil {
@@ -236,6 +246,7 @@ func NewHardwareSession(ctx context.Context, hardwareConfig *HardwareSessionOpti
 		llmService:        llmService,
 		ttsPipeline:       pipeline,
 		speakerManager:    speakerManager,
+		outputAudioCodec:  "opus",
 		ttsServiceCache:   make(map[string]synthesizer.SynthesisService),
 		db:                hardwareConfig.DB,
 		voiceprintService: hardwareConfig.VoiceprintService,
