@@ -10,8 +10,8 @@ import (
 // Copyright (c) 2026 LingByte
 // SPDX-License-Identifier: MIT
 
-func registerSIPTransferTool(provider llm.LLMHandler, callID string, lg *zap.Logger) {
-	if provider == nil || strings.TrimSpace(callID) == "" {
+func registerSIPTransferTool(provider llm.LLMProvider, callID string, lg *zap.Logger) {
+	if strings.TrimSpace(callID) == "" {
 		return
 	}
 	// Current pkg/llm handlers no longer expose provider-specific function tool registration.
@@ -19,7 +19,6 @@ func registerSIPTransferTool(provider llm.LLMHandler, callID string, lg *zap.Log
 	if lg != nil {
 		lg.Debug("sip voice: transfer tool registration skipped (unsupported by current llm handler)",
 			zap.String("call_id", callID),
-			zap.String("provider", provider.Provider()),
 		)
 	}
 }

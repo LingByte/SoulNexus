@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RTCSFU API + WebRTC Demo</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 20px; color: #111; max-width: 960px; }
+    h1 { font-size: 20px; }
+    h2 { font-size: 15px; margin-top: 20px; border-bottom: 1px solid #eee; padding-bottom: 6px; }
+    .row { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; align-items: center; }
+    input, textarea { padding: 8px; font-size: 13px; }
+    button { padding: 8px 14px; cursor: pointer; }
+    #log { border: 1px solid #ddd; border-radius: 8px; padding: 10px; height: 220px; overflow: auto; background: #fafafa; font-family: ui-monospace, Menlo, monospace; font-size: 11px; white-space: pre-wrap; }
+    .hint { color: #555; font-size: 12px; margin: 8px 0 12px; line-height: 1.5; }
+    video { width: 100%; max-width: 420px; border-radius: 8px; background: #000; margin-top: 8px; }
+    label { font-size: 12px; color: #444; }
+  </style>
+</head>
+<body>
+  <h1>RTCSFU：REST 联调 + Pion WebRTC（2 人 P2P / 多人 SFU）</h1>
+  <p class="hint">
+    1）先「Join 分配」：若房间内尚无人走 SFU 且 P2P 槽位未满两人，接口返回 <code>media_mode: p2p</code>，会自动填入
+    <code>/api/rtcsfu/v1/p2p/ws</code>（信令经服务端中继，媒体仍浏览器直连）；否则为 <code>sfu</code>，使用
+    <code>signal_url</code> 下的 <code>/signal/ws</code>。2）<code>RTCSFU_NODES</code> 的 <code>signal_url</code> 需指向本机 WS。
+    3）两人测试开两个页签、同一 <code>room_id</code>、不同 <code>peer_id</code>。SFU 模式下视频依赖 PLI/关键帧，服务端已回传 RTCP。
+  </p>
+
+  <h2>HTTP</h2>
+  <div class="row">
+    <label>API 根</label>
+    <input id="apiBase" style="min-width:280px" placeholder="http://127.0.0.1:7075" />
+  </div>
+  <div class="row">
+    <label>X-RTCSFU-Key</label>
+    <input id="apiKey" style="min-width:220px" placeholder="可选，与 .env RTCSFU_API_KEY 一致" />
+  </div>
+  <div class="row">
+    <button type="button" id="btnStatus">GET /api/rtcsfu/v1/status</button>
+    <button type="button" id="btnJoin">POST /api/rtcsfu/v1/join</button>
+  </div>
+  <div class="row">
+    <input id="roomId" placeholder="room_id" value="demo-room" />
+    <input id="region" placeholder="region" value="dev" />
+  </div>
+
+  <h2>WebRTC 信令（WebSocket JSON）</h2>
+  <div class="row">
+    <label>信令 WS（Join 后自动填入；P2P 为 /p2p/ws，多人为 /signal/ws）</label>
+  </div>
+  <div class="row">
+    <input id="wsUrl" style="min-width:100%;max-width:900px" placeholder="ws://127.0.0.1:7075/api/rtcsfu/v1/signal/ws?room_id=demo-room&peer_id=p1" />
+  </div>
+  <div class="row">
+    <button type="button" id="btnFillWs">用当前 room + 随机 peer 拼 WS</button>
+    <button type="button" id="btnConnect">连接 WebRTC</button>
+    <button type="button" id="btnDisconnect">断开</button>
+  </div>
+  <div class="row">
+    <div>
+      <div class="hint" style="margin:0 0 4px">本地</div>
+      <video id="localV" autoplay playsinline muted></video>
+    </div>
+    <div>
+      <div class="hint" style="margin:0 0 4px">远端（每路视频单独一个 &lt;video&gt;）</div>
+      <audio id="remoteA" autoplay playsinline></audio>
+      <div id="remoteVideos" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+    </div>
+  </div>
+
+  <h2>日志</h2>
+  <div class="row">
+    <button type="button" id="btnClear">清空日志</button>
+  </div>
+  <div id="log"></div>
+
+  <script>
+    const logEl = document.getElementById("log");
+    const log = (m, o) => {
+      const t = new Date().toLocaleTimeString();
+      logEl.textContent += o !== undefined ? `[${t}] ${m}\n${JSON.stringify(o, null, 2)}\n` : `[${t}] ${m}\n`;
+      logEl.scrollTop = logEl.scrollHeight;
+    };
+
+    const $ = (id) => document.getElementById(id);
+    $("apiBase").value = `${location.protocol}//${location.host || "127.0.0.1:7075"}`;
+
+    /** @type {RTCIceServer[]|null} */
+    let cachedIceServers = null;
+    /** @type {string|null} */
+    let lastJoinMediaMode = null;
+
+    function normalizeIceServers(x) {
+      if (!x) return null;
+      try {
+        return typeof x === "string" ? JSON.parse(x) : x;
+      } catch {
+        return null;
+      }
+    }
+
+    function headersJSON() {
+      const h = { "Content-Type": "application/json" };
+      const k = $("apiKey").value.trim();
+      if (k) h["X-RTCSFU-Key"] = k;
+      return h;
+    }
+
+    $("btnStatus").onclick = async () => {
+      const base = $("apiBase").value.replace(/\/$/, "");
+      try {
+        const r = await fetch(`${base}/api/rtcsfu/v1/status`, { headers: headersJSON() });
+        const j = await r.json();
+        log("status", j);
+        if (j.code === 200 && j.data && j.data.ice_servers) {
+          cachedIceServers = normalizeIceServers(j.data.ice_servers);
+          log("已缓存 ice_servers（来自 status）", cachedIceServers);
+        }
+      } catch (e) {
+        log("status error", String(e));
+      }
+    };
+
+    $("btnJoin").onclick = async () => {
+      const base = $("apiBase").value.replace(/\/$/, "");
+      const body = { room_id: $("roomId").value.trim(), region: $("region").value.trim() };
+      try {
+        const r = await fetch(`${base}/api/rtcsfu/v1/join`, {
+          method: "POST",
+          headers: headersJSON(),
+          body: JSON.stringify(body),
+        });
+        const j = await r.json();
+        log("join", j);
+        if (j.code === 200 && j.data) {
+          lastJoinMediaMode = j.data.media_mode || null;
+          if (j.data.migration_hint) log("join 提示", j.data.migration_hint);
+        }
+        if (j.code === 200 && j.data && j.data.ice_servers) {
+          cachedIceServers = normalizeIceServers(j.data.ice_servers);
+          log("已缓存 ice_servers（来自 join）", cachedIceServers);
+        }
+        if (j.code === 200 && j.data) {
+          const peer = "p-" + Math.random().toString(36).slice(2, 10);
+          const k = $("apiKey").value.trim();
+          const httpBase = base.replace(/\/$/, "");
+          const wsOrigin = httpBase.replace(/^http/, "ws").replace(/^https/, "wss");
+          if (j.data.media_mode === "p2p" && j.data.p2p_ws_path) {
+            const pPath = j.data.p2p_ws_path || "/api/rtcsfu/v1/p2p/ws";
+            const u = new URL(pPath.startsWith("/") ? pPath : `/${pPath}`, wsOrigin);
+            u.searchParams.set("room_id", body.room_id);
+            u.searchParams.set("peer_id", peer);
+            if (k) u.searchParams.set("api_key", k);
+            $("wsUrl").value = u.toString();
+            log("已填入 P2P 信令 + room/peer", { media_mode: "p2p", ws: u.toString() });
+          } else if (j.data.signal_url) {
+            let su = j.data.signal_url;
+            if (su.startsWith("https://")) su = "wss://" + su.slice("https://".length);
+            else if (su.startsWith("http://")) su = "ws://" + su.slice("http://".length);
+            const u = new URL(su);
+            u.searchParams.set("room_id", body.room_id);
+            u.searchParams.set("peer_id", peer);
+            if (k) u.searchParams.set("api_key", k);
+            $("wsUrl").value = u.toString();
+            log("已填入 SFU signal_url + room/peer", { media_mode: j.data.media_mode || "sfu", ws: u.toString() });
+          }
+        }
+      } catch (e) {
+        log("join error", String(e));
+      }
+    };
+
+    $("btnFillWs").onclick = () => {
+      const base = $("apiBase").value.replace(/^http/, "ws").replace(/^https/, "wss").replace(/\/$/, "");
+      const room = $("roomId").value.trim() || "demo-room";
+      const peer = "p-" + Math.random().toString(36).slice(2, 10);
+      const k = $("apiKey").value.trim();
+      let url = `${base}/api/rtcsfu/v1/signal/ws?room_id=${encodeURIComponent(room)}&peer_id=${encodeURIComponent(peer)}`;
+      if (k) url += `&api_key=${encodeURIComponent(k)}`;
+      $("wsUrl").value = url;
+      log("拼好的 WS", url);
+    };
+
+    let ws = null;
+    let pc = null;
+    let localStream = null;
+    const remoteAudioStream = new MediaStream();
+
+    $("remoteA").srcObject = remoteAudioStream;
+
+    $("btnDisconnect").onclick = () => {
+      if (ws) { try { ws.close(); } catch (_) {} ws = null; }
+      if (pc) { try { pc.close(); } catch (_) {} pc = null; }
+      if (localStream) { localStream.getTracks().forEach((t) => t.stop()); localStream = null; }
+      remoteAudioStream.getTracks().forEach((t) => remoteAudioStream.removeTrack(t));
+      $("remoteVideos").replaceChildren();
+      log("已断开");
+    };
+
+    $("btnConnect").onclick = async () => {
+      $("btnDisconnect").click();
+      const wsUrl = $("wsUrl").value.trim();
+      if (!wsUrl) {
+        log("请填写 ws url");
+        return;
+      }
+      const iceServers =
+        cachedIceServers && cachedIceServers.length
+          ? cachedIceServers
+          : [{ urls: "stun:stun.l.google.com:19302" }];
+      pc = new RTCPeerConnection({ iceServers });
+      log("RTCPeerConnection ICE", iceServers);
+      pc.ontrack = (ev) => {
+        if (ev.track.kind === "video") {
+          const v = document.createElement("video");
+          v.autoplay = true;
+          v.playsInline = true;
+          v.muted = false;
+          v.setAttribute("playsinline", "");
+          v.style.maxWidth = "360px";
+          v.style.borderRadius = "8px";
+          v.style.background = "#000";
+          const ms = new MediaStream([ev.track]);
+          v.srcObject = ms;
+          $("remoteVideos").appendChild(v);
+          ev.track.addEventListener("ended", () => v.remove());
+          log("remote video track", { id: ev.track.id, label: ev.track.label });
+          return;
+        }
+        remoteAudioStream.addTrack(ev.track);
+        log("remote audio track", { id: ev.track.id });
+      };
+      pc.onicecandidate = (ev) => {
+        if (!ev.candidate || !ws || ws.readyState !== WebSocket.OPEN) return;
+        ws.send(JSON.stringify({ type: "ice", candidate: ev.candidate.toJSON() }));
+      };
+
+      localStream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
+      });
+      $("localV").srcObject = localStream;
+      localStream.getTracks().forEach((t) => pc.addTrack(t, localStream));
+
+      const useP2P = wsUrl.includes("/p2p/ws");
+      ws = new WebSocket(wsUrl);
+      ws.onmessage = async (ev) => {
+        let msg;
+        try { msg = JSON.parse(ev.data); } catch { log("non-json", ev.data); return; }
+        if (msg.type === "client_offer" && msg.sdp) {
+          await pc.setRemoteDescription({ type: "offer", sdp: msg.sdp });
+          const ans = await pc.createAnswer();
+          await pc.setLocalDescription(ans);
+          ws.send(JSON.stringify({ type: "client_answer", sdp: ans.sdp }));
+          log("p2p: answered peer offer");
+          return;
+        }
+        if (msg.type === "client_answer" && msg.sdp) {
+          await pc.setRemoteDescription({ type: "answer", sdp: msg.sdp });
+          log("p2p: set remote answer");
+          return;
+        }
+        if (msg.type === "answer" && msg.sdp) {
+          await pc.setRemoteDescription({ type: "answer", sdp: msg.sdp });
+          log("set remote answer");
+          return;
+        }
+        if (msg.type === "server_offer" && msg.sdp) {
+          await pc.setRemoteDescription({ type: "offer", sdp: msg.sdp });
+          const ans = await pc.createAnswer();
+          await pc.setLocalDescription(ans);
+          ws.send(JSON.stringify({ type: "client_answer", sdp: ans.sdp }));
+          log("answered server_offer");
+          return;
+        }
+        if (msg.type === "ice" && msg.candidate) {
+          try { await pc.addIceCandidate(msg.candidate); } catch (e) { log("addIceCandidate", String(e)); }
+          return;
+        }
+        if (msg.type === "error") {
+          log("server error", msg.error || msg);
+        }
+      };
+      ws.onopen = async () => {
+        log("WS open", { useP2P });
+        if (useP2P) {
+          const jitter = 40 + (Math.random() * 160) | 0;
+          await new Promise((r) => setTimeout(r, jitter));
+          if (!pc.remoteDescription) {
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            ws.send(JSON.stringify({ type: "client_offer", sdp: offer.sdp }));
+            log("p2p: sent offer");
+          } else {
+            log("p2p: offer already received, skipping createOffer");
+          }
+          return;
+        }
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        ws.send(JSON.stringify({ type: "client_offer", sdp: offer.sdp }));
+      };
+      ws.onerror = (e) => log("ws error", String(e));
+      ws.onclose = () => log("ws closed");
+    };
+
+    $("btnClear").onclick = () => { logEl.textContent = ""; };
+  </script>
+</body>
+</html>

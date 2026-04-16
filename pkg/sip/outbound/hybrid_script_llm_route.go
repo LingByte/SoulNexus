@@ -136,7 +136,7 @@ func pickNextWithLLM(ctx context.Context, leg EstablishedLeg, step HybridStep, u
 	if legacy {
 		sys = llmRouteSystemPromptLegacy
 	}
-	prov, err := llm.NewLLMProvider(routeCtx, llm.ProviderOpenAI, apiKey, baseURL, sys)
+	prov, err := llm.NewLLMProvider(routeCtx, string(llm.ProviderTypeOpenAI), apiKey, baseURL, sys)
 	if err != nil {
 		return "", err
 	}
@@ -147,13 +147,13 @@ func pickNextWithLLM(ctx context.Context, leg EstablishedLeg, step HybridStep, u
 	} else {
 		userPayload = buildCompactListenRouteUserPrompt(step, userText, sorted)
 	}
-	opts := &llm.QueryOptions{
+	opts := llm.QueryOptions{
 		Model:            model,
-		Temperature:      0,
-		MaxTokens:        routeMaxCompletionTokens(),
+		Temperature:      llm.Float32Ptr(0),
+		MaxTokens:        llm.IntPtr(routeMaxCompletionTokens()),
 		EnableJSONOutput: true,
 	}
-	resp, err := prov.QueryWithOptions(userPayload, opts)
+	reply, err := prov.QueryWithOptions(userPayload, opts)
 	if err != nil {
 		if logger.Lg != nil {
 			logger.Lg.Warn("script listen LLM route failed",
@@ -163,10 +163,6 @@ func pickNextWithLLM(ctx context.Context, leg EstablishedLeg, step HybridStep, u
 		}
 		return "", err
 	}
-	if resp == nil || len(resp.Choices) == 0 {
-		return "", fmt.Errorf("empty LLM routing response")
-	}
-	reply := resp.Choices[0].Content
 	nextID, perr := parseRouteLLMReply(reply, sorted, legacy)
 	if perr != nil {
 		if logger.Lg != nil {

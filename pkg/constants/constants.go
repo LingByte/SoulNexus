@@ -96,3 +96,6 @@ const ENV_STATIC_ROOT = "STATIC_ROOT"
 const AUTHORIZATION_PREFIX = "Bearer "
 const CREDENTIAL_API_KEY = "X-API-KEY"
 const CREDENTIAL_API_SECRET = "X-API-SECRET"
+
+// LingechoWebSeatPathPrefix is registered under Server.APIPrefix (e.g. /api/lingecho/webseat/v1/ws).
+const LingechoWebSeatPathPrefix = "lingecho/webseat/v1"
