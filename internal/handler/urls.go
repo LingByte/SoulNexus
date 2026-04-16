@@ -5,12 +5,18 @@ package handlers
 
 import (
 	"log"
+	"net/http"
 	"time"
 
+	"github.com/LingByte/SoulNexus/internal/models"
+	"github.com/LingByte/SoulNexus/internal/service"
+	"github.com/LingByte/SoulNexus/internal/sfu"
+	"github.com/LingByte/SoulNexus/internal/sipserver"
 	"github.com/LingByte/SoulNexus/pkg/config"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/middleware"
+	"github.com/LingByte/SoulNexus/pkg/rtcsfu"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/LingByte/SoulNexus/pkg/utils/search"
 	"github.com/LingByte/SoulNexus/pkg/websocket"
@@ -20,10 +26,17 @@ import (
 )
 
 type Handlers struct {
-	db                *gorm.DB
-	wsHub             *websocket.Hub
-	searchHandler     *search.SearchHandlers
-	ipLocationService *utils.IPLocationService
+	db                   *gorm.DB
+	wsHub                *websocket.Hub
+	searchHandler        *search.SearchHandlers
+	ipLocationService    *utils.IPLocationService
+	campaignSvc          *sipserver.CampaignService
+	rtcsfu               *rtcsfu.ControlPlane
+	sfuEng               *sfu.Engine
+	p2p                  *sfu.P2PBroker
+	signalCheckOrigin    func(*http.Request) bool
+	rtcsfuICEClientJSON  []byte
+	rtcsfuWSMaxReadBytes int64
 }
 
 // GetSearchHandler gets the search handler (for scheduled tasks)
@@ -89,13 +102,61 @@ func NewHandlers(db *gorm.DB) *Handlers {
 
 	// Initialize IP geolocation service
 	ipLocationService := utils.NewIPLocationService(logger.Lg)
-
-	return &Handlers{
+	h := &Handlers{
 		db:                db,
 		wsHub:             wsHub,
 		searchHandler:     searchHandler,
 		ipLocationService: ipLocationService,
 	}
+	cfg := config.GlobalConfig.RTCSFU
+	h.signalCheckOrigin = BuildRTCSFUSignalOriginChecker(config.GlobalConfig.Server.Mode, cfg.SignalAllowedOrigins)
+	h.rtcsfuWSMaxReadBytes = int64(cfg.WSMaxMessageBytes)
+	if h.rtcsfuWSMaxReadBytes <= 0 {
+		h.rtcsfuWSMaxReadBytes = 786432
+	}
+
+	iceServers, iceClientJSON, err := sfu.ParseICEServersJSON(cfg.ICEServersJSON)
+	if err != nil {
+		logger.Warn("RTCSFU ICE config invalid, using defaults", zap.Error(err))
+		iceServers, iceClientJSON, _ = sfu.ParseICEServersJSON(sfu.DefaultICEServersJSON)
+	}
+	h.rtcsfuICEClientJSON = iceClientJSON
+
+	if cfg.Enabled {
+		h.sfuEng = sfu.NewEngine(sfu.Options{
+			ICEServers:      iceServers,
+			MaxRooms:        cfg.MaxRooms,
+			MaxPeersPerRoom: cfg.MaxPeersPerRoom,
+			WSReadTimeout:   time.Duration(cfg.WSReadTimeoutSec) * time.Second,
+			WSPingInterval:  time.Duration(cfg.WSPingIntervalSec) * time.Second,
+		})
+		h.p2p = sfu.NewP2PBroker()
+		logger.Info("RTCSFU Pion SFU engine started",
+			zap.Int("max_rooms", cfg.MaxRooms),
+			zap.Int("max_peers_per_room", cfg.MaxPeersPerRoom),
+		)
+		if cfg.NodesJSON != "" {
+			nodes, err := rtcsfu.ParseNodesJSON([]byte(cfg.NodesJSON))
+			if err != nil {
+				logger.Warn("RTCSFU routing disabled: invalid RTCSFU_NODES", zap.Error(err))
+			} else if len(nodes) == 0 {
+				logger.Warn("RTCSFU routing disabled: RTCSFU_NODES parsed to empty list")
+			} else {
+				h.rtcsfu = rtcsfu.NewControlPlane(nodes, cfg.ReplicaStaleSeconds)
+				logger.Info("RTCSFU control plane initialized", zap.Int("nodes", len(nodes)))
+			}
+		}
+	}
+	return h
+}
+
+// SetCampaignService wires the embedded SIP outbound worker (optional). Call after sipserver.Start
+// so Gin routes can expose dial-side counters (e.g. GET .../sip-center/campaigns/worker-metrics).
+func (h *Handlers) SetCampaignService(svc *sipserver.CampaignService) {
+	if h == nil {
+		return
+	}
+	h.campaignSvc = svc
 }
 
 // NewUserServiceHandlers returns handlers for the standalone user (auth) service binary.
@@ -131,7 +192,7 @@ func (h *Handlers) RegisterUserServiceRoutes(engine *gin.Engine) {
 }
 
 func (h *Handlers) Register(engine *gin.Engine) {
-
+	engine.StaticFile("/rtcsfu_demo.html", "static/rtcsfu_demo.html")
 	r := engine.Group(config.GlobalConfig.Server.APIPrefix)
 
 	// Register Global Singleton DB
@@ -223,4 +284,736 @@ func (h *Handlers) Register(engine *gin.Engine) {
 	h.registerMCPMarketplaceRoutes(r) // Add MCP marketplace routes
 	h.registerOpenAPIRoutes(r)        // Open API (apiKey + apiSecret auth)
 	h.RegisterPublicWorkflowRoutes(r)
+	h.registerRTCSFURoutes(r)
+}
+
+// registerNodePluginRoutes Node Plugin Module
+func (h *Handlers) registerNodePluginRoutes(r *gin.RouterGroup) {
+	pluginHandler := NewNodePluginHandler(h.db)
+
+	plugins := r.Group("node-plugins")
+	{
+		plugins.GET("", pluginHandler.ListPlugins)
+		plugins.GET("/:id", pluginHandler.GetPlugin)
+	}
+
+	pluginsAuth := r.Group("node-plugins")
+	pluginsAuth.Use(models.AuthRequired)
+	{
+		pluginsAuth.POST("", pluginHandler.CreatePlugin)
+		pluginsAuth.PUT("/:id", pluginHandler.UpdatePlugin)
+		pluginsAuth.DELETE("/:id", pluginHandler.DeletePlugin)
+		pluginsAuth.POST("/:id/publish", pluginHandler.PublishPlugin)
+		pluginsAuth.POST("/:id/install", pluginHandler.InstallPlugin)
+		pluginsAuth.GET("/installed", pluginHandler.ListInstalledPlugins)
+	}
+}
+
+// registerWorkflowPluginRoutes Workflow Plugin Module
+func (h *Handlers) registerWorkflowPluginRoutes(r *gin.RouterGroup) {
+	pluginHandler := NewWorkflowPluginHandler(h.db)
+
+	plugins := r.Group("workflow-plugins")
+	{
+		plugins.GET("", pluginHandler.ListWorkflowPlugins)
+		plugins.GET("/:id", pluginHandler.GetWorkflowPlugin)
+	}
+
+	pluginsAuth := r.Group("workflow-plugins")
+	pluginsAuth.Use(models.AuthRequired)
+	{
+		pluginsAuth.POST("/publish/:workflowId", pluginHandler.PublishWorkflowAsPlugin)
+
+		pluginsAuth.GET("/workflow/:workflowId/published", pluginHandler.GetWorkflowPublishedPlugin)
+
+		pluginsAuth.PUT("/:id", pluginHandler.UpdateWorkflowPlugin)
+		pluginsAuth.DELETE("/:id", pluginHandler.DeleteWorkflowPlugin)
+		pluginsAuth.POST("/:id/publish", pluginHandler.PublishWorkflowPlugin)
+		pluginsAuth.POST("/:id/install", pluginHandler.InstallWorkflowPlugin)
+
+		pluginsAuth.GET("/installed", pluginHandler.ListInstalledWorkflowPlugins)
+		pluginsAuth.GET("/my-plugins", pluginHandler.GetUserWorkflowPlugins)
+	}
+}
+
+// registerMCPRoutes MCP Server Management Module
+func (h *Handlers) registerMCPRoutes(r *gin.RouterGroup) {
+	mcpManager := service.NewMCPManager(h.db)
+	mcpHandler := NewMCPHandler(mcpManager)
+
+	mcp := r.Group("mcp")
+	mcp.Use(models.AuthRequired)
+	{
+		mcp.GET("/servers", mcpHandler.ListMCPServers)
+		mcp.GET("/servers/:id", mcpHandler.GetMCPServer)
+		mcp.POST("/servers", mcpHandler.CreateMCPServer)
+		mcp.PATCH("/servers/:id", mcpHandler.UpdateMCPServer)
+		mcp.DELETE("/servers/:id", mcpHandler.DeleteMCPServer)
+		mcp.POST("/servers/:id/enable", mcpHandler.EnableMCPServer)
+		mcp.POST("/servers/:id/disable", mcpHandler.DisableMCPServer)
+
+		mcp.GET("/servers/:id/tools", mcpHandler.GetMCPTools)
+		mcp.POST("/servers/:id/call-tool", mcpHandler.CallMCPTool)
+
+		mcp.GET("/servers/:id/logs", mcpHandler.GetMCPLogs)
+	}
+}
+
+// registerMCPMarketplaceRoutes MCP Marketplace Module
+func (h *Handlers) registerMCPMarketplaceRoutes(r *gin.RouterGroup) {
+	marketplaceService := service.NewMCPMarketplaceService(h.db)
+	marketplaceHandler := NewMCPMarketplaceHandler(marketplaceService)
+
+	marketplace := r.Group("mcp/marketplace")
+	{
+		marketplace.GET("", marketplaceHandler.ListMarketplace)
+		marketplace.GET("/:id", marketplaceHandler.GetMarketplaceItem)
+		marketplace.GET("/categories", marketplaceHandler.GetCategories)
+		marketplace.GET("/featured", marketplaceHandler.GetFeaturedMCPs)
+		marketplace.GET("/trending", marketplaceHandler.GetTrendingMCPs)
+		marketplace.GET("/search/tag/:tag", marketplaceHandler.SearchByTag)
+		marketplace.GET("/:id/reviews", marketplaceHandler.GetMCPReviews)
+
+		marketplace.POST("/:id/install", models.AuthRequired, marketplaceHandler.InstallMCP)
+		marketplace.DELETE("/installations/:id", models.AuthRequired, marketplaceHandler.UninstallMCP)
+		marketplace.GET("/my-installations", models.AuthRequired, marketplaceHandler.GetUserInstalledMCPs)
+		marketplace.PATCH("/installations/:id/config", models.AuthRequired, marketplaceHandler.UpdateInstallationConfig)
+		marketplace.POST("/:id/reviews", models.AuthRequired, marketplaceHandler.ReviewMCP)
+	}
+}
+
+// registerWebSocketRoutes registers WebSocket routes
+func (h *Handlers) registerWebSocketRoutes(r *gin.RouterGroup) {
+	wsHandler := websocket.NewHandler(h.wsHub)
+
+	r.GET("/ws", models.AuthRequired, wsHandler.HandleWebSocket)
+
+	r.GET("/voice/websocket", h.HandleWebSocketVoice)
+
+	wsGroup := r.Group("/ws")
+	wsGroup.Use(models.AuthRequired)
+	{
+		wsGroup.GET("/stats", wsHandler.GetStats)
+		wsGroup.GET("/health", wsHandler.HealthCheck)
+		wsGroup.GET("/user/:user_id", wsHandler.GetUserStats)
+		wsGroup.GET("/group/:group", wsHandler.GetGroupStats)
+		wsGroup.POST("/message", wsHandler.SendMessage)
+		wsGroup.POST("/broadcast", wsHandler.BroadcastMessage)
+		wsGroup.DELETE("/user/:user_id", wsHandler.DisconnectUser)
+		wsGroup.DELETE("/group/:group", wsHandler.DisconnectGroup)
+	}
+}
+
+// registerXunfeiTTSRoutes 注册讯飞TTS路由
+func (h *Handlers) registerXunfeiTTSRoutes(r *gin.RouterGroup) {
+	xunfei := r.Group("/xunfei")
+	xunfei.Use(models.AuthRequired)
+	{
+		xunfei.POST("/synthesize", h.XunfeiSynthesize)
+
+		xunfei.POST("/task/create", h.XunfeiCreateTask)
+		xunfei.POST("/task/submit-audio", h.XunfeiSubmitAudio)
+		xunfei.POST("/task/query", h.XunfeiQueryTask)
+
+		xunfei.GET("/training-texts", h.XunfeiGetTrainingTexts)
+	}
+}
+
+// registerVolcengineTTSRoutes 注册火山引擎TTS路由
+func (h *Handlers) registerVolcengineTTSRoutes(r *gin.RouterGroup) {
+	volcengine := r.Group("/volcengine")
+	volcengine.Use(models.AuthRequired)
+	{
+		volcengine.POST("/synthesize", h.VolcengineSynthesize)
+
+		volcengine.POST("/task/submit-audio", h.VolcengineSubmitAudio)
+
+		volcengine.POST("/task/query", h.VolcengineQueryTask)
+	}
+}
+
+// registerVoiceTrainingRoutes 注册音色训练路由
+func (h *Handlers) registerVoiceTrainingRoutes(r *gin.RouterGroup) {
+	voice := r.Group("/voice")
+
+	voice.GET("/lingecho/v1/", h.HandleHardwareWebSocketVoice)
+	voice.POST("/simple_text_chat", h.SimpleTextChat)
+
+	voice.Use(models.AuthRequired)
+	{
+		voice.POST("/training/create", h.CreateTrainingTask)
+		voice.POST("/training/submit-audio", h.SubmitAudio)
+		voice.POST("/training/query", h.QueryTaskStatus)
+
+		voice.GET("/clones", h.GetUserVoiceClones)
+		voice.GET("/clones/:id", h.GetVoiceClone)
+		voice.POST("/clones/update", h.UpdateVoiceClone)
+		voice.POST("/clones/delete", h.DeleteVoiceClone)
+
+		voice.POST("/synthesize", h.SynthesizeWithVoice)
+
+		voice.GET("/synthesis/history", h.GetSynthesisHistory)
+		voice.POST("/synthesis/delete", h.DeleteSynthesisRecord)
+
+		voice.GET("/training-texts", h.GetTrainingTexts)
+
+		voice.POST("/oneshot_text", h.OneShotText)
+
+		voice.POST("/plain_text", h.PlainText)
+
+		voice.GET("/audio_status", h.GetAudioStatus)
+
+		voice.GET("/options", h.GetVoiceOptions)
+		voice.GET("/language-options", h.GetLanguageOptions)
+	}
+}
+
+// registerBillingRoutes 注册计费路由
+func (h *Handlers) registerBillingRoutes(r *gin.RouterGroup) {
+	billing := r.Group("billing")
+	billing.Use(models.AuthRequired)
+	{
+		billing.GET("/statistics", h.GetUsageStatistics)
+		billing.GET("/daily-usage", h.GetDailyUsageData)
+
+		billing.GET("/usage-records", h.GetUsageRecords)
+		billing.GET("/usage-records/export", h.ExportUsageRecords)
+
+		billing.POST("/bills", h.GenerateBill)
+		billing.GET("/bills", h.GetBills)
+		billing.GET("/bills/:id", h.GetBill)
+		billing.PUT("/bills/:id", h.UpdateBill)
+		billing.DELETE("/bills/:id", h.DeleteBill)
+		billing.POST("/bills/:id/archive", h.ArchiveBill)
+		billing.PUT("/bills/:id/notes", h.UpdateBillNotes)
+		billing.GET("/bills/:id/export", h.ExportBill)
+	}
+}
+
+// registerGroupRoutes Group Module
+func (h *Handlers) registerGroupRoutes(r *gin.RouterGroup) {
+	group := r.Group("group")
+	group.Use(models.AuthRequired)
+	{
+		group.POST("", h.CreateGroup)
+		group.GET("", h.ListGroups)
+
+		group.GET("/search-users", h.SearchUsers)
+
+		group.GET("/invitations", h.ListInvitations)
+		group.POST("/invitations/:id/accept", h.AcceptInvitation)
+		group.POST("/invitations/:id/reject", h.RejectInvitation)
+
+		group.GET("/:id/overview/config", h.GetOverviewConfig)
+		group.POST("/:id/overview/config", h.SaveOverviewConfig)
+		group.PUT("/:id/overview/config", h.SaveOverviewConfig)
+		group.DELETE("/:id/overview/config", h.DeleteOverviewConfig)
+
+		group.GET("/:id/statistics", h.GetGroupStatistics)
+
+		group.POST("/:id/leave", h.LeaveGroup)
+		group.DELETE("/:id/members/:memberId", h.RemoveMember)
+		group.PUT("/:id/members/:memberId/role", h.UpdateMemberRole)
+
+		group.POST("/:id/invite", h.InviteUser)
+
+		group.GET("/:id/resources", h.GetGroupSharedResources)
+
+		group.POST("/:id/avatar", h.UploadGroupAvatar)
+
+		group.POST("/:id/archive", h.ArchiveGroup)
+		group.POST("/:id/restore", h.RestoreGroup)
+		group.POST("/:id/clone", h.CloneGroup)
+		group.GET("/:id/export", h.ExportGroup)
+		group.GET("/:id/activity-logs", h.GetGroupActivityLogs)
+
+		group.GET("/:id", h.GetGroup)
+		group.PUT("/:id", h.UpdateGroup)
+		group.DELETE("/:id", h.DeleteGroup)
+	}
+}
+
+// registerQuotaRoutes registers quota routes
+func (h *Handlers) registerQuotaRoutes(r *gin.RouterGroup) {
+	quota := r.Group("quota")
+	quota.Use(models.AuthRequired)
+	{
+		quota.GET("/user", h.ListUserQuotas)
+		quota.GET("/user/:type", h.GetUserQuota)
+		quota.POST("/user", h.CreateUserQuota)
+		quota.PUT("/user/:type", h.UpdateUserQuota)
+		quota.DELETE("/user/:type", h.DeleteUserQuota)
+
+		quota.GET("/group/:id", h.ListGroupQuotas)
+		quota.GET("/group/:id/:type", h.GetGroupQuota)
+		quota.POST("/group/:id", h.CreateGroupQuota)
+		quota.PUT("/group/:id/:type", h.UpdateGroupQuota)
+		quota.DELETE("/group/:id/:type", h.DeleteGroupQuota)
+	}
+}
+
+// registerAlertRoutes registers alert routes
+func (h *Handlers) registerAlertRoutes(r *gin.RouterGroup) {
+	alert := r.Group("alert")
+	alert.Use(models.AuthRequired)
+	{
+		alert.POST("/rules", h.CreateAlertRule)
+		alert.GET("/rules", h.ListAlertRules)
+		alert.GET("/rules/:id", h.GetAlertRule)
+		alert.PUT("/rules/:id", h.UpdateAlertRule)
+		alert.DELETE("/rules/:id", h.DeleteAlertRule)
+
+		alert.GET("", h.ListAlerts)
+		alert.GET("/:id", h.GetAlert)
+		alert.POST("/:id/resolve", h.ResolveAlert)
+		alert.POST("/:id/mute", h.MuteAlert)
+	}
+}
+
+// registerAssistantRoutes Assistant Module
+func (h *Handlers) registerAssistantRoutes(r *gin.RouterGroup) {
+	assistant := r.Group("assistant")
+	{
+		assistant.POST("add", models.AuthRequired, h.CreateAssistant)
+
+		assistant.GET("", models.AuthRequired, h.ListAssistants)
+
+		assistant.GET("/:id", models.AuthRequired, h.GetAssistant)
+
+		assistant.GET("/:id/graph", models.AuthRequired, h.GetAssistantGraphData)
+
+		assistant.PUT("/:id", models.AuthRequired, h.UpdateAssistant)
+
+		assistant.DELETE("/:id", models.AuthRequired, h.DeleteAssistant)
+
+		assistant.GET("/lingecho/client/:id/loader.js", h.ServeVoiceSculptorLoaderJS)
+
+	}
+}
+
+// registerJSTemplateRoutes JSTemplate Module
+func (h *Handlers) registerJSTemplateRoutes(r *gin.RouterGroup) {
+	jsTemplate := r.Group("js-templates")
+	jsTemplate.Use(models.AuthRequired)
+	{
+		jsTemplate.POST("", h.CreateJSTemplate)
+		jsTemplate.GET("/:id", h.GetJSTemplate)
+		jsTemplate.GET("/name/:name", h.GetJSTemplateByName)
+		jsTemplate.GET("", h.ListJSTemplates)
+		jsTemplate.PUT("/:id", h.UpdateJSTemplate)
+		jsTemplate.DELETE("/:id", h.DeleteJSTemplate)
+		jsTemplate.GET("/default", h.ListDefaultJSTemplates)
+		jsTemplate.GET("/custom", h.ListCustomJSTemplates)
+		jsTemplate.GET("/search", h.SearchJSTemplates)
+
+		jsTemplate.GET("/:id/versions", h.ListJSTemplateVersions)
+		jsTemplate.GET("/:id/versions/:versionId", h.GetJSTemplateVersion)
+		jsTemplate.POST("/:id/versions/:versionId/rollback", h.RollbackJSTemplateVersion)
+		jsTemplate.POST("/:id/versions/:versionId/publish", h.PublishJSTemplateVersion)
+	}
+
+	webhook := r.Group("js-templates/webhook")
+	{
+		webhook.POST("/:jsSourceId", h.TriggerJSTemplateWebhook)
+	}
+}
+
+// registerChatRoutes Chat Module
+func (h *Handlers) registerChatRoutes(r *gin.RouterGroup) {
+	chat := r.Group("chat")
+
+	chat.GET("call", h.handleConnection)
+
+	chat.Use(models.AuthApiRequired)
+	{
+		chat.GET("chat-session-log", h.getChatSessionLog)
+
+		chat.GET("chat-session-log/:id", h.getChatSessionLogDetail)
+
+		chat.GET("chat-session-log/by-session/:sessionId", h.getChatSessionLogsBySession)
+
+		chat.GET("chat-session-log/by-assistant/:assistantId", h.getChatSessionLogByAssistant)
+	}
+}
+
+// registerCredentialsRoutes Credentials Module
+func (h *Handlers) registerCredentialsRoutes(r *gin.RouterGroup) {
+	credential := r.Group("credentials")
+	{
+		credential.POST("/", models.AuthRequired, h.handleCreateCredential)
+
+		credential.GET("/", models.AuthRequired, h.handleGetCredential)
+
+		credential.POST("/by-key", h.handleGetCredentialByKey)
+
+		credential.DELETE("/:id", models.AuthRequired, h.handleDeleteCredential)
+	}
+}
+
+// registerKnowledgeBaseRoutes Knowledge Base Module
+func (h *Handlers) registerKnowledgeBaseRoutes(r *gin.RouterGroup) {
+	kb := r.Group("knowledge-base")
+	{
+		kb.GET("", models.AuthRequired, h.ListKnowledgeBases)
+		kb.GET("/supported-document-types", models.AuthRequired, h.ListKnowledgeDocumentFormats)
+		kb.POST("", models.AuthRequired, h.CreateKnowledgeBase)
+		kb.GET("/:id", models.AuthRequired, h.GetKnowledgeBase)
+		kb.PUT("/:id", models.AuthRequired, h.UpdateKnowledgeBase)
+		kb.DELETE("/:id", models.AuthRequired, h.DeleteKnowledgeBase)
+		kb.GET("/:id/documents", models.AuthRequired, h.ListKnowledgeDocuments)
+		kb.POST("/:id/documents/upload", models.AuthRequired, h.UploadKnowledgeDocument)
+		kb.DELETE("/:id/documents", models.AuthRequired, h.DeleteKnowledgeDocument)
+		kb.POST("/:id/recall-test", models.AuthRequired, h.RecallTestKnowledgeBase)
+	}
+}
+
+// registerNotificationRoutes Notification Module
+func (h *Handlers) registerNotificationRoutes(r *gin.RouterGroup) {
+	notificationGroup := r.Group("notification")
+	{
+		notificationGroup.GET("unread-count", models.AuthRequired, h.handleUnReadNotificationCount)
+
+		notificationGroup.GET("", models.AuthRequired, h.handleListNotifications)
+
+		notificationGroup.POST("readAll", models.AuthRequired, h.handleAllNotifications)
+
+		notificationGroup.PUT("/read/:id", models.AuthRequired, h.handleMarkNotificationAsRead)
+
+		notificationGroup.DELETE("/:id", models.AuthRequired, h.handleDeleteNotification)
+
+		notificationGroup.POST("/batch-delete", models.AuthRequired, h.handleBatchDeleteNotifications)
+
+		notificationGroup.GET("/all-ids", models.AuthRequired, h.handleGetAllNotificationIds)
+	}
+}
+
+// registerSystemRoutes System Module
+func (h *Handlers) registerSystemRoutes(r *gin.RouterGroup) {
+	system := r.Group("system")
+	{
+		system.POST("/rate-limiter/config", h.UpdateRateLimiterConfig)
+
+		system.GET("/health", h.HealthCheck)
+		system.GET("/status", h.SystemStatus)
+		system.GET("/dashboard/metrics", models.AuthRequired, h.DashboardMetrics)
+
+		system.GET("/init", h.SystemInit)
+
+		system.POST("/voice-clone/config", models.AuthRequired, h.SaveVoiceCloneConfig)
+
+		system.POST("/voiceprint/config", models.AuthRequired, h.SaveVoiceprintConfig)
+
+		system.POST("/upload/audio", h.UploadAudio)
+
+		system.GET("/search/status", h.GetSearchStatus)
+		system.PUT("/search/config", models.AuthRequired, h.UpdateSearchConfig)
+		system.POST("/search/enable", models.AuthRequired, h.EnableSearch)
+		system.POST("/search/disable", models.AuthRequired, h.DisableSearch)
+	}
+
+	voiceprint := r.Group("/voiceprint")
+	{
+		voiceprint.GET("", models.AuthRequired, h.GetVoiceprints)
+		voiceprint.POST("", models.AuthRequired, h.CreateVoiceprint)
+		voiceprint.POST("/register", models.AuthRequired, h.RegisterVoiceprint)
+		voiceprint.POST("/identify", models.AuthRequired, h.IdentifyVoiceprint)
+		voiceprint.POST("/verify", models.AuthRequired, h.VerifyVoiceprint)
+		voiceprint.PUT("/:id", models.AuthRequired, h.UpdateVoiceprint)
+		voiceprint.DELETE("/:id", models.AuthRequired, h.DeleteVoiceprint)
+	}
+}
+
+// registerOTARoutes OTA Module
+func (h *Handlers) registerOTARoutes(r *gin.RouterGroup) {
+	ota := r.Group("ota")
+	{
+		ota.POST("/", h.HandleOTACheck)
+
+		ota.POST("/activate", h.HandleOTAActivate)
+
+		ota.GET("/", h.HandleOTAGet)
+	}
+}
+
+// registerDeviceRoutes Device Module (completely consistent with xiaozhi-esp32)
+func (h *Handlers) registerDeviceRoutes(r *gin.RouterGroup) {
+	device := r.Group("device")
+
+	device.GET("/config/:deviceId", h.GetDeviceConfig)
+
+	device.Use(models.AuthRequired)
+	{
+		device.POST("/bind/:agentId/:deviceCode", h.BindDevice)
+
+		device.GET("/bind/:agentId", h.GetUserDevices)
+
+		device.POST("/unbind", h.UnbindDevice)
+
+		device.PUT("/update/:id", h.UpdateDeviceInfo)
+
+		device.POST("/manual-add", h.ManualAddDevice)
+
+		device.GET("/:deviceId", h.GetDeviceDetail)
+		device.GET("/:deviceId/error-logs", h.GetDeviceErrorLogs)
+		device.POST("/error-logs/:errorId/resolve", h.ResolveDeviceError)
+		device.GET("/call-recordings", h.GetCallRecordings)
+		device.GET("/call-recordings/:id", h.GetCallRecordingDetail)
+
+		device.POST("/call-recordings/:id/analyze", h.AnalyzeCallRecording)
+		device.POST("/call-recordings/batch-analyze", h.BatchAnalyzeCallRecordings)
+		device.GET("/call-recordings/:id/analysis", h.GetCallRecordingAnalysis)
+
+		device.POST("/status", h.UpdateDeviceStatus)
+		device.POST("/error", h.LogDeviceError)
+
+		device.GET("/recordings/*filepath", h.ServeRecordingFile)
+	}
+}
+
+// registerEmailLogRoutes Email Log Module
+func (h *Handlers) registerEmailLogRoutes(r *gin.RouterGroup) {
+	emailLog := r.Group("email-logs")
+	{
+		emailLog.GET("", models.AuthRequired, h.handleGetEmailLogs)
+		emailLog.GET("/:id", models.AuthRequired, h.handleGetEmailLogDetail)
+		emailLog.GET("/stats/summary", models.AuthRequired, h.handleGetEmailStats)
+	}
+}
+
+// registerSendCloudWebhookRoutes SendCloud Webhook Module
+func (h *Handlers) registerSendCloudWebhookRoutes(r *gin.RouterGroup) {
+	webhook := r.Group("webhooks/sendcloud")
+	{
+		webhook.POST("", h.handleSendCloudWebhook)
+		webhook.POST("/batch", h.handleSendCloudWebhookBatch)
+	}
+}
+
+// registerAuthRoutes registers user authentication and profile routes (user module surface).
+func (h *Handlers) registerAuthRoutes(r *gin.RouterGroup) {
+	auth := r.Group(config.GlobalConfig.Server.AuthPrefix)
+	{
+		auth.GET("/register", h.handleUserSignupPage)
+		auth.POST("/register", h.handleUserSignup)
+		auth.POST("/register/email", h.handleUserSignupByEmail)
+		auth.POST("/send/email", h.handleSendEmailCode)
+
+		auth.GET("/captcha", h.handleGetCaptcha)
+		auth.POST("/captcha/verify", h.handleVerifyCaptcha)
+
+		auth.GET("/salt", h.handleGetSalt)
+
+		auth.GET("/login", h.handleUserSigninPage)
+		auth.POST("/login", h.handleUserSigninByPassword)
+		auth.POST("/login/password", h.handleUserSigninByPassword)
+		auth.POST("/login/email", h.handleUserSigninByEmail)
+		auth.GET("/wechat/login", h.handleWechatLogin)
+		auth.GET("/wechat/config-check", h.handleWechatConfigCheck)
+		auth.GET("/wechat/login-code", h.handleWechatLoginCode)
+		auth.GET("/wechat/qrcode", h.handleWechatLoginCode)
+		auth.GET("/wechat/status", h.handleWechatLoginStatus)
+		auth.GET("/wechat/check-login/:sceneId", h.handleWechatCheckLogin)
+		auth.GET("/wechat/oauth/callback", h.handleWechatOAuthCallback)
+		auth.GET("/wechat/callback", h.handleWechatLoginCallback)
+		auth.HEAD("/wechat/oauth/callback", h.handleWechatHealth)
+		auth.HEAD("/wechat/mp/message", h.handleWechatHealth)
+		auth.POST("/wechat/callback", h.handleWechatLoginMessage)
+		auth.POST("/wechat/mp/message", h.handleWechatLoginMessage)
+		auth.GET("/wechat/mp/message", h.handleWechatLoginCallback)
+		auth.GET("/oidc/authorize", h.handleOIDCAuthorize)
+		auth.POST("/oidc/token", h.handleOIDCToken)
+		auth.POST("/oidc/exchange", h.handleOIDCExchange)
+
+		auth.GET("/logout", h.handleUserLogout)
+		auth.GET("/info", models.AuthRequired, h.handleUserInfo)
+
+		auth.GET("/reset-password", h.handleUserResetPasswordPage)
+		auth.POST("/reset-password", h.handleResetPassword)
+		auth.POST("/reset-password/confirm", h.handleResetPasswordConfirm)
+		auth.POST("/change-password", models.AuthRequired, h.handleChangePassword)
+		auth.POST("/change-password/email", models.AuthRequired, h.handleChangePasswordByEmail)
+
+		auth.GET("/devices", models.AuthRequired, h.handleGetUserDevices)
+		auth.DELETE("/devices", models.AuthRequired, h.handleDeleteUserDevice)
+		auth.POST("/devices/trust", models.AuthRequired, h.handleTrustUserDevice)
+		auth.POST("/devices/untrust", models.AuthRequired, h.handleUntrustUserDevice)
+
+		auth.POST("/devices/verify", h.handleVerifyDeviceForLogin)
+		auth.POST("/devices/send-verification", h.handleSendDeviceVerificationCode)
+
+		auth.GET("/verify-email", h.handleVerifyEmail)
+		auth.POST("/send-email-verification", models.AuthRequired, h.handleSendEmailVerification)
+
+		auth.POST("/verify-phone", models.AuthRequired, h.handleVerifyPhone)
+		auth.POST("/send-phone-verification", models.AuthRequired, h.handleSendPhoneVerification)
+
+		auth.PUT("/update", models.AuthRequired, h.handleUserUpdate)
+		auth.PUT("/update/preferences", models.AuthRequired, h.handleUserUpdatePreferences)
+		auth.POST("/update/basic/info", models.AuthRequired, h.handleUserUpdateBasicInfo)
+
+		auth.PUT("/notification-settings", models.AuthRequired, h.handleUpdateNotificationSettings)
+
+		auth.PUT("/user-preferences", models.AuthRequired, h.handleUpdateUserPreferences)
+
+		auth.GET("/stats", models.AuthRequired, h.handleGetUserStats)
+
+		auth.POST("/avatar/upload", models.AuthRequired, h.handleUploadAvatar)
+
+		auth.POST("/two-factor/setup", models.AuthRequired, h.handleTwoFactorSetup)
+		auth.POST("/two-factor/enable", models.AuthRequired, h.handleTwoFactorEnable)
+		auth.POST("/two-factor/disable", models.AuthRequired, h.handleTwoFactorDisable)
+		auth.GET("/two-factor/status", models.AuthRequired, h.handleTwoFactorStatus)
+
+		auth.GET("/activity", models.AuthRequired, h.handleGetUserActivity)
+
+	}
+}
+
+func (h *Handlers) registerAdminManagementRoutes(r *gin.RouterGroup) {
+	adminGuard := []gin.HandlerFunc{models.AuthRequired, h.requireAdmin}
+
+	users := r.Group("users", adminGuard...)
+	{
+		users.GET("", h.handleAdminListUsers)
+		users.GET("/:id", h.handleAdminGetUser)
+		users.POST("", h.handleAdminCreateUser)
+		users.PUT("/:id", h.handleAdminUpdateUser)
+		users.DELETE("/:id", h.handleAdminDeleteUser)
+	}
+
+	configs := r.Group("configs", adminGuard...)
+	{
+		configs.GET("", h.handleAdminListConfigs)
+		configs.GET("/:key", h.handleAdminGetConfig)
+		configs.POST("", h.handleAdminCreateConfig)
+		configs.PUT("/:key", h.handleAdminUpdateConfig)
+		configs.DELETE("/:key", h.handleAdminDeleteConfig)
+	}
+
+	oauthClients := r.Group("oauth-clients", adminGuard...)
+	{
+		oauthClients.GET("", h.handleAdminListOAuthClients)
+		oauthClients.GET("/:id", h.handleAdminGetOAuthClient)
+		oauthClients.POST("", h.handleAdminCreateOAuthClient)
+		oauthClients.PUT("/:id", h.handleAdminUpdateOAuthClient)
+		oauthClients.DELETE("/:id", h.handleAdminDeleteOAuthClient)
+	}
+
+	assistants := r.Group("admin/assistants", adminGuard...)
+	{
+		assistants.GET("", h.handleAdminListAssistants)
+		assistants.GET("/:id", h.handleAdminGetAssistant)
+		assistants.PUT("/:id", h.handleAdminUpdateAssistant)
+		assistants.DELETE("/:id", h.handleAdminDeleteAssistant)
+	}
+
+	security := r.Group("security", adminGuard...)
+	{
+		security.GET("/operation-logs", h.handleAdminListOperationLogs)
+		security.GET("/operation-logs/:id", h.handleAdminGetOperationLog)
+		security.GET("/account-locks", h.handleAdminListAccountLocks)
+		security.POST("/account-locks/:id/unlock", h.handleAdminUnlockAccount)
+	}
+
+	groups := r.Group("admin/groups", adminGuard...)
+	{
+		groups.GET("", h.handleAdminListGroups)
+		groups.GET("/:id", h.handleAdminGetGroup)
+		groups.PUT("/:id", h.handleAdminUpdateGroup)
+		groups.DELETE("/:id", h.handleAdminDeleteGroup)
+	}
+
+	credentials := r.Group("admin/credentials", adminGuard...)
+	{
+		credentials.GET("", h.handleAdminListCredentials)
+		credentials.GET("/:id", h.handleAdminGetCredential)
+		credentials.PATCH("/:id/status", h.handleAdminUpdateCredentialStatus)
+		credentials.DELETE("/:id", h.handleAdminDeleteCredential)
+	}
+
+	jsTemplates := r.Group("admin/js-templates", adminGuard...)
+	{
+		jsTemplates.GET("", h.handleAdminListJSTemplates)
+		jsTemplates.GET("/:id", h.handleAdminGetJSTemplate)
+		jsTemplates.PUT("/:id", h.handleAdminUpdateJSTemplate)
+		jsTemplates.DELETE("/:id", h.handleAdminDeleteJSTemplate)
+	}
+
+	bills := r.Group("admin/bills", adminGuard...)
+	{
+		bills.GET("", h.handleAdminListBills)
+		bills.GET("/:id", h.handleAdminGetBill)
+		bills.PUT("/:id", h.handleAdminUpdateBill)
+		bills.DELETE("/:id", h.handleAdminDeleteBill)
+	}
+
+	voiceTraining := r.Group("admin/voice-training", adminGuard...)
+	{
+		voiceTraining.GET("/tasks", h.handleAdminListVoiceTrainingTasks)
+		voiceTraining.GET("/tasks/:id", h.handleAdminGetVoiceTrainingTask)
+		voiceTraining.DELETE("/tasks/:id", h.handleAdminDeleteVoiceTrainingTask)
+	}
+
+	mcpServers := r.Group("admin/mcp-servers", adminGuard...)
+	{
+		mcpServers.GET("", h.handleAdminListMCPServers)
+		mcpServers.GET("/:id", h.handleAdminGetMCPServer)
+		mcpServers.DELETE("/:id", h.handleAdminDeleteMCPServer)
+	}
+
+	mcpMarketplace := r.Group("admin/mcp-marketplace", adminGuard...)
+	{
+		mcpMarketplace.GET("", h.handleAdminListMCPMarketplaceItems)
+		mcpMarketplace.GET("/:id", h.handleAdminGetMCPMarketplaceItem)
+		mcpMarketplace.DELETE("/:id", h.handleAdminDeleteMCPMarketplaceItem)
+	}
+
+	workflows := r.Group("admin/workflows", adminGuard...)
+	{
+		workflows.GET("", h.handleAdminListWorkflowDefinitions)
+		workflows.GET("/:id", h.handleAdminGetWorkflowDefinition)
+		workflows.DELETE("/:id", h.handleAdminDeleteWorkflowDefinition)
+	}
+
+	workflowPlugins := r.Group("admin/workflow-plugins", adminGuard...)
+	{
+		workflowPlugins.GET("", h.handleAdminListWorkflowPlugins)
+		workflowPlugins.GET("/:id", h.handleAdminGetWorkflowPlugin)
+		workflowPlugins.DELETE("/:id", h.handleAdminDeleteWorkflowPlugin)
+	}
+
+	nodePlugins := r.Group("admin/node-plugins", adminGuard...)
+	{
+		nodePlugins.GET("", h.handleAdminListNodePlugins)
+		nodePlugins.GET("/:id", h.handleAdminGetNodePlugin)
+		nodePlugins.DELETE("/:id", h.handleAdminDeleteNodePlugin)
+	}
+
+	alerts := r.Group("admin/alerts", adminGuard...)
+	{
+		alerts.GET("", h.handleAdminListAlerts)
+		alerts.GET("/:id", h.handleAdminGetAlert)
+		alerts.DELETE("/:id", h.handleAdminDeleteAlert)
+	}
+
+	notificationCenter := r.Group("admin/notifications", adminGuard...)
+	{
+		notificationCenter.GET("", h.handleAdminListInternalNotifications)
+		notificationCenter.GET("/:id", h.handleAdminGetInternalNotification)
+		notificationCenter.DELETE("/:id", h.handleAdminDeleteInternalNotification)
+	}
+
+	knowledgeBase := r.Group("admin/knowledge-bases", adminGuard...)
+	{
+		knowledgeBase.GET("", h.handleAdminListKnowledgeBases)
+		knowledgeBase.GET("/:id", h.handleAdminGetKnowledgeBase)
+		knowledgeBase.DELETE("/:id", h.handleAdminDeleteKnowledgeBase)
+	}
+
+	devices := r.Group("admin/devices", adminGuard...)
+	{
+		devices.GET("", h.handleAdminListDevices)
+		devices.GET("/:id", h.handleAdminGetDevice)
+		devices.DELETE("/:id", h.handleAdminDeleteDevice)
+	}
 }

@@ -48,6 +48,15 @@ func Fail(c *gin.Context, msg string, data interface{}) {
 	c.JSON(http.StatusOK, errorResponse)
 }
 
+// FailWithCode 返回指定错误码的失败响应
+func FailWithCode(c *gin.Context, code int, msg string, data interface{}) {
+	c.JSON(http.StatusOK, gin.H{
+		"code": code,
+		"msg":  msg,
+		"data": data,
+	})
+}
+
 func Result(context *gin.Context, httpStatus int, code int, msg string, data gin.H) {
 	context.JSON(httpStatus, gin.H{
 		"code": code,
