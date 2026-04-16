@@ -71,6 +71,13 @@ export interface LLMUsage {
   startTime?: string // ISO 8601 format
   endTime?: string   // ISO 8601 format
   duration?: number  // Duration in milliseconds
+  latencyMs?: number
+  ttftMs?: number
+  tps?: number
+  queueTimeMs?: number
+  latency_ms?: number
+  ttft_ms?: number
+  queue_time_ms?: number
 
   // Tool Call Information
   hasToolCalls?: boolean

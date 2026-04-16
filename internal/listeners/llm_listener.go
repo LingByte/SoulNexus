@@ -45,7 +45,6 @@ func initSignalConnections(db *gorm.DB) {
 			ID:          utils.SnowflakeUtil.GenID(),
 			RequestID:   requestID,
 			SessionID:   asString(usageInfo["session_id"]),
-			UserID:      asString(usageInfo["user_id"]),
 			Provider:    asString(usageInfo["provider"]),
 			Model:       asString(usageInfo["model"]),
 			BaseURL:     asString(usageInfo["base_url"]),
@@ -103,6 +102,7 @@ func initSignalConnections(db *gorm.DB) {
 		session := &models.ChatSession{
 			ID:           sessionID,
 			UserID:       data.UserID,
+			AssistantID:  data.AssistantID,
 			Title:        data.Title,
 			Provider:     data.Provider,
 			Model:        data.Model,

@@ -2,6 +2,7 @@ import React from 'react'
 import { motion } from 'framer-motion'
 import { Bot, MessageSquare, Volume2 } from 'lucide-react'
 import { cn } from '@/utils/cn'
+import { sanitizeReadableText } from '@/utils/string'
 
 interface VoiceChatSession {
   id: number
@@ -103,7 +104,7 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
             </div>
             <div className="space-y-2">
               <div className="text-sm text-gray-700 dark:text-gray-300 line-clamp-2 leading-relaxed">
-                {session.content || '新会话'}
+                {sanitizeReadableText(session.content) || '新会话'}
               </div>
 
               {/* 添加一个小的指示器 */}

@@ -1,13 +1,25 @@
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronDown, Bot, MessageCircle, Users, Zap, Circle, User } from 'lucide-react'
+import { ChevronDown, Bot, MessageCircle, Users, Zap, Circle, User, Timer } from 'lucide-react'
+import { sanitizeReadableText } from '@/utils/string'
 
 interface LLMUsage {
+  provider?: string
   model: string
   totalTokens: number
   promptTokens: number
   completionTokens: number
+  total_tokens?: number
+  input_tokens?: number
+  output_tokens?: number
   duration?: number
+  latencyMs?: number
+  ttftMs?: number
+  tps?: number
+  queueTimeMs?: number
+  latency_ms?: number
+  ttft_ms?: number
+  queue_time_ms?: number
   hasToolCalls?: boolean
   toolCallCount?: number
   toolCalls?: ToolCallInfo[]
@@ -68,24 +80,43 @@ const ChatLogDetail: React.FC<ChatLogDetailProps> = ({
     return <Bot className="w-5 h-5" />
   }
 
+  const normalizeMs = (usage: LLMUsage, key: 'latency' | 'ttft' | 'queue') => {
+    if (key === 'latency') return usage.latencyMs ?? usage.latency_ms
+    if (key === 'ttft') return usage.ttftMs ?? usage.ttft_ms
+    return usage.queueTimeMs ?? usage.queue_time_ms
+  }
+
+  const getTotalTokens = (usage: LLMUsage) => usage.totalTokens ?? usage.total_tokens ?? 0
+  const getPromptTokens = (usage: LLMUsage) => usage.promptTokens ?? usage.input_tokens ?? 0
+  const getCompletionTokens = (usage: LLMUsage) => usage.completionTokens ?? usage.output_tokens ?? 0
+
+  const totalStats = useMemo(() => {
+    const list = logs.filter((x) => !!x.llmUsage).map((x) => x.llmUsage as LLMUsage)
+    const totalTokens = list.reduce((acc, it) => acc + getTotalTokens(it), 0)
+    return { count: list.length, totalTokens }
+  }, [logs])
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-neutral-800 rounded-xl w-full max-w-2xl mx-4 shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 backdrop-blur-[1px]">
+      <div className="w-full max-w-4xl mx-4 rounded-2xl border border-white/15 bg-white dark:bg-neutral-900 shadow-2xl">
         {/* 头部 */}
-        <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-neutral-700">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-            对话详情 ({logs?.length || 0} 条消息)
-          </h2>
+        <div className="flex justify-between items-center p-5 border-b border-gray-200 dark:border-neutral-700">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">对话详情</h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              {logs?.length || 0} 条消息 · {totalStats.count} 次LLM调用 · {totalStats.totalTokens} Tokens
+            </p>
+          </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-700 dark:hover:text-white transition-colors"
+            className="h-8 w-8 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-neutral-800 dark:hover:text-white transition-colors"
           >
             ✕
           </button>
         </div>
 
         {/* 内容区域 */}
-        <div className="max-h-[60vh] overflow-y-auto p-4 space-y-4 custom-scrollbar">
+        <div className="max-h-[70vh] overflow-y-auto p-5 space-y-4 custom-scrollbar bg-gradient-to-b from-transparent to-gray-50/30 dark:to-neutral-900/30">
           {logs && Array.isArray(logs) ? (
             logs.map((log: ChatLog, index: number) => (
               <div key={log.id || index} className="space-y-3">
@@ -96,7 +127,7 @@ const ChatLogDetail: React.FC<ChatLogDetailProps> = ({
 
                 {/* 用户消息 */}
                 {log.userMessage && (
-                  <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <div className="rounded-xl border border-blue-200/70 bg-blue-50/80 dark:border-blue-900/40 dark:bg-blue-900/20 p-4">
                     <div className="flex items-center gap-3 mb-2">
                       <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white flex-shrink-0">
                         <User className="w-5 h-5" />
@@ -109,14 +140,14 @@ const ChatLogDetail: React.FC<ChatLogDetailProps> = ({
                       </div>
                     </div>
                     <div className="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap ml-11">
-                      {log.userMessage}
+                      {sanitizeReadableText(log.userMessage)}
                     </div>
                   </div>
                 )}
 
                 {/* AI回复 + LLM 使用信息 */}
                 {log.agentMessage && (
-                  <div className="bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800 overflow-hidden">
+                  <div className="rounded-xl border border-emerald-200/70 bg-emerald-50/80 dark:border-emerald-900/40 dark:bg-emerald-900/20 overflow-hidden">
                     {/* 消息头部 */}
                     <div className="p-4">
                       <div className="flex items-center gap-3 mb-2">
@@ -133,15 +164,8 @@ const ChatLogDetail: React.FC<ChatLogDetailProps> = ({
                             </span>
                           </div>
                           {log.llmUsage && (
-                            <button
-                              onClick={() => toggleLLMUsage(index)}
-                              className="ml-2 p-1 hover:bg-green-100 dark:hover:bg-green-900/30 rounded transition-colors flex-shrink-0"
-                              title="查看 LLM 使用信息"
-                            >
-                              <motion.div
-                                animate={{ rotate: expandedLLMUsage.has(index) ? 180 : 0 }}
-                                transition={{ duration: 0.2 }}
-                              >
+                            <button onClick={() => toggleLLMUsage(index)} className="ml-2 p-1 hover:bg-green-100 dark:hover:bg-green-900/30 rounded transition-colors flex-shrink-0" title="查看 LLM 使用信息">
+                              <motion.div animate={{ rotate: expandedLLMUsage.has(index) ? 180 : 0 }} transition={{ duration: 0.2 }}>
                                 <ChevronDown className="w-4 h-4 text-green-700 dark:text-green-300" />
                               </motion.div>
                             </button>
@@ -149,7 +173,7 @@ const ChatLogDetail: React.FC<ChatLogDetailProps> = ({
                         </div>
                       </div>
                       <div className="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap ml-11">
-                        {log.agentMessage}
+                        {sanitizeReadableText(log.agentMessage)}
                       </div>
                     </div>
 
@@ -164,8 +188,34 @@ const ChatLogDetail: React.FC<ChatLogDetailProps> = ({
                           className="border-t border-green-200 dark:border-green-800 bg-green-100/50 dark:bg-green-900/10"
                         >
                           <div className="px-4 py-3 space-y-2">
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                              <div className="rounded-lg bg-white/70 dark:bg-neutral-900/30 p-2">
+                                <div className="text-[11px] text-gray-500 dark:text-gray-400">总Token</div>
+                                <div className="text-sm font-semibold text-green-900 dark:text-green-100">{getTotalTokens(log.llmUsage)}</div>
+                              </div>
+                              <div className="rounded-lg bg-white/70 dark:bg-neutral-900/30 p-2">
+                                <div className="text-[11px] text-gray-500 dark:text-gray-400">延迟</div>
+                                <div className="text-sm font-semibold text-green-900 dark:text-green-100">{normalizeMs(log.llmUsage, 'latency') ?? '-'} ms</div>
+                              </div>
+                              <div className="rounded-lg bg-white/70 dark:bg-neutral-900/30 p-2">
+                                <div className="text-[11px] text-gray-500 dark:text-gray-400">TTFT</div>
+                                <div className="text-sm font-semibold text-green-900 dark:text-green-100">{normalizeMs(log.llmUsage, 'ttft') ?? '-'} ms</div>
+                              </div>
+                              <div className="rounded-lg bg-white/70 dark:bg-neutral-900/30 p-2">
+                                <div className="text-[11px] text-gray-500 dark:text-gray-400">TPS</div>
+                                <div className="text-sm font-semibold text-green-900 dark:text-green-100">{log.llmUsage.tps ?? '-'} </div>
+                              </div>
+                            </div>
                             {/* 基础信息 */}
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-2 gap-3 pt-1">
+                              <div className="flex justify-between">
+                                <span className="text-xs font-medium text-green-700 dark:text-green-300">
+                                  Provider:
+                                </span>
+                                <span className="text-xs text-green-900 dark:text-green-100">
+                                  {log.llmUsage.provider || '-'}
+                                </span>
+                              </div>
                               <div className="flex justify-between">
                                 <span className="text-xs font-medium text-green-700 dark:text-green-300">
                                   模型:
@@ -179,7 +229,7 @@ const ChatLogDetail: React.FC<ChatLogDetailProps> = ({
                                   Total Tokens:
                                 </span>
                                 <span className="text-xs font-semibold text-green-900 dark:text-green-100">
-                                  {log.llmUsage.totalTokens}
+                                  {getTotalTokens(log.llmUsage)}
                                 </span>
                               </div>
                               <div className="flex justify-between">
@@ -187,7 +237,7 @@ const ChatLogDetail: React.FC<ChatLogDetailProps> = ({
                                   Prompt:
                                 </span>
                                 <span className="text-xs text-green-900 dark:text-green-100">
-                                  {log.llmUsage.promptTokens}
+                                  {getPromptTokens(log.llmUsage)}
                                 </span>
                               </div>
                               <div className="flex justify-between">
@@ -195,7 +245,7 @@ const ChatLogDetail: React.FC<ChatLogDetailProps> = ({
                                   Completion:
                                 </span>
                                 <span className="text-xs text-green-900 dark:text-green-100">
-                                  {log.llmUsage.completionTokens}
+                                  {getCompletionTokens(log.llmUsage)}
                                 </span>
                               </div>
                               {log.llmUsage.duration !== undefined && (
@@ -210,6 +260,10 @@ const ChatLogDetail: React.FC<ChatLogDetailProps> = ({
                                   </span>
                                 </div>
                               )}
+                              <div className="flex justify-between">
+                                <span className="text-xs font-medium text-green-700 dark:text-green-300 flex items-center gap-1"><Timer className="w-3 h-3" /> 队列:</span>
+                                <span className="text-xs text-green-900 dark:text-green-100">{normalizeMs(log.llmUsage, 'queue') ?? '-'} ms</span>
+                              </div>
                             </div>
 
                             {/* 工具调用信息 */}

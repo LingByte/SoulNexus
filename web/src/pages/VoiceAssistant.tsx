@@ -2187,6 +2187,10 @@ const VoiceAssistant = () => {
                             onTextModeChange={setTextMode}
                             inputRef={voiceAssistantHook.inputRef}
                             textInputRef={textInputRef}
+                            attachmentName={voiceAssistantHook.attachmentName}
+                            isParsingAttachment={voiceAssistantHook.isParsingAttachment}
+                            onAttachmentSelect={voiceAssistantHook.handleAttachmentFile}
+                            onAttachmentClear={voiceAssistantHook.clearAttachment}
                         />
                         {showOnboarding && highlightedElement === 'text-input' && (
                             <GuideTooltip

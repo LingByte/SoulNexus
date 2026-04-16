@@ -1,6 +1,7 @@
 import React from 'react'
 import Input from '@/components/UI/Input'
 import Button from '@/components/UI/Button'
+import { Paperclip, X } from 'lucide-react'
 
 export type TextMode = 'voice' | 'text'
 
@@ -14,6 +15,10 @@ interface TextInputBoxProps {
   onTextModeChange?: (mode: TextMode) => void
   inputRef?: React.RefObject<HTMLInputElement>
   textInputRef?: React.RefObject<HTMLDivElement>
+  attachmentName?: string
+  isParsingAttachment?: boolean
+  onAttachmentSelect?: (file: File) => void
+  onAttachmentClear?: () => void
 }
 
 const TextInputBox: React.FC<TextInputBoxProps> = ({
@@ -26,6 +31,10 @@ const TextInputBox: React.FC<TextInputBoxProps> = ({
   onTextModeChange,
   inputRef,
   textInputRef,
+  attachmentName = '',
+  isParsingAttachment = false,
+  onAttachmentSelect,
+  onAttachmentClear,
 }) => {
   return (
     <div
@@ -34,6 +43,32 @@ const TextInputBox: React.FC<TextInputBoxProps> = ({
     >
       <div className="max-w-2xl mx-auto">
         <div className="flex items-center gap-3">
+          {onAttachmentSelect && (
+            <div className="relative">
+              <input
+                id="voice-attachment-input"
+                type="file"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (file) onAttachmentSelect(file)
+                  e.currentTarget.value = ''
+                }}
+              />
+              <Button
+                variant="outline"
+                size="md"
+                disabled={isWaitingForResponse || isParsingAttachment}
+                onClick={() => {
+                  const el = document.getElementById('voice-attachment-input') as HTMLInputElement | null
+                  el?.click()
+                }}
+                className="px-3"
+              >
+                <Paperclip className="w-4 h-4" />
+              </Button>
+            </div>
+          )}
           {/* 文本模式选择框 */}
           {onTextModeChange && (
             <select
@@ -67,6 +102,16 @@ const TextInputBox: React.FC<TextInputBoxProps> = ({
             {isWaitingForResponse ? "处理中..." : "发送"}
           </Button>
         </div>
+        {(attachmentName || isParsingAttachment) && (
+          <div className="mt-2 flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+            <span>{isParsingAttachment ? '附件解析中...' : `已附加：${attachmentName}`}</span>
+            {attachmentName && onAttachmentClear && (
+              <button type="button" onClick={onAttachmentClear} className="text-red-500 hover:text-red-600">
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

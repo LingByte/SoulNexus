@@ -13,9 +13,10 @@ import (
 	"unicode"
 
 	"github.com/LingByte/SoulNexus/internal/models"
+	"github.com/LingByte/SoulNexus/pkg/config"
+	"github.com/LingByte/SoulNexus/pkg/llm"
 	media2 "github.com/LingByte/SoulNexus/pkg/media"
 	"github.com/LingByte/SoulNexus/pkg/media/encoder"
-	"github.com/LingByte/SoulNexus/pkg/llm"
 	"github.com/LingByte/SoulNexus/pkg/recognizer"
 	"github.com/LingByte/SoulNexus/pkg/synthesizer"
 	"github.com/LingByte/SoulNexus/pkg/utils"
@@ -50,6 +51,23 @@ var (
 	// Logging intervals
 	packetLogInterval = 100
 )
+
+const defaultSessionMemoryCompressThreshold = 20
+const defaultSessionShortTermMessageLimit = 20
+
+func getMemoryCompressThreshold() int {
+	if config.GlobalConfig != nil && config.GlobalConfig.Services.LLM.MemoryCompressThreshold > 0 {
+		return config.GlobalConfig.Services.LLM.MemoryCompressThreshold
+	}
+	return defaultSessionMemoryCompressThreshold
+}
+
+func getShortTermMessageLimit() int {
+	if config.GlobalConfig != nil && config.GlobalConfig.Services.LLM.ShortTermMessageLimit > 0 {
+		return config.GlobalConfig.Services.LLM.ShortTermMessageLimit
+	}
+	return defaultSessionShortTermMessageLimit
+}
 
 // AIClient represents an AI-powered WebRTC client connection
 type AIClient struct {
@@ -821,7 +839,9 @@ func (c *AIClient) processWithLLM(userText string) {
 
 	// Build query options
 	options := llm.QueryOptions{
-		Model: model,
+		Model:     model,
+		SessionID: c.SessionID,
+		UserID:    fmt.Sprintf("%d", c.userID),
 	}
 
 	// Set maxTokens if configured (0 means no limit)
@@ -838,6 +858,17 @@ func (c *AIClient) processWithLLM(userText string) {
 		options.Temperature = defaultTemp
 	}
 
+	if c.db != nil {
+		assistantID := int64(0)
+		if c.assistantID != nil {
+			assistantID = int64(*c.assistantID)
+		}
+		llm.CreateSession(c.SessionID, fmt.Sprintf("%d", c.userID), assistantID, fmt.Sprintf("assistant_%d", assistantID), c.llmProvider.Provider(), model, "")
+		_ = c.compressSessionMessagesIfNeeded(model)
+		options.Messages = c.loadSessionShortTermMessages(getShortTermMessageLimit())
+	}
+	llm.CreateMessage(utils.SnowflakeUtil.GenID(), c.SessionID, "user", queryText, 0, model, c.llmProvider.Provider(), "")
+
 	// Query LLM with options
 	resp, err := c.llmProvider.QueryWithOptions(queryText, &options)
 	if err != nil {
@@ -847,6 +878,11 @@ func (c *AIClient) processWithLLM(userText string) {
 	response := ""
 	if resp != nil && len(resp.Choices) > 0 {
 		response = resp.Choices[0].Content
+		completionTokens := 0
+		if resp.Usage != nil {
+			completionTokens = resp.Usage.CompletionTokens
+		}
+		llm.CreateMessage(utils.SnowflakeUtil.GenID(), c.SessionID, "assistant", response, completionTokens, model, c.llmProvider.Provider(), resp.RequestID)
 	}
 
 	legacyLog("[Server] LLM Response: %s", response)
@@ -860,6 +896,87 @@ func (c *AIClient) processWithLLM(userText string) {
 
 	// Generate TTS
 	c.GenerateTTS(response)
+}
+
+func (c *AIClient) loadSessionShortTermMessages(limit int) []llm.ChatMessage {
+	if c.db == nil || strings.TrimSpace(c.SessionID) == "" || limit <= 0 {
+		return nil
+	}
+	var msgs []models.ChatMessage
+	if err := c.db.Where("session_id = ?", c.SessionID).Order("created_at ASC").Find(&msgs).Error; err != nil {
+		return nil
+	}
+	if len(msgs) > limit {
+		msgs = msgs[len(msgs)-limit:]
+	}
+	out := make([]llm.ChatMessage, 0, len(msgs))
+	for _, m := range msgs {
+		role := strings.TrimSpace(m.Role)
+		if role == "" {
+			continue
+		}
+		out = append(out, llm.ChatMessage{Role: role, Content: m.Content})
+	}
+	return out
+}
+
+func (c *AIClient) compressSessionMessagesIfNeeded(model string) error {
+	if c.db == nil || strings.TrimSpace(c.SessionID) == "" {
+		return nil
+	}
+	var msgs []models.ChatMessage
+	if err := c.db.Where("session_id = ?", c.SessionID).Order("created_at ASC").Find(&msgs).Error; err != nil {
+		return err
+	}
+	if len(msgs) <= getMemoryCompressThreshold() {
+		return nil
+	}
+	var b strings.Builder
+	b.WriteString("请将下面对话压缩成一段可持续记忆，保留：用户身份信息、偏好、事实、约定、未完成事项。不要使用markdown，控制在300字内。\n\n")
+	for _, m := range msgs {
+		role := strings.TrimSpace(m.Role)
+		if role == "" {
+			continue
+		}
+		b.WriteString(role)
+		b.WriteString(": ")
+		b.WriteString(strings.TrimSpace(m.Content))
+		b.WriteString("\n")
+	}
+	sumResp, err := c.llmProvider.QueryWithOptions(b.String(), &llm.QueryOptions{
+		Model:       model,
+		Temperature: 0.2,
+		MaxTokens:   400,
+		RequestType: "memory_compress",
+		SessionID:   c.SessionID,
+		UserID:      fmt.Sprintf("%d", c.userID),
+	})
+	if err != nil || sumResp == nil || len(sumResp.Choices) == 0 {
+		return err
+	}
+	summary := strings.TrimSpace(sumResp.Choices[0].Content)
+	if summary == "" {
+		return nil
+	}
+	now := time.Now()
+	summaryContent := "会话记忆摘要：" + summary
+	return c.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("session_id = ?", c.SessionID).Delete(&models.ChatMessage{}).Error; err != nil {
+			return err
+		}
+		msg := models.ChatMessage{
+			ID:         utils.SnowflakeUtil.GenID(),
+			SessionID:  c.SessionID,
+			Role:       "system",
+			Content:    summaryContent,
+			TokenCount: 0,
+			Model:      model,
+			Provider:   c.llmProvider.Provider(),
+			CreatedAt:  now,
+			UpdatedAt:  now,
+		}
+		return tx.Create(&msg).Error
+	})
 }
 
 // GenerateTTS generates TTS audio and sends it via WebRTC

@@ -18,6 +18,7 @@ import { showAlert } from '../utils/notification'
 import { createCredential, fetchUserCredentials, deleteCredential, type Credential, type CreateCredentialForm } from '../api/credential'
 import { motion, AnimatePresence } from 'framer-motion'
 import ProviderConfigForm from '../components/Credential/ProviderConfigForm'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/UI/Select'
 import { 
   getTTSProviderConfig, 
   getASRProviderConfig,
@@ -644,21 +645,25 @@ const CredentialManager = () => {
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                               {t('credential.serviceProvider')}
                             </label>
-                            <select
+                            <Select
                               value={asrProvider}
-                              onChange={(e) => {
-                                setAsrProvider(e.target.value)
-                                setAsrConfigFields({}) // 清空字段
+                              onValueChange={(value) => {
+                                setAsrProvider(value)
+                                setAsrConfigFields({})
                               }}
-                              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent"
                             >
-                              <option value="">{t('credential.selectProvider')}</option>
-                              {getASRProviderOptions().map((opt) => (
-                                <option key={opt.value} value={opt.value}>
-                                  {opt.label}
-                                </option>
-                              ))}
-                            </select>
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder={t('credential.selectProvider')} />
+                              </SelectTrigger>
+                              <SelectContent searchable searchPlaceholder="搜索ASR服务商">
+                                <SelectItem value="">{t('credential.selectProvider')}</SelectItem>
+                                {getASRProviderOptions().map((opt) => (
+                                  <SelectItem key={opt.value} value={opt.value}>
+                                    {opt.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </div>
                           <ProviderConfigForm
                             provider={asrProvider}
@@ -680,21 +685,25 @@ const CredentialManager = () => {
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                               {t('credential.serviceProvider')}
                             </label>
-                            <select
+                            <Select
                               value={ttsProvider}
-                              onChange={(e) => {
-                                setTtsProvider(e.target.value)
-                                setTtsConfigFields({}) // 清空字段
+                              onValueChange={(value) => {
+                                setTtsProvider(value)
+                                setTtsConfigFields({})
                               }}
-                              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent"
                             >
-                              <option value="">{t('credential.selectProvider')}</option>
-                              {getTTSProviderOptions().map((opt) => (
-                                <option key={opt.value} value={opt.value}>
-                                  {opt.label}
-                                </option>
-                              ))}
-                            </select>
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder={t('credential.selectProvider')} />
+                              </SelectTrigger>
+                              <SelectContent searchable searchPlaceholder="搜索TTS服务商">
+                                <SelectItem value="">{t('credential.selectProvider')}</SelectItem>
+                                {getTTSProviderOptions().map((opt) => (
+                                  <SelectItem key={opt.value} value={opt.value}>
+                                    {opt.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </div>
                           <ProviderConfigForm
                             provider={ttsProvider}

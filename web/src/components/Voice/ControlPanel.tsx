@@ -400,7 +400,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                                             : t('controlPanel.call.languagePlaceholder')}
                                                     </SelectValue>
                                                 </SelectTrigger>
-                                                <SelectContent>
+                                                <SelectContent searchable searchPlaceholder="搜索语言">
                                                     {languageOptions.map(lang => (
                                                         <SelectItem key={lang.code} value={lang.code}>
                                                             <div className="flex flex-col">
@@ -455,7 +455,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                                             : t('controlPanel.call.speakerPlaceholder')}
                                                     </SelectValue>
                                                 </SelectTrigger>
-                                                <SelectContent>
+                                                <SelectContent searchable searchPlaceholder="搜索音色">
                                                     {voiceOptions.map(voice => (
                                                         <SelectItem key={voice.id} value={voice.id}>
                                                             <div className="flex flex-col">
@@ -686,7 +686,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                                             : t('controlPanel.assistant.jsTemplateDefault')}
                                                     </SelectValue>
                                                 </SelectTrigger>
-                                                <SelectContent>
+                                                <SelectContent searchable searchPlaceholder="搜索模板">
                                                     <SelectItem value="">{t('controlPanel.assistant.jsTemplateDefault')}</SelectItem>
                                                     {jsTemplates.map((tpl) => (
                                                         <SelectItem key={tpl.id} value={tpl.jsSourceId}>
@@ -768,7 +768,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                                         }
                                                     </SelectValue>
                                                 </SelectTrigger>
-                                                <SelectContent>
+                                                <SelectContent searchable searchPlaceholder="搜索训练音色">
                                                     <SelectItem key="none" value="">
                                                         {t('controlPanel.voiceClone.none')}
                                                     </SelectItem>

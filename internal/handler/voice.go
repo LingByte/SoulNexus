@@ -24,6 +24,7 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/graph"
 	"github.com/LingByte/SoulNexus/pkg/llm"
+	parser2 "github.com/LingByte/SoulNexus/pkg/parser"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/synthesizer"
 	"github.com/LingByte/SoulNexus/pkg/utils"
@@ -31,6 +32,7 @@ import (
 	"github.com/LingByte/lingstorage-sdk-go"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
+	"gorm.io/gorm"
 )
 
 // Audio processing status cache
@@ -120,6 +122,103 @@ func derefInt(v *int) int {
 		return 0
 	}
 	return *v
+}
+
+const defaultSessionMemoryCompressThreshold = 20
+const defaultSessionShortTermMessageLimit = 20
+
+func getMemoryCompressThreshold() int {
+	if config.GlobalConfig != nil && config.GlobalConfig.Services.LLM.MemoryCompressThreshold > 0 {
+		return config.GlobalConfig.Services.LLM.MemoryCompressThreshold
+	}
+	return defaultSessionMemoryCompressThreshold
+}
+
+func getShortTermMessageLimit() int {
+	if config.GlobalConfig != nil && config.GlobalConfig.Services.LLM.ShortTermMessageLimit > 0 {
+		return config.GlobalConfig.Services.LLM.ShortTermMessageLimit
+	}
+	return defaultSessionShortTermMessageLimit
+}
+
+func (h *Handlers) loadSessionShortTermMessages(sessionID string, limit int) []llm.ChatMessage {
+	if strings.TrimSpace(sessionID) == "" || limit <= 0 {
+		return nil
+	}
+	var msgs []models.ChatMessage
+	if err := h.db.Where("session_id = ?", sessionID).Order("created_at ASC").Find(&msgs).Error; err != nil {
+		return nil
+	}
+	if len(msgs) > limit {
+		msgs = msgs[len(msgs)-limit:]
+	}
+	out := make([]llm.ChatMessage, 0, len(msgs))
+	for _, m := range msgs {
+		role := strings.TrimSpace(m.Role)
+		if role == "" {
+			continue
+		}
+		out = append(out, llm.ChatMessage{Role: role, Content: m.Content})
+	}
+	return out
+}
+
+func (h *Handlers) compressSessionMessagesIfNeeded(llmHandler llm.LLMHandler, sessionID, model, provider string) error {
+	if llmHandler == nil || strings.TrimSpace(sessionID) == "" {
+		return nil
+	}
+	var msgs []models.ChatMessage
+	if err := h.db.Where("session_id = ?", sessionID).Order("created_at ASC").Find(&msgs).Error; err != nil {
+		return err
+	}
+	if len(msgs) <= getMemoryCompressThreshold() {
+		return nil
+	}
+	var b strings.Builder
+	b.WriteString("请将下面对话压缩成一段可持续记忆，保留：用户身份信息、偏好、事实、约定、未完成事项。不要使用markdown，控制在300字内。\n\n")
+	for _, m := range msgs {
+		role := strings.TrimSpace(m.Role)
+		if role == "" {
+			continue
+		}
+		b.WriteString(role)
+		b.WriteString(": ")
+		b.WriteString(strings.TrimSpace(m.Content))
+		b.WriteString("\n")
+	}
+	sumResp, err := llmHandler.QueryWithOptions(b.String(), &llm.QueryOptions{
+		Model:       model,
+		Temperature: 0.2,
+		MaxTokens:   400,
+		RequestType: "memory_compress",
+		SessionID:   sessionID,
+	})
+	if err != nil || sumResp == nil || len(sumResp.Choices) == 0 {
+		return err
+	}
+	summary := strings.TrimSpace(sumResp.Choices[0].Content)
+	if summary == "" {
+		return nil
+	}
+	now := time.Now()
+	summaryContent := "会话记忆摘要：" + summary
+	return h.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("session_id = ?", sessionID).Delete(&models.ChatMessage{}).Error; err != nil {
+			return err
+		}
+		msg := models.ChatMessage{
+			ID:         utils.SnowflakeUtil.GenID(),
+			SessionID:  sessionID,
+			Role:       "system",
+			Content:    summaryContent,
+			TokenCount: 0,
+			Model:      model,
+			Provider:   provider,
+			CreatedAt:  now,
+			UpdatedAt:  now,
+		}
+		return tx.Create(&msg).Error
+	})
 }
 
 // CreateTrainingTaskRequest Create training task request
@@ -1331,17 +1430,32 @@ func (h *Handlers) GetAudioStatus(c *gin.Context) {
 
 // OneShotTextRequest 请求结构
 type OneShotTextRequest struct {
-	APIKey       string  `json:"apiKey" binding:"required"`
-	APISecret    string  `json:"apiSecret" binding:"required"`
-	Text         string  `json:"text" binding:"required"`
-	AssistantID  int     `json:"assistantId"`
-	Language     string  `json:"language"`
-	SessionID    string  `json:"sessionId"`
-	SystemPrompt string  `json:"systemPrompt"`
-	Speaker      string  `json:"speaker"`      // 音色编码
-	VoiceCloneID int     `json:"voiceCloneId"` // 训练音色ID（优先级高于speaker）
-	Temperature  float32 `json:"temperature"`  // 生成多样性 (0-2)
-	MaxTokens    int     `json:"maxTokens"`    // 最大回复长度
+	APIKey            string  `json:"apiKey" binding:"required"`
+	APISecret         string  `json:"apiSecret" binding:"required"`
+	Text              string  `json:"text" binding:"required"`
+	AssistantID       int     `json:"assistantId"`
+	Language          string  `json:"language"`
+	SessionID         string  `json:"sessionId"`
+	SystemPrompt      string  `json:"systemPrompt"`
+	Speaker           string  `json:"speaker"`      // 音色编码
+	VoiceCloneID      int     `json:"voiceCloneId"` // 训练音色ID（优先级高于speaker）
+	Temperature       float32 `json:"temperature"`  // 生成多样性 (0-2)
+	MaxTokens         int     `json:"maxTokens"`    // 最大回复长度
+	AttachmentContent string  `json:"attachmentContent"`
+	AttachmentName    string  `json:"attachmentName"`
+}
+
+func buildQueryTextWithAttachment(text, attachmentContent, attachmentName string) string {
+	question := strings.TrimSpace(text)
+	content := strings.TrimSpace(attachmentContent)
+	name := strings.TrimSpace(attachmentName)
+	if content == "" {
+		return question
+	}
+	if name == "" {
+		name = "附件"
+	}
+	return fmt.Sprintf("用户问题：%s\n\n%s解析内容：\n%s", question, name, content)
 }
 
 // OneShotText 处理一句话模式的文本输入（V2版本，使用用户凭证配置）
@@ -1475,21 +1589,34 @@ func (h *Handlers) OneShotText(c *gin.Context) {
 			return
 		}
 
-		queryText := req.Text
-
 		sessionID := req.SessionID
 		if sessionID == "" {
 			sessionID = fmt.Sprintf("text_v2_%d_%d", user.ID, time.Now().Unix())
 		}
+		queryText := buildQueryTextWithAttachment(req.Text, req.AttachmentContent, req.AttachmentName)
+
+		llm.CreateSession(sessionID, fmt.Sprintf("%d", user.ID), int64(req.AssistantID), assistant.Name, credential.LLMProvider, llmModel, systemPrompt)
+		_ = h.compressSessionMessagesIfNeeded(llmHandler, sessionID, llmModel, credential.LLMProvider)
+		historyMessages := h.loadSessionShortTermMessages(sessionID, getShortTermMessageLimit())
+		llm.CreateMessage(utils.SnowflakeUtil.GenID(), sessionID, "user", queryText, 0, llmModel, credential.LLMProvider, "")
 		respLLM, errLLM := llmHandler.QueryWithOptions(queryText, &llm.QueryOptions{
 			Model:            llmModel,
 			Temperature:      derefFloat32(temp),
 			MaxTokens:        derefInt(maxTokens),
+			Messages:         historyMessages,
 			SessionID:        sessionID,
+			UserID:           fmt.Sprintf("%d", user.ID),
+			UserAgent:        c.GetHeader("User-Agent"),
+			IPAddress:        c.ClientIP(),
 			EnableJSONOutput: assistant.EnableJSONOutput,
 		})
 		if respLLM != nil && len(respLLM.Choices) > 0 {
 			llmResponse = respLLM.Choices[0].Content
+			completionTokens := 0
+			if respLLM.Usage != nil {
+				completionTokens = respLLM.Usage.CompletionTokens
+			}
+			llm.CreateMessage(utils.SnowflakeUtil.GenID(), sessionID, "assistant", llmResponse, completionTokens, llmModel, credential.LLMProvider, respLLM.RequestID)
 		}
 		if errLLM != nil {
 			// 提取更友好的错误信息
@@ -1660,18 +1787,31 @@ func (h *Handlers) SimpleTextChat(c *gin.Context) {
 	if sessionID == "" {
 		sessionID = fmt.Sprintf("simple_text_%d_%d", user.ID, time.Now().Unix())
 	}
+	llm.CreateSession(sessionID, fmt.Sprintf("%d", user.ID), int64(req.AssistantID), assistant.Name, credential.LLMProvider, llmModel, systemPrompt)
+	_ = h.compressSessionMessagesIfNeeded(llmHandler, sessionID, llmModel, credential.LLMProvider)
+	historyMessages := h.loadSessionShortTermMessages(sessionID, getShortTermMessageLimit())
+	llm.CreateMessage(utils.SnowflakeUtil.GenID(), sessionID, "user", queryText, 0, llmModel, credential.LLMProvider, "")
 
 	// 13. 调用LLM
 	respLLM, err := llmHandler.QueryWithOptions(queryText, &llm.QueryOptions{
 		Model:            llmModel,
 		Temperature:      derefFloat32(temp),
 		MaxTokens:        derefInt(maxTokens),
+		Messages:         historyMessages,
 		SessionID:        sessionID,
+		UserID:           fmt.Sprintf("%d", user.ID),
+		UserAgent:        c.GetHeader("User-Agent"),
+		IPAddress:        c.ClientIP(),
 		EnableJSONOutput: assistant.EnableJSONOutput,
 	})
 	llmResponse := ""
+	completionTokens := 0
 	if respLLM != nil && len(respLLM.Choices) > 0 {
 		llmResponse = respLLM.Choices[0].Content
+		if respLLM.Usage != nil {
+			completionTokens = respLLM.Usage.CompletionTokens
+		}
+		llm.CreateMessage(utils.SnowflakeUtil.GenID(), sessionID, "assistant", llmResponse, completionTokens, llmModel, credential.LLMProvider, respLLM.RequestID)
 	}
 	if err != nil {
 		errMsg := err.Error()
@@ -1776,8 +1916,6 @@ func (h *Handlers) PlainText(c *gin.Context) {
 			llmModel = "deepseek-v3.1" // 默认值
 		}
 
-		queryText := req.Text
-
 		// 优先使用请求中的 temperature 和 maxTokens，如果没有则从 assistant 中读取
 		var temp *float32
 		var maxTokens *int
@@ -1811,15 +1949,30 @@ func (h *Handlers) PlainText(c *gin.Context) {
 		if sessionID == "" {
 			sessionID = fmt.Sprintf("plain_text_%d_%d", user.ID, time.Now().Unix())
 		}
+		queryText := buildQueryTextWithAttachment(req.Text, req.AttachmentContent, req.AttachmentName)
+
+		llm.CreateSession(sessionID, fmt.Sprintf("%d", user.ID), int64(req.AssistantID), assistant.Name, credential.LLMProvider, llmModel, systemPrompt)
+		_ = h.compressSessionMessagesIfNeeded(llmHandler, sessionID, llmModel, credential.LLMProvider)
+		historyMessages := h.loadSessionShortTermMessages(sessionID, getShortTermMessageLimit())
+		llm.CreateMessage(utils.SnowflakeUtil.GenID(), sessionID, "user", queryText, 0, llmModel, credential.LLMProvider, "")
 		respLLM, errLLM := llmHandler.QueryWithOptions(queryText, &llm.QueryOptions{
 			Model:            llmModel,
 			Temperature:      derefFloat32(temp),
 			MaxTokens:        derefInt(maxTokens),
+			Messages:         historyMessages,
 			SessionID:        sessionID,
+			UserID:           fmt.Sprintf("%d", user.ID),
+			UserAgent:        c.GetHeader("User-Agent"),
+			IPAddress:        c.ClientIP(),
 			EnableJSONOutput: assistant.EnableJSONOutput,
 		})
 		if respLLM != nil && len(respLLM.Choices) > 0 {
 			llmResponse = respLLM.Choices[0].Content
+			completionTokens := 0
+			if respLLM.Usage != nil {
+				completionTokens = respLLM.Usage.CompletionTokens
+			}
+			llm.CreateMessage(utils.SnowflakeUtil.GenID(), sessionID, "assistant", llmResponse, completionTokens, llmModel, credential.LLMProvider, respLLM.RequestID)
 		}
 		if errLLM != nil {
 			errMsg := errLLM.Error()
@@ -1838,6 +1991,49 @@ func (h *Handlers) PlainText(c *gin.Context) {
 	// 返回成功响应
 	response.Success(c, "处理成功", map[string]string{
 		"text": llmResponse,
+	})
+}
+
+// ParseAttachmentContent 解析上传附件内容（用于文本问答上下文）
+func (h *Handlers) ParseAttachmentContent(c *gin.Context) {
+	file, err := c.FormFile("file")
+	if err != nil {
+		response.Fail(c, "获取附件失败", err.Error())
+		return
+	}
+
+	src, err := file.Open()
+	if err != nil {
+		response.Fail(c, "打开附件失败", err.Error())
+		return
+	}
+	defer src.Close()
+
+	buf, err := io.ReadAll(src)
+	if err != nil {
+		response.Fail(c, "读取附件失败", err.Error())
+		return
+	}
+	if len(buf) == 0 {
+		response.Fail(c, "附件为空", nil)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 45*time.Second)
+	defer cancel()
+	parseRes, err := parser2.ParseBytes(ctx, file.Filename, buf, &parser2.ParseOptions{
+		MaxTextLength:      300000,
+		PreserveLineBreaks: true,
+	})
+	if err != nil {
+		response.Fail(c, "解析附件失败", err.Error())
+		return
+	}
+
+	response.Success(c, "解析成功", gin.H{
+		"fileName": file.Filename,
+		"fileType": parseRes.FileType,
+		"content":  parseRes.Text,
 	})
 }
 

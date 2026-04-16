@@ -17,35 +17,6 @@ export interface ProviderConfig {
 
 // TTS 服务商配置
 export const TTS_PROVIDERS: Record<string, ProviderConfig> = {
-  lingshu: {
-    name: '灵枢',
-    fields: [
-      {
-        key: 'apiKey',
-        label: 'API Key',
-        type: 'password',
-        placeholder: '请输入灵枢 API Key',
-        required: true,
-        description: '灵枢的 API Key'
-      },
-      {
-        key: 'baseUrl',
-        label: 'Base URL',
-        type: 'text',
-        placeholder: 'https://openai.lingshu.com/v1',
-        required: false,
-        description: 'API 基础地址，默认为 https://openai.lingshu.com/v1'
-      },
-      {
-        key: 'voiceType',
-        label: '音色类型',
-        type: 'text',
-        placeholder: 'female_cn_001',
-        required: false,
-        description: '音色类型，默认为 female_cn_001'
-      }
-    ]
-  },
   qcloud: {
     name: '腾讯云',
     fields: [
@@ -760,47 +731,6 @@ export const TTS_PROVIDERS: Record<string, ProviderConfig> = {
 
 // ASR 服务商配置
 export const ASR_PROVIDERS: Record<string, ProviderConfig> = {
-  lingshu: {
-    name: '灵枢',
-    fields: [
-      {
-        key: 'apiKey',
-        label: 'API Key',
-        type: 'password',
-        placeholder: '请输入灵枢 API Key',
-        required: true,
-        description: '灵枢的 API Key'
-      },
-      {
-        key: 'baseUrl',
-        label: 'Base URL',
-        type: 'text',
-        placeholder: 'https://asr.lingshu.com',
-        required: false,
-        description: 'API 基础地址'
-      },
-      {
-        key: 'model',
-        label: '模型',
-        type: 'text',
-        placeholder: 'asr-model',
-        required: false,
-        description: '识别模型名称'
-      },
-      {
-        key: 'language',
-        label: '语言',
-        type: 'select',
-        required: false,
-        options: [
-          { value: 'zh', label: '中文' },
-          { value: 'en', label: '英文' },
-          { value: 'ja', label: '日文' },
-          { value: 'ko', label: '韩文' }
-        ]
-      }
-    ]
-  },
   qcloud: {
     name: '腾讯云',
     fields: [
@@ -1161,7 +1091,8 @@ export const ASR_PROVIDERS: Record<string, ProviderConfig> = {
 
 // 获取所有 TTS 服务商选项
 export const getTTSProviderOptions = () => {
-  return Object.keys(TTS_PROVIDERS).map(key => ({
+  const supported = ['tencent', 'qcloud', 'volcengine', 'xunfei', 'baidu', 'openai', 'fishspeech', 'fishaudio']
+  return supported.filter((key) => !!TTS_PROVIDERS[key]).map(key => ({
     value: key,
     label: TTS_PROVIDERS[key].name
   }))
@@ -1169,7 +1100,8 @@ export const getTTSProviderOptions = () => {
 
 // 获取所有 ASR 服务商选项
 export const getASRProviderOptions = () => {
-  return Object.keys(ASR_PROVIDERS).map(key => ({
+  const supported = ['tencent', 'qcloud', 'volcengine', 'xunfei', 'baidu', 'whisper', 'local']
+  return supported.filter((key) => !!ASR_PROVIDERS[key]).map(key => ({
     value: key,
     label: ASR_PROVIDERS[key].name
   }))
