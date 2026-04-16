@@ -273,115 +273,17 @@ func GetTimeoutCircuitManager() *TimeoutCircuitManager {
 	return globalTimeoutCircuitManager
 }
 
-// TimeoutMiddleware 超时中间件
-func TimeoutMiddleware() gin.HandlerFunc {
-	manager := GetTimeoutCircuitManager()
-
-	return func(c *gin.Context) {
-		endpoint := c.Request.URL.Path
-		timeout := manager.getTimeout(endpoint)
-
-		// 创建带超时的上下文
-		ctx, cancel := context.WithTimeout(c.Request.Context(), timeout)
-		defer cancel()
-
-		// 替换请求上下文
-		c.Request = c.Request.WithContext(ctx)
-
-		// 使用通道来检测请求是否完成
-		done := make(chan struct{})
-		go func() {
-			defer close(done)
-			c.Next()
-		}()
-
-		select {
-		case <-done:
-			// 请求正常完成
-			return
-		case <-ctx.Done():
-			// 请求超时
-			logger.Warn("Request timeout",
-				zap.String("endpoint", endpoint),
-				zap.Duration("timeout", timeout),
-				zap.String("method", c.Request.Method))
-
-			// 返回超时错误
-			if !c.Writer.Written() {
-				c.JSON(http.StatusRequestTimeout, map[string]interface{}{
-					"error":   "request_timeout",
-					"message": fmt.Sprintf("请求超时，超过 %v", timeout),
-					"timeout": timeout.String(),
-				})
-			}
-			c.Abort()
-			return
-		}
-	}
-}
-
-// CircuitBreakerMiddleware 熔断器中间件
-func CircuitBreakerMiddleware() gin.HandlerFunc {
-	manager := GetTimeoutCircuitManager()
-
-	return func(c *gin.Context) {
-		endpoint := c.Request.URL.Path
-		cb := manager.getCircuitBreaker(endpoint)
-
-		// 检查熔断器是否允许请求
-		if !cb.Allow() {
-			state := cb.GetState()
-			logger.Warn("Circuit breaker blocked request",
-				zap.String("endpoint", endpoint),
-				zap.Int("state", int(state)))
-
-			// 返回服务不可用错误
-			c.JSON(http.StatusServiceUnavailable, manager.timeoutConfig.FallbackResponse)
-			c.Abort()
-			return
-		}
-
-		// 记录请求开始时间
-		startTime := time.Now()
-
-		// 执行请求
-		c.Next()
-
-		// 根据响应状态记录成功或失败
-		duration := time.Since(startTime)
-		status := c.Writer.Status()
-
-		if status >= 200 && status < 400 {
-			// 成功响应
-			cb.RecordSuccess()
-			logger.Debug("Circuit breaker recorded success",
-				zap.String("endpoint", endpoint),
-				zap.Int("status", status),
-				zap.Duration("duration", duration))
-		} else if status >= 500 {
-			// 服务器错误，记录失败
-			cb.RecordFailure()
-			logger.Warn("Circuit breaker recorded failure",
-				zap.String("endpoint", endpoint),
-				zap.Int("status", status),
-				zap.Duration("duration", duration))
-		}
-		// 4xx错误不记录为熔断器失败，因为这通常是客户端错误
-	}
-}
-
 // CombinedTimeoutCircuitMiddleware 组合超时和熔断中间件
 func CombinedTimeoutCircuitMiddleware() gin.HandlerFunc {
 	manager := GetTimeoutCircuitManager()
 
 	return func(c *gin.Context) {
 		endpoint := c.Request.URL.Path
-
 		// 跳过 WebSocket 语音连接的熔断器检查
 		// WebSocket 是长连接，不适合用熔断器
 		if endpoint == "/api/voice/lingecho/v1/" ||
 			endpoint == "/api/voice/lingecho/v2/" ||
-			endpoint == "/api/voice/ws" {
+			endpoint == "/api/voice/websocket" {
 			c.Next()
 			return
 		}

@@ -228,5 +228,7 @@ func RunMigrations(db *gorm.DB) error {
 		&models.MCPReview{},
 		&models.MCPCategory{},
 		&models.OAuthClient{},
+		&models.RTCSFURoomAssignment{},
+		&models.RTCSFUMediaSession{},
 	})
 }
