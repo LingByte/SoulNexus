@@ -97,6 +97,8 @@ type QueryOptions struct {
 	SessionID   string // 会话ID
 	UserID      string // 用户ID
 	RequestType string // 请求类型: query, query_stream, rewrite, expand
+	UserAgent   string // 用户代理
+	IPAddress   string // 客户端IP
 }
 
 type ChatMessage struct {
@@ -279,6 +281,7 @@ type LLMRequestErrorData struct {
 type SessionCreatedData struct {
 	SessionID    string `json:"session_id"`
 	UserID       string `json:"user_id"`
+	AssistantID  int64  `json:"assistant_id"`
 	Title        string `json:"title"`
 	Provider     string `json:"provider"`
 	Model        string `json:"model"`

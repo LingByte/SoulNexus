@@ -91,6 +91,10 @@ func (h *CozeHandler) QueryWithOptions(text string, options *QueryOptions) (*Que
 		"https://api.coze.com",
 		requestType,
 	)
+	tracker.SetRequestContent(text)
+	tracker.SetUserAgent(options.UserAgent)
+	tracker.SetIPAddress(options.IPAddress)
+	tracker.SetStatusCode(200)
 	var rewrite *QueryRewrite
 	if options.EnableQueryRewrite {
 		before := text
@@ -184,6 +188,10 @@ func (h *CozeHandler) QueryStream(text string, options *QueryOptions, callback f
 		"https://api.coze.com",
 		requestType,
 	)
+	tracker.SetRequestContent(text)
+	tracker.SetUserAgent(options.UserAgent)
+	tracker.SetIPAddress(options.IPAddress)
+	tracker.SetStatusCode(200)
 	var streamRewrite *QueryRewrite
 	if options.EnableQueryRewrite {
 		before := text

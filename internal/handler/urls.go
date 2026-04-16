@@ -460,6 +460,7 @@ func (h *Handlers) registerVoiceTrainingRoutes(r *gin.RouterGroup) {
 		voice.POST("/oneshot_text", h.OneShotText)
 
 		voice.POST("/plain_text", h.PlainText)
+		voice.POST("/parse_attachment", h.ParseAttachmentContent)
 
 		voice.GET("/audio_status", h.GetAudioStatus)
 
@@ -905,6 +906,21 @@ func (h *Handlers) registerAdminManagementRoutes(r *gin.RouterGroup) {
 		assistants.GET("/:id", h.handleAdminGetAssistant)
 		assistants.PUT("/:id", h.handleAdminUpdateAssistant)
 		assistants.DELETE("/:id", h.handleAdminDeleteAssistant)
+	}
+
+	chatSessions := r.Group("admin/chat-sessions", adminGuard...)
+	{
+		chatSessions.GET("", h.handleAdminListChatSessions)
+	}
+
+	chatMessages := r.Group("admin/chat-messages", adminGuard...)
+	{
+		chatMessages.GET("", h.handleAdminListChatMessages)
+	}
+
+	llmUsage := r.Group("admin/llm-usage", adminGuard...)
+	{
+		llmUsage.GET("", h.handleAdminListLLMUsage)
 	}
 
 	security := r.Group("security", adminGuard...)

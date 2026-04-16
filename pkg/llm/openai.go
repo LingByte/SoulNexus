@@ -351,6 +351,10 @@ func (oh *OpenaiHandler) QueryWithOptions(text string, options *QueryOptions) (*
 		oh.baseUrl,
 		requestType,
 	)
+	tracker.SetRequestContent(text)
+	tracker.SetUserAgent(options.UserAgent)
+	tracker.SetIPAddress(options.IPAddress)
+	tracker.SetStatusCode(200)
 
 	// 构建消息 - 目前使用单条文本，后续可扩展支持消息历史
 
@@ -399,6 +403,10 @@ func (oh *OpenaiHandler) QueryWithOptions(text string, options *QueryOptions) (*
 		oh.baseUrl,
 		requestType,
 	)
+	tracker.SetRequestContent(text)
+	tracker.SetUserAgent(options.UserAgent)
+	tracker.SetIPAddress(options.IPAddress)
+	tracker.SetStatusCode(200)
 
 	requestID := GenerateLingRequestID()
 	requestedOutputFormat := options.OutputFormat
@@ -731,6 +739,10 @@ func (oh *OpenaiHandler) QueryStream(text string, options *QueryOptions, callbac
 		oh.baseUrl,
 		requestType,
 	)
+	tracker.SetRequestContent(text)
+	tracker.SetUserAgent(options.UserAgent)
+	tracker.SetIPAddress(options.IPAddress)
+	tracker.SetStatusCode(200)
 
 	requestID := GenerateLingRequestID()
 	externalShortTermMessages := buildShortTermMessages(text, options)

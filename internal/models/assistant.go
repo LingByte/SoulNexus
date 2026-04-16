@@ -76,7 +76,6 @@ type LLMUsage struct {
 	ID              string    `json:"id" gorm:"primaryKey;type:varchar(64)"`
 	RequestID       string    `json:"request_id" gorm:"type:varchar(64);uniqueIndex;not null"`
 	SessionID       string    `json:"session_id" gorm:"type:varchar(64);index"`
-	UserID          string    `json:"user_id" gorm:"type:varchar(64);index"`
 	Provider        string    `json:"provider" gorm:"type:varchar(50);not null;index"`
 	Model           string    `json:"model" gorm:"type:varchar(100);not null;index"`
 	BaseURL         string    `json:"base_url" gorm:"type:varchar(255)"`
@@ -212,9 +211,6 @@ func CreateChatSessionLogWithUsage(db *gorm.DB, userID uint, assistantID int64, 
 			usage.RequestID = "req_" + usage.ID
 		}
 		usage.SessionID = sessionID
-		if usage.UserID == "" {
-			usage.UserID = fmt.Sprintf("%d", userID)
-		}
 		if usage.RequestedAt.IsZero() {
 			usage.RequestedAt = now
 		}

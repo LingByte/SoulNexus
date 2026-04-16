@@ -26,6 +26,7 @@ import {
   AlertTriangle,
   BookOpen,
   Smartphone,
+  MessageSquareText,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import { useSidebar } from '@/contexts/SidebarContext'
@@ -87,6 +88,7 @@ const AdminSidebar = () => {
     { name: '告警管理', href: '/alerts', icon: AlertTriangle },
     { name: '知识库', href: '/knowledge-bases', icon: BookOpen },
     { name: '设备管理', href: '/devices', icon: Smartphone },
+    { name: '会话与用量', href: '/chat-data', icon: MessageSquareText },
     { name: '配置管理', href: '/configs', icon: Sliders },
     {
       name: '安全管理',

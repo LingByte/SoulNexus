@@ -1353,3 +1353,62 @@ export const listAdminDevices = async (params?: { page?: number; pageSize?: numb
 }
 export const getAdminDevice = async (id: string) => (await get(`${BACKEND_BASE}/admin/devices/${encodeURIComponent(id)}`)).data
 export const deleteAdminDevice = async (id: string) => del(`${BACKEND_BASE}/admin/devices/${encodeURIComponent(id)}`)
+
+// ==================== Admin Chat / Usage APIs ====================
+export interface AdminChatSession {
+  id: string
+  user_id: string
+  assistant_id: number
+  title: string
+  provider: string
+  model: string
+  status: string
+  created_at: string
+  updated_at: string
+}
+
+export interface AdminChatMessage {
+  id: string
+  session_id: string
+  role: string
+  content: string
+  token_count: number
+  model: string
+  provider: string
+  request_id: string
+  created_at: string
+}
+
+export interface AdminLLMUsage {
+  id: string
+  request_id: string
+  session_id: string
+  provider: string
+  model: string
+  request_type: string
+  input_tokens: number
+  output_tokens: number
+  total_tokens: number
+  latency_ms: number
+  response_content: string
+  user_agent: string
+  ip_address: string
+  success: boolean
+  error_message?: string
+  requested_at: string
+}
+
+export const listAdminChatSessions = async (params?: { page?: number; pageSize?: number; search?: string }) => {
+  const res = await get<{ items: AdminChatSession[]; total: number; page: number; pageSize: number }>(`${BACKEND_BASE}/admin/chat-sessions`, { params })
+  return res.data
+}
+
+export const listAdminChatMessages = async (params?: { page?: number; pageSize?: number; search?: string; session_id?: string }) => {
+  const res = await get<{ items: AdminChatMessage[]; total: number; page: number; pageSize: number }>(`${BACKEND_BASE}/admin/chat-messages`, { params })
+  return res.data
+}
+
+export const listAdminLLMUsage = async (params?: { page?: number; pageSize?: number; search?: string; session_id?: string; success?: string }) => {
+  const res = await get<{ items: AdminLLMUsage[]; total: number; page: number; pageSize: number }>(`${BACKEND_BASE}/admin/llm-usage`, { params })
+  return res.data
+}

@@ -18,7 +18,7 @@ import (
 	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/knowledge"
 	"github.com/LingByte/SoulNexus/pkg/knowledge/chunk"
-	"github.com/LingByte/SoulNexus/pkg/knowledge/parser"
+	parser2 "github.com/LingByte/SoulNexus/pkg/parser"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/gin-gonic/gin"
 	"gorm.io/datatypes"
@@ -263,8 +263,8 @@ func (h *Handlers) DeleteKnowledgeBase(c *gin.Context) {
 
 func (h *Handlers) ListKnowledgeDocumentFormats(c *gin.Context) {
 	response.Success(c, "supported document formats", gin.H{
-		"formats": parser.SupportedDocumentFormats(),
-		"notes":   parser.SupportedDocumentNotes(),
+		"formats": parser2.SupportedDocumentFormats(),
+		"notes":   parser2.SupportedDocumentNotes(),
 	})
 }
 
@@ -359,7 +359,7 @@ func (h *Handlers) UploadKnowledgeDocument(c *gin.Context) {
 		})
 	}
 
-	parseRes, err := parser.ParseBytes(ctx, file.Filename, buf, &parser.ParseOptions{MaxTextLength: 500_000, PreserveLineBreaks: true})
+	parseRes, err := parser2.ParseBytes(ctx, file.Filename, buf, &parser2.ParseOptions{MaxTextLength: 500_000, PreserveLineBreaks: true})
 	if err != nil {
 		fail("parse file failed", err)
 		return
@@ -716,4 +716,3 @@ func parseUintParam(c *gin.Context, key string) (uint, bool) {
 	}
 	return uint(v), true
 }
-

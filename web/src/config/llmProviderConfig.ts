@@ -17,84 +17,14 @@ export const LLM_PROVIDER_SUGGESTIONS: LLMProviderOption[] = [
     description: 'GPT-4, GPT-3.5等模型，API地址: https://api.openai.com/v1',
   },
   {
+    value: 'alibaba',
+    label: '阿里云通义千问',
+    description: '阿里云 DashScope，API地址: https://dashscope.aliyuncs.com',
+  },
+  {
     value: 'anthropic',
     label: 'Anthropic',
     description: 'Claude系列模型，API地址: https://api.anthropic.com',
-  },
-  {
-    value: 'deepseek',
-    label: 'DeepSeek',
-    description: 'DeepSeek系列模型，API地址: https://api.deepseek.com/v1',
-  },
-  {
-    value: 'groq',
-    label: 'Groq',
-    description: 'Groq快速推理API，API地址: https://api.groq.com/openai/v1',
-  },
-  {
-    value: 'together',
-    label: 'Together AI',
-    description: 'Together AI推理服务，API地址: https://api.together.xyz/v1',
-  },
-  {
-    value: 'replicate',
-    label: 'Replicate',
-    description: 'Replicate模型托管服务，API地址: https://api.replicate.com/v1',
-  },
-  {
-    value: 'cohere',
-    label: 'Cohere',
-    description: 'Cohere语言模型，API地址: https://api.cohere.ai/v1',
-  },
-  {
-    value: 'mistral',
-    label: 'Mistral AI',
-    description: 'Mistral系列模型，API地址: https://api.mistral.ai/v1',
-  },
-  {
-    value: 'perplexity',
-    label: 'Perplexity',
-    description: 'Perplexity搜索增强模型，API地址: https://api.perplexity.ai',
-  },
-  {
-    value: 'openrouter',
-    label: 'OpenRouter',
-    description: '统一API接口，支持多种模型，API地址: https://openrouter.ai/api/v1',
-  },
-  {
-    value: 'azure',
-    label: 'Azure OpenAI',
-    description: '微软Azure OpenAI服务，需要配置Azure端点',
-  },
-  {
-    value: 'aliyun',
-    label: '阿里云通义千问',
-    description: '通义千问模型，API地址: https://dashscope.aliyuncs.com/compatible-mode/v1',
-  },
-  {
-    value: 'baidu',
-    label: '百度文心一言',
-    description: '文心一言模型，API地址: https://aip.baidubce.com/rpc/2.0/ai_custom/v1',
-  },
-  {
-    value: 'tencent',
-    label: '腾讯混元',
-    description: '腾讯混元模型，API地址: https://hunyuan.tencentcloudapi.com',
-  },
-  {
-    value: 'zhipu',
-    label: '智谱AI',
-    description: 'GLM系列模型，API地址: https://open.bigmodel.cn/api/paas/v4',
-  },
-  {
-    value: 'moonshot',
-    label: 'Moonshot AI',
-    description: 'Moonshot模型，API地址: https://api.moonshot.cn/v1',
-  },
-  {
-    value: 'qwen',
-    label: 'Qwen (通义千问)',
-    description: '通义千问开源模型，API地址: https://dashscope.aliyuncs.com/compatible-mode/v1',
   },
   {
     value: 'ollama',

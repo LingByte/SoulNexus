@@ -98,6 +98,7 @@ func (t *LLMRequestTracker) MarkFirstToken() {
 func (t *LLMRequestTracker) Complete(response *QueryResponse) {
 	endTime := time.Now()
 	latencyMs := endTime.Sub(t.startTime).Milliseconds()
+	t.SetResponseContent("")
 
 	response.RequestID = t.requestID
 	response.SessionID = t.sessionID
@@ -120,6 +121,7 @@ func (t *LLMRequestTracker) Complete(response *QueryResponse) {
 	if len(response.Choices) > 0 {
 		output = response.Choices[0].Content
 	}
+	t.SetResponseContent(output)
 
 	// 计算性能指标
 	var ttftMs int64 = 0
@@ -247,10 +249,11 @@ func (t *LLMRequestTracker) Error(errCode, errorMessage string) {
 }
 
 // CreateSession 创建会话并发送信号
-func CreateSession(sessionID, userID, title, provider, model, systemPrompt string) {
+func CreateSession(sessionID, userID string, assistantID int64, title, provider, model, systemPrompt string) {
 	startData := SessionCreatedData{
 		SessionID:    sessionID,
 		UserID:       userID,
+		AssistantID:  assistantID,
 		Title:        title,
 		Provider:     provider,
 		Model:        model,

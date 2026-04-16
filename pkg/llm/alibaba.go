@@ -133,6 +133,10 @@ func (h *AlibabaHandler) QueryWithOptions(text string, options *QueryOptions) (*
 		h.endpoint,
 		requestType,
 	)
+	tracker.SetRequestContent(text)
+	tracker.SetUserAgent(options.UserAgent)
+	tracker.SetIPAddress(options.IPAddress)
+	tracker.SetStatusCode(200)
 	select {
 	case <-h.interruptCh:
 		return nil, errors.New("interrupted")

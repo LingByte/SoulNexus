@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { oneShotText, plainText } from '@/api/assistant'
+import { oneShotText, plainText, parseAttachment } from '@/api/assistant'
 import { showAlert } from '@/utils/notification'
 
 export type TextMode = 'voice' | 'text'
@@ -42,13 +42,16 @@ export const useVoiceAssistant = (options: UseVoiceAssistantOptions) => {
     removeLoadingMessage,
     pollAudioStatus,
     textMode = 'voice',
-    updateAIMessage,
+    updateAIMessage: _updateAIMessage,
     temperature,
     maxTokens,
   } = options
 
   const [inputValue, setInputValue] = useState('')
   const [isWaitingForResponse, setIsWaitingForResponse] = useState(false)
+  const [attachmentName, setAttachmentName] = useState('')
+  const [attachmentContent, setAttachmentContent] = useState('')
+  const [isParsingAttachment, setIsParsingAttachment] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   // 处理错误信息提取
@@ -115,6 +118,8 @@ export const useVoiceAssistant = (options: UseVoiceAssistantOptions) => {
         // 传递 temperature 和 maxTokens
         ...(temperature !== undefined && { temperature }),
         ...(maxTokens !== undefined && { maxTokens }),
+        ...(attachmentContent && { attachmentContent }),
+        ...(attachmentName && { attachmentName }),
       }
 
       if (textMode === 'text') {
@@ -131,8 +136,9 @@ export const useVoiceAssistant = (options: UseVoiceAssistantOptions) => {
           // 检查响应是否成功
           if (response.code !== 200) {
             let errorMsg = '请求失败'
-            if (typeof response.data === 'string' && response.data.trim()) {
-              errorMsg = response.data
+            const errorData = response.data as unknown
+            if (typeof errorData === 'string' && errorData.trim()) {
+              errorMsg = errorData
             } else if (response.msg) {
               errorMsg = response.msg
             }
@@ -177,8 +183,9 @@ export const useVoiceAssistant = (options: UseVoiceAssistantOptions) => {
         // 检查响应是否成功
         if (response.code !== 200) {
           let errorMsg = '请求失败'
-          if (typeof response.data === 'string' && response.data.trim()) {
-            errorMsg = response.data
+          const errorData = response.data as unknown
+          if (typeof errorData === 'string' && errorData.trim()) {
+            errorMsg = errorData
           } else if (response.msg) {
             errorMsg = response.msg
           }
@@ -237,11 +244,39 @@ export const useVoiceAssistant = (options: UseVoiceAssistantOptions) => {
     await sendTextMessage(value)
   }
 
+  const handleAttachmentFile = async (file: File) => {
+    if (!file) return
+    setIsParsingAttachment(true)
+    try {
+      const resp = await parseAttachment(file)
+      if (resp.code !== 200 || !resp.data?.content) {
+        throw new Error(resp.msg || '附件解析失败')
+      }
+      setAttachmentName(resp.data.fileName || file.name)
+      setAttachmentContent(resp.data.content)
+      showAlert(`附件解析成功：${resp.data.fileName || file.name}`, 'success')
+    } catch (err: any) {
+      const msg = extractErrorMessage(err)
+      showAlert(msg, 'error', '附件解析失败')
+    } finally {
+      setIsParsingAttachment(false)
+    }
+  }
+
+  const clearAttachment = () => {
+    setAttachmentName('')
+    setAttachmentContent('')
+  }
+
   return {
     inputValue,
     setInputValue,
     isWaitingForResponse,
     inputRef,
+    attachmentName,
+    isParsingAttachment,
+    handleAttachmentFile,
+    clearAttachment,
     handleInputEnter,
     handleSendClick,
     sendTextMessage,

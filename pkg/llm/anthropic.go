@@ -74,6 +74,10 @@ func (h *AnthropicHandler) QueryWithOptions(text string, options *QueryOptions) 
 		h.baseURL,
 		requestType,
 	)
+	tracker.SetRequestContent(text)
+	tracker.SetUserAgent(options.UserAgent)
+	tracker.SetIPAddress(options.IPAddress)
+	tracker.SetStatusCode(200)
 	reqCtx, cancel := context.WithCancel(h.ctx)
 	defer cancel()
 	go func() {

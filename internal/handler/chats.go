@@ -235,34 +235,74 @@ func (h *Handlers) getChatSessionLogsBySession(c *gin.Context) {
 		return
 	}
 
-	// 获取该会话的所有记录
-	logs, err := models.GetChatSessionLogsBySession(h.db, sessionID, user.ID)
-	if err != nil {
+	// 先确认 session 归属
+	var session models.ChatSession
+	if err := h.db.Where("id = ? AND user_id = ?", sessionID, fmt.Sprintf("%d", user.ID)).First(&session).Error; err != nil {
 		response.Fail(c, "Failed to fetch chat logs", err.Error())
 		return
 	}
 
-	// 转换为详情格式
-	details := make([]models.ChatSessionLogDetail, 0, len(logs))
-	for _, log := range logs {
-		// 获取助手名称
-		var assistantName string
-		h.db.Table("assistants").Where("id = ?", log.AssistantID).Select("name").Scan(&assistantName)
+	var messages []models.ChatMessage
+	if err := h.db.Where("session_id = ?", sessionID).Order("created_at ASC").Find(&messages).Error; err != nil {
+		response.Fail(c, "Failed to fetch chat logs", err.Error())
+		return
+	}
 
-		detail := models.ChatSessionLogDetail{
-			ID:            log.ID,
-			SessionID:     log.SessionID,
-			AssistantID:   log.AssistantID,
-			AssistantName: assistantName,
-			ChatType:      log.ChatType,
-			UserMessage:   log.UserMessage,
-			AgentMessage:  log.AgentMessage,
-			AudioURL:      log.AudioURL,
-			Duration:      log.Duration,
-			CreatedAt:     log.CreatedAt,
-			UpdatedAt:     log.UpdatedAt,
+	var assistantName string
+	_ = h.db.Table("assistants").Where("id = ?", session.AssistantID).Select("name").Scan(&assistantName)
+
+	var usages []models.LLMUsage
+	_ = h.db.Where("session_id = ?", sessionID).Order("requested_at ASC, created_at ASC").Find(&usages).Error
+	usageByRequestID := make(map[string]models.LLMUsage, len(usages))
+	for _, usage := range usages {
+		reqID := strings.TrimSpace(usage.RequestID)
+		if reqID != "" {
+			usageByRequestID[reqID] = usage
+		}
+	}
+	usageCursor := 0
+
+	details := make([]models.ChatSessionLogDetail, 0, len(messages))
+	for i := 0; i < len(messages); i++ {
+		if messages[i].Role != "user" {
+			continue
+		}
+		userMsg := messages[i]
+
+		var agentMsg *models.ChatMessage
+		for j := i + 1; j < len(messages); j++ {
+			if messages[j].Role == "assistant" {
+				agentMsg = &messages[j]
+				break
+			}
 		}
 
+		detail := models.ChatSessionLogDetail{
+			ID:            userMsg.CreatedAt.UnixMilli(),
+			SessionID:     sessionID,
+			AssistantID:   session.AssistantID,
+			AssistantName: assistantName,
+			ChatType:      models.ChatTypeText,
+			UserMessage:   userMsg.Content,
+			CreatedAt:     userMsg.CreatedAt,
+			UpdatedAt:     userMsg.UpdatedAt,
+		}
+		if agentMsg != nil {
+			detail.AgentMessage = agentMsg.Content
+			detail.UpdatedAt = agentMsg.UpdatedAt
+			reqID := strings.TrimSpace(agentMsg.RequestID)
+			if reqID != "" {
+				if usage, ok := usageByRequestID[reqID]; ok {
+					usageCopy := usage
+					detail.LLMUsage = &usageCopy
+				}
+			}
+			if detail.LLMUsage == nil && usageCursor < len(usages) {
+				usageCopy := usages[usageCursor]
+				detail.LLMUsage = &usageCopy
+				usageCursor++
+			}
+		}
 		details = append(details, detail)
 	}
 

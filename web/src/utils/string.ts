@@ -174,3 +174,13 @@ export const shuffle = (str: string) => {
 export const sort = (str: string, separator: string = '') => {
   return str.split(separator).sort().join(separator)
 }
+
+// Remove replacement/control characters that make chat text unreadable.
+export const sanitizeReadableText = (text?: string | null) => {
+  if (!text) return ''
+  return text
+    .replace(/\uFFFD/g, '')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+    .replace(/\s{3,}/g, '  ')
+    .trim()
+}

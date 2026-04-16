@@ -1423,6 +1423,103 @@ func (h *Handlers) handleAdminDeleteAssistant(c *gin.Context) {
 	response.Success(c, "assistant deleted", nil)
 }
 
+func (h *Handlers) handleAdminListChatSessions(c *gin.Context) {
+	page, pageSize := h.parsePagination(c)
+	search := strings.TrimSpace(c.Query("search"))
+
+	query := h.db.Model(&models.ChatSession{})
+	if search != "" {
+		like := "%" + search + "%"
+		query = query.Where("id LIKE ? OR user_id LIKE ? OR title LIKE ? OR provider LIKE ? OR model LIKE ?", like, like, like, like, like)
+	}
+
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		response.Fail(c, "list chat sessions failed", err)
+		return
+	}
+	var items []models.ChatSession
+	if err := query.Order("updated_at DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&items).Error; err != nil {
+		response.Fail(c, "list chat sessions failed", err)
+		return
+	}
+	response.Success(c, "chat sessions fetched", gin.H{
+		"items":    items,
+		"total":    total,
+		"page":     page,
+		"pageSize": pageSize,
+	})
+}
+
+func (h *Handlers) handleAdminListChatMessages(c *gin.Context) {
+	page, pageSize := h.parsePagination(c)
+	search := strings.TrimSpace(c.Query("search"))
+	sessionID := strings.TrimSpace(c.Query("session_id"))
+
+	query := h.db.Model(&models.ChatMessage{})
+	if sessionID != "" {
+		query = query.Where("session_id = ?", sessionID)
+	}
+	if search != "" {
+		like := "%" + search + "%"
+		query = query.Where("id LIKE ? OR session_id LIKE ? OR role LIKE ? OR content LIKE ? OR request_id LIKE ?", like, like, like, like, like)
+	}
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		response.Fail(c, "list chat messages failed", err)
+		return
+	}
+	var items []models.ChatMessage
+	if err := query.Order("created_at DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&items).Error; err != nil {
+		response.Fail(c, "list chat messages failed", err)
+		return
+	}
+	response.Success(c, "chat messages fetched", gin.H{
+		"items":    items,
+		"total":    total,
+		"page":     page,
+		"pageSize": pageSize,
+	})
+}
+
+func (h *Handlers) handleAdminListLLMUsage(c *gin.Context) {
+	page, pageSize := h.parsePagination(c)
+	search := strings.TrimSpace(c.Query("search"))
+	sessionID := strings.TrimSpace(c.Query("session_id"))
+	success := strings.TrimSpace(c.Query("success"))
+
+	query := h.db.Model(&models.LLMUsage{})
+	if sessionID != "" {
+		query = query.Where("session_id = ?", sessionID)
+	}
+	if success != "" {
+		if parsed, err := strconv.ParseBool(success); err == nil {
+			query = query.Where("success = ?", parsed)
+		}
+	}
+	if search != "" {
+		like := "%" + search + "%"
+		query = query.Where("request_id LIKE ? OR session_id LIKE ? OR provider LIKE ? OR model LIKE ? OR ip_address LIKE ? OR user_agent LIKE ? OR response_content LIKE ?", like, like, like, like, like, like, like)
+	}
+
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		response.Fail(c, "list llm usage failed", err)
+		return
+	}
+	var items []models.LLMUsage
+	if err := query.Order("requested_at DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&items).Error; err != nil {
+		response.Fail(c, "list llm usage failed", err)
+		return
+	}
+	response.Success(c, "llm usage fetched", gin.H{
+		"items":    items,
+		"total":    total,
+		"page":     page,
+		"pageSize": pageSize,
+	})
+}
+
 func (h *Handlers) handleAdminListGenericTable(c *gin.Context, tableName string, searchableCols ...string) {
 	page, pageSize := h.parsePagination(c)
 	search := strings.TrimSpace(c.Query("search"))

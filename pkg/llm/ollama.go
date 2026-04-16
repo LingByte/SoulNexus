@@ -74,6 +74,10 @@ func (h *OllamaHandler) QueryWithOptions(text string, options *QueryOptions) (*Q
 		h.baseURL,
 		requestType,
 	)
+	tracker.SetRequestContent(text)
+	tracker.SetUserAgent(options.UserAgent)
+	tracker.SetIPAddress(options.IPAddress)
+	tracker.SetStatusCode(200)
 	reqCtx, cancel := context.WithCancel(h.ctx)
 	defer cancel()
 	go func() {
@@ -182,6 +186,10 @@ func (h *OllamaHandler) QueryStream(text string, options *QueryOptions, callback
 		h.baseURL,
 		requestType,
 	)
+	tracker.SetRequestContent(text)
+	tracker.SetUserAgent(options.UserAgent)
+	tracker.SetIPAddress(options.IPAddress)
+	tracker.SetStatusCode(200)
 	reqCtx, cancel := context.WithCancel(h.ctx)
 	defer cancel()
 	go func() {

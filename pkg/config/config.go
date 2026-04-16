@@ -117,9 +117,11 @@ type ServicesConfig struct {
 
 // LLMConfig LLM service configuration
 type LLMConfig struct {
-	APIKey  string `env:"LLM_API_KEY"`
-	BaseURL string `env:"LLM_BASE_URL"`
-	Model   string `env:"LLM_MODEL"`
+	APIKey                  string `env:"LLM_API_KEY"`
+	BaseURL                 string `env:"LLM_BASE_URL"`
+	Model                   string `env:"LLM_MODEL"`
+	MemoryCompressThreshold int    `env:"LLM_MEMORY_COMPRESS_THRESHOLD"`
+	ShortTermMessageLimit   int    `env:"LLM_SHORT_TERM_MESSAGE_LIMIT"`
 }
 
 // GraphMemoryConfig graph memory configuration
@@ -295,9 +297,11 @@ func Load() error {
 		},
 		Services: ServicesConfig{
 			LLM: LLMConfig{
-				APIKey:  getStringOrDefault("LLM_API_KEY", ""),
-				BaseURL: getStringOrDefault("LLM_BASE_URL", "https://api.openai.com/v1"),
-				Model:   getStringOrDefault("LLM_MODEL", "gpt-3.5-turbo"),
+				APIKey:                  getStringOrDefault("LLM_API_KEY", ""),
+				BaseURL:                 getStringOrDefault("LLM_BASE_URL", "https://api.openai.com/v1"),
+				Model:                   getStringOrDefault("LLM_MODEL", "gpt-3.5-turbo"),
+				MemoryCompressThreshold: getIntOrDefault("LLM_MEMORY_COMPRESS_THRESHOLD", 20),
+				ShortTermMessageLimit:   getIntOrDefault("LLM_SHORT_TERM_MESSAGE_LIMIT", 20),
 			},
 			Mail: loadMailConfig(),
 			GraphMemory: GraphMemoryConfig{

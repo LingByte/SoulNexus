@@ -131,6 +131,8 @@ export interface OneShotTextV2Request {
   voiceCloneId?: number // 训练音色ID（优先级高于speaker）
   temperature?: number  // 生成多样性 (0-2)
   maxTokens?: number   // 最大回复长度
+  attachmentContent?: string
+  attachmentName?: string
 }
 
 export interface OneShotResponse {
@@ -152,6 +154,18 @@ export const oneShotText = async (data: OneShotTextV2Request): Promise<ApiRespon
 // 纯文本对话 - 文本输入（不进行TTS合成，用于调试）
 export const plainText = async (data: OneShotTextV2Request): Promise<ApiResponse<{ text: string }>> => {
   return post('/voice/plain_text', data)
+}
+
+export interface ParsedAttachmentResult {
+  fileName: string
+  fileType: string
+  content: string
+}
+
+export const parseAttachment = async (file: File): Promise<ApiResponse<ParsedAttachmentResult>> => {
+  const formData = new FormData()
+  formData.append('file', file)
+  return post('/voice/parse_attachment', formData)
 }
 
 // 纯文本对话 - 流式接收（SSE）
