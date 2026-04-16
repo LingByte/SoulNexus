@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/LingByte/SoulNexus/pkg/hardware/constants"
+	"github.com/LingByte/SoulNexus/pkg/voice/constants"
 	"go.uber.org/zap"
 
 	"github.com/LingByte/SoulNexus/pkg/vad"

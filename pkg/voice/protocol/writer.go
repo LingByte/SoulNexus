@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/LingByte/SoulNexus/pkg/hardware/constants"
+	"github.com/LingByte/SoulNexus/pkg/voice/constants"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
 )
