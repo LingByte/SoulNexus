@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/LingByte/SoulNexus/pkg/constants"
-	"github.com/LingByte/SoulNexus/pkg/llm"
 	"github.com/LingByte/SoulNexus/pkg/logger"
+	"github.com/LingByte/SoulNexus/pkg/llm"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"go.uber.org/zap"
 )
@@ -136,7 +136,7 @@ func pickNextWithLLM(ctx context.Context, leg EstablishedLeg, step HybridStep, u
 	if legacy {
 		sys = llmRouteSystemPromptLegacy
 	}
-	prov, err := llm.NewLLMProvider(routeCtx, string(llm.ProviderTypeOpenAI), apiKey, baseURL, sys)
+	prov, err := llm.NewLLMProvider(routeCtx, llm.ProviderOpenAI, apiKey, baseURL, sys)
 	if err != nil {
 		return "", err
 	}
@@ -149,11 +149,11 @@ func pickNextWithLLM(ctx context.Context, leg EstablishedLeg, step HybridStep, u
 	}
 	opts := llm.QueryOptions{
 		Model:            model,
-		Temperature:      llm.Float32Ptr(0),
-		MaxTokens:        llm.IntPtr(routeMaxCompletionTokens()),
+		Temperature:      0,
+		MaxTokens:        routeMaxCompletionTokens(),
 		EnableJSONOutput: true,
 	}
-	reply, err := prov.QueryWithOptions(userPayload, opts)
+	resp, err := prov.QueryWithOptions(userPayload, &opts)
 	if err != nil {
 		if logger.Lg != nil {
 			logger.Lg.Warn("script listen LLM route failed",
@@ -162,6 +162,10 @@ func pickNextWithLLM(ctx context.Context, leg EstablishedLeg, step HybridStep, u
 				zap.Error(err))
 		}
 		return "", err
+	}
+	reply := ""
+	if resp != nil && len(resp.Choices) > 0 {
+		reply = resp.Choices[0].Content
 	}
 	nextID, perr := parseRouteLLMReply(reply, sorted, legacy)
 	if perr != nil {

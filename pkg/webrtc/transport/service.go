@@ -13,9 +13,9 @@ import (
 	"unicode"
 
 	"github.com/LingByte/SoulNexus/internal/models"
-	"github.com/LingByte/SoulNexus/pkg/llm"
 	media2 "github.com/LingByte/SoulNexus/pkg/media"
 	"github.com/LingByte/SoulNexus/pkg/media/encoder"
+	"github.com/LingByte/SoulNexus/pkg/llm"
 	"github.com/LingByte/SoulNexus/pkg/recognizer"
 	"github.com/LingByte/SoulNexus/pkg/synthesizer"
 	"github.com/LingByte/SoulNexus/pkg/utils"
@@ -59,7 +59,7 @@ type AIClient struct {
 
 	// AI components
 	asrService  recognizer.TranscribeService
-	llmProvider llm.LLMProvider
+	llmProvider llm.LLMHandler
 	ttsService  synthesizer.SynthesisService
 
 	// Audio processing
@@ -826,23 +826,27 @@ func (c *AIClient) processWithLLM(userText string) {
 
 	// Set maxTokens if configured (0 means no limit)
 	if maxTokens > 0 {
-		options.MaxTokens = &maxTokens
+		options.MaxTokens = maxTokens
 	}
 
 	// Set temperature if configured (0 means use default)
 	if temp > 0 {
-		options.Temperature = &temp
+		options.Temperature = temp
 	} else {
 		// Default temperature
 		defaultTemp := float32(0.7)
-		options.Temperature = &defaultTemp
+		options.Temperature = defaultTemp
 	}
 
 	// Query LLM with options
-	response, err := c.llmProvider.QueryWithOptions(queryText, options)
+	resp, err := c.llmProvider.QueryWithOptions(queryText, &options)
 	if err != nil {
 		legacyLog("[Server] LLM error: %v", err)
 		return
+	}
+	response := ""
+	if resp != nil && len(resp.Choices) > 0 {
+		response = resp.Choices[0].Content
 	}
 
 	legacyLog("[Server] LLM Response: %s", response)

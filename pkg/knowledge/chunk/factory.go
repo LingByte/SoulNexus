@@ -15,7 +15,7 @@ const (
 var ErrUnsupportedChunkerType = errors.New("unsupported chunker type")
 
 type FactoryOptions struct {
-	LLM   llm.LLMProvider
+	LLM   llm.LLMHandler
 	Model string
 }
 

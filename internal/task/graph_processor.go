@@ -12,8 +12,8 @@ import (
 
 	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/graph"
-	"github.com/LingByte/SoulNexus/pkg/llm"
 	"github.com/LingByte/SoulNexus/pkg/logger"
+	"github.com/LingByte/SoulNexus/pkg/llm"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -151,9 +151,8 @@ func summarizeConversation(ctx context.Context, credential *models.UserCredentia
 	temp := float32(0.4) // 降低温度以获得更稳定的总结
 	options := llm.QueryOptions{
 		Model:       assistant.LLMModel,
-		Temperature: &temp,
-		MaxTokens:   intPtr(2000),
-		Stream:      false,
+		Temperature: temp,
+		MaxTokens:   2000,
 	}
 
 	if assistant.LLMModel == "" {
@@ -161,9 +160,13 @@ func summarizeConversation(ctx context.Context, credential *models.UserCredentia
 		options.Model = "gpt-4o-mini"
 	}
 
-	response, err := llmProvider.QueryWithOptions(prompt, options)
+	resp, err := llmProvider.QueryWithOptions(prompt, &options)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to query LLM: %w", err)
+	}
+	response := ""
+	if resp != nil && len(resp.Choices) > 0 {
+		response = resp.Choices[0].Content
 	}
 
 	// 解析 LLM 返回的 JSON

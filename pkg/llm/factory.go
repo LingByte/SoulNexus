@@ -1,66 +1,75 @@
 package llm
 
-// Copyright (c) 2026 LingByte. All rights reserved.
-// SPDX-License-Identifier: AGPL-3.0
-
 import (
 	"context"
-	"encoding/json"
 	"strings"
 )
 
-// ProviderType LLM 提供者类型
-type ProviderType string
-
 const (
-	ProviderTypeOpenAI  ProviderType = "openai"  // OpenAI 兼容的 API
-	ProviderTypeCoze    ProviderType = "coze"    // Coze API
-	ProviderTypeOllama  ProviderType = "ollama"  // Ollama API
-	ProviderTypeAlibaba ProviderType = "alibaba" // Alibaba DashScope API
+	ProviderOpenAI    = "openai"
+	ProviderOllama    = "ollama"
+	ProviderAlibaba   = "alibaba"
+	ProviderAnthropic = "anthropic"
+	ProviderLMStudio  = "lmstudio"
+	ProviderCoze      = "coze"
 )
 
-// NewLLMProvider 根据配置创建 LLM 提供者
-func NewLLMProvider(ctx context.Context, provider, apiKey, apiUrl, systemPrompt string) (LLMProvider, error) {
-	providerType := strings.ToLower(strings.TrimSpace(provider))
-	if providerType == "" {
-		providerType = string(ProviderTypeOpenAI)
-	}
-	switch providerType {
-	case string(ProviderTypeCoze):
-		botID := ""
-		userID := ""
-		baseURL := ""
-		if apiUrl != "" {
-			var config CozeConfig
-			if err := json.Unmarshal([]byte(apiUrl), &config); err == nil {
-				botID = config.BotID
-				userID = config.UserID
-				baseURL = config.BaseURL
-			} else {
-				botID = apiUrl
-			}
-		}
-		if baseURL != "" {
-			return NewCozeProvider(ctx, apiKey, botID, userID, systemPrompt, baseURL)
-		}
-		return NewCozeProvider(ctx, apiKey, botID, userID, systemPrompt)
-	case string(ProviderTypeOllama):
-		baseURL := apiUrl
-		apiKey := apiKey
-		if apiKey == "" {
-			apiKey = "ollama"
-		}
-		return NewOllamaProvider(ctx, apiKey, baseURL, systemPrompt), nil
-	case string(ProviderTypeAlibaba):
-		// 阿里云百炼: apiKey 是 API Key, apiUrl 是 AppID
-		appID := apiUrl
-		return NewAlibabaProvider(ctx, apiKey, appID, systemPrompt), nil
+func normalizeProvider(provider string) string {
+	p := strings.ToLower(strings.TrimSpace(provider))
+	switch p {
+	case "", ProviderOpenAI:
+		return ProviderOpenAI
+	case ProviderOllama:
+		return ProviderOllama
+	case ProviderAlibaba:
+		return ProviderAlibaba
+	case ProviderAnthropic:
+		return ProviderAnthropic
+	case ProviderLMStudio:
+		return ProviderLMStudio
+	case ProviderCoze:
+		return ProviderCoze
 	default:
-		// Ensure we have a valid base URL, default to OpenAI's API if not provided
-		baseURL := apiUrl
-		if baseURL == "" {
-			baseURL = "https://api.openai.com/v1"
-		}
-		return NewOpenAIProvider(ctx, apiKey, baseURL, systemPrompt), nil
+		return ProviderOpenAI
 	}
 }
+
+// NewProviderHandler creates an LLM handler by provider type.
+// Note: in Ling, non-OpenAI providers currently use OpenAI-compatible chat API shape.
+func NewProviderHandler(ctx context.Context, provider string, llmOptions *LLMOptions) (LLMHandler, error) {
+	if llmOptions == nil {
+		llmOptions = &LLMOptions{}
+	}
+	selected := normalizeProvider(provider)
+	if strings.TrimSpace(llmOptions.Provider) != "" {
+		selected = normalizeProvider(llmOptions.Provider)
+	}
+
+	opts := *llmOptions
+
+	switch selected {
+	case ProviderOllama:
+		return NewOllamaHandler(ctx, &opts)
+	case ProviderAlibaba:
+		return NewAlibabaHandler(ctx, &opts)
+	case ProviderAnthropic:
+		return NewAnthropicHandler(ctx, &opts)
+	case ProviderLMStudio:
+		return NewLMStudioHandler(ctx, &opts)
+	case ProviderCoze:
+		return NewCozeHandler(ctx, &opts)
+	default:
+		return newOpenAICompatibleHandler(ctx, &opts, LLM_OPENAI)
+	}
+}
+
+// NewLLMProvider provides a SoulNexus-like factory signature for Ling.
+func NewLLMProvider(ctx context.Context, provider, apiKey, apiURL, systemPrompt string) (LLMHandler, error) {
+	return NewProviderHandler(ctx, provider, &LLMOptions{
+		Provider:     provider,
+		ApiKey:       apiKey,
+		BaseURL:      apiURL,
+		SystemPrompt: systemPrompt,
+	})
+}
+

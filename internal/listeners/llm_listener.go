@@ -10,7 +10,6 @@ import (
 	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/internal/task"
 	"github.com/LingByte/SoulNexus/pkg/constants"
-	"github.com/LingByte/SoulNexus/pkg/llm"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"go.uber.org/zap"
@@ -23,8 +22,7 @@ var llmListenerDB *gorm.DB
 func InitLLMListenerWithDB(db *gorm.DB) {
 	llmListenerDB = db
 	utils.Sig().Connect(constants.LLMUsage, func(sender any, params ...any) {
-		// Type assertion to get usage information
-		usageInfo, ok := sender.(*llm.LLMUsageInfo)
+		usageInfo, ok := sender.(map[string]interface{})
 		if !ok {
 			logger.Warn("LLM usage signal: invalid sender type")
 			return
@@ -44,83 +42,65 @@ func InitLLMListenerWithDB(db *gorm.DB) {
 		}
 
 		logger.Info("LLM Token Usage",
-			zap.String("model", usageInfo.Model),
-			zap.Int("promptTokens", usageInfo.PromptTokens),
-			zap.Int("completionTokens", usageInfo.CompletionTokens),
-			zap.Int("totalTokens", usageInfo.TotalTokens),
-			zap.String("user", usageInfo.User),
+			zap.String("model", toString(usageInfo["model"])),
+			zap.Int("promptTokens", toInt(usageInfo["input_tokens"])),
+			zap.Int("completionTokens", toInt(usageInfo["output_tokens"])),
+			zap.Int("totalTokens", toInt(usageInfo["total_tokens"])),
+			zap.String("user", toString(usageInfo["user_id"])),
 			zap.String("userInput", userInput),
 			zap.String("aiResponse", aiResponse),
-			zap.Int64("duration", usageInfo.Duration),
-			zap.Bool("hasToolCalls", usageInfo.HasToolCalls),
-			zap.Int("toolCallCount", usageInfo.ToolCallCount),
+			zap.Int64("duration", toInt64(usageInfo["latency_ms"])),
 		)
 
 		logger.Info("=== LLM Usage Details ===",
-			zap.String("Model", usageInfo.Model),
-			zap.Int("Prompt Tokens", usageInfo.PromptTokens),
-			zap.Int("Completion Tokens", usageInfo.CompletionTokens),
-			zap.Int("Total Tokens", usageInfo.TotalTokens),
-			zap.String("User ID", usageInfo.User),
-			zap.Time("Start Time", usageInfo.StartTime),
-			zap.Time("End Time", usageInfo.EndTime),
-			zap.Int64("Duration (ms)", usageInfo.Duration),
-			zap.Bool("Has Tool Calls", usageInfo.HasToolCalls),
-			zap.Int("Tool Call Count", usageInfo.ToolCallCount),
+			zap.String("Model", toString(usageInfo["model"])),
+			zap.Int("Prompt Tokens", toInt(usageInfo["input_tokens"])),
+			zap.Int("Completion Tokens", toInt(usageInfo["output_tokens"])),
+			zap.Int("Total Tokens", toInt(usageInfo["total_tokens"])),
+			zap.String("User ID", toString(usageInfo["user_id"])),
+			zap.Int64("Duration (ms)", toInt64(usageInfo["latency_ms"])),
 		)
 
-		// Log tool calls if any
-		if usageInfo.HasToolCalls && len(usageInfo.ToolCalls) > 0 {
-			for i, toolCall := range usageInfo.ToolCalls {
-				logger.Info("=== Tool Call ===",
-					zap.Int("Index", i+1),
-					zap.String("ID", toolCall.ID),
-					zap.String("Name", toolCall.Name),
-					zap.String("Arguments", toolCall.Arguments),
-				)
-			}
-		}
-
 		// If there is a database connection and necessary context information, save to ChatSessionLog
-		if llmListenerDB != nil && usageInfo.UserID != nil && usageInfo.AssistantID != nil {
+		userID := uint(toInt64(usageInfo["user_id"]))
+		assistantIDVal := uint(toInt64(usageInfo["assistant_id"]))
+		if llmListenerDB != nil && userID > 0 && assistantIDVal > 0 {
 			go func() {
-				// Convert to rtcmedia.LLMUsage
-				llmUsage := models.ConvertLLMUsageInfoToLLMUsage(usageInfo)
-				if llmUsage == nil {
-					logger.Warn("Failed to convert LLM Usage")
-					return
-				}
-
 				// Generate or use provided sessionID
-				sessionID := usageInfo.SessionID
+				sessionID := toString(usageInfo["session_id"])
 				if sessionID == "" {
-					sessionID = fmt.Sprintf("session_%d_%d", *usageInfo.UserID, time.Now().Unix())
+					sessionID = fmt.Sprintf("session_%d_%d", userID, time.Now().Unix())
 				}
 
 				// Determine chat type
-				chatType := usageInfo.ChatType
+				chatType := toString(usageInfo["chat_type"])
 				if chatType == "" {
 					chatType = models.ChatTypeText // Default to text chat
 				}
 
 				// Calculate duration (milliseconds to seconds, if 0 use default value)
-				duration := int(usageInfo.Duration / 1000)
-				if duration == 0 && !usageInfo.StartTime.IsZero() && !usageInfo.EndTime.IsZero() {
-					duration = int(usageInfo.EndTime.Sub(usageInfo.StartTime).Seconds())
+				duration := int(toInt64(usageInfo["latency_ms"]) / 1000)
+				if duration == 0 {
+					duration = 1
 				}
 
 				// Save chat log
 				_, err := models.CreateChatSessionLogWithUsage(
 					llmListenerDB,
-					*usageInfo.UserID,
-					*usageInfo.AssistantID,
+					userID,
+					int64(assistantIDVal),
 					chatType,
 					sessionID,
 					userInput,
 					aiResponse,
 					"", // audioURL
 					duration,
-					llmUsage,
+					&models.LLMUsage{
+						Model:            toString(usageInfo["model"]),
+						PromptTokens:     toInt(usageInfo["input_tokens"]),
+						CompletionTokens: toInt(usageInfo["output_tokens"]),
+						TotalTokens:      toInt(usageInfo["total_tokens"]),
+					},
 				)
 				if err != nil {
 					logger.Error("Failed to save chat log", zap.Error(err))
@@ -131,9 +111,9 @@ func InitLLMListenerWithDB(db *gorm.DB) {
 					// This will summarize the conversation and store knowledge in Neo4j
 					task.ProcessConversationAsync(
 						llmListenerDB,
-						*usageInfo.AssistantID,
+						int64(assistantIDVal),
 						sessionID,
-						*usageInfo.UserID,
+						userID,
 					)
 				}
 
@@ -143,20 +123,18 @@ func InitLLMListenerWithDB(db *gorm.DB) {
 
 				// Prioritize CredentialID from usageInfo
 				var groupID *uint
-				if usageInfo.CredentialID != nil {
-					credentialID = *usageInfo.CredentialID
-				} else if usageInfo.AssistantID != nil {
+				credID := uint(toInt64(usageInfo["credential_id"]))
+				if credID > 0 {
+					credentialID = credID
+				} else if assistantIDVal > 0 {
 					// If no CredentialID, try to get credential ID from assistant
-					aid := uint(*usageInfo.AssistantID)
+					aid := assistantIDVal
 					assistantID = &aid
 
 					// Get credential ID and group ID from assistant (if assistant is associated with a credential)
 					var assistant models.Assistant
-					if err := llmListenerDB.Where("id = ? AND user_id = ?", *assistantID, *usageInfo.UserID).
+					if err := llmListenerDB.Where("id = ? AND user_id = ?", *assistantID, userID).
 						First(&assistant).Error; err == nil {
-						// Assistant may be associated with credentials in other ways, temporarily use 0 here
-						// Subsequently, it can be obtained according to actual business logic
-						// Get group ID from assistant if it's organization-shared
 						if assistant.GroupID != nil {
 							groupID = assistant.GroupID
 						}
@@ -166,19 +144,45 @@ func InitLLMListenerWithDB(db *gorm.DB) {
 				// Record LLM usage
 				if err := models.RecordLLMUsage(
 					llmListenerDB,
-					*usageInfo.UserID,
+					userID,
 					credentialID,
 					assistantID,
 					groupID,
 					sessionID,
-					usageInfo.Model,
-					usageInfo.PromptTokens,
-					usageInfo.CompletionTokens,
-					usageInfo.TotalTokens,
+					toString(usageInfo["model"]),
+					toInt(usageInfo["input_tokens"]),
+					toInt(usageInfo["output_tokens"]),
+					toInt(usageInfo["total_tokens"]),
 				); err != nil {
 					logger.Warn("Failed to record LLM usage", zap.Error(err))
 				}
 			}()
 		}
 	})
+}
+
+func toString(v interface{}) string {
+	if s, ok := v.(string); ok {
+		return s
+	}
+	return ""
+}
+
+func toInt(v interface{}) int {
+	return int(toInt64(v))
+}
+
+func toInt64(v interface{}) int64 {
+	switch t := v.(type) {
+	case int:
+		return int64(t)
+	case int64:
+		return t
+	case float64:
+		return int64(t)
+	case float32:
+		return int64(t)
+	default:
+		return 0
+	}
 }

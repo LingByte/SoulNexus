@@ -373,9 +373,8 @@ func (s *HardwareSession) handleHelloMessage(msg map[string]interface{}) {
 				}
 				return nil
 			}, llm.QueryOptions{
-				MaxTokens: &s.config.MaxToken,
+				MaxTokens: s.config.MaxToken,
 				Model:     "qwen-flash",
-				Stream:    true,
 			})
 
 			// 记录 AI 回复

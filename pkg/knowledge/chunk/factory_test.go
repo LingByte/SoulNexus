@@ -13,32 +13,28 @@ func (f *fakeChunkLLM) Query(text, model string) (string, error) {
 	return `[{"title":"t","text":"x"}]`, nil
 }
 func (f *fakeChunkLLM) Provider() string { return "fake" }
-func (f *fakeChunkLLM) QueryWithOptions(text string, options llm.QueryOptions) (string, error) {
+func (f *fakeChunkLLM) QueryWithOptions(text string, options *llm.QueryOptions) (*llm.QueryResponse, error) {
 	_ = text
 	_ = options
-	return `[{"title":"t","text":"x"}]`, nil
+	return &llm.QueryResponse{Choices: []llm.QueryChoice{{Content: `[{"title":"t","text":"x"}]`}}}, nil
 }
-func (f *fakeChunkLLM) QueryStream(text string, options llm.QueryOptions, callback func(segment string, isComplete bool) error) (string, error) {
+func (f *fakeChunkLLM) QueryStream(text string, options *llm.QueryOptions, callback func(segment string, isComplete bool) error) (*llm.QueryResponse, error) {
 	_ = text
 	_ = options
 	if callback != nil {
 		_ = callback(`[{"title":"t","text":"x"}]`, false)
 		_ = callback("", true)
 	}
-	return `[{"title":"t","text":"x"}]`, nil
+	return &llm.QueryResponse{Choices: []llm.QueryChoice{{Content: `[{"title":"t","text":"x"}]`}}}, nil
 }
 func (f *fakeChunkLLM) RegisterFunctionTool(name, description string, parameters interface{}, callback llm.FunctionToolCallback) {
 	_, _, _, _ = name, description, parameters, callback
 }
 func (f *fakeChunkLLM) RegisterFunctionToolDefinition(def *llm.FunctionToolDefinition) { _ = def }
-func (f *fakeChunkLLM) GetFunctionTools() []interface{}                                 { return nil }
-func (f *fakeChunkLLM) ListFunctionTools() []string                                     { return nil }
-func (f *fakeChunkLLM) GetLastUsage() (llm.Usage, bool)                                 { return llm.Usage{}, false }
-func (f *fakeChunkLLM) ResetMessages()                                                   {}
-func (f *fakeChunkLLM) SetSystemPrompt(systemPrompt string)                              { _ = systemPrompt }
-func (f *fakeChunkLLM) GetMessages() []llm.Message                                       { return nil }
-func (f *fakeChunkLLM) Interrupt()                                                       {}
-func (f *fakeChunkLLM) Hangup()                                                          {}
+func (f *fakeChunkLLM) GetFunctionTools() []interface{}                                { return nil }
+func (f *fakeChunkLLM) ListFunctionTools() []string                                    { return nil }
+func (f *fakeChunkLLM) Interrupt()                                                     {}
+func (f *fakeChunkLLM) Hangup()                                                        {}
 
 func TestFactory_DefaultRule(t *testing.T) {
 	c, err := New("", nil)

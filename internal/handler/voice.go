@@ -23,7 +23,7 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/config"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/graph"
-	v2 "github.com/LingByte/SoulNexus/pkg/llm"
+	"github.com/LingByte/SoulNexus/pkg/llm"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/synthesizer"
 	"github.com/LingByte/SoulNexus/pkg/utils"
@@ -106,6 +106,20 @@ func cleanTextForTTS(text string) string {
 	text = strings.TrimSpace(text)
 
 	return text
+}
+
+func derefFloat32(v *float32) float32 {
+	if v == nil {
+		return 0
+	}
+	return *v
+}
+
+func derefInt(v *int) int {
+	if v == nil {
+		return 0
+	}
+	return *v
 }
 
 // CreateTrainingTaskRequest Create training task request
@@ -1317,17 +1331,17 @@ func (h *Handlers) GetAudioStatus(c *gin.Context) {
 
 // OneShotTextRequest 请求结构
 type OneShotTextRequest struct {
-	APIKey          string  `json:"apiKey" binding:"required"`
-	APISecret       string  `json:"apiSecret" binding:"required"`
-	Text            string  `json:"text" binding:"required"`
-	AssistantID     int     `json:"assistantId"`
-	Language        string  `json:"language"`
-	SessionID       string  `json:"sessionId"`
-	SystemPrompt    string  `json:"systemPrompt"`
-	Speaker         string  `json:"speaker"`         // 音色编码
-	VoiceCloneID    int     `json:"voiceCloneId"`    // 训练音色ID（优先级高于speaker）
-	Temperature     float32 `json:"temperature"`     // 生成多样性 (0-2)
-	MaxTokens       int     `json:"maxTokens"`       // 最大回复长度
+	APIKey       string  `json:"apiKey" binding:"required"`
+	APISecret    string  `json:"apiSecret" binding:"required"`
+	Text         string  `json:"text" binding:"required"`
+	AssistantID  int     `json:"assistantId"`
+	Language     string  `json:"language"`
+	SessionID    string  `json:"sessionId"`
+	SystemPrompt string  `json:"systemPrompt"`
+	Speaker      string  `json:"speaker"`      // 音色编码
+	VoiceCloneID int     `json:"voiceCloneId"` // 训练音色ID（优先级高于speaker）
+	Temperature  float32 `json:"temperature"`  // 生成多样性 (0-2)
+	MaxTokens    int     `json:"maxTokens"`    // 最大回复长度
 }
 
 // OneShotText 处理一句话模式的文本输入（V2版本，使用用户凭证配置）
@@ -1366,7 +1380,6 @@ func (h *Handlers) OneShotText(c *gin.Context) {
 
 	// 2. 调用LLM处理文本
 	var llmResponse string
-	var errLLM error
 	if credential.LLMProvider != "" && credential.LLMApiURL != "" {
 		llmBaseURL := credential.LLMApiURL
 		if llmBaseURL == "" {
@@ -1453,7 +1466,7 @@ func (h *Handlers) OneShotText(c *gin.Context) {
 			systemPrompt = systemPrompt + lengthGuidance
 		}
 
-		llmHandler, err := v2.NewLLMProvider(c.Request.Context(), credential.LLMProvider, credential.LLMApiKey, credential.LLMApiURL, systemPrompt)
+		llmHandler, err := llm.NewLLMProvider(c.Request.Context(), credential.LLMProvider, credential.LLMApiKey, credential.LLMApiURL, systemPrompt)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"code": 500,
@@ -1464,24 +1477,20 @@ func (h *Handlers) OneShotText(c *gin.Context) {
 
 		queryText := req.Text
 
-		userID := user.ID
-		assistantID := int64(req.AssistantID)
 		sessionID := req.SessionID
 		if sessionID == "" {
 			sessionID = fmt.Sprintf("text_v2_%d_%d", user.ID, time.Now().Unix())
 		}
-		credentialID := credential.ID
-		llmResponse, errLLM = llmHandler.QueryWithOptions(queryText, v2.QueryOptions{
+		respLLM, errLLM := llmHandler.QueryWithOptions(queryText, &llm.QueryOptions{
 			Model:            llmModel,
-			Temperature:      temp,
-			MaxTokens:        maxTokens,
-			UserID:           &userID,
-			AssistantID:      &assistantID,
-			CredentialID:     &credentialID,
+			Temperature:      derefFloat32(temp),
+			MaxTokens:        derefInt(maxTokens),
 			SessionID:        sessionID,
-			ChatType:         models.ChatTypeText,
 			EnableJSONOutput: assistant.EnableJSONOutput,
 		})
+		if respLLM != nil && len(respLLM.Choices) > 0 {
+			llmResponse = respLLM.Choices[0].Content
+		}
 		if errLLM != nil {
 			// 提取更友好的错误信息
 			errMsg := errLLM.Error()
@@ -1637,7 +1646,7 @@ func (h *Handlers) SimpleTextChat(c *gin.Context) {
 	}
 
 	// 10. 初始化LLM处理器
-	llmHandler, err := v2.NewLLMProvider(c.Request.Context(), credential.LLMProvider, credential.LLMApiKey, credential.LLMApiURL, systemPrompt)
+	llmHandler, err := llm.NewLLMProvider(c.Request.Context(), credential.LLMProvider, credential.LLMApiKey, credential.LLMApiURL, systemPrompt)
 	if err != nil {
 		response.Fail(c, "初始化LLM失败", err.Error())
 		return
@@ -1653,20 +1662,17 @@ func (h *Handlers) SimpleTextChat(c *gin.Context) {
 	}
 
 	// 13. 调用LLM
-	userID := user.ID
-	assistantID := int64(req.AssistantID)
-	credentialID := credential.ID
-	llmResponse, err := llmHandler.QueryWithOptions(queryText, v2.QueryOptions{
+	respLLM, err := llmHandler.QueryWithOptions(queryText, &llm.QueryOptions{
 		Model:            llmModel,
-		Temperature:      temp,
-		MaxTokens:        maxTokens,
-		UserID:           &userID,
-		AssistantID:      &assistantID,
-		CredentialID:     &credentialID,
+		Temperature:      derefFloat32(temp),
+		MaxTokens:        derefInt(maxTokens),
 		SessionID:        sessionID,
-		ChatType:         models.ChatTypeText,
 		EnableJSONOutput: assistant.EnableJSONOutput,
 	})
+	llmResponse := ""
+	if respLLM != nil && len(respLLM.Choices) > 0 {
+		llmResponse = respLLM.Choices[0].Content
+	}
 	if err != nil {
 		errMsg := err.Error()
 		if strings.Contains(errMsg, "no available channels") || strings.Contains(errMsg, "model") {
@@ -1725,7 +1731,6 @@ func (h *Handlers) PlainText(c *gin.Context) {
 
 	// 5. 调用LLM处理文本
 	var llmResponse string
-	var errLLM error
 	if credential.LLMProvider != "" && credential.LLMApiURL != "" {
 		llmBaseURL := credential.LLMApiURL
 		if llmBaseURL == "" {
@@ -1753,7 +1758,7 @@ func (h *Handlers) PlainText(c *gin.Context) {
 			}
 		}
 
-		llmHandler, err := v2.NewLLMProvider(c.Request.Context(), credential.LLMProvider, credential.LLMApiKey, credential.LLMApiURL, systemPrompt)
+		llmHandler, err := llm.NewLLMProvider(c.Request.Context(), credential.LLMProvider, credential.LLMApiKey, credential.LLMApiURL, systemPrompt)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"code": 500,
@@ -1800,31 +1805,22 @@ func (h *Handlers) PlainText(c *gin.Context) {
 			}
 		}
 
-		if maxTokens != nil && *maxTokens > 0 {
-			estimatedChars := *maxTokens * 3 / 2
-			lengthGuidance := fmt.Sprintf("\n\n重要提示：你的回复有长度限制（约 %d 个字符），请确保在限制内完整回答。如果回答较长，请优先保证回答的完整性和逻辑性，可以适当精简表述，但不要被截断。", estimatedChars)
-			enhancedSystemPrompt := systemPrompt + lengthGuidance
-			llmHandler.SetSystemPrompt(enhancedSystemPrompt)
-		}
+		_ = maxTokens
 
-		userID := user.ID
-		assistantID := int64(req.AssistantID)
 		sessionID := req.SessionID
 		if sessionID == "" {
 			sessionID = fmt.Sprintf("plain_text_%d_%d", user.ID, time.Now().Unix())
 		}
-		credentialID := credential.ID
-		llmResponse, errLLM = llmHandler.QueryWithOptions(queryText, v2.QueryOptions{
+		respLLM, errLLM := llmHandler.QueryWithOptions(queryText, &llm.QueryOptions{
 			Model:            llmModel,
-			Temperature:      temp,
-			MaxTokens:        maxTokens,
-			UserID:           &userID,
-			AssistantID:      &assistantID,
-			CredentialID:     &credentialID,
+			Temperature:      derefFloat32(temp),
+			MaxTokens:        derefInt(maxTokens),
 			SessionID:        sessionID,
-			ChatType:         models.ChatTypeText,
 			EnableJSONOutput: assistant.EnableJSONOutput,
 		})
+		if respLLM != nil && len(respLLM.Choices) > 0 {
+			llmResponse = respLLM.Choices[0].Content
+		}
 		if errLLM != nil {
 			errMsg := errLLM.Error()
 			if strings.Contains(errMsg, "no available channels") || strings.Contains(errMsg, "model") {

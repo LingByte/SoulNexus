@@ -106,16 +106,16 @@ func GenerateSecureToken(length int) (string, error) {
 }
 
 const (
-	epoch         int64 = 1609459200000000 // Microsecond timestamp start (2021-01-01)
-	timestampBits uint  = 44
-	machineIDBits uint  = 10
-	sequenceBits  uint  = 9
+	machineIDBits = 10
+	sequenceBits  = 12
 
-	maxMachineID = -1 ^ (-1 << machineIDBits) // 1023
-	maxSequence  = -1 ^ (-1 << sequenceBits)  // 511
+	maxMachineID = 1<<machineIDBits - 1
+	maxSequence  = 1<<sequenceBits - 1
 
-	machineIDShift = sequenceBits
 	timestampShift = machineIDBits + sequenceBits
+	machineIDShift = sequenceBits
+
+	epoch int64 = 1609459200000 // 2021-01-01 毫秒级
 )
 
 type Snowflake struct {
@@ -126,57 +126,68 @@ type Snowflake struct {
 }
 
 func NewSnowflake() (*Snowflake, error) {
-	id := getMachineID()
-	if id < 0 || id > maxMachineID {
-		return nil, errors.New("machineID out of range")
+	mid := getMachineID()
+	if mid < 0 || mid > maxMachineID {
+		return nil, errors.New("machine id out of range")
 	}
 	return &Snowflake{
-		machineID: id,
+		machineID: mid,
+		sequence:  0,
+		lastStamp: time.Now().UnixMilli(),
 	}, nil
 }
 
-func (s *Snowflake) NextID() int64 {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+// NextID 生成 唯一 正数 int64
+func (sf *Snowflake) NextID() int64 {
+	sf.mu.Lock()
+	defer sf.mu.Unlock()
 
-	now := currentMicro()
-	if now < s.lastStamp {
-		// Clock rollback protection
-		return 0
+	now := time.Now().UnixMilli()
+
+	if now < sf.lastStamp {
+		for now < sf.lastStamp {
+			now = time.Now().UnixMilli()
+		}
 	}
 
-	if now == s.lastStamp {
-		s.sequence = (s.sequence + 1) & maxSequence
-		if s.sequence == 0 {
-			// Sequence number for current microsecond is full, wait for next microsecond
-			for now <= s.lastStamp {
-				now = currentMicro()
+	if now == sf.lastStamp {
+		sf.sequence = (sf.sequence + 1) & maxSequence
+		if sf.sequence == 0 {
+			for now <= sf.lastStamp {
+				now = time.Now().UnixMilli()
 			}
 		}
 	} else {
-		s.sequence = 0
+		sf.sequence = 0
 	}
 
-	s.lastStamp = now
+	sf.lastStamp = now
 
-	id := ((now - epoch) << timestampShift) |
-		(s.machineID << machineIDShift) |
-		s.sequence
+	// 标准格式：0 | 41位时间 | 10位机器 | 12位序列
+	return ((now - epoch) << timestampShift) |
+		(sf.machineID << machineIDShift) |
+		sf.sequence
+}
 
-	return id
+// GenID 字符串格式（正数）
+func (sf *Snowflake) GenID() string {
+	return strconv.FormatInt(sf.NextID(), 10)
+}
+
+func getMachineID() int64 {
+	midStr := os.Getenv("MACHINE_ID")
+	if midStr == "" {
+		return 1
+	}
+	mid, err := strconv.ParseInt(midStr, 10, 64)
+	if err != nil {
+		return 1
+	}
+	return mid
 }
 
 func currentMicro() int64 {
 	return time.Now().UnixNano() / 1e3
-}
-
-func getMachineID() int64 {
-	val := os.Getenv("MACHINE_ID")
-	id, err := strconv.ParseInt(val, 10, 64)
-	if err != nil {
-		return 1 // fallback default value, recommended to modify according to actual situation
-	}
-	return id
 }
 
 // WriteFile write file
