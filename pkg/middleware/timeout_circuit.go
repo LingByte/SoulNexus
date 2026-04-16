@@ -279,11 +279,10 @@ func CombinedTimeoutCircuitMiddleware() gin.HandlerFunc {
 
 	return func(c *gin.Context) {
 		endpoint := c.Request.URL.Path
-		// 跳过 WebSocket 语音连接的熔断器检查
-		// WebSocket 是长连接，不适合用熔断器
 		if endpoint == "/api/voice/lingecho/v1/" ||
 			endpoint == "/api/voice/lingecho/v2/" ||
-			endpoint == "/api/voice/websocket" {
+			endpoint == "/api/voice/websocket" ||
+			endpoint == "/api/rtcsfu/v1/signal/ws" {
 			c.Next()
 			return
 		}

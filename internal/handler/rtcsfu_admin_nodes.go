@@ -13,6 +13,23 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// rtcsfuAdminAuth checks RTCSFU is on, API key header, and optionally rejects replica processes (primary-only writes).
+func (h *Handlers) rtcsfuAdminAuth(c *gin.Context, forbidReplica bool) bool {
+	if h.rtcsfu == nil {
+		response.Fail(c, "RTCSFU 未启用", nil)
+		return false
+	}
+	if forbidReplica && strings.EqualFold(strings.TrimSpace(config.GlobalConfig.RTCSFU.ClusterRole), "replica") {
+		response.FailWithCode(c, 403, "replica 进程不能使用主控写接口", nil)
+		return false
+	}
+	if c.GetHeader("X-RTCSFU-Key") != config.GlobalConfig.RTCSFU.APIKey {
+		response.FailWithCode(c, 401, "未授权", nil)
+		return false
+	}
+	return true
+}
+
 func parseNodesJSONArrayOrObject(raw []byte) ([]rtcsfu.SFUNode, error) {
 	if len(raw) == 0 {
 		return nil, io.ErrUnexpectedEOF
