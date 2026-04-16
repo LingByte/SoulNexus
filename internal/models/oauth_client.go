@@ -53,3 +53,18 @@ func GetEnabledOAuthClientByClientID(db *gorm.DB, clientID string) (*OAuthClient
 	}
 	return client, nil
 }
+
+// MatchRedirectURI checks whether redirectURI exists in OAuthClient.RedirectURI.
+// RedirectURI supports multiple values separated by ';'.
+func (c *OAuthClient) MatchRedirectURI(redirectURI string) bool {
+	target := strings.TrimSpace(redirectURI)
+	if target == "" {
+		return false
+	}
+	for _, item := range strings.Split(strings.TrimSpace(c.RedirectURI), ";") {
+		if strings.TrimSpace(item) == target {
+			return true
+		}
+	}
+	return false
+}

@@ -17,6 +17,7 @@ const Notifications = lazy(() => import('@/pages/Notifications'))
 const Configs = lazy(() => import('@/pages/Configs'))
 const OAuthClients = lazy(() => import('@/pages/OAuthClients'))
 const Users = lazy(() => import('@/pages/Users'))
+const Assistants = lazy(() => import('@/pages/Assistants'))
 const OperationLogs = lazy(() => import('@/pages/OperationLogs'))
 const AccountLocks = lazy(() => import('@/pages/AccountLocks'))
 const Groups = lazy(() => import('@/pages/Groups'))
@@ -110,6 +111,7 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            <Route path="/assistants" element={<ProtectedRoute><Assistants /></ProtectedRoute>} />
             <Route
               path="/operation-logs"
               element={

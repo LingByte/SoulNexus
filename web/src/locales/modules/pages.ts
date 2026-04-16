@@ -16,12 +16,6 @@ export const pages: Record<Language, Record<string, string>> = {
     'home.techStack': '技术栈',
     'home.techStackDesc': '后端、前端与 AI/ML 技术概览',
     'home.userStories': '用户故事',
-    'home.team': '团队',
-
-    // Team translations
-    'team.title': '团队',
-    'team.desc': '我们的核心团队成员',
-    'team.fullStack': '全栈开发工程师',
 
     // Brand translations
     'brand.name': 'SoulMy',
@@ -179,6 +173,16 @@ export const pages: Record<Language, Record<string, string>> = {
     'home.platformShowcase.feature3': '智能知识库管理和AI分析',
     'home.platformShowcase.feature4': '可视化工作流自动化设计',
     'home.platformShowcase.cta': '了解更多',
+    'home.contactCard.title': '联系信息',
+    'home.contactCard.companyLabel': '公司',
+    'home.contactCard.company': '成都解忧造物科技有限责任公司',
+    'home.contactCard.addressLabel': '地址',
+    'home.contactCard.address': '四川省成都市成华区一环路东一段159号1栋1层1号附17号',
+    'home.contactCard.contactLabel': '联系',
+    'home.contactCard.community': '欢迎关注我们的社区版开源项目',
+    'home.contactCard.close': '关闭',
+    'home.contactDock.company': '公司信息',
+    'home.contactDock.contact': '联系方式',
 
     // Contact
     'contact.title': '联系我们',
@@ -385,12 +389,6 @@ export const pages: Record<Language, Record<string, string>> = {
     'home.techStack': 'Tech Stack',
     'home.techStackDesc': 'Backend, frontend and AI/ML technology overview',
     'home.userStories': 'User Stories',
-    'home.team': 'Team',
-
-    // Team translations
-    'team.title': 'Team',
-    'team.desc': 'Our core team members',
-    'team.fullStack': 'Full Stack Developer',
 
     // Brand translations
     'brand.name': 'SoulMy',
@@ -685,6 +683,16 @@ export const pages: Record<Language, Record<string, string>> = {
     'home.platformShowcase.feature3': 'Intelligent knowledge base management and AI analysis',
     'home.platformShowcase.feature4': 'Visual workflow automation design',
     'home.platformShowcase.cta': 'Learn More',
+    'home.contactCard.title': 'Contact Information',
+    'home.contactCard.companyLabel': 'Company',
+    'home.contactCard.company': 'Chengdu Jieyou Zaowu Technology Co., Ltd.',
+    'home.contactCard.addressLabel': 'Address',
+    'home.contactCard.address': 'No. 159, East Section 1, First Ring Road, Chenghua District, Chengdu, Sichuan Province',
+    'home.contactCard.contactLabel': 'Contact',
+    'home.contactCard.community': 'Follow our community open-source project',
+    'home.contactCard.close': 'Close',
+    'home.contactDock.company': 'Company Info',
+    'home.contactDock.contact': 'Contact Info',
 
     // Contact
     'contact.title': 'Contact Us',
@@ -754,12 +762,6 @@ export const pages: Record<Language, Record<string, string>> = {
     'home.techStack': '技術スタック',
     'home.techStackDesc': 'バックエンド、フロントエンド、AI/ML技術概要',
     'home.userStories': 'ユーザーストーリー',
-    'home.team': 'チーム',
-
-    // Team translations
-    'team.title': 'チーム',
-    'team.desc': '私たちのコアチームメンバー',
-    'team.fullStack': 'フルスタック開発者',
 
     // Brand translations
     'brand.name': 'SoulMy',
@@ -1053,6 +1055,16 @@ export const pages: Record<Language, Record<string, string>> = {
     'home.platformShowcase.feature3': 'インテリジェントナレッジベース管理とAI分析',
     'home.platformShowcase.feature4': 'ビジュアルワークフロー自動化設計',
     'home.platformShowcase.cta': '詳細を見る',
+    'home.contactCard.title': '連絡先情報',
+    'home.contactCard.companyLabel': '会社',
+    'home.contactCard.company': '成都解忧造物科技有限責任公司',
+    'home.contactCard.addressLabel': '住所',
+    'home.contactCard.address': '四川省成都市成華区一環路東一段159号1棟1階1号附17号',
+    'home.contactCard.contactLabel': '連絡先',
+    'home.contactCard.community': 'コミュニティ版オープンソースプロジェクトはこちら',
+    'home.contactCard.close': '閉じる',
+    'home.contactDock.company': '会社情報',
+    'home.contactDock.contact': '連絡先',
 
     // Contact
     'contact.title': 'お問い合わせ',
