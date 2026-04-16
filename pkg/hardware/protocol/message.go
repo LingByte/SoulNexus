@@ -6,6 +6,7 @@ package protocol
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/LingByte/SoulNexus/pkg/hardware/constants"
@@ -124,13 +125,13 @@ func (s *HardwareSession) handleAbortMessage() {
 // handleHelloMessage 处理hello消息
 // {\"type\":\"hello\",\"version\":1,\"features\":{\"aec\":true,\"mcp\":true},\"transport\":\"websocket\",\"audio_params\":{\"format\":\"opus\",\"sample_rate\":16000,\"channels\":1,\"frame_duration\":60}}"}
 func (s *HardwareSession) handleHelloMessage(msg map[string]interface{}) {
-	audioFormat := "opus"
+	inputAudioFormat := "opus"
 	sampleRate := 16000
 	channels := 1
 	frameDuration := "60ms"
 	if audioParams, ok := msg["audio_params"].(map[string]interface{}); ok {
 		if format, ok := audioParams["format"].(string); ok {
-			audioFormat = format
+			inputAudioFormat = strings.ToLower(strings.TrimSpace(format))
 		}
 		if rate, ok := audioParams["sample_rate"].(float64); ok {
 			sampleRate = int(rate)
@@ -142,7 +143,12 @@ func (s *HardwareSession) handleHelloMessage(msg map[string]interface{}) {
 			frameDuration = fmt.Sprintf("%dms", int(frameDur))
 		}
 	}
+	outputCodec := "opus"
+	if inputAudioFormat == "pcm" {
+		outputCodec = "pcm"
+	}
 	s.mu.Lock()
+	s.outputAudioCodec = outputCodec
 	asrProvider := s.config.Credential.GetASRProvider()
 	factory := recognizer.GetGlobalFactory()
 	asrConfig := make(map[string]interface{})
@@ -168,6 +174,7 @@ func (s *HardwareSession) handleHelloMessage(msg map[string]interface{}) {
 
 	pipeline, err := sessions.NewASRPipeline(&sessions.ASRPipelineOption{
 		Asr:                  asrService,
+		InputFormat:          inputAudioFormat,
 		SampleRate:           sampleRate,
 		Channels:             channels,
 		FrameDuration:        frameDuration,
@@ -186,6 +193,9 @@ func (s *HardwareSession) handleHelloMessage(msg map[string]interface{}) {
 	s.logger.Info(fmt.Sprintf(
 		"Session create new Session sessionID:%s vad:%v, vadThreshold:%f, vadConsecultiveFrames:%d",
 		s.sessionID, s.config.EnableVAD, s.config.VADThreshold, s.config.VADConsecutiveFrames))
+	if s.ttsPipeline != nil {
+		s.ttsPipeline.UpdateOutputCodec(outputCodec)
+	}
 	s.asrPipeline = pipeline
 
 	// 设置 PCM 音频记录回调
@@ -270,7 +280,7 @@ func (s *HardwareSession) handleHelloMessage(msg map[string]interface{}) {
 		// 记录用户输入（在 LLM 开始处理时）
 		s.recordUserInput(incrementalText, asrStartTime, asrEndTime)
 
-		if err := s.writer.SendTTSStart(); err != nil {
+		if err := s.writer.SendTTSStartWithCodec(s.outputAudioCodec); err != nil {
 			s.logger.Error("[Session] 发送 TTS 开始消息失败", zap.Error(err))
 			s.logSessionError("COMMUNICATION", "ERROR", "TTS_START_SEND_ERROR", fmt.Sprintf("发送 TTS 开始消息失败: %v", err), "", "Failed to send TTS start message")
 		}
@@ -352,6 +362,13 @@ func (s *HardwareSession) handleHelloMessage(msg map[string]interface{}) {
 					s.ttsPipeline.OnLLMToken(segment)
 				} else {
 					llmEndTime = time.Now()
+					// 统一在流式结束时回传完整 LLM 文本，供 Web/硬件端可视化展示。
+					if llmResponse != "" {
+						if sendErr := s.writer.SendLLMResponse(llmResponse); sendErr != nil {
+							s.logger.Error("[Session] 发送 LLM 回复失败", zap.Error(sendErr))
+							s.logSessionError("COMMUNICATION", "ERROR", "LLM_RESPONSE_SEND_ERROR", fmt.Sprintf("发送 LLM 回复失败: %v", sendErr), "", "Failed to send LLM response")
+						}
+					}
 					s.ttsPipeline.OnLLMComplete()
 				}
 				return nil
@@ -395,13 +412,13 @@ func (s *HardwareSession) handleHelloMessage(msg map[string]interface{}) {
 	if feat, ok := msg["features"].(map[string]interface{}); ok {
 		features = feat
 	}
-	sessionID, err := s.writer.SendWelcome(audioFormat, sampleRate, channels, features)
+	sessionID, err := s.writer.SendWelcome(inputAudioFormat, sampleRate, channels, features)
 	if err != nil {
 		s.logger.Error("发送Welcome响应失败", zap.Error(err))
 	} else {
 		s.logger.Info(fmt.Sprintf(
 			"[Session] --- 已发送Welcome响应 audioFormat:%s, sampleRate:%d, channel:%d, sessionId:%s",
-			audioFormat, sampleRate, channels, sessionID))
+			inputAudioFormat, sampleRate, channels, sessionID))
 	}
 }
 

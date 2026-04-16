@@ -18,6 +18,7 @@ type TTSPipelineConfig struct {
 	TTSService          TTSService
 	SendCallback        func(data []byte) error // 发送音频数据的回调
 	GetPendingCountFunc func() int              // 获取待发送包数量的回调
+	OutputCodec         string                  // 下行编码格式（opus/pcm）
 	TargetSampleRate    int                     // 目标采样率，默认 16000
 	FrameDuration       time.Duration           // 帧时长，默认 60ms
 	RecordCallback      func(data []byte) error // 录音回调（用于记录AI音频）
@@ -70,6 +71,7 @@ func NewTTSPipeline(config *TTSPipelineConfig) (*TTSPipeline, error) {
 		audioCh,
 		config.TargetSampleRate,
 		config.FrameDuration,
+		config.OutputCodec,
 		config.SendCallback,
 		config.GetPendingCountFunc,
 		config.Logger,
@@ -385,4 +387,11 @@ func (p *TTSPipeline) UpdateTTSService(newService TTSService) {
 	p.logger.Info("Pipeline 开始更新 TTS 服务")
 	p.ttsService = newService
 	p.logger.Info("Pipeline TTS 服务更新完成")
+}
+
+// UpdateOutputCodec 动态更新输出编码（opus/pcm）。
+func (p *TTSPipeline) UpdateOutputCodec(codec string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.audioSender.SetOutputCodec(codec)
 }
