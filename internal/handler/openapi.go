@@ -5,6 +5,7 @@ package handlers
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,8 +17,9 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/recognizer"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/synthesizer"
-	lingstorage "github.com/LingByte/lingstorage-sdk-go"
+	"github.com/LingByte/lingstorage-sdk-go"
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 	gonanoid "github.com/matoous/go-nanoid"
 )
 
@@ -29,6 +31,8 @@ func (h *Handlers) registerOpenAPIRoutes(r *gin.RouterGroup) {
 		open.GET("/me", h.openGetMe)
 		open.POST("/tts", h.openTTS)
 		open.POST("/asr", h.openASR)
+		open.GET("/ws/asr", h.openWSASR)
+		open.GET("/ws/tts", h.openWSTTS)
 	}
 }
 
@@ -44,6 +48,45 @@ func (h *Handlers) openGetMe(c *gin.Context) {
 		"username": user.DisplayName,
 		"email":    user.Email,
 	})
+}
+
+type openWSInitMessage struct {
+	Type  string `json:"type"`
+	Codec string `json:"codec"`
+}
+
+type wsChunkHandler struct {
+	onMessage func([]byte) error
+}
+
+func (h *wsChunkHandler) OnMessage(data []byte) {
+	if len(data) == 0 || h.onMessage == nil {
+		return
+	}
+	_ = h.onMessage(data)
+}
+
+func (h *wsChunkHandler) OnTimestamp(_ synthesizer.SentenceTimestamp) {}
+
+func readWSInit(conn *websocket.Conn) (*openWSInitMessage, error) {
+	msgType, payload, err := conn.ReadMessage()
+	if err != nil {
+		return nil, err
+	}
+	if msgType != websocket.TextMessage {
+		return nil, fmt.Errorf("first message must be text init")
+	}
+	var initMsg openWSInitMessage
+	if err := json.Unmarshal(payload, &initMsg); err != nil {
+		return nil, fmt.Errorf("invalid init json: %w", err)
+	}
+	if initMsg.Type != "init" {
+		return nil, fmt.Errorf("first message type must be init")
+	}
+	if initMsg.Codec == "" {
+		initMsg.Codec = "pcm"
+	}
+	return &initMsg, nil
 }
 
 // openTTS TTS 一句话合成，返回音频 URL
@@ -78,7 +121,7 @@ func (h *Handlers) openTTS(c *gin.Context) {
 	format := svc.Format()
 	wavData := buildWAV(buf.Data, format.SampleRate, format.Channels, format.BitDepth)
 
-	key := fmt.Sprintf("open/tts/%d_%d.wav", h.getCredentialIDFromCtx(c), time.Now().UnixMilli())
+	key := fmt.Sprintf("open/tts/%d_%d.wav", cred.ID, time.Now().UnixMilli())
 	result, err := config.GlobalStore.UploadBytes(&lingstorage.UploadBytesRequest{
 		Bucket:   config.GlobalConfig.Services.Storage.Bucket,
 		Data:     wavData,
@@ -103,7 +146,6 @@ func (h *Handlers) openTTS(c *gin.Context) {
 		bitDepth = 16
 	}
 	duration := float64(len(buf.Data)) / float64(sampleRate*channels*(bitDepth/8))
-
 	response.Success(c, "ok", gin.H{
 		"url":      result.URL,
 		"duration": duration,
@@ -124,7 +166,6 @@ func (h *Handlers) openASR(c *gin.Context) {
 		response.Fail(c, "读取文件失败", err.Error())
 		return
 	}
-
 	cred := h.getCredentialFromCtx(c)
 	if cred == nil || len(cred.AsrConfig) == 0 {
 		response.Fail(c, "未配置 ASR", "请在凭证中配置 asrConfig")
@@ -202,6 +243,184 @@ func (h *Handlers) openASR(c *gin.Context) {
 		"text":     resultText,
 		"duration": duration,
 	})
+}
+
+// openWSASR WebSocket 流式 ASR
+// 首帧必须发送 {"type":"init","codec":"pcm"}，然后发送二进制 PCM16 音频。
+func (h *Handlers) openWSASR(c *gin.Context) {
+	cred := h.getCredentialFromCtx(c)
+	if cred == nil || len(cred.AsrConfig) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 500, "msg": "未配置 ASR", "data": nil})
+		return
+	}
+	conn, err := voiceUpgrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+	initMsg, err := readWSInit(conn)
+	if err != nil {
+		_ = conn.WriteJSON(gin.H{"type": "error", "message": err.Error()})
+		return
+	}
+	if initMsg.Codec != "pcm" {
+		_ = conn.WriteJSON(gin.H{"type": "error", "message": "asr websocket only supports codec=pcm"})
+		return
+	}
+	_ = conn.WriteJSON(gin.H{"type": "ready", "codec": "pcm"})
+
+	asrProvider := cred.GetASRProvider()
+	asrCfg := map[string]interface{}{
+		"provider": asrProvider,
+		"language": "zh",
+	}
+	for k, v := range cred.AsrConfig {
+		asrCfg[k] = v
+	}
+	cfg, err := recognizer.NewTranscriberConfigFromMap(asrProvider, asrCfg, "zh")
+	if err != nil {
+		_ = conn.WriteJSON(gin.H{"type": "error", "message": err.Error()})
+		return
+	}
+	asrService, err := recognizer.GetGlobalFactory().CreateTranscriber(cfg)
+	if err != nil {
+		_ = conn.WriteJSON(gin.H{"type": "error", "message": err.Error()})
+		return
+	}
+
+	var writeMu sync.Mutex
+	asrService.Init(
+		func(text string, final bool, duration time.Duration, uuid string) {
+			writeMu.Lock()
+			defer writeMu.Unlock()
+			_ = conn.WriteJSON(gin.H{
+				"type":     "result",
+				"text":     text,
+				"final":    final,
+				"duration": duration.Milliseconds(),
+				"uuid":     uuid,
+			})
+		},
+		func(err error, fatal bool) {
+			writeMu.Lock()
+			defer writeMu.Unlock()
+			_ = conn.WriteJSON(gin.H{
+				"type":    "error",
+				"fatal":   fatal,
+				"message": err.Error(),
+			})
+		},
+	)
+
+	dialogID, _ := gonanoid.Nanoid()
+	if err := asrService.ConnAndReceive(dialogID); err != nil {
+		_ = conn.WriteJSON(gin.H{"type": "error", "message": err.Error()})
+		return
+	}
+
+	for {
+		msgType, payload, err := conn.ReadMessage()
+		if err != nil {
+			_ = asrService.SendEnd()
+			return
+		}
+		switch msgType {
+		case websocket.BinaryMessage:
+			if len(payload) > 0 {
+				_ = asrService.SendAudioBytes(payload)
+			}
+		case websocket.TextMessage:
+			var ctrl struct {
+				Type string `json:"type"`
+			}
+			_ = json.Unmarshal(payload, &ctrl)
+			if ctrl.Type == "end" {
+				_ = asrService.SendEnd()
+			} else if ctrl.Type == "ping" {
+				writeMu.Lock()
+				_ = conn.WriteJSON(gin.H{"type": "pong"})
+				writeMu.Unlock()
+			}
+		}
+	}
+}
+
+// openWSTTS WebSocket 流式 TTS
+// 首帧必须发送 {"type":"init","codec":"pcm"}，然后发送 {"text":"..."}。
+func (h *Handlers) openWSTTS(c *gin.Context) {
+	cred := h.getCredentialFromCtx(c)
+	if cred == nil || len(cred.TtsConfig) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 500, "msg": "未配置 TTS", "data": nil})
+		return
+	}
+	conn, err := voiceUpgrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+	initMsg, err := readWSInit(conn)
+	if err != nil {
+		_ = conn.WriteJSON(gin.H{"type": "error", "message": err.Error()})
+		return
+	}
+	if initMsg.Codec != "pcm" {
+		_ = conn.WriteJSON(gin.H{"type": "error", "message": "tts websocket only supports codec=pcm"})
+		return
+	}
+	_ = conn.WriteJSON(gin.H{"type": "ready", "codec": "pcm"})
+
+	svc, err := synthesizer.NewSynthesisServiceFromCredential(synthesizer.TTSCredentialConfig(cred.TtsConfig))
+	if err != nil {
+		_ = conn.WriteJSON(gin.H{"type": "error", "message": err.Error()})
+		return
+	}
+	defer svc.Close()
+
+	var writeMu sync.Mutex
+	for {
+		_, payload, err := conn.ReadMessage()
+		if err != nil {
+			return
+		}
+		var req struct {
+			Type string `json:"type"`
+			Text string `json:"text"`
+		}
+		if err := json.Unmarshal(payload, &req); err != nil {
+			writeMu.Lock()
+			_ = conn.WriteJSON(gin.H{"type": "error", "message": "invalid json"})
+			writeMu.Unlock()
+			continue
+		}
+		if req.Type == "ping" {
+			writeMu.Lock()
+			_ = conn.WriteJSON(gin.H{"type": "pong"})
+			writeMu.Unlock()
+			continue
+		}
+		if req.Text == "" {
+			continue
+		}
+		writeMu.Lock()
+		_ = conn.WriteJSON(gin.H{"type": "start", "codec": "pcm"})
+		writeMu.Unlock()
+		err = svc.Synthesize(c.Request.Context(), &wsChunkHandler{
+			onMessage: func(chunk []byte) error {
+				writeMu.Lock()
+				defer writeMu.Unlock()
+				return conn.WriteMessage(websocket.BinaryMessage, chunk)
+			},
+		}, req.Text)
+		if err != nil {
+			writeMu.Lock()
+			_ = conn.WriteJSON(gin.H{"type": "error", "message": err.Error()})
+			writeMu.Unlock()
+			continue
+		}
+		writeMu.Lock()
+		_ = conn.WriteJSON(gin.H{"type": "end"})
+		writeMu.Unlock()
+	}
 }
 
 // buildWAV 将 PCM 数据加上 WAV 头
