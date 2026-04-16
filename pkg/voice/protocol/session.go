@@ -107,6 +107,8 @@ func NewHardwareSession(ctx context.Context, hardwareConfig *HardwareSessionOpti
 	tools.RegisterBuiltinTools(llmService)
 	speakerManager := tools.NewSpeakerManager(hardwareConfig.Logger)
 	tools.RegisterSpeakerTool(llmService, speakerManager)
+	hardwareConfig.Logger.Info("[Session] 当前已注册 LLM Tools",
+		zap.Strings("tools", llmService.ListTools()))
 
 	ttsProvider := hardwareConfig.Credential.GetTTSProvider()
 	ttsConfig := make(synthesizer.TTSCredentialConfig)
@@ -295,6 +297,8 @@ func NewHardwareSession(ctx context.Context, hardwareConfig *HardwareSessionOpti
 	tools.RegisterGoodbyeTool(llmService, func() error {
 		return session.handleGoodbye()
 	})
+	hardwareConfig.Logger.Info("[Session] 注册 goodbye 后的 LLM Tools",
+		zap.Strings("tools", llmService.ListTools()))
 	pipeline.SetOnComplete(func() {
 		session.onTTSComplete()
 	})
@@ -308,6 +312,8 @@ func NewHardwareSession(ctx context.Context, hardwareConfig *HardwareSessionOpti
 		)
 		// 注册声纹识别工具给 LLM，使其可以主动调用
 		tools.RegisterVoiceprintIdentifyTool(llmService, session.voiceprintTool)
+		hardwareConfig.Logger.Info("[Session] 注册声纹工具后的 LLM Tools",
+			zap.Strings("tools", llmService.ListTools()))
 	}
 	sessionRef = session
 	go session.preloadCommonSpeakers(ttsConfig)
