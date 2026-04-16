@@ -2,11 +2,12 @@ import React, {useEffect, useState} from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Key, Settings, AppWindow, ChevronDown, RefreshCw, ArrowRight, Bot, MessageCircle, Users, Zap, Circle, Mic } from 'lucide-react';
 import { cn } from '@/utils/cn';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/UI/Select.tsx';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/UI/Select';
 import Button from '@/components/UI/Button';
 import { Switch } from '@/components/UI/Switch';
 import Card from '@/components/UI/Card';
 import { getVoiceOptions, VoiceOption, getLanguageOptions, LanguageOption } from '@/api/assistant';
+import { jsTemplateService, type JSTemplate } from '@/api/jsTemplate';
 import { highlightContent } from '@/utils/highlight';
 import { useI18nStore } from '@/stores/i18nStore';
 
@@ -35,6 +36,8 @@ interface ControlPanelProps {
     onTemperatureChange: (value: number) => void
     onMaxTokensChange: (value: number) => void
     onLlmModelChange: (value: string) => void
+    jsSourceId?: string
+    onJsSourceIdChange?: (value: string) => void
 
     // 助手设置
     assistantName: string
@@ -109,6 +112,8 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                                        onTemperatureChange,
                                                        onMaxTokensChange,
                                                        onLlmModelChange,
+                                                       jsSourceId = '',
+                                                       onJsSourceIdChange,
                                                        assistantName,
                                                        assistantDescription,
                                                        assistantIcon,
@@ -144,6 +149,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
     const [loadingVoices, setLoadingVoices] = useState(false);
     const [languageOptions, setLanguageOptions] = useState<LanguageOption[]>([]);
     const [loadingLanguages, setLoadingLanguages] = useState(false);
+    const [jsTemplates, setJsTemplates] = useState<JSTemplate[]>([])
 
 
     // 根据TTS Provider加载音色列表
@@ -233,6 +239,20 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         fetchVoiceOptions(provider, selectedSpeaker);
         fetchLanguageOptions(provider, language);
     }, [ttsProvider]); // 只依赖ttsProvider，selectedSpeaker和language的变化不影响重新加载
+
+    useEffect(() => {
+        const fetchJSTemplates = async () => {
+            try {
+                const response = await jsTemplateService.getTemplates({ page: 1, limit: 200 })
+                const templates = response?.data?.data || []
+                setJsTemplates(templates)
+            } catch (error) {
+                console.error('获取JS模板失败:', error)
+                setJsTemplates([])
+            }
+        }
+        fetchJSTemplates()
+    }, [])
     const [expandedSections, setExpandedSections] = useState({
         api: true,
         call: true,
@@ -648,6 +668,36 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                                     </button>
                                                 ))}
                                             </div>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-xs text-gray-500 dark:text-gray-400">
+                                                {t('controlPanel.assistant.jsTemplate')}
+                                            </label>
+                                            <Select
+                                                value={jsSourceId || ''}
+                                                onValueChange={(value) => onJsSourceIdChange?.(value)}
+                                                className="w-full"
+                                            >
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder={t('controlPanel.assistant.jsTemplatePlaceholder')}>
+                                                        {jsSourceId
+                                                            ? jsTemplates.find(tpl => tpl.jsSourceId === jsSourceId)?.name || jsSourceId
+                                                            : t('controlPanel.assistant.jsTemplateDefault')}
+                                                    </SelectValue>
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="">{t('controlPanel.assistant.jsTemplateDefault')}</SelectItem>
+                                                    {jsTemplates.map((tpl) => (
+                                                        <SelectItem key={tpl.id} value={tpl.jsSourceId}>
+                                                            {tpl.name}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                {t('controlPanel.assistant.jsTemplateHint')}
+                                            </p>
                                         </div>
                                     </div>
 

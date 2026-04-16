@@ -5,7 +5,6 @@ package models
 
 import (
 	"crypto/rand"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -42,88 +41,82 @@ type Assistant struct {
 	UpdatedAt            time.Time `json:"updatedAt" gorm:"autoUpdateTime"`
 }
 
-
-// ChatSessionLog 表示一次聊天会话记录
-type ChatSessionLog struct {
-	ID           int64  `json:"id" gorm:"primaryKey;autoIncrement"`
-	SessionID    string `json:"sessionId" gorm:"index"` // 会话ID，用于关联同一次对话
-	UserID       uint   `json:"userId" gorm:"index"`
-	AssistantID  int64  `json:"assistantId" gorm:"index"` // 关联的助手ID
-	ChatType     string `json:"chatType"`                 // 聊天类型：realtime(实时通话), press(按住说话), text(文本聊天)
-	UserMessage  string `json:"userMessage"`              // 用户消息
-	AgentMessage string `json:"agentMessage"`             // AI助手回复
-	AudioURL     string `json:"audioUrl,omitempty"`       // 音频URL（如果有）
-	Duration     int    `json:"duration,omitempty"`       // 通话时长（秒）
-
-	// LLM Usage 信息
-	LLMUsage string `json:"llmUsage,omitempty" gorm:"type:text"` // LLM使用信息的JSON字符串
-
-	CreatedAt time.Time `json:"createdAt" gorm:"autoCreateTime"`
-	UpdatedAt time.Time `json:"updatedAt" gorm:"autoUpdateTime"`
+// ChatSession 聊天会话表
+type ChatSession struct {
+	ID           string     `json:"id" gorm:"primaryKey;type:varchar(64)"`
+	UserID       string     `json:"user_id" gorm:"type:varchar(64);not null;index"`
+	AssistantID  int64      `json:"assistant_id" gorm:"index"`
+	Title        string     `json:"title" gorm:"type:varchar(255)"`
+	Provider     string     `json:"provider" gorm:"type:varchar(50);not null"`
+	Model        string     `json:"model" gorm:"type:varchar(100);not null"`
+	SystemPrompt string     `json:"system_prompt" gorm:"type:text"`
+	Status       string     `json:"status" gorm:"type:varchar(20);default:'active'"`
+	CreatedAt    time.Time  `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt    time.Time  `json:"updated_at" gorm:"autoUpdateTime"`
+	DeletedAt    *time.Time `json:"deleted_at,omitempty" gorm:"index"`
 }
 
-// ToolCallInfo 工具调用信息
-type ToolCallInfo struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	Arguments string `json:"arguments"`
+// ChatMessage 聊天消息表
+type ChatMessage struct {
+	ID         string     `json:"id" gorm:"primaryKey;type:varchar(64)"`
+	SessionID  string     `json:"session_id" gorm:"type:varchar(64);not null;index"`
+	Role       string     `json:"role" gorm:"type:varchar(20);not null"`
+	Content    string     `json:"content" gorm:"type:text;not null"`
+	TokenCount int        `json:"token_count" gorm:"default:0"`
+	Model      string     `json:"model" gorm:"type:varchar(100);not null"`
+	Provider   string     `json:"provider" gorm:"type:varchar(50);not null"`
+	RequestID  string     `json:"request_id" gorm:"type:varchar(64);index"`
+	CreatedAt  time.Time  `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt  time.Time  `json:"updated_at" gorm:"autoUpdateTime"`
+	DeletedAt  *time.Time `json:"deleted_at,omitempty" gorm:"index"`
 }
 
-// LLMUsage 记录LLM调用的详细信息
+// LLMUsage LLM用量统计表
 type LLMUsage struct {
-	// Request Information
-	Model               string   `json:"model"`
-	MaxTokens           *int     `json:"maxTokens,omitempty"`
-	MaxCompletionTokens *int     `json:"maxCompletionTokens,omitempty"`
-	Temperature         *float32 `json:"temperature,omitempty"`
-	TopP                *float32 `json:"topP,omitempty"`
-	FrequencyPenalty    *float32 `json:"frequencyPenalty,omitempty"`
-	PresencePenalty     *float32 `json:"presencePenalty,omitempty"`
-	Stop                []string `json:"stop,omitempty"`
-	N                   *int     `json:"n,omitempty"`
-	User                string   `json:"user,omitempty"`
-	Stream              bool     `json:"stream"`
-	Seed                *int     `json:"seed,omitempty"`
-
-	// Response Information
-	ResponseID       string `json:"responseId,omitempty"`
-	Object           string `json:"object,omitempty"`
-	Created          int64  `json:"created,omitempty"`
-	FinishReason     string `json:"finishReason,omitempty"`
-	PromptTokens     int    `json:"promptTokens"`
-	CompletionTokens int    `json:"completionTokens"`
-	TotalTokens      int    `json:"totalTokens"`
-
-	// Context Information
-	SystemPrompt string `json:"systemPrompt,omitempty"`
-	MessageCount int    `json:"messageCount,omitempty"`
-
-	// Timing Information
-	StartTime time.Time `json:"startTime,omitempty"` // 调用开始时间
-	EndTime   time.Time `json:"endTime,omitempty"`   // 调用结束时间
-	Duration  int64     `json:"duration,omitempty"`  // 调用持续时间（毫秒）
-
-	// Tool Call Information
-	HasToolCalls  bool           `json:"hasToolCalls,omitempty"`  // 是否调用了工具
-	ToolCallCount int            `json:"toolCallCount,omitempty"` // 工具调用数量
-	ToolCalls     []ToolCallInfo `json:"toolCalls,omitempty"`     // 工具调用详情
+	ID              string    `json:"id" gorm:"primaryKey;type:varchar(64)"`
+	RequestID       string    `json:"request_id" gorm:"type:varchar(64);uniqueIndex;not null"`
+	SessionID       string    `json:"session_id" gorm:"type:varchar(64);index"`
+	UserID          string    `json:"user_id" gorm:"type:varchar(64);index"`
+	Provider        string    `json:"provider" gorm:"type:varchar(50);not null;index"`
+	Model           string    `json:"model" gorm:"type:varchar(100);not null;index"`
+	BaseURL         string    `json:"base_url" gorm:"type:varchar(255)"`
+	RequestType     string    `json:"request_type" gorm:"type:varchar(20);not null"`
+	InputTokens     int       `json:"input_tokens" gorm:"default:0"`
+	OutputTokens    int       `json:"output_tokens" gorm:"default:0"`
+	TotalTokens     int       `json:"total_tokens" gorm:"default:0"`
+	LatencyMs       int64     `json:"latency_ms" gorm:"default:0"`
+	TTFTMs          int64     `json:"ttft_ms" gorm:"default:0"`
+	TPS             float64   `json:"tps" gorm:"default:0"`
+	QueueTimeMs     int64     `json:"queue_time_ms" gorm:"default:0"`
+	RequestContent  string    `json:"request_content" gorm:"type:text"`
+	ResponseContent string    `json:"response_content" gorm:"type:text"`
+	UserAgent       string    `json:"user_agent" gorm:"type:varchar(500)"`
+	IPAddress       string    `json:"ip_address" gorm:"type:varchar(45)"`
+	StatusCode      int       `json:"status_code" gorm:"default:200"`
+	Success         bool      `json:"success" gorm:"default:true"`
+	ErrorCode       string    `json:"error_code" gorm:"type:varchar(50)"`
+	ErrorMessage    string    `json:"error_message" gorm:"type:text"`
+	RequestedAt     time.Time `json:"requested_at" gorm:"not null;index"`
+	StartedAt       time.Time `json:"started_at" gorm:"index"`
+	FirstTokenAt    time.Time `json:"first_token_at" gorm:"index"`
+	CompletedAt     time.Time `json:"completed_at"`
+	CreatedAt       time.Time `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt       time.Time `json:"updated_at" gorm:"autoUpdateTime"`
 }
 
-// ConvertLLMUsageInfoToLLMUsage 从 pkg/llm 的 LLMUsageInfo 转换为 models.LLMUsage
-func ConvertLLMUsageInfoToLLMUsage(usageInfo interface{}) *LLMUsage {
-	// 使用类型断言或反射来转换
-	// 这里我们通过JSON序列化/反序列化来实现转换，因为两个结构体字段相似
-	usageJSON, err := json.Marshal(usageInfo)
-	if err != nil {
-		return nil
-	}
-
-	var usage LLMUsage
-	if err := json.Unmarshal(usageJSON, &usage); err != nil {
-		return nil
-	}
-
-	return &usage
+// ChatSessionLog 兼容旧接口返回结构（非持久化表）
+type ChatSessionLog struct {
+	ID           int64     `json:"id"`
+	SessionID    string    `json:"sessionId"`
+	UserID       uint      `json:"userId"`
+	AssistantID  int64     `json:"assistantId"`
+	ChatType     string    `json:"chatType"`
+	UserMessage  string    `json:"userMessage"`
+	AgentMessage string    `json:"agentMessage"`
+	AudioURL     string    `json:"audioUrl,omitempty"`
+	Duration     int       `json:"duration,omitempty"`
+	CreatedAt    time.Time `json:"createdAt"`
+	UpdatedAt    time.Time `json:"updatedAt"`
 }
 
 // 聊天类型常量
@@ -140,11 +133,104 @@ func CreateChatSessionLog(db *gorm.DB, userID uint, assistantID int64, chatType,
 
 // CreateChatSessionLogWithUsage 创建聊天记录（包含LLM Usage信息）
 func CreateChatSessionLogWithUsage(db *gorm.DB, userID uint, assistantID int64, chatType, sessionID, userMessage, agentMessage, audioURL string, duration int, usage *LLMUsage) (*ChatSessionLog, error) {
-	// 清理消息中的 emoji，避免数据库字符集不兼容问题
 	cleanedUserMessage := utils.RemoveEmoji(userMessage)
 	cleanedAgentMessage := utils.RemoveEmoji(agentMessage)
+	if sessionID == "" {
+		sessionID = "session_" + utils.SnowflakeUtil.GenID()
+	}
 
-	log := &ChatSessionLog{
+	provider := "unknown"
+	model := "unknown"
+	if usage != nil {
+		if usage.Provider != "" {
+			provider = usage.Provider
+		}
+		if usage.Model != "" {
+			model = usage.Model
+		}
+	}
+
+	session := ChatSession{
+		ID:          sessionID,
+		UserID:      fmt.Sprintf("%d", userID),
+		AssistantID: assistantID,
+		Title:       fmt.Sprintf("assistant_%d", assistantID),
+		Provider:    provider,
+		Model:       model,
+		Status:      "active",
+	}
+	if err := db.Where("id = ?", sessionID).Assign(session).FirstOrCreate(&session).Error; err != nil {
+		return nil, err
+	}
+
+	now := time.Now()
+	if cleanedUserMessage != "" {
+		userMsg := ChatMessage{
+			ID:        utils.SnowflakeUtil.GenID(),
+			SessionID: sessionID,
+			Role:      "user",
+			Content:   cleanedUserMessage,
+			Model:     model,
+			Provider:  provider,
+			CreatedAt: now,
+			UpdatedAt: now,
+		}
+		if usage != nil {
+			userMsg.RequestID = usage.RequestID
+		}
+		if err := db.Create(&userMsg).Error; err != nil {
+			return nil, err
+		}
+	}
+
+	if cleanedAgentMessage != "" {
+		agentMsg := ChatMessage{
+			ID:         utils.SnowflakeUtil.GenID(),
+			SessionID:  sessionID,
+			Role:       "assistant",
+			Content:    cleanedAgentMessage,
+			Model:      model,
+			Provider:   provider,
+			TokenCount: 0,
+			CreatedAt:  now,
+			UpdatedAt:  now,
+		}
+		if usage != nil {
+			agentMsg.RequestID = usage.RequestID
+			agentMsg.TokenCount = usage.OutputTokens
+		}
+		if err := db.Create(&agentMsg).Error; err != nil {
+			return nil, err
+		}
+	}
+
+	if usage != nil {
+		if usage.ID == "" {
+			usage.ID = utils.SnowflakeUtil.GenID()
+		}
+		if usage.RequestID == "" {
+			usage.RequestID = "req_" + usage.ID
+		}
+		usage.SessionID = sessionID
+		if usage.UserID == "" {
+			usage.UserID = fmt.Sprintf("%d", userID)
+		}
+		if usage.RequestedAt.IsZero() {
+			usage.RequestedAt = now
+		}
+		if usage.StartedAt.IsZero() {
+			usage.StartedAt = now
+		}
+		if usage.CompletedAt.IsZero() {
+			usage.CompletedAt = now
+		}
+		if err := db.Where("request_id = ?", usage.RequestID).Assign(usage).FirstOrCreate(&LLMUsage{}).Error; err != nil {
+			return nil, err
+		}
+	}
+
+	return &ChatSessionLog{
+		ID:           now.UnixMilli(),
 		SessionID:    sessionID,
 		UserID:       userID,
 		AssistantID:  assistantID,
@@ -153,124 +239,143 @@ func CreateChatSessionLogWithUsage(db *gorm.DB, userID uint, assistantID int64, 
 		AgentMessage: cleanedAgentMessage,
 		AudioURL:     audioURL,
 		Duration:     duration,
-	}
-
-	// 如果有Usage信息，序列化为JSON并清理 emoji
-	if usage != nil {
-		usageJSON, err := json.Marshal(usage)
-		if err != nil {
-			return nil, fmt.Errorf("序列化LLM Usage失败: %w", err)
-		}
-		// 清理 JSON 中的 emoji
-		cleanedJSON := utils.RemoveEmojiFromJSON(string(usageJSON))
-		log.LLMUsage = cleanedJSON
-	}
-
-	if err := db.Create(log).Error; err != nil {
-		return nil, err
-	}
-
-	return log, nil
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}, nil
 }
 
 // GetChatSessionLogs 获取用户的聊天记录列表
 // 按 session_id 分组，返回每个 session 的最新记录作为预览，同时返回该 session 的消息数量
 func GetChatSessionLogs(db *gorm.DB, userID uint, pageSize int, cursor int64) ([]ChatSessionLogSummary, error) {
-	var logs []ChatSessionLogSummary
-
-	// 按 session_id 分组，获取每个会话的最新记录，同时统计消息数量
-	query := db.Table("chat_session_logs csl").
-		Select(`
-			csl.id, 
-			csl.session_id, 
-			csl.assistant_id, 
-			a.name as assistant_name, 
-			csl.chat_type, 
-			COALESCE(SUBSTR(csl.user_message, 1, 50), SUBSTR(csl.agent_message, 1, 50)) as preview, 
-			csl.created_at,
-			(SELECT COUNT(*) FROM chat_session_logs WHERE session_id = csl.session_id AND user_id = csl.user_id) as message_count
-		`).
-		Joins("LEFT JOIN assistants a ON csl.assistant_id = a.id").
-		Where("csl.user_id = ? AND csl.id IN (SELECT MAX(id) FROM chat_session_logs WHERE user_id = ? GROUP BY session_id)", userID, userID)
-
+	var sessions []ChatSession
+	query := db.Where("user_id = ? AND status != ?", fmt.Sprintf("%d", userID), "deleted")
 	if cursor > 0 {
-		// 使用子查询找到 cursor 对应的 session_id，然后找到比它更早的 session
-		query = query.Where("csl.id < ?", cursor)
+		query = query.Where("updated_at < ?", time.UnixMilli(cursor))
+	}
+	if err := query.Order("updated_at DESC").Limit(pageSize).Find(&sessions).Error; err != nil {
+		return nil, err
 	}
 
-	err := query.Order("csl.id DESC").Limit(pageSize).Scan(&logs).Error
-	return logs, err
+	logs := make([]ChatSessionLogSummary, 0, len(sessions))
+	for _, s := range sessions {
+		var msgCount int64
+		_ = db.Model(&ChatMessage{}).Where("session_id = ?", s.ID).Count(&msgCount).Error
+
+		var lastMsg ChatMessage
+		_ = db.Where("session_id = ?", s.ID).Order("created_at DESC").First(&lastMsg).Error
+
+		assistantName := ""
+		if s.AssistantID > 0 {
+			var assistant Assistant
+			if err := db.Select("name").Where("id = ?", s.AssistantID).First(&assistant).Error; err == nil {
+				assistantName = assistant.Name
+			}
+		}
+
+		preview := lastMsg.Content
+		if len(preview) > 50 {
+			preview = preview[:50]
+		}
+		logs = append(logs, ChatSessionLogSummary{
+			ID:            s.UpdatedAt.UnixMilli(),
+			SessionID:     s.ID,
+			AssistantID:   s.AssistantID,
+			AssistantName: assistantName,
+			ChatType:      ChatTypeText,
+			Preview:       preview,
+			CreatedAt:     s.CreatedAt,
+			MessageCount:  int(msgCount),
+		})
+	}
+	return logs, nil
 }
 
 // GetChatSessionLogDetail 获取聊天记录详情
 func GetChatSessionLogDetail(db *gorm.DB, logID int64, userID uint) (*ChatSessionLogDetail, error) {
-	fmt.Printf("GetChatSessionLogDetail: 查询 logID=%d, userID=%d\n", logID, userID)
-
-	// 先检查记录是否存在
-	var count int64
-	err := db.Table("chat_session_logs").Where("id = ? AND user_id = ?", logID, userID).Count(&count).Error
+	sessions, err := GetChatSessionLogs(db, userID, 200, 0)
 	if err != nil {
-		fmt.Printf("检查记录存在性失败: %v\n", err)
 		return nil, err
 	}
-	fmt.Printf("找到记录数量: %d\n", count)
-
-	if count == 0 {
+	var target *ChatSessionLogSummary
+	for i := range sessions {
+		if sessions[i].ID == logID {
+			target = &sessions[i]
+			break
+		}
+	}
+	if target == nil {
 		return nil, fmt.Errorf("record not found")
 	}
 
-	var log ChatSessionLog
-	err = db.Table("chat_session_logs csl").
-		Select("csl.*, a.name as assistant_name").
-		Joins("LEFT JOIN assistants a ON csl.assistant_id = a.id").
-		Where("csl.id = ? AND csl.user_id = ?", logID, userID).
-		First(&log).Error
-
-	if err != nil {
-		fmt.Printf("查询详情失败: %v\n", err)
-		return nil, err
+	logs, err := GetChatSessionLogsBySession(db, target.SessionID, userID)
+	if err != nil || len(logs) == 0 {
+		return nil, fmt.Errorf("record not found")
 	}
 
-	// 获取助手名称
-	assistantName := ""
-	db.Table("assistants").Where("id = ?", log.AssistantID).Select("name").Scan(&assistantName)
-
-	// 构建详情对象
+	last := logs[len(logs)-1]
 	detail := ChatSessionLogDetail{
-		ID:            log.ID,
-		SessionID:     log.SessionID,
-		AssistantID:   log.AssistantID,
-		AssistantName: assistantName,
-		ChatType:      log.ChatType,
-		UserMessage:   log.UserMessage,
-		AgentMessage:  log.AgentMessage,
-		AudioURL:      log.AudioURL,
-		Duration:      log.Duration,
-		CreatedAt:     log.CreatedAt,
-		UpdatedAt:     log.UpdatedAt,
+		ID:            target.ID,
+		SessionID:     target.SessionID,
+		AssistantID:   target.AssistantID,
+		AssistantName: target.AssistantName,
+		ChatType:      ChatTypeText,
+		UserMessage:   last.UserMessage,
+		AgentMessage:  last.AgentMessage,
+		CreatedAt:     last.CreatedAt,
+		UpdatedAt:     last.UpdatedAt,
 	}
 
-	// 解析LLM Usage信息
-	if log.LLMUsage != "" {
-		var usage LLMUsage
-		if err := json.Unmarshal([]byte(log.LLMUsage), &usage); err == nil {
-			detail.LLMUsage = &usage
-		}
+	var usage LLMUsage
+	if err := db.Where("session_id = ?", target.SessionID).Order("created_at DESC").First(&usage).Error; err == nil {
+		detail.LLMUsage = &usage
 	}
-
-	fmt.Printf("查询详情成功: %+v\n", detail)
 	return &detail, nil
 }
 
 // GetChatSessionLogsBySession 获取指定会话的所有聊天记录
 func GetChatSessionLogsBySession(db *gorm.DB, sessionID string, userID uint) ([]ChatSessionLog, error) {
+	var session ChatSession
+	if err := db.Where("id = ? AND user_id = ?", sessionID, fmt.Sprintf("%d", userID)).First(&session).Error; err != nil {
+		return nil, err
+	}
+
+	var messages []ChatMessage
+	if err := db.Where("session_id = ?", sessionID).Order("created_at ASC").Find(&messages).Error; err != nil {
+		return nil, err
+	}
+
 	var logs []ChatSessionLog
+	for i := 0; i < len(messages); i++ {
+		if messages[i].Role != "user" {
+			continue
+		}
+		userMsg := messages[i]
+		var agentMsg *ChatMessage
+		for j := i + 1; j < len(messages); j++ {
+			if messages[j].Role == "assistant" {
+				agentMsg = &messages[j]
+				break
+			}
+		}
 
-	err := db.Where("session_id = ? AND user_id = ?", sessionID, userID).
-		Order("created_at ASC").
-		Find(&logs).Error
-
-	return logs, err
+		log := ChatSessionLog{
+			ID:           userMsg.CreatedAt.UnixMilli(),
+			SessionID:    sessionID,
+			UserID:       userID,
+			AssistantID:  session.AssistantID,
+			ChatType:     ChatTypeText,
+			UserMessage:  userMsg.Content,
+			AgentMessage: "",
+			CreatedAt:    userMsg.CreatedAt,
+			UpdatedAt:    userMsg.UpdatedAt,
+		}
+		if agentMsg != nil {
+			log.AgentMessage = agentMsg.Content
+			log.UpdatedAt = agentMsg.UpdatedAt
+		}
+		logs = append(logs, log)
+	}
+	return logs, nil
 }
 
 // ChatSessionLogSummary 聊天记录摘要（用于列表显示）
@@ -300,6 +405,10 @@ type ChatSessionLogDetail struct {
 	CreatedAt     time.Time `json:"createdAt"`
 	UpdatedAt     time.Time `json:"updatedAt"`
 }
+
+func (ChatSession) TableName() string { return "chat_sessions" }
+func (ChatMessage) TableName() string { return "chat_messages" }
+func (LLMUsage) TableName() string    { return "llm_usage" }
 
 type JSTemplate struct {
 	ID                    string    `json:"id" gorm:"primaryKey"`

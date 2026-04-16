@@ -3,6 +3,7 @@ package llm
 import (
 	"time"
 
+	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 )
 
@@ -185,7 +186,7 @@ func (t *LLMRequestTracker) Complete(response *QueryResponse) {
 		"completed_at":     endTime.UnixMilli(),
 	}
 
-	utils.Sig().Emit("LLMUsage", usageInfo, "text", output)
+	utils.Sig().Emit(constants.SignalLLMUsage, usageInfo, "text", output)
 }
 
 // Error 记录请求错误
@@ -242,7 +243,7 @@ func (t *LLMRequestTracker) Error(errCode, errorMessage string) {
 		"first_token_at":   t.firstTokenAt.UnixMilli(),
 		"completed_at":     endTime.UnixMilli(),
 	}
-	utils.Sig().Emit("LLMUsage", usageInfo, "text", "")
+	utils.Sig().Emit(constants.SignalLLMUsage, usageInfo, "text", "")
 }
 
 // CreateSession 创建会话并发送信号

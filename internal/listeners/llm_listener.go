@@ -4,15 +4,12 @@ package listeners
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/LingByte/SoulNexus/internal/models"
-	"github.com/LingByte/SoulNexus/internal/task"
 	"github.com/LingByte/SoulNexus/pkg/constants"
-	"github.com/LingByte/SoulNexus/pkg/logger"
+	"github.com/LingByte/SoulNexus/pkg/llm"
 	"github.com/LingByte/SoulNexus/pkg/utils"
-	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -21,158 +18,166 @@ var llmListenerDB *gorm.DB
 // InitLLMListenerWithDB Initialize LLM usage listener (with database connection)
 func InitLLMListenerWithDB(db *gorm.DB) {
 	llmListenerDB = db
-	utils.Sig().Connect(constants.LLMUsage, func(sender any, params ...any) {
+	initSignalConnections(db)
+}
+
+// 初始化信号连接
+func initSignalConnections(db *gorm.DB) {
+	// LLMUsage 信号连接
+	utils.Sig().Connect(constants.SignalLLMUsage, func(sender any, params ...any) {
 		usageInfo, ok := sender.(map[string]interface{})
 		if !ok {
-			logger.Warn("LLM usage signal: invalid sender type")
 			return
 		}
 
-		// Get parameters
-		var userInput, aiResponse string
-		if len(params) >= 1 {
-			if input, ok := params[0].(string); ok {
-				userInput = input
-			}
-		}
-		if len(params) >= 2 {
-			if response, ok := params[1].(string); ok {
-				aiResponse = response
-			}
+		requestID := asString(usageInfo["request_id"])
+		if requestID == "" {
+			return
 		}
 
-		logger.Info("LLM Token Usage",
-			zap.String("model", toString(usageInfo["model"])),
-			zap.Int("promptTokens", toInt(usageInfo["input_tokens"])),
-			zap.Int("completionTokens", toInt(usageInfo["output_tokens"])),
-			zap.Int("totalTokens", toInt(usageInfo["total_tokens"])),
-			zap.String("user", toString(usageInfo["user_id"])),
-			zap.String("userInput", userInput),
-			zap.String("aiResponse", aiResponse),
-			zap.Int64("duration", toInt64(usageInfo["latency_ms"])),
-		)
-
-		logger.Info("=== LLM Usage Details ===",
-			zap.String("Model", toString(usageInfo["model"])),
-			zap.Int("Prompt Tokens", toInt(usageInfo["input_tokens"])),
-			zap.Int("Completion Tokens", toInt(usageInfo["output_tokens"])),
-			zap.Int("Total Tokens", toInt(usageInfo["total_tokens"])),
-			zap.String("User ID", toString(usageInfo["user_id"])),
-			zap.Int64("Duration (ms)", toInt64(usageInfo["latency_ms"])),
-		)
-
-		// If there is a database connection and necessary context information, save to ChatSessionLog
-		userID := uint(toInt64(usageInfo["user_id"]))
-		assistantIDVal := uint(toInt64(usageInfo["assistant_id"]))
-		if llmListenerDB != nil && userID > 0 && assistantIDVal > 0 {
-			go func() {
-				// Generate or use provided sessionID
-				sessionID := toString(usageInfo["session_id"])
-				if sessionID == "" {
-					sessionID = fmt.Sprintf("session_%d_%d", userID, time.Now().Unix())
-				}
-
-				// Determine chat type
-				chatType := toString(usageInfo["chat_type"])
-				if chatType == "" {
-					chatType = models.ChatTypeText // Default to text chat
-				}
-
-				// Calculate duration (milliseconds to seconds, if 0 use default value)
-				duration := int(toInt64(usageInfo["latency_ms"]) / 1000)
-				if duration == 0 {
-					duration = 1
-				}
-
-				// Save chat log
-				_, err := models.CreateChatSessionLogWithUsage(
-					llmListenerDB,
-					userID,
-					int64(assistantIDVal),
-					chatType,
-					sessionID,
-					userInput,
-					aiResponse,
-					"", // audioURL
-					duration,
-					&models.LLMUsage{
-						Model:            toString(usageInfo["model"]),
-						PromptTokens:     toInt(usageInfo["input_tokens"]),
-						CompletionTokens: toInt(usageInfo["output_tokens"]),
-						TotalTokens:      toInt(usageInfo["total_tokens"]),
-					},
-				)
-				if err != nil {
-					logger.Error("Failed to save chat log", zap.Error(err))
-				} else {
-					logger.Info("Chat log saved", zap.String("sessionID", sessionID))
-
-					// Trigger async graph processing for conversation
-					// This will summarize the conversation and store knowledge in Neo4j
-					task.ProcessConversationAsync(
-						llmListenerDB,
-						int64(assistantIDVal),
-						sessionID,
-						userID,
-					)
-				}
-
-				// Record LLM usage in billing system
-				var credentialID uint
-				var assistantID *uint
-
-				// Prioritize CredentialID from usageInfo
-				var groupID *uint
-				credID := uint(toInt64(usageInfo["credential_id"]))
-				if credID > 0 {
-					credentialID = credID
-				} else if assistantIDVal > 0 {
-					// If no CredentialID, try to get credential ID from assistant
-					aid := assistantIDVal
-					assistantID = &aid
-
-					// Get credential ID and group ID from assistant (if assistant is associated with a credential)
-					var assistant models.Assistant
-					if err := llmListenerDB.Where("id = ? AND user_id = ?", *assistantID, userID).
-						First(&assistant).Error; err == nil {
-						if assistant.GroupID != nil {
-							groupID = assistant.GroupID
-						}
-					}
-				}
-
-				// Record LLM usage
-				if err := models.RecordLLMUsage(
-					llmListenerDB,
-					userID,
-					credentialID,
-					assistantID,
-					groupID,
-					sessionID,
-					toString(usageInfo["model"]),
-					toInt(usageInfo["input_tokens"]),
-					toInt(usageInfo["output_tokens"]),
-					toInt(usageInfo["total_tokens"]),
-				); err != nil {
-					logger.Warn("Failed to record LLM usage", zap.Error(err))
-				}
-			}()
+		// 检查是否已存在相同 request_id 的记录
+		var existingUsage models.LLMUsage
+		if err := db.Where("request_id = ?", requestID).First(&existingUsage).Error; err == nil {
+			return
 		}
+
+		usage := &models.LLMUsage{
+			ID:          utils.SnowflakeUtil.GenID(),
+			RequestID:   requestID,
+			SessionID:   asString(usageInfo["session_id"]),
+			UserID:      asString(usageInfo["user_id"]),
+			Provider:    asString(usageInfo["provider"]),
+			Model:       asString(usageInfo["model"]),
+			BaseURL:     asString(usageInfo["base_url"]),
+			RequestType: asString(usageInfo["request_type"]),
+
+			// Token统计
+			InputTokens:  asInt(usageInfo["input_tokens"]),
+			OutputTokens: asInt(usageInfo["output_tokens"]),
+			TotalTokens:  asInt(usageInfo["total_tokens"]),
+
+			// 性能指标
+			LatencyMs:   asInt64(usageInfo["latency_ms"]),
+			TTFTMs:      asInt64(usageInfo["ttft_ms"]),
+			TPS:         asFloat64(usageInfo["tps"]),
+			QueueTimeMs: asInt64(usageInfo["queue_time_ms"]),
+
+			// 请求响应内容
+			RequestContent:  asString(usageInfo["request_content"]),
+			ResponseContent: asString(usageInfo["response_content"]),
+
+			// 请求元信息
+			UserAgent:  asString(usageInfo["user_agent"]),
+			IPAddress:  asString(usageInfo["ip_address"]),
+			StatusCode: asInt(usageInfo["status_code"]),
+
+			// 错误信息
+			Success:      asBool(usageInfo["success"]),
+			ErrorCode:    asString(usageInfo["error_code"]),
+			ErrorMessage: asString(usageInfo["error_message"]),
+
+			// 时间戳
+			RequestedAt:  toTimeFromMillis(usageInfo["requested_at"]),
+			StartedAt:    toTimeFromMillis(usageInfo["started_at"]),
+			FirstTokenAt: toTimeFromMillis(usageInfo["first_token_at"]),
+			CompletedAt:  toTimeFromMillis(usageInfo["completed_at"]),
+		}
+		_ = db.Create(usage).Error
+	})
+
+	// SessionCreated 信号连接
+	utils.Sig().Connect(llm.SignalSessionCreated, func(sender any, params ...any) {
+		if len(params) < 1 {
+			return
+		}
+		data, ok := params[0].(llm.SessionCreatedData)
+		if !ok {
+			return
+		}
+
+		sessionID := data.SessionID
+		if sessionID == "" {
+			sessionID = utils.SnowflakeUtil.GenID()
+		}
+
+		session := &models.ChatSession{
+			ID:           sessionID,
+			UserID:       data.UserID,
+			Title:        data.Title,
+			Provider:     data.Provider,
+			Model:        data.Model,
+			SystemPrompt: data.SystemPrompt,
+			Status:       "active",
+			CreatedAt:    toTimeFromMillis(data.CreatedAt),
+			UpdatedAt:    toTimeFromMillis(data.CreatedAt),
+		}
+		_ = db.Where("id = ?", sessionID).Assign(session).FirstOrCreate(&models.ChatSession{}).Error
+	})
+
+	// MessageCreated 信号连接
+	utils.Sig().Connect(llm.SignalMessageCreated, func(sender any, params ...any) {
+		if len(params) < 1 {
+			return
+		}
+		data, ok := params[0].(llm.MessageCreatedData)
+		if !ok {
+			return
+		}
+		message := &models.ChatMessage{
+			ID:         utils.SnowflakeUtil.GenID(),
+			SessionID:  data.SessionID,
+			Role:       data.Role,
+			Content:    data.Content,
+			TokenCount: data.TokenCount,
+			Model:      data.Model,
+			Provider:   data.Provider,
+			RequestID:  data.RequestID,
+			CreatedAt:  toTimeFromMillis(data.CreatedAt),
+			UpdatedAt:  toTimeFromMillis(data.CreatedAt),
+		}
+		_ = db.Create(message).Error
 	})
 }
 
-func toString(v interface{}) string {
+// 辅助函数
+func asString(v interface{}) string {
 	if s, ok := v.(string); ok {
 		return s
 	}
 	return ""
 }
 
-func toInt(v interface{}) int {
-	return int(toInt64(v))
+var asFloat64 = func(v interface{}) float64 {
+	switch t := v.(type) {
+	case float64:
+		return t
+	case float32:
+		return float64(t)
+	case int:
+		return float64(t)
+	case int64:
+		return float64(t)
+	default:
+		return 0
+	}
 }
 
-func toInt64(v interface{}) int64 {
+func asInt(v interface{}) int {
+	switch t := v.(type) {
+	case int:
+		return t
+	case int64:
+		return int(t)
+	case float64:
+		return int(t)
+	case float32:
+		return int(t)
+	default:
+		return 0
+	}
+}
+
+func asInt64(v interface{}) int64 {
 	switch t := v.(type) {
 	case int:
 		return int64(t)
@@ -185,4 +190,19 @@ func toInt64(v interface{}) int64 {
 	default:
 		return 0
 	}
+}
+
+func asBool(v interface{}) bool {
+	if b, ok := v.(bool); ok {
+		return b
+	}
+	return false
+}
+
+func toTimeFromMillis(v interface{}) time.Time {
+	ms := asInt64(v)
+	if ms <= 0 {
+		return time.Now()
+	}
+	return time.Unix(ms/1000, 0)
 }

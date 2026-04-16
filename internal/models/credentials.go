@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/LingByte/SoulNexus/pkg/constants"
@@ -256,6 +257,40 @@ func (req *UserCredentialRequest) BuildTTSConfig() ProviderConfig {
 
 // CreateUserCredential 创建用户凭证
 func CreateUserCredential(db *gorm.DB, userID uint, credential *UserCredentialRequest) (*UserCredential, error) {
+	normalizedProvider, err := normalizeLLMProvider(credential.LLMProvider)
+	if err != nil {
+		return nil, err
+	}
+
+	credential.LLMProvider = normalizedProvider
+	credential.LLMApiURL = strings.TrimSpace(credential.LLMApiURL)
+	credential.LLMApiKey = strings.TrimSpace(credential.LLMApiKey)
+	credential.Name = strings.TrimSpace(credential.Name)
+
+	if credential.Name == "" {
+		return nil, errors.New("credential name is required")
+	}
+
+	if credential.LLMProvider == "" {
+		return nil, errors.New("llm provider is required")
+	}
+
+	if credential.LLMProvider != "ollama" && credential.LLMApiKey == "" {
+		return nil, errors.New("llm api key is required")
+	}
+
+	// Coze 使用 botId，其他 provider 使用 api url
+	if credential.LLMProvider == "coze" {
+		if credential.LLMApiURL == "" {
+			return nil, errors.New("coze bot id is required")
+		}
+	} else if credential.LLMApiURL == "" {
+		switch credential.LLMProvider {
+		case "openai", "anthropic", "ollama", "lmstudio":
+			credential.LLMApiURL = defaultProviderURL(credential.LLMProvider)
+		}
+	}
+
 	apiKey, err := utils.GenerateSecureToken(32)
 	if err != nil {
 		return nil, err
@@ -295,6 +330,33 @@ func CreateUserCredential(db *gorm.DB, userID uint, credential *UserCredentialRe
 	}
 
 	return userCred, nil
+}
+
+func normalizeLLMProvider(provider string) (string, error) {
+	p := strings.ToLower(strings.TrimSpace(provider))
+	switch p {
+	case "openi":
+		return "openai", nil
+	case "openai", "ollama", "coze", "anthropic", "lmstudio":
+		return p, nil
+	default:
+		return "", fmt.Errorf("unsupported llm provider: %s", provider)
+	}
+}
+
+func defaultProviderURL(provider string) string {
+	switch provider {
+	case "openai":
+		return "https://api.openai.com/v1"
+	case "anthropic":
+		return "https://api.anthropic.com"
+	case "ollama":
+		return "http://localhost:11434/v1"
+	case "lmstudio":
+		return "http://localhost:1234/v1"
+	default:
+		return ""
+	}
 }
 
 // GetUserCredentials 根据用户ID获取其所有的凭证信息

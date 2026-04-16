@@ -24,7 +24,13 @@ import {
   getTTSProviderOptions,
   getASRProviderOptions
 } from '../config/providerConfig'
-import { LLM_PROVIDER_SUGGESTIONS, getDefaultApiUrl, isCozeProvider, isOllamaProvider } from '../config/llmProviderConfig'
+import {
+  LLM_PROVIDER_SUGGESTIONS,
+  getDefaultApiUrl,
+  isCozeProvider,
+  isOllamaProvider,
+  isLMStudioProvider,
+} from '../config/llmProviderConfig'
 
 const CredentialManager = () => {
   const { t } = useI18nStore()
@@ -557,7 +563,7 @@ const CredentialManager = () => {
                             <Input
                               label={
                                 isCozeProvider(form.llmProvider) ? 'Coze API Token' : 
-                                isOllamaProvider(form.llmProvider) ? 'API Key (可选)' : 
+                                (isOllamaProvider(form.llmProvider) || isLMStudioProvider(form.llmProvider)) ? 'API Key (可选)' :
                                 t('credential.apiKeyLabel')
                               }
                               value={form.llmApiKey}
@@ -565,13 +571,15 @@ const CredentialManager = () => {
                               leftIcon={<Lock className="w-4 h-4" />}
                               placeholder={
                                 isCozeProvider(form.llmProvider) ? '请输入 Coze API Token' : 
-                                isOllamaProvider(form.llmProvider) ? 'Ollama 不需要 API Key，可留空' : 
+                                (isOllamaProvider(form.llmProvider) || isLMStudioProvider(form.llmProvider))
+                                  ? '本地 OpenAI 兼容服务可留空 API Key' :
                                 t('credential.apiKeyPlaceholder')
                               }
                               type="password"
                               helperText={
                                 isCozeProvider(form.llmProvider) ? '从 Coze 平台获取的个人访问令牌 (PAT)' : 
-                                isOllamaProvider(form.llmProvider) ? 'Ollama 本地服务不需要 API Key，此字段可留空' : 
+                                (isOllamaProvider(form.llmProvider) || isLMStudioProvider(form.llmProvider))
+                                  ? 'Ollama/LM Studio 本地服务通常不要求 API Key，此字段可留空' :
                                 undefined
                               }
                             />
@@ -609,13 +617,17 @@ const CredentialManager = () => {
                                 onChange={(e) => handleFormChange("llmApiUrl", e.target.value)}
                                 leftIcon={<Globe className="w-4 h-4" />}
                                 placeholder={
-                                  isOllamaProvider(form.llmProvider) 
-                                    ? 'http://localhost:11434/v1' 
+                                  isOllamaProvider(form.llmProvider)
+                                    ? 'http://localhost:11434/v1'
+                                    : isLMStudioProvider(form.llmProvider)
+                                      ? 'http://localhost:1234/v1'
                                     : t('credential.apiUrlPlaceholder')
                                 }
                                 helperText={
                                   isOllamaProvider(form.llmProvider)
                                     ? 'Ollama 服务的 API 地址，默认为 http://localhost:11434/v1。如果 Ollama 运行在其他地址，请修改此值。'
+                                    : isLMStudioProvider(form.llmProvider)
+                                      ? 'LM Studio OpenAI 兼容服务地址，默认为 http://localhost:1234/v1。'
                                     : t('credential.apiUrlHelper')
                                 }
                               />
