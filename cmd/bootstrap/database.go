@@ -232,5 +232,7 @@ func RunMigrations(db *gorm.DB) error {
 		&models.OAuthClient{},
 		&models.RTCSFURoomAssignment{},
 		&models.RTCSFUMediaSession{},
+		&models.AgentRun{},
+		&models.AgentStep{},
 	})
 }
