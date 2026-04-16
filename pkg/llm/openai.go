@@ -67,6 +67,8 @@ type OpenaiHandler struct {
 	toolManager       *FunctionToolManager
 }
 
+const maxToolCallRounds = 5
+
 func NewOpenaiHandler(ctx context.Context, llmOptions *LLMOptions) (*OpenaiHandler, error) {
 	if llmOptions == nil {
 		return nil, errors.New("options cannot be nil")
@@ -543,6 +545,9 @@ func (oh *OpenaiHandler) QueryWithOptions(text string, options *QueryOptions) (*
 		ResponseFormat: responseFormat,
 		Messages:       sanitizedMessages,
 	}
+	if tools := oh.buildOpenAITools(); len(tools) > 0 {
+		request.Tools = tools
+	}
 	if options.MaxTokens > 0 {
 		request.MaxTokens = options.MaxTokens
 	}
@@ -561,7 +566,7 @@ func (oh *OpenaiHandler) QueryWithOptions(text string, options *QueryOptions) (*
 		oh.clearCurrentCancel(cancelID)
 		cancel()
 	}()
-	response, err := oh.client.CreateChatCompletion(reqCtx, request)
+	response, err := oh.createChatCompletionWithTools(reqCtx, request)
 	if err != nil {
 		tracker.Error("API_ERROR", err.Error())
 		return nil, err
@@ -691,6 +696,21 @@ func (oh *OpenaiHandler) QueryWithOptions(text string, options *QueryOptions) (*
 func (oh *OpenaiHandler) QueryStream(text string, options *QueryOptions, callback func(segment string, isComplete bool) error) (*QueryResponse, error) {
 	if options == nil {
 		options = &QueryOptions{}
+	}
+	if len(oh.buildOpenAITools()) > 0 {
+		resp, err := oh.QueryWithOptions(text, options)
+		if err != nil {
+			return nil, err
+		}
+		if callback != nil && resp != nil && len(resp.Choices) > 0 {
+			if err := callback(resp.Choices[0].Content, false); err != nil {
+				return nil, err
+			}
+			if err := callback("", true); err != nil {
+				return nil, err
+			}
+		}
+		return resp, nil
 	}
 	requestType := strings.TrimSpace(options.RequestType)
 	if requestType == "" {
@@ -903,6 +923,92 @@ func (oh *OpenaiHandler) QueryStream(text string, options *QueryOptions, callbac
 	}
 	tracker.Complete(resp)
 	return resp, nil
+}
+
+func (oh *OpenaiHandler) buildOpenAITools() []openai.Tool {
+	if oh.toolManager == nil {
+		return nil
+	}
+	defs := oh.toolManager.GetTools()
+	if len(defs) == 0 {
+		return nil
+	}
+	tools := make([]openai.Tool, 0, len(defs))
+	for _, item := range defs {
+		def, ok := item.(*FunctionToolDefinition)
+		if !ok || def == nil || strings.TrimSpace(def.Name) == "" {
+			continue
+		}
+		tools = append(tools, openai.Tool{
+			Type: openai.ToolTypeFunction,
+			Function: &openai.FunctionDefinition{
+				Name:        def.Name,
+				Description: def.Description,
+				Parameters:  def.Parameters,
+			},
+		})
+	}
+	return tools
+}
+
+func (oh *OpenaiHandler) createChatCompletionWithTools(ctx context.Context, request openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error) {
+	current := request
+	for round := 0; round < maxToolCallRounds; round++ {
+		resp, err := oh.client.CreateChatCompletion(ctx, current)
+		if err != nil {
+			return openai.ChatCompletionResponse{}, err
+		}
+		if len(resp.Choices) == 0 {
+			return resp, nil
+		}
+		assistantMsg := resp.Choices[0].Message
+		if len(assistantMsg.ToolCalls) == 0 {
+			return resp, nil
+		}
+		current.Messages = append(current.Messages, assistantMsg)
+		for _, tc := range assistantMsg.ToolCalls {
+			toolResult := oh.executeToolCall(tc)
+			current.Messages = append(current.Messages, openai.ChatCompletionMessage{
+				Role:       openai.ChatMessageRoleTool,
+				ToolCallID: tc.ID,
+				Content:    toolResult,
+			})
+		}
+	}
+	return oh.client.CreateChatCompletion(ctx, current)
+}
+
+func (oh *OpenaiHandler) executeToolCall(tc openai.ToolCall) string {
+	if oh.toolManager == nil {
+		return "工具系统未初始化"
+	}
+	toolName := strings.TrimSpace(tc.Function.Name)
+	if toolName == "" {
+		return "工具名称为空"
+	}
+	var def *FunctionToolDefinition
+	for _, item := range oh.toolManager.GetTools() {
+		one, ok := item.(*FunctionToolDefinition)
+		if ok && one != nil && one.Name == toolName {
+			def = one
+			break
+		}
+	}
+	if def == nil || def.Callback == nil {
+		return fmt.Sprintf("未找到工具: %s", toolName)
+	}
+	args := map[string]interface{}{}
+	rawArgs := strings.TrimSpace(tc.Function.Arguments)
+	if rawArgs != "" {
+		if err := json.Unmarshal([]byte(rawArgs), &args); err != nil {
+			return fmt.Sprintf("工具参数解析失败: %v", err)
+		}
+	}
+	result, err := def.Callback(args, oh)
+	if err != nil {
+		return fmt.Sprintf("工具执行失败: %v", err)
+	}
+	return result
 }
 
 // expandQueryStateless runs expansion via a one-shot completion without touching conversation memory or oh.mutex.
