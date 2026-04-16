@@ -688,6 +688,22 @@ const VoiceAssistant = () => {
         newSocket.onopen = async () => {
             console.log('[WebSocket语音] WebSocket已连接')
 
+            // 主动握手：适配 hardware 协议（服务端会回 hello）
+            newSocket.send(JSON.stringify({
+                type: 'hello',
+                version: 1,
+                transport: 'websocket',
+                audio_params: {
+                    format: 'pcm',
+                    sample_rate: 16000,
+                    channels: 1,
+                    frame_duration: 60
+                },
+                features: {
+                    aec: true
+                }
+            }))
+
             try {
                 // 获取麦克风权限
                 const stream = await navigator.mediaDevices.getUserMedia({
@@ -701,8 +717,8 @@ const VoiceAssistant = () => {
 
                 setLocalStream(stream)
 
-                // 等待服务端确认连接后再开始录音
-                console.log('[WebSocket语音] 等待服务端确认连接...')
+                // 等待服务端 hello 回包后再开始录音
+                console.log('[WebSocket语音] 等待服务端 hello 确认...')
                 
                 // 保存 stream，等待 connected 消息后再启动录音
                 ;(newSocket as any)._pendingStream = stream
@@ -791,21 +807,21 @@ const VoiceAssistant = () => {
             }
 
             switch (data.type) {
-                case 'connected':
-                    // 服务端确认连接成功，现在可以开始录音了
-                    console.log('[WebSocket语音]', data.message)
+                case 'hello':
+                    // 服务端握手确认，现在可以开始录音了
+                    console.log('[WebSocket语音] 服务端 hello:', data)
                     showAlert('WebSocket语音连接已建立', 'success')
-                    
+
                     // 启动录音（如果还没开始）
                     if (!isRecordingStarted && (newSocket as any)._pendingStream) {
                         const stream = (newSocket as any)._pendingStream
-                        console.log('[WebSocket语音] 服务端就绪，开始录音')
+                        console.log('[WebSocket语音] 握手完成，开始录音')
                         startQiniuRecording(stream, newSocket)
                         isRecordingStarted = true
                         delete (newSocket as any)._pendingStream
                     }
                     break
-                case 'asr_result':
+                case 'stt':
                     // 显示识别结果（去重：只显示新的文本）
                     if (data.text && data.text !== lastASRTextRef.current) {
                         lastASRTextRef.current = data.text
@@ -823,65 +839,67 @@ const VoiceAssistant = () => {
                         stopCurrentTTSPlayback()
                     }
                     break
-                case 'tts_start':
-                    // TTS开始，记录音频格式
-                    console.log('[WebSocket语音] TTS开始，音频格式:', data)
+                case 'tts':
+                    if (data.state === 'start') {
+                        // TTS开始，记录音频格式
+                        console.log('[WebSocket语音] TTS开始，音频格式:', data)
 
-                    // 停止之前的播放（打断之前的TTS）
-                    stopCurrentTTSPlayback()
+                        // 停止之前的播放（打断之前的TTS）
+                        stopCurrentTTSPlayback()
 
-                    // 暂停发送音频数据（防止回声/反馈触发VAD barge-in）
-                    if ((newSocket as any)._audioProcessor) {
-                        console.log('[WebSocket语音] TTS开始，暂停发送音频数据以防止回声')
-                        ;(newSocket as any)._audioProcessor.pause()
-                    }
-
-                    // 标记TTS为激活状态
-                    isTTSActive = true
-                    ttsAudioFormat = {
-                        sampleRate: data.sampleRate || 8000, // 默认8000，因为后端TTS是8000
-                        channels: data.channels || 1,
-                        bitDepth: data.bitDepth || 16
-                    }
-                    ttsAudioBuffer = []
-
-                    // 创建AudioContext用于播放
-                    if (!audioContext) {
-                        audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({
-                            sampleRate: ttsAudioFormat.sampleRate
-                        })
-                    }
-                    // 确保AudioContext处于running状态
-                    if (audioContext.state === 'suspended') {
-                        audioContext.resume().catch(err => {
-                            console.error('[WebSocket语音] 恢复AudioContext失败:', err)
-                        })
-                    }
-                    break
-                case 'tts_end':
-                    // TTS结束，播放累积的音频
-                    console.log('[WebSocket语音] TTS结束，音频缓冲区大小:', ttsAudioBuffer.length)
-                    // 标记TTS为非激活状态（在播放前就标记，防止新的音频数据进入）
-                    isTTSActive = false
-                    if (!isGlobalMuted && ttsAudioBuffer.length > 0 && ttsAudioFormat.sampleRate) {
-                        // 复制缓冲区（因为playTTSAudioStream会清空它）
-                        const audioDataToPlay = [...ttsAudioBuffer]
-                        ttsAudioBuffer = [] // 立即清空，防止重复播放
-                        playTTSAudioStream(audioDataToPlay, ttsAudioFormat, audioContext)
-                    } else {
-                        // 如果没有音频数据，清空缓冲区
-                        ttsAudioBuffer = []
-                    }
-                    // 重置音频格式（防止后续二进制消息被误认为是音频）
-                    ttsAudioFormat = {}
-                    
-                    // 恢复发送音频数据（TTS播放完成后，延迟500ms以确保TTS音频播放完成）
-                    setTimeout(() => {
+                        // 暂停发送音频数据（防止回声/反馈触发VAD barge-in）
                         if ((newSocket as any)._audioProcessor) {
-                            console.log('[WebSocket语音] TTS结束，恢复发送音频数据')
-                            ;(newSocket as any)._audioProcessor.resume()
+                            console.log('[WebSocket语音] TTS开始，暂停发送音频数据以防止回声')
+                            ;(newSocket as any)._audioProcessor.pause()
                         }
-                    }, 500)
+
+                        // 标记TTS为激活状态
+                        isTTSActive = true
+                        const audioParams = data.audio_params || {}
+                        ttsAudioFormat = {
+                            sampleRate: audioParams.sample_rate || 16000,
+                            channels: audioParams.channels || 1,
+                            bitDepth: audioParams.bit_depth || 16
+                        }
+                        ttsAudioBuffer = []
+
+                        // 创建AudioContext用于播放
+                        if (!audioContext) {
+                            audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({
+                                sampleRate: ttsAudioFormat.sampleRate
+                            })
+                        }
+                        // 确保AudioContext处于running状态
+                        if (audioContext.state === 'suspended') {
+                            audioContext.resume().catch(err => {
+                                console.error('[WebSocket语音] 恢复AudioContext失败:', err)
+                            })
+                        }
+                    } else if (data.state === 'stop') {
+                        // TTS结束，播放累积的音频
+                        console.log('[WebSocket语音] TTS结束，音频缓冲区大小:', ttsAudioBuffer.length)
+                        // 标记TTS为非激活状态（在播放前就标记，防止新的音频数据进入）
+                        isTTSActive = false
+                        if (!isGlobalMuted && ttsAudioBuffer.length > 0 && ttsAudioFormat.sampleRate) {
+                            // 复制缓冲区（因为playTTSAudioStream会清空它）
+                            const audioDataToPlay = [...ttsAudioBuffer]
+                            ttsAudioBuffer = [] // 立即清空，防止重复播放
+                            playTTSAudioStream(audioDataToPlay, ttsAudioFormat, audioContext)
+                        } else {
+                            // 如果没有音频数据，清空缓冲区
+                            ttsAudioBuffer = []
+                        }
+                        // 重置音频格式（防止后续二进制消息被误认为是音频）
+                        ttsAudioFormat = {}
+
+                        // 恢复发送音频数据（TTS播放完成后，延迟500ms以确保TTS音频播放完成）
+                        setTimeout(() => {
+                            if ((newSocket as any)._audioProcessor) {
+                                console.log('[WebSocket语音] TTS结束，恢复发送音频数据')
+                                ;(newSocket as any)._audioProcessor.resume()
+                            }
+                        }, 500)
+                    }
                     break
                 case 'tts_audio':
                     // 兼容旧格式（音频URL）
