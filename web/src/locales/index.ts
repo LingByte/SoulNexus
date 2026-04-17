@@ -1,4 +1,4 @@
-import { common, Language } from './modules/common'
+import { common, Language as ModuleLanguage } from './modules/common'
 import { pages } from './modules/pages'
 import { auth } from './modules/auth'
 import { assistant } from './modules/assistant'
@@ -14,20 +14,33 @@ import { jsTemplate } from './modules/jsTemplate'
 import { quota } from './modules/quota'
 import { resetPassword } from './modules/resetPassword'
 import { animation } from './modules/animation'
+import { zhTWOverrides } from './overrides/zhTW'
+import { frOverrides } from './overrides/fr'
 
 // 合并所有翻译模块
-function mergeTranslations(...modules: Record<Language, Record<string, string>>[]) {
+export type Language = ModuleLanguage | 'zh-TW' | 'fr'
+
+function mergeTranslations(...modules: Record<ModuleLanguage, Record<string, string>>[]) {
   const result: Record<Language, Record<string, string>> = {
     zh: {},
     en: {},
-    ja: {}
+    ja: {},
+    'zh-TW': {},
+    fr: {},
   }
 
   for (const module of modules) {
-    for (const lang of Object.keys(module) as Language[]) {
+    for (const lang of Object.keys(module) as ModuleLanguage[]) {
       Object.assign(result[lang], module[lang])
     }
   }
+
+  // Fallback strategy for newly added locales.
+  // zh-TW uses zh baseline; fr uses en baseline until dedicated translations are added.
+  result['zh-TW'] = { ...result.zh, ...result['zh-TW'] }
+  result.fr = { ...result.en, ...result.fr }
+  result['zh-TW'] = { ...result['zh-TW'], ...zhTWOverrides }
+  result.fr = { ...result.fr, ...frOverrides }
 
   return result
 }
@@ -50,5 +63,3 @@ export const translations = mergeTranslations(
   resetPassword,
   animation
 )
-
-export type { Language }
