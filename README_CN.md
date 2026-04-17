@@ -14,7 +14,7 @@
 [![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg)]()
 [![在线演示](https://img.shields.io/badge/在线演示-lingecho.com-brightgreen.svg)](https://lingecho.com)
 
-[English](README.md) | [中文](README_CN.md)
+[English](README.md) | [简体中文](README_CN.md) | [繁體中文](README_TW.md) | [日本語](README_JA.md) | [Français](README_FR.md)
 
 ### 🌐 在线演示
 
