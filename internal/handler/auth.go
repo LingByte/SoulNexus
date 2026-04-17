@@ -59,6 +59,17 @@ type wechatLoginSession struct {
 	LoginCode string
 }
 
+type wechatBindSession struct {
+	SessionID string
+	Status    string
+	ExpiresAt time.Time
+	OpenID    string
+	UserID    uint
+	BindCode  string
+	Reason    string
+	BoundAt   *time.Time
+}
+
 type oidcAuthCode struct {
 	Code        string
 	UserID      uint
@@ -74,6 +85,7 @@ type githubOAuthState struct {
 	OIDCClient   string
 	OIDCRedirect string
 	OIDCState    string
+	BindUserID   uint
 	ExpiresAt    time.Time
 }
 
@@ -102,6 +114,13 @@ var githubOAuthStateStore = struct {
 	items map[string]*githubOAuthState
 }{
 	items: make(map[string]*githubOAuthState),
+}
+
+var wechatBindSessions = struct {
+	sync.RWMutex
+	items map[string]*wechatBindSession
+}{
+	items: make(map[string]*wechatBindSession),
 }
 
 func verifyRequestCaptcha(captchaID, captchaCode, captchaData, captchaType string) (bool, error) {
@@ -273,6 +292,17 @@ func cleanExpiredGitHubStates() {
 	}
 }
 
+func cleanExpiredWechatBindSessions() {
+	now := time.Now()
+	wechatBindSessions.Lock()
+	defer wechatBindSessions.Unlock()
+	for k, v := range wechatBindSessions.items {
+		if now.After(v.ExpiresAt) {
+			delete(wechatBindSessions.items, k)
+		}
+	}
+}
+
 func newWechatLoginCode() string {
 	b := make([]byte, 4)
 	if _, err := rand.Read(b); err != nil {
@@ -315,6 +345,50 @@ func getGitHubOAuthConfig(c *gin.Context) (clientID, clientSecret, redirectURI s
 		redirectURI = fmt.Sprintf("%s://%s/api/auth/github/callback", scheme, c.Request.Host)
 	}
 	return clientID, clientSecret, redirectURI, nil
+}
+
+func getWechatOAuthRedirectURI(c *gin.Context) string {
+	redirectURI := strings.TrimSpace(os.Getenv("WECHAT_OAUTH_REDIRECT_URI"))
+	if redirectURI != "" {
+		return redirectURI
+	}
+	scheme := c.Request.Header.Get("X-Forwarded-Proto")
+	if scheme == "" {
+		if c.Request.TLS != nil {
+			scheme = "https"
+		} else {
+			scheme = "http"
+		}
+	}
+	return fmt.Sprintf("%s://%s/api/auth/wechat/oauth/callback", scheme, c.Request.Host)
+}
+
+func getRefreshTokenTTL(db *gorm.DB) time.Duration {
+	// default 30 days
+	ttl := 30 * 24 * time.Hour
+	if val := strings.TrimSpace(os.Getenv("REFRESH_TOKEN_EXPIRED")); val != "" {
+		if d, err := time.ParseDuration(val); err == nil && d > 0 {
+			ttl = d
+		}
+	}
+	if db != nil {
+		// Keep access-token TTL behavior consistent with existing config table pattern.
+		if val := strings.TrimSpace(utils.GetValue(db, constants.KEY_AUTH_TOKEN_EXPIRED)); val != "" {
+			if d, err := time.ParseDuration(val); err == nil && d > 0 && d < ttl {
+				ttl = d * 10
+			}
+		}
+	}
+	return ttl
+}
+
+func buildTokenPair(db *gorm.DB, user *models.User, accessTTL time.Duration) (string, string) {
+	if accessTTL <= 0 {
+		accessTTL = 24 * time.Hour
+	}
+	accessToken := models.BuildAuthToken(user, accessTTL, false)
+	refreshToken := models.BuildRefreshToken(user, getRefreshTokenTTL(db), false)
+	return accessToken, refreshToken
 }
 
 func getWechatAccessToken() (string, error) {
@@ -593,11 +667,13 @@ func (h *Handlers) finishWechatSessionSuccess(c *gin.Context, session *wechatLog
 		return nil, errors.New("wechat user is not bound")
 	}
 	models.Login(c, user)
-	user.AuthToken = models.BuildAuthToken(user, 7*24*time.Hour, false)
+	accessToken, refreshToken := buildTokenPair(h.db, user, 7*24*time.Hour)
+	user.AuthToken = accessToken
 	return gin.H{
-		"status": "success",
-		"token":  user.AuthToken,
-		"user":   user,
+		"status":       "success",
+		"token":        user.AuthToken,
+		"refreshToken": refreshToken,
+		"user":         user,
 	}, nil
 }
 
@@ -950,12 +1026,48 @@ func (h *Handlers) processOIDCTokenReq(c *gin.Context, req oidcTokenReq) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("user not found"))
 		return
 	}
-	accessToken := models.BuildAuthToken(user, 24*time.Hour, false)
+	accessToken, refreshToken := buildTokenPair(h.db, user, 24*time.Hour)
 	response.Success(c, "oidc token issued", gin.H{
-		"access_token": accessToken,
-		"token_type":   "Bearer",
-		"expires_in":   int64((24 * time.Hour).Seconds()),
-		"user":         user,
+		"access_token":  accessToken,
+		"refresh_token": refreshToken,
+		"token_type":    "Bearer",
+		"expires_in":    int64((24 * time.Hour).Seconds()),
+		"user":          user,
+	})
+}
+
+func (h *Handlers) handleRefreshToken(c *gin.Context) {
+	var req struct {
+		RefreshToken string `json:"refresh_token"`
+	}
+	_ = c.ShouldBindJSON(&req)
+	req.RefreshToken = strings.TrimSpace(req.RefreshToken)
+	if req.RefreshToken == "" {
+		req.RefreshToken = strings.TrimSpace(c.PostForm("refresh_token"))
+	}
+	if req.RefreshToken == "" {
+		req.RefreshToken = strings.TrimSpace(c.GetHeader("X-Refresh-Token"))
+	}
+	if req.RefreshToken == "" {
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("refresh_token is required"))
+		return
+	}
+	user, err := models.DecodeRefreshToken(h.db, req.RefreshToken, false)
+	if err != nil || user == nil {
+		response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("invalid refresh token"))
+		return
+	}
+	if err = models.CheckUserAllowLogin(h.db, user); err != nil {
+		response.AbortWithJSONError(c, http.StatusForbidden, err)
+		return
+	}
+	accessToken, refreshToken := buildTokenPair(h.db, user, 24*time.Hour)
+	response.Success(c, "token refreshed", gin.H{
+		"token":         accessToken,
+		"access_token":  accessToken,
+		"refreshToken":  refreshToken,
+		"refresh_token": refreshToken,
+		"user":          user,
 	})
 }
 
@@ -973,6 +1085,11 @@ func (h *Handlers) handleGitHubLogin(c *gin.Context) {
 		OIDCRedirect: strings.TrimSpace(c.Query("redirect_uri")),
 		OIDCState:    strings.TrimSpace(c.Query("state")),
 		ExpiresAt:    time.Now().Add(10 * time.Minute),
+	}
+	if strings.EqualFold(strings.TrimSpace(c.Query("bind")), "1") {
+		if u := models.CurrentUser(c); u != nil {
+			stateData.BindUserID = u.ID
+		}
 	}
 	githubOAuthStateStore.Lock()
 	githubOAuthStateStore.items[nonce] = stateData
@@ -1096,13 +1213,55 @@ func (h *Handlers) handleGitHubCallback(c *gin.Context) {
 		c.Redirect(http.StatusFound, "/api/auth/login?github=failed")
 		return
 	}
+	if stateData.BindUserID > 0 {
+		bindUser, err := models.GetUserByUID(h.db, stateData.BindUserID)
+		if err == nil && bindUser != nil {
+			newGithubID := strconv.FormatInt(githubUser.ID, 10)
+			redirectURL := strings.TrimSpace(stateData.RedirectURL)
+			if redirectURL == "" {
+				redirectURL = "/profile"
+			}
+			buildBindRedirect := func(bindStatus string) string {
+				target, parseErr := url.Parse(redirectURL)
+				if parseErr != nil {
+					return "/profile?bind=" + url.QueryEscape(bindStatus)
+				}
+				q := target.Query()
+				q.Set("bind", bindStatus)
+				target.RawQuery = q.Encode()
+				return target.String()
+			}
+			// A user can only bind one GitHub account.
+			if strings.TrimSpace(bindUser.GithubID) != "" && strings.TrimSpace(bindUser.GithubID) != newGithubID {
+				c.Redirect(http.StatusFound, buildBindRedirect("github_already_bound"))
+				return
+			}
+			// A GitHub account can only belong to one local user.
+			var existing models.User
+			if findErr := h.db.Where("github_id = ?", newGithubID).First(&existing).Error; findErr == nil && existing.ID != bindUser.ID {
+				c.Redirect(http.StatusFound, buildBindRedirect("github_bound_other"))
+				return
+			}
+			updates := map[string]any{
+				"github_id":    newGithubID,
+				"github_login": strings.TrimSpace(githubUser.Login),
+			}
+			if githubUser.AvatarURL != "" {
+				updates["avatar"] = githubUser.AvatarURL
+			}
+			_ = h.db.Model(bindUser).Updates(updates).Error
+			c.Redirect(http.StatusFound, buildBindRedirect("github_ok"))
+			return
+		}
+	}
 	models.Login(c, user)
-	token := models.BuildAuthToken(user, 7*24*time.Hour, false)
+	token, refreshToken := buildTokenPair(h.db, user, 7*24*time.Hour)
 
 	target, _ := url.Parse("/api/auth/login")
 	q := target.Query()
 	q.Set("github", "ok")
 	q.Set("token", token)
+	q.Set("refreshToken", refreshToken)
 	if stateData.RedirectURL != "" {
 		q.Set("redirecturl", stateData.RedirectURL)
 	}
@@ -1117,6 +1276,72 @@ func (h *Handlers) handleGitHubCallback(c *gin.Context) {
 	}
 	target.RawQuery = q.Encode()
 	c.Redirect(http.StatusFound, target.String())
+}
+
+func (h *Handlers) handleWechatBindCode(c *gin.Context) {
+	user := models.CurrentUser(c)
+	if user == nil {
+		response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("authorization required"))
+		return
+	}
+	sessionID := newWechatSessionID()
+	bindCode := newWechatLoginCode()
+	expiresIn := 600
+	expiresAt := time.Now().Add(time.Duration(expiresIn) * time.Second)
+	session := &wechatBindSession{
+		SessionID: sessionID,
+		Status:    "pending",
+		ExpiresAt: expiresAt,
+		UserID:    user.ID,
+		BindCode:  bindCode,
+	}
+	wechatBindSessions.Lock()
+	wechatBindSessions.items[sessionID] = session
+	wechatBindSessions.Unlock()
+	cleanExpiredWechatBindSessions()
+	response.Success(c, "wechat bind code generated", gin.H{
+		"sessionId":    sessionID,
+		"bindCode":     bindCode,
+		"expiresAt":    expiresAt.Unix(),
+		"expiresInSec": expiresIn,
+	})
+}
+
+func (h *Handlers) handleWechatBindStatus(c *gin.Context) {
+	user := models.CurrentUser(c)
+	if user == nil {
+		response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("authorization required"))
+		return
+	}
+	sessionID := strings.TrimSpace(c.Query("sessionId"))
+	if sessionID == "" {
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("sessionId is required"))
+		return
+	}
+	wechatBindSessions.RLock()
+	session, ok := wechatBindSessions.items[sessionID]
+	wechatBindSessions.RUnlock()
+	if !ok || time.Now().After(session.ExpiresAt) {
+		response.Success(c, "wechat bind status", gin.H{"status": "expired"})
+		return
+	}
+	if session.UserID != user.ID {
+		response.AbortWithJSONError(c, http.StatusForbidden, errors.New("invalid bind session owner"))
+		return
+	}
+	payload := gin.H{
+		"status":    session.Status,
+		"expiresAt": session.ExpiresAt.Unix(),
+	}
+	if session.Reason != "" {
+		payload["reason"] = session.Reason
+	}
+	if session.Status == "success" {
+		wechatBindSessions.Lock()
+		delete(wechatBindSessions.items, sessionID)
+		wechatBindSessions.Unlock()
+	}
+	response.Success(c, "wechat bind status", payload)
 }
 
 func (h *Handlers) handleWechatLogin(c *gin.Context) {
@@ -1233,6 +1458,68 @@ func (h *Handlers) handleWechatLoginMessage(c *gin.Context) {
 			inputCode := strings.ToUpper(strings.TrimSpace(msg.Content))
 			if inputCode == "" {
 				sendWechatReplyText(c, msg.FromUserName, msg.ToUserName, "请发送登录码完成登录")
+				return
+			}
+
+			var bindMatched *wechatBindSession
+			wechatBindSessions.Lock()
+			for _, s := range wechatBindSessions.items {
+				if time.Now().Before(s.ExpiresAt) && strings.EqualFold(s.BindCode, inputCode) {
+					bindMatched = s
+					break
+				}
+			}
+			if bindMatched != nil {
+				bindMatched.OpenID = msg.FromUserName
+				// If the OpenID is already bound to another account, reject this bind.
+				var existing models.User
+				if err := h.db.Where("wechat_open_id = ?", msg.FromUserName).First(&existing).Error; err == nil && existing.ID != bindMatched.UserID {
+					bindMatched.Status = "failed"
+					bindMatched.Reason = "already_bound"
+				} else {
+					updates := map[string]any{
+						"wechat_open_id": msg.FromUserName,
+					}
+					if wechatUserInfo, userInfoErr := func() (*wechatUserInfoResp, error) {
+						var info wechatUserInfoResp
+						accessToken, tokenErr := getWechatAccessToken()
+						if tokenErr != nil {
+							return &info, tokenErr
+						}
+						userInfoURL := fmt.Sprintf("https://api.weixin.qq.com/cgi-bin/user/info?access_token=%s&openid=%s&lang=zh_CN", accessToken, msg.FromUserName)
+						userResp, reqErr := http.Get(userInfoURL)
+						if reqErr != nil {
+							return &info, reqErr
+						}
+						defer userResp.Body.Close()
+						raw, readErr := io.ReadAll(userResp.Body)
+						if readErr != nil {
+							return &info, readErr
+						}
+						_ = json.Unmarshal(raw, &info)
+						return &info, nil
+					}(); userInfoErr == nil && wechatUserInfo != nil && wechatUserInfo.UnionID != "" {
+						updates["wechat_union_id"] = wechatUserInfo.UnionID
+					}
+					if err := h.db.Model(&models.User{}).Where("id = ?", bindMatched.UserID).Updates(updates).Error; err != nil {
+						bindMatched.Status = "failed"
+						bindMatched.Reason = "bind_failed"
+					} else {
+						now := time.Now()
+						bindMatched.BoundAt = &now
+						bindMatched.Status = "success"
+					}
+				}
+			}
+			wechatBindSessions.Unlock()
+			if bindMatched != nil {
+				if bindMatched.Status == "success" {
+					sendWechatReplyText(c, msg.FromUserName, msg.ToUserName, "微信绑定成功，请返回网页查看")
+				} else if bindMatched.Reason == "already_bound" {
+					sendWechatReplyText(c, msg.FromUserName, msg.ToUserName, "该微信已绑定其他账号，无法重复绑定")
+				} else {
+					sendWechatReplyText(c, msg.FromUserName, msg.ToUserName, "微信绑定失败，请稍后重试")
+				}
 				return
 			}
 
@@ -1664,19 +1951,21 @@ func (h *Handlers) handleUserSigninByEmail(c *gin.Context) {
 	}
 
 	// 如果需要 Token，生成 AuthToken
+	var refreshToken string
 	if form.AuthToken {
 		val := utils.GetValue(db, constants.KEY_AUTH_TOKEN_EXPIRED)
 		expired, _ := time.ParseDuration(val)
 		if expired < 24*time.Hour {
 			expired = 24 * time.Hour
 		}
-		user.AuthToken = models.BuildAuthToken(user, expired, false)
+		user.AuthToken, refreshToken = buildTokenPair(db, user, expired)
 	}
 
 	// 返回登录结果（包含可疑登录警告）
 	responseData := gin.H{
-		"user":  user,
-		"token": user.AuthToken, // 为了兼容前端，同时返回token字段
+		"user":         user,
+		"token":        user.AuthToken, // 为了兼容前端，同时返回token字段
+		"refreshToken": refreshToken,
 	}
 	if isSuspicious {
 		responseData["suspiciousLogin"] = true
@@ -2056,12 +2345,14 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 		// 7 days
 		expired = 7 * 24 * time.Hour
 	}
-	user.AuthToken = models.BuildAuthToken(user, expired, false)
+	accessToken, refreshToken := buildTokenPair(db, user, expired)
+	user.AuthToken = accessToken
 
 	// 17. 返回登录结果（包含可疑登录警告）
 	responseData := gin.H{
-		"user":  user,
-		"token": user.AuthToken, // 为了兼容前端，同时返回token字段
+		"user":         user,
+		"token":        user.AuthToken, // 为了兼容前端，同时返回token字段
+		"refreshToken": refreshToken,
 	}
 	if isSuspicious {
 		responseData["suspiciousLogin"] = true

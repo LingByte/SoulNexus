@@ -100,6 +100,7 @@ export interface EmailCodeLoginForm {
 // 登录响应数据类型
 export interface LoginResponseData {
   token?: string
+  refreshToken?: string
   user?: {
     id?: number | string
     createdAt?: string
@@ -183,6 +184,9 @@ export interface User {
   autoCleanUnreadEmails?: boolean
   twoFactorEnabled?: boolean
   emailVerified?: boolean
+  wechatOpenId?: string
+  githubId?: string
+  githubLogin?: string
 }
 
 // 用户注册
@@ -231,8 +235,10 @@ export const getUserInfo = async (): Promise<ApiResponse<User>> => {
 }
 
 // 刷新token
-export const refreshToken = async (): Promise<ApiResponse<{ token: string }>> => {
-  return post<{ token: string }>('/auth/refresh', undefined, userServiceConfig)
+export const refreshToken = async (): Promise<ApiResponse<{ token: string; refreshToken: string }>> => {
+  return post<{ token: string; refreshToken: string }>('/auth/refresh', {
+    refresh_token: localStorage.getItem('refresh_token') || '',
+  }, userServiceConfig)
 }
 
 // 发送邮箱验证邮件

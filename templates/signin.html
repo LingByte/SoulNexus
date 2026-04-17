@@ -807,8 +807,12 @@
               state.wechatPolling = null;
             }
             const token = data.data.token;
+            const refreshToken = data.data.refreshToken;
             if (token) {
               localStorage.setItem('auth_token', token);
+            }
+            if (refreshToken) {
+              localStorage.setItem('refresh_token', refreshToken);
             }
             setMessage('login-message', '微信登录处理中，正在跳转...', 'info');
             setTimeout(() => {
@@ -1023,7 +1027,9 @@
           }
 
           const token = result.token || result.authToken || data.token;
+          const refreshToken = result.refreshToken || data.refreshToken;
           if (token) localStorage.setItem('auth_token', token);
+          if (refreshToken) localStorage.setItem('refresh_token', refreshToken);
           setMessage('login-message', '登录处理中，正在跳转...', 'info');
           setTimeout(() => {
             const oidcURL = buildOIDCRedirect();
@@ -1118,8 +1124,12 @@
 
       if (currentParams.get('github') === 'ok') {
         const token = currentParams.get('token');
+        const refreshToken = currentParams.get('refreshToken');
         if (token) {
           localStorage.setItem('auth_token', token);
+        }
+        if (refreshToken) {
+          localStorage.setItem('refresh_token', refreshToken);
         }
         setMessage('login-message', 'GitHub 登录成功，正在跳转...', 'success');
         setTimeout(() => {

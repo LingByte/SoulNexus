@@ -1,6 +1,7 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosResponse } from 'axios'
 import { useAuthStore } from '../stores/authStore'
 import { getApiBaseURL } from '../config/apiConfig'
+import { getUserServiceBaseURL } from '../config/apiConfig'
 
 // 获取API基础URL
 const getApiBaseUrl = () => {
@@ -15,6 +16,33 @@ const axiosInstance: AxiosInstance = axios.create({
     'Content-Type': 'application/json',
   },
 })
+
+let isRefreshingToken = false
+let refreshPromise: Promise<string> | null = null
+
+const requestTokenRefresh = async (): Promise<string> => {
+  const refreshToken = localStorage.getItem('refresh_token')
+  if (!refreshToken) {
+    throw new Error('missing refresh token')
+  }
+  const resp = await axios.post(`${getUserServiceBaseURL()}/auth/refresh`, {
+    refresh_token: refreshToken,
+  }, {
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    timeout: 100000,
+  })
+  const data = resp.data
+  const nextAccessToken = data?.data?.token || data?.data?.access_token
+  const nextRefreshToken = data?.data?.refreshToken || data?.data?.refresh_token
+  if (!nextAccessToken || !nextRefreshToken) {
+    throw new Error('invalid refresh response')
+  }
+  localStorage.setItem('auth_token', nextAccessToken)
+  localStorage.setItem('refresh_token', nextRefreshToken)
+  return nextAccessToken
+}
 
 // 请求拦截器
 axiosInstance.interceptors.request.use(
@@ -70,11 +98,32 @@ axiosInstance.interceptors.response.use(
 
       switch (status) {
         case 401:
+          {
+            const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
+            if (!originalRequest?._retry && !String(originalRequest?.url || '').includes('/auth/refresh')) {
+              originalRequest._retry = true
+              if (!isRefreshingToken) {
+                isRefreshingToken = true
+                refreshPromise = requestTokenRefresh()
+                  .finally(() => {
+                    isRefreshingToken = false
+                  })
+              }
+              return refreshPromise!
+                .then((nextAccessToken) => {
+                  originalRequest.headers.Authorization = `Bearer ${nextAccessToken}`
+                  return axiosInstance(originalRequest)
+                })
+                .catch(() => {
+                  useAuthStore.getState().clearUser()
+                  return Promise.reject(error)
+                })
+            }
             console.log('Unauthorized')
             useAuthStore.getState().clearUser()
-            // window.location.href = '/'
             console.log('Unauthorized: Please log in')
-          break
+            break
+          }
         case 403:
           console.error('Forbidden: Access denied')
           break

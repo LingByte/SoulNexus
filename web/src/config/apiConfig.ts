@@ -33,7 +33,7 @@ function convertToWebSocketURL(httpUrl: string): string {
 function getApiConfig(): ApiConfig {
   // 优先使用环境变量
   let apiBaseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:7072/api'
-  let userServiceBaseURL = import.meta.env.VITE_USER_SERVICE_BASE_URL || apiBaseURL
+  let userServiceBaseURL = import.meta.env.VITE_USER_SERVICE_BASE_URL || 'http://localhost:7074/api'
   
   // 如果环境变量中有WebSocket URL，使用它；否则从API URL转换
   let wsBaseURL = import.meta.env.VITE_WS_BASE_URL

@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -133,7 +134,6 @@ type User struct {
 	FirstName             string     `json:"firstName,omitempty" gorm:"size:128"`
 	LastName              string     `json:"lastName,omitempty" gorm:"size:128"`
 	DisplayName           string     `json:"displayName,omitempty" gorm:"size:128"`
-	IsStaff               bool       `json:"-"`
 	Enabled               bool       `json:"-"`
 	Activated             bool       `json:"-"`
 	LastLogin             *time.Time `json:"lastLogin,omitempty"`
@@ -590,6 +590,49 @@ func DecodeHashToken(db *gorm.DB, hash string, useLastLogin bool) (user *User, e
 	return user, nil
 }
 
+func EncodeRefreshToken(user *User, timestamp int64, useLastlogin bool) (hash string) {
+	logintimestamp := "0"
+	if useLastlogin && user.LastLogin != nil {
+		logintimestamp = fmt.Sprintf("%d", user.LastLogin.Unix())
+	}
+	secret := strings.TrimSpace(os.Getenv("REFRESH_TOKEN_SECRET"))
+	t := fmt.Sprintf("%s$%d$rt", user.Email, timestamp)
+	hashVal := sha256.Sum256([]byte(logintimestamp + user.Password + secret + t))
+	hash = base64.RawStdEncoding.EncodeToString([]byte(t)) + "-" + fmt.Sprintf("%x", hashVal)
+	return hash
+}
+
+func DecodeRefreshToken(db *gorm.DB, hash string, useLastLogin bool) (user *User, err error) {
+	vals := strings.Split(hash, "-")
+	if len(vals) != 2 {
+		return nil, errors.New("bad refresh token")
+	}
+	data, err := base64.RawStdEncoding.DecodeString(vals[0])
+	if err != nil {
+		return nil, errors.New("bad refresh token")
+	}
+	parts := strings.Split(string(data), "$")
+	if len(parts) != 3 || parts[2] != "rt" {
+		return nil, errors.New("bad refresh token")
+	}
+	ts, err := strconv.ParseInt(parts[1], 10, 64)
+	if err != nil {
+		return nil, errors.New("bad refresh token")
+	}
+	if time.Now().Unix() > ts {
+		return nil, errors.New("refresh token expired")
+	}
+	user, err = GetUserByEmail(db, parts[0])
+	if err != nil {
+		return nil, errors.New("bad refresh token")
+	}
+	token := EncodeRefreshToken(user, ts, useLastLogin)
+	if token != hash {
+		return nil, errors.New("bad refresh token")
+	}
+	return user, nil
+}
+
 func CheckUserAllowLogin(db *gorm.DB, user *User) error {
 	if !user.Enabled {
 		return errors.New("user not allow login")
@@ -635,6 +678,11 @@ func InTimezone(c *gin.Context, timezone string) {
 func BuildAuthToken(user *User, expired time.Duration, useLoginTime bool) string {
 	n := time.Now().Add(expired)
 	return EncodeHashToken(user, n.Unix(), useLoginTime)
+}
+
+func BuildRefreshToken(user *User, expired time.Duration, useLoginTime bool) string {
+	n := time.Now().Add(expired)
+	return EncodeRefreshToken(user, n.Unix(), useLoginTime)
 }
 
 func UpdateUser(db *gorm.DB, user *User, vals map[string]any) error {
@@ -915,6 +963,15 @@ func CalculateProfileComplete(user *User) int {
 	// 偏好设置 (10%)
 	total += 1
 	if user.Timezone != "" {
+		complete++
+	}
+
+	// 第三方认证 (20%)
+	total += 2
+	if user.WechatOpenID != "" {
+		complete++
+	}
+	if user.GithubID != "" {
 		complete++
 	}
 
