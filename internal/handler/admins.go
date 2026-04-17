@@ -60,8 +60,14 @@ type adminGroupUpdateReq struct {
 }
 
 type adminCredentialStatusReq struct {
-	Status       string `json:"status"`
-	BannedReason string `json:"bannedReason"`
+	Status         string   `json:"status"`
+	BannedReason   string   `json:"bannedReason"`
+	ExpiresAt      *string  `json:"expiresAt"`
+	TokenQuota     *int64   `json:"tokenQuota"`
+	RequestQuota   *int64   `json:"requestQuota"`
+	AmountUSD      *float64 `json:"amountUsd"`
+	UseNativeQuota *bool    `json:"useNativeQuota"`
+	UnlimitedQuota *bool    `json:"unlimitedQuota"`
 }
 
 type adminAssistantUpdateReq struct {
@@ -1053,6 +1059,52 @@ func (h *Handlers) handleAdminUpdateCredentialStatus(c *gin.Context) {
 	default:
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid credential status"))
 		return
+	}
+	if req.ExpiresAt != nil {
+		raw := strings.TrimSpace(*req.ExpiresAt)
+		if raw == "" {
+			updateVals["expires_at"] = nil
+		} else {
+			var parsed time.Time
+			var parseErr error
+			if strings.Contains(raw, "T") {
+				parsed, parseErr = time.Parse(time.RFC3339, raw)
+			} else {
+				parsed, parseErr = time.ParseInLocation("2006-01-02 15:04:05", raw, time.Local)
+			}
+			if parseErr != nil {
+				response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid expiresAt format, expected 'YYYY-MM-DD HH:MM:SS' or RFC3339"))
+				return
+			}
+			updateVals["expires_at"] = &parsed
+		}
+	}
+	if req.TokenQuota != nil {
+		if *req.TokenQuota < 0 {
+			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("tokenQuota must be >= 0"))
+			return
+		}
+		updateVals["token_quota"] = *req.TokenQuota
+	}
+	if req.RequestQuota != nil {
+		if *req.RequestQuota < 0 {
+			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("requestQuota must be >= 0"))
+			return
+		}
+		updateVals["request_quota"] = *req.RequestQuota
+	}
+	if req.AmountUSD != nil {
+		if *req.AmountUSD < 0 {
+			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("amountUsd must be >= 0"))
+			return
+		}
+		updateVals["amount_usd"] = *req.AmountUSD
+	}
+	if req.UseNativeQuota != nil {
+		updateVals["use_native_quota"] = *req.UseNativeQuota
+	}
+	if req.UnlimitedQuota != nil {
+		updateVals["unlimited_quota"] = *req.UnlimitedQuota
 	}
 	if err = h.db.Model(&cred).Updates(updateVals).Error; err != nil {
 		response.Fail(c, "update credential status failed", err)

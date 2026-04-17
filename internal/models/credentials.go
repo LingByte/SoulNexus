@@ -27,6 +27,14 @@ type UserCredentialRequest struct {
 	// JSON格式配置
 	AsrConfig ProviderConfig `json:"asrConfig"` // ASR配置,格式: {"provider": "qiniu", "apiKey": "...", "baseUrl": "..."} 或 {"provider": "qcloud", "appId": "...", "secretId": "...", "secretKey": "..."}
 	TtsConfig ProviderConfig `json:"ttsConfig"` // TTS配置
+
+	// 创建时设置额度/过期，创建后仅展示
+	ExpiresAt      *string  `json:"expiresAt"`
+	TokenQuota     *int64   `json:"tokenQuota"`
+	RequestQuota   *int64   `json:"requestQuota"`
+	AmountUSD      *float64 `json:"amountUsd"`
+	UseNativeQuota *bool    `json:"useNativeQuota"`
+	UnlimitedQuota *bool    `json:"unlimitedQuota"`
 }
 
 type CredentialStatus string
@@ -67,32 +75,47 @@ func (pc *ProviderConfig) Scan(value interface{}) error {
 
 type UserCredential struct {
 	BaseModel
-	UserID       uint             `gorm:"index;" json:"userId"`
-	Name         string           `json:"name"`                                                      // 应用名称 or 用途备注
-	APIKey       string           `gorm:"uniqueIndex:idx_api_key,length:100;not null" json:"apiKey"` // 用于认证
-	APISecret    string           `gorm:"not null" json:"apiSecret"`                                 // 用于签名校验
-	Status       CredentialStatus `gorm:"type:varchar(20);default:'active'" json:"status"`           // 状态: active, banned, suspended
-	BannedAt     *time.Time       `gorm:"index" json:"bannedAt"`                                     // 封禁时间
-	BannedReason string           `gorm:"type:text" json:"bannedReason"`                             // 封禁原因
-	BannedBy     *uint            `gorm:"index" json:"bannedBy"`                                     // 封禁操作者ID
-	ExpiresAt    *time.Time       `gorm:"index" json:"expiresAt"`                                    // 过期时间
-	LastUsedAt   *time.Time       `gorm:"index" json:"lastUsedAt"`                                   // 最后使用时间
-	UsageCount   int64            `gorm:"default:0" json:"usageCount"`                               // 使用次数
-	LLMProvider  string           `json:"llmProvider"`
-	LLMApiKey    string           `json:"llmApiKey"`
-	LLMApiURL    string           `json:"llmApiUrl"`
-	AsrConfig    ProviderConfig   `json:"asrConfig" gorm:"type:json"`
-	TtsConfig    ProviderConfig   `json:"ttsConfig" gorm:"type:json"`
+	UserID         uint             `gorm:"index;" json:"userId"`
+	Name           string           `json:"name"`                                                      // 应用名称 or 用途备注
+	APIKey         string           `gorm:"uniqueIndex:idx_api_key,length:100;not null" json:"apiKey"` // 用于认证
+	APISecret      string           `gorm:"not null" json:"apiSecret"`                                 // 用于签名校验
+	Status         CredentialStatus `gorm:"type:varchar(20);default:'active'" json:"status"`           // 状态: active, banned, suspended
+	BannedAt       *time.Time       `gorm:"index" json:"bannedAt"`                                     // 封禁时间
+	BannedReason   string           `gorm:"type:text" json:"bannedReason"`                             // 封禁原因
+	BannedBy       *uint            `gorm:"index" json:"bannedBy"`                                     // 封禁操作者ID
+	ExpiresAt      *time.Time       `gorm:"index" json:"expiresAt"`                                    // 过期时间
+	LastUsedAt     *time.Time       `gorm:"index" json:"lastUsedAt"`                                   // 最后使用时间
+	UsageCount     int64            `gorm:"default:0" json:"usageCount"`                               // 使用次数
+	TokenQuota     int64            `gorm:"default:0" json:"tokenQuota"`                               // 令牌总额度（0=不限制）
+	TokenUsed      int64            `gorm:"default:0" json:"tokenUsed"`                                // 已使用令牌数
+	RequestQuota   int64            `gorm:"default:0" json:"requestQuota"`                             // 调用次数额度（0=不限制）
+	AmountUSD      float64          `gorm:"type:decimal(18,6);default:0" json:"amountUsd"`             // 预算金额（美元）
+	UseNativeQuota bool             `gorm:"default:false" json:"useNativeQuota"`                       // 是否使用原生额度输入
+	UnlimitedQuota bool             `gorm:"default:true" json:"unlimitedQuota"`                        // 是否无限额度
+	LLMProvider    string           `json:"llmProvider"`
+	LLMApiKey      string           `json:"llmApiKey"`
+	LLMApiURL      string           `json:"llmApiUrl"`
+	AsrConfig      ProviderConfig   `json:"asrConfig" gorm:"type:json"`
+	TtsConfig      ProviderConfig   `json:"ttsConfig" gorm:"type:json"`
 }
 
 // UserCredentialResponse 用于返回给前端的凭证信息（不包含敏感信息）
 type UserCredentialResponse struct {
-	ID          uint      `json:"id"`
-	CreatedAt   time.Time `json:"createdAt"`
-	UpdatedAt   time.Time `json:"updatedAt"`
-	UserID      uint      `json:"userId"`
-	Name        string    `json:"name"`
-	LLMProvider string    `json:"llmProvider"`
+	ID             uint       `json:"id"`
+	CreatedAt      time.Time  `json:"createdAt"`
+	UpdatedAt      time.Time  `json:"updatedAt"`
+	UserID         uint       `json:"userId"`
+	Name           string     `json:"name"`
+	LLMProvider    string     `json:"llmProvider"`
+	Status         string     `json:"status"`
+	ExpiresAt      *time.Time `json:"expiresAt"`
+	UsageCount     int64      `json:"usageCount"`
+	TokenQuota     int64      `json:"tokenQuota"`
+	TokenUsed      int64      `json:"tokenUsed"`
+	RequestQuota   int64      `json:"requestQuota"`
+	AmountUSD      float64    `json:"amountUsd"`
+	UseNativeQuota bool       `json:"useNativeQuota"`
+	UnlimitedQuota bool       `json:"unlimitedQuota"`
 	// 只返回 provider 信息，不返回具体的凭证
 	AsrProvider string `json:"asrProvider"`
 	TtsProvider string `json:"ttsProvider"`
@@ -115,14 +138,23 @@ func (uc *UserCredential) ToResponse() *UserCredentialResponse {
 	}
 
 	return &UserCredentialResponse{
-		ID:          uc.ID,
-		CreatedAt:   uc.CreatedAt,
-		UpdatedAt:   uc.UpdatedAt,
-		UserID:      uc.UserID,
-		Name:        uc.Name,
-		LLMProvider: uc.LLMProvider,
-		AsrProvider: asrProvider,
-		TtsProvider: ttsProvider,
+		ID:             uc.ID,
+		CreatedAt:      uc.CreatedAt,
+		UpdatedAt:      uc.UpdatedAt,
+		UserID:         uc.UserID,
+		Name:           uc.Name,
+		LLMProvider:    uc.LLMProvider,
+		Status:         string(uc.Status),
+		ExpiresAt:      uc.ExpiresAt,
+		UsageCount:     uc.UsageCount,
+		TokenQuota:     uc.TokenQuota,
+		TokenUsed:      uc.TokenUsed,
+		RequestQuota:   uc.RequestQuota,
+		AmountUSD:      uc.AmountUSD,
+		UseNativeQuota: uc.UseNativeQuota,
+		UnlimitedQuota: uc.UnlimitedQuota,
+		AsrProvider:    asrProvider,
+		TtsProvider:    ttsProvider,
 	}
 }
 
@@ -134,7 +166,19 @@ func (uc *UserCredential) IsExpired() bool {
 }
 
 func (uc *UserCredential) IsAvailable() bool {
-	return uc.Status == CredentialStatusActive && !uc.IsExpired()
+	if uc.Status != CredentialStatusActive || uc.IsExpired() {
+		return false
+	}
+	if uc.UnlimitedQuota {
+		return true
+	}
+	if uc.TokenQuota > 0 && uc.TokenUsed >= uc.TokenQuota {
+		return false
+	}
+	if uc.RequestQuota > 0 && uc.UsageCount >= uc.RequestQuota {
+		return false
+	}
+	return true
 }
 
 func (uc *UserCredential) Ban(reason string, operatorID *uint) {
@@ -305,23 +349,67 @@ func CreateUserCredential(db *gorm.DB, userID uint, credential *UserCredentialRe
 	asrConfig := credential.BuildASRConfig()
 	ttsConfig := credential.BuildTTSConfig()
 
+	var expiresAt *time.Time
+	if credential.ExpiresAt != nil {
+		raw := strings.TrimSpace(*credential.ExpiresAt)
+		if raw != "" {
+			var parsed time.Time
+			var parseErr error
+			if strings.Contains(raw, "T") {
+				parsed, parseErr = time.Parse(time.RFC3339, raw)
+			} else {
+				parsed, parseErr = time.ParseInLocation("2006-01-02 15:04:05", raw, time.Local)
+			}
+			if parseErr != nil {
+				return nil, fmt.Errorf("invalid expiresAt format")
+			}
+			expiresAt = &parsed
+		}
+	}
+	tokenQuota := int64(0)
+	if credential.TokenQuota != nil && *credential.TokenQuota >= 0 {
+		tokenQuota = *credential.TokenQuota
+	}
+	requestQuota := int64(0)
+	if credential.RequestQuota != nil && *credential.RequestQuota >= 0 {
+		requestQuota = *credential.RequestQuota
+	}
+	amountUSD := float64(0)
+	if credential.AmountUSD != nil && *credential.AmountUSD >= 0 {
+		amountUSD = *credential.AmountUSD
+	}
+	useNativeQuota := false
+	if credential.UseNativeQuota != nil {
+		useNativeQuota = *credential.UseNativeQuota
+	}
+	unlimitedQuota := true
+	if credential.UnlimitedQuota != nil {
+		unlimitedQuota = *credential.UnlimitedQuota
+	}
+
 	userCred := &UserCredential{
-		UserID:       userID,
-		APIKey:       apiKey,
-		APISecret:    apiSecret,
-		Name:         credential.Name,
-		Status:       CredentialStatusActive,
-		LLMProvider:  credential.LLMProvider,
-		LLMApiKey:    credential.LLMApiKey,
-		LLMApiURL:    credential.LLMApiURL,
-		AsrConfig:    asrConfig,
-		TtsConfig:    ttsConfig,
-		UsageCount:   0,
-		LastUsedAt:   nil,
-		BannedAt:     nil,
-		BannedReason: "",
-		BannedBy:     nil,
-		ExpiresAt:    nil,
+		UserID:         userID,
+		APIKey:         apiKey,
+		APISecret:      apiSecret,
+		Name:           credential.Name,
+		Status:         CredentialStatusActive,
+		ExpiresAt:      expiresAt,
+		TokenQuota:     tokenQuota,
+		RequestQuota:   requestQuota,
+		AmountUSD:      amountUSD,
+		UseNativeQuota: useNativeQuota,
+		UnlimitedQuota: unlimitedQuota,
+		LLMProvider:    credential.LLMProvider,
+		LLMApiKey:      credential.LLMApiKey,
+		LLMApiURL:      credential.LLMApiURL,
+		AsrConfig:      asrConfig,
+		TtsConfig:      ttsConfig,
+		UsageCount:     0,
+		LastUsedAt:     nil,
+		BannedAt:       nil,
+		BannedReason:   "",
+		BannedBy:       nil,
+		ExpiresAt:      nil,
 	}
 
 	err = db.Create(userCred).Error

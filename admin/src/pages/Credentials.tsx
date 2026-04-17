@@ -8,6 +8,36 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { listAdminCredentials, updateAdminCredentialStatus, deleteAdminCredential, type AdminCredential } from '@/services/adminApi'
 import { showAlert } from '@/utils/notification'
 
+type CredentialEditForm = {
+  expiresAt: string
+  tokenQuota: number
+  requestQuota: number
+  amountUsd: number
+  useNativeQuota: boolean
+  unlimitedQuota: boolean
+}
+
+const DATE_NEVER = '1970-01-01 07:59:59'
+
+function formatDateTimeInput(value?: string): string {
+  if (!value) return ''
+  const dt = new Date(value)
+  if (Number.isNaN(dt.getTime())) return value
+  const y = dt.getFullYear()
+  const m = `${dt.getMonth() + 1}`.padStart(2, '0')
+  const d = `${dt.getDate()}`.padStart(2, '0')
+  const h = `${dt.getHours()}`.padStart(2, '0')
+  const mi = `${dt.getMinutes()}`.padStart(2, '0')
+  const s = `${dt.getSeconds()}`.padStart(2, '0')
+  return `${y}-${m}-${d} ${h}:${mi}:${s}`
+}
+
+function addDays(days: number): string {
+  const now = new Date()
+  now.setDate(now.getDate() + days)
+  return formatDateTimeInput(now.toISOString())
+}
+
 const Credentials = () => {
   const [list, setList] = useState<AdminCredential[]>([])
   const [loading, setLoading] = useState(false)
@@ -17,6 +47,15 @@ const Credentials = () => {
   const [pageSize] = useState(20)
   const [total, setTotal] = useState(0)
   const [detail, setDetail] = useState<AdminCredential | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [editForm, setEditForm] = useState<CredentialEditForm>({
+    expiresAt: '',
+    tokenQuota: 0,
+    requestQuota: 0,
+    amountUsd: 0,
+    useNativeQuota: false,
+    unlimitedQuota: true,
+  })
 
   const fetchData = async () => {
     try {
@@ -37,10 +76,45 @@ const Credentials = () => {
     fetchData()
   }
 
+  const openDetail = (item: AdminCredential) => {
+    setDetail(item)
+    setEditForm({
+      expiresAt: formatDateTimeInput(item.expiresAt),
+      tokenQuota: item.tokenQuota || 0,
+      requestQuota: item.requestQuota || 0,
+      amountUsd: item.amountUsd || 0,
+      useNativeQuota: !!item.useNativeQuota,
+      unlimitedQuota: item.unlimitedQuota !== false,
+    })
+  }
+
+  const saveCredentialSettings = async () => {
+    if (!detail) return
+    try {
+      setSaving(true)
+      await updateAdminCredentialStatus(detail.id, {
+        status: detail.status,
+        expiresAt: editForm.expiresAt.trim(),
+        tokenQuota: Math.max(0, Number(editForm.tokenQuota || 0)),
+        requestQuota: Math.max(0, Number(editForm.requestQuota || 0)),
+        amountUsd: Math.max(0, Number(editForm.amountUsd || 0)),
+        useNativeQuota: !!editForm.useNativeQuota,
+        unlimitedQuota: !!editForm.unlimitedQuota,
+      })
+      showAlert('密钥设置已保存', 'success')
+      setDetail(null)
+      fetchData()
+    } catch (e: any) {
+      showAlert('保存失败', 'error', e?.msg || e?.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const exportCsv = () => {
     const headers = ['id', 'name', 'userId', 'status', 'llmProvider', 'usageCount', 'createdAt']
     const rows = list.map(i => [i.id, i.name, i.userId, i.status, i.llmProvider || '', i.usageCount, i.createdAt])
-    const csv = [headers, ...rows].map(row => row.map(v => `"${String(v ?? '').replaceAll('"', '""')}"`).join(',')).join('\n')
+    const csv = [headers, ...rows].map(row => row.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -71,7 +145,7 @@ const Credentials = () => {
               <tr key={item.id} className="border-b">
                 <td className="py-2">{item.id}</td><td>{item.name}</td><td>{item.userId}</td><td>{item.status}</td>
                 <td className="flex gap-2 py-2">
-                  <Button size="sm" variant="ghost" onClick={() => setDetail(item)}>详情</Button>
+                  <Button size="sm" variant="ghost" onClick={() => openDetail(item)}>详情</Button>
                   <Button size="sm" variant="outline" onClick={() => updateStatus(item.id, 'active')}>启用</Button>
                   <Button size="sm" variant="outline" onClick={() => updateStatus(item.id, 'suspended')}>暂停</Button>
                   <Button size="sm" variant="outline" onClick={() => updateStatus(item.id, 'banned')}>封禁</Button>
@@ -101,6 +175,70 @@ const Credentials = () => {
             <div>Provider: {detail.llmProvider || '-'}</div>
             <div>使用次数: {detail.usageCount}</div>
             <div>最近使用: {detail.lastUsedAt || '-'}</div>
+            <div className="pt-2 border-t mt-2">
+              <div className="font-medium mb-2">过期时间快捷设置</div>
+              <div className="flex flex-wrap gap-2 mb-2">
+                <Button size="sm" variant="outline" onClick={() => setEditForm(prev => ({ ...prev, expiresAt: addDays(1) }))}>+1天</Button>
+                <Button size="sm" variant="outline" onClick={() => setEditForm(prev => ({ ...prev, expiresAt: addDays(7) }))}>+7天</Button>
+                <Button size="sm" variant="outline" onClick={() => setEditForm(prev => ({ ...prev, expiresAt: addDays(30) }))}>+30天</Button>
+                <Button size="sm" variant="outline" onClick={() => setEditForm(prev => ({ ...prev, expiresAt: DATE_NEVER }))}>1970-01-01 07:59:59</Button>
+                <Button size="sm" variant="ghost" onClick={() => setEditForm(prev => ({ ...prev, expiresAt: '' }))}>清空</Button>
+              </div>
+              <Input
+                label="过期时间"
+                value={editForm.expiresAt}
+                onChange={(e) => setEditForm(prev => ({ ...prev, expiresAt: e.target.value }))}
+                placeholder="YYYY-MM-DD HH:MM:SS"
+              />
+            </div>
+
+            <div className="pt-2 border-t mt-2">
+              <div className="font-medium mb-2">令牌分组额度设置</div>
+              <div className="space-y-2">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={editForm.useNativeQuota}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, useNativeQuota: e.target.checked }))}
+                  />
+                  <span>▸ 使用原生额度输入</span>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={editForm.unlimitedQuota}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, unlimitedQuota: e.target.checked }))}
+                  />
+                  <span>无限额度</span>
+                </label>
+                <Input
+                  label="设置令牌可用额度"
+                  type="number"
+                  value={String(editForm.tokenQuota)}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, tokenQuota: Number(e.target.value || 0) }))}
+                />
+                <Input
+                  label="设置令牌可用数量"
+                  type="number"
+                  value={String(editForm.requestQuota)}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, requestQuota: Number(e.target.value || 0) }))}
+                />
+                <Input
+                  label="金额 ($)"
+                  type="number"
+                  step="0.000001"
+                  value={String(editForm.amountUsd)}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, amountUsd: Number(e.target.value || 0) }))}
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3">
+              <Button variant="outline" onClick={() => setDetail(null)}>取消</Button>
+              <Button variant="primary" onClick={saveCredentialSettings} disabled={saving}>
+                {saving ? '保存中...' : '保存设置'}
+              </Button>
+            </div>
           </div>
         )}
       </Modal>
