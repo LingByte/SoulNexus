@@ -31,6 +31,7 @@ export const common: Record<Language, Record<string, string>> = {
     'nav.sidebar.selectOrganization': '选择组织',
     'nav.sidebar.mcpManagement': 'MCP 管理',
     'nav.sidebar.mcpMarketplace': 'MCP 广场',
+    'nav.sidebar.announcements': '公告中心',
     // 主题
     'theme.toggle': '切换主题',
     'theme.light': '浅色模式',
@@ -41,8 +42,10 @@ export const common: Record<Language, Record<string, string>> = {
     // 语言
     'lang.select': '选择语言',
     'lang.zh': '中文',
+    'lang.zhTw': '繁體中文',
     'lang.en': 'English',
     'lang.ja': '日本語',
+    'lang.fr': 'Français',
 
     // 通用操作
     'common.loading': '加载中...',
@@ -117,6 +120,7 @@ export const common: Record<Language, Record<string, string>> = {
     'nav.sidebar.selectOrganization': 'Select Organization',
     'nav.sidebar.mcpManagement': 'MCP Management',
     'nav.sidebar.mcpMarketplace': 'MCP Marketplace',
+    'nav.sidebar.announcements': 'Announcements',
     // Theme
     'theme.toggle': 'Toggle Theme',
     'theme.light': 'Light Mode',
@@ -127,8 +131,10 @@ export const common: Record<Language, Record<string, string>> = {
     // Language
     'lang.select': 'Select Language',
     'lang.zh': '中文',
+    'lang.zhTw': '繁體中文',
     'lang.en': 'English',
     'lang.ja': '日本語',
+    'lang.fr': 'Français',
 
     // Common Actions
     'common.loading': 'Loading...',
@@ -204,6 +210,7 @@ export const common: Record<Language, Record<string, string>> = {
     'nav.sidebar.selectOrganization': '組織を選択',
     'nav.sidebar.mcpManagement': 'MCP管理',
     'nav.sidebar.mcpMarketplace': 'MCPマーケットプレイス',
+    'nav.sidebar.announcements': 'お知らせ',
     // テーマ
     'theme.toggle': 'テーマ切り替え',
     'theme.light': 'ライトモード',
@@ -214,8 +221,10 @@ export const common: Record<Language, Record<string, string>> = {
     // 言語
     'lang.select': '言語選択',
     'lang.zh': '中文',
+    'lang.zhTw': '繁體中文',
     'lang.en': 'English',
     'lang.ja': '日本語',
+    'lang.fr': 'Français',
 
     // 共通アクション
     'common.loading': '読み込み中...',
