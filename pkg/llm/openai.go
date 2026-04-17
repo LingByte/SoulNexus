@@ -965,9 +965,17 @@ func (oh *OpenaiHandler) createChatCompletionWithTools(ctx context.Context, requ
 		if len(assistantMsg.ToolCalls) == 0 {
 			return resp, nil
 		}
+		// 部分 OpenAI 兼容实现会要求每条消息都显式带 content 字段；
+		// 工具调用阶段 assistant 常为空内容，这里补一个占位文本避免 400。
+		if strings.TrimSpace(assistantMsg.Content) == "" {
+			assistantMsg.Content = " "
+		}
 		current.Messages = append(current.Messages, assistantMsg)
 		for _, tc := range assistantMsg.ToolCalls {
 			toolResult := oh.executeToolCall(tc)
+			if strings.TrimSpace(toolResult) == "" {
+				toolResult = "工具执行完成"
+			}
 			current.Messages = append(current.Messages, openai.ChatCompletionMessage{
 				Role:       openai.ChatMessageRoleTool,
 				ToolCallID: tc.ID,

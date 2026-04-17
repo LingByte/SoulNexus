@@ -76,6 +76,9 @@ type HardwareSession struct {
 	recorder          *AudioRecorder
 	conversationTurns []models.ConversationTurn // 对话轮次列表
 	currentTurnID     int                       // 当前轮次ID
+	lastListenStartAt time.Time                 // 最近一次 listen start 时间（用于过滤重启后的脏 ASR 结果）
+	lastTriggerText   string                    // 最近一次触发 LLM 的文本（用于去重）
+	lastTriggerAt     time.Time                 // 最近一次触发 LLM 的时间（用于冷却）
 }
 
 func NewHardwareSession(ctx context.Context, hardwareConfig *HardwareSessionOption) *HardwareSession {
