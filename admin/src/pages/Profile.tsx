@@ -31,7 +31,6 @@ const Profile = () => {
     avatar: '',
     emailNotifications: true,
     pushNotifications: true,
-    systemNotifications: true,
   })
 
   useEffect(() => {
@@ -54,7 +53,6 @@ const Profile = () => {
         avatar: userData.avatar || '',
         emailNotifications: userData.emailNotifications ?? true,
         pushNotifications: userData.pushNotifications ?? true,
-        systemNotifications: userData.systemNotifications ?? true,
       })
     } catch (error) {
       console.error('获取用户信息失败:', error)
@@ -70,7 +68,6 @@ const Profile = () => {
       await updateNotificationSettings({
         email_notifications: (formData as any).emailNotifications,
         push_notifications: (formData as any).pushNotifications,
-        system_notifications: (formData as any).systemNotifications,
       })
       await refreshUserInfo()
       setIsEditing(false)
@@ -336,7 +333,7 @@ const Profile = () => {
 
         <Card className="p-6">
           <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">通知偏好</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
@@ -354,15 +351,6 @@ const Profile = () => {
                 onChange={(e) => setFormData({ ...formData, pushNotifications: e.target.checked } as any)}
               />
               推送通知
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={(formData as any).systemNotifications ?? true}
-                disabled={!isEditing}
-                onChange={(e) => setFormData({ ...formData, systemNotifications: e.target.checked } as any)}
-              />
-              系统通知
             </label>
           </div>
         </Card>

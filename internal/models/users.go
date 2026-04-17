@@ -35,6 +35,69 @@ const (
 	RoleUser       = "user"       // 普通用户
 )
 
+// 用户来源（注册 / 创建渠道）
+const (
+	UserSourceSystem = "SYSTEM"
+	UserSourceAdmin  = "ADMIN"
+	UserSourceWechat = "WECHAT"
+	UserSourceGithub = "GITHUB"
+)
+
+// 用户账号状态（替代原 enabled / activated）
+const (
+	UserStatusActive              = "active"
+	UserStatusPendingVerification = "pending_verification"
+	UserStatusSuspended           = "suspended"
+	UserStatusBanned              = "banned"
+)
+
+// NormalizeUserSource 统一为大写合法值，未知则回落为 SYSTEM。
+func NormalizeUserSource(raw string) string {
+	s := strings.TrimSpace(raw)
+	if s == "" {
+		return UserSourceSystem
+	}
+	u := strings.ToUpper(s)
+	switch u {
+	case UserSourceSystem, UserSourceAdmin, UserSourceWechat, UserSourceGithub:
+		return u
+	}
+	switch strings.ToLower(s) {
+	case "system", "web", "email", "password", "signup":
+		return UserSourceSystem
+	case "admin", "后台":
+		return UserSourceAdmin
+	case "wechat", "weixin", "微信":
+		return UserSourceWechat
+	case "github":
+		return UserSourceGithub
+	default:
+		return UserSourceSystem
+	}
+}
+
+// NormalizeUserStatus 校验并规范化状态字符串。
+func NormalizeUserStatus(raw string) string {
+	s := strings.TrimSpace(strings.ToLower(raw))
+	switch s {
+	case "", UserStatusActive:
+		return UserStatusActive
+	case UserStatusPendingVerification:
+		return UserStatusPendingVerification
+	case UserStatusSuspended:
+		return UserStatusSuspended
+	case UserStatusBanned:
+		return UserStatusBanned
+	default:
+		return ""
+	}
+}
+
+// UserStatusAllowsLogin 是否允许登录（仅正常态）。
+func UserStatusAllowsLogin(status string) bool {
+	return strings.EqualFold(strings.TrimSpace(status), UserStatusActive)
+}
+
 type SendEmailVerifyEmail struct {
 	Email     string `json:"email"`
 	ClientIp  string `json:"clientIp"`
@@ -124,45 +187,42 @@ type UpdateUserRequest struct {
 
 type User struct {
 	BaseModel
-	Email                 string     `json:"email" gorm:"size:128;uniqueIndex"`
-	WechatOpenID          string     `json:"wechatOpenId,omitempty" gorm:"size:128;index"`
-	WechatUnionID         string     `json:"wechatUnionId,omitempty" gorm:"size:128;index"`
-	GithubID              string     `json:"githubId,omitempty" gorm:"size:64;index"`
-	GithubLogin           string     `json:"githubLogin,omitempty" gorm:"size:128;index"`
-	Password              string     `json:"-" gorm:"size:128"`
-	Phone                 string     `json:"phone,omitempty" gorm:"size:64;index"`
-	FirstName             string     `json:"firstName,omitempty" gorm:"size:128"`
-	LastName              string     `json:"lastName,omitempty" gorm:"size:128"`
-	DisplayName           string     `json:"displayName,omitempty" gorm:"size:128"`
-	Enabled               bool       `json:"-"`
-	Activated             bool       `json:"-"`
-	LastLogin             *time.Time `json:"lastLogin,omitempty"`
-	LastLoginIP           string     `json:"-" gorm:"size:128"`
-	Source                string     `json:"-" gorm:"size:64;index"`
-	Locale                string     `json:"locale,omitempty" gorm:"size:20"`
-	Timezone              string     `json:"timezone,omitempty" gorm:"size:200"`
-	AuthToken             string     `json:"token,omitempty" gorm:"-"`
-	Avatar                string     `json:"avatar,omitempty"`
-	Gender                string     `json:"gender,omitempty"`
-	City                  string     `json:"city,omitempty"`
-	Region                string     `json:"region,omitempty"`
-	EmailNotifications    bool       `json:"emailNotifications"`                           // 邮件通知
-	PushNotifications     bool       `json:"pushNotifications" gorm:"default:true"`        // 推送通知
-	SystemNotifications   bool       `json:"systemNotifications" gorm:"default:true"`      // 系统通知
-	AutoCleanUnreadEmails bool       `json:"autoCleanUnreadEmails" gorm:"default:false"`   // 自动清理七天未读邮件
-	EmailVerified         bool       `json:"emailVerified" gorm:"default:false"`           // 邮箱已验证
-	PhoneVerified         bool       `json:"phoneVerified" gorm:"default:false"`           // 手机已验证
-	TwoFactorEnabled      bool       `json:"twoFactorEnabled" gorm:"default:false"`        // 双因素认证
-	TwoFactorSecret       string     `json:"-" gorm:"size:128"`                            // 双因素认证密钥
-	EmailVerifyToken      string     `json:"-" gorm:"size:128"`                            // 邮箱验证令牌
-	PhoneVerifyToken      string     `json:"-" gorm:"size:128"`                            // 手机验证令牌
-	PasswordResetToken    string     `json:"-" gorm:"size:128"`                            // 密码重置令牌
-	PasswordResetExpires  *time.Time `json:"-"`                                            // 密码重置过期时间
-	EmailVerifyExpires    *time.Time `json:"-"`                                            // 邮箱验证过期时间
-	LoginCount            int        `json:"loginCount" gorm:"default:0"`                  // 登录次数
-	LastPasswordChange    *time.Time `json:"lastPasswordChange,omitempty"`                 // 最后密码修改时间
-	ProfileComplete       int        `json:"profileComplete" gorm:"default:0"`             // 资料完整度百分比
-	Role                  string     `json:"role,omitempty" gorm:"size:50;default:'user'"` // 用户角色
+	Email                string     `json:"email" gorm:"size:128;uniqueIndex"`
+	WechatOpenID         string     `json:"wechatOpenId,omitempty" gorm:"size:128;index"`
+	WechatUnionID        string     `json:"wechatUnionId,omitempty" gorm:"size:128;index"`
+	GithubID             string     `json:"githubId,omitempty" gorm:"size:64;index"`
+	GithubLogin          string     `json:"githubLogin,omitempty" gorm:"size:128;index"`
+	Password             string     `json:"-" gorm:"size:128"`
+	Phone                string     `json:"phone,omitempty" gorm:"size:64;index"`
+	FirstName            string     `json:"firstName,omitempty" gorm:"size:128"`
+	LastName             string     `json:"lastName,omitempty" gorm:"size:128"`
+	DisplayName          string     `json:"displayName,omitempty" gorm:"size:128"`
+	Status               string     `json:"status" gorm:"size:32;index;default:'active';comment:Account status"`
+	LastLogin            *time.Time `json:"lastLogin,omitempty"`
+	LastLoginIP          string     `json:"-" gorm:"size:128"`
+	Source               string     `json:"source" gorm:"size:64;index"`
+	Locale               string     `json:"locale,omitempty" gorm:"size:20"`
+	Timezone             string     `json:"timezone,omitempty" gorm:"size:200"`
+	AuthToken            string     `json:"token,omitempty" gorm:"-"`
+	Avatar               string     `json:"avatar,omitempty"`
+	Gender               string     `json:"gender,omitempty"`
+	City                 string     `json:"city,omitempty"`
+	Region               string     `json:"region,omitempty"`
+	EmailNotifications   bool       `json:"emailNotifications"`                           // 邮件通知
+	PushNotifications    bool       `json:"pushNotifications" gorm:"default:true"`        // 推送通知
+	EmailVerified        bool       `json:"emailVerified" gorm:"default:false"`           // 邮箱已验证
+	PhoneVerified        bool       `json:"phoneVerified" gorm:"default:false"`           // 手机已验证
+	TwoFactorEnabled     bool       `json:"twoFactorEnabled" gorm:"default:false"`        // 双因素认证
+	TwoFactorSecret      string     `json:"-" gorm:"size:128"`                            // 双因素认证密钥
+	EmailVerifyToken     string     `json:"-" gorm:"size:128"`                            // 邮箱验证令牌
+	PhoneVerifyToken     string     `json:"-" gorm:"size:128"`                            // 手机验证令牌
+	PasswordResetToken   string     `json:"-" gorm:"size:128"`                            // 密码重置令牌
+	PasswordResetExpires *time.Time `json:"-"`                                            // 密码重置过期时间
+	EmailVerifyExpires   *time.Time `json:"-"`                                            // 邮箱验证过期时间
+	LoginCount           int        `json:"loginCount" gorm:"default:0"`                  // 登录次数
+	LastPasswordChange   *time.Time `json:"lastPasswordChange,omitempty"`                 // 最后密码修改时间
+	ProfileComplete      int        `json:"profileComplete" gorm:"default:0"`             // 资料完整度百分比
+	Role                 string     `json:"role,omitempty" gorm:"size:50;default:'user'"` // 用户角色
 }
 
 func (u *User) TableName() string {
@@ -358,13 +418,13 @@ func VerifyEncryptedPassword(encryptedPassword, storedPasswordHash string) bool 
 func GetUserByUID(db *gorm.DB, userID uint) (*User, error) {
 	var val User
 	start := time.Now()
-	result := db.Where("id", userID).Where("enabled", true).Take(&val)
+	result := db.Where("id", userID).Where("status", UserStatusActive).Take(&val)
 	duration := time.Since(start)
 
 	// Record database query metrics (if monitoring system is available)
 	if monitor := metrics.GetGlobalMonitor(); monitor != nil {
-		monitor.RecordSQLQuery(context.Background(), "SELECT * FROM users WHERE id = ? AND enabled = ?",
-			[]interface{}{userID, true}, constants.USER_TABLE_NAME, "SELECT", duration, 1, result.Error)
+		monitor.RecordSQLQuery(context.Background(), "SELECT * FROM users WHERE id = ? AND status = ?",
+			[]interface{}{userID, UserStatusActive}, constants.USER_TABLE_NAME, "SELECT", duration, 1, result.Error)
 	}
 
 	if result.Error != nil {
@@ -458,7 +518,7 @@ func GetUserByAPIKey(c *gin.Context, apiKey, apiSecret string) (*User, error) {
 		return nil, err
 	}
 	var user *User
-	err = db.Model(&User{}).Where("id = ?", userCredential.UserID).Find(&user).Error
+	err = db.Model(&User{}).Where("id = ? AND status = ?", userCredential.UserID, UserStatusActive).Find(&user).Error
 	if err != nil {
 		return nil, err
 	}
@@ -466,6 +526,17 @@ func GetUserByAPIKey(c *gin.Context, apiKey, apiSecret string) (*User, error) {
 }
 
 func CreateUserByEmail(db *gorm.DB, username, display, email, password string) (*User, error) {
+	return CreateUserByEmailWithMeta(db, username, display, email, password, UserSourceSystem, UserStatusActive)
+}
+
+// CreateUserByEmailWithMeta 创建用户并写入来源与账号状态。
+func CreateUserByEmailWithMeta(db *gorm.DB, username, display, email, password, source, status string) (*User, error) {
+	source = NormalizeUserSource(source)
+	if st := NormalizeUserStatus(status); st != "" {
+		status = st
+	} else {
+		status = UserStatusActive
+	}
 	// Properly handle Unicode characters (including Chinese)
 	var firstName, lastName string
 	if username != "" {
@@ -479,39 +550,75 @@ func CreateUserByEmail(db *gorm.DB, username, display, email, password string) (
 	}
 
 	user := User{
+		BaseModel:          BaseModel{},
 		DisplayName:        display,
 		FirstName:          firstName,
 		LastName:           lastName,
 		Email:              email,
 		Password:           HashPassword(password),
-		Enabled:            true,
-		Activated:          false,
+		Status:             status,
+		Source:             source,
 		EmailNotifications: true,
 		Role:               RoleUser, // Explicitly set default role
+	}
+	operator := strings.ToLower(strings.TrimSpace(email))
+	if operator == "" {
+		operator = "system"
+	}
+	user.SetCreateInfo(operator)
+	if utils.SnowflakeUtil != nil {
+		if id := utils.SnowflakeUtil.NextID(); id > 0 {
+			user.ID = uint(id)
+		}
 	}
 	result := db.Create(&user)
 	return &user, result.Error
 }
 
 func CreateUser(db *gorm.DB, email, password string) (*User, error) {
+	return CreateUserWithMeta(db, email, password, UserSourceSystem, UserStatusActive)
+}
+
+// CreateUserWithMeta 使用邮箱+密码创建用户（如网页注册），可指定来源与状态。
+func CreateUserWithMeta(db *gorm.DB, email, password, source, status string) (*User, error) {
+	source = NormalizeUserSource(source)
+	if st := NormalizeUserStatus(status); st != "" {
+		status = st
+	} else {
+		status = UserStatusActive
+	}
 	user := User{
+		BaseModel: BaseModel{},
 		Email:     email,
 		Password:  HashPassword(password),
-		Enabled:   true,
-		Activated: false,
+		Status:    status,
+		Source:    source,
 		Role:      RoleUser, // Explicitly set default role
+	}
+	operator := strings.ToLower(strings.TrimSpace(email))
+	if operator == "" {
+		operator = "system"
+	}
+	user.SetCreateInfo(operator)
+	if utils.SnowflakeUtil != nil {
+		if id := utils.SnowflakeUtil.NextID(); id > 0 {
+			user.ID = uint(id)
+		}
 	}
 
 	start := time.Now()
 	result := db.Create(&user)
 	duration := time.Since(start)
 	if monitor := metrics.GetGlobalMonitor(); monitor != nil {
-		monitor.RecordSQLQuery(context.Background(), "INSERT INTO users (email, password, enabled, activated) VALUES (?, ?, ?, ?)",
-			[]interface{}{email, user.Password, true, false}, constants.USER_TABLE_NAME, "INSERT", duration, 1, result.Error)
+		monitor.RecordSQLQuery(context.Background(), "INSERT INTO users (email, password, status, source) VALUES (?, ?, ?, ?)",
+			[]interface{}{email, user.Password, status, source}, constants.USER_TABLE_NAME, "INSERT", duration, 1, result.Error)
 	}
 	return &user, result.Error
 }
 func UpdateUserFields(db *gorm.DB, user *User, vals map[string]any) error {
+	if _, ok := vals["update_by"]; !ok {
+		vals["update_by"] = "system"
+	}
 	start := time.Now()
 	result := db.Model(user).Updates(vals)
 	duration := time.Since(start)
@@ -634,7 +741,10 @@ func DecodeRefreshToken(db *gorm.DB, hash string, useLastLogin bool) (user *User
 }
 
 func CheckUserAllowLogin(db *gorm.DB, user *User) error {
-	if !user.Enabled {
+	if user == nil {
+		return errors.New("user not allow login")
+	}
+	if !UserStatusAllowsLogin(user.Status) {
 		return errors.New("user not allow login")
 	}
 
@@ -686,6 +796,9 @@ func BuildRefreshToken(user *User, expired time.Duration, useLoginTime bool) str
 }
 
 func UpdateUser(db *gorm.DB, user *User, vals map[string]any) error {
+	if _, ok := vals["update_by"]; !ok {
+		vals["update_by"] = "system"
+	}
 	return db.Model(user).Updates(vals).Error
 }
 
@@ -854,13 +967,6 @@ func UpdateNotificationSettings(db *gorm.DB, user *User, settings map[string]boo
 	if pushNotif, ok := settings["pushNotifications"]; ok {
 		vals["push_notifications"] = pushNotif
 	}
-	if systemNotif, ok := settings["systemNotifications"]; ok {
-		vals["system_notifications"] = systemNotif
-	}
-	if autoCleanUnreadEmails, ok := settings["autoCleanUnreadEmails"]; ok {
-		vals["auto_clean_unread_emails"] = autoCleanUnreadEmails
-	}
-
 	if len(vals) == 0 {
 		return nil
 	}
@@ -877,13 +983,6 @@ func UpdateNotificationSettings(db *gorm.DB, user *User, settings map[string]boo
 	if pushNotif, ok := settings["pushNotifications"]; ok {
 		user.PushNotifications = pushNotif
 	}
-	if systemNotif, ok := settings["systemNotifications"]; ok {
-		user.SystemNotifications = systemNotif
-	}
-	if autoCleanUnreadEmails, ok := settings["autoCleanUnreadEmails"]; ok {
-		user.AutoCleanUnreadEmails = autoCleanUnreadEmails
-	}
-
 	return nil
 }
 

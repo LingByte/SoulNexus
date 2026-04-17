@@ -180,13 +180,15 @@ export interface User {
   hasFilledDetails: boolean
   emailNotifications: boolean
   pushNotifications?: boolean
-  systemNotifications?: boolean
-  autoCleanUnreadEmails?: boolean
   twoFactorEnabled?: boolean
   emailVerified?: boolean
   wechatOpenId?: string
   githubId?: string
   githubLogin?: string
+  /** 账号状态：active | pending_verification | suspended | banned */
+  status?: string
+  /** 注册来源：SYSTEM | ADMIN | WECHAT | GITHUB */
+  source?: string
 }
 
 // 用户注册

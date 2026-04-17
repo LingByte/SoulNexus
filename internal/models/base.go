@@ -38,12 +38,21 @@ func (m *BaseModel) BeforeCreate(tx *gorm.DB) error {
 	if m.IsDeleted == 0 {
 		m.IsDeleted = SoftDeleteStatusActive
 	}
+	if m.CreateBy == "" {
+		m.CreateBy = "system"
+	}
+	if m.UpdateBy == "" {
+		m.UpdateBy = m.CreateBy
+	}
 	return nil
 }
 
 // BeforeUpdate GORM hook: automatically set update time before updating
 func (m *BaseModel) BeforeUpdate(tx *gorm.DB) error {
 	m.UpdatedAt = time.Now()
+	if m.UpdateBy == "" {
+		m.UpdateBy = "system"
+	}
 	return nil
 }
 

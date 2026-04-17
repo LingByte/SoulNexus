@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { 
   User, Mail, Shield, Camera, Save, Edit3, X, Lock, Eye, EyeOff, 
   Clock, Phone, Settings, Bell, Key, Heart, 
-  CheckCircle, AlertCircle, Zap
+  CheckCircle, AlertCircle
 } from 'lucide-react'
 import { useAuthStore } from '../stores/authStore'
 import { useI18nStore } from '../stores/i18nStore'
@@ -1275,67 +1275,6 @@ const Profile = () => {
                           />
                         </div>
 
-                        <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                          <div className="flex items-center space-x-3">
-                            <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-                              <Zap className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                            </div>
-                            <div>
-                              <h4 className="font-medium text-gray-900 dark:text-white">{t('profile.systemNotifications')}</h4>
-                              <p className="text-sm text-gray-600 dark:text-gray-400">{t('profile.systemNotificationsDesc')}</p>
-                            </div>
-                          </div>
-                          <Switch
-                            checked={user?.systemNotifications || false}
-                            onCheckedChange={async (checked) => {
-                              updateAuthStore({ systemNotifications: checked })
-                              try {
-                                const response = await updatePreferences({
-                                  systemNotifications: checked
-                                })
-                                if (response.code === 200) {
-                                  showAlert(t('profile.preferencesUpdated'), 'success', t('profile.messages.loadSuccess'))
-                                } else {
-                                  throw new Error(response.msg || '更新失败')
-                                }
-                              } catch (error: any) {
-                                updateAuthStore({ systemNotifications: !checked })
-                                showAlert(error?.msg || error?.message || '更新失败', 'error', '操作失败')
-                              }
-                            }}
-                          />
-                        </div>
-
-                        <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                          <div className="flex items-center space-x-3">
-                            <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
-                              <Mail className="w-5 h-5 text-orange-600 dark:text-orange-400" />
-                            </div>
-                            <div>
-                              <h4 className="font-medium text-gray-900 dark:text-white">自动清理未读邮件</h4>
-                              <p className="text-sm text-gray-600 dark:text-gray-400">自动清理超过七天未读的邮件</p>
-                            </div>
-                          </div>
-                          <Switch
-                            checked={user?.autoCleanUnreadEmails || false}
-                            onCheckedChange={async (checked) => {
-                              updateAuthStore({ autoCleanUnreadEmails: checked })
-                              try {
-                                const response = await updatePreferences({
-                                  autoCleanUnreadEmails: checked
-                                })
-                                if (response.code === 200) {
-                                  showAlert(t('profile.preferencesUpdated'), 'success', t('profile.messages.loadSuccess'))
-                                } else {
-                                  throw new Error(response.msg || '更新失败')
-                                }
-                              } catch (error: any) {
-                                updateAuthStore({ autoCleanUnreadEmails: !checked })
-                                showAlert(error?.msg || error?.message || '更新失败', 'error', '操作失败')
-                              }
-                            }}
-                          />
-                        </div>
                       </div>
                     </div>
                   </Card>

@@ -14,7 +14,8 @@ export interface User {
   firstName?: string
   lastName?: string
   role?: string
-  enabled: boolean
+  status?: string
+  source?: string
   phone?: string
   locale?: string
   timezone?: string
@@ -23,7 +24,6 @@ export interface User {
   gender?: string
   emailNotifications?: boolean
   pushNotifications?: boolean
-  systemNotifications?: boolean
   lastLogin?: string
   loginCount?: number
   permissions?: { [key: string]: string[] }
@@ -43,6 +43,9 @@ export interface ListUsersParams {
   pageSize?: number
   search?: string
   role?: string
+  /** 账号状态，如 active、banned */
+  status?: string
+  /** @deprecated 使用 status；后端仍支持 true/false 映射 */
   enabled?: string
   hasPhone?: string
 }
@@ -54,7 +57,7 @@ export interface CreateUserRequest {
   firstName?: string
   lastName?: string
   role?: string
-  enabled?: boolean
+  status?: string
   phone?: string
   locale?: string
   timezone?: string
@@ -64,7 +67,6 @@ export interface CreateUserRequest {
   avatar?: string
   emailNotifications?: boolean
   pushNotifications?: boolean
-  systemNotifications?: boolean
   permissions?: { [key: string]: string[] }
 }
 
@@ -75,7 +77,7 @@ export interface UpdateUserRequest {
   firstName?: string
   lastName?: string
   role?: string
-  enabled?: boolean
+  status?: string
   phone?: string
   locale?: string
   timezone?: string
@@ -85,7 +87,6 @@ export interface UpdateUserRequest {
   avatar?: string
   emailNotifications?: boolean
   pushNotifications?: boolean
-  systemNotifications?: boolean
   permissions?: { [key: string]: string[] }
 }
 
@@ -96,6 +97,7 @@ export const listUsers = async (params?: ListUsersParams): Promise<UserListRespo
   if (params?.pageSize) queryParams.pageSize = params.pageSize
   if (params?.search) queryParams.search = params.search
   if (params?.role) queryParams.role = params.role
+  if (params?.status) queryParams.status = params.status
   if (params?.enabled) queryParams.enabled = params.enabled
   if (params?.hasPhone) queryParams.hasPhone = params.hasPhone
   
@@ -131,12 +133,28 @@ export const getUsers = async (params?: {
   role?: string
   isSuperUser?: boolean
 }) => {
+  let statusFilter: string | undefined
+  let enabledLegacy: string | undefined
+  switch (params?.status) {
+    case 'enabled':
+    case 'active':
+      statusFilter = 'active'
+      break
+    case 'disabled':
+      enabledLegacy = 'false'
+      break
+    default:
+      if (params?.status) {
+        statusFilter = params.status
+      }
+  }
   const listParams: ListUsersParams = {
     page: params?.page,
     pageSize: params?.pageSize,
     search: params?.search,
     role: params?.role,
-    enabled: params?.status === 'enabled' || params?.status === 'active' ? 'true' : params?.status === 'disabled' ? 'false' : undefined,
+    status: statusFilter,
+    enabled: enabledLegacy,
   }
   const result = await listUsers(listParams)
   return {
@@ -216,7 +234,6 @@ export interface ProfileUpdateRequest {
   avatar?: string
   emailNotifications?: boolean
   pushNotifications?: boolean
-  systemNotifications?: boolean
 }
 
 export interface ChangePasswordRequest {
@@ -497,7 +514,6 @@ export const getUserActivity = async () => {
 export const updateNotificationSettings = async (settings: {
   email_notifications?: boolean
   push_notifications?: boolean
-  system_notifications?: boolean
 }) => {
   const res = await put(`${ADMIN_AUTH_BASE}/notification-settings`, settings)
   if (res.code !== 200) {

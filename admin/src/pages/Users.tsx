@@ -29,7 +29,18 @@ const ROLES = [
   { value: 'superadmin', label: '超级管理员' },
 ]
 
+const ACCOUNT_STATUSES = [
+  { value: 'active', label: '正常' },
+  { value: 'pending_verification', label: '待验证' },
+  { value: 'suspended', label: '暂停' },
+  { value: 'banned', label: '封禁' },
+]
 
+function accountStatusLabel(status?: string) {
+  const s = status || 'active'
+  const hit = ACCOUNT_STATUSES.find((x) => x.value === s)
+  return hit ? hit.label : s
+}
 
 const Users = () => {
   const [users, setUsers] = useState<User[]>([])
@@ -37,7 +48,7 @@ const Users = () => {
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState<string>('')
-  const [enabledFilter, setEnabledFilter] = useState<string>('')
+  const [statusFilter, setStatusFilter] = useState<string>('')
   const [hasPhoneFilter, setHasPhoneFilter] = useState<string>('')
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize] = useState(20)
@@ -54,7 +65,7 @@ const Users = () => {
     firstName: '',
     lastName: '',
     role: 'user',
-    enabled: true,
+    status: 'active',
     phone: '',
     locale: '',
     timezone: '',
@@ -63,7 +74,6 @@ const Users = () => {
     gender: '',
     emailNotifications: true,
     pushNotifications: true,
-    systemNotifications: true,
   })
 
   // 获取用户列表
@@ -76,7 +86,11 @@ const Users = () => {
       }
       if (search) params.search = search
       if (roleFilter) params.role = roleFilter
-      if (enabledFilter) params.enabled = enabledFilter
+      if (statusFilter === '__inactive__') {
+        params.enabled = 'false'
+      } else if (statusFilter) {
+        params.status = statusFilter
+      }
       if (hasPhoneFilter) params.hasPhone = hasPhoneFilter
 
       const response = await listUsers(params)
@@ -92,12 +106,12 @@ const Users = () => {
   // Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1)
-  }, [search, roleFilter, enabledFilter, hasPhoneFilter])
+  }, [search, roleFilter, statusFilter, hasPhoneFilter])
 
   // Fetch users when page or filters change
   useEffect(() => {
     fetchUsers()
-  }, [currentPage, search, roleFilter, enabledFilter, hasPhoneFilter])
+  }, [currentPage, search, roleFilter, statusFilter, hasPhoneFilter])
 
   // 处理创建用户
   const handleCreate = () => {
@@ -107,7 +121,7 @@ const Users = () => {
       firstName: '',
       lastName: '',
       role: 'user',
-      enabled: true,
+      status: 'active',
       phone: '',
       locale: '',
       timezone: '',
@@ -116,7 +130,6 @@ const Users = () => {
       gender: '',
       emailNotifications: true,
       pushNotifications: true,
-      systemNotifications: true,
     })
     setShowCreateModal(true)
   }
@@ -132,7 +145,7 @@ const Users = () => {
         firstName: fullUser.firstName || '',
         lastName: fullUser.lastName || '',
         role: fullUser.role || 'user',
-        enabled: fullUser.enabled,
+        status: fullUser.status || 'active',
         phone: fullUser.phone || '',
         locale: fullUser.locale || '',
         timezone: fullUser.timezone || '',
@@ -141,7 +154,6 @@ const Users = () => {
         gender: (fullUser as any).gender || '',
         emailNotifications: (fullUser as any).emailNotifications ?? true,
         pushNotifications: (fullUser as any).pushNotifications ?? true,
-        systemNotifications: (fullUser as any).systemNotifications ?? true,
       })
       setShowEditModal(true)
     } catch (error: any) {
@@ -191,7 +203,7 @@ const Users = () => {
         firstName: formData.firstName,
         lastName: formData.lastName,
         role: formData.role,
-        enabled: formData.enabled,
+        status: formData.status,
         phone: formData.phone,
         locale: formData.locale,
         timezone: formData.timezone,
@@ -200,7 +212,6 @@ const Users = () => {
         gender: (formData as any).gender,
         emailNotifications: (formData as any).emailNotifications,
         pushNotifications: (formData as any).pushNotifications,
-        systemNotifications: (formData as any).systemNotifications,
       }
       // 只有在编辑模式下且密码不为空时才更新密码
       if (formData.password) {
@@ -259,14 +270,17 @@ const Users = () => {
                   ))}
                 </SelectContent>
               </Select>
-              <Select value={enabledFilter} onValueChange={setEnabledFilter}>
-                <SelectTrigger className="w-full sm:w-32">
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full sm:w-40">
                   <SelectValue placeholder="状态" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="">全部状态</SelectItem>
-                  <SelectItem value="true">已启用</SelectItem>
-                  <SelectItem value="false">已禁用</SelectItem>
+                  <SelectItem value="active">正常</SelectItem>
+                  <SelectItem value="pending_verification">待验证</SelectItem>
+                  <SelectItem value="suspended">暂停</SelectItem>
+                  <SelectItem value="banned">封禁</SelectItem>
+                  <SelectItem value="__inactive__">非活跃</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={hasPhoneFilter} onValueChange={setHasPhoneFilter}>
@@ -347,15 +361,17 @@ const Users = () => {
                       </td>
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2 flex-wrap">
-                          {user.enabled ? (
-                            <Badge variant="success" icon={<UserCheck className="w-3 h-3" />}>
-                              已启用
-                            </Badge>
-                          ) : (
-                            <Badge variant="error" icon={<UserX className="w-3 h-3" />}>
-                              已禁用
-                            </Badge>
-                          )}
+                          {(() => {
+                            const st = user.status || 'active'
+                            const variant: 'success' | 'error' | 'secondary' =
+                              st === 'active' ? 'success' : st === 'banned' ? 'error' : 'secondary'
+                            const Icon = st === 'active' ? UserCheck : UserX
+                            return (
+                              <Badge variant={variant} icon={<Icon className="w-3 h-3" />}>
+                                {accountStatusLabel(user.status)}
+                              </Badge>
+                            )
+                          })()}
                         </div>
                       </td>
                       <td className="py-3 px-4">{user.phone || '-'}</td>
@@ -480,18 +496,25 @@ const Users = () => {
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
               />
             </div>
-              <div className="flex items-center gap-4">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={formData.enabled}
-                    onChange={(e) => setFormData({ ...formData, enabled: e.target.checked })}
-                    className="rounded"
-                  />
-                  <span className="text-sm">启用</span>
-                </label>
+              <div>
+                <label className="block text-sm font-medium mb-2">账号状态</label>
+                <Select
+                  value={formData.status || 'active'}
+                  onValueChange={(value) => setFormData({ ...formData, status: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="选择状态" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ACCOUNT_STATUSES.map((s) => (
+                      <SelectItem key={s.value} value={s.value}>
+                        {s.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              
+
               <div className="flex justify-end gap-3 pt-4">
               <Button variant="outline" onClick={() => setShowCreateModal(false)}>
                 <span>取消</span>
@@ -563,18 +586,25 @@ const Users = () => {
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                 />
               </div>
-              <div className="flex items-center gap-4">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={formData.enabled}
-                    onChange={(e) => setFormData({ ...formData, enabled: e.target.checked })}
-                    className="rounded"
-                  />
-                  <span className="text-sm">启用</span>
-                </label>
+              <div>
+                <label className="block text-sm font-medium mb-2">账号状态</label>
+                <Select
+                  value={formData.status || 'active'}
+                  onValueChange={(value) => setFormData({ ...formData, status: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="选择状态" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ACCOUNT_STATUSES.map((s) => (
+                      <SelectItem key={s.value} value={s.value}>
+                        {s.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              
+
               <div className="flex justify-end gap-3 pt-4">
                 <Button variant="outline" onClick={() => {
                   setShowEditModal(false)
@@ -627,10 +657,10 @@ const Users = () => {
               <div><span className="text-slate-500">性别：</span>{(selectedUser as any).gender || '-'}</div>
               <div><span className="text-slate-500">最近登录：</span>{selectedUser.lastLogin ? new Date(selectedUser.lastLogin).toLocaleString('zh-CN') : '-'}</div>
               <div><span className="text-slate-500">登录次数：</span>{selectedUser.loginCount || 0}</div>
-              <div><span className="text-slate-500">状态：</span>{selectedUser.enabled ? '启用' : '禁用'}</div>
+              <div><span className="text-slate-500">状态：</span>{accountStatusLabel(selectedUser.status)}</div>
+              <div><span className="text-slate-500">来源：</span>{selectedUser.source || '-'}</div>
               <div><span className="text-slate-500">邮件通知：</span>{(selectedUser as any).emailNotifications ? '开' : '关'}</div>
               <div><span className="text-slate-500">推送通知：</span>{(selectedUser as any).pushNotifications ? '开' : '关'}</div>
-              <div><span className="text-slate-500">系统通知：</span>{(selectedUser as any).systemNotifications ? '开' : '关'}</div>
             </div>
           )}
         </Modal>
