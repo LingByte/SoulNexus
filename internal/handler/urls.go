@@ -265,6 +265,7 @@ func (h *Handlers) Register(engine *gin.Engine) {
 	h.registerGroupRoutes(r)
 	h.registerQuotaRoutes(r)
 	h.registerAlertRoutes(r)
+	h.registerAnnouncementRoutes(r)
 	h.registerWebSocketRoutes(r)
 	h.registerAssistantRoutes(r)
 	h.registerChatRoutes(r)
@@ -285,6 +286,14 @@ func (h *Handlers) Register(engine *gin.Engine) {
 	h.registerOpenAPIRoutes(r)        // Open API (apiKey + apiSecret auth)
 	h.RegisterPublicWorkflowRoutes(r)
 	h.registerRTCSFURoutes(r)
+}
+
+func (h *Handlers) registerAnnouncementRoutes(r *gin.RouterGroup) {
+	ann := r.Group("announcements")
+	{
+		ann.GET("", h.handleListAnnouncements)
+		ann.GET("/:id", h.handleGetAnnouncement)
+	}
 }
 
 // registerNodePluginRoutes Node Plugin Module
@@ -1022,6 +1031,17 @@ func (h *Handlers) registerAdminManagementRoutes(r *gin.RouterGroup) {
 		notificationCenter.GET("", h.handleAdminListInternalNotifications)
 		notificationCenter.GET("/:id", h.handleAdminGetInternalNotification)
 		notificationCenter.DELETE("/:id", h.handleAdminDeleteInternalNotification)
+	}
+
+	announcements := r.Group("admin/announcements", adminGuard...)
+	{
+		announcements.GET("", h.handleAdminListAnnouncements)
+		announcements.GET("/:id", h.handleAdminGetAnnouncement)
+		announcements.POST("", h.handleAdminCreateAnnouncement)
+		announcements.PUT("/:id", h.handleAdminUpdateAnnouncement)
+		announcements.POST("/:id/publish", h.handleAdminPublishAnnouncement)
+		announcements.POST("/:id/offline", h.handleAdminOfflineAnnouncement)
+		announcements.DELETE("/:id", h.handleAdminDeleteAnnouncement)
 	}
 
 	knowledgeBase := r.Group("admin/knowledge-bases", adminGuard...)

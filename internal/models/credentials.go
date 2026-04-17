@@ -29,12 +29,11 @@ type UserCredentialRequest struct {
 	TtsConfig ProviderConfig `json:"ttsConfig"` // TTS配置
 
 	// 创建时设置额度/过期，创建后仅展示
-	ExpiresAt      *string  `json:"expiresAt"`
-	TokenQuota     *int64   `json:"tokenQuota"`
-	RequestQuota   *int64   `json:"requestQuota"`
-	AmountUSD      *float64 `json:"amountUsd"`
-	UseNativeQuota *bool    `json:"useNativeQuota"`
-	UnlimitedQuota *bool    `json:"unlimitedQuota"`
+	ExpiresAt      *string `json:"expiresAt"`
+	TokenQuota     *int64  `json:"tokenQuota"`
+	RequestQuota   *int64  `json:"requestQuota"`
+	UseNativeQuota *bool   `json:"useNativeQuota"`
+	UnlimitedQuota *bool   `json:"unlimitedQuota"`
 }
 
 type CredentialStatus string
@@ -113,7 +112,6 @@ type UserCredentialResponse struct {
 	TokenQuota     int64      `json:"tokenQuota"`
 	TokenUsed      int64      `json:"tokenUsed"`
 	RequestQuota   int64      `json:"requestQuota"`
-	AmountUSD      float64    `json:"amountUsd"`
 	UseNativeQuota bool       `json:"useNativeQuota"`
 	UnlimitedQuota bool       `json:"unlimitedQuota"`
 	// 只返回 provider 信息，不返回具体的凭证
@@ -150,7 +148,6 @@ func (uc *UserCredential) ToResponse() *UserCredentialResponse {
 		TokenQuota:     uc.TokenQuota,
 		TokenUsed:      uc.TokenUsed,
 		RequestQuota:   uc.RequestQuota,
-		AmountUSD:      uc.AmountUSD,
 		UseNativeQuota: uc.UseNativeQuota,
 		UnlimitedQuota: uc.UnlimitedQuota,
 		AsrProvider:    asrProvider,
@@ -374,10 +371,6 @@ func CreateUserCredential(db *gorm.DB, userID uint, credential *UserCredentialRe
 	if credential.RequestQuota != nil && *credential.RequestQuota >= 0 {
 		requestQuota = *credential.RequestQuota
 	}
-	amountUSD := float64(0)
-	if credential.AmountUSD != nil && *credential.AmountUSD >= 0 {
-		amountUSD = *credential.AmountUSD
-	}
 	useNativeQuota := false
 	if credential.UseNativeQuota != nil {
 		useNativeQuota = *credential.UseNativeQuota
@@ -396,7 +389,6 @@ func CreateUserCredential(db *gorm.DB, userID uint, credential *UserCredentialRe
 		ExpiresAt:      expiresAt,
 		TokenQuota:     tokenQuota,
 		RequestQuota:   requestQuota,
-		AmountUSD:      amountUSD,
 		UseNativeQuota: useNativeQuota,
 		UnlimitedQuota: unlimitedQuota,
 		LLMProvider:    credential.LLMProvider,
@@ -409,7 +401,6 @@ func CreateUserCredential(db *gorm.DB, userID uint, credential *UserCredentialRe
 		BannedAt:       nil,
 		BannedReason:   "",
 		BannedBy:       nil,
-		ExpiresAt:      nil,
 	}
 
 	err = db.Create(userCred).Error

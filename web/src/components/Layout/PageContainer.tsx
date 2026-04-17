@@ -12,7 +12,7 @@ const PageContainer = ({
   children,
   className,
   maxWidth = 'xl',
-  padding = 'md'
+  padding = 'none'
 }: PageContainerProps) => {
   const maxWidthClasses = {
     sm: 'max-w-2xl',

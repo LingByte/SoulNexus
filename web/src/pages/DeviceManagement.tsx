@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { getAssistantList, AssistantListItem } from '@/api/assistant';
 import {
@@ -41,6 +40,7 @@ import ConfirmDialog from '@/components/UI/ConfirmDialog';
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/UI/Select';
 import EmptyState from '@/components/UI/EmptyState';
 import Badge from '@/components/UI/Badge';
+import CollapsibleSectionHeader from '@/components/UI/CollapsibleSectionHeader';
 
 const DeviceManagement: React.FC = () => {
     const { t } = useI18nStore();
@@ -278,40 +278,39 @@ const DeviceManagement: React.FC = () => {
 
     return (
         <div className="min-h-screen dark:bg-neutral-900 flex flex-col">
-            <div className="max-w-6xl w-full mx-auto pt-10 pb-4 px-4 flex flex-col">
-                <div className="flex items-center justify-between mb-7">
-                    <div className="relative pl-4">
-                        <motion.div
-                            layoutId="pageTitleIndicator"
-                            className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary rounded-r-full"
-                            transition={{ type: 'spring', bounce: 0.2, duration: 0.3 }}
-                        />
-                        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
-                            {t('device.title')}
-                        </h1>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                            {t('device.subtitle')}
-                        </p>
-                    </div>
-                    <div className="flex gap-3">
-                        <Button
-                            onClick={() => setShowBindModal(true)}
-                            variant="primary"
-                            size="md"
-                            leftIcon={<Key className="w-4 h-4" />}
-                        >
-                            {t('device.bindDevice')}
-                        </Button>
-                        <Button
-                            onClick={() => setShowAddModal(true)}
-                            variant="secondary"
-                            size="md"
-                            leftIcon={<Plus className="w-4 h-4" />}
-                        >
-                            {t('device.manualAddDevice')}
-                        </Button>
-                    </div>
-                </div>
+            <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col">
+                <CollapsibleSectionHeader
+                    title={t('device.title')}
+                    icon={<Smartphone className="w-4 h-4 text-primary" />}
+                    expanded
+                    onToggle={() => {}}
+                    showChevron={false}
+                    clickable={false}
+                    compact
+                    titleSize="lg"
+                    withDivider
+                    className="mb-6"
+                    rightContent={(
+                        <div className="flex gap-2">
+                            <Button
+                                onClick={() => setShowBindModal(true)}
+                                variant="primary"
+                                size="sm"
+                                leftIcon={<Key className="w-3.5 h-3.5" />}
+                            >
+                                {t('device.bindDevice')}
+                            </Button>
+                            <Button
+                                onClick={() => setShowAddModal(true)}
+                                variant="secondary"
+                                size="sm"
+                                leftIcon={<Plus className="w-3.5 h-3.5" />}
+                            >
+                                {t('device.manualAddDevice')}
+                            </Button>
+                        </div>
+                    )}
+                />
 
                 {/* 助手选择 - 使用按钮组 */}
                 {assistants.length > 0 ? (

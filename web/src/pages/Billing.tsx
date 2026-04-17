@@ -36,6 +36,7 @@ import UsageCharts from '@/components/Billing/UsageCharts'
 import { fetchUserCredentials, type Credential } from '@/api/credential'
 import { useAuthStore } from '@/stores/authStore'
 import { getGroupList, type Group } from '@/api/group'
+import CollapsibleSectionHeader from '@/components/UI/CollapsibleSectionHeader'
 
 const Billing = () => {
   const { t } = useI18nStore()
@@ -434,24 +435,27 @@ const Billing = () => {
   return (
     <div className="container mx-auto px-4 py-6 space-y-6">
       <FadeIn>
-        <div className="flex items-center justify-between">
-          <div className="relative pl-4">
-            <motion.div
-              layoutId="pageTitleIndicator"
-              className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-primary rounded-r-full"
-              transition={{ type: 'spring', bounce: 0.2, duration: 0.3 }}
-            />
-            <h1 className="text-3xl font-bold">{t('billing.title')}</h1>
-            <p className="text-muted-foreground mt-1">{t('billing.subtitle')}</p>
-          </div>
-          <Button
-            variant="primary"
-            onClick={() => setShowGenerateBill(true)}
-            leftIcon={<Plus className="w-4 h-4" />}
-          >
-            {t('billing.generateBill')}
-          </Button>
-        </div>
+        <CollapsibleSectionHeader
+          title={t('billing.title')}
+          icon={<BarChart3 className="w-4 h-4 text-primary" />}
+          expanded
+          onToggle={() => {}}
+          showChevron={false}
+          clickable={false}
+          compact
+          withDivider
+          className="mb-5"
+          rightContent={(
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => setShowGenerateBill(true)}
+              leftIcon={<Plus className="w-3.5 h-3.5" />}
+            >
+              {t('billing.generateBill')}
+            </Button>
+          )}
+        />
       </FadeIn>
       
       {/* 筛选栏 */}

@@ -12,7 +12,6 @@ type CredentialEditForm = {
   expiresAt: string
   tokenQuota: number
   requestQuota: number
-  amountUsd: number
   useNativeQuota: boolean
   unlimitedQuota: boolean
 }
@@ -52,7 +51,6 @@ const Credentials = () => {
     expiresAt: '',
     tokenQuota: 0,
     requestQuota: 0,
-    amountUsd: 0,
     useNativeQuota: false,
     unlimitedQuota: true,
   })
@@ -82,7 +80,6 @@ const Credentials = () => {
       expiresAt: formatDateTimeInput(item.expiresAt),
       tokenQuota: item.tokenQuota || 0,
       requestQuota: item.requestQuota || 0,
-      amountUsd: item.amountUsd || 0,
       useNativeQuota: !!item.useNativeQuota,
       unlimitedQuota: item.unlimitedQuota !== false,
     })
@@ -97,7 +94,6 @@ const Credentials = () => {
         expiresAt: editForm.expiresAt.trim(),
         tokenQuota: Math.max(0, Number(editForm.tokenQuota || 0)),
         requestQuota: Math.max(0, Number(editForm.requestQuota || 0)),
-        amountUsd: Math.max(0, Number(editForm.amountUsd || 0)),
         useNativeQuota: !!editForm.useNativeQuota,
         unlimitedQuota: !!editForm.unlimitedQuota,
       })
@@ -222,13 +218,6 @@ const Credentials = () => {
                   type="number"
                   value={String(editForm.requestQuota)}
                   onChange={(e) => setEditForm(prev => ({ ...prev, requestQuota: Number(e.target.value || 0) }))}
-                />
-                <Input
-                  label="金额 ($)"
-                  type="number"
-                  step="0.000001"
-                  value={String(editForm.amountUsd)}
-                  onChange={(e) => setEditForm(prev => ({ ...prev, amountUsd: Number(e.target.value || 0) }))}
                 />
               </div>
             </div>

@@ -14,6 +14,7 @@ import { Plus, Edit, Trash2, Database, X } from 'lucide-react';
 import Button from '@/components/UI/Button';
 import QuotaModal from '@/components/Quota/QuotaModal';
 import { useI18nStore } from '@/stores/i18nStore';
+import CollapsibleSectionHeader from '@/components/UI/CollapsibleSectionHeader';
 
 const UserQuotas: React.FC = () => {
   const navigate = useNavigate();
@@ -42,23 +43,30 @@ const UserQuotas: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-neutral-900 flex flex-col">
       <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-8 flex flex-col">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-1">{t('quota.title')}</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">{t('quota.subtitle')}</p>
-          </div>
-          <Button
-            onClick={() => {
-              setEditingQuota(null);
-              setShowQuotaModal(true);
-            }}
-            variant="primary"
-            size="md"
-            leftIcon={<Plus className="w-4 h-4" />}
-          >
-            {t('quota.addQuota')}
-          </Button>
-        </div>
+        <CollapsibleSectionHeader
+          title={t('quota.title')}
+          icon={<Database className="w-4 h-4 text-primary" />}
+          expanded
+          onToggle={() => {}}
+          showChevron={false}
+          clickable={false}
+          compact
+          withDivider
+          className="mb-5"
+          rightContent={(
+            <Button
+              onClick={() => {
+                setEditingQuota(null);
+                setShowQuotaModal(true);
+              }}
+              variant="primary"
+              size="sm"
+              leftIcon={<Plus className="w-3.5 h-3.5" />}
+            >
+              {t('quota.addQuota')}
+            </Button>
+          )}
+        />
 
         {loading ? (
           <div className="bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-lg p-16 text-center">

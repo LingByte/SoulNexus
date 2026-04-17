@@ -7,6 +7,7 @@ import Modal from '@/components/UI/Modal'
 import ConfirmDialog from '@/components/UI/ConfirmDialog'
 import FileUpload from '@/components/UI/FileUpload'
 import Progress from '@/components/UI/Progress'
+import CollapsibleSectionHeader from '@/components/UI/CollapsibleSectionHeader'
 import { showAlert } from '@/utils/notification'
 import { cn } from '@/utils/cn'
 import {
@@ -492,11 +493,22 @@ const KnowledgeBaseManager = () => {
         )}
       </div>
       ) : (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <h1 className="text-xl font-semibold">知识库管理</h1>
-        <Button variant="primary" onClick={openCreateModal}>新建知识库</Button>
-      </div>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+      <CollapsibleSectionHeader
+        title="知识库管理"
+        icon={<ChevronDown className="w-4 h-4 text-primary" />}
+        expanded
+        onToggle={() => {}}
+        showChevron={false}
+        clickable={false}
+        compact
+        titleSize="lg"
+        withDivider
+        className="mb-6"
+        rightContent={(
+          <Button variant="primary" size="sm" onClick={openCreateModal}>新建知识库</Button>
+        )}
+      />
 
       <Card className="p-0 overflow-hidden">
         <div className="overflow-x-auto">

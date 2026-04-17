@@ -22,6 +22,7 @@ import Badge from '@/components/UI/Badge'
 import Input from '@/components/UI/Input'
 import Modal from '@/components/UI/Modal'
 import EmptyState from '@/components/UI/EmptyState'
+import CollapsibleSectionHeader from '@/components/UI/CollapsibleSectionHeader'
 import WorkflowEditor from '@/components/Voice/WorkflowEditor'
 import Terminal, { TerminalLog } from '@/components/Workflow/Terminal'
 import { showAlert } from '@/utils/notification'
@@ -1577,22 +1578,22 @@ const WorkflowManager: React.FC = () => {
   // 列表视图
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Header */}
-        <div className="mb-8">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-            <div className="flex-1 min-w-0 relative pl-4">
-              <motion.div
-                layoutId="pageTitleIndicator"
-                className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-primary rounded-r-full"
-                transition={{ type: 'spring', bounce: 0.2, duration: 0.3 }}
+        <div className="mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-3">
+            <div className="flex-1 min-w-0">
+              <CollapsibleSectionHeader
+                title="工作流管理"
+                icon={<GitBranch className="w-4 h-4 text-primary" />}
+                expanded
+                onToggle={() => {}}
+                showChevron={false}
+                clickable={false}
+                compact
+                titleSize="lg"
+                withDivider
               />
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-2">
-                工作流管理
-              </h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                创建和管理自动化工作流程
-              </p>
             </div>
             {error && (
               <div className="flex items-center gap-2 px-4 py-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400">

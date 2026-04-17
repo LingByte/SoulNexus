@@ -60,14 +60,13 @@ type adminGroupUpdateReq struct {
 }
 
 type adminCredentialStatusReq struct {
-	Status         string   `json:"status"`
-	BannedReason   string   `json:"bannedReason"`
-	ExpiresAt      *string  `json:"expiresAt"`
-	TokenQuota     *int64   `json:"tokenQuota"`
-	RequestQuota   *int64   `json:"requestQuota"`
-	AmountUSD      *float64 `json:"amountUsd"`
-	UseNativeQuota *bool    `json:"useNativeQuota"`
-	UnlimitedQuota *bool    `json:"unlimitedQuota"`
+	Status         string  `json:"status"`
+	BannedReason   string  `json:"bannedReason"`
+	ExpiresAt      *string `json:"expiresAt"`
+	TokenQuota     *int64  `json:"tokenQuota"`
+	RequestQuota   *int64  `json:"requestQuota"`
+	UseNativeQuota *bool   `json:"useNativeQuota"`
+	UnlimitedQuota *bool   `json:"unlimitedQuota"`
 }
 
 type adminAssistantUpdateReq struct {
@@ -76,7 +75,6 @@ type adminAssistantUpdateReq struct {
 	SystemPrompt      string   `json:"systemPrompt"`
 	Temperature       *float32 `json:"temperature"`
 	MaxTokens         *int     `json:"maxTokens"`
-	Language          string   `json:"language"`
 	Speaker           string   `json:"speaker"`
 	TtsProvider       string   `json:"ttsProvider"`
 	LLMModel          string   `json:"llmModel"`
@@ -1093,13 +1091,6 @@ func (h *Handlers) handleAdminUpdateCredentialStatus(c *gin.Context) {
 		}
 		updateVals["request_quota"] = *req.RequestQuota
 	}
-	if req.AmountUSD != nil {
-		if *req.AmountUSD < 0 {
-			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("amountUsd must be >= 0"))
-			return
-		}
-		updateVals["amount_usd"] = *req.AmountUSD
-	}
 	if req.UseNativeQuota != nil {
 		updateVals["use_native_quota"] = *req.UseNativeQuota
 	}
@@ -1473,9 +1464,6 @@ func (h *Handlers) handleAdminUpdateAssistant(c *gin.Context) {
 	}
 	if req.MaxTokens != nil {
 		updateVals["max_tokens"] = *req.MaxTokens
-	}
-	if req.Language != "" {
-		updateVals["language"] = strings.TrimSpace(req.Language)
 	}
 	if req.Speaker != "" {
 		updateVals["speaker"] = strings.TrimSpace(req.Speaker)

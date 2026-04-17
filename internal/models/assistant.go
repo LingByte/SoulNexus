@@ -25,7 +25,6 @@ type Assistant struct {
 	Temperature          float32   `json:"temperature"`
 	JsSourceID           string    `json:"jsSourceId" gorm:"index:idx_assistant_js_source"` // 关联的JS模板ID
 	MaxTokens            int       `json:"maxTokens"`
-	Language             string    `json:"language" gorm:"column:language"`                                     // 语言设置
 	Speaker              string    `json:"speaker" gorm:"column:speaker"`                                       // 发音人ID
 	VoiceCloneID         *int      `json:"voiceCloneId" gorm:"column:voice_clone_id"`                           // 训练音色ID（可选）
 	TtsProvider          string    `json:"ttsProvider" gorm:"column:tts_provider"`                              // TTS提供商

@@ -1000,7 +1000,6 @@ export interface AdminCredential {
   tokenQuota?: number
   tokenUsed?: number
   requestQuota?: number
-  amountUsd?: number
   useNativeQuota?: boolean
   unlimitedQuota?: boolean
   createdAt: string
@@ -1039,7 +1038,6 @@ export const updateAdminCredentialStatus = async (
     expiresAt?: string
     tokenQuota?: number
     requestQuota?: number
-    amountUsd?: number
     useNativeQuota?: boolean
     unlimitedQuota?: boolean
   }
@@ -1169,7 +1167,6 @@ export interface AdminAssistant {
   systemPrompt?: string
   temperature?: number
   maxTokens?: number
-  language?: string
   speaker?: string
   ttsProvider?: string
   llmModel?: string
@@ -1385,6 +1382,48 @@ export const listAdminDevices = async (params?: { page?: number; pageSize?: numb
 }
 export const getAdminDevice = async (id: string) => (await get(`${BACKEND_BASE}/admin/devices/${encodeURIComponent(id)}`)).data
 export const deleteAdminDevice = async (id: string) => del(`${BACKEND_BASE}/admin/devices/${encodeURIComponent(id)}`)
+
+export interface AdminAnnouncement {
+  id: number
+  title: string
+  summary?: string
+  content: string
+  status: 'draft' | 'published' | 'offline'
+  pinned?: boolean
+  publishAt?: string
+  expireAt?: string
+  createBy?: string
+  updateBy?: string
+  createdAt: string
+  updatedAt?: string
+}
+
+export const listAdminAnnouncements = async (params?: { page?: number; pageSize?: number; search?: string; status?: string }) => {
+  const res = await get<{ items: AdminAnnouncement[]; total: number; page: number; pageSize: number }>(`${BACKEND_BASE}/admin/announcements`, { params })
+  return res.data
+}
+export const getAdminAnnouncement = async (id: number) => (await get(`${BACKEND_BASE}/admin/announcements/${id}`)).data
+export const createAdminAnnouncement = async (data: {
+  title: string
+  summary?: string
+  content: string
+  status?: 'draft' | 'published' | 'offline'
+  pinned?: boolean
+  publishAt?: string
+  expireAt?: string
+}) => (await post(`${BACKEND_BASE}/admin/announcements`, data)).data
+export const updateAdminAnnouncement = async (id: number, data: {
+  title?: string
+  summary?: string
+  content?: string
+  status?: 'draft' | 'published' | 'offline'
+  pinned?: boolean
+  publishAt?: string
+  expireAt?: string
+}) => (await put(`${BACKEND_BASE}/admin/announcements/${id}`, data)).data
+export const publishAdminAnnouncement = async (id: number) => post(`${BACKEND_BASE}/admin/announcements/${id}/publish`)
+export const offlineAdminAnnouncement = async (id: number) => post(`${BACKEND_BASE}/admin/announcements/${id}/offline`)
+export const deleteAdminAnnouncement = async (id: number) => del(`${BACKEND_BASE}/admin/announcements/${id}`)
 
 // ==================== Admin Chat / Usage APIs ====================
 export interface AdminChatSession {
