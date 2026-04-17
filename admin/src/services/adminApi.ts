@@ -996,6 +996,13 @@ export interface AdminCredential {
   llmProvider?: string
   usageCount: number
   lastUsedAt?: string
+  expiresAt?: string
+  tokenQuota?: number
+  tokenUsed?: number
+  requestQuota?: number
+  amountUsd?: number
+  useNativeQuota?: boolean
+  unlimitedQuota?: boolean
   createdAt: string
   updatedAt: string
 }
@@ -1026,7 +1033,16 @@ export const listAdminCredentials = async (params?: {
 
 export const updateAdminCredentialStatus = async (
   id: number,
-  data: { status: 'active' | 'banned' | 'suspended'; bannedReason?: string }
+  data: {
+    status: 'active' | 'banned' | 'suspended'
+    bannedReason?: string
+    expiresAt?: string
+    tokenQuota?: number
+    requestQuota?: number
+    amountUsd?: number
+    useNativeQuota?: boolean
+    unlimitedQuota?: boolean
+  }
 ): Promise<AdminCredential> => {
   const res = await patch<AdminCredential>(`${ADMIN_CREDENTIALS_API_BASE}/${id}/status`, data)
   return res.data
