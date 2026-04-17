@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/LingByte/SoulNexus/pkg/llm"
 	"github.com/LingByte/SoulNexus/pkg/recognizer"
@@ -71,6 +72,25 @@ func (s *HardwareSession) handleListenMessage(msg map[string]interface{}) {
 	s.logger.Info("[Session] handle listen message",
 		zap.String("state", state),
 		zap.String("mode", mode))
+	if state == "start" {
+		s.mu.Lock()
+		s.lastListenStartAt = time.Now()
+		s.mu.Unlock()
+
+		// 新一轮拾音开始：重置本地 ASR 状态，避免历史累积文本串入当前轮次。
+		if s.stateManager != nil {
+			s.stateManager.Clear()
+			s.logger.Info("[Session] 已重置 ASR 文本状态管理器")
+		}
+		if s.asrPipeline != nil {
+			s.asrPipeline.ResetState()
+			s.asrPipeline.ClearTTSState()
+			s.logger.Info("[Session] 已重置 ASR Pipeline 状态")
+			// 尝试重置底层 ASR 客户端会话，减少云端累积结果回传。
+			s.asrPipeline.Asr.RestartClient()
+			s.logger.Info("[Session] 已请求重启 ASR 客户端会话")
+		}
+	}
 	if s.voiceprintTool != nil {
 		s.voiceprintTool.ClearIdentification()
 		s.logger.Info("[Session] 已清除之前的声纹识别结果")
@@ -248,8 +268,36 @@ func (s *HardwareSession) handleHelloMessage(msg map[string]interface{}) {
 	}
 
 	pipeline.SetOutputCallback(func(text string, isFinal bool) {
+		s.mu.RLock()
+		listenStartedAt := s.lastListenStartAt
+		s.mu.RUnlock()
+		// 保护窗口：listen start 后短时间内，ASR 服务可能回放旧会话/重连噪声，忽略这些结果避免误触发 LLM。
+		if !listenStartedAt.IsZero() && time.Since(listenStartedAt) < 800*time.Millisecond {
+			s.logger.Debug("[Session] 忽略 listen start 保护窗口内的 ASR 结果",
+				zap.String("text", text),
+				zap.Bool("isFinal", isFinal))
+			return
+		}
 		incrementalText := s.stateManager.UpdateASRText(text, isFinal)
 		if incrementalText == "" {
+			return
+		}
+		// 触发策略：
+		// 1) final 结果：直接进入质量过滤后触发；
+		// 2) non-final 结果：仅当看起来像完整句子时允许兜底触发（部分 ASR 提供商很少回 final）。
+		if !isFinal && !looksLikeCompleteSentence(incrementalText) {
+			s.logger.Debug("[Session] 跳过非完整句子的非最终 ASR 结果",
+				zap.String("text", incrementalText))
+			return
+		}
+		if !isValidUserInput(incrementalText) {
+			s.logger.Info("[Session] 过滤低质量 ASR 文本，不触发 LLM",
+				zap.String("text", incrementalText))
+			return
+		}
+		if !s.allowLLMTrigger(incrementalText) {
+			s.logger.Debug("[Session] 命中触发冷却/去重，跳过本次 LLM 触发",
+				zap.String("text", incrementalText))
 			return
 		}
 		s.logger.Info(fmt.Sprintf("[Session] --- 处理增量文本 [%s] 是否结束 [%v] ", incrementalText, isFinal))
@@ -419,6 +467,72 @@ func (s *HardwareSession) handleHelloMessage(msg map[string]interface{}) {
 			"[Session] --- 已发送Welcome响应 audioFormat:%s, sampleRate:%d, channel:%d, sessionId:%s",
 			inputAudioFormat, sampleRate, channels, sessionID))
 	}
+}
+
+func isValidUserInput(text string) bool {
+	trimmed := strings.TrimSpace(text)
+	if trimmed == "" {
+		return false
+	}
+	// 至少包含 2 个非标点字符；避免 "。" / "嗯。" / "啊。" 这类噪声触发。
+	meaningful := 0
+	for _, r := range trimmed {
+		if unicode.IsLetter(r) || unicode.IsNumber(r) || unicode.Is(unicode.Han, r) {
+			meaningful++
+		}
+	}
+	if meaningful < 2 {
+		return false
+	}
+	// 常见短噪声词过滤（可按线上情况继续扩充）。
+	noiseTokens := map[string]struct{}{
+		"嗯": {}, "啊": {}, "哦": {}, "额": {}, "呃": {}, "唉": {}, "哈": {}, "喂": {},
+	}
+	normalized := strings.Trim(trimmed, "。！？!?,，、；;:：… ")
+	if _, ok := noiseTokens[normalized]; ok {
+		return false
+	}
+	return true
+}
+
+func looksLikeCompleteSentence(text string) bool {
+	trimmed := strings.TrimSpace(text)
+	if trimmed == "" {
+		return false
+	}
+	runes := []rune(trimmed)
+	last := runes[len(runes)-1]
+	switch last {
+	case '。', '！', '？', '.', '!', '?':
+		return true
+	default:
+		return false
+	}
+}
+
+func (s *HardwareSession) allowLLMTrigger(text string) bool {
+	now := time.Now()
+	const minTriggerInterval = 900 * time.Millisecond
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if !s.lastTriggerAt.IsZero() && now.Sub(s.lastTriggerAt) < minTriggerInterval {
+		return false
+	}
+	normalizedCurrent := normalizeTriggerText(text)
+	normalizedLast := normalizeTriggerText(s.lastTriggerText)
+	if normalizedCurrent != "" && normalizedCurrent == normalizedLast {
+		return false
+	}
+	s.lastTriggerText = text
+	s.lastTriggerAt = now
+	return true
+}
+
+func normalizeTriggerText(text string) string {
+	trimmed := strings.TrimSpace(text)
+	trimmed = strings.Trim(trimmed, "。！？!?,，、；;:：… ")
+	return strings.ToLower(trimmed)
 }
 
 // HandleAudio 处理音频数据

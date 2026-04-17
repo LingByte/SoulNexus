@@ -43,14 +43,7 @@ func (e *EchoFilterComponent) Process(ctx context.Context, data interface{}) (in
 
 	// 检查 TTS 是否正在播放
 	if e.pipeline != nil && e.pipeline.IsTTSPlaying() {
-		// TTS 正在播放，生成静音帧替换原始音频
 		silentFrame := make([]byte, len(pcmData))
-		// 静音帧就是全 0 的字节数组，不需要额外处理
-
-		e.logger.Debug("[EchoFilter] TTS 正在播放，使用静音帧替换音频",
-			zap.Int("frame_size", len(pcmData)))
-
-		// 返回静音帧，继续处理
 		return silentFrame, true, nil
 	}
 
