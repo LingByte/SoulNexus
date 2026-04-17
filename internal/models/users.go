@@ -126,6 +126,8 @@ type User struct {
 	Email                 string     `json:"email" gorm:"size:128;uniqueIndex"`
 	WechatOpenID          string     `json:"wechatOpenId,omitempty" gorm:"size:128;index"`
 	WechatUnionID         string     `json:"wechatUnionId,omitempty" gorm:"size:128;index"`
+	GithubID              string     `json:"githubId,omitempty" gorm:"size:64;index"`
+	GithubLogin           string     `json:"githubLogin,omitempty" gorm:"size:128;index"`
 	Password              string     `json:"-" gorm:"size:128"`
 	Phone                 string     `json:"phone,omitempty" gorm:"size:64;index"`
 	FirstName             string     `json:"firstName,omitempty" gorm:"size:128"`
