@@ -15,24 +15,23 @@ import (
 )
 
 type adminUserUpsertReq struct {
-	Email       string `json:"email"`
-	Password    string `json:"password"`
-	DisplayName string `json:"displayName"`
-	FirstName   string `json:"firstName"`
-	LastName    string `json:"lastName"`
-	Role        string `json:"role"`
-	Enabled     *bool  `json:"enabled"`
-	Phone       string `json:"phone"`
-	Locale      string `json:"locale"`
-	Timezone    string `json:"timezone"`
-	City        string `json:"city"`
-	Region      string `json:"region"`
-	Gender      string `json:"gender"`
-	Avatar      string `json:"avatar"`
+	Email       string  `json:"email"`
+	Password    string  `json:"password"`
+	DisplayName string  `json:"displayName"`
+	FirstName   string  `json:"firstName"`
+	LastName    string  `json:"lastName"`
+	Role        string  `json:"role"`
+	Status      *string `json:"status"`
+	Phone       string  `json:"phone"`
+	Locale      string  `json:"locale"`
+	Timezone    string  `json:"timezone"`
+	City        string  `json:"city"`
+	Region      string  `json:"region"`
+	Gender      string  `json:"gender"`
+	Avatar      string  `json:"avatar"`
 
-	EmailNotifications  *bool `json:"emailNotifications"`
-	PushNotifications   *bool `json:"pushNotifications"`
-	SystemNotifications *bool `json:"systemNotifications"`
+	EmailNotifications *bool `json:"emailNotifications"`
+	PushNotifications  *bool `json:"pushNotifications"`
 }
 
 type adminConfigUpsertReq struct {
@@ -148,6 +147,7 @@ func (h *Handlers) handleAdminListUsers(c *gin.Context) {
 	page, pageSize := h.parsePagination(c)
 	search := strings.TrimSpace(c.Query("search"))
 	role := normalizeUserRole(c.Query("role"))
+	statusQuery := strings.TrimSpace(c.Query("status"))
 	enabledQuery := strings.TrimSpace(c.Query("enabled"))
 	hasPhoneQuery := strings.TrimSpace(c.Query("hasPhone"))
 
@@ -159,9 +159,17 @@ func (h *Handlers) handleAdminListUsers(c *gin.Context) {
 	if role != "" {
 		query = query.Where("role = ?", role)
 	}
-	if enabledQuery != "" {
+	if statusQuery != "" {
+		if st := models.NormalizeUserStatus(statusQuery); st != "" {
+			query = query.Where("status = ?", st)
+		}
+	} else if enabledQuery != "" {
 		if enabled, err := strconv.ParseBool(enabledQuery); err == nil {
-			query = query.Where("enabled = ?", enabled)
+			if enabled {
+				query = query.Where("status = ?", models.UserStatusActive)
+			} else {
+				query = query.Where("status <> ?", models.UserStatusActive)
+			}
 		}
 	}
 	if hasPhoneQuery != "" {
@@ -233,7 +241,17 @@ func (h *Handlers) handleAdminCreateUser(c *gin.Context) {
 		return
 	}
 
-	user, err := models.CreateUserByEmail(h.db, req.DisplayName, req.DisplayName, req.Email, password)
+	status := models.UserStatusActive
+	if req.Status != nil && strings.TrimSpace(*req.Status) != "" {
+		if st := models.NormalizeUserStatus(*req.Status); st != "" {
+			status = st
+		} else {
+			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid status"))
+			return
+		}
+	}
+
+	user, err := models.CreateUserByEmailWithMeta(h.db, req.DisplayName, req.DisplayName, req.Email, password, models.UserSourceAdmin, status)
 	if err != nil {
 		response.Fail(c, "create user failed", err)
 		return
@@ -252,17 +270,20 @@ func (h *Handlers) handleAdminCreateUser(c *gin.Context) {
 		"avatar":       req.Avatar,
 		"role":         role,
 	}
-	if req.Enabled != nil {
-		updateVals["enabled"] = *req.Enabled
+	operator := "system"
+	if current := models.CurrentUser(c); current != nil {
+		operator = current.Email
+		if operator == "" {
+			operator = "system"
+		}
 	}
+	updateVals["create_by"] = operator
+	updateVals["update_by"] = operator
 	if req.EmailNotifications != nil {
 		updateVals["email_notifications"] = *req.EmailNotifications
 	}
 	if req.PushNotifications != nil {
 		updateVals["push_notifications"] = *req.PushNotifications
-	}
-	if req.SystemNotifications != nil {
-		updateVals["system_notifications"] = *req.SystemNotifications
 	}
 	if err = h.db.Model(user).Updates(updateVals).Error; err != nil {
 		response.Fail(c, "create user failed", err)
@@ -336,8 +357,18 @@ func (h *Handlers) handleAdminUpdateUser(c *gin.Context) {
 	if req.Password != "" {
 		updateVals["password"] = models.HashPassword(req.Password)
 	}
-	if req.Enabled != nil {
-		updateVals["enabled"] = *req.Enabled
+	if req.Status != nil {
+		raw := strings.TrimSpace(*req.Status)
+		if raw == "" {
+			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("status cannot be empty"))
+			return
+		}
+		if st := models.NormalizeUserStatus(raw); st == "" {
+			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid status"))
+			return
+		} else {
+			updateVals["status"] = st
+		}
 	}
 	if req.EmailNotifications != nil {
 		updateVals["email_notifications"] = *req.EmailNotifications
@@ -345,13 +376,18 @@ func (h *Handlers) handleAdminUpdateUser(c *gin.Context) {
 	if req.PushNotifications != nil {
 		updateVals["push_notifications"] = *req.PushNotifications
 	}
-	if req.SystemNotifications != nil {
-		updateVals["system_notifications"] = *req.SystemNotifications
-	}
 	if len(updateVals) == 0 {
 		response.Success(c, "nothing changed", &user)
 		return
 	}
+	operator := "system"
+	if current := models.CurrentUser(c); current != nil {
+		operator = current.Email
+		if operator == "" {
+			operator = "system"
+		}
+	}
+	updateVals["update_by"] = operator
 
 	if err = h.db.Model(&user).Updates(updateVals).Error; err != nil {
 		response.Fail(c, "update user failed", err)
@@ -367,8 +403,15 @@ func (h *Handlers) handleAdminDeleteUser(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid user id"))
 		return
 	}
+	operator := "system"
+	if current := models.CurrentUser(c); current != nil {
+		operator = current.Email
+		if operator == "" {
+			operator = "system"
+		}
+	}
 	if err = h.db.Model(&models.User{}).Where("id = ? AND is_deleted = ?", id, models.SoftDeleteStatusActive).
-		Updates(map[string]any{"is_deleted": models.SoftDeleteStatusDeleted, "enabled": false}).Error; err != nil {
+		Updates(map[string]any{"is_deleted": models.SoftDeleteStatusDeleted, "status": models.UserStatusBanned, "update_by": operator}).Error; err != nil {
 		response.Fail(c, "delete user failed", err)
 		return
 	}

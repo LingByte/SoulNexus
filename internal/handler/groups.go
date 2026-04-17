@@ -411,6 +411,7 @@ func (h *Handlers) SearchUsers(c *gin.Context) {
 	var users []models.User
 	query := h.db.Model(&models.User{}).
 		Where("deleted_at IS NULL").
+		Where("status = ?", models.UserStatusActive).
 		Where("id != ?", user.ID). // 排除当前用户
 		Where("display_name LIKE ? OR email LIKE ? OR first_name LIKE ? OR last_name LIKE ?",
 			"%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%").
@@ -1729,19 +1730,19 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 	}
 
 	stats := map[string]interface{}{
-		"totalMembers":        memberCount,
-		"totalAssistants":     assistantCount,
-		"totalDevices":        deviceCount,
-		"totalScripts":        jsTemplateCount, // JS模板
-		"totalVoices":         voiceCloneCount, // 音色
-		"totalWorkflows":      workflowCount,
-		"totalCalls":          callCount,
-		"billStatistics":      billStats, // 账单统计（使用量数据）
-		"recentActivity":      recentActivity,
-		"chartData":           chartData,
-		"usageTrend":          chartData,
-		"activityData":        chartData,
-		"table":               tableData,
+		"totalMembers":    memberCount,
+		"totalAssistants": assistantCount,
+		"totalDevices":    deviceCount,
+		"totalScripts":    jsTemplateCount, // JS模板
+		"totalVoices":     voiceCloneCount, // 音色
+		"totalWorkflows":  workflowCount,
+		"totalCalls":      callCount,
+		"billStatistics":  billStats, // 账单统计（使用量数据）
+		"recentActivity":  recentActivity,
+		"chartData":       chartData,
+		"usageTrend":      chartData,
+		"activityData":    chartData,
+		"table":           tableData,
 	}
 
 	response.Success(c, "查询成功", stats)

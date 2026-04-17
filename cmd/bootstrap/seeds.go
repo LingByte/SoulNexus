@@ -121,14 +121,16 @@ func (s *SeedService) seedAdminUsers() error {
 			Password:    models.HashPassword("admin123"),
 			Role:        models.RoleSuperAdmin,
 			DisplayName: "Administrator",
-			Enabled:     true,
+			Status:      models.UserStatusActive,
+			Source:      models.UserSourceAdmin,
 		},
 		{
 			Email:       "19511899044@163.com",
 			Password:    models.HashPassword("admin123"),
 			Role:        models.RoleSuperAdmin,
 			DisplayName: "Administrator",
-			Enabled:     true,
+			Status:      models.UserStatusActive,
+			Source:      models.UserSourceAdmin,
 		},
 	}
 

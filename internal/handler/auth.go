@@ -556,19 +556,20 @@ func (h *Handlers) findOrCreateWechatUser(openID string, info *wechatUserInfoRes
 	}
 
 	nickname := strings.TrimSpace(info.Nickname)
-	if nickname == "" {
-		nickname = "微信用户"
-	}
 	suffix := openID
-	if len(suffix) > 8 {
-		suffix = suffix[len(suffix)-8:]
+	if len(suffix) > 6 {
+		suffix = suffix[len(suffix)-6:]
 	}
+	if nickname == "" {
+		nickname = fmt.Sprintf("微信用户%s", suffix)
+	}
+	displayName := fmt.Sprintf("%s_%s", nickname, suffix)
 	email := fmt.Sprintf("wechat_%s@temp.local", suffix)
 	password := newWechatSessionID()
-	created, err := models.CreateUserByEmail(h.db, nickname, nickname, email, password)
+	created, err := models.CreateUserByEmailWithMeta(h.db, displayName, displayName, email, password, models.UserSourceWechat, models.UserStatusActive)
 	if err != nil {
 		email = fmt.Sprintf("wechat_%d@temp.local", time.Now().UnixNano())
-		created, err = models.CreateUserByEmail(h.db, nickname, nickname, email, password)
+		created, err = models.CreateUserByEmailWithMeta(h.db, displayName, displayName, email, password, models.UserSourceWechat, models.UserStatusActive)
 		if err != nil {
 			return nil, err
 		}
@@ -639,10 +640,10 @@ func (h *Handlers) findOrCreateGitHubUser(githubUser *githubUserResp, githubEmai
 	}
 
 	password := newGitHubStateNonce()
-	created, err := models.CreateUserByEmail(h.db, displayName, displayName, normalizedEmail, password)
+	created, err := models.CreateUserByEmailWithMeta(h.db, displayName, displayName, normalizedEmail, password, models.UserSourceGithub, models.UserStatusActive)
 	if err != nil {
 		normalizedEmail = fmt.Sprintf("github_%d@temp.local", time.Now().UnixNano())
-		created, err = models.CreateUserByEmail(h.db, displayName, displayName, normalizedEmail, password)
+		created, err = models.CreateUserByEmailWithMeta(h.db, displayName, displayName, normalizedEmail, password, models.UserSourceGithub, models.UserStatusActive)
 		if err != nil {
 			return nil, err
 		}
@@ -2569,7 +2570,7 @@ func (h *Handlers) handleUserSignup(c *gin.Context) {
 		passwordToStore = fmt.Sprintf("sha256$%s", passwordHash)
 	}
 
-	user, err := models.CreateUser(db, form.Email, passwordToStore)
+	user, err := models.CreateUserWithMeta(db, form.Email, passwordToStore, models.NormalizeUserSource(form.Source), models.UserStatusActive)
 	if err != nil {
 		if utils.GlobalRegistrationGuard != nil {
 			utils.GlobalRegistrationGuard.RecordRegistrationAttempt(clientIP, form.Email, false, err.Error())
@@ -2590,7 +2591,7 @@ func (h *Handlers) handleUserSignup(c *gin.Context) {
 		"LastName",
 		"Locale",
 		"Timezone",
-		"Source"})
+	})
 
 	n := time.Now().Truncate(1 * time.Second)
 	vals["LastLogin"] = &n
@@ -2600,7 +2601,6 @@ func (h *Handlers) handleUserSignup(c *gin.Context) {
 	user.FirstName = form.FirstName
 	user.LastName = form.LastName
 	user.Locale = form.Locale
-	user.Source = "ADMIN"
 	user.Timezone = form.Timezone
 	user.LastLogin = &n
 	user.LastLoginIP = c.ClientIP()
@@ -2727,7 +2727,7 @@ func (h *Handlers) handleUserSignupByEmail(c *gin.Context) {
 		passwordToStore = fmt.Sprintf("sha256$%s", passwordHash)
 	}
 
-	user, err := models.CreateUserByEmail(db, form.UserName, form.DisplayName, form.Email, passwordToStore)
+	user, err := models.CreateUserByEmailWithMeta(db, form.UserName, form.DisplayName, form.Email, passwordToStore, models.UserSourceSystem, models.UserStatusActive)
 	if err != nil {
 		if utils.GlobalRegistrationGuard != nil {
 			utils.GlobalRegistrationGuard.RecordRegistrationAttempt(clientIP, form.Email, false, err.Error())
@@ -2747,8 +2747,7 @@ func (h *Handlers) handleUserSignupByEmail(c *gin.Context) {
 		"LastName",
 		"Locale",
 		"Timezone",
-		"Source"})
-	user.Source = "ADMIN"
+	})
 	user.Timezone = form.Timezone
 	err = models.UpdateUserFields(db, user, vals)
 	if err != nil {
@@ -2806,6 +2805,11 @@ func (h *Handlers) handleUserUpdate(c *gin.Context) {
 	if req.Region != "" {
 		vals["region"] = req.Region
 	}
+	operator := fmt.Sprintf("uid:%d", user.ID)
+	if user.Email != "" {
+		operator = user.Email
+	}
+	vals["update_by"] = operator
 
 	err := models.UpdateUser(h.db, user, vals)
 	if err != nil {
@@ -2845,6 +2849,11 @@ func (h *Handlers) handleUserUpdateBasicInfo(c *gin.Context) {
 	if req.MotherCallName != "" {
 		vals["motherCallName"] = req.MotherCallName
 	}
+	operator := fmt.Sprintf("uid:%d", user.ID)
+	if user.Email != "" {
+		operator = user.Email
+	}
+	vals["update_by"] = operator
 	err := models.UpdateUser(h.db, user, vals)
 	if err != nil {
 		response.Fail(c, "update user failed", err)
@@ -2855,10 +2864,8 @@ func (h *Handlers) handleUserUpdateBasicInfo(c *gin.Context) {
 
 func (h *Handlers) handleUserUpdatePreferences(c *gin.Context) {
 	var preferences struct {
-		EmailNotifications    *bool `json:"emailNotifications"`
-		PushNotifications     *bool `json:"pushNotifications"`
-		SystemNotifications   *bool `json:"systemNotifications"`
-		AutoCleanUnreadEmails *bool `json:"autoCleanUnreadEmails"`
+		EmailNotifications *bool `json:"emailNotifications"`
+		PushNotifications  *bool `json:"pushNotifications"`
 	}
 	if err := c.ShouldBindJSON(&preferences); err != nil {
 		response.Fail(c, "Invalid request", err)
@@ -2872,18 +2879,17 @@ func (h *Handlers) handleUserUpdatePreferences(c *gin.Context) {
 	if preferences.PushNotifications != nil {
 		vals["push_notifications"] = *preferences.PushNotifications
 	}
-	if preferences.SystemNotifications != nil {
-		vals["system_notifications"] = *preferences.SystemNotifications
-	}
-	if preferences.AutoCleanUnreadEmails != nil {
-		vals["auto_clean_unread_emails"] = *preferences.AutoCleanUnreadEmails
-	}
 	if len(vals) == 0 {
 		response.Success(c, "No preferences changed", nil)
 		return
 	}
 
 	user := models.CurrentUser(c)
+	operator := fmt.Sprintf("uid:%d", user.ID)
+	if user.Email != "" {
+		operator = user.Email
+	}
+	vals["update_by"] = operator
 	if err := models.UpdateUser(h.db, user, vals); err != nil {
 		response.Fail(c, "update user failed", err)
 		return

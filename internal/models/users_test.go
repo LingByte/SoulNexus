@@ -84,8 +84,8 @@ func TestCreateUser(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotZero(t, user.ID)
 	assert.Equal(t, "test@example.com", user.Email)
-	assert.True(t, user.Enabled)
-	assert.False(t, user.Activated)
+	assert.Equal(t, UserStatusActive, user.Status)
+	assert.Equal(t, UserSourceSystem, user.Source)
 	assert.NotEmpty(t, user.Password)
 	assert.Contains(t, user.Password, "sha256$")
 }
@@ -100,8 +100,8 @@ func TestCreateUserByEmail(t *testing.T) {
 	assert.Equal(t, "Test User", user.DisplayName)
 	assert.Equal(t, "t", user.FirstName)      // First character
 	assert.Equal(t, "estuser", user.LastName) // Rest
-	assert.True(t, user.Enabled)
-	assert.False(t, user.Activated)
+	assert.Equal(t, UserStatusActive, user.Status)
+	assert.Equal(t, UserSourceSystem, user.Source)
 	assert.True(t, user.EmailNotifications)
 }
 
@@ -278,42 +278,19 @@ func TestDecodeHashToken(t *testing.T) {
 func TestCheckUserAllowLogin(t *testing.T) {
 	db := setupTestDB(t)
 
-	// Test enabled user
 	user, err := CreateUser(db, "test@example.com", "password123")
-	require.NoError(t, err)
-	user.Enabled = true
-	user.Activated = true
-	err = UpdateUserFields(db, user, map[string]any{
-		"Enabled":   true,
-		"Activated": true,
-	})
 	require.NoError(t, err)
 
 	err = CheckUserAllowLogin(db, user)
 	assert.NoError(t, err)
 
-	// Test disabled user
-	user.Enabled = false
-	err = UpdateUserFields(db, user, map[string]any{"Enabled": false})
+	err = UpdateUserFields(db, user, map[string]any{"status": UserStatusBanned})
 	require.NoError(t, err)
+	user.Status = UserStatusBanned
 
 	err = CheckUserAllowLogin(db, user)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "not allow login")
-
-	// Test unactivated user (if activation is required)
-	user.Enabled = true
-	user.Activated = false
-	err = UpdateUserFields(db, user, map[string]any{
-		"Enabled":   true,
-		"Activated": false,
-	})
-	require.NoError(t, err)
-
-	// This may or may not error depending on KEY_USER_ACTIVATED setting
-	err = CheckUserAllowLogin(db, user)
-	// Just verify it doesn't panic
-	_ = err
 }
 
 func TestBuildAuthToken(t *testing.T) {
@@ -509,10 +486,8 @@ func TestUpdateNotificationSettings(t *testing.T) {
 	require.NoError(t, err)
 
 	settings := map[string]bool{
-		"emailNotifications":    false,
-		"pushNotifications":     true,
-		"systemNotifications":   true,
-		"autoCleanUnreadEmails": false,
+		"emailNotifications": false,
+		"pushNotifications":  true,
 	}
 
 	err = UpdateNotificationSettings(db, user, settings)
@@ -523,8 +498,6 @@ func TestUpdateNotificationSettings(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, retrieved.EmailNotifications)
 	assert.True(t, retrieved.PushNotifications)
-	assert.True(t, retrieved.SystemNotifications)
-	assert.False(t, retrieved.AutoCleanUnreadEmails)
 }
 
 func TestUpdatePreferences(t *testing.T) {
@@ -777,10 +750,8 @@ func TestUpdateNotificationSettings_AllSettings(t *testing.T) {
 	require.NoError(t, err)
 
 	settings := map[string]bool{
-		"emailNotifications":    false,
-		"pushNotifications":     true,
-		"systemNotifications":   true,
-		"autoCleanUnreadEmails": false,
+		"emailNotifications": false,
+		"pushNotifications":  true,
 	}
 
 	err = UpdateNotificationSettings(db, user, settings)
@@ -791,8 +762,6 @@ func TestUpdateNotificationSettings_AllSettings(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, retrieved.EmailNotifications)
 	assert.True(t, retrieved.PushNotifications)
-	assert.True(t, retrieved.SystemNotifications)
-	assert.False(t, retrieved.AutoCleanUnreadEmails)
 }
 
 // Note: TestInTimezone is tested in users_handlers_test.go
@@ -825,17 +794,15 @@ func TestCalculateProfileComplete_Minimal(t *testing.T) {
 	assert.GreaterOrEqual(t, complete, 0)
 	assert.LessOrEqual(t, complete, 30)
 }
-func TestGetUserByUID_DisabledUser(t *testing.T) {
+func TestGetUserByUID_NonActiveUser(t *testing.T) {
 	db := setupTestDB(t)
 
 	user, err := CreateUser(db, "test@example.com", "password123")
 	require.NoError(t, err)
 
-	// Disable user
-	err = UpdateUserFields(db, user, map[string]any{"Enabled": false})
+	err = UpdateUserFields(db, user, map[string]any{"status": UserStatusBanned})
 	require.NoError(t, err)
 
-	// Try to get disabled user
 	_, err = GetUserByUID(db, user.ID)
 	assert.Error(t, err)
 }
