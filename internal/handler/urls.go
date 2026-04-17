@@ -808,6 +808,8 @@ func (h *Handlers) registerAuthRoutes(r *gin.RouterGroup) {
 		auth.POST("/login", h.handleUserSigninByPassword)
 		auth.POST("/login/password", h.handleUserSigninByPassword)
 		auth.POST("/login/email", h.handleUserSigninByEmail)
+		auth.GET("/github/login", h.handleGitHubLogin)
+		auth.GET("/github/callback", h.handleGitHubCallback)
 		auth.GET("/wechat/login", h.handleWechatLogin)
 		auth.GET("/wechat/config-check", h.handleWechatConfigCheck)
 		auth.GET("/wechat/login-code", h.handleWechatLoginCode)

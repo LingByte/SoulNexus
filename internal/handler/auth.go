@@ -68,6 +68,15 @@ type oidcAuthCode struct {
 	Used        bool
 }
 
+type githubOAuthState struct {
+	Nonce        string
+	RedirectURL  string
+	OIDCClient   string
+	OIDCRedirect string
+	OIDCState    string
+	ExpiresAt    time.Time
+}
+
 var wechatLoginSessions = struct {
 	sync.RWMutex
 	items map[string]*wechatLoginSession
@@ -86,6 +95,13 @@ var oidcAuthCodeStore = struct {
 	items map[string]*oidcAuthCode
 }{
 	items: make(map[string]*oidcAuthCode),
+}
+
+var githubOAuthStateStore = struct {
+	sync.RWMutex
+	items map[string]*githubOAuthState
+}{
+	items: make(map[string]*githubOAuthState),
 }
 
 func verifyRequestCaptcha(captchaID, captchaCode, captchaData, captchaType string) (bool, error) {
@@ -158,6 +174,28 @@ type wechatMessageXML struct {
 	Content      string   `xml:"Content"`
 }
 
+type githubOAuthTokenResp struct {
+	AccessToken string `json:"access_token"`
+	TokenType   string `json:"token_type"`
+	Scope       string `json:"scope"`
+	Error       string `json:"error"`
+	Description string `json:"error_description"`
+}
+
+type githubUserResp struct {
+	ID        int64  `json:"id"`
+	Login     string `json:"login"`
+	Email     string `json:"email"`
+	Name      string `json:"name"`
+	AvatarURL string `json:"avatar_url"`
+}
+
+type githubEmailResp struct {
+	Email    string `json:"email"`
+	Primary  bool   `json:"primary"`
+	Verified bool   `json:"verified"`
+}
+
 // handleUserSignupPage handle user signup page
 func (h *Handlers) handleUserSignupPage(c *gin.Context) {
 	ctx := LingEcho.GetRenderPageContext(c)
@@ -205,6 +243,14 @@ func newOIDCCode() string {
 	return hex.EncodeToString(b)
 }
 
+func newGitHubStateNonce() string {
+	b := make([]byte, 20)
+	if _, err := rand.Read(b); err != nil {
+		return fmt.Sprintf("gh_%d", time.Now().UnixNano())
+	}
+	return hex.EncodeToString(b)
+}
+
 func cleanExpiredOIDCCodes() {
 	now := time.Now()
 	oidcAuthCodeStore.Lock()
@@ -212,6 +258,17 @@ func cleanExpiredOIDCCodes() {
 	for k, v := range oidcAuthCodeStore.items {
 		if now.After(v.ExpiresAt) || v.Used {
 			delete(oidcAuthCodeStore.items, k)
+		}
+	}
+}
+
+func cleanExpiredGitHubStates() {
+	now := time.Now()
+	githubOAuthStateStore.Lock()
+	defer githubOAuthStateStore.Unlock()
+	for k, v := range githubOAuthStateStore.items {
+		if now.After(v.ExpiresAt) {
+			delete(githubOAuthStateStore.items, k)
 		}
 	}
 }
@@ -237,6 +294,27 @@ func getWechatMPConfig() (appID, appSecret, token string, err error) {
 
 func getWechatMPToken() string {
 	return strings.TrimSpace(os.Getenv("WECHAT_MP_TOKEN"))
+}
+
+func getGitHubOAuthConfig(c *gin.Context) (clientID, clientSecret, redirectURI string, err error) {
+	clientID = strings.TrimSpace(os.Getenv("GITHUB_CLIENT_ID"))
+	clientSecret = strings.TrimSpace(os.Getenv("GITHUB_CLIENT_SECRET"))
+	redirectURI = strings.TrimSpace(os.Getenv("GITHUB_OAUTH_REDIRECT_URI"))
+	if clientID == "" || clientSecret == "" {
+		return "", "", "", errors.New("missing GITHUB_CLIENT_ID or GITHUB_CLIENT_SECRET")
+	}
+	if redirectURI == "" {
+		scheme := c.Request.Header.Get("X-Forwarded-Proto")
+		if scheme == "" {
+			if c.Request.TLS != nil {
+				scheme = "https"
+			} else {
+				scheme = "http"
+			}
+		}
+		redirectURI = fmt.Sprintf("%s://%s/api/auth/github/callback", scheme, c.Request.Host)
+	}
+	return clientID, clientSecret, redirectURI, nil
 }
 
 func getWechatAccessToken() (string, error) {
@@ -433,6 +511,77 @@ func (h *Handlers) findOrCreateWechatUser(openID string, info *wechatUserInfoRes
 		// Some old databases may not have wechat_* columns yet.
 		// Keep login working even if wechat field persistence fails.
 		logger.Warn("failed to persist wechat fields for new user, continue login", zap.Error(err))
+	}
+	_ = h.db.First(created, created.ID).Error
+	return created, nil
+}
+
+func (h *Handlers) findOrCreateGitHubUser(githubUser *githubUserResp, githubEmail string) (*models.User, error) {
+	if githubUser == nil || githubUser.ID <= 0 {
+		return nil, errors.New("invalid github user")
+	}
+	githubID := strconv.FormatInt(githubUser.ID, 10)
+	var user models.User
+	if err := h.db.Where("github_id = ?", githubID).First(&user).Error; err == nil {
+		updates := map[string]any{
+			"github_login": strings.TrimSpace(githubUser.Login),
+		}
+		if githubUser.AvatarURL != "" {
+			updates["avatar"] = githubUser.AvatarURL
+		}
+		if updateErr := h.db.Model(&user).Updates(updates).Error; updateErr != nil {
+			logger.Warn("failed to update github user fields", zap.Error(updateErr))
+		}
+		return &user, nil
+	}
+
+	normalizedEmail := strings.ToLower(strings.TrimSpace(githubEmail))
+	if normalizedEmail != "" {
+		if existing, err := models.GetUserByEmail(h.db, normalizedEmail); err == nil && existing != nil {
+			updates := map[string]any{
+				"github_id":    githubID,
+				"github_login": strings.TrimSpace(githubUser.Login),
+			}
+			if githubUser.AvatarURL != "" {
+				updates["avatar"] = githubUser.AvatarURL
+			}
+			if updateErr := h.db.Model(existing).Updates(updates).Error; updateErr != nil {
+				return nil, updateErr
+			}
+			_ = h.db.First(existing, existing.ID).Error
+			return existing, nil
+		}
+	}
+
+	displayName := strings.TrimSpace(githubUser.Name)
+	if displayName == "" {
+		displayName = strings.TrimSpace(githubUser.Login)
+	}
+	if displayName == "" {
+		displayName = "GitHub 用户"
+	}
+	if normalizedEmail == "" {
+		normalizedEmail = fmt.Sprintf("github_%s@temp.local", githubID)
+	}
+
+	password := newGitHubStateNonce()
+	created, err := models.CreateUserByEmail(h.db, displayName, displayName, normalizedEmail, password)
+	if err != nil {
+		normalizedEmail = fmt.Sprintf("github_%d@temp.local", time.Now().UnixNano())
+		created, err = models.CreateUserByEmail(h.db, displayName, displayName, normalizedEmail, password)
+		if err != nil {
+			return nil, err
+		}
+	}
+	updates := map[string]any{
+		"github_id":    githubID,
+		"github_login": strings.TrimSpace(githubUser.Login),
+	}
+	if githubUser.AvatarURL != "" {
+		updates["avatar"] = githubUser.AvatarURL
+	}
+	if err = h.db.Model(created).Updates(updates).Error; err != nil {
+		logger.Warn("failed to persist github fields for new user", zap.Error(err))
 	}
 	_ = h.db.First(created, created.ID).Error
 	return created, nil
@@ -808,6 +957,166 @@ func (h *Handlers) processOIDCTokenReq(c *gin.Context, req oidcTokenReq) {
 		"expires_in":   int64((24 * time.Hour).Seconds()),
 		"user":         user,
 	})
+}
+
+func (h *Handlers) handleGitHubLogin(c *gin.Context) {
+	clientID, _, redirectURI, err := getGitHubOAuthConfig(c)
+	if err != nil {
+		response.AbortWithJSONError(c, http.StatusBadRequest, err)
+		return
+	}
+	nonce := newGitHubStateNonce()
+	stateData := &githubOAuthState{
+		Nonce:        nonce,
+		RedirectURL:  strings.TrimSpace(c.Query("redirecturl")),
+		OIDCClient:   strings.TrimSpace(c.Query("client_id")),
+		OIDCRedirect: strings.TrimSpace(c.Query("redirect_uri")),
+		OIDCState:    strings.TrimSpace(c.Query("state")),
+		ExpiresAt:    time.Now().Add(10 * time.Minute),
+	}
+	githubOAuthStateStore.Lock()
+	githubOAuthStateStore.items[nonce] = stateData
+	githubOAuthStateStore.Unlock()
+	cleanExpiredGitHubStates()
+
+	target, _ := url.Parse("https://github.com/login/oauth/authorize")
+	q := target.Query()
+	q.Set("client_id", clientID)
+	q.Set("redirect_uri", redirectURI)
+	q.Set("scope", "read:user user:email")
+	q.Set("state", nonce)
+	target.RawQuery = q.Encode()
+	c.Redirect(http.StatusFound, target.String())
+}
+
+func (h *Handlers) handleGitHubCallback(c *gin.Context) {
+	code := strings.TrimSpace(c.Query("code"))
+	state := strings.TrimSpace(c.Query("state"))
+	if code == "" || state == "" {
+		c.Redirect(http.StatusFound, "/api/auth/login?github=failed")
+		return
+	}
+	githubOAuthStateStore.Lock()
+	stateData, ok := githubOAuthStateStore.items[state]
+	if ok {
+		delete(githubOAuthStateStore.items, state)
+	}
+	githubOAuthStateStore.Unlock()
+	if !ok || time.Now().After(stateData.ExpiresAt) {
+		c.Redirect(http.StatusFound, "/api/auth/login?github=failed")
+		return
+	}
+
+	clientID, clientSecret, redirectURI, err := getGitHubOAuthConfig(c)
+	if err != nil {
+		c.Redirect(http.StatusFound, "/api/auth/login?github=failed")
+		return
+	}
+
+	tokenReqBody := url.Values{}
+	tokenReqBody.Set("client_id", clientID)
+	tokenReqBody.Set("client_secret", clientSecret)
+	tokenReqBody.Set("code", code)
+	tokenReqBody.Set("redirect_uri", redirectURI)
+
+	tokenReq, _ := http.NewRequest(http.MethodPost, "https://github.com/login/oauth/access_token", strings.NewReader(tokenReqBody.Encode()))
+	tokenReq.Header.Set("Accept", "application/json")
+	tokenReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	tokenResp, err := http.DefaultClient.Do(tokenReq)
+	if err != nil {
+		c.Redirect(http.StatusFound, "/api/auth/login?github=failed")
+		return
+	}
+	defer tokenResp.Body.Close()
+	tokenRaw, err := io.ReadAll(tokenResp.Body)
+	if err != nil {
+		c.Redirect(http.StatusFound, "/api/auth/login?github=failed")
+		return
+	}
+	var tokenData githubOAuthTokenResp
+	if err = json.Unmarshal(tokenRaw, &tokenData); err != nil || tokenData.AccessToken == "" || tokenData.Error != "" {
+		c.Redirect(http.StatusFound, "/api/auth/login?github=failed")
+		return
+	}
+
+	userReq, _ := http.NewRequest(http.MethodGet, "https://api.github.com/user", nil)
+	userReq.Header.Set("Accept", "application/vnd.github+json")
+	userReq.Header.Set("Authorization", "Bearer "+tokenData.AccessToken)
+	userReq.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	userResp, err := http.DefaultClient.Do(userReq)
+	if err != nil {
+		c.Redirect(http.StatusFound, "/api/auth/login?github=failed")
+		return
+	}
+	defer userResp.Body.Close()
+	userRaw, err := io.ReadAll(userResp.Body)
+	if err != nil {
+		c.Redirect(http.StatusFound, "/api/auth/login?github=failed")
+		return
+	}
+	var githubUser githubUserResp
+	if err = json.Unmarshal(userRaw, &githubUser); err != nil || githubUser.ID <= 0 {
+		c.Redirect(http.StatusFound, "/api/auth/login?github=failed")
+		return
+	}
+
+	githubEmail := strings.TrimSpace(githubUser.Email)
+	if githubEmail == "" {
+		emailReq, _ := http.NewRequest(http.MethodGet, "https://api.github.com/user/emails", nil)
+		emailReq.Header.Set("Accept", "application/vnd.github+json")
+		emailReq.Header.Set("Authorization", "Bearer "+tokenData.AccessToken)
+		emailReq.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+		emailResp, reqErr := http.DefaultClient.Do(emailReq)
+		if reqErr == nil {
+			defer emailResp.Body.Close()
+			if emailRaw, readErr := io.ReadAll(emailResp.Body); readErr == nil {
+				var emails []githubEmailResp
+				if unmarshalErr := json.Unmarshal(emailRaw, &emails); unmarshalErr == nil {
+					for _, em := range emails {
+						if em.Email != "" && em.Primary && em.Verified {
+							githubEmail = strings.TrimSpace(em.Email)
+							break
+						}
+					}
+					if githubEmail == "" {
+						for _, em := range emails {
+							if em.Email != "" && em.Verified {
+								githubEmail = strings.TrimSpace(em.Email)
+								break
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	user, userErr := h.findOrCreateGitHubUser(&githubUser, githubEmail)
+	if userErr != nil {
+		c.Redirect(http.StatusFound, "/api/auth/login?github=failed")
+		return
+	}
+	models.Login(c, user)
+	token := models.BuildAuthToken(user, 7*24*time.Hour, false)
+
+	target, _ := url.Parse("/api/auth/login")
+	q := target.Query()
+	q.Set("github", "ok")
+	q.Set("token", token)
+	if stateData.RedirectURL != "" {
+		q.Set("redirecturl", stateData.RedirectURL)
+	}
+	if stateData.OIDCClient != "" {
+		q.Set("client_id", stateData.OIDCClient)
+	}
+	if stateData.OIDCRedirect != "" {
+		q.Set("redirect_uri", stateData.OIDCRedirect)
+	}
+	if stateData.OIDCState != "" {
+		q.Set("state", stateData.OIDCState)
+	}
+	target.RawQuery = q.Encode()
+	c.Redirect(http.StatusFound, target.String())
 }
 
 func (h *Handlers) handleWechatLogin(c *gin.Context) {
