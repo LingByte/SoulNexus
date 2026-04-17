@@ -887,7 +887,6 @@ func NewSynthesisServiceFromCredential(config TTSCredentialConfig) (SynthesisSer
 		if voiceType == "" {
 			voiceType = "BV700_streaming" // 默认值
 		}
-		language := config.getString("language")
 		rate := config.getInt64("rate")
 		if rate == 0 {
 			rate = config.getInt64("sampleRate") // 尝试 sampleRate 字段
@@ -910,7 +909,6 @@ func NewSynthesisServiceFromCredential(config TTSCredentialConfig) (SynthesisSer
 		}
 		volcengineConfig := NewVolcengineTTSOption(appID, accessToken, cluster)
 		volcengineConfig.VoiceType = voiceType
-		volcengineConfig.Language = language
 		volcengineConfig.Rate = int(rate)
 		volcengineConfig.Encoding = encoding
 		volcengineConfig.SpeedRatio = speedRatio

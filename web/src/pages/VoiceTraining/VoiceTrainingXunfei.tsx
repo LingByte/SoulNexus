@@ -8,6 +8,7 @@ import Button from '@/components/UI/Button'
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/UI/Select'
 import FileUpload from '@/components/UI/FileUpload'
 import FormField from '@/components/Forms/FormField'
+import CollapsibleSectionHeader from '@/components/UI/CollapsibleSectionHeader'
 import { Upload, RefreshCw, Clock, Mic, History, Play, Pause, Volume2, Trash2, Edit3, Sparkles, Settings, Save } from 'lucide-react'
 import { get, post } from '@/utils/request'
 import { getSystemInit, saveVoiceCloneConfig } from '@/api/system'
@@ -629,15 +630,18 @@ const VoiceTrainingXunfei: React.FC = () => {
                             ← {t('voiceTraining.back')}
                         </Button>
                         <div className="h-6 w-px bg-gray-300 dark:bg-gray-600"></div>
-                        <div className="space-y-1">
-                            <h1 className="text-2xl font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                                <Sparkles className="w-6 h-6 text-blue-500" />
-                            {t('voiceTraining.title')}
-                        </h1>
-                        <p className="text-gray-600 dark:text-gray-400 text-sm">
-                            {t('voiceTraining.subtitle')}
-                        </p>
-                    </div>
+                        <div className="flex-1">
+                            <CollapsibleSectionHeader
+                                title={t('voiceTraining.title')}
+                                icon={<Sparkles className="w-4 h-4 text-blue-500" />}
+                                expanded={true}
+                                onToggle={() => {}}
+                                showChevron={false}
+                                clickable={false}
+                                compact
+                                withDivider
+                            />
+                        </div>
                     </div>
                 </div>
 

@@ -15,7 +15,6 @@ export interface CreateCredentialForm {
   expiresAt?: string
   tokenQuota?: number
   requestQuota?: number
-  amountUsd?: number
   useNativeQuota?: boolean
   unlimitedQuota?: boolean
   
@@ -42,7 +41,6 @@ export interface Credential {
   tokenQuota?: number
   tokenUsed?: number
   requestQuota?: number
-  amountUsd?: number
   useNativeQuota?: boolean
   unlimitedQuota?: boolean
   createdAt: string

@@ -78,7 +78,6 @@ func (h *Handlers) CreateAssistant(c *gin.Context) {
 		Temperature:  0.6,
 		MaxTokens:    150,
 		JsSourceID:   utils.SnowflakeUtil.GenID(),
-		Language:     "zh-cn",
 		Speaker:      "101016",
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
@@ -167,7 +166,6 @@ func (h *Handlers) UpdateAssistant(c *gin.Context) {
 		PersonaTag           string   `json:"persona_tag"`
 		Temperature          float32  `json:"temperature"`
 		MaxTokens            int      `json:"maxTokens"`
-		Language             string   `json:"language"`
 		Speaker              string   `json:"speaker"`
 		VoiceCloneId         *int     `json:"voiceCloneId"`
 		TtsProvider          string   `json:"ttsProvider"`
@@ -227,9 +225,6 @@ func (h *Handlers) UpdateAssistant(c *gin.Context) {
 	}
 	if input.MaxTokens != 0 {
 		updateData["max_tokens"] = input.MaxTokens
-	}
-	if input.Language != "" {
-		updateData["language"] = input.Language
 	}
 	if input.Speaker != "" {
 		updateData["speaker"] = input.Speaker
@@ -505,7 +500,6 @@ func (h *Handlers) ServeVoiceSculptorLoaderJS(c *gin.Context) {
 		AssistantID    int64
 		JsSourceID     string
 		Description    string
-		Language       string
 		Speaker        string
 		TtsProvider    string
 		LLMModel       string
@@ -519,7 +513,6 @@ func (h *Handlers) ServeVoiceSculptorLoaderJS(c *gin.Context) {
 		AssistantID:    assistant.ID,
 		JsSourceID:     assistant.JsSourceID,
 		Description:    assistant.Description,
-		Language:       assistant.Language,
 		Speaker:        assistant.Speaker,
 		TtsProvider:    assistant.TtsProvider,
 		LLMModel:       assistant.LLMModel,

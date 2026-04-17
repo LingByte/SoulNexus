@@ -2244,14 +2244,12 @@ const VoiceAssistant = () => {
                                 onApiKeyChange={setApiKey}
                                 onApiSecretChange={setApiSecret}
                                 ttsProvider={ttsProvider}
-                                language={language}
                                 selectedSpeaker={selectedSpeaker}
                                 systemPrompt={systemPrompt}
                                 temperature={temperature}
                                 maxTokens={maxTokens}
                                 llmModel={llmModel}
                                 jsSourceId={jsSourceIdState}
-                                onLanguageChange={setLanguage}
                                 onSpeakerChange={setSelectedSpeaker}
                                 onSystemPromptChange={setSystemPrompt}
                                 onTemperatureChange={setTemperature}

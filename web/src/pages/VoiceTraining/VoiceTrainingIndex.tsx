@@ -4,6 +4,7 @@ import { useI18nStore } from '@/stores/i18nStore'
 import Card, { CardHeader, CardTitle, CardDescription, CardContent } from '@/components/UI/Card'
 import Button from '@/components/UI/Button'
 import { Sparkles, Zap, Mic, ArrowRight } from 'lucide-react'
+import CollapsibleSectionHeader from '@/components/UI/CollapsibleSectionHeader'
 
 const VoiceTrainingIndex: React.FC = () => {
     const { t } = useI18nStore()
@@ -19,16 +20,17 @@ const VoiceTrainingIndex: React.FC = () => {
             
             <div className="container mx-auto px-2 py-8 relative z-10">
                 {/* 页面头部 */}
-                <div className="text-center mb-8">
-                    <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-purple-500 to-blue-600 rounded-2xl mb-6 shadow-lg">
-                        <Mic className="w-10 h-10" />
-                    </div>
-                    <h1 className="text-3xl font-bold mb-2 bg-gradient-to-r bg-clip-text">
-                        {t('voiceTraining.index.title')}
-                    </h1>
-                    <p className="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-                        {t('voiceTraining.index.subtitle')}
-                    </p>
+                <div className="mb-6">
+                    <CollapsibleSectionHeader
+                        title="Voice Cloning Platform"
+                        icon={<Mic className="w-4 h-4 text-purple-500" />}
+                        expanded={true}
+                        onToggle={() => {}}
+                        showChevron={false}
+                        clickable={false}
+                        compact
+                        withDivider
+                    />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">

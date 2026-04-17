@@ -14,6 +14,7 @@ import { validateJavaScript } from '@/utils/jsValidator'
 import { getApiBaseURL } from '@/config/apiConfig'
 import MarkdownPreview from '@/components/UI/MarkdownPreview.tsx'
 import LoadingAnimation from '@/components/Animations/LoadingAnimation'
+import CollapsibleSectionHeader from '@/components/UI/CollapsibleSectionHeader'
 
 // 懒加载Monaco Editor，优化首次加载性能
 const MonacoEditor = lazy(() => import('@monaco-editor/react'))
@@ -444,25 +445,24 @@ const JSTemplateManager = () => {
                                 {t('jsTemplate.back')}
                             </Button>
                             <div className="h-8 w-px bg-slate-300 dark:bg-slate-600"></div>
-                            <div className="relative pl-4">
-                                <motion.div
-                                  layoutId="pageTitleIndicator"
-                                  className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary rounded-r-full"
-                                  transition={{ type: 'spring', bounce: 0.2, duration: 0.3 }}
+                            <div className="w-full">
+                                <CollapsibleSectionHeader
+                                    title={t('jsTemplate.title')}
+                                    icon={<Code className="w-4 h-4 text-primary" />}
+                                    expanded
+                                    onToggle={() => {}}
+                                    showChevron={false}
+                                    clickable={false}
+                                    compact
+                                    titleSize="lg"
+                                    withDivider
                                 />
-                                <h1 className="text-2xl font-bold">{t('jsTemplate.title')}</h1>
-                                <p className="text-sm mt-1">
-                                    {t('jsTemplate.desc')}
-                                </p>
                             </div>
                         </div>
                         <div className="flex items-center gap-3">
                             <div className="text-right">
                                 <div className="text-sm font-medium">
                                     {t('jsTemplate.templateCount', { count: filteredTemplates.length })}
-                                </div>
-                                <div className="text-xs">
-                                    {t('jsTemplate.totalCount', { count: templates.length })}
                                 </div>
                             </div>
                             <Button
@@ -477,7 +477,7 @@ const JSTemplateManager = () => {
                 </div>
             </div>
 
-            <div className="max-w-7xl mx-auto px-4 py-6">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
                 {/* 搜索和过滤栏 */}
                 <div className="bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm rounded-xl border border-white/20 dark:border-slate-700/30 p-4 mb-6 shadow-lg">
                     <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">

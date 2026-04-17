@@ -18,7 +18,6 @@ export interface UpdateAssistantForm {
   persona_tag?: string
   temperature?: number
   maxTokens?: number
-  language?: string
   speaker?: string
   voiceCloneId?: number | null
   ttsProvider?: string
@@ -46,7 +45,6 @@ export interface Assistant {
   temperature: number
   maxTokens: number
   jsSourceId: string
-  language?: string
   speaker?: string
   voiceCloneId?: number | null
   ttsProvider?: string

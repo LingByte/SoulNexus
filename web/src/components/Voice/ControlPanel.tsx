@@ -1,12 +1,13 @@
 import React, {useEffect, useState} from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Key, Settings, AppWindow, ChevronDown, RefreshCw, ArrowRight, Bot, MessageCircle, Users, Zap, Circle, Mic } from 'lucide-react';
+import { Key, Settings, AppWindow, RefreshCw, ArrowRight, Bot, MessageCircle, Users, Zap, Circle, Mic } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/UI/Select';
 import Button from '@/components/UI/Button';
 import { Switch } from '@/components/UI/Switch';
 import Card from '@/components/UI/Card';
-import { getVoiceOptions, VoiceOption, getLanguageOptions, LanguageOption } from '@/api/assistant';
+import CollapsibleSectionHeader from '@/components/UI/CollapsibleSectionHeader';
+import { getVoiceOptions, VoiceOption } from '@/api/assistant';
 import { jsTemplateService, type JSTemplate } from '@/api/jsTemplate';
 import { highlightContent } from '@/utils/highlight';
 import { useI18nStore } from '@/stores/i18nStore';
@@ -22,7 +23,6 @@ interface ControlPanelProps {
     ttsProvider?: string  // TTS平台提供商，如 "tencent", "qiniu", "baidu" 等
 
     // 通话设置
-    language: string
     selectedSpeaker: string
     systemPrompt: string
     temperature: number
@@ -30,7 +30,6 @@ interface ControlPanelProps {
     llmModel: string // LLM模型名称
 
     // 设置更新函数
-    onLanguageChange: (value: string) => void
     onSpeakerChange: (value: string) => void
     onSystemPromptChange: (value: string) => void
     onTemperatureChange: (value: number) => void
@@ -77,15 +76,6 @@ interface ControlPanelProps {
 
     className?: string
 }
-// 默认语言列表（当无法从API获取时使用）
-const DEFAULT_LANGUAGES = [
-    { value: 'zh-CN', label: '中文（简体）' },
-    { value: 'en-US', label: '英语（美国）' },
-    { value: 'ja-JP', label: '日语' },
-    { value: 'ko-KR', label: '韩语' }
-]
-
-
 const ICON_MAP = {
     Bot: <Bot className="w-5 h-5" />,
     MessageCircle: <MessageCircle className="w-5 h-5" />,
@@ -100,13 +90,11 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                                        onApiKeyChange,
                                                        onApiSecretChange,
                                                        ttsProvider,
-                                                       language,
                                                        selectedSpeaker,
                                                        systemPrompt,
                                                        temperature,
                                                        maxTokens,
                                                        llmModel,
-                                                       onLanguageChange,
                                                        onSpeakerChange,
                                                        onSystemPromptChange,
                                                        onTemperatureChange,
@@ -147,8 +135,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
     const { t } = useI18nStore()
     const [voiceOptions, setVoiceOptions] = useState<VoiceOption[]>([]);
     const [loadingVoices, setLoadingVoices] = useState(false);
-    const [languageOptions, setLanguageOptions] = useState<LanguageOption[]>([]);
-    const [loadingLanguages, setLoadingLanguages] = useState(false);
     const [jsTemplates, setJsTemplates] = useState<JSTemplate[]>([])
 
 
@@ -181,63 +167,10 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         }
     };
 
-    // 根据TTS Provider加载语言列表
-    const fetchLanguageOptions = async (provider: string, currentLanguage?: string) => {
-        if (!provider) {
-            // 如果没有provider，使用默认语言列表
-            setLanguageOptions(DEFAULT_LANGUAGES.map(lang => ({
-                code: lang.value,
-                name: lang.label,
-                nativeName: lang.label,
-                configKey: 'language',
-                description: lang.label
-            })));
-            return;
-        }
-
-        setLoadingLanguages(true);
-        try {
-            const response = await getLanguageOptions(provider);
-            if (response.code === 200 && response.data?.languages) {
-                setLanguageOptions(response.data.languages);
-                // 如果当前选中的语言不在新列表中，重置为第一个语言
-                if (currentLanguage && !response.data.languages.find(l => l.code === currentLanguage)) {
-                    if (response.data.languages.length > 0) {
-                        onLanguageChange(response.data.languages[0].code);
-                    }
-                } else if (!currentLanguage && response.data.languages.length > 0) {
-                    onLanguageChange(response.data.languages[0].code);
-                }
-            } else {
-                // 如果API返回失败，使用默认语言列表
-                setLanguageOptions(DEFAULT_LANGUAGES.map(lang => ({
-                    code: lang.value,
-                    name: lang.label,
-                    nativeName: lang.label,
-                    configKey: 'language',
-                    description: lang.label
-                })));
-            }
-        } catch (error) {
-            console.error('获取语言列表失败:', error);
-            // 使用默认语言列表
-            setLanguageOptions(DEFAULT_LANGUAGES.map(lang => ({
-                code: lang.value,
-                name: lang.label,
-                nativeName: lang.label,
-                configKey: 'language',
-                description: lang.label
-            })));
-        } finally {
-            setLoadingLanguages(false);
-        }
-    };
-
-    // 当TTS Provider变化时，重新加载音色列表和语言列表
+    // 当TTS Provider变化时，重新加载音色列表
     useEffect(() => {
         const provider = ttsProvider || 'tencent'; // 如果没有provider，使用默认的腾讯云音色列表（向后兼容）
         fetchVoiceOptions(provider, selectedSpeaker);
-        fetchLanguageOptions(provider, language);
     }, [ttsProvider]); // 只依赖ttsProvider，selectedSpeaker和language的变化不影响重新加载
 
     useEffect(() => {
@@ -268,35 +201,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         }))
     }
 
-    const SectionHeader: React.FC<{
-        title: string
-        icon: React.ReactNode
-        section: keyof typeof expandedSections
-        children?: React.ReactNode
-    }> = ({ title, icon, section, children }) => (
-        <motion.div
-            className="flex justify-between items-center cursor-pointer group"
-            onClick={() => toggleSection(section)}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-        >
-            <div className="flex items-center">
-                <h3 className="text-lg font-semibold flex items-center">
-                    {icon}
-                    <span className="ml-2">{title}</span>
-                </h3>
-                <motion.div
-                    animate={{ rotate: expandedSections[section] ? 0 : -90 }}
-                    transition={{ duration: 0.2 }}
-                    className="ml-2"
-                >
-                    <ChevronDown className="w-4 h-4 text-gray-500 group-hover:text-purple-600 transition-colors" />
-                </motion.div>
-            </div>
-            {children}
-        </motion.div>
-    )
-
     // @ts-ignore
     return (
         <div className={cn('flex-1 p-6 overflow-y-auto space-y-4 custom-scrollbar', className)}>
@@ -307,10 +211,11 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                     animate={{ opacity: 1, y: 0 }}
                     className="space-y-4"
                 >
-                    <SectionHeader
+                    <CollapsibleSectionHeader
                         title={t('controlPanel.api.title')}
                         icon={<Key className="w-5 h-5" />}
-                        section="api"
+                        expanded={expandedSections.api}
+                        onToggle={() => toggleSection('api')}
                     />
 
                     <AnimatePresence>
@@ -357,10 +262,11 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                     transition={{ delay: 0.1 }}
                     className="space-y-4"
                 >
-                    <SectionHeader
+                    <CollapsibleSectionHeader
                         title={t('controlPanel.call.title')}
                         icon={<Settings className="w-5 h-5" />}
-                        section="call"
+                        expanded={expandedSections.call}
+                        onToggle={() => toggleSection('call')}
                     />
 
                     <AnimatePresence>
@@ -373,61 +279,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                 className="overflow-hidden"
                             >
                                 <div className="space-y-4 pt-4">
-                                    {/* 语言选择 */}
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                            {t('controlPanel.call.language')}
-                                            {ttsProvider && (
-                                                <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
-                          ({ttsProvider})
-                        </span>
-                                            )}
-                                        </label>
-                                        {loadingLanguages ? (
-                                            <div className="w-full p-3 text-sm text-gray-500 dark:text-gray-400 text-center border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800">
-                                                {t('controlPanel.call.loadingLanguages')}
-                                            </div>
-                                        ) : languageOptions.length > 0 ? (
-                                            <Select
-                                                value={language}
-                                                onValueChange={onLanguageChange}
-                                                className="w-full"
-                                            >
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder={t('controlPanel.call.languagePlaceholder')}>
-                                                        {languageOptions.find(l => l.code === language)
-                                                            ? `${languageOptions.find(l => l.code === language)?.name} (${languageOptions.find(l => l.code === language)?.nativeName})`
-                                                            : t('controlPanel.call.languagePlaceholder')}
-                                                    </SelectValue>
-                                                </SelectTrigger>
-                                                <SelectContent searchable searchPlaceholder="搜索语言">
-                                                    {languageOptions.map(lang => (
-                                                        <SelectItem key={lang.code} value={lang.code}>
-                                                            <div className="flex flex-col">
-                                                                <span className="font-medium">{lang.name}</span>
-                                                                <span className="text-xs text-gray-500 dark:text-gray-400">
-                                  {lang.nativeName} · {lang.description}
-                                </span>
-                                                            </div>
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                        ) : (
-                                            <select
-                                                value={language}
-                                                onChange={(e) => onLanguageChange(e.target.value)}
-                                                className="w-full p-2 text-sm border rounded-lg focus:ring-2 focus:ring-purple-500 dark:bg-neutral-700 dark:border-neutral-600"
-                                            >
-                                                {DEFAULT_LANGUAGES.map(lang => (
-                                                    <option key={lang.value} value={lang.value}>
-                                                        {lang.label}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        )}
-                                    </div>
-
                                     {/* 发音人选择 */}
                                     <div className="space-y-2">
                                         <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -558,10 +409,11 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                     transition={{ delay: 0.2 }}
                     className="space-y-4"
                 >
-                    <SectionHeader
+                    <CollapsibleSectionHeader
                         title={t('controlPanel.assistant.title')}
                         icon={<Settings className="w-5 h-5" />}
-                        section="assistant"
+                        expanded={expandedSections.assistant}
+                        onToggle={() => toggleSection('assistant')}
                     />
 
                     <AnimatePresence>
@@ -734,10 +586,11 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                     transition={{ delay: 0.2 }}
                     className="space-y-4"
                 >
-                    <SectionHeader
+                    <CollapsibleSectionHeader
                         title={t('controlPanel.voiceClone.title')}
                         icon={<Settings className="w-5 h-5" />}
-                        section="voiceClone"
+                        expanded={expandedSections.voiceClone}
+                        onToggle={() => toggleSection('voiceClone')}
                     />
 
                     <AnimatePresence>
@@ -817,10 +670,11 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                     transition={{ delay: 0.25 }}
                     className="space-y-4"
                 >
-                    <SectionHeader
+                    <CollapsibleSectionHeader
                         title={t('controlPanel.vad.title')}
                         icon={<Mic className="w-5 h-5" />}
-                        section="vad"
+                        expanded={expandedSections.vad}
+                        onToggle={() => toggleSection('vad')}
                     />
 
                     <AnimatePresence>
@@ -954,10 +808,11 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                     transition={{ delay: 0.3 }}
                     className="space-y-4"
                 >
-                    <SectionHeader
+                    <CollapsibleSectionHeader
                         title={t('controlPanel.integration.title')}
                         icon={<AppWindow className="w-5 h-5" />}
-                        section="integration"
+                        expanded={expandedSections.integration}
+                        onToggle={() => toggleSection('integration')}
                     />
 
                     <AnimatePresence>

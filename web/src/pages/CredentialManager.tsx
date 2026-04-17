@@ -76,7 +76,6 @@ const CredentialManager = () => {
     expiresAt: "",
     tokenQuota: 0,
     requestQuota: 0,
-    amountUsd: 0,
     useNativeQuota: false,
     unlimitedQuota: true,
   })
@@ -219,7 +218,6 @@ const CredentialManager = () => {
           expiresAt: "",
           tokenQuota: 0,
           requestQuota: 0,
-          amountUsd: 0,
           useNativeQuota: false,
           unlimitedQuota: true,
         })
@@ -519,10 +517,6 @@ const CredentialManager = () => {
                                     <div>
                                       <span className="text-gray-600 dark:text-gray-400">令牌可用数量:</span>
                                       <div className="text-gray-900 dark:text-white">{cred.requestQuota ?? 0}</div>
-                                    </div>
-                                    <div>
-                                      <span className="text-gray-600 dark:text-gray-400">金额($):</span>
-                                      <div className="text-gray-900 dark:text-white">{Number(cred.amountUsd ?? 0).toFixed(6)}</div>
                                     </div>
                                     <div>
                                       <span className="text-gray-600 dark:text-gray-400">使用原生额度输入:</span>
@@ -829,13 +823,6 @@ const CredentialManager = () => {
                               type="number"
                               value={String(form.requestQuota ?? 0)}
                               onChange={(e) => setForm(prev => ({ ...prev, requestQuota: Number(e.target.value || 0) }))}
-                            />
-                            <Input
-                              label="金额 ($)"
-                              type="number"
-                              step="0.000001"
-                              value={String(form.amountUsd ?? 0)}
-                              onChange={(e) => setForm(prev => ({ ...prev, amountUsd: Number(e.target.value || 0) }))}
                             />
                           </div>
                         </div>
