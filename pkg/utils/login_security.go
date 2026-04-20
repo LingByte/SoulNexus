@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -26,11 +28,17 @@ type LoginSecurityManager struct {
 
 // NewLoginSecurityManager 创建登录安全管理器
 func NewLoginSecurityManager(logger *zap.Logger) *LoginSecurityManager {
+	ipMax := 30
+	if v := strings.TrimSpace(os.Getenv("LOGIN_IP_RATE_MAX_ATTEMPTS")); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			ipMax = n
+		}
+	}
 	return &LoginSecurityManager{
 		maxFailedAttempts:    7,
 		lockDuration:         30 * time.Minute,
 		maxPasswordLogins:    25,
-		ipRateLimitPerMinute: 7, // 每个IP每分钟最多7次登录尝试
+		ipRateLimitPerMinute: ipMax, // 每个IP每个自然分钟桶内允许的登录尝试次数（见 CheckIPRateLimit）
 		logger:               logger,
 	}
 }
@@ -130,7 +138,9 @@ func (lsm *LoginSecurityManager) CheckIPRateLimit(ip string) error {
 		return nil
 	}
 
-	key := fmt.Sprintf("login:ip:%s", ip)
+	// 按自然分钟分桶，避免与 GlobalCache 条目 TTL 滑动混淆；满桶后下一分钟自动重置计数。
+	bucket := time.Now().Unix() / 60
+	key := fmt.Sprintf("login:ip:%s:%d", ip, bucket)
 	var count int
 	if val, ok := GlobalCache.Get(key); ok {
 		if c, ok := val.(int); ok {
@@ -141,11 +151,11 @@ func (lsm *LoginSecurityManager) CheckIPRateLimit(ip string) error {
 	if count >= lsm.ipRateLimitPerMinute {
 		lsm.logger.Warn("IP login rate limit exceeded",
 			zap.String("ip", ip),
-			zap.Int("count", count))
+			zap.Int("count", count),
+			zap.Int64("minute_bucket", bucket))
 		return errors.New("too many login attempts from this IP, please try again later")
 	}
 
-	// 增加计数
 	count++
 	GlobalCache.Add(key, count)
 
@@ -251,13 +261,16 @@ func (lsm *LoginSecurityManager) CheckPasswordLoginLimit(db *gorm.DB, userID uin
 	return false, nil
 }
 
-// GetDeviceID 从User-Agent生成设备ID
+// GetDeviceID 生成用于「设备信任」的稳定设备标识（仅 User-Agent，不含 IP）。
+// 出口 IP 会频繁变化，不宜参与指纹；异地风险由 IP 地理与登录历史（DetectSuspiciousLogin）单独判断。
 func GetDeviceID(userAgent, ipAddress string) string {
-	// 使用User-Agent和IP的哈希值作为设备ID
-	// 这是一个简化的实现，实际可以使用更复杂的设备指纹算法
-	data := fmt.Sprintf("%s:%s", userAgent, ipAddress)
-	hash := sha256.Sum256([]byte(data))
-	return fmt.Sprintf("%x", hash[:16]) // 使用前16字节，生成32字符的十六进制字符串
+	_ = ipAddress
+	ua := strings.TrimSpace(userAgent)
+	if ua == "" {
+		ua = "unknown"
+	}
+	hash := sha256.Sum256([]byte(ua))
+	return fmt.Sprintf("%x", hash[:16])
 }
 
 // ParseUserAgent 解析User-Agent获取设备信息

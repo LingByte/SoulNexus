@@ -42,8 +42,8 @@ func TestNewLoginSecurityManager(t *testing.T) {
 	if lsm.maxPasswordLogins != 25 {
 		t.Fatalf("Expected maxPasswordLogins 25, got %d", lsm.maxPasswordLogins)
 	}
-	if lsm.ipRateLimitPerMinute != 7 {
-		t.Fatalf("Expected ipRateLimitPerMinute 7, got %d", lsm.ipRateLimitPerMinute)
+	if lsm.ipRateLimitPerMinute != 30 {
+		t.Fatalf("Expected ipRateLimitPerMinute 30, got %d", lsm.ipRateLimitPerMinute)
 	}
 }
 
@@ -334,17 +334,13 @@ func TestLoginSecurityManager_CheckPasswordLoginLimit_Exceeded(t *testing.T) {
 
 func TestGetDeviceID(t *testing.T) {
 	userAgent := "Mozilla/5.0"
-	ipAddress := "192.168.1.1"
-
-	deviceID1 := GetDeviceID(userAgent, ipAddress)
-	deviceID2 := GetDeviceID(userAgent, ipAddress)
-
-	if deviceID1 != deviceID2 {
-		t.Fatal("Same user agent and IP should generate same device ID")
+	a := GetDeviceID(userAgent, "192.168.1.1")
+	b := GetDeviceID(userAgent, "10.0.0.9")
+	if a != b {
+		t.Fatalf("same UA should yield same device id regardless of IP, got %q vs %q", a, b)
 	}
-
-	deviceID3 := GetDeviceID("Different User Agent", ipAddress)
-	if deviceID1 == deviceID3 {
+	deviceID3 := GetDeviceID("Different User Agent", "192.168.1.1")
+	if a == deviceID3 {
 		t.Fatal("Different user agent should generate different device ID")
 	}
 }

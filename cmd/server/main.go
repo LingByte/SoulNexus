@@ -243,6 +243,7 @@ func main() {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()        // Use gin.New() instead of gin.Default() to avoid automatic redirects
 	r.Use(gin.Recovery()) // Manually add Recovery middleware
+	r.Use(middleware.SecureResponseHeaders())
 	templatesFS := LingEcho.NewCombineEmbedFS(
 		LingEcho.HintAssetsRoot("templates"),
 		LingEcho.EmbedFS{"templates", LingEcho.EmbedTemplates},

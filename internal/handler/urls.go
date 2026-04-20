@@ -178,6 +178,7 @@ func (h *Handlers) RegisterUserServiceRoutes(engine *gin.Engine) {
 	}
 	r := engine.Group(apiPrefix)
 	r.Use(middleware.InjectDB(h.db))
+	r.Use(middleware.MutatingRequestTrustedOrigin())
 	middleware.ApplyGlobalMiddlewares(r)
 
 	sys := r.Group("system")
@@ -197,6 +198,7 @@ func (h *Handlers) Register(engine *gin.Engine) {
 
 	// Register Global Singleton DB
 	r.Use(middleware.InjectDB(h.db))
+	r.Use(middleware.MutatingRequestTrustedOrigin())
 
 	// Apply global middlewares (rate limiting, timeout, circuit breaker, operation log)
 	middleware.ApplyGlobalMiddlewares(r)
