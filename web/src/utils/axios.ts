@@ -1,7 +1,11 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosResponse } from 'axios'
 import { useAuthStore } from '../stores/authStore'
-import { getApiBaseURL } from '../config/apiConfig'
-import { getUserServiceBaseURL } from '../config/apiConfig'
+import {
+  getAccountDeletionRevokePageURL,
+  getApiBaseURL,
+  getUserServiceBaseURL,
+  isAccountDeletionRevokeStandalonePage,
+} from '../config/apiConfig'
 
 // 获取API基础URL
 const getApiBaseUrl = () => {
@@ -124,9 +128,22 @@ axiosInstance.interceptors.response.use(
             console.log('Unauthorized: Please log in')
             break
           }
-        case 403:
+        case 403: {
+          const body = error.response?.data as any
+          const payload = body?.data
+          if (payload?.accountDeletionPending) {
+            useAuthStore
+              .getState()
+              .refreshUserInfo()
+              .catch(() => {})
+            if (!isAccountDeletionRevokeStandalonePage()) {
+              const email = useAuthStore.getState().user?.email
+              window.location.assign(getAccountDeletionRevokePageURL(email))
+            }
+          }
           console.error('Forbidden: Access denied')
           break
+        }
         case 404:
           console.error('Not Found: API endpoint not found')
           break

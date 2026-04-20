@@ -136,6 +136,8 @@ export interface LoginResponseData {
   deviceId?: string
   message?: string
   suspiciousLogin?: boolean
+  accountDeletionPending?: boolean
+  accountDeletionEffectiveAt?: string
   [key: string]: any
 }
 
@@ -189,6 +191,9 @@ export interface User {
   status?: string
   /** 注册来源：SYSTEM | ADMIN | WECHAT | GITHUB */
   source?: string
+  /** 注销冷静期预计完成永久注销的时间（RFC3339） */
+  accountDeletionEffectiveAt?: string | null
+  accountDeletionRequestedAt?: string | null
 }
 
 // 用户注册

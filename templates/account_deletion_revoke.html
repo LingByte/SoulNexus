@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>撤销账号注销 - SoulNexus</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <style>
+    :root { --bg:#f8fafc; --card:#fff; --text:#1e1b4b; --muted:#64748b; --primary:#4f47e6; --primary-soft:rgba(79,71,230,.1); --border:#e2e8f0; --danger:#dc2626; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; display:flex; flex-direction:column; padding:0; }
+    .header { width:100%; max-width:1200px; margin:0 auto; padding:16px 24px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--border); background:#fff; }
+    .header-left { display:flex; align-items:center; gap:12px; }
+    .header-logo { width:36px; height:36px; border-radius:8px; }
+    .header-title { font-size:22px; font-weight:700; color:var(--text); letter-spacing:-0.5px; }
+    .header-right { display:flex; align-items:center; gap:20px; }
+    .header-link { color:var(--muted); text-decoration:none; font-size:14px; font-weight:500; padding:8px 16px; border-radius:8px; transition:all .28s ease; }
+    .header-link:hover { color:var(--primary); background:var(--primary-soft); }
+    .main { flex:1; display:grid; place-items:center; padding:16px; }
+    .card { background:var(--card); border:1px solid var(--border); border-radius:22px; max-width:420px; width:100%; padding:26px 22px 18px; box-shadow:0 20px 48px rgba(79,71,230,.08); }
+    h1 { font-size:1.25rem; margin:0 0 8px; }
+    p { color:var(--muted); font-size:.9rem; line-height:1.5; margin:0 0 16px; }
+    label { display:block; font-size:.8rem; color:var(--muted); margin-bottom:4px; }
+    input { width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:10px; margin-bottom:12px; font-size:.95rem; outline:none; transition:border-color .28s ease,box-shadow .28s ease; }
+    input:focus { border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-soft); }
+    .row { display:flex; gap:8px; align-items:flex-end; margin-bottom:12px; }
+    .row input { margin-bottom:0; }
+    button { cursor:pointer; border:none; border-radius:10px; padding:10px 16px; font-weight:600; font-size:.9rem; transition:all .28s ease; }
+    .btn-primary { background:var(--primary); color:#fff; }
+    .btn-secondary { background:#e2e8f0; color:var(--text); }
+    .btn-danger { background:var(--danger); color:#fff; }
+    .btn-danger:hover { opacity:.9; }
+    .msg { font-size:.85rem; margin-top:8px; padding:10px; border-radius:8px; display:none; }
+    .msg.err { display:block; background:#fef2f2; color:#991b1b; }
+    .msg.ok { display:block; background:#ecfdf5; color:#065f46; }
+    a { color:var(--primary); font-size:.85rem; }
+    .footer { font-size:12px; color:var(--muted); text-align:center; margin-top:8px; }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="header-left">
+      <img src="/static/logo.png" alt="Logo" class="header-logo" />
+      <span class="header-title">SoulNexus</span>
+    </div>
+    <div class="header-right">
+      <a href="https://docs.lingecho.com/" class="header-link" target="_blank">文档中心</a>
+      <a href="https://lingecho.com/" class="header-link" target="_blank">官网</a>
+    </div>
+  </header>
+  <main class="main">
+  <div class="card">
+    <h1>撤销账号注销</h1>
+    <p>账号处于<strong>注销冷静期</strong>时无法使用各端产品。请在本页（与登录同一用户服务）验证邮箱后撤销注销；冷静期结束后账号将被永久注销。</p>
+    <div id="msg" class="msg"></div>
+    <label for="email">注册邮箱</label>
+    <input id="email" type="email" autocomplete="username" value="{{ .PrefillEmail }}" />
+    <div class="row">
+      <div style="flex:1">
+        <label for="code">邮箱验证码</label>
+        <input id="code" type="text" inputmode="numeric" maxlength="8" placeholder="6 位数字" />
+      </div>
+      <button type="button" class="btn-secondary" id="btnSend">发送验证码</button>
+    </div>
+    <label for="password">登录密码</label>
+    <input id="password" type="password" autocomplete="current-password" placeholder="用于核验身份" />
+    <button type="button" class="btn-danger" id="btnSubmit" style="width:100%;margin-top:8px">确认撤销注销</button>
+    <p style="margin-top:16px;margin-bottom:0"><a id="lnkLogin" href="/login">返回登录</a></p>
+  </div>
+      <div class="footer">© 2026 解忧造物责任有限公司 版权所有 蜀ICP备2025169908号-3</div>
+  </main>
+  <script>
+    (function () {
+      var BASE = {{ printf "%q" .AuthAPIBase }};
+      function show(kind, text) {
+        var el = document.getElementById('msg');
+        el.className = 'msg ' + (kind === 'ok' ? 'ok' : 'err');
+        el.textContent = text;
+      }
+      function api(path, body) {
+        return fetch(BASE + path, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body || {})
+        }).then(function (r) { return r.json(); });
+      }
+      document.getElementById('btnSend').onclick = function () {
+        var email = document.getElementById('email').value.trim();
+        if (!email) { show('err', '请填写邮箱'); return; }
+        api('/account-deletion/send-cancel-code', { email: email }).then(function (j) {
+          if (j.code === 200) show('ok', j.msg || '若该邮箱存在冷静期申请，将发送验证码');
+          else show('err', j.msg || '发送失败');
+        }).catch(function () { show('err', '网络错误'); });
+      };
+      document.getElementById('btnSubmit').onclick = function () {
+        var email = document.getElementById('email').value.trim();
+        var password = document.getElementById('password').value;
+        var emailCode = document.getElementById('code').value.trim();
+        if (!email || !password || !emailCode) { show('err', '请填写邮箱、密码与验证码'); return; }
+        api('/account-deletion/cancel-by-email', { email: email, password: password, emailCode: emailCode }).then(function (j) {
+          if (j.code === 200) {
+            show('ok', '已撤销注销，请返回应用重新登录。');
+            setTimeout(function () { window.location.href = '/login'; }, 1500);
+          } else show('err', j.msg || '撤销失败');
+        }).catch(function () { show('err', '网络错误'); });
+      };
+    })();
+  </script>
+</body>
+</html>
