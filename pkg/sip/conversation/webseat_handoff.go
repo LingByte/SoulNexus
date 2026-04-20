@@ -16,17 +16,20 @@ func StartWebSeatHandoff(inboundCallID string, lg *zap.Logger) {
 	}
 	if lookupInbound == nil {
 		lg.Warn("web seat: SetInboundSessionLookup not configured")
+		webseat.ReleaseInboundWebACDOffer(inboundCallID)
 		ReleaseTransferStartDedupe(inboundCallID)
 		return
 	}
 	inbound := lookupInbound(inboundCallID)
 	if inbound == nil {
 		lg.Warn("web seat: inbound session not found", zap.String("call_id", inboundCallID))
+		webseat.ReleaseInboundWebACDOffer(inboundCallID)
 		ReleaseTransferStartDedupe(inboundCallID)
 		return
 	}
 	if err := webseat.RegisterAwaiting(inboundCallID, inbound, lg); err != nil {
 		lg.Warn("web seat: register failed", zap.String("call_id", inboundCallID), zap.Error(err))
+		webseat.ReleaseInboundWebACDOffer(inboundCallID)
 		ReleaseTransferStartDedupe(inboundCallID)
 		return
 	}
