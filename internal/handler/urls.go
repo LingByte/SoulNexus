@@ -851,7 +851,7 @@ func (h *Handlers) registerAuthRoutes(r *gin.RouterGroup) {
 		auth.POST("/change-password/email", models.AuthRequired, h.handleChangePasswordByEmail)
 
 		auth.GET("/devices", models.AuthRequired, h.handleGetUserDevices)
-		auth.DELETE("/devices", models.AuthRequired, h.handleDeleteUserDevice)
+		auth.DELETE("/devices/:deviceId", models.AuthRequired, h.handleDeleteUserDevice)
 		auth.POST("/devices/trust", models.AuthRequired, h.handleTrustUserDevice)
 		auth.POST("/devices/untrust", models.AuthRequired, h.handleUntrustUserDevice)
 

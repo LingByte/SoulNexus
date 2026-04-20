@@ -15,7 +15,9 @@ import (
 )
 
 // SecureResponseHeaders sets baseline browser-facing security headers on every response.
-// CSP: set HTTP_CSP for a site-wide policy, or a restrictive default is applied only under /api/ (JSON APIs).
+//
+// CSP is optional only via HTTP_CSP: do not inject a default strict CSP on /api/* — many HTML pages
+// (e.g. SSO sign-in under /api/auth/login) live under the API prefix and need scripts, styles, fonts, and images.
 func SecureResponseHeaders() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Header("X-Content-Type-Options", "nosniff")
@@ -23,11 +25,6 @@ func SecureResponseHeaders() gin.HandlerFunc {
 		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
 		if csp := strings.TrimSpace(os.Getenv("HTTP_CSP")); csp != "" {
 			c.Header("Content-Security-Policy", csp)
-		} else {
-			p := c.Request.URL.Path
-			if strings.HasPrefix(p, "/api/") && !strings.Contains(p, "/docs") {
-				c.Header("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
-			}
 		}
 		if isHTTPSRequest(c) && !strings.EqualFold(strings.TrimSpace(os.Getenv("HTTP_HSTS_DISABLED")), "true") {
 			maxAge := utils.GetIntEnvWithDefault("HTTP_HSTS_MAX_AGE", 31536000)
