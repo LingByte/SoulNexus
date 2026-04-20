@@ -124,6 +124,9 @@ var wechatBindSessions = struct {
 }
 
 func verifyRequestCaptcha(captchaID, captchaCode, captchaData, captchaType string) (bool, error) {
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("LOGIN_CAPTCHA_DISABLED")), "true") {
+		return true, nil
+	}
 	if utilscaptcha.GlobalManager == nil {
 		return false, errors.New("captcha service not initialized")
 	}
@@ -1841,22 +1844,16 @@ func (h *Handlers) handleUserSigninByEmail(c *gin.Context) {
 		zap.Bool("isSuspicious", isSuspicious),
 		zap.Error(err))
 
-	// 如果设备不被信任，要求额外验证或拒绝登录
-	// 邮箱验证码登录本身就是一种额外验证，所以对于邮箱登录我们可以更宽松一些
-	if !isTrusted {
-		logger.Info("Email login from untrusted device, but allowing due to email verification",
-			zap.Uint("userID", user.ID),
-			zap.String("email", user.Email),
-			zap.String("deviceID", deviceID),
-			zap.String("ip", clientIP))
-
-		// 记录为可疑但成功的登录
-		isSuspicious = true
-	}
-
 	// 11. 创建设备记录
 	if _, err := models.CreateOrUpdateUserDevice(db, user.ID, deviceID, fmt.Sprintf("%s on %s", browser, os), deviceType, os, browser, userAgent, clientIP, location); err != nil {
 		logger.Warn("Failed to create/update user device", zap.Error(err))
+	}
+
+	// 邮箱验证码本身已证明邮箱控制权：登录成功后信任该设备，避免每次都被当作新设备发告警/风控。
+	if err := models.TrustUserDevice(db, user.ID, deviceID); err != nil {
+		logger.Warn("Failed to auto-trust device after email login", zap.Error(err), zap.Uint("userID", user.ID), zap.String("deviceID", deviceID))
+	} else {
+		isTrusted = true
 	}
 
 	// 12. 记录登录历史
@@ -1869,20 +1866,6 @@ func (h *Handlers) handleUserSigninByEmail(c *gin.Context) {
 		zap.Bool("isTrusted", isTrusted),
 		zap.Bool("isSuspicious", isSuspicious),
 		zap.String("deviceID", deviceID))
-
-	// 临时强制触发测试
-	logger.Info("FORCE TESTING: Sending new device login alert signal regardless of conditions")
-	deviceInfo := map[string]interface{}{
-		"deviceID":     deviceID,
-		"clientIP":     clientIP,
-		"location":     location,
-		"deviceType":   deviceType,
-		"os":           os,
-		"browser":      browser,
-		"isSuspicious": isSuspicious,
-		"loginTime":    time.Now().Format("2006-01-02 15:04:05"),
-	}
-	utils.Sig().Emit(constants.SigUserNewDeviceLogin, user, deviceInfo, db)
 
 	if !isTrusted || isSuspicious {
 		logger.Info("Sending new device login alert signal",
@@ -2247,35 +2230,44 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 		logger.Warn("Failed to check device trust", zap.Error(err))
 	}
 	if !isTrusted {
-		// 检查是否是通过有效令牌登录（表示用户已经通过了之前的验证）
 		isTokenLogin := form.AuthToken != ""
 
-		if !isTokenLogin {
-			// 先创建设备记录（即使是不信任的），这样设备验证时才能更新它
+		// 仅当「异地 / 可疑登录」（基于历史登录国家与当前 IP 解析结果）才要求邮箱设备验证；
+		// 同区域内仅未信任设备时，密码+图形验证码通过后直接信任该 UA 设备，避免 IP 抖动反复弹验证。
+		if !isTokenLogin && isSuspicious {
 			if _, err := models.CreateOrUpdateUserDevice(db, user.ID, deviceID, fmt.Sprintf("%s on %s", browser, os), deviceType, os, browser, userAgent, clientIP, location); err != nil {
 				logger.Warn("Failed to create/update user device before verification", zap.Error(err))
 			}
 
-			// 记录可疑登录尝试
-			if err := models.RecordLoginHistory(db, user.ID, form.Email, clientIP, location, country, city, userAgent, deviceID, "password", false, "untrusted device", true); err != nil {
+			if err := models.RecordLoginHistory(db, user.ID, form.Email, clientIP, location, country, city, userAgent, deviceID, "password", false, "suspicious location untrusted device", true); err != nil {
 				logger.Warn("Failed to record login history for untrusted device", zap.Error(err))
 			}
 
-			logger.Warn("Login attempt from untrusted device",
+			logger.Warn("Login attempt from untrusted device in suspicious location",
 				zap.Uint("userID", user.ID),
 				zap.String("email", user.Email),
 				zap.String("deviceID", deviceID),
-				zap.String("ip", clientIP))
+				zap.String("ip", clientIP),
+				zap.String("country", country))
 
-			// 返回需要设备验证的响应
 			response.Success(c, "Device verification required", gin.H{
 				"requiresDeviceVerification": true,
 				"deviceId":                   deviceID,
-				"message":                    "This device is not trusted. Please verify this device or use a trusted device to login.",
+				"message":                    "New login location detected. Please verify this device by email code.",
 			})
 			return
-		} else {
-			// 令牌登录时，记录警告但允许继续
+		}
+
+		if !isTokenLogin && !isSuspicious {
+			if _, err := models.CreateOrUpdateUserDevice(db, user.ID, deviceID, fmt.Sprintf("%s on %s", browser, os), deviceType, os, browser, userAgent, clientIP, location); err != nil {
+				logger.Warn("Failed to create/update user device before auto-trust", zap.Error(err))
+			}
+			if err := models.TrustUserDevice(db, user.ID, deviceID); err != nil {
+				logger.Warn("Failed to auto-trust device after password login", zap.Error(err), zap.Uint("userID", user.ID), zap.String("deviceID", deviceID))
+			} else {
+				isTrusted = true
+			}
+		} else if isTokenLogin {
 			logger.Info("Token login from untrusted device allowed",
 				zap.Uint("userID", user.ID),
 				zap.String("email", user.Email),

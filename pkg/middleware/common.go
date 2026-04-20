@@ -4,6 +4,9 @@ package middleware
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"net/http"
+	"strings"
+
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/gin-contrib/sessions"
@@ -52,15 +55,48 @@ func CorsMiddleware() gin.HandlerFunc {
 	}
 }
 
+func sessionCookieOptions(maxAge int) sessions.Options {
+	secure := false
+	switch strings.ToLower(strings.TrimSpace(utils.GetEnv("SESSION_COOKIE_SECURE"))) {
+	case "true":
+		secure = true
+	case "false":
+		secure = false
+	default:
+		if strings.EqualFold(strings.TrimSpace(utils.GetEnv("APP_ENV")), "production") ||
+			strings.EqualFold(strings.TrimSpace(utils.GetEnv("GIN_MODE")), "release") {
+			secure = true
+		}
+	}
+
+	var sameSite http.SameSite
+	switch strings.ToLower(strings.TrimSpace(utils.GetEnv("SESSION_SAMESITE"))) {
+	case "strict":
+		sameSite = http.SameSiteStrictMode
+	case "none":
+		sameSite = http.SameSiteNoneMode
+	default:
+		sameSite = http.SameSiteLaxMode
+	}
+
+	return sessions.Options{
+		Path:     "/",
+		MaxAge:   maxAge,
+		HttpOnly: true,
+		Secure:   secure,
+		SameSite: sameSite,
+	}
+}
+
 func WithMemSession(secret string) gin.HandlerFunc {
 	store := memstore.NewStore([]byte(secret))
-	store.Options(sessions.Options{Path: "/", MaxAge: 0})
+	store.Options(sessionCookieOptions(0))
 	return sessions.Sessions(GetCarrotSessionField(), store)
 }
 
 func WithCookieSession(secret string, maxAge int) gin.HandlerFunc {
 	store := cookie.NewStore([]byte(secret))
-	store.Options(sessions.Options{Path: "/", MaxAge: maxAge})
+	store.Options(sessionCookieOptions(maxAge))
 	return sessions.Sessions(GetCarrotSessionField(), store)
 }
 

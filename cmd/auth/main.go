@@ -148,6 +148,7 @@ func main() {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	r.Use(gin.Recovery())
+	r.Use(middleware.SecureResponseHeaders())
 	templatesFS := LingEcho.NewCombineEmbedFS(
 		LingEcho.HintAssetsRoot("templates"),
 		LingEcho.EmbedFS{"templates", LingEcho.EmbedTemplates},
