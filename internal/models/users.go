@@ -222,6 +222,10 @@ type User struct {
 	LastPasswordChange   *time.Time `json:"lastPasswordChange,omitempty"`                 // 最后密码修改时间
 	ProfileComplete      int        `json:"profileComplete" gorm:"default:0"`             // 资料完整度百分比
 	Role                 string     `json:"role,omitempty" gorm:"size:50;default:'user'"` // 用户角色
+
+	// 账号注销冷静期：到达 AccountDeletionEffectiveAt 后由定时任务执行永久注销（仅清除账号与绑定，不删用户创建的业务资源）
+	AccountDeletionRequestedAt *time.Time `json:"accountDeletionRequestedAt,omitempty"`
+	AccountDeletionEffectiveAt *time.Time `json:"accountDeletionEffectiveAt,omitempty" gorm:"index"`
 }
 
 func (u *User) TableName() string {
@@ -296,8 +300,47 @@ func AuthRequired(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusUnauthorized, err)
 		return
 	}
-	c.Set(constants.UserField, user)
+
+	var fresh User
+	if err := db.Where("id = ? AND is_deleted = ?", user.ID, SoftDeleteStatusActive).First(&fresh).Error; err != nil {
+		response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("user not found"))
+		return
+	}
+	c.Set(constants.UserField, &fresh)
+
+	if AccountDeletionPending(&fresh) && !authPathExemptWhileAccountDeletionPending(c) {
+		effective := ""
+		if fresh.AccountDeletionEffectiveAt != nil {
+			effective = fresh.AccountDeletionEffectiveAt.UTC().Format(time.RFC3339)
+		}
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+			"code": http.StatusForbidden,
+			"msg":  "账号正在注销冷静期内，暂时无法使用 SoulNexus 产品功能。请使用「撤销注销」完成验证后恢复，或等待冷静期结束后账号将被永久注销。",
+			"data": gin.H{
+				"accountDeletionPending":       true,
+				"accountDeletionEffectiveAt": effective,
+			},
+		})
+		return
+	}
 	c.Next()
+}
+
+// authPathExemptWhileAccountDeletionPending 冷静期内仍允许访问的认证接口（获取信息、撤销注销）。
+func authPathExemptWhileAccountDeletionPending(c *gin.Context) bool {
+	method := c.Request.Method
+	path := c.Request.URL.Path
+	if method == http.MethodGet && strings.Contains(path, "/auth/info") {
+		return true
+	}
+	if method == http.MethodGet && strings.Contains(path, "/account-deletion/eligibility") {
+		return true
+	}
+	// 勿用 Contains(\"/cancel\")，否则会误匹配 cancel-by-email
+	if method == http.MethodPost && strings.HasSuffix(path, "/account-deletion/cancel") {
+		return true
+	}
+	return false
 }
 
 func CurrentUser(c *gin.Context) *User {

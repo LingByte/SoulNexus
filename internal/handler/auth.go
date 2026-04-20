@@ -249,6 +249,40 @@ func (h *Handlers) RenderSigninPage(c *gin.Context) {
 	h.handleUserSigninPage(c)
 }
 
+func revokeAccountDeletionBrowserURL(c *gin.Context, email string) string {
+	scheme := "http"
+	if c.Request.TLS != nil {
+		scheme = "https"
+	} else if strings.EqualFold(c.GetHeader("X-Forwarded-Proto"), "https") {
+		scheme = "https"
+	}
+	host := c.Request.Host
+	if fh := strings.TrimSpace(c.GetHeader("X-Forwarded-Host")); fh != "" {
+		host = strings.TrimSpace(strings.Split(fh, ",")[0])
+	}
+	u := url.URL{Scheme: scheme, Host: host, Path: "/login/revoke-account-deletion"}
+	if em := strings.TrimSpace(email); em != "" {
+		u.RawQuery = url.Values{"email": {em}}.Encode()
+	}
+	return u.String()
+}
+
+// RenderAccountDeletionRevokePage 用户服务 / SSO 同源页面：冷静期内撤销注销（无需已登录 Web）。
+func (h *Handlers) RenderAccountDeletionRevokePage(c *gin.Context) {
+	ctx := LingEcho.GetRenderPageContext(c)
+	apiP := config.GlobalConfig.Server.APIPrefix
+	if apiP == "" {
+		apiP = "/api"
+	}
+	authP := config.GlobalConfig.Server.AuthPrefix
+	if authP == "" {
+		authP = "/auth"
+	}
+	ctx["AuthAPIBase"] = strings.TrimRight(apiP, "/") + "/" + strings.TrimLeft(authP, "/")
+	ctx["PrefillEmail"] = strings.TrimSpace(c.Query("email"))
+	c.HTML(http.StatusOK, "account_deletion_revoke.html", ctx)
+}
+
 func newWechatSessionID() string {
 	buf := make([]byte, 16)
 	if _, err := rand.Read(buf); err != nil {
@@ -670,6 +704,20 @@ func (h *Handlers) finishWechatSessionSuccess(c *gin.Context, session *wechatLog
 	if err != nil || user == nil {
 		return nil, errors.New("wechat user is not bound")
 	}
+	var wxFresh models.User
+	if err := h.db.Where("id = ? AND is_deleted = ?", user.ID, models.SoftDeleteStatusActive).First(&wxFresh).Error; err == nil && models.AccountDeletionPending(&wxFresh) {
+		effective := ""
+		if wxFresh.AccountDeletionEffectiveAt != nil {
+			effective = wxFresh.AccountDeletionEffectiveAt.UTC().Format(time.RFC3339)
+		}
+		return gin.H{
+			"status":                       "account_deletion_pending",
+			"accountDeletionPending":       true,
+			"accountDeletionEffectiveAt":   effective,
+			"email":                        wxFresh.Email,
+			"message":                      "账号处于注销冷静期，暂无法登录。请使用撤销注销流程恢复。",
+		}, nil
+	}
 	models.Login(c, user)
 	accessToken, refreshToken := buildTokenPair(h.db, user, 7*24*time.Hour)
 	user.AuthToken = accessToken
@@ -865,10 +913,6 @@ func (h *Handlers) handleWechatOAuthCallback(c *gin.Context) {
 	c.Redirect(http.StatusFound, "/api/auth/login?wechat=ok")
 }
 
-func (h *Handlers) handleWechatHealth(c *gin.Context) {
-	c.String(http.StatusOK, "ok")
-}
-
 func (h *Handlers) handleOIDCAuthorize(c *gin.Context) {
 	clientID := strings.TrimSpace(c.Query("client_id"))
 	redirectURI := strings.TrimSpace(c.Query("redirect_uri"))
@@ -1030,6 +1074,22 @@ func (h *Handlers) processOIDCTokenReq(c *gin.Context, req oidcTokenReq) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("user not found"))
 		return
 	}
+	var oidcFresh models.User
+	if err := h.db.Where("id = ? AND is_deleted = ?", user.ID, models.SoftDeleteStatusActive).First(&oidcFresh).Error; err == nil && models.AccountDeletionPending(&oidcFresh) {
+		effective := ""
+		if oidcFresh.AccountDeletionEffectiveAt != nil {
+			effective = oidcFresh.AccountDeletionEffectiveAt.UTC().Format(time.RFC3339)
+		}
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+			"code": http.StatusForbidden,
+			"msg":  "账号正在注销冷静期，无法完成授权。请撤销注销或等待冷静期结束。",
+			"data": gin.H{
+				"accountDeletionPending":       true,
+				"accountDeletionEffectiveAt": effective,
+			},
+		})
+		return
+	}
 	accessToken, refreshToken := buildTokenPair(h.db, user, 24*time.Hour)
 	response.Success(c, "oidc token issued", gin.H{
 		"access_token":  accessToken,
@@ -1063,6 +1123,22 @@ func (h *Handlers) handleRefreshToken(c *gin.Context) {
 	}
 	if err = models.CheckUserAllowLogin(h.db, user); err != nil {
 		response.AbortWithJSONError(c, http.StatusForbidden, err)
+		return
+	}
+	var refreshFresh models.User
+	if err := h.db.Where("id = ? AND is_deleted = ?", user.ID, models.SoftDeleteStatusActive).First(&refreshFresh).Error; err == nil && models.AccountDeletionPending(&refreshFresh) {
+		effective := ""
+		if refreshFresh.AccountDeletionEffectiveAt != nil {
+			effective = refreshFresh.AccountDeletionEffectiveAt.UTC().Format(time.RFC3339)
+		}
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+			"code": http.StatusForbidden,
+			"msg":  "账号正在注销冷静期，无法刷新令牌。请撤销注销或等待冷静期结束。",
+			"data": gin.H{
+				"accountDeletionPending":       true,
+				"accountDeletionEffectiveAt": effective,
+			},
+		})
 		return
 	}
 	accessToken, refreshToken := buildTokenPair(h.db, user, 24*time.Hour)
@@ -1257,6 +1333,11 @@ func (h *Handlers) handleGitHubCallback(c *gin.Context) {
 			c.Redirect(http.StatusFound, buildBindRedirect("github_ok"))
 			return
 		}
+	}
+	var ghFresh models.User
+	if err := h.db.Where("id = ? AND is_deleted = ?", user.ID, models.SoftDeleteStatusActive).First(&ghFresh).Error; err == nil && models.AccountDeletionPending(&ghFresh) {
+		c.Redirect(http.StatusFound, revokeAccountDeletionBrowserURL(c, user.Email))
+		return
 	}
 	models.Login(c, user)
 	token, refreshToken := buildTokenPair(h.db, user, 7*24*time.Hour)
@@ -1795,6 +1876,10 @@ func (h *Handlers) handleUserSigninByEmail(c *gin.Context) {
 		return
 	}
 
+	if h.loginBlockedByAccountDeletion(c, db, user) {
+		return
+	}
+
 	// 7. 获取IP地理位置
 	country, city, location := "Unknown", "Unknown", "Unknown"
 	if h.ipLocationService != nil {
@@ -2187,6 +2272,10 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 		}
 	}
 
+	if h.loginBlockedByAccountDeletion(c, db, user) {
+		return
+	}
+
 	// 8. 获取IP地理位置
 	country, city, location := "Unknown", "Unknown", "Unknown"
 	if h.ipLocationService != nil {
@@ -2426,6 +2515,10 @@ func (h *Handlers) handleUserSignin(c *gin.Context) {
 
 	if form.Timezone != "" {
 		models.InTimezone(c, form.Timezone)
+	}
+
+	if h.loginBlockedByAccountDeletion(c, db, user) {
+		return
 	}
 
 	models.Login(c, user)

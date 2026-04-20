@@ -21,6 +21,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import ConfirmDialog from '../components/UI/ConfirmDialog'
 import AudioController from '../components/UI/AudioController'
 import { beginSSOLogin } from '@/utils/sso'
+import { Link } from 'react-router-dom'
 import { getUserServiceBaseURL } from '@/config/apiConfig'
 
 const Profile = () => {
@@ -1525,6 +1526,21 @@ const Profile = () => {
                               </Button>
                             )}
                           </div>
+                        </div>
+
+                        <div className="mt-6 flex items-center justify-between p-4 rounded-lg border border-red-200 dark:border-red-900 bg-red-50/80 dark:bg-red-950/30">
+                          <div>
+                            <h4 className="font-medium text-gray-900 dark:text-white">注销账号</h4>
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                              申请后进入冷静期，期间无法使用产品，可随时撤销。
+                            </p>
+                          </div>
+                          <Link
+                            to="/account-deletion/request"
+                            className="inline-flex h-8 px-3 text-sm rounded-md items-center justify-center font-medium bg-red-600 text-white hover:bg-red-700 shadow-sm"
+                          >
+                            前往注销
+                          </Link>
                         </div>
 
                         {/* 设备管理 */}

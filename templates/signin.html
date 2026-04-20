@@ -1011,6 +1011,17 @@
           if (!resp.ok || data.code !== 200) throw new Error(data.msg || '登录失败');
           const result = data.data || {};
 
+          if (result.accountDeletionPending) {
+            setMessage('login-message', data.msg || '账号处于注销冷静期，无法登录。正在前往撤销注销页面…', 'info');
+            setBtnLoading('login-submit', false, '登录', '登录中...');
+            const em = (result.email || payload.email || '').trim();
+            const qs = em ? ('?email=' + encodeURIComponent(em)) : '';
+            setTimeout(function () {
+              window.location.href = '/login/revoke-account-deletion' + qs;
+            }, 900);
+            return;
+          }
+
           if (result.requiresTwoFactor) {
             $('twofactor-field').classList.remove('hidden');
             setMessage('login-message', result.message || '请输入两步验证码', 'info');
