@@ -316,23 +316,29 @@ const Profile = () => {
     }
   }
 
-  // 删除设备
-  const handleDeleteDevice = async (deviceId: string) => {
-    if (!confirm('确定要删除此设备吗？删除后该设备将无法继续登录。')) {
-      return
-    }
+  const handleDeleteDevice = (deviceId: string) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: '删除登录设备',
+      message: '确定要删除此设备吗？删除后该设备将无法继续登录。',
+      type: 'danger',
+      onConfirm: () => performDeleteDevice(deviceId),
+    })
+  }
 
+  const performDeleteDevice = async (deviceId: string) => {
     setIsLoading(true)
     try {
       const response = await deleteUserDevice(deviceId)
       if (response.code === 200) {
         showAlert('设备删除成功', 'success', '操作成功')
-        loadDevices() // 重新加载设备列表
+        loadDevices()
       } else {
         throw new Error(response.msg || '删除设备失败')
       }
     } catch (error: any) {
       showAlert(error?.msg || error?.message || '删除设备失败', 'error', '操作失败')
+      throw error
     } finally {
       setIsLoading(false)
     }
@@ -862,77 +868,6 @@ const Profile = () => {
                       <span className="text-sm text-gray-600 dark:text-gray-400">{t('profile.accountStatus')}</span>
                       <Badge variant="success" className="text-xs">{t('profile.active')}</Badge>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-600 dark:text-gray-400">微信认证</span>
-                      <div className="flex items-center space-x-2">
-                        <Badge variant={user?.wechatOpenId ? "success" : "warning"} className="text-xs">
-                          {user?.wechatOpenId ? '已绑定' : '未绑定'}
-                        </Badge>
-                        {!user?.wechatOpenId && (
-                          <button
-                            onClick={handleBindWechat}
-                            disabled={isWechatBinding}
-                            className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline disabled:opacity-50"
-                          >
-                            {isWechatBinding ? '绑定中...' : '立即绑定'}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    {!!wechatBindCode && (
-                      <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-md border border-blue-200 dark:border-blue-800">
-                        <div className="mb-2 rounded-md overflow-hidden border border-blue-200 dark:border-blue-700 bg-white">
-                          <img
-                            src="/qrcode_official_account.jpg"
-                            alt="微信公众号二维码"
-                            className="w-full h-auto max-h-44 object-contain"
-                          />
-                        </div>
-                        <div className="text-xs text-blue-800 dark:text-blue-300">
-                          <span className="font-medium">微信绑定码：</span>
-                          <span className="font-mono tracking-wider">{wechatBindCode}</span>
-                        </div>
-                        <div className="text-xs text-blue-700 dark:text-blue-400 mt-1">
-                          {wechatBindStatus === 'pending' && `请在公众号发送该绑定码，剩余 ${wechatBindCountdown} 秒`}
-                          {wechatBindStatus === 'success' && '绑定成功'}
-                          {wechatBindStatus === 'failed' && '绑定失败，请重新获取绑定码'}
-                          {wechatBindStatus === 'expired' && '绑定码已过期，请重新获取'}
-                        </div>
-                      </div>
-                    )}
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-600 dark:text-gray-400">GitHub认证</span>
-                      <div className="flex items-center space-x-2">
-                        <Badge variant={user?.githubId ? "success" : "warning"} className="text-xs">
-                          {user?.githubId ? '已绑定' : '未绑定'}
-                        </Badge>
-                        {!user?.githubId && (
-                          <button
-                            onClick={handleBindGithub}
-                            className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline"
-                          >
-                            立即绑定
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-600 dark:text-gray-400">邮箱状态</span>
-                      <div className="flex items-center space-x-2">
-                        <Badge variant={user?.emailVerified ? "success" : "warning"} className="text-xs">
-                          {user?.emailVerified ? '已验证' : '未验证'}
-                        </Badge>
-                        {!user?.emailVerified && (
-                          <button
-                            onClick={handleSendEmailVerification}
-                            disabled={isSendingEmailVerification}
-                            className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline disabled:opacity-50"
-                          >
-                            {isSendingEmailVerification ? '发送中...' : '验证'}
-                          </button>
-                        )}
-                      </div>
-                    </div>
                     {user?.phone && (
                       <div className="flex justify-between items-center">
                         <span className="text-sm text-gray-600 dark:text-gray-400">{t('profile.phone')}</span>
@@ -1203,13 +1138,93 @@ const Profile = () => {
                   </Card>
                 </TabsContent>
 
-                {/* 偏好设置标签页 */}
+                {/* 账户与偏好 */}
                 <TabsContent value="settings" className="mt-6">
                   <Card>
-                    <div className="p-6">
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('profile.notificationPreferences')}</h3>
-                      <div className="space-y-4">
-                        {/* 这里插入声音控制器，仅在个人页 settings tab 下展示 */}
+                    <div className="p-6 space-y-8">
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('profile.accountBindingsTitle')}</h3>
+                        <div className="space-y-4">
+                          <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800/80 rounded-lg">
+                            <span className="text-sm text-gray-600 dark:text-gray-400">微信认证</span>
+                            <div className="flex items-center space-x-2">
+                              <Badge variant={user?.wechatOpenId ? 'success' : 'warning'} className="text-xs">
+                                {user?.wechatOpenId ? '已绑定' : '未绑定'}
+                              </Badge>
+                              {!user?.wechatOpenId && (
+                                <button
+                                  type="button"
+                                  onClick={handleBindWechat}
+                                  disabled={isWechatBinding}
+                                  className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline disabled:opacity-50"
+                                >
+                                  {isWechatBinding ? '绑定中...' : '立即绑定'}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          {!!wechatBindCode && (
+                            <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-md border border-blue-200 dark:border-blue-800">
+                              <div className="mb-2 rounded-md overflow-hidden border border-blue-200 dark:border-blue-700 bg-white">
+                                <img
+                                  src="/qrcode_official_account.jpg"
+                                  alt="微信公众号二维码"
+                                  className="w-full h-auto max-h-44 object-contain"
+                                />
+                              </div>
+                              <div className="text-xs text-blue-800 dark:text-blue-300">
+                                <span className="font-medium">微信绑定码：</span>
+                                <span className="font-mono tracking-wider">{wechatBindCode}</span>
+                              </div>
+                              <div className="text-xs text-blue-700 dark:text-blue-400 mt-1">
+                                {wechatBindStatus === 'pending' && `请在公众号发送该绑定码，剩余 ${wechatBindCountdown} 秒`}
+                                {wechatBindStatus === 'success' && '绑定成功'}
+                                {wechatBindStatus === 'failed' && '绑定失败，请重新获取绑定码'}
+                                {wechatBindStatus === 'expired' && '绑定码已过期，请重新获取'}
+                              </div>
+                            </div>
+                          )}
+                          <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800/80 rounded-lg">
+                            <span className="text-sm text-gray-600 dark:text-gray-400">GitHub认证</span>
+                            <div className="flex items-center space-x-2">
+                              <Badge variant={user?.githubId ? 'success' : 'warning'} className="text-xs">
+                                {user?.githubId ? '已绑定' : '未绑定'}
+                              </Badge>
+                              {!user?.githubId && (
+                                <button
+                                  type="button"
+                                  onClick={handleBindGithub}
+                                  className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline"
+                                >
+                                  立即绑定
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800/80 rounded-lg">
+                            <span className="text-sm text-gray-600 dark:text-gray-400">邮箱状态</span>
+                            <div className="flex items-center space-x-2">
+                              <Badge variant={user?.emailVerified ? 'success' : 'warning'} className="text-xs">
+                                {user?.emailVerified ? '已验证' : '未验证'}
+                              </Badge>
+                              {!user?.emailVerified && (
+                                <button
+                                  type="button"
+                                  onClick={handleSendEmailVerification}
+                                  disabled={isSendingEmailVerification}
+                                  className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline disabled:opacity-50"
+                                >
+                                  {isSendingEmailVerification ? '发送中...' : '验证'}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('profile.notificationPreferences')}</h3>
+                        <div className="space-y-4">
                         <div className="mb-4">
                           <AudioController />
                         </div>
@@ -1276,6 +1291,7 @@ const Profile = () => {
                         </div>
 
                       </div>
+                    </div>
                     </div>
                   </Card>
                 </TabsContent>
