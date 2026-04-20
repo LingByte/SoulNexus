@@ -31,6 +31,7 @@ import Card from '@/components/UI/Card'
 import Badge from '@/components/UI/Badge'
 import Modal from '@/components/UI/Modal'
 import ConfirmDialog from '@/components/UI/ConfirmDialog'
+import CollapsibleSectionHeader from '@/components/UI/CollapsibleSectionHeader'
 import { showAlert } from '@/utils/notification'
 import { workflowPluginService, WorkflowPlugin, WorkflowPluginCategory } from '@/api/workflowPlugin'
 import { workflowService } from '@/api/workflow'
@@ -449,37 +450,40 @@ const NodePluginMarket: React.FC = () => {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* 页面头部 */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-                工作流插件市场
-              </h1>
-              <p className="text-gray-600 dark:text-gray-400 mt-2">
-                发现和安装强大的工作流插件，将现有工作流作为子流程复用
-              </p>
-            </div>
-            <button
-              onClick={() => {
-                if (!isAuthenticated) {
-                  showAlert('请先登录后再发布工作流', 'warning', '请先登录')
-                  return
-                }
-                console.log('发布工作流按钮被点击')
-                try {
-                  setShowCreatePlugin(true)
-                  console.log('模态框状态已设置为true')
-                } catch (error) {
-                  console.error('设置模态框状态时出错:', error)
-                }
-              }}
-              disabled={!isAuthenticated}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Upload className="w-4 h-4" />
-              {isAuthenticated ? '发布工作流' : '请先登录'}
-            </button>
-          </div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <CollapsibleSectionHeader
+            title="工作流插件市场"
+            icon={<Workflow className="w-4 h-4 text-primary" />}
+            expanded
+            onToggle={() => {}}
+            showChevron={false}
+            clickable={false}
+            compact
+            titleSize="lg"
+            withDivider
+            rightContent={(
+              <button
+                onClick={() => {
+                  if (!isAuthenticated) {
+                    showAlert('请先登录后再发布工作流', 'warning', '请先登录')
+                    return
+                  }
+                  console.log('发布工作流按钮被点击')
+                  try {
+                    setShowCreatePlugin(true)
+                    console.log('模态框状态已设置为true')
+                  } catch (error) {
+                    console.error('设置模态框状态时出错:', error)
+                  }
+                }}
+                disabled={!isAuthenticated}
+                className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                {isAuthenticated ? '发布工作流' : '请先登录'}
+              </button>
+            )}
+          />
         </div>
       </div>
 

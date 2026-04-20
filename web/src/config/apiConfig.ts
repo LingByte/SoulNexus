@@ -33,7 +33,7 @@ function convertToWebSocketURL(httpUrl: string): string {
 function getApiConfig(): ApiConfig {
   // 优先使用环境变量
   let apiBaseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:7072/api'
-  let userServiceBaseURL = import.meta.env.VITE_USER_SERVICE_BASE_URL || apiBaseURL
+  let userServiceBaseURL = import.meta.env.VITE_USER_SERVICE_BASE_URL || 'http://localhost:7074/api'
   
   // 如果环境变量中有WebSocket URL，使用它；否则从API URL转换
   let wsBaseURL = import.meta.env.VITE_WS_BASE_URL
@@ -78,6 +78,41 @@ export function getApiBaseURL(): string {
  */
 export function getUserServiceBaseURL(): string {
   return getConfig().userServiceBaseURL
+}
+
+/** 用户服务站点根（无 `/api` 后缀），用于打开与登录同源的 HTML 页如撤销注销。 */
+export function getUserServiceOrigin(): string {
+  let base = getUserServiceBaseURL().trim().replace(/\/+$/, '')
+  if (base.endsWith('/api')) {
+    base = base.slice(0, -4)
+  }
+  return base.replace(/\/+$/, '')
+}
+
+export function getUserServiceLoginPageURL(): string {
+  const origin = getUserServiceOrigin()
+  return new URL('/login', origin.endsWith('/') ? origin : `${origin}/`).toString()
+}
+
+export function getAccountDeletionRevokePageURL(email?: string): string {
+  const origin = getUserServiceOrigin()
+  const u = new URL('/login/revoke-account-deletion', origin.endsWith('/') ? origin : `${origin}/`)
+  const em = email?.trim()
+  if (em) u.searchParams.set('email', em)
+  return u.toString()
+}
+
+/** 当前窗口是否为用户服务上的独立撤销注销页（非 SPA）。 */
+export function isAccountDeletionRevokeStandalonePage(): boolean {
+  try {
+    const expected = new URL(getUserServiceOrigin())
+    return (
+      window.location.origin === expected.origin &&
+      window.location.pathname === '/login/revoke-account-deletion'
+    )
+  } catch {
+    return false
+  }
 }
 
 /**

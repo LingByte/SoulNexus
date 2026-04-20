@@ -50,7 +50,7 @@ func DefaultSecurityConfig() *SecurityConfig {
 		CSRFMaxAge:         24 * time.Hour,
 		CSRFSecure:         true,
 		CSRFHttpOnly:       true,
-		CSRFSameSite:       csrf.SameSiteDefaultMode,
+		CSRFSameSite:       csrf.SameSiteStrictMode,
 		XSSProtection:      true,
 		ContentTypeNosniff: true,
 		XFrameOptions:      "DENY",

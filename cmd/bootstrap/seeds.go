@@ -119,18 +119,18 @@ func (s *SeedService) seedAdminUsers() error {
 		{
 			Email:       "admin@lingecho.com",
 			Password:    models.HashPassword("admin123"),
-			IsStaff:     true,
 			Role:        models.RoleSuperAdmin,
 			DisplayName: "Administrator",
-			Enabled:     true,
+			Status:      models.UserStatusActive,
+			Source:      models.UserSourceAdmin,
 		},
 		{
 			Email:       "19511899044@163.com",
 			Password:    models.HashPassword("admin123"),
-			IsStaff:     true,
 			Role:        models.RoleSuperAdmin,
 			DisplayName: "Administrator",
-			Enabled:     true,
+			Status:      models.UserStatusActive,
+			Source:      models.UserSourceAdmin,
 		},
 	}
 

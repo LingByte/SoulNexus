@@ -203,6 +203,7 @@ func RunMigrations(db *gorm.DB) error {
 		&models.AlertRule{},
 		&models.Alert{},
 		&models.AlertNotification{},
+		&models.Announcement{},
 		&models.UserQuota{},
 		&models.GroupQuota{},
 		&models.WorkflowDefinition{},

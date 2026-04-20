@@ -12,6 +12,11 @@ export interface CreateCredentialForm {
   llmProvider: string
   llmApiKey: string
   llmApiUrl: string
+  expiresAt?: string
+  tokenQuota?: number
+  requestQuota?: number
+  useNativeQuota?: boolean
+  unlimitedQuota?: boolean
   
   // JSON格式配置
   asrConfig?: ProviderConfig // ASR配置,例如: {provider: "qiniu", apiKey: "...", baseUrl: "..."} 或 {provider: "qcloud", appId: "...", secretId: "...", secretKey: "..."}
@@ -22,14 +27,22 @@ export interface CreateCredentialForm {
 export interface Credential {
   id: number
   name: string
-    apiKey: string
-    apiSecret: string
+  apiKey: string
+  apiSecret: string
   llmProvider: string
   userId: number
   asrProvider?: string
   ttsProvider?: string
-    asrConfig?: ProviderConfig
-    ttsConfig?: ProviderConfig
+  asrConfig?: ProviderConfig
+  ttsConfig?: ProviderConfig
+  status?: 'active' | 'banned' | 'suspended'
+  expiresAt?: string
+  usageCount?: number
+  tokenQuota?: number
+  tokenUsed?: number
+  requestQuota?: number
+  useNativeQuota?: boolean
+  unlimitedQuota?: boolean
   createdAt: string
   updatedAt: string
 }

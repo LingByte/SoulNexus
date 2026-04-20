@@ -18,6 +18,7 @@ import (
 	handlers "github.com/LingByte/SoulNexus/internal/handler"
 	"github.com/LingByte/SoulNexus/internal/listeners"
 	"github.com/LingByte/SoulNexus/internal/models"
+	"github.com/LingByte/SoulNexus/internal/task"
 	"github.com/LingByte/SoulNexus/pkg/cache"
 	"github.com/LingByte/SoulNexus/pkg/config"
 	"github.com/LingByte/SoulNexus/pkg/constants"
@@ -148,6 +149,7 @@ func main() {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	r.Use(gin.Recovery())
+	r.Use(middleware.SecureResponseHeaders())
 	templatesFS := LingEcho.NewCombineEmbedFS(
 		LingEcho.HintAssetsRoot("templates"),
 		LingEcho.EmbedFS{"templates", LingEcho.EmbedTemplates},
@@ -204,6 +206,8 @@ func main() {
 
 	listeners.InitSystemListeners()
 	utils.Sig().Emit(models.SigInitSystemConfig, nil)
+
+	task.StartAccountDeletionScheduler(db)
 
 	httpServer := &http.Server{
 		Addr:           addr,

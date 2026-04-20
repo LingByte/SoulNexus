@@ -100,6 +100,7 @@ export interface EmailCodeLoginForm {
 // 登录响应数据类型
 export interface LoginResponseData {
   token?: string
+  refreshToken?: string
   user?: {
     id?: number | string
     createdAt?: string
@@ -135,6 +136,8 @@ export interface LoginResponseData {
   deviceId?: string
   message?: string
   suspiciousLogin?: boolean
+  accountDeletionPending?: boolean
+  accountDeletionEffectiveAt?: string
   [key: string]: any
 }
 
@@ -179,10 +182,18 @@ export interface User {
   hasFilledDetails: boolean
   emailNotifications: boolean
   pushNotifications?: boolean
-  systemNotifications?: boolean
-  autoCleanUnreadEmails?: boolean
   twoFactorEnabled?: boolean
   emailVerified?: boolean
+  wechatOpenId?: string
+  githubId?: string
+  githubLogin?: string
+  /** 账号状态：active | pending_verification | suspended | banned */
+  status?: string
+  /** 注册来源：SYSTEM | ADMIN | WECHAT | GITHUB */
+  source?: string
+  /** 注销冷静期预计完成永久注销的时间（RFC3339） */
+  accountDeletionEffectiveAt?: string | null
+  accountDeletionRequestedAt?: string | null
 }
 
 // 用户注册
@@ -231,8 +242,10 @@ export const getUserInfo = async (): Promise<ApiResponse<User>> => {
 }
 
 // 刷新token
-export const refreshToken = async (): Promise<ApiResponse<{ token: string }>> => {
-  return post<{ token: string }>('/auth/refresh', undefined, userServiceConfig)
+export const refreshToken = async (): Promise<ApiResponse<{ token: string; refreshToken: string }>> => {
+  return post<{ token: string; refreshToken: string }>('/auth/refresh', {
+    refresh_token: localStorage.getItem('refresh_token') || '',
+  }, userServiceConfig)
 }
 
 // 发送邮箱验证邮件

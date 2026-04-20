@@ -6,6 +6,7 @@ import Button from '@/components/UI/Button'
 import Input from '@/components/UI/Input'
 import Modal, { ModalContent, ModalHeader, ModalTitle } from '@/components/UI/Modal'
 import VoiceprintDeleteConfirm from '@/components/Voice/VoiceprintDeleteConfirm'
+import CollapsibleSectionHeader from '@/components/UI/CollapsibleSectionHeader'
 import { showAlert } from '@/utils/notification'
 import { getSystemInit, SystemInitInfo } from '@/api/system'
 import { getAssistantList, AssistantListItem } from '@/api/assistant'
@@ -296,26 +297,25 @@ const VoiceprintManagement = () => {
   const selectedAssistant = assistants.find(a => String(a.id) === selectedAssistantId)
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-6xl">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="space-y-6"
       >
         {/* 页面标题 */}
-        <div className="flex items-center gap-3 mb-8">
-          <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
-            <Mic className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              {t('voiceprint.title')}
-            </h1>
-            <p className="text-gray-600 dark:text-gray-400">
-              {t('voiceprint.subtitle')}
-            </p>
-          </div>
-        </div>
+        <CollapsibleSectionHeader
+          title={t('voiceprint.title')}
+          icon={<Mic className="w-4 h-4 text-primary" />}
+          expanded
+          onToggle={() => {}}
+          showChevron={false}
+          clickable={false}
+          compact
+          titleSize="lg"
+          withDivider
+          className="mb-6"
+        />
 
         {/* 助手选择器 - 使用按钮组样式 */}
         {assistants.length > 0 ? (

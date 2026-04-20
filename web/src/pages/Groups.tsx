@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   getGroupList, 
@@ -22,6 +21,7 @@ import Button from '@/components/UI/Button';
 import ConfirmDialog from '@/components/UI/ConfirmDialog';
 import { useI18nStore } from '@/stores/i18nStore';
 import LoadingAnimation from '@/components/Animations/LoadingAnimation';
+import CollapsibleSectionHeader from '@/components/UI/CollapsibleSectionHeader';
 
 const Groups: React.FC = () => {
   const { t } = useI18nStore();
@@ -224,26 +224,29 @@ const Groups: React.FC = () => {
         type="danger"
         loading={deleting}
       />
-      <div className="max-w-7xl w-full mx-auto pt-10 pb-4 px-4">
-        <div className="flex items-center justify-between mb-8">
-          <div className="relative pl-4">
-            <motion.div
-              layoutId="pageTitleIndicator"
-              className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-primary rounded-r-full"
-              transition={{ type: 'spring', bounce: 0.2, duration: 0.3 }}
-            />
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">{t('groups.title')}</h1>
-            <p className="text-gray-500 dark:text-gray-400 mt-2">{t('groups.subtitle')}</p>
-          </div>
-          <Button
-            onClick={() => setShowCreateModal(true)}
-            variant="primary"
-            size="lg"
-            leftIcon={<Plus className="w-5 h-5" />}
-          >
-            {t('groups.create')}
-          </Button>
-        </div>
+      <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <CollapsibleSectionHeader
+          title={t('groups.title')}
+          icon={<Users className="w-4 h-4 text-primary" />}
+          expanded
+          onToggle={() => {}}
+          showChevron={false}
+          clickable={false}
+          compact
+          titleSize="lg"
+          withDivider
+          className="mb-6"
+          rightContent={(
+            <Button
+              onClick={() => setShowCreateModal(true)}
+              variant="primary"
+              size="sm"
+              leftIcon={<Plus className="w-3.5 h-3.5" />}
+            >
+              {t('groups.create')}
+            </Button>
+          )}
+        />
 
         {/* 待处理的邀请 */}
         {invitations.length > 0 && (

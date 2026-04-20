@@ -7,6 +7,7 @@ import { useI18nStore } from '@/stores/i18nStore';
 import { Bot, MessageCircle, Users, Zap, Circle, Settings, Building2, Plus, Sparkles, TrendingUp, Rocket, Wand2, Network } from 'lucide-react';
 import Button from '@/components/UI/Button';
 import { motion } from 'framer-motion';
+import CollapsibleSectionHeader from '@/components/UI/CollapsibleSectionHeader';
 
 const ICON_MAP = {
   Bot: <Bot className="w-8 h-8" />,
@@ -65,24 +66,28 @@ const Assistants: React.FC = () => {
   return (
     <div className="min-h-screen dark:bg-neutral-900 flex flex-col">
       <div className="max-w-6xl w-full mx-auto pt-8 pb-6 flex flex-col">
-        <div className="flex items-center justify-between mb-7">
-          <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100 relative pl-4">
-            <motion.div
-              layoutId="pageTitleIndicator"
-              className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary rounded-r-full"
-              transition={{ type: 'spring', bounce: 0.2, duration: 0.3 }}
-            />
-            {t('assistants.title')}
-          </h1>
-          <Button
-            onClick={() => setShowAddModal(true)}
-            variant="primary"
-            size="md"
-            leftIcon={<Plus className="w-4 h-4" />}
-          >
-            {t('assistants.add')}
-          </Button>
-        </div>
+        <CollapsibleSectionHeader
+          title={t('assistants.title')}
+          icon={<Users className="w-4 h-4 text-purple-500" />}
+          expanded={true}
+          onToggle={() => {}}
+          showChevron={false}
+          clickable={false}
+          compact
+          titleSize="lg"
+          withDivider
+          className="mb-5"
+          rightContent={(
+            <Button
+              onClick={() => setShowAddModal(true)}
+              variant="primary"
+              size="sm"
+              leftIcon={<Plus className="w-3.5 h-3.5" />}
+            >
+              {t('assistants.add')}
+            </Button>
+          )}
+        />
         <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {(assistants?.length === 0) && (
             <motion.div 

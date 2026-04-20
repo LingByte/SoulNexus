@@ -6,6 +6,7 @@ package task
 import (
 	"time"
 
+	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/notification"
@@ -46,10 +47,10 @@ func CleanUnreadEmails(db *gorm.DB) error {
 	// Calculate the time seven days ago
 	sevenDaysAgo := time.Now().AddDate(0, 0, -7)
 
-	// Get all users who have enabled auto-cleanup
+	// Process all enabled users after removing per-user auto-clean preference.
 	var userIDs []uint
 	err := db.Table(constants.USER_TABLE_NAME).
-		Where("auto_clean_unread_emails = ? AND enabled = ?", true, true).
+		Where("status = ?", models.UserStatusActive).
 		Pluck("id", &userIDs).Error
 
 	if err != nil {
@@ -57,7 +58,7 @@ func CleanUnreadEmails(db *gorm.DB) error {
 	}
 
 	if len(userIDs) == 0 {
-		logger.Info("No users with auto-clean enabled, skipping email cleanup")
+		logger.Info("No enabled users found, skipping email cleanup")
 		return nil
 	}
 

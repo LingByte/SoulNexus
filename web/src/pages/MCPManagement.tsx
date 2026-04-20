@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Plus, Trash2, Power, PowerOff, Settings, X, TestTube } from 'lucide-react'
 import Button from '@/components/UI/Button'
 import LoadingAnimation from '@/components/Animations/LoadingAnimation'
+import CollapsibleSectionHeader from '@/components/UI/CollapsibleSectionHeader'
 import { listMCPServers, deleteMCPServer, enableMCPServer, disableMCPServer, createMCPServer, updateMCPServer, getUserInstalledMCPs, uninstallMCP, updateInstallationConfig, getMCPTools, callMCPTool } from '@/api/mcp'
 
 interface MCPServer {
@@ -365,21 +366,30 @@ const MCPManagement = () => {
   }
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">MCP Management</h1>
-          <p className="text-muted-foreground mt-1">Manage your MCP servers and configurations</p>
-        </div>
-        <Button 
-          variant="primary" 
-          leftIcon={<Plus className="w-4 h-4" />}
-          onClick={() => setShowAddForm(true)}
-        >
-          Add MCP Server
-        </Button>
-      </div>
+      <CollapsibleSectionHeader
+        title="MCP Management"
+        icon={<Settings className="w-4 h-4 text-primary" />}
+        expanded
+        onToggle={() => {}}
+        showChevron={false}
+        clickable={false}
+        compact
+        titleSize="lg"
+        withDivider
+        className="mb-6"
+        rightContent={(
+          <Button
+            variant="primary"
+            size="sm"
+            leftIcon={<Plus className="w-3.5 h-3.5" />}
+            onClick={() => setShowAddForm(true)}
+          >
+            Add MCP Server
+          </Button>
+        )}
+      />
 
       {/* Error Message */}
       {error && (

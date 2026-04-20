@@ -15,7 +15,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/UI/Tabs'
 import FadeIn from '../components/Animations/FadeIn'
 import ConfirmDialog from '../components/UI/ConfirmDialog'
 import { showAlert } from '../utils/notification'
-import { createCredential, fetchUserCredentials, deleteCredential, type Credential, type CreateCredentialForm } from '../api/credential'
+import {
+  createCredential,
+  fetchUserCredentials,
+  deleteCredential,
+  type Credential,
+  type CreateCredentialForm
+} from '../api/credential'
 import { motion, AnimatePresence } from 'framer-motion'
 import ProviderConfigForm from '../components/Credential/ProviderConfigForm'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/UI/Select'
@@ -33,6 +39,27 @@ import {
   isLMStudioProvider,
 } from '../config/llmProviderConfig'
 
+const DATE_NEVER = '1970-01-01 07:59:59'
+
+const formatDateTimeInput = (value?: string): string => {
+  if (!value) return ''
+  const dt = new Date(value)
+  if (Number.isNaN(dt.getTime())) return value
+  const y = dt.getFullYear()
+  const m = `${dt.getMonth() + 1}`.padStart(2, '0')
+  const d = `${dt.getDate()}`.padStart(2, '0')
+  const h = `${dt.getHours()}`.padStart(2, '0')
+  const mi = `${dt.getMinutes()}`.padStart(2, '0')
+  const s = `${dt.getSeconds()}`.padStart(2, '0')
+  return `${y}-${m}-${d} ${h}:${mi}:${s}`
+}
+
+const addDays = (days: number): string => {
+  const now = new Date()
+  now.setDate(now.getDate() + days)
+  return formatDateTimeInput(now.toISOString())
+}
+
 const CredentialManager = () => {
   const { t } = useI18nStore()
   const { isAuthenticated } = useAuthStore()
@@ -46,6 +73,11 @@ const CredentialManager = () => {
     llmProvider: "",
     llmApiKey: "",
     llmApiUrl: "",
+    expiresAt: "",
+    tokenQuota: 0,
+    requestQuota: 0,
+    useNativeQuota: false,
+    unlimitedQuota: true,
   })
   
   // Coze 专用配置字段
@@ -67,7 +99,6 @@ const CredentialManager = () => {
     credentialName: '',
     isDeleting: false
   })
-
   // 页面加载时获取密钥列表
   useEffect(() => {
     if (!isAuthenticated) {
@@ -184,6 +215,11 @@ const CredentialManager = () => {
           llmProvider: "",
           llmApiKey: "",
           llmApiUrl: "",
+          expiresAt: "",
+          tokenQuota: 0,
+          requestQuota: 0,
+          useNativeQuota: false,
+          unlimitedQuota: true,
         })
         setCozeConfig({
           userId: "",
@@ -468,6 +504,28 @@ const CredentialManager = () => {
                                         <Badge variant="success" className="text-xs">{t('credential.active')}</Badge>
                                       </div>
                                     </div>
+                                    <div>
+                                      <span className="text-gray-600 dark:text-gray-400">过期时间:</span>
+                                      <div className="text-gray-900 dark:text-white">
+                                        {cred.expiresAt ? formatDateTimeInput(cred.expiresAt) : '-'}
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <span className="text-gray-600 dark:text-gray-400">令牌可用额度:</span>
+                                      <div className="text-gray-900 dark:text-white">{cred.tokenQuota ?? 0}</div>
+                                    </div>
+                                    <div>
+                                      <span className="text-gray-600 dark:text-gray-400">令牌可用数量:</span>
+                                      <div className="text-gray-900 dark:text-white">{cred.requestQuota ?? 0}</div>
+                                    </div>
+                                    <div>
+                                      <span className="text-gray-600 dark:text-gray-400">使用原生额度输入:</span>
+                                      <div className="text-gray-900 dark:text-white">{cred.useNativeQuota ? '是' : '否'}</div>
+                                    </div>
+                                    <div>
+                                      <span className="text-gray-600 dark:text-gray-400">无限额度:</span>
+                                      <div className="text-gray-900 dark:text-white">{cred.unlimitedQuota !== false ? '是' : '否'}</div>
+                                    </div>
                                   </div>
                                 </div>
                                 <div className="flex items-center space-x-2 ml-4">
@@ -716,6 +774,59 @@ const CredentialManager = () => {
                           />
                         </div>
 
+                        <div className="space-y-4">
+                          <h4 className="text-md font-semibold text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700 pb-2">
+                            过期与额度设置
+                          </h4>
+                          <div>
+                            <div className="text-sm font-medium mb-2">过期时间快捷设置</div>
+                            <div className="flex flex-wrap gap-2 mb-2">
+                              <Button size="sm" variant="outline" onClick={() => handleFormChange("expiresAt", addDays(1))}>+1天</Button>
+                              <Button size="sm" variant="outline" onClick={() => handleFormChange("expiresAt", addDays(7))}>+7天</Button>
+                              <Button size="sm" variant="outline" onClick={() => handleFormChange("expiresAt", addDays(30))}>+30天</Button>
+                              <Button size="sm" variant="outline" onClick={() => handleFormChange("expiresAt", DATE_NEVER)}>1970-01-01 07:59:59</Button>
+                              <Button size="sm" variant="ghost" onClick={() => handleFormChange("expiresAt", "")}>清空</Button>
+                            </div>
+                            <Input
+                              label="过期时间"
+                              value={form.expiresAt || ""}
+                              onChange={(e) => handleFormChange("expiresAt", e.target.value)}
+                              placeholder="YYYY-MM-DD HH:MM:SS"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <div className="text-sm font-medium">令牌分组额度设置</div>
+                            <label className="flex items-center gap-2 text-sm">
+                              <input
+                                type="checkbox"
+                                checked={!!form.useNativeQuota}
+                                onChange={(e) => setForm(prev => ({ ...prev, useNativeQuota: e.target.checked }))}
+                              />
+                              <span>▸ 使用原生额度输入</span>
+                            </label>
+                            <label className="flex items-center gap-2 text-sm">
+                              <input
+                                type="checkbox"
+                                checked={form.unlimitedQuota !== false}
+                                onChange={(e) => setForm(prev => ({ ...prev, unlimitedQuota: e.target.checked }))}
+                              />
+                              <span>无限额度</span>
+                            </label>
+                            <Input
+                              label="设置令牌可用额度"
+                              type="number"
+                              value={String(form.tokenQuota ?? 0)}
+                              onChange={(e) => setForm(prev => ({ ...prev, tokenQuota: Number(e.target.value || 0) }))}
+                            />
+                            <Input
+                              label="设置令牌可用数量"
+                              type="number"
+                              value={String(form.requestQuota ?? 0)}
+                              onChange={(e) => setForm(prev => ({ ...prev, requestQuota: Number(e.target.value || 0) }))}
+                            />
+                          </div>
+                        </div>
+
                         <div className="flex justify-end space-x-3">
                           <Button
                             variant="outline"
@@ -809,6 +920,7 @@ const CredentialManager = () => {
         type="danger"
         loading={deleteConfirm.isDeleting}
       />
+
     </div>
   )
 }

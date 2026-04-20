@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Search, Download, Star, Trash2, Check, Zap } from 'lucide-react'
 import Button from '@/components/UI/Button'
 import LoadingAnimation from '@/components/Animations/LoadingAnimation'
+import CollapsibleSectionHeader from '@/components/UI/CollapsibleSectionHeader'
 import { listMarketplace, installMCP, uninstallMCP, getCategories, getUserInstalledMCPs } from '@/api/mcp'
 
 interface MCPItem {
@@ -144,12 +145,20 @@ const MCPMarketplace = () => {
   }
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold">MCP Marketplace</h1>
-        <p className="text-muted-foreground mt-1">Discover and install MCP services</p>
-      </div>
+      <CollapsibleSectionHeader
+        title="MCP Marketplace"
+        icon={<Star className="w-4 h-4 text-primary" />}
+        expanded
+        onToggle={() => {}}
+        showChevron={false}
+        clickable={false}
+        compact
+        titleSize="lg"
+        withDivider
+        className="mb-6"
+      />
 
       {/* Search and Filter */}
       <div className="space-y-4">

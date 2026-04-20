@@ -61,7 +61,6 @@ type VolcengineTTSOption struct {
 	AccessToken   string  `json:"accessToken"`   // 访问令牌
 	Cluster       string  `json:"cluster"`       // 集群名称，如 volcano_tts
 	VoiceType     string  `json:"voiceType"`     // 音色类型，如 BV700_streaming
-	Language      string  `json:"language"`      // 语言代码，如 zh、en
 	Rate          int     `json:"rate"`          // 采样率，默认 8000
 	Encoding      string  `json:"encoding"`      // 编码格式，默认 pcm
 	SpeedRatio    float32 `json:"speedRatio"`    // 语速比例，默认 1.0
@@ -87,7 +86,6 @@ func NewVolcengineTTSOption(appID, accessToken, cluster string) VolcengineTTSOpt
 		AccessToken:   accessToken,
 		Cluster:       cluster,
 		VoiceType:     "BV700_streaming",
-		Language:      "",
 		Rate:          16000, // 火山引擎标准采样率 16000Hz
 		Encoding:      "pcm",
 		SpeedRatio:    1.0,

@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -33,6 +34,68 @@ const (
 	RoleAdmin      = "admin"      // 管理员
 	RoleUser       = "user"       // 普通用户
 )
+
+// 用户来源（注册 / 创建渠道）
+const (
+	UserSourceSystem = "SYSTEM"
+	UserSourceAdmin  = "ADMIN"
+	UserSourceWechat = "WECHAT"
+	UserSourceGithub = "GITHUB"
+)
+
+const (
+	UserStatusActive              = "active"
+	UserStatusPendingVerification = "pending_verification"
+	UserStatusSuspended           = "suspended"
+	UserStatusBanned              = "banned"
+)
+
+// NormalizeUserSource 统一为大写合法值，未知则回落为 SYSTEM。
+func NormalizeUserSource(raw string) string {
+	s := strings.TrimSpace(raw)
+	if s == "" {
+		return UserSourceSystem
+	}
+	u := strings.ToUpper(s)
+	switch u {
+	case UserSourceSystem, UserSourceAdmin, UserSourceWechat, UserSourceGithub:
+		return u
+	}
+	switch strings.ToLower(s) {
+	case "system", "web", "email", "password", "signup":
+		return UserSourceSystem
+	case "admin", "后台":
+		return UserSourceAdmin
+	case "wechat", "weixin", "微信":
+		return UserSourceWechat
+	case "github":
+		return UserSourceGithub
+	default:
+		return UserSourceSystem
+	}
+}
+
+// NormalizeUserStatus 校验并规范化状态字符串。
+func NormalizeUserStatus(raw string) string {
+	s := strings.TrimSpace(strings.ToLower(raw))
+	switch s {
+	case "", UserStatusActive:
+		return UserStatusActive
+	case UserStatusPendingVerification:
+		return UserStatusPendingVerification
+	case UserStatusSuspended:
+		return UserStatusSuspended
+	case UserStatusBanned:
+		return UserStatusBanned
+	default:
+		return ""
+	}
+}
+
+// UserStatusAllowsLogin 是否允许登录（仅正常态）。
+func UserStatusAllowsLogin(status string) bool {
+	return strings.EqualFold(strings.TrimSpace(status), UserStatusActive)
+}
 
 type SendEmailVerifyEmail struct {
 	Email     string `json:"email"`
@@ -123,44 +186,46 @@ type UpdateUserRequest struct {
 
 type User struct {
 	BaseModel
-	Email                 string     `json:"email" gorm:"size:128;uniqueIndex"`
-	WechatOpenID          string     `json:"wechatOpenId,omitempty" gorm:"size:128;index"`
-	WechatUnionID         string     `json:"wechatUnionId,omitempty" gorm:"size:128;index"`
-	Password              string     `json:"-" gorm:"size:128"`
-	Phone                 string     `json:"phone,omitempty" gorm:"size:64;index"`
-	FirstName             string     `json:"firstName,omitempty" gorm:"size:128"`
-	LastName              string     `json:"lastName,omitempty" gorm:"size:128"`
-	DisplayName           string     `json:"displayName,omitempty" gorm:"size:128"`
-	IsStaff               bool       `json:"-"`
-	Enabled               bool       `json:"-"`
-	Activated             bool       `json:"-"`
-	LastLogin             *time.Time `json:"lastLogin,omitempty"`
-	LastLoginIP           string     `json:"-" gorm:"size:128"`
-	Source                string     `json:"-" gorm:"size:64;index"`
-	Locale                string     `json:"locale,omitempty" gorm:"size:20"`
-	Timezone              string     `json:"timezone,omitempty" gorm:"size:200"`
-	AuthToken             string     `json:"token,omitempty" gorm:"-"`
-	Avatar                string     `json:"avatar,omitempty"`
-	Gender                string     `json:"gender,omitempty"`
-	City                  string     `json:"city,omitempty"`
-	Region                string     `json:"region,omitempty"`
-	EmailNotifications    bool       `json:"emailNotifications"`                           // 邮件通知
-	PushNotifications     bool       `json:"pushNotifications" gorm:"default:true"`        // 推送通知
-	SystemNotifications   bool       `json:"systemNotifications" gorm:"default:true"`      // 系统通知
-	AutoCleanUnreadEmails bool       `json:"autoCleanUnreadEmails" gorm:"default:false"`   // 自动清理七天未读邮件
-	EmailVerified         bool       `json:"emailVerified" gorm:"default:false"`           // 邮箱已验证
-	PhoneVerified         bool       `json:"phoneVerified" gorm:"default:false"`           // 手机已验证
-	TwoFactorEnabled      bool       `json:"twoFactorEnabled" gorm:"default:false"`        // 双因素认证
-	TwoFactorSecret       string     `json:"-" gorm:"size:128"`                            // 双因素认证密钥
-	EmailVerifyToken      string     `json:"-" gorm:"size:128"`                            // 邮箱验证令牌
-	PhoneVerifyToken      string     `json:"-" gorm:"size:128"`                            // 手机验证令牌
-	PasswordResetToken    string     `json:"-" gorm:"size:128"`                            // 密码重置令牌
-	PasswordResetExpires  *time.Time `json:"-"`                                            // 密码重置过期时间
-	EmailVerifyExpires    *time.Time `json:"-"`                                            // 邮箱验证过期时间
-	LoginCount            int        `json:"loginCount" gorm:"default:0"`                  // 登录次数
-	LastPasswordChange    *time.Time `json:"lastPasswordChange,omitempty"`                 // 最后密码修改时间
-	ProfileComplete       int        `json:"profileComplete" gorm:"default:0"`             // 资料完整度百分比
-	Role                  string     `json:"role,omitempty" gorm:"size:50;default:'user'"` // 用户角色
+	Email                string     `json:"email" gorm:"size:128;uniqueIndex"`
+	WechatOpenID         string     `json:"wechatOpenId,omitempty" gorm:"size:128;index"`
+	WechatUnionID        string     `json:"wechatUnionId,omitempty" gorm:"size:128;index"`
+	GithubID             string     `json:"githubId,omitempty" gorm:"size:64;index"`
+	GithubLogin          string     `json:"githubLogin,omitempty" gorm:"size:128;index"`
+	Password             string     `json:"-" gorm:"size:128"`
+	Phone                string     `json:"phone,omitempty" gorm:"size:64;index"`
+	FirstName            string     `json:"firstName,omitempty" gorm:"size:128"`
+	LastName             string     `json:"lastName,omitempty" gorm:"size:128"`
+	DisplayName          string     `json:"displayName,omitempty" gorm:"size:128"`
+	Status               string     `json:"status" gorm:"size:32;index;default:'active';comment:Account status"`
+	LastLogin            *time.Time `json:"lastLogin,omitempty"`
+	LastLoginIP          string     `json:"-" gorm:"size:128"`
+	Source               string     `json:"source" gorm:"size:64;index"`
+	Locale               string     `json:"locale,omitempty" gorm:"size:20"`
+	Timezone             string     `json:"timezone,omitempty" gorm:"size:200"`
+	AuthToken            string     `json:"token,omitempty" gorm:"-"`
+	Avatar               string     `json:"avatar,omitempty"`
+	Gender               string     `json:"gender,omitempty"`
+	City                 string     `json:"city,omitempty"`
+	Region               string     `json:"region,omitempty"`
+	EmailNotifications   bool       `json:"emailNotifications"`                           // 邮件通知
+	PushNotifications    bool       `json:"pushNotifications" gorm:"default:true"`        // 推送通知
+	EmailVerified        bool       `json:"emailVerified" gorm:"default:false"`           // 邮箱已验证
+	PhoneVerified        bool       `json:"phoneVerified" gorm:"default:false"`           // 手机已验证
+	TwoFactorEnabled     bool       `json:"twoFactorEnabled" gorm:"default:false"`        // 双因素认证
+	TwoFactorSecret      string     `json:"-" gorm:"size:128"`                            // 双因素认证密钥
+	EmailVerifyToken     string     `json:"-" gorm:"size:128"`                            // 邮箱验证令牌
+	PhoneVerifyToken     string     `json:"-" gorm:"size:128"`                            // 手机验证令牌
+	PasswordResetToken   string     `json:"-" gorm:"size:128"`                            // 密码重置令牌
+	PasswordResetExpires *time.Time `json:"-"`                                            // 密码重置过期时间
+	EmailVerifyExpires   *time.Time `json:"-"`                                            // 邮箱验证过期时间
+	LoginCount           int        `json:"loginCount" gorm:"default:0"`                  // 登录次数
+	LastPasswordChange   *time.Time `json:"lastPasswordChange,omitempty"`                 // 最后密码修改时间
+	ProfileComplete      int        `json:"profileComplete" gorm:"default:0"`             // 资料完整度百分比
+	Role                 string     `json:"role,omitempty" gorm:"size:50;default:'user'"` // 用户角色
+
+	// 账号注销冷静期：到达 AccountDeletionEffectiveAt 后由定时任务执行永久注销（仅清除账号与绑定，不删用户创建的业务资源）
+	AccountDeletionRequestedAt *time.Time `json:"accountDeletionRequestedAt,omitempty"`
+	AccountDeletionEffectiveAt *time.Time `json:"accountDeletionEffectiveAt,omitempty" gorm:"index"`
 }
 
 func (u *User) TableName() string {
@@ -235,8 +300,47 @@ func AuthRequired(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusUnauthorized, err)
 		return
 	}
-	c.Set(constants.UserField, user)
+
+	var fresh User
+	if err := db.Where("id = ? AND is_deleted = ?", user.ID, SoftDeleteStatusActive).First(&fresh).Error; err != nil {
+		response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("user not found"))
+		return
+	}
+	c.Set(constants.UserField, &fresh)
+
+	if AccountDeletionPending(&fresh) && !authPathExemptWhileAccountDeletionPending(c) {
+		effective := ""
+		if fresh.AccountDeletionEffectiveAt != nil {
+			effective = fresh.AccountDeletionEffectiveAt.UTC().Format(time.RFC3339)
+		}
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+			"code": http.StatusForbidden,
+			"msg":  "账号正在注销冷静期内，暂时无法使用 SoulNexus 产品功能。请使用「撤销注销」完成验证后恢复，或等待冷静期结束后账号将被永久注销。",
+			"data": gin.H{
+				"accountDeletionPending":       true,
+				"accountDeletionEffectiveAt": effective,
+			},
+		})
+		return
+	}
 	c.Next()
+}
+
+// authPathExemptWhileAccountDeletionPending 冷静期内仍允许访问的认证接口（获取信息、撤销注销）。
+func authPathExemptWhileAccountDeletionPending(c *gin.Context) bool {
+	method := c.Request.Method
+	path := c.Request.URL.Path
+	if method == http.MethodGet && strings.Contains(path, "/auth/info") {
+		return true
+	}
+	if method == http.MethodGet && strings.Contains(path, "/account-deletion/eligibility") {
+		return true
+	}
+	// 勿用 Contains(\"/cancel\")，否则会误匹配 cancel-by-email
+	if method == http.MethodPost && strings.HasSuffix(path, "/account-deletion/cancel") {
+		return true
+	}
+	return false
 }
 
 func CurrentUser(c *gin.Context) *User {
@@ -356,13 +460,13 @@ func VerifyEncryptedPassword(encryptedPassword, storedPasswordHash string) bool 
 func GetUserByUID(db *gorm.DB, userID uint) (*User, error) {
 	var val User
 	start := time.Now()
-	result := db.Where("id", userID).Where("enabled", true).Take(&val)
+	result := db.Where("id", userID).Where("status", UserStatusActive).Take(&val)
 	duration := time.Since(start)
 
 	// Record database query metrics (if monitoring system is available)
 	if monitor := metrics.GetGlobalMonitor(); monitor != nil {
-		monitor.RecordSQLQuery(context.Background(), "SELECT * FROM users WHERE id = ? AND enabled = ?",
-			[]interface{}{userID, true}, constants.USER_TABLE_NAME, "SELECT", duration, 1, result.Error)
+		monitor.RecordSQLQuery(context.Background(), "SELECT * FROM users WHERE id = ? AND status = ?",
+			[]interface{}{userID, UserStatusActive}, constants.USER_TABLE_NAME, "SELECT", duration, 1, result.Error)
 	}
 
 	if result.Error != nil {
@@ -456,7 +560,7 @@ func GetUserByAPIKey(c *gin.Context, apiKey, apiSecret string) (*User, error) {
 		return nil, err
 	}
 	var user *User
-	err = db.Model(&User{}).Where("id = ?", userCredential.UserID).Find(&user).Error
+	err = db.Model(&User{}).Where("id = ? AND status = ?", userCredential.UserID, UserStatusActive).Find(&user).Error
 	if err != nil {
 		return nil, err
 	}
@@ -464,6 +568,17 @@ func GetUserByAPIKey(c *gin.Context, apiKey, apiSecret string) (*User, error) {
 }
 
 func CreateUserByEmail(db *gorm.DB, username, display, email, password string) (*User, error) {
+	return CreateUserByEmailWithMeta(db, username, display, email, password, UserSourceSystem, UserStatusActive)
+}
+
+// CreateUserByEmailWithMeta 创建用户并写入来源与账号状态。
+func CreateUserByEmailWithMeta(db *gorm.DB, username, display, email, password, source, status string) (*User, error) {
+	source = NormalizeUserSource(source)
+	if st := NormalizeUserStatus(status); st != "" {
+		status = st
+	} else {
+		status = UserStatusActive
+	}
 	// Properly handle Unicode characters (including Chinese)
 	var firstName, lastName string
 	if username != "" {
@@ -477,39 +592,75 @@ func CreateUserByEmail(db *gorm.DB, username, display, email, password string) (
 	}
 
 	user := User{
+		BaseModel:          BaseModel{},
 		DisplayName:        display,
 		FirstName:          firstName,
 		LastName:           lastName,
 		Email:              email,
 		Password:           HashPassword(password),
-		Enabled:            true,
-		Activated:          false,
+		Status:             status,
+		Source:             source,
 		EmailNotifications: true,
 		Role:               RoleUser, // Explicitly set default role
+	}
+	operator := strings.ToLower(strings.TrimSpace(email))
+	if operator == "" {
+		operator = "system"
+	}
+	user.SetCreateInfo(operator)
+	if utils.SnowflakeUtil != nil {
+		if id := utils.SnowflakeUtil.NextID(); id > 0 {
+			user.ID = uint(id)
+		}
 	}
 	result := db.Create(&user)
 	return &user, result.Error
 }
 
 func CreateUser(db *gorm.DB, email, password string) (*User, error) {
+	return CreateUserWithMeta(db, email, password, UserSourceSystem, UserStatusActive)
+}
+
+// CreateUserWithMeta 使用邮箱+密码创建用户（如网页注册），可指定来源与状态。
+func CreateUserWithMeta(db *gorm.DB, email, password, source, status string) (*User, error) {
+	source = NormalizeUserSource(source)
+	if st := NormalizeUserStatus(status); st != "" {
+		status = st
+	} else {
+		status = UserStatusActive
+	}
 	user := User{
+		BaseModel: BaseModel{},
 		Email:     email,
 		Password:  HashPassword(password),
-		Enabled:   true,
-		Activated: false,
+		Status:    status,
+		Source:    source,
 		Role:      RoleUser, // Explicitly set default role
+	}
+	operator := strings.ToLower(strings.TrimSpace(email))
+	if operator == "" {
+		operator = "system"
+	}
+	user.SetCreateInfo(operator)
+	if utils.SnowflakeUtil != nil {
+		if id := utils.SnowflakeUtil.NextID(); id > 0 {
+			user.ID = uint(id)
+		}
 	}
 
 	start := time.Now()
 	result := db.Create(&user)
 	duration := time.Since(start)
 	if monitor := metrics.GetGlobalMonitor(); monitor != nil {
-		monitor.RecordSQLQuery(context.Background(), "INSERT INTO users (email, password, enabled, activated) VALUES (?, ?, ?, ?)",
-			[]interface{}{email, user.Password, true, false}, constants.USER_TABLE_NAME, "INSERT", duration, 1, result.Error)
+		monitor.RecordSQLQuery(context.Background(), "INSERT INTO users (email, password, status, source) VALUES (?, ?, ?, ?)",
+			[]interface{}{email, user.Password, status, source}, constants.USER_TABLE_NAME, "INSERT", duration, 1, result.Error)
 	}
 	return &user, result.Error
 }
 func UpdateUserFields(db *gorm.DB, user *User, vals map[string]any) error {
+	if _, ok := vals["update_by"]; !ok {
+		vals["update_by"] = "system"
+	}
 	start := time.Now()
 	result := db.Model(user).Updates(vals)
 	duration := time.Since(start)
@@ -588,8 +739,54 @@ func DecodeHashToken(db *gorm.DB, hash string, useLastLogin bool) (user *User, e
 	return user, nil
 }
 
+func EncodeRefreshToken(user *User, timestamp int64, useLastlogin bool) (hash string) {
+	logintimestamp := "0"
+	if useLastlogin && user.LastLogin != nil {
+		logintimestamp = fmt.Sprintf("%d", user.LastLogin.Unix())
+	}
+	secret := strings.TrimSpace(os.Getenv("REFRESH_TOKEN_SECRET"))
+	t := fmt.Sprintf("%s$%d$rt", user.Email, timestamp)
+	hashVal := sha256.Sum256([]byte(logintimestamp + user.Password + secret + t))
+	hash = base64.RawStdEncoding.EncodeToString([]byte(t)) + "-" + fmt.Sprintf("%x", hashVal)
+	return hash
+}
+
+func DecodeRefreshToken(db *gorm.DB, hash string, useLastLogin bool) (user *User, err error) {
+	vals := strings.Split(hash, "-")
+	if len(vals) != 2 {
+		return nil, errors.New("bad refresh token")
+	}
+	data, err := base64.RawStdEncoding.DecodeString(vals[0])
+	if err != nil {
+		return nil, errors.New("bad refresh token")
+	}
+	parts := strings.Split(string(data), "$")
+	if len(parts) != 3 || parts[2] != "rt" {
+		return nil, errors.New("bad refresh token")
+	}
+	ts, err := strconv.ParseInt(parts[1], 10, 64)
+	if err != nil {
+		return nil, errors.New("bad refresh token")
+	}
+	if time.Now().Unix() > ts {
+		return nil, errors.New("refresh token expired")
+	}
+	user, err = GetUserByEmail(db, parts[0])
+	if err != nil {
+		return nil, errors.New("bad refresh token")
+	}
+	token := EncodeRefreshToken(user, ts, useLastLogin)
+	if token != hash {
+		return nil, errors.New("bad refresh token")
+	}
+	return user, nil
+}
+
 func CheckUserAllowLogin(db *gorm.DB, user *User) error {
-	if !user.Enabled {
+	if user == nil {
+		return errors.New("user not allow login")
+	}
+	if !UserStatusAllowsLogin(user.Status) {
 		return errors.New("user not allow login")
 	}
 
@@ -635,7 +832,15 @@ func BuildAuthToken(user *User, expired time.Duration, useLoginTime bool) string
 	return EncodeHashToken(user, n.Unix(), useLoginTime)
 }
 
+func BuildRefreshToken(user *User, expired time.Duration, useLoginTime bool) string {
+	n := time.Now().Add(expired)
+	return EncodeRefreshToken(user, n.Unix(), useLoginTime)
+}
+
 func UpdateUser(db *gorm.DB, user *User, vals map[string]any) error {
+	if _, ok := vals["update_by"]; !ok {
+		vals["update_by"] = "system"
+	}
 	return db.Model(user).Updates(vals).Error
 }
 
@@ -804,13 +1009,6 @@ func UpdateNotificationSettings(db *gorm.DB, user *User, settings map[string]boo
 	if pushNotif, ok := settings["pushNotifications"]; ok {
 		vals["push_notifications"] = pushNotif
 	}
-	if systemNotif, ok := settings["systemNotifications"]; ok {
-		vals["system_notifications"] = systemNotif
-	}
-	if autoCleanUnreadEmails, ok := settings["autoCleanUnreadEmails"]; ok {
-		vals["auto_clean_unread_emails"] = autoCleanUnreadEmails
-	}
-
 	if len(vals) == 0 {
 		return nil
 	}
@@ -827,13 +1025,6 @@ func UpdateNotificationSettings(db *gorm.DB, user *User, settings map[string]boo
 	if pushNotif, ok := settings["pushNotifications"]; ok {
 		user.PushNotifications = pushNotif
 	}
-	if systemNotif, ok := settings["systemNotifications"]; ok {
-		user.SystemNotifications = systemNotif
-	}
-	if autoCleanUnreadEmails, ok := settings["autoCleanUnreadEmails"]; ok {
-		user.AutoCleanUnreadEmails = autoCleanUnreadEmails
-	}
-
 	return nil
 }
 
@@ -913,6 +1104,15 @@ func CalculateProfileComplete(user *User) int {
 	// 偏好设置 (10%)
 	total += 1
 	if user.Timezone != "" {
+		complete++
+	}
+
+	// 第三方认证 (20%)
+	total += 2
+	if user.WechatOpenID != "" {
+		complete++
+	}
+	if user.GithubID != "" {
 		complete++
 	}
 

@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { getAlerts, resolveAlert, muteAlert, Alert, AlertStatus, AlertType } from '@/api/alert';
 import { showAlert } from '@/utils/notification';
@@ -7,6 +6,7 @@ import { useI18nStore } from '@/stores/i18nStore';
 import { Bell, AlertTriangle, AlertCircle, Info, CheckCircle, VolumeX, Plus, Filter } from 'lucide-react';
 import Button from '@/components/UI/Button';
 import LoadingAnimation from '@/components/Animations/LoadingAnimation';
+import CollapsibleSectionHeader from '@/components/UI/CollapsibleSectionHeader';
 
 const Alerts: React.FC = () => {
   const { t } = useI18nStore();
@@ -111,26 +111,28 @@ const Alerts: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-neutral-900 flex flex-col">
       <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-8 flex flex-col">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-          <div className="relative pl-4">
-            <motion.div
-              layoutId="pageTitleIndicator"
-              className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-primary rounded-r-full"
-              transition={{ type: 'spring', bounce: 0.2, duration: 0.3 }}
-            />
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 mb-1">{t('alerts.title')}</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">{t('alerts.subtitle')}</p>
-          </div>
-          <Button
-            onClick={() => navigate('/alerts/rules')}
-            variant="primary"
-            size="md"
-            leftIcon={<Plus className="w-4 h-4" />}
-            className="w-full sm:w-auto"
-          >
-            {t('alerts.createRule')}
-          </Button>
-        </div>
+        <CollapsibleSectionHeader
+          title={t('alerts.title')}
+          icon={<Bell className="w-4 h-4 text-primary" />}
+          expanded
+          onToggle={() => {}}
+          showChevron={false}
+          clickable={false}
+          compact
+          withDivider
+          className="mb-5"
+          rightContent={(
+            <Button
+              onClick={() => navigate('/alerts/rules')}
+              variant="primary"
+              size="sm"
+              leftIcon={<Plus className="w-3.5 h-3.5" />}
+              className="w-full sm:w-auto"
+            >
+              {t('alerts.createRule')}
+            </Button>
+          )}
+        />
 
         {/* 过滤器 */}
         <div className="bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-lg p-4 mb-6">

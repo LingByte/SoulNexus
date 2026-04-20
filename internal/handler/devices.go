@@ -15,8 +15,8 @@ import (
 
 	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/cache"
-	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/llm"
+	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -615,7 +615,6 @@ func (h *Handlers) GetDeviceConfig(c *gin.Context) {
 		"assistantId":          assistantID,
 		"apiKey":               assistant.ApiKey,
 		"apiSecret":            assistant.ApiSecret,
-		"language":             assistant.Language,
 		"speaker":              assistant.Speaker,
 		"llmModel":             assistant.LLMModel,
 		"temperature":          assistant.Temperature,
@@ -1128,7 +1127,6 @@ func (h *Handlers) AnalyzeCallRecording(c *gin.Context) {
 		if respLLM != nil && len(respLLM.Choices) > 0 {
 			result = respLLM.Choices[0].Content
 		}
-
 
 		if err != nil {
 			logger.Error("LLM 分析失败", zap.Error(err), zap.Uint("recordingID", recording.ID))

@@ -126,6 +126,25 @@ const Sidebar = () => {
     { name: t('nav.sidebar.deviceManagement'), href: '/devices', icon: Smartphone },
   ]
 
+  const navigationSections = [
+    {
+      title: '核心功能',
+      items: navigation.filter((item) => ['/overview', '/voice-assistant', '/voice-training', '/voiceprint-management'].includes(item.href)),
+    },
+    {
+      title: 'MCP',
+      items: navigation.filter((item) => ['/mcp-marketplace', '/mcp-management'].includes(item.href)),
+    },
+    {
+      title: '工作流',
+      items: navigation.filter((item) => ['/workflows', '/node-plugins'].includes(item.href)),
+    },
+    {
+      title: '运营与管理',
+      items: navigation.filter((item) => ['/notification', '/alerts', '/js-templates', '/knowledge-base', '/billing', '/groups', '/devices'].includes(item.href)),
+    },
+  ].filter((section) => section.items.length > 0)
+
   const publicNavs = [t('nav.docs')]
   // 受保护页面名称
   const privateNavs = [t('nav.sidebar.overview'), t('nav.sidebar.smartAssistant'), t('nav.sidebar.voiceTraining'), t('voiceprint.title'), t('nav.sidebar.workflow'), t('nav.sidebar.pluginMarket'), t('nav.sidebar.notification'), t('nav.sidebar.alerts'), t('nav.sidebar.jsTemplate'), t('nav.sidebar.knowledgeBase'), t('nav.sidebar.billing'), t('nav.sidebar.groups'), t('nav.sidebar.deviceManagement'), t('nav.sidebar.mcpManagement'), t('nav.sidebar.mcpMarketplace')]
@@ -175,12 +194,19 @@ const Sidebar = () => {
       </div>
 
       {/* 导航 */}
-      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-        {navigation.filter(item => {
-          if (publicNavs.includes(item.name)) return true;
-          if (privateNavs.includes(item.name)) return isAuthenticated;
-          return true;
-        }).map(item => {
+      <nav className="flex-1 p-4 space-y-4 overflow-y-auto">
+        {navigationSections.map((section) => (
+          <div key={section.title} className="space-y-1">
+            {!isCollapsed && (
+              <div className="px-2 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground/80">
+                {section.title}
+              </div>
+            )}
+            {section.items.filter(item => {
+              if (publicNavs.includes(item.name)) return true;
+              if (privateNavs.includes(item.name)) return isAuthenticated;
+              return true;
+            }).map(item => {
           const Icon = item.icon
           return (
             isExternalHref(item.href) ? (
@@ -282,6 +308,8 @@ const Sidebar = () => {
             )
           )
         })}
+          </div>
+        ))}
       </nav>
       {/* 底部功能区 */}
       <div className="mt-auto p-2 flex flex-col gap-2 relative">

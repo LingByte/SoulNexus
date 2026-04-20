@@ -55,6 +55,7 @@ export const useAuthStore = create<AuthState>()(
           }
         } catch (error) {
           localStorage.removeItem('auth_token')
+          localStorage.removeItem('refresh_token')
           set({ user: null, isAuthenticated: false, token: null })
           set({ isLoading: false })
           console.error('Login failed:', error)
@@ -96,6 +97,7 @@ export const useAuthStore = create<AuthState>()(
         } finally {
           // 清除本地存储
           localStorage.removeItem('auth_token')
+          localStorage.removeItem('refresh_token')
           set({ user: null, isAuthenticated: false, token: null, currentOrganizationId: null })
           // 通过浏览器重定向触发 SSO 端会话清理，避免再次无感登录
           window.location.assign(buildSSOLogoutURL(nextURL, currentToken))
@@ -121,6 +123,7 @@ export const useAuthStore = create<AuthState>()(
           console.error('Failed to refresh user info:', error)
           // 如果获取用户信息失败，清除认证状态
           localStorage.removeItem('auth_token')
+          localStorage.removeItem('refresh_token')
           set({ user: null, isAuthenticated: false, token: null })
         }
       },
@@ -135,6 +138,7 @@ export const useAuthStore = create<AuthState>()(
         // 新增的清除用户信息方法
         clearUser: () => {
             localStorage.removeItem('auth_token')
+            localStorage.removeItem('refresh_token')
             set({ user: null, isAuthenticated: false, token: null, currentOrganizationId: null, isLoggingOut: false })
         },
 

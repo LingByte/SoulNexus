@@ -6,8 +6,10 @@ import { cn } from '@/utils/cn'
 
 const languages: { code: Language; label: string; nativeLabel: string }[] = [
   { code: 'zh', label: '中文', nativeLabel: '中文' },
+  { code: 'zh-TW', label: '繁體中文', nativeLabel: '繁體中文' },
   { code: 'en', label: 'English', nativeLabel: 'English' },
   { code: 'ja', label: '日本語', nativeLabel: '日本語' },
+  { code: 'fr', label: 'Français', nativeLabel: 'Français' },
 ]
 
 interface LanguageSelectorProps {
