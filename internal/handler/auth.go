@@ -3538,14 +3538,6 @@ func (h *Handlers) handleUploadAvatar(c *gin.Context) {
 	fileExt := getFileExtension(header.Filename)
 	fileName := fmt.Sprintf("avatars/%d_%d%s", user.ID, time.Now().Unix(), fileExt)
 
-	//// 如果用户已有头像且不是默认头像，删除旧头像
-	//if user.Avatar != "" && !isDefaultAvatar(user.Avatar) {
-	//	// 从URL中提取文件路径
-	//	oldKey := extractKeyFromURL(user.Avatar)
-	//	if oldKey != "" {
-	//		store.Delete(oldKey)
-	//	}
-	//}
 	reader, err := config.GlobalStore.UploadFromReader(&lingstorage.UploadFromReaderRequest{
 		Reader:   file,
 		Bucket:   config.GlobalConfig.Services.Storage.Bucket,
