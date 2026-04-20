@@ -159,6 +159,25 @@ func (h *Handlers) SetCampaignService(svc *sipserver.CampaignService) {
 	h.campaignSvc = svc
 }
 
+func NewSIPServiceHandlers(db *gorm.DB) *Handlers {
+	return &Handlers{
+		db: db,
+	}
+}
+
+// RegisterUserServiceRoutes registers auth routes and a minimal system health check under the API prefix.
+func (h *Handlers) RegisterSIPServiceRoutes(engine *gin.Engine) {
+	apiPrefix := config.GlobalConfig.Server.APIPrefix
+	if apiPrefix == "" {
+		apiPrefix = "/api"
+	}
+	r := engine.Group(apiPrefix)
+	r.Use(middleware.InjectDB(h.db))
+	r.Use(middleware.MutatingRequestTrustedOrigin())
+	h.registerSIPContactCenterRoutes(r)
+	h.registerLingechoWebSeatRoutes(r)
+}
+
 // NewUserServiceHandlers returns handlers for the standalone user (auth) service binary.
 // It omits WebSocket hub and search engine wiring that auth routes do not use.
 func NewUserServiceHandlers(db *gorm.DB) *Handlers {

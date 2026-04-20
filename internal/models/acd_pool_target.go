@@ -272,16 +272,33 @@ func ClearACDPoolTargetWebSeatLastSeen(db *gorm.DB, id uint) error {
 	return db.Model(&ACDPoolTarget{}).Where("id = ?", id).Update("web_seat_last_seen_at", nil).Error
 }
 
-// UpdateACDPoolTargetWebSeatHeartbeat marks web row available with fresh heartbeat.
+// UpdateACDPoolTargetWebSeatHeartbeat refreshes web seat presence only.
+// It must not overwrite work_state (ringing/busy/acw etc.) — those are driven by transfer + webseat lifecycle.
 func UpdateACDPoolTargetWebSeatHeartbeat(db *gorm.DB, id uint, operator string, now time.Time) error {
 	u := map[string]any{
-		"work_state":            ACDWorkStateAvailable,
-		"work_state_at":         now,
 		"web_seat_last_seen_at": now,
 		"updated_at":            now,
 		"update_by":             strings.TrimSpace(operator),
 	}
 	return db.Model(&ACDPoolTarget{}).Where("id = ?", id).Updates(u).Error
+}
+
+// UpdateACDPoolTargetWorkState updates work_state for an active row (admin, SIP transfer, or webseat).
+func UpdateACDPoolTargetWorkState(ctx context.Context, db *gorm.DB, id uint, workState string, updateBy string) error {
+	if db == nil || id == 0 {
+		return nil
+	}
+	ws := NormalizeACDWorkState(workState)
+	now := time.Now()
+	u := map[string]any{
+		"work_state":    ws,
+		"work_state_at": now,
+		"updated_at":    now,
+	}
+	if s := strings.TrimSpace(updateBy); s != "" {
+		u["update_by"] = s
+	}
+	return ActiveACDPoolTargets(db.WithContext(ctx)).Where("id = ?", id).Updates(u).Error
 }
 
 // WebSeatActorMayTouchRow allows heartbeat when CreateBy is empty or matches operator.
@@ -307,4 +324,51 @@ func PickEligibleACDPoolTargetForTransfer(ctx context.Context, db *gorm.DB) (ACD
 		Order("weight DESC").Order("id ASC").
 		First(&row).Error
 	return row, err
+}
+
+// ListActiveWebACDPoolTargetsByCreateBy lists active web rows owned by the same creator.
+func ListActiveWebACDPoolTargetsByCreateBy(ctx context.Context, db *gorm.DB, createBy string) ([]ACDPoolTarget, error) {
+	createBy = strings.TrimSpace(createBy)
+	if createBy == "" {
+		return nil, nil
+	}
+	var rows []ACDPoolTarget
+	err := ActiveACDPoolTargets(db.WithContext(ctx)).
+		Where("route_type = ? AND create_by = ?", ACDPoolRouteTypeWeb, createBy).
+		Order("updated_at DESC").Order("id DESC").
+		Find(&rows).Error
+	return rows, err
+}
+
+// SoftDeleteACDPoolTargetsByIDs soft-deletes rows by ids.
+func SoftDeleteACDPoolTargetsByIDs(ctx context.Context, db *gorm.DB, ids []uint, updateBy string) (int64, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	u := map[string]any{
+		"is_deleted": SoftDeleteStatusDeleted,
+		"updated_at": time.Now(),
+	}
+	if s := strings.TrimSpace(updateBy); s != "" {
+		u["update_by"] = s
+	}
+	res := db.WithContext(ctx).Model(&ACDPoolTarget{}).
+		Where("id IN ? AND is_deleted = ?", ids, SoftDeleteStatusActive).
+		Updates(u)
+	return res.RowsAffected, res.Error
+}
+
+// MarkStaleWebACDPoolTargetsOffline sets stale web seats to offline for abnormal-disconnect fallback.
+func MarkStaleWebACDPoolTargetsOffline(ctx context.Context, db *gorm.DB, now time.Time) (int64, error) {
+	freshSince := now.Add(-WebSeatStaleAfter)
+	res := ActiveACDPoolTargets(db.WithContext(ctx)).
+		Where("route_type = ?", ACDPoolRouteTypeWeb).
+		Where("work_state <> ?", ACDWorkStateOffline).
+		Where("web_seat_last_seen_at IS NULL OR web_seat_last_seen_at <= ?", freshSince).
+		Updates(map[string]any{
+			"work_state":    ACDWorkStateOffline,
+			"work_state_at": now,
+			"updated_at":    now,
+		})
+	return res.RowsAffected, res.Error
 }

@@ -32,19 +32,19 @@ import (
 	"gorm.io/gorm"
 )
 
-type userServiceApp struct {
+type LingEchoAuthService struct {
 	db       *gorm.DB
 	handlers *handlers.Handlers
 }
 
-func newUserServiceApp(db *gorm.DB) *userServiceApp {
-	return &userServiceApp{
+func NewLingEchoAuthService(db *gorm.DB) *LingEchoAuthService {
+	return &LingEchoAuthService{
 		db:       db,
 		handlers: handlers.NewUserServiceHandlers(db),
 	}
 }
 
-func (app *userServiceApp) registerRoutes(r *gin.Engine) {
+func (app *LingEchoAuthService) registerRoutes(r *gin.Engine) {
 	app.handlers.RegisterUserServiceRoutes(r)
 }
 
@@ -105,7 +105,7 @@ func main() {
 	utils.InitGlobalLoginSecurityManager(logger.Lg)
 	utils.InitGlobalIntelligentRiskControl(logger.Lg)
 
-	app := newUserServiceApp(db)
+	app := NewLingEchoAuthService(db)
 
 	maxSpans := int(utils.GetIntEnv("METRICS_MAX_SPANS"))
 	if maxSpans == 0 {

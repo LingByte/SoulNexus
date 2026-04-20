@@ -98,11 +98,8 @@ func (h *Handlers) createACDPoolTarget(c *gin.Context) {
 	now := time.Now()
 	sipSrc := ""
 	if rt == models.ACDPoolRouteTypeSIP {
-		sipSrc = models.NormalizeACDSipSource(req.SipSource)
-	}
-	if !models.ValidateACDTrunkCreateUpdate(rt, sipSrc, req.TargetValue, req.SipTrunkHost) {
-		response.Fail(c, "SIP trunk requires targetValue (dial user) and sipTrunkHost (gateway)", nil)
-		return
+		// SIP ACD rows are now unified as outbound trunk-style targets.
+		sipSrc = models.ACDSipSourceTrunk
 	}
 	var webSeen *time.Time
 	if rt == models.ACDPoolRouteTypeWeb && ws == models.ACDWorkStateAvailable {
@@ -114,8 +111,45 @@ func (h *Handlers) createACDPoolTarget(c *gin.Context) {
 		req.SipCallerID, req.SipCallerDisplayName,
 		req.Weight, ws, now, webSeen,
 	)
-	if op := acdOperator(c); op != "" {
+	op := acdOperator(c)
+	if op != "" {
 		row.SetCreateInfo(op)
+	}
+	// Web seat rows should not be duplicated for one operator.
+	// Reuse one row and clean up older duplicates.
+	if rt == models.ACDPoolRouteTypeWeb && op != "" {
+		ctx := c.Request.Context()
+		existing, err := models.ListActiveWebACDPoolTargetsByCreateBy(ctx, h.db, op)
+		if err != nil {
+			response.AbortWithStatusJSON(c, http.StatusInternalServerError, err)
+			return
+		}
+		if len(existing) > 0 {
+			keep := existing[0]
+			updates := models.BuildACDPoolTargetUpdateMap(
+				keep, req.Name, rt, "", req.TargetValue,
+				"", 0, "",
+				"", "",
+				req.Weight, ws, now, op,
+			)
+			if err := h.db.WithContext(ctx).Model(&models.ACDPoolTarget{}).Where("id = ?", keep.ID).Updates(updates).Error; err != nil {
+				response.AbortWithStatusJSON(c, http.StatusInternalServerError, err)
+				return
+			}
+			if ws == models.ACDWorkStateOffline {
+				_ = models.ClearACDPoolTargetWebSeatLastSeen(h.db, keep.ID)
+			}
+			if len(existing) > 1 {
+				dupIDs := make([]uint, 0, len(existing)-1)
+				for i := 1; i < len(existing); i++ {
+					dupIDs = append(dupIDs, existing[i].ID)
+				}
+				_, _ = models.SoftDeleteACDPoolTargetsByIDs(ctx, h.db, dupIDs, op)
+			}
+			updated, _ := models.ReloadACDPoolTargetByID(h.db, keep.ID)
+			response.Success(c, "success", updated)
+			return
+		}
 	}
 	if err := h.db.Create(&row).Error; err != nil {
 		response.AbortWithStatusJSON(c, http.StatusInternalServerError, err)
@@ -149,11 +183,8 @@ func (h *Handlers) updateACDPoolTarget(c *gin.Context) {
 	now := time.Now()
 	sipSrc := ""
 	if rt == models.ACDPoolRouteTypeSIP {
-		sipSrc = models.NormalizeACDSipSource(req.SipSource)
-	}
-	if !models.ValidateACDTrunkCreateUpdate(rt, sipSrc, req.TargetValue, req.SipTrunkHost) {
-		response.Fail(c, "SIP trunk requires targetValue (dial user) and sipTrunkHost (gateway)", nil)
-		return
+		// SIP ACD rows are now unified as outbound trunk-style targets.
+		sipSrc = models.ACDSipSourceTrunk
 	}
 	op := acdOperator(c)
 	updates := models.BuildACDPoolTargetUpdateMap(
