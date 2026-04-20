@@ -47,6 +47,8 @@ type Config struct {
 	ForgetUASDialog       func(callID string)
 	SendUASBye            func(callID string) error
 	ReleaseTransferDedupe func(callID string)
+	// SetACDWebSeatWorkState updates acd_pool_targets.work_state for the web seat row (targetID) when nil, ACD state is skipped.
+	SetACDWebSeatWorkState func(ctx context.Context, targetID uint, workState string) error
 	// FinalizeInboundPersist runs once when a web-seat handoff ends (BYE, hangup, or bridge teardown).
 	// callID is the inbound PSTN Call-ID; initiator is "remote" (customer BYE) or "local" (operator / full hangup).
 	FinalizeInboundPersist func(ctx context.Context, callID, initiator string, raw []byte, codecName string, recordSampleRate, recordOpusChannels int)
@@ -59,6 +61,9 @@ type Hub struct {
 	mu       sync.Mutex
 	awaiting map[string]*awaitEntry   // inbound Call-ID
 	active   map[string]*activeBridge // inbound Call-ID
+
+	// acdBinding maps inbound PSTN Call-ID → acd_pool_targets.id for the web seat row picked for this transfer.
+	acdBinding sync.Map
 
 	wsMu    sync.Mutex
 	wsConns map[*websocket.Conn]struct{}
@@ -87,6 +92,60 @@ func InitDefault(cfg Config) {
 		active:   make(map[string]*activeBridge),
 		wsConns:  make(map[*websocket.Conn]struct{}),
 	}
+}
+
+// BindInboundCallToWebACD records which ACD pool row was offered for this inbound call
+// (after PickTransferDialTarget marked it ringing).
+func BindInboundCallToWebACD(callID string, acdTargetID uint) {
+	if defaultHub == nil || strings.TrimSpace(callID) == "" || acdTargetID == 0 {
+		return
+	}
+	defaultHub.acdBinding.Store(strings.TrimSpace(callID), acdTargetID)
+}
+
+// ReleaseInboundWebACDOffer sets the bound web ACD row back to available and clears the binding
+// (e.g. register-awaiting failed or transfer aborted before webseat took the call).
+func ReleaseInboundWebACDOffer(callID string) {
+	if defaultHub == nil || strings.TrimSpace(callID) == "" {
+		return
+	}
+	defaultHub.acdReleaseBindingToAvailable(strings.TrimSpace(callID))
+}
+
+func (h *Hub) acdSetStateForCall(callID string, workState string) {
+	if h == nil || strings.TrimSpace(callID) == "" || h.cfg.SetACDWebSeatWorkState == nil {
+		return
+	}
+	v, ok := h.acdBinding.Load(strings.TrimSpace(callID))
+	if !ok {
+		return
+	}
+	id, ok := v.(uint)
+	if !ok || id == 0 {
+		return
+	}
+	ctx := context.Background()
+	_ = h.cfg.SetACDWebSeatWorkState(ctx, id, workState)
+}
+
+func (h *Hub) acdReleaseBindingToAvailable(callID string) {
+	if h == nil || strings.TrimSpace(callID) == "" {
+		return
+	}
+	cid := strings.TrimSpace(callID)
+	v, loaded := h.acdBinding.LoadAndDelete(cid)
+	if !loaded {
+		return
+	}
+	if h.cfg.SetACDWebSeatWorkState == nil {
+		return
+	}
+	id, ok := v.(uint)
+	if !ok || id == 0 {
+		return
+	}
+	ctx := context.Background()
+	_ = h.cfg.SetACDWebSeatWorkState(ctx, id, "available")
 }
 
 // JoinHTTP serves POST join (browser WebRTC offer). Mount on Gin as WrapF(JoinHTTP).
@@ -290,6 +349,7 @@ func (h *Hub) awaitWatchdog(callID string) {
 		if e.lg != nil {
 			e.lg.Warn("webseat: join timeout, releasing slot", zap.String("call_id", callID))
 		}
+		h.acdReleaseBindingToAvailable(callID)
 		if h.cfg.ReleaseTransferDedupe != nil {
 			h.cfg.ReleaseTransferDedupe(callID)
 		}
@@ -391,6 +451,7 @@ func teardownWebSeat(callID string, sendByeToCustomer bool) bool {
 			if h.cfg.ForgetUASDialog != nil {
 				h.cfg.ForgetUASDialog(callID)
 			}
+			h.acdReleaseBindingToAvailable(callID)
 			if h.cfg.ReleaseTransferDedupe != nil {
 				h.cfg.ReleaseTransferDedupe(callID)
 			}
@@ -427,6 +488,7 @@ func teardownWebSeat(callID string, sendByeToCustomer bool) bool {
 	if h.cfg.ForgetUASDialog != nil {
 		h.cfg.ForgetUASDialog(callID)
 	}
+	h.acdReleaseBindingToAvailable(callID)
 	if logger.Lg != nil {
 		logger.Lg.Info("webseat: session torn down", zap.String("call_id", callID), zap.Bool("bye_customer", sendByeToCustomer))
 	}
@@ -477,6 +539,7 @@ func (h *Hub) handleJoin(w http.ResponseWriter, r *http.Request) {
 
 	answer, err := h.completeJoin(r.Context(), callID, entry.cs, body, lg)
 	if err != nil {
+		h.acdReleaseBindingToAvailable(callID)
 		if h.cfg.ReleaseTransferDedupe != nil {
 			h.cfg.ReleaseTransferDedupe(callID)
 		}
@@ -659,6 +722,10 @@ func (h *Hub) waitRemoteTrackAndBridge(
 		return
 	}
 	if remoteTrack == nil {
+		if h.cfg.ReleaseTransferDedupe != nil {
+			h.cfg.ReleaseTransferDedupe(callID)
+		}
+		_ = teardownWebSeat(callID, false)
 		return
 	}
 
@@ -666,6 +733,11 @@ func (h *Hub) waitRemoteTrackAndBridge(
 	ab, ok := h.active[callID]
 	if !ok || ab == nil || ab.pc != pc {
 		h.mu.Unlock()
+		if h.cfg.ReleaseTransferDedupe != nil {
+			h.cfg.ReleaseTransferDedupe(callID)
+		}
+		_ = teardownWebSeat(callID, false)
+		_ = pc.Close()
 		return
 	}
 	h.mu.Unlock()
@@ -697,6 +769,11 @@ func (h *Hub) waitRemoteTrackAndBridge(
 	ab, ok = h.active[callID]
 	if !ok || ab == nil || ab.pc != pc {
 		h.mu.Unlock()
+		if h.cfg.ReleaseTransferDedupe != nil {
+			h.cfg.ReleaseTransferDedupe(callID)
+		}
+		br.Stop()
+		_ = teardownWebSeat(callID, false)
 		_ = pc.Close()
 		return
 	}
@@ -704,6 +781,7 @@ func (h *Hub) waitRemoteTrackAndBridge(
 	h.mu.Unlock()
 
 	br.Start()
+	h.acdSetStateForCall(callID, "busy")
 	if lg != nil {
 		lg.Info("webseat: bridge started", zap.String("call_id", callID), zap.String("web_codec", webCodec.Codec))
 	}

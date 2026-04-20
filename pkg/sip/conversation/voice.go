@@ -12,15 +12,15 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/LingByte/SoulNexus/pkg/llm"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/media"
 	"github.com/LingByte/SoulNexus/pkg/media/encoder"
-	"github.com/LingByte/SoulNexus/pkg/llm"
 	"github.com/LingByte/SoulNexus/pkg/recognizer"
+	"github.com/LingByte/SoulNexus/pkg/scriptlisten"
 	"github.com/LingByte/SoulNexus/pkg/sip"
 	sipasr "github.com/LingByte/SoulNexus/pkg/sip/asr"
 	sipdtmf "github.com/LingByte/SoulNexus/pkg/sip/dtmf"
-	"github.com/LingByte/SoulNexus/pkg/sip/scriptlisten"
 	sipSession "github.com/LingByte/SoulNexus/pkg/sip/session"
 	"github.com/LingByte/SoulNexus/pkg/sip/siputil"
 	siptts "github.com/LingByte/SoulNexus/pkg/sip/tts"
@@ -287,44 +287,6 @@ func sipASRPartialTimeoutMs() int {
 	return n
 }
 
-// sipLLMStreamFirstChunkMinRunes controls how early SIP starts the first TTS chunk during streaming.
-// Smaller value = faster first audio at the cost of potentially choppier segmentation.
-func sipLLMStreamFirstChunkMinRunes() int {
-	s := strings.TrimSpace(utils.GetEnv("SIP_LLM_FIRST_CHUNK_MIN_RUNES"))
-	if s == "" {
-		return 8
-	}
-	n, err := strconv.Atoi(s)
-	if err != nil {
-		return 8
-	}
-	if n < 3 {
-		return 3
-	}
-	if n > 24 {
-		return 24
-	}
-	return n
-}
-
-func sipLLMStreamChunkMinRunes() int {
-	s := strings.TrimSpace(utils.GetEnv("SIP_LLM_CHUNK_MIN_RUNES"))
-	if s == "" {
-		return 18
-	}
-	n, err := strconv.Atoi(s)
-	if err != nil {
-		return 18
-	}
-	if n < 6 {
-		return 6
-	}
-	if n > 48 {
-		return 48
-	}
-	return n
-}
-
 // welcomeWaitFirstRTPMs is how long we wait for the first inbound RTP datagram before playing the welcome clip.
 // Default 2000 ms gives the RTP layer time to learn symmetric NAT (remote send target updates from first packet).
 // Set SIP_WELCOME_WAIT_FIRST_RTP_MS=0 to skip waiting (e.g. same-LAN tests).
@@ -401,15 +363,10 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 	if strings.EqualFold(env.LLMProvider, "alibaba") {
 		llmEndpointOrAppID = strings.TrimSpace(env.LLMAppID)
 	}
-	llmProvider, err := llm.NewLLMProvider(ms.GetContext(), env.LLMProvider, env.LLMAPIKey, llmEndpointOrAppID, systemPrompt)
+	llmProvider, err := llm.NewLLMProvider(ctx, env.LLMProvider, env.LLMAPIKey, llmEndpointOrAppID, systemPrompt)
 	if err != nil {
 		return fmt.Errorf("sip conversation: llm provider init: %w", err)
 	}
-	// Ensure in-flight LLM calls are interrupted immediately when call media context ends.
-	go func() {
-		<-ms.GetContext().Done()
-		llmProvider.Interrupt()
-	}()
 	registerSIPTransferTool(llmProvider, cs.CallID, lg)
 	lg.Info("sip voice pipeline config",
 		zap.String("llm_model", llmModel),
@@ -576,9 +533,6 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 				lg.Warn("sip voice llm/tts", zap.Error(err))
 				return
 			}
-			if ms == nil || ms.GetContext().Err() != nil {
-				return
-			}
 			if !scriptMode && trigger == "partial-timeout" {
 				partialTimeoutDoneMu.Lock()
 				partialTimeoutDoneText = userText
@@ -590,7 +544,16 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 				// In script mode, output is controlled by script steps (say/llm_reply). Do not auto-play here.
 				return
 			}
-			if consumeSIPTransferPending(cs.CallID) || shouldFallbackTransferByText(userText) {
+			if ap, ok := llmProvider.(*llm.AlibabaProvider); ok {
+				if action := ap.ConsumePendingAction(); action == "transfer_to_agent" {
+					if ms != nil && ms.GetContext().Err() == nil {
+						lg.Info("sip voice: transfer after ai tts confirmation",
+							zap.String("call_id", cs.CallID),
+						)
+						TriggerTransferToAgent(context.Background(), cs.CallID, lg)
+					}
+				}
+			} else if consumeSIPTransferPending(cs.CallID) || shouldFallbackTransferByText(userText) {
 				if ms != nil && ms.GetContext().Err() == nil {
 					lg.Info("sip voice: transfer after ai tts confirmation (tool/fallback)",
 						zap.String("call_id", cs.CallID),
@@ -854,7 +817,7 @@ func playWelcomeWav(ctx context.Context, ms *media.MediaSession, lg *zap.Logger,
 	return nil
 }
 
-func streamLLMToTTS(ctx context.Context, llmProvider llm.LLMHandler, model, userText string, ttsPipe *siptts.Pipeline, lg *zap.Logger) (string, StreamTurnTimings, error) {
+func streamLLMToTTS(ctx context.Context, llmProvider llm.LLMProvider, model, userText string, ttsPipe *siptts.Pipeline, lg *zap.Logger) (string, StreamTurnTimings, error) {
 	var meta StreamTurnTimings
 	if llmProvider == nil {
 		return "", meta, fmt.Errorf("nil llm provider")
@@ -875,9 +838,6 @@ func streamLLMToTTS(ctx context.Context, llmProvider llm.LLMHandler, model, user
 	}
 	var full strings.Builder
 	var seg strings.Builder
-	firstChunkSpoken := false
-	firstChunkMinRunes := sipLLMStreamFirstChunkMinRunes()
-	chunkMinRunes := sipLLMStreamChunkMinRunes()
 	flush := func(force bool) error {
 		s := strings.TrimSpace(seg.String())
 		if s == "" {
@@ -886,11 +846,7 @@ func streamLLMToTTS(ctx context.Context, llmProvider llm.LLMHandler, model, user
 		if !force {
 			runes := []rune(s)
 			last := runes[len(runes)-1]
-			minRunes := chunkMinRunes
-			if !firstChunkSpoken {
-				minRunes = firstChunkMinRunes
-			}
-			if !strings.ContainsRune("。！？.!?,，；;:", last) && len(runes) < minRunes {
+			if !strings.ContainsRune("。！？.!?,，；;:", last) && len(runes) < 18 {
 				return nil
 			}
 		}
@@ -899,15 +855,11 @@ func streamLLMToTTS(ctx context.Context, llmProvider llm.LLMHandler, model, user
 		if s == "" {
 			return nil
 		}
-		if err := speak(s); err != nil {
-			return err
-		}
-		firstChunkSpoken = true
-		return nil
+		return speak(s)
 	}
 	// Alibaba App API usually returns one JSON message per turn; non-streaming avoids long
 	// silent waits when SSE chunks are sparse on some networks.
-	if _, isAlibaba := llmProvider.(*llm.AlibabaHandler); isAlibaba {
+	if _, isAlibaba := llmProvider.(*llm.AlibabaProvider); isAlibaba {
 		t0 := time.Now()
 		reply, err := llmProvider.Query(userText, model)
 		meta.LLMWallMs = int(time.Since(t0).Milliseconds())
@@ -931,8 +883,8 @@ func streamLLMToTTS(ctx context.Context, llmProvider llm.LLMHandler, model, user
 	}
 	streamStart := time.Now()
 	gotFirst := false
-	options := llm.QueryOptions{Model: model}
-	streamResp, err := llmProvider.QueryStream(userText, &options, func(piece string, _ bool) error {
+	options := llm.QueryOptions{Model: model, Stream: true}
+	reply, err := llmProvider.QueryStream(userText, options, func(piece string, _ bool) error {
 		piece = strings.TrimSpace(piece)
 		if piece == "" {
 			return nil
@@ -946,10 +898,6 @@ func streamLLMToTTS(ctx context.Context, llmProvider llm.LLMHandler, model, user
 		return flush(false)
 	})
 	meta.LLMWallMs = int(time.Since(streamStart).Milliseconds())
-	reply := ""
-	if streamResp != nil && len(streamResp.Choices) > 0 {
-		reply = streamResp.Choices[0].Content
-	}
 	if err != nil {
 		// fallback to non-streaming so behavior stays stable even if provider stream fails.
 		ttsMs = 0

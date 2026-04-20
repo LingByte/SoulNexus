@@ -65,9 +65,18 @@ func (c *SIPUserOnlineCleaner) sweep() {
 		if logger.Lg != nil {
 			logger.Lg.Warn("sip user online cleaner failed", zap.Error(err))
 		}
+	} else if rows > 0 && logger.Lg != nil {
+		logger.Lg.Info("sip user online cleaner marked users offline", zap.Int64("rows", rows))
+	}
+
+	webRows, webErr := models.MarkStaleWebACDPoolTargetsOffline(context.Background(), c.db, time.Now())
+	if webErr != nil {
+		if logger.Lg != nil {
+			logger.Lg.Warn("web seat cleaner failed", zap.Error(webErr))
+		}
 		return
 	}
-	if rows > 0 && logger.Lg != nil {
-		logger.Lg.Info("sip user online cleaner marked users offline", zap.Int64("rows", rows))
+	if webRows > 0 && logger.Lg != nil {
+		logger.Lg.Info("web seat cleaner marked seats offline", zap.Int64("rows", webRows))
 	}
 }

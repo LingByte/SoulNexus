@@ -8,12 +8,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/media"
+	"github.com/LingByte/SoulNexus/pkg/logger"
+	"github.com/LingByte/SoulNexus/pkg/scriptlisten"
 	sipdtmf "github.com/LingByte/SoulNexus/pkg/sip/dtmf"
 	"github.com/LingByte/SoulNexus/pkg/sip/outbound"
-	"github.com/LingByte/SoulNexus/pkg/sip/scriptlisten"
 	sipSession "github.com/LingByte/SoulNexus/pkg/sip/session"
+	"github.com/LingByte/SoulNexus/pkg/sip/webseat"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"go.uber.org/zap"
 )
@@ -24,14 +25,15 @@ type TransferDialer interface {
 }
 
 var (
-	transferMu     sync.Mutex
-	transferDialer TransferDialer
+	transferMu       sync.Mutex
+	transferDialer   TransferDialer
 	// Optional: DB-backed dial target (e.g. sip_users) tried before TransferDialTargetFromEnv.
-	transferDialTarget func(context.Context) (outbound.DialTarget, bool)
+	// inboundCallID is the PSTN inbound Call-ID (used to bind Web ACD rows to this call).
+	transferDialTarget func(context.Context, string) (outbound.DialTarget, bool)
 	// WebSeatTransfer starts inbound ↔ browser WebRTC bridging when DialTarget.WebSeat (SIP_TRANSFER_NUMBER=web).
 	// If nil and WebSeat is requested, transfer logs a warning and releases the dedupe slot.
-	webSeatTransfer  func(inboundCallID string, lg *zap.Logger)
-	transferStarted  sync.Map // inbound Call-ID -> bool (dedupe)
+	webSeatTransfer func(inboundCallID string, lg *zap.Logger)
+	transferStarted sync.Map // inbound Call-ID -> bool (dedupe)
 	transferRingMu   sync.Mutex
 	transferRingStop map[string]context.CancelFunc
 )
@@ -45,7 +47,7 @@ func SetTransferDialer(d TransferDialer) {
 
 // SetTransferDialTargetResolver sets an optional resolver (e.g. DB lookup by SIP_TRANSFER_NUMBER).
 // When it returns ok=false, outbound.TransferDialTargetFromEnv is used.
-func SetTransferDialTargetResolver(fn func(context.Context) (outbound.DialTarget, bool)) {
+func SetTransferDialTargetResolver(fn func(context.Context, string) (outbound.DialTarget, bool)) {
 	transferMu.Lock()
 	defer transferMu.Unlock()
 	transferDialTarget = fn
@@ -92,7 +94,7 @@ func TriggerTransferToAgent(ctx context.Context, inboundCallID string, lg *zap.L
 	var tgt outbound.DialTarget
 	var ok bool
 	if resolveTgt != nil {
-		tgt, ok = resolveTgt(ctx)
+		tgt, ok = resolveTgt(ctx, inboundCallID)
 	}
 	// When cmd/sip wires a DB resolver, targets come only from acd_pool_targets — do not fall back to SIP_TRANSFER_* env.
 	if !ok && resolveTgt == nil {
@@ -100,10 +102,11 @@ func TriggerTransferToAgent(ctx context.Context, inboundCallID string, lg *zap.L
 	}
 	if !ok {
 		if resolveTgt != nil {
-			lg.Warn("sip transfer: no eligible acd_pool_targets row (need weight>0, work_state=available, route sip|web; SIP internal must be registered; trunk must have host/target)")
+			lg.Warn("sip transfer: no eligible acd_pool_targets row (need weight>0, work_state=available, route sip|web; trunk must have dial target + gateway env; web seat needs fresh heartbeat)")
 		} else {
 			lg.Warn("sip transfer: configure database for cmd/sip (ACD pool), or set SIP_TRANSFER_REQUEST_URI + SIP_TRANSFER_SIGNALING_ADDR, or SIP_TRANSFER_NUMBER + SIP_TRANSFER_HOST (web for browser agent)")
 		}
+		go playNoSeatGoodbyeAndHangup(ctx, inboundCallID, lg)
 		return
 	}
 
@@ -115,6 +118,7 @@ func TriggerTransferToAgent(ctx context.Context, inboundCallID string, lg *zap.L
 	if tgt.WebSeat {
 		if webFn == nil {
 			lg.Warn("sip transfer: WebSeat (SIP_TRANSFER_NUMBER=web) but SetWebSeatTransfer not configured")
+			webseat.ReleaseInboundWebACDOffer(inboundCallID)
 			transferStarted.Delete(inboundCallID)
 			return
 		}
@@ -255,4 +259,63 @@ func playTransferRingingLoop(ctx context.Context, inbound *sipSession.CallSessio
 
 func errorsIsCtxDone(err error) bool {
 	return err == context.Canceled || err == context.DeadlineExceeded
+}
+
+func playNoSeatGoodbyeAndHangup(ctx context.Context, inboundCallID string, lg *zap.Logger) {
+	inbound := lookupInboundSession(inboundCallID)
+	if inbound == nil {
+		RequestSIPHangup(inboundCallID)
+		return
+	}
+	ms := inbound.MediaSession()
+	if ms == nil {
+		RequestSIPHangup(inboundCallID)
+		return
+	}
+	path := "scripts/goodbye.wav"
+	if !filepath.IsAbs(path) {
+		path = filepath.Clean(path)
+	}
+	pcm, err := loadWAVAsPCM16Mono(path, 16000)
+	if err != nil {
+		if lg != nil {
+			lg.Warn("sip transfer: load goodbye wav failed, hangup directly",
+				zap.String("inbound_call_id", inboundCallID),
+				zap.Error(err))
+		}
+		RequestSIPHangup(inboundCallID)
+		return
+	}
+	runCtx, cancel := context.WithTimeout(ctx, 12*time.Second)
+	defer cancel()
+	bytesPerFrame := 16000 * 2 * 20 / 1000
+	if bytesPerFrame <= 0 {
+		bytesPerFrame = 640
+	}
+	ticker := time.NewTicker(20 * time.Millisecond)
+	defer ticker.Stop()
+	for off := 0; off < len(pcm); off += bytesPerFrame {
+		select {
+		case <-runCtx.Done():
+			RequestSIPHangup(inboundCallID)
+			return
+		case <-ms.GetContext().Done():
+			RequestSIPHangup(inboundCallID)
+			return
+		case <-ticker.C:
+		}
+		end := off + bytesPerFrame
+		if end > len(pcm) {
+			end = len(pcm)
+		}
+		frame := pcm[off:end]
+		if len(frame) == 0 {
+			continue
+		}
+		ms.SendToOutput("sip-transfer-no-seat-goodbye", &media.AudioPacket{
+			Payload:       frame,
+			IsSynthesized: true,
+		})
+	}
+	RequestSIPHangup(inboundCallID)
 }

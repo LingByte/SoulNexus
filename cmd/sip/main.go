@@ -6,7 +6,7 @@ package main
 import (
 	"context"
 	"flag"
-	"log"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -16,7 +16,6 @@ import (
 	"github.com/LingByte/SoulNexus/cmd/bootstrap"
 	"github.com/LingByte/SoulNexus/internal/handler"
 	"github.com/LingByte/SoulNexus/internal/listeners"
-	"github.com/LingByte/SoulNexus/internal/rtcsfu_replica"
 	"github.com/LingByte/SoulNexus/internal/sipserver"
 	"github.com/LingByte/SoulNexus/internal/task"
 	"github.com/LingByte/SoulNexus/pkg/config"
@@ -24,31 +23,33 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/middleware"
 	"github.com/LingByte/SoulNexus/pkg/utils"
+	"github.com/LingByte/SoulNexus/pkg/utils/backup"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
-type LingEchoXApp struct {
+type LingEchoSIPService struct {
 	db       *gorm.DB
 	handlers *handlers.Handlers
 }
 
-func NewLingEchoXApp(db *gorm.DB) *LingEchoXApp {
-	return &LingEchoXApp{
+func NewLingEchoSIPService(db *gorm.DB) *LingEchoSIPService {
+	return &LingEchoSIPService{
 		db:       db,
-		handlers: handlers.NewHandlers(db),
+		handlers: handlers.NewSIPServiceHandlers(db),
 	}
 }
 
-func (app *LingEchoXApp) RegisterRoutes(r *gin.Engine) {
-	app.handlers.Register(r)
+func (app *LingEchoSIPService) RegisterRoutes(r *gin.Engine) {
+	app.handlers.RegisterSIPServiceRoutes(r)
 }
 
 func main() {
 	// 1. Parse Command Line Parameters
+	init := flag.Bool("init", false, "deprecated: ignored; schema migration always runs at startup")
+	seed := flag.Bool("seed", false, "seed database")
 	mode := flag.String("mode", "", "running environment (development, test, production)")
-	init := flag.Bool("init", false, "initialize database")
 	initSQL := flag.String("init-sql", "", "path to database init .sql script (optional)")
 	sipHost := flag.String("sip-host", "0.0.0.0", "embedded SIP UDP listen host")
 	sipPort := flag.Int("sip-port", 5060, "embedded SIP UDP listen port")
@@ -57,7 +58,7 @@ func main() {
 
 	// 2. Set Environment Variables
 	if *mode != "" {
-		os.Setenv("APP_ENV", *mode)
+		os.Setenv("MODE", *mode)
 	}
 
 	// 3. Load Global Configuration
@@ -65,15 +66,14 @@ func main() {
 		panic("config load failed: " + err.Error())
 	}
 
-	// 4. Load Log Configuration
+	// 4. Print Banner
+	if err := bootstrap.PrintBannerFromFile("system-banner.txt", config.GlobalConfig.Server.Name); err != nil {
+		logger.Error(fmt.Sprintf("unload banner: %v", err))
+	}
+	// 5. Load Log Configuration
 	err := logger.Init(&config.GlobalConfig.Log, config.GlobalConfig.Server.Mode)
 	if err != nil {
 		panic(err)
-	}
-
-	// 5. Print Banner
-	if err := bootstrap.PrintBannerFromFile("banner.txt", config.GlobalConfig.Server.Name); err != nil {
-		log.Fatalf("unload banner: %v", err)
 	}
 
 	// 6. Print Configuration
@@ -81,10 +81,11 @@ func main() {
 
 	// 7. Load Data Source
 	db, err := bootstrap.SetupDatabase(os.Stdout, &bootstrap.Options{
-		InitSQLPath: *initSQL, // Can be specified via --init-sql
-		AutoMigrate: *init,    // Whether to migrate entities
-		SeedNonProd: *init,    // Non-production default configuration
+		InitSQLPath: *initSQL,
+		AutoMigrate: *init,
+		SeedNonProd: *seed,
 	})
+
 	if err != nil {
 		logger.Error("database setup failed", zap.Error(err))
 		return
@@ -93,7 +94,7 @@ func main() {
 	// 8. Load Base Configs
 	var addr = config.GlobalConfig.Server.Addr
 	if addr == "" {
-		addr = ":7075"
+		addr = ":8082"
 	}
 
 	var DBDriver = config.GlobalConfig.Database.Driver
@@ -108,23 +109,23 @@ func main() {
 	flag.StringVar(&addr, "addr", addr, "HTTP Serve address")
 	flag.StringVar(&DBDriver, "db-driver", DBDriver, "database driver")
 	flag.StringVar(&DSN, "dsn", DSN, "database source name")
+	//// 11. New App
+	app := NewLingEchoSIPService(db)
+	sipUserCleaner := task.NewSIPUserOnlineCleaner(db, time.Duration(utils.GetIntEnv("SIP_USER_ONLINE_SWEEP_SECONDS"))*time.Second)
+	sipUserCleaner.Start()
+	if config.GlobalConfig.Features.BackupEnabled {
+		backup.StartBackupScheduler(db)
+	}
 
-	logger.Info("checked config -- addr: ", zap.String("addr", addr))
-	logger.Info("checked config -- db-driver: ", zap.String("db-driver", DBDriver), zap.String("dsn", DSN))
-	logger.Info("checked config -- mode: ", zap.String("mode", config.GlobalConfig.Server.Mode))
-
-	app := NewLingEchoXApp(db)
+	// 15. Initialize Gin Routing
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()        // Use gin.New() instead of gin.Default() to avoid automatic redirects
 	r.Use(gin.Recovery()) // Manually add Recovery middleware
-	r.Use(middleware.SecureResponseHeaders())
-
-	// Disable automatic redirects to avoid CORS issues caused by 307 redirects
 	r.RedirectTrailingSlash = false
 	r.RedirectFixedPath = false
-
-	// Set maximum memory limit for multipart forms (32MB)
 	r.MaxMultipartMemory = 32 << 20 // 32 MB
+
+	// Cookie Register
 	secret := utils.GetEnv(constants.ENV_SESSION_SECRET)
 	if secret != "" {
 		expireDays := utils.GetIntEnv(constants.ENV_SESSION_EXPIRE_DAYS)
@@ -136,20 +137,16 @@ func main() {
 		r.Use(middleware.WithMemSession(utils.RandText(32)))
 	}
 
-	// 13. Cors Handle Middleware
+	// Cors Handle Middleware
 	r.Use(middleware.CorsMiddleware())
 
-	// 14. Logger Handle Middleware
+	// Logger Handle Middleware
 	r.Use(middleware.LoggerMiddleware(zap.L()))
 
-	// 16. Register Routes
+	// 18. Register Routes
 	app.RegisterRoutes(r)
-	sipUserCleaner := task.NewSIPUserOnlineCleaner(db, time.Duration(utils.GetIntEnv("SIP_USER_ONLINE_SWEEP_SECONDS"))*time.Second)
-	sipUserCleaner.Start()
-	// 17. Initialize System Listeners
+	// 19. Initialize System Listener
 	listeners.InitSystemListeners()
-	go rtcsfu_replica.RunAnnouncer()
-
 	var sipEmbedded *sipserver.Embedded
 	se, err := sipserver.Start(sipserver.Config{
 		Host:    *sipHost,
@@ -166,11 +163,12 @@ func main() {
 		zap.String("sip_host", *sipHost),
 		zap.Int("sip_port", *sipPort),
 		zap.String("sip_local_ip", *sipLocalIP))
-	// 18. Start HTTP/HTTPS Server
+	// 22. Start HTTP/HTTPS Server
+
 	httpServer := &http.Server{
 		Addr:           addr,
 		Handler:        r,
-		ReadTimeout:    30 * time.Second,
+		ReadTimeout:    300 * time.Second, // 5分钟，适合语音会话的长静音期
 		WriteTimeout:   30 * time.Second,
 		IdleTimeout:    120 * time.Second,
 		MaxHeaderBytes: 1 << 20, // 1MB
