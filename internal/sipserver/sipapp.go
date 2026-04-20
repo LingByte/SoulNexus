@@ -180,8 +180,8 @@ func Start(cfg Config) (*Embedded, error) {
 		conversation.SetSIPTurnPersist(func(ctx context.Context, callID string, turn conversation.DialogTurn) {
 			sipCallPersist.SaveConversationTurn(ctx, callID, turn)
 		})
-		conversation.SetTransferDialTargetResolver(func(ctx context.Context) (outbound.DialTarget, bool) {
-			return PickTransferDialTarget(ctx, acdDB, sipRegStore)
+		conversation.SetTransferDialTargetResolver(func(ctx context.Context, inboundCallID string) (outbound.DialTarget, bool) {
+			return PickTransferDialTarget(ctx, acdDB, sipRegStore, inboundCallID)
 		})
 		if logger.Lg != nil {
 			logger.Lg.Info("sipapp: using shared database handle from web server")
@@ -216,8 +216,8 @@ func Start(cfg Config) (*Embedded, error) {
 				conversation.SetSIPTurnPersist(func(ctx context.Context, callID string, turn conversation.DialogTurn) {
 					sipCallPersist.SaveConversationTurn(ctx, callID, turn)
 				})
-				conversation.SetTransferDialTargetResolver(func(ctx context.Context) (outbound.DialTarget, bool) {
-					return PickTransferDialTarget(ctx, acdDB, sipRegStore)
+				conversation.SetTransferDialTargetResolver(func(ctx context.Context, inboundCallID string) (outbound.DialTarget, bool) {
+					return PickTransferDialTarget(ctx, acdDB, sipRegStore, inboundCallID)
 				})
 				if logger.Lg != nil {
 					logger.Lg.Info("sipapp: database persistence enabled",
@@ -263,6 +263,12 @@ func Start(cfg Config) (*Embedded, error) {
 		ForgetUASDialog:       sipServerPtr.ForgetUASDialog,
 		SendUASBye:            sipServerPtr.SendUASBye,
 		ReleaseTransferDedupe: conversation.ReleaseTransferStartDedupe,
+		SetACDWebSeatWorkState: func(ctx context.Context, targetID uint, workState string) error {
+			if acdDB == nil || targetID == 0 {
+				return nil
+			}
+			return models.UpdateACDPoolTargetWorkState(ctx, acdDB, targetID, workState, "sip")
+		},
 		FinalizeInboundPersist: func(ctx context.Context, callID, initiator string, raw []byte, codecName string, recordSampleRate, recordOpusChannels int) {
 			if sipCallPersist == nil {
 				return
@@ -358,7 +364,8 @@ func (e *Embedded) Shutdown(ctx context.Context) {
 //   - sip trunk → DialTargetFromACDTrunk; sip internal → reg.DialTargetForUsername.
 //
 // SIP rows: sipCallerId / sipCallerDisplayName copied onto DialTarget when set.
-func PickTransferDialTarget(ctx context.Context, db *gorm.DB, reg *GormStore) (outbound.DialTarget, bool) {
+// Web rows: when inboundCallID is set, marks the row ringing and binds call_id → row for webseat ACD state updates.
+func PickTransferDialTarget(ctx context.Context, db *gorm.DB, reg *GormStore, inboundCallID string) (outbound.DialTarget, bool) {
 	if db == nil {
 		return outbound.DialTarget{}, false
 	}
@@ -368,6 +375,11 @@ func PickTransferDialTarget(ctx context.Context, db *gorm.DB, reg *GormStore) (o
 	}
 
 	if row.RouteType == models.ACDPoolRouteTypeWeb {
+		if strings.TrimSpace(inboundCallID) != "" {
+			if err := models.UpdateACDPoolTargetWorkState(ctx, db, row.ID, models.ACDWorkStateRinging, "sip-transfer"); err == nil {
+				webseat.BindInboundCallToWebACD(strings.TrimSpace(inboundCallID), row.ID)
+			}
+		}
 		return outbound.DialTarget{WebSeat: true}, true
 	}
 

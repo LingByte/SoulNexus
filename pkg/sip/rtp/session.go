@@ -3,8 +3,8 @@ package rtp
 import (
 	"fmt"
 	"net"
-	"sync"
 	"sync/atomic"
+	"sync"
 	"time"
 
 	"github.com/LingByte/SoulNexus/pkg/logger"
@@ -12,6 +12,7 @@ import (
 )
 
 // Session is a minimal RTP-over-UDP session.
+//
 // It is intentionally protocol-agnostic:
 // - Timestamp increments are provided by the caller via `samples` argument.
 // - Payload framing / codec packetization happens above this layer.
@@ -32,8 +33,8 @@ type Session struct {
 	firstPacketOnce sync.Once
 	firstPacketCh   chan struct{}
 
-	logFirstUDP  sync.Once
-	logFirstTX   sync.Once
+	logFirstUDP sync.Once
+	logFirstTX  sync.Once
 	logStatsOnce sync.Once
 	closeOnce    sync.Once
 	statsStopCh  chan struct{}
@@ -361,6 +362,16 @@ func (s *Session) statsLoop() {
 			}
 			txB := atomic.LoadUint64(&s.txBytes)
 			rxB := atomic.LoadUint64(&s.rxBytes)
+			logger.Lg.Info("rtp session stats",
+				zap.String("local_socket", addrStringOrEmpty(s.LocalAddr)),
+				zap.String("remote_target", addrStringOrEmpty(s.RemoteAddr)),
+				zap.Uint64("tx_packets", txP),
+				zap.Uint64("tx_bytes", txB),
+				zap.Uint64("rx_packets", rxP),
+				zap.Uint64("rx_bytes", rxB),
+				zap.Int64("first_tx_ms_ago", sinceMillis(atomic.LoadInt64(&s.firstTxUnixNano))),
+				zap.Int64("first_rx_ms_ago", sinceMillis(atomic.LoadInt64(&s.firstRxUnixNano))),
+			)
 			firstTx := atomic.LoadInt64(&s.firstTxUnixNano)
 			if txP > 0 && rxP == 0 && firstTx > 0 && time.Since(time.Unix(0, firstTx)) >= 10*time.Second {
 				if atomic.CompareAndSwapUint32(&s.natWarned, 0, 1) {
@@ -392,3 +403,4 @@ func addrStringOrEmpty(a *net.UDPAddr) string {
 	}
 	return a.String()
 }
+

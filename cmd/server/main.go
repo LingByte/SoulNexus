@@ -36,19 +36,19 @@ import (
 	"gorm.io/gorm"
 )
 
-type LingEchoApp struct {
+type LingEchoService struct {
 	db       *gorm.DB
 	handlers *handlers.Handlers
 }
 
-func NewLingEchoApp(db *gorm.DB) *LingEchoApp {
-	return &LingEchoApp{
+func NewLingEchoService(db *gorm.DB) *LingEchoService {
+	return &LingEchoService{
 		db:       db,
 		handlers: handlers.NewHandlers(db),
 	}
 }
 
-func (app *LingEchoApp) RegisterRoutes(r *gin.Engine) {
+func (app *LingEchoService) RegisterRoutes(r *gin.Engine) {
 	app.handlers.Register(r)
 }
 
@@ -142,7 +142,7 @@ func main() {
 	utils.InitGlobalIntelligentRiskControl(logger.Lg)
 
 	//// 11. New App
-	app := NewLingEchoApp(db)
+	app := NewLingEchoService(db)
 
 	// 12. Initialize Monitoring System
 	// Can be overridden via environment variables, default values suitable for 2GB memory servers
