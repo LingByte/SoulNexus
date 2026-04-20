@@ -43,7 +43,6 @@ const (
 	UserSourceGithub = "GITHUB"
 )
 
-// 用户账号状态（替代原 enabled / activated）
 const (
 	UserStatusActive              = "active"
 	UserStatusPendingVerification = "pending_verification"
