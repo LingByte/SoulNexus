@@ -59,7 +59,6 @@ func main() {
 	seed := flag.Bool("seed", false, "seed database")
 	mode := flag.String("mode", "", "running environment (development, test, production)")
 	initSQL := flag.String("init-sql", "", "path to database init .sql script (optional)")
-	flag.Parse()
 
 	// 2. Set Environment Variables
 	if *mode != "" {
@@ -114,6 +113,7 @@ func main() {
 	flag.StringVar(&addr, "addr", addr, "HTTP Serve address")
 	flag.StringVar(&DBDriver, "db-driver", DBDriver, "database driver")
 	flag.StringVar(&DSN, "dsn", DSN, "database source name")
+	flag.Parse()
 
 	logger.Info("checked config -- addr: ", zap.String("addr", addr))
 	logger.Info("checked config -- db-driver: ", zap.String("db-driver", DBDriver), zap.String("dsn", DSN))
@@ -243,6 +243,7 @@ func main() {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()        // Use gin.New() instead of gin.Default() to avoid automatic redirects
 	r.Use(gin.Recovery()) // Manually add Recovery middleware
+	r.Use(middleware.SecureResponseHeaders())
 	templatesFS := LingEcho.NewCombineEmbedFS(
 		LingEcho.HintAssetsRoot("templates"),
 		LingEcho.EmbedFS{"templates", LingEcho.EmbedTemplates},
@@ -341,6 +342,8 @@ func main() {
 
 	// 21. Emit system initialization signal
 	utils.Sig().Emit(models.SigInitSystemConfig, nil)
+
+	task.StartAccountDeletionScheduler(db)
 
 	// 21.5. Start Workflow Event Listener and Scheduler
 	eventListener := workflowdef.NewWorkflowEventListener(db)

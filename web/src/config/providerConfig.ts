@@ -245,14 +245,6 @@ export const TTS_PROVIDERS: Record<string, ProviderConfig> = {
         description: '集群名称，默认为 volcano_tts'
       },
       {
-        key: 'language',
-        label: '语言',
-        type: 'text',
-        placeholder: 'zh',
-        required: false,
-        description: '语言代码，如 zh、en 等'
-      },
-      {
         key: 'rate',
         label: '采样率',
         type: 'number',

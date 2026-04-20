@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
 import {
     Bell,
     Check,
@@ -19,6 +18,7 @@ import { useI18nStore } from '@/stores/i18nStore'
 import Button from '@/components/UI/Button'
 import Card, { CardContent } from '@/components/UI/Card'
 import Badge from '@/components/UI/Badge'
+import CollapsibleSectionHeader from '@/components/UI/CollapsibleSectionHeader'
 import { showAlert } from '@/utils/notification'
 import { formatDistanceToNow } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
@@ -228,17 +228,19 @@ const NotificationCenter = () => {
         {/* 左侧：统计和筛选 */}
         <div className="w-full lg:w-80 flex-shrink-0 border-r bg-card/30 flex flex-col">
           {/* 头部 */}
-          <div className="p-3 border-b">
-            <div className="flex items-center justify-between mb-2">
-              <h1 className="text-base font-bold text-foreground relative pl-4">
-                <motion.div
-                  layoutId="pageTitleIndicator"
-                  className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-primary rounded-r-full"
-                  transition={{ type: 'spring', bounce: 0.2, duration: 0.3 }}
-                />
-                {t('notification.title')}
-              </h1>
-            </div>
+          <div className="p-4 border-b">
+            <CollapsibleSectionHeader
+              title={t('notification.title')}
+              icon={<Bell className="w-4 h-4 text-primary" />}
+              expanded
+              onToggle={() => {}}
+              showChevron={false}
+              clickable={false}
+              compact
+              titleSize="md"
+              withDivider
+              className="mb-3"
+            />
             {/* 操作按钮 - 横向排列 */}
             <div className="flex items-center space-x-1.5">
               <Button

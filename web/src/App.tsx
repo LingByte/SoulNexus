@@ -48,6 +48,7 @@ import Terms from '@/pages/Terms.tsx';
 import CookieConsent from '@/components/CookieConsent.tsx';
 import KnowledgeBaseManager from '@/pages/KnowledgeBaseManager.tsx';
 import OIDCCallback from '@/pages/OIDCCallback.tsx';
+import AccountDeletionRequest from '@/pages/AccountDeletionRequest.tsx';
 
 function AppRoutes() {
     const [showPerformanceMonitor, setShowPerformanceMonitor] = useState(false);
@@ -67,6 +68,12 @@ function AppRoutes() {
                         {/* 重置密码页面 - 不需要登录 */}
                         <Route path="/reset-password" element={<ResetPassword />} />
                         <Route path="/auth/callback" element={<OIDCCallback />} />
+
+                        <Route path="/account-deletion/request" element={
+                            <ProtectedRoute>
+                                <AccountDeletionRequest />
+                            </ProtectedRoute>
+                        } />
                         
                         {/* 需要登录的页面 */}
                         <Route path="/overview" element={

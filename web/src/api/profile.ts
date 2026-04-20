@@ -33,8 +33,6 @@ export interface UpdateBasicInfoForm {
 export interface UpdatePreferencesForm {
   emailNotifications?: boolean
   pushNotifications?: boolean
-  systemNotifications?: boolean
-  autoCleanUnreadEmails?: boolean
 }
 
 // 密码修改表单

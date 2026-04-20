@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { 
   User, Mail, Shield, Camera, Save, Edit3, X, Lock, Eye, EyeOff, 
   Clock, Phone, Settings, Bell, Key, Heart, 
-  CheckCircle, AlertCircle, Zap
+  CheckCircle, AlertCircle
 } from 'lucide-react'
 import { useAuthStore } from '../stores/authStore'
 import { useI18nStore } from '../stores/i18nStore'
@@ -21,6 +21,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import ConfirmDialog from '../components/UI/ConfirmDialog'
 import AudioController from '../components/UI/AudioController'
 import { beginSSOLogin } from '@/utils/sso'
+import { Link } from 'react-router-dom'
+import { getUserServiceBaseURL } from '@/config/apiConfig'
 
 const Profile = () => {
   const { user, isAuthenticated, updateProfile: updateAuthStore } = useAuthStore()
@@ -68,6 +70,12 @@ const Profile = () => {
   
   // 邮箱验证相关状态
   const [isSendingEmailVerification, setIsSendingEmailVerification] = useState(false)
+  const [isWechatBinding, setIsWechatBinding] = useState(false)
+  const [wechatBindCode, setWechatBindCode] = useState('')
+  const [wechatBindExpiresAt, setWechatBindExpiresAt] = useState<number>(0)
+  const [wechatBindCountdown, setWechatBindCountdown] = useState(0)
+  const [wechatBindStatus, setWechatBindStatus] = useState<'idle' | 'pending' | 'success' | 'failed' | 'expired'>('idle')
+  const wechatBindPollRef = useRef<number | null>(null)
   
   const [formData, setFormData] = useState({
     email: user?.email || '',
@@ -151,12 +159,63 @@ const Profile = () => {
     }
   }, [isAuthenticated])
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const bind = params.get('bind')
+    if (bind === 'github_ok') {
+      showAlert('GitHub 账号绑定成功', 'success', '绑定成功')
+      useAuthStore.getState().refreshUserInfo()
+      params.delete('bind')
+      const next = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ''}`
+      window.history.replaceState({}, '', next)
+    } else if (bind === 'github_already_bound') {
+      showAlert('当前账号已绑定 GitHub，不能重复绑定其他账号', 'error', '绑定失败')
+      params.delete('bind')
+      const next = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ''}`
+      window.history.replaceState({}, '', next)
+    } else if (bind === 'github_bound_other') {
+      showAlert('该 GitHub 账号已被其他用户绑定', 'error', '绑定失败')
+      params.delete('bind')
+      const next = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ''}`
+      window.history.replaceState({}, '', next)
+    } else if (bind === 'wechat_ok') {
+      showAlert('微信账号绑定成功', 'success', '绑定成功')
+      useAuthStore.getState().refreshUserInfo()
+      params.delete('bind')
+      const next = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ''}`
+      window.history.replaceState({}, '', next)
+    }
+  }, [])
+
   // 当切换到活动记录标签页时加载活动记录
   useEffect(() => {
     if (activeTab === 'activity' && isAuthenticated) {
       loadActivities(1)
     }
   }, [activeTab, isAuthenticated])
+
+  useEffect(() => {
+    if (!wechatBindExpiresAt) return
+    const updateCountdown = () => {
+      const remain = Math.max(0, Math.floor((wechatBindExpiresAt * 1000 - Date.now()) / 1000))
+      setWechatBindCountdown(remain)
+      if (remain <= 0 && wechatBindStatus === 'pending') {
+        setWechatBindStatus('expired')
+      }
+    }
+    updateCountdown()
+    const timer = window.setInterval(updateCountdown, 1000)
+    return () => window.clearInterval(timer)
+  }, [wechatBindExpiresAt, wechatBindStatus])
+
+  useEffect(() => {
+    return () => {
+      if (wechatBindPollRef.current) {
+        window.clearInterval(wechatBindPollRef.current)
+        wechatBindPollRef.current = null
+      }
+    }
+  }, [])
 
   // 当切换到安全设置标签页时加载设备列表
   useEffect(() => {
@@ -258,23 +317,29 @@ const Profile = () => {
     }
   }
 
-  // 删除设备
-  const handleDeleteDevice = async (deviceId: string) => {
-    if (!confirm('确定要删除此设备吗？删除后该设备将无法继续登录。')) {
-      return
-    }
+  const handleDeleteDevice = (deviceId: string) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: '删除登录设备',
+      message: '确定要删除此设备吗？删除后该设备将无法继续登录。',
+      type: 'danger',
+      onConfirm: () => performDeleteDevice(deviceId),
+    })
+  }
 
+  const performDeleteDevice = async (deviceId: string) => {
     setIsLoading(true)
     try {
       const response = await deleteUserDevice(deviceId)
       if (response.code === 200) {
         showAlert('设备删除成功', 'success', '操作成功')
-        loadDevices() // 重新加载设备列表
+        loadDevices()
       } else {
         throw new Error(response.msg || '删除设备失败')
       }
     } catch (error: any) {
       showAlert(error?.msg || error?.message || '删除设备失败', 'error', '操作失败')
+      throw error
     } finally {
       setIsLoading(false)
     }
@@ -603,6 +668,85 @@ const Profile = () => {
     }
   }
 
+  const handleBindGithub = () => {
+    const target = `${window.location.origin}/profile`
+    window.location.href = `${getUserServiceBaseURL()}/auth/github/login?bind=1&redirecturl=${encodeURIComponent(target)}`
+  }
+
+  const handleBindWechat = () => {
+    const run = async () => {
+      setIsWechatBinding(true)
+      try {
+        const resp = await fetch(`${getUserServiceBaseURL()}/auth/wechat/bind/code`, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('auth_token') || ''}`,
+          },
+        })
+        const data = await resp.json()
+        if (!resp.ok || data.code !== 200 || !data.data?.sessionId || !data.data?.bindCode) {
+          throw new Error(data?.msg || '获取微信绑定码失败')
+        }
+        const sessionId = data.data.sessionId as string
+        const bindCode = data.data.bindCode as string
+        const expiresAt = Number(data.data.expiresAt || 0)
+        setWechatBindCode(bindCode)
+        setWechatBindExpiresAt(expiresAt)
+        setWechatBindStatus('pending')
+        showAlert(`请先扫码关注公众号，然后发送绑定码：${bindCode}`, 'info', '微信绑定')
+        if (wechatBindPollRef.current) {
+          window.clearInterval(wechatBindPollRef.current)
+          wechatBindPollRef.current = null
+        }
+        const poll = window.setInterval(async () => {
+          try {
+            const statusResp = await fetch(`${getUserServiceBaseURL()}/auth/wechat/bind/status?sessionId=${encodeURIComponent(sessionId)}`, {
+              method: 'GET',
+              headers: {
+                Authorization: `Bearer ${localStorage.getItem('auth_token') || ''}`,
+              },
+            })
+            const statusData = await statusResp.json()
+            const status = statusData?.data?.status
+            if (status === 'success') {
+              window.clearInterval(poll)
+              wechatBindPollRef.current = null
+              setIsWechatBinding(false)
+              setWechatBindStatus('success')
+              showAlert('微信绑定成功', 'success', '绑定成功')
+              await useAuthStore.getState().refreshUserInfo()
+            } else if (status === 'failed') {
+              window.clearInterval(poll)
+              wechatBindPollRef.current = null
+              setIsWechatBinding(false)
+              setWechatBindStatus('failed')
+              const reason = statusData?.data?.reason
+              if (reason === 'already_bound') {
+                showAlert('该微信已绑定其他用户', 'error', '绑定失败')
+              } else {
+                showAlert('微信绑定失败，请重试', 'error', '绑定失败')
+              }
+            } else if (status === 'expired') {
+              window.clearInterval(poll)
+              wechatBindPollRef.current = null
+              setIsWechatBinding(false)
+              setWechatBindStatus('expired')
+              showAlert('绑定码已过期，请重新获取', 'error', '绑定失败')
+            }
+          } catch {
+            // keep polling on transient network errors
+          }
+        }, 2500)
+        wechatBindPollRef.current = poll
+      } catch (error: any) {
+        showAlert(error?.message || '微信绑定失败，请重试', 'error', '绑定失败')
+        setIsWechatBinding(false)
+        setWechatBindStatus('failed')
+      }
+    }
+    run()
+  }
+
 
   if (!isAuthenticated) {
     return null
@@ -725,23 +869,6 @@ const Profile = () => {
                       <span className="text-sm text-gray-600 dark:text-gray-400">{t('profile.accountStatus')}</span>
                       <Badge variant="success" className="text-xs">{t('profile.active')}</Badge>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-600 dark:text-gray-400">邮箱状态</span>
-                      <div className="flex items-center space-x-2">
-                        <Badge variant={user?.emailVerified ? "success" : "warning"} className="text-xs">
-                          {user?.emailVerified ? '已验证' : '未验证'}
-                        </Badge>
-                        {!user?.emailVerified && (
-                          <button
-                            onClick={handleSendEmailVerification}
-                            disabled={isSendingEmailVerification}
-                            className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline disabled:opacity-50"
-                          >
-                            {isSendingEmailVerification ? '发送中...' : '验证'}
-                          </button>
-                        )}
-                      </div>
-                    </div>
                     {user?.phone && (
                       <div className="flex justify-between items-center">
                         <span className="text-sm text-gray-600 dark:text-gray-400">{t('profile.phone')}</span>
@@ -795,6 +922,8 @@ const Profile = () => {
                             if (!user?.avatar) missing.push('头像');
                             if (!user?.phone) missing.push('手机号码');
                             if (!user?.emailVerified) missing.push('邮箱验证');
+                            if (!user?.wechatOpenId) missing.push('微信认证');
+                            if (!user?.githubId) missing.push('GitHub认证');
                             if (!user?.city) missing.push('城市');
                             if (!user?.region) missing.push('地区');
                             if (!user?.gender) missing.push('性别');
@@ -1010,13 +1139,93 @@ const Profile = () => {
                   </Card>
                 </TabsContent>
 
-                {/* 偏好设置标签页 */}
+                {/* 账户与偏好 */}
                 <TabsContent value="settings" className="mt-6">
                   <Card>
-                    <div className="p-6">
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('profile.notificationPreferences')}</h3>
-                      <div className="space-y-4">
-                        {/* 这里插入声音控制器，仅在个人页 settings tab 下展示 */}
+                    <div className="p-6 space-y-8">
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('profile.accountBindingsTitle')}</h3>
+                        <div className="space-y-4">
+                          <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800/80 rounded-lg">
+                            <span className="text-sm text-gray-600 dark:text-gray-400">微信认证</span>
+                            <div className="flex items-center space-x-2">
+                              <Badge variant={user?.wechatOpenId ? 'success' : 'warning'} className="text-xs">
+                                {user?.wechatOpenId ? '已绑定' : '未绑定'}
+                              </Badge>
+                              {!user?.wechatOpenId && (
+                                <button
+                                  type="button"
+                                  onClick={handleBindWechat}
+                                  disabled={isWechatBinding}
+                                  className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline disabled:opacity-50"
+                                >
+                                  {isWechatBinding ? '绑定中...' : '立即绑定'}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          {!!wechatBindCode && (
+                            <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-md border border-blue-200 dark:border-blue-800">
+                              <div className="mb-2 rounded-md overflow-hidden border border-blue-200 dark:border-blue-700 bg-white">
+                                <img
+                                  src="/qrcode_official_account.jpg"
+                                  alt="微信公众号二维码"
+                                  className="w-full h-auto max-h-44 object-contain"
+                                />
+                              </div>
+                              <div className="text-xs text-blue-800 dark:text-blue-300">
+                                <span className="font-medium">微信绑定码：</span>
+                                <span className="font-mono tracking-wider">{wechatBindCode}</span>
+                              </div>
+                              <div className="text-xs text-blue-700 dark:text-blue-400 mt-1">
+                                {wechatBindStatus === 'pending' && `请在公众号发送该绑定码，剩余 ${wechatBindCountdown} 秒`}
+                                {wechatBindStatus === 'success' && '绑定成功'}
+                                {wechatBindStatus === 'failed' && '绑定失败，请重新获取绑定码'}
+                                {wechatBindStatus === 'expired' && '绑定码已过期，请重新获取'}
+                              </div>
+                            </div>
+                          )}
+                          <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800/80 rounded-lg">
+                            <span className="text-sm text-gray-600 dark:text-gray-400">GitHub认证</span>
+                            <div className="flex items-center space-x-2">
+                              <Badge variant={user?.githubId ? 'success' : 'warning'} className="text-xs">
+                                {user?.githubId ? '已绑定' : '未绑定'}
+                              </Badge>
+                              {!user?.githubId && (
+                                <button
+                                  type="button"
+                                  onClick={handleBindGithub}
+                                  className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline"
+                                >
+                                  立即绑定
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800/80 rounded-lg">
+                            <span className="text-sm text-gray-600 dark:text-gray-400">邮箱状态</span>
+                            <div className="flex items-center space-x-2">
+                              <Badge variant={user?.emailVerified ? 'success' : 'warning'} className="text-xs">
+                                {user?.emailVerified ? '已验证' : '未验证'}
+                              </Badge>
+                              {!user?.emailVerified && (
+                                <button
+                                  type="button"
+                                  onClick={handleSendEmailVerification}
+                                  disabled={isSendingEmailVerification}
+                                  className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline disabled:opacity-50"
+                                >
+                                  {isSendingEmailVerification ? '发送中...' : '验证'}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('profile.notificationPreferences')}</h3>
+                        <div className="space-y-4">
                         <div className="mb-4">
                           <AudioController />
                         </div>
@@ -1082,68 +1291,8 @@ const Profile = () => {
                           />
                         </div>
 
-                        <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                          <div className="flex items-center space-x-3">
-                            <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-                              <Zap className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                            </div>
-                            <div>
-                              <h4 className="font-medium text-gray-900 dark:text-white">{t('profile.systemNotifications')}</h4>
-                              <p className="text-sm text-gray-600 dark:text-gray-400">{t('profile.systemNotificationsDesc')}</p>
-                            </div>
-                          </div>
-                          <Switch
-                            checked={user?.systemNotifications || false}
-                            onCheckedChange={async (checked) => {
-                              updateAuthStore({ systemNotifications: checked })
-                              try {
-                                const response = await updatePreferences({
-                                  systemNotifications: checked
-                                })
-                                if (response.code === 200) {
-                                  showAlert(t('profile.preferencesUpdated'), 'success', t('profile.messages.loadSuccess'))
-                                } else {
-                                  throw new Error(response.msg || '更新失败')
-                                }
-                              } catch (error: any) {
-                                updateAuthStore({ systemNotifications: !checked })
-                                showAlert(error?.msg || error?.message || '更新失败', 'error', '操作失败')
-                              }
-                            }}
-                          />
-                        </div>
-
-                        <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                          <div className="flex items-center space-x-3">
-                            <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
-                              <Mail className="w-5 h-5 text-orange-600 dark:text-orange-400" />
-                            </div>
-                            <div>
-                              <h4 className="font-medium text-gray-900 dark:text-white">自动清理未读邮件</h4>
-                              <p className="text-sm text-gray-600 dark:text-gray-400">自动清理超过七天未读的邮件</p>
-                            </div>
-                          </div>
-                          <Switch
-                            checked={user?.autoCleanUnreadEmails || false}
-                            onCheckedChange={async (checked) => {
-                              updateAuthStore({ autoCleanUnreadEmails: checked })
-                              try {
-                                const response = await updatePreferences({
-                                  autoCleanUnreadEmails: checked
-                                })
-                                if (response.code === 200) {
-                                  showAlert(t('profile.preferencesUpdated'), 'success', t('profile.messages.loadSuccess'))
-                                } else {
-                                  throw new Error(response.msg || '更新失败')
-                                }
-                              } catch (error: any) {
-                                updateAuthStore({ autoCleanUnreadEmails: !checked })
-                                showAlert(error?.msg || error?.message || '更新失败', 'error', '操作失败')
-                              }
-                            }}
-                          />
-                        </div>
                       </div>
+                    </div>
                     </div>
                   </Card>
                 </TabsContent>
@@ -1377,6 +1526,21 @@ const Profile = () => {
                               </Button>
                             )}
                           </div>
+                        </div>
+
+                        <div className="mt-6 flex items-center justify-between p-4 rounded-lg border border-red-200 dark:border-red-900 bg-red-50/80 dark:bg-red-950/30">
+                          <div>
+                            <h4 className="font-medium text-gray-900 dark:text-white">注销账号</h4>
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                              申请后进入冷静期，期间无法使用产品，可随时撤销。
+                            </p>
+                          </div>
+                          <Link
+                            to="/account-deletion/request"
+                            className="inline-flex h-8 px-3 text-sm rounded-md items-center justify-center font-medium bg-red-600 text-white hover:bg-red-700 shadow-sm"
+                          >
+                            前往注销
+                          </Link>
                         </div>
 
                         {/* 设备管理 */}

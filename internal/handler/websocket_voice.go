@@ -91,9 +91,6 @@ func (h *Handlers) HandleWebSocketVoice(c *gin.Context) {
 	// 使用助手配置中的参数
 	systemPrompt := assistant.SystemPrompt
 	temperature := assistant.Temperature
-	if assistant.Language != "" {
-		language = assistant.Language
-	}
 	if assistant.Speaker != "" {
 		speaker = assistant.Speaker
 	}
@@ -265,10 +262,7 @@ func (h *Handlers) HandleHardwareWebSocketVoice(c *gin.Context) {
 		zap.Int64("assistantID", int64(assistantID)))
 
 	// 使用助手配置中的参数
-	language := assistant.Language
-	if language == "" {
-		language = "zh-cn"
-	}
+	language := "zh-cn"
 	speaker := assistant.Speaker
 	if speaker == "" {
 		speaker = "502007"

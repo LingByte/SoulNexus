@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { Users, Plus, ChevronRight, Bot, MessageCircle, Circle, Zap, Search, X, Settings } from 'lucide-react'
 import { cn } from '@/utils/cn'
+import CollapsibleSectionHeader from '@/components/UI/CollapsibleSectionHeader'
 
 interface Assistant {
   id: number
@@ -56,36 +57,41 @@ const AssistantList: React.FC<AssistantListProps> = ({
   }
 
   return (
-    <div className={cn('flex-1 p-4', className)}>
+    <div className={cn('flex-1 p-3', className)}>
       {/* 标题栏 */}
-      <div className="flex justify-between items-center mb-4">
-        <h3 className="text-lg font-semibold flex items-center">
-          <Users className="w-5 h-5 mr-2" />
-          虚拟人物列表
-        </h3>
-        <div className="flex items-center space-x-2">
-          <motion.button
-            onClick={onAddAssistant}
-            className="p-1.5 hover:bg-gray-100 dark:hover:bg-neutral-700 rounded-lg transition-colors"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            title="添加助手"
-          >
-            <Plus className="w-5 h-5 text-purple-600" />
-          </motion.button>
-        </div>
-      </div>
+      <CollapsibleSectionHeader
+        title="虚拟人物列表"
+        icon={<Users className="w-4 h-4" />}
+        expanded={true}
+        onToggle={() => {}}
+        showChevron={false}
+        clickable={false}
+        compact
+        titleSize="md"
+        withDivider
+        rightContent={(
+          <div className="flex items-end space-x-2">
+            <motion.button
+              onClick={onAddAssistant}
+              className="p-1 hover:bg-gray-100 dark:hover:bg-neutral-700 rounded-md transition-colors"
+              title="添加助手"
+            >
+              <Plus className="w-4 h-4 text-purple-600" />
+            </motion.button>
+          </div>
+        )}
+      />
 
       {/* 搜索框 */}
-      <div className="relative mb-4">
+      <div className="relative mb-3">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
           <input
             type="text"
             placeholder="搜索助手..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-10 py-2 text-sm border border-gray-200 dark:border-neutral-600 rounded-lg 
+            className="w-full pl-8 pr-8 py-1.5 text-xs border border-gray-200 dark:border-neutral-600 rounded-md 
                      bg-white dark:bg-neutral-700 text-gray-900 dark:text-gray-100
                      focus:ring-2 focus:ring-purple-500 focus:border-transparent
                      placeholder-gray-500 dark:placeholder-gray-400"
@@ -93,10 +99,10 @@ const AssistantList: React.FC<AssistantListProps> = ({
           {searchQuery && (
             <button
               onClick={clearSearch}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 hover:bg-gray-100 dark:hover:bg-neutral-600 rounded"
+              className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1 hover:bg-gray-100 dark:hover:bg-neutral-600 rounded"
               title="清除搜索"
             >
-              <X className="w-4 h-4 text-gray-400" />
+              <X className="w-3.5 h-3.5 text-gray-400" />
             </button>
           )}
         </div>

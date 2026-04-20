@@ -80,10 +80,24 @@ const AdminSidebar = () => {
     { name: 'JS 模版', href: '/js-templates', icon: Code2 },
     { name: '账单管理', href: '/bills', icon: Receipt },
     { name: '音色训练', href: '/voice-training', icon: Mic },
-    { name: 'MCP 管理', href: '/mcp-servers', icon: Bot },
-    { name: 'MCP 广场', href: '/mcp-marketplace', icon: Boxes },
-    { name: '工作流', href: '/workflows', icon: Boxes },
-    { name: '插件市场', href: '/workflow-plugins', icon: Puzzle },
+    {
+      name: 'MCP 栏',
+      href: '/mcp-marketplace',
+      icon: Boxes,
+      children: [
+        { name: 'MCP 官方', href: '/mcp-marketplace', icon: Boxes },
+        { name: 'MCP 管理', href: '/mcp-servers', icon: Bot },
+      ],
+    },
+    {
+      name: '工作流',
+      href: '/workflows',
+      icon: Boxes,
+      children: [
+        { name: '工作流管理', href: '/workflows', icon: Boxes },
+        { name: '插件市场', href: '/workflow-plugins', icon: Puzzle },
+      ],
+    },
     { name: '通知中心', href: '/notification-center', icon: Bell },
     { name: '告警管理', href: '/alerts', icon: AlertTriangle },
     { name: '知识库', href: '/knowledge-bases', icon: BookOpen },

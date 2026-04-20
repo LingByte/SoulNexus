@@ -489,10 +489,7 @@ func (h *Handlers) handleConnection(c *gin.Context) {
 		temperature = 0.7 // 默认值
 	}
 
-	language := assistant.Language
-	if language == "" {
-		language = "zh" // 默认中文
-	}
+	language := "zh" // 默认中文
 
 	speaker := assistant.Speaker
 	llmModel := assistant.LLMModel

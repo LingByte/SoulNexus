@@ -178,6 +178,7 @@ func (h *Handlers) RegisterUserServiceRoutes(engine *gin.Engine) {
 	}
 	r := engine.Group(apiPrefix)
 	r.Use(middleware.InjectDB(h.db))
+	r.Use(middleware.MutatingRequestTrustedOrigin())
 	middleware.ApplyGlobalMiddlewares(r)
 
 	sys := r.Group("system")
@@ -187,8 +188,13 @@ func (h *Handlers) RegisterUserServiceRoutes(engine *gin.Engine) {
 
 	h.registerAuthRoutes(r)
 
-	// Rendered login page for browser access in user-service.
-	engine.GET("/login", h.RenderSigninPage)
+	// Browser HTML pages need DB (GetRenderPageContext); API group prefix is not used here.
+	browser := engine.Group("")
+	browser.Use(middleware.InjectDB(h.db))
+	{
+		browser.GET("/login", h.RenderSigninPage)
+		browser.GET("/login/revoke-account-deletion", h.RenderAccountDeletionRevokePage)
+	}
 }
 
 func (h *Handlers) Register(engine *gin.Engine) {
@@ -197,6 +203,7 @@ func (h *Handlers) Register(engine *gin.Engine) {
 
 	// Register Global Singleton DB
 	r.Use(middleware.InjectDB(h.db))
+	r.Use(middleware.MutatingRequestTrustedOrigin())
 
 	// Apply global middlewares (rate limiting, timeout, circuit breaker, operation log)
 	middleware.ApplyGlobalMiddlewares(r)
@@ -265,6 +272,7 @@ func (h *Handlers) Register(engine *gin.Engine) {
 	h.registerGroupRoutes(r)
 	h.registerQuotaRoutes(r)
 	h.registerAlertRoutes(r)
+	h.registerAnnouncementRoutes(r)
 	h.registerWebSocketRoutes(r)
 	h.registerAssistantRoutes(r)
 	h.registerChatRoutes(r)
@@ -285,6 +293,14 @@ func (h *Handlers) Register(engine *gin.Engine) {
 	h.registerOpenAPIRoutes(r)        // Open API (apiKey + apiSecret auth)
 	h.RegisterPublicWorkflowRoutes(r)
 	h.registerRTCSFURoutes(r)
+}
+
+func (h *Handlers) registerAnnouncementRoutes(r *gin.RouterGroup) {
+	ann := r.Group("announcements")
+	{
+		ann.GET("", h.handleListAnnouncements)
+		ann.GET("/:id", h.handleGetAnnouncement)
+	}
 }
 
 // registerNodePluginRoutes Node Plugin Module
@@ -808,16 +824,19 @@ func (h *Handlers) registerAuthRoutes(r *gin.RouterGroup) {
 		auth.POST("/login", h.handleUserSigninByPassword)
 		auth.POST("/login/password", h.handleUserSigninByPassword)
 		auth.POST("/login/email", h.handleUserSigninByEmail)
+		auth.POST("/refresh", h.handleRefreshToken)
+		auth.GET("/github/login", h.handleGitHubLogin)
+		auth.GET("/github/callback", h.handleGitHubCallback)
 		auth.GET("/wechat/login", h.handleWechatLogin)
 		auth.GET("/wechat/config-check", h.handleWechatConfigCheck)
 		auth.GET("/wechat/login-code", h.handleWechatLoginCode)
 		auth.GET("/wechat/qrcode", h.handleWechatLoginCode)
+		auth.GET("/wechat/bind/code", models.AuthRequired, h.handleWechatBindCode)
+		auth.GET("/wechat/bind/status", models.AuthRequired, h.handleWechatBindStatus)
 		auth.GET("/wechat/status", h.handleWechatLoginStatus)
 		auth.GET("/wechat/check-login/:sceneId", h.handleWechatCheckLogin)
 		auth.GET("/wechat/oauth/callback", h.handleWechatOAuthCallback)
 		auth.GET("/wechat/callback", h.handleWechatLoginCallback)
-		auth.HEAD("/wechat/oauth/callback", h.handleWechatHealth)
-		auth.HEAD("/wechat/mp/message", h.handleWechatHealth)
 		auth.POST("/wechat/callback", h.handleWechatLoginMessage)
 		auth.POST("/wechat/mp/message", h.handleWechatLoginMessage)
 		auth.GET("/wechat/mp/message", h.handleWechatLoginCallback)
@@ -835,7 +854,7 @@ func (h *Handlers) registerAuthRoutes(r *gin.RouterGroup) {
 		auth.POST("/change-password/email", models.AuthRequired, h.handleChangePasswordByEmail)
 
 		auth.GET("/devices", models.AuthRequired, h.handleGetUserDevices)
-		auth.DELETE("/devices", models.AuthRequired, h.handleDeleteUserDevice)
+		auth.DELETE("/devices/:deviceId", models.AuthRequired, h.handleDeleteUserDevice)
 		auth.POST("/devices/trust", models.AuthRequired, h.handleTrustUserDevice)
 		auth.POST("/devices/untrust", models.AuthRequired, h.handleUntrustUserDevice)
 
@@ -866,6 +885,16 @@ func (h *Handlers) registerAuthRoutes(r *gin.RouterGroup) {
 		auth.GET("/two-factor/status", models.AuthRequired, h.handleTwoFactorStatus)
 
 		auth.GET("/activity", models.AuthRequired, h.handleGetUserActivity)
+
+		auth.POST("/account-deletion/send-cancel-code", h.handleAccountDeletionSendCancelCode)
+		auth.POST("/account-deletion/cancel-by-email", h.handleAccountDeletionCancelByEmail)
+
+		auth.GET("/account-deletion/eligibility", models.AuthRequired, h.handleAccountDeletionEligibility)
+		auth.POST("/account-deletion/send-email-code", models.AuthRequired, h.handleAccountDeletionSendEmailCode)
+		auth.POST("/account-deletion/request", models.AuthRequired, h.handleAccountDeletionRequest)
+		auth.POST("/account-deletion/cancel", models.AuthRequired, h.handleAccountDeletionCancel)
+		auth.DELETE("/bindings/github", models.AuthRequired, h.handleUnbindGitHub)
+		auth.DELETE("/bindings/wechat", models.AuthRequired, h.handleUnbindWechat)
 
 	}
 }
@@ -1017,6 +1046,17 @@ func (h *Handlers) registerAdminManagementRoutes(r *gin.RouterGroup) {
 		notificationCenter.GET("", h.handleAdminListInternalNotifications)
 		notificationCenter.GET("/:id", h.handleAdminGetInternalNotification)
 		notificationCenter.DELETE("/:id", h.handleAdminDeleteInternalNotification)
+	}
+
+	announcements := r.Group("admin/announcements", adminGuard...)
+	{
+		announcements.GET("", h.handleAdminListAnnouncements)
+		announcements.GET("/:id", h.handleAdminGetAnnouncement)
+		announcements.POST("", h.handleAdminCreateAnnouncement)
+		announcements.PUT("/:id", h.handleAdminUpdateAnnouncement)
+		announcements.POST("/:id/publish", h.handleAdminPublishAnnouncement)
+		announcements.POST("/:id/offline", h.handleAdminOfflineAnnouncement)
+		announcements.DELETE("/:id", h.handleAdminDeleteAnnouncement)
 	}
 
 	knowledgeBase := r.Group("admin/knowledge-bases", adminGuard...)

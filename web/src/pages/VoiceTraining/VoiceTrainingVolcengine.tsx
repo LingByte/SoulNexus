@@ -8,6 +8,7 @@ import Button from '@/components/UI/Button'
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/UI/Select'
 import FileUpload from '@/components/UI/FileUpload'
 import FormField from '@/components/Forms/FormField'
+import CollapsibleSectionHeader from '@/components/UI/CollapsibleSectionHeader'
 import { Upload, RefreshCw, History, Play, Pause, Volume2, Trash2, Edit3, Zap, Settings, Save } from 'lucide-react'
 import { get, post } from '@/utils/request'
 import { getSystemInit, saveVoiceCloneConfig } from '@/api/system'
@@ -447,16 +448,17 @@ const VoiceTrainingVolcengine: React.FC = () => {
                 </Button>
 
                 {/* 页面头部 */}
-                <div className="flex items-center justify-between mb-8">
-                    <div className="space-y-2">
-                        <h1 className="text-2xl font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                            <Zap className="w-6 h-6 text-orange-500" />
-                            {t('voiceTraining.volcengine.title')}
-                        </h1>
-                        <p className="text-gray-600 dark:text-gray-400">
-                            {t('voiceTraining.volcengine.subtitle')}
-                        </p>
-                    </div>
+                <div className="mb-6">
+                    <CollapsibleSectionHeader
+                        title={t('voiceTraining.volcengine.title')}
+                        icon={<Zap className="w-4 h-4 text-orange-500" />}
+                        expanded={true}
+                        onToggle={() => {}}
+                        showChevron={false}
+                        clickable={false}
+                        compact
+                        withDivider
+                    />
                 </div>
 
                 {/* 标签页 */}
