@@ -4,6 +4,9 @@ package utils
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"errors"
+	"fmt"
+	"log"
 	"os"
 	"reflect"
 	"strconv"
@@ -258,21 +261,8 @@ func LoadPublicConfigs(db *gorm.DB) []Config {
 	return configs
 }
 
-// LoadEnv Load .env file based on environment
-func LoadEnv(env string) error {
-	// Load .env file by default
-	envFile := ".env"
-	if env != "" {
-		envFile = ".env." + env
-	}
-
-	// Read .env file
-	data, err := os.ReadFile(envFile)
-	if err != nil {
-		return err
-	}
-
-	// Parse .env file
+// applyEnvLines parses KEY=VALUE lines (same rules as legacy LoadEnv) and calls os.Setenv.
+func applyEnvLines(data []byte) {
 	lines := strings.Split(string(data), "\n")
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
@@ -287,6 +277,44 @@ func LoadEnv(env string) error {
 		value := strings.TrimSpace(parts[1])
 		os.Setenv(key, value)
 	}
+}
 
+// LoadEnv loads a single file: `.env`, or `.env.{env}` when env is non-empty (legacy helper).
+func LoadEnv(env string) error {
+	envFile := ".env"
+	if env != "" {
+		envFile = ".env." + env
+	}
+	data, err := os.ReadFile(envFile)
+	if err != nil {
+		return err
+	}
+	applyEnvLines(data)
+	return nil
+}
+
+// LoadModuleEnvs loads layered env files for one deployable binary (auth, server, sip, …):
+//   1) .env-{module}
+//   2) .env-{module}.{appEnv} when appEnv is non-empty (overrides earlier keys).
+// Missing files are skipped with a log line only (same spirit as partial .env loading).
+func LoadModuleEnvs(module string, appEnv string) error {
+	module = strings.TrimSpace(module)
+	if module == "" {
+		return errors.New("LoadModuleEnvs: empty module name")
+	}
+	readOptional := func(path string) {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			log.Printf("Note: optional env file %s: %v", path, err)
+			return
+		}
+		applyEnvLines(data)
+		log.Printf("Loaded env file %s", path)
+	}
+	readOptional(fmt.Sprintf(".env-%s", module))
+	appEnv = strings.TrimSpace(appEnv)
+	if appEnv != "" {
+		readOptional(fmt.Sprintf(".env-%s.%s", module, appEnv))
+	}
 	return nil
 }

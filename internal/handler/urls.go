@@ -203,6 +203,7 @@ func (h *Handlers) RegisterUserServiceRoutes(engine *gin.Engine) {
 	sys := r.Group("system")
 	{
 		sys.GET("/health", h.HealthCheck)
+		sys.GET("/ping", h.ServicePing)
 	}
 
 	h.registerAuthRoutes(r)
@@ -730,6 +731,7 @@ func (h *Handlers) registerSystemRoutes(r *gin.RouterGroup) {
 		system.POST("/rate-limiter/config", h.UpdateRateLimiterConfig)
 
 		system.GET("/health", h.HealthCheck)
+		system.GET("/ping", h.ServicePing)
 		system.GET("/status", h.SystemStatus)
 		system.GET("/dashboard/metrics", models.AuthRequired, h.DashboardMetrics)
 

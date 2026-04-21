@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/LingByte/SoulNexus/pkg/cache"
@@ -95,14 +96,6 @@ type RTCSFUConfig struct {
 type DatabaseConfig struct {
 	Driver string `env:"DB_DRIVER"`
 	DSN    string `env:"DSN"`
-}
-
-// AuthConfig authentication configuration
-type AuthConfig struct {
-	Header           string `env:"AUTH_HEADER"`
-	SessionSecret    string `env:"SESSION_SECRET"`
-	SecretExpireDays string `env:"SESSION_EXPIRE_DAYS"`
-	APISecretKey     string `env:"API_SECRET_KEY"`
 }
 
 // ServicesConfig services configuration
@@ -200,63 +193,27 @@ type FeaturesConfig struct {
 	BackupSchedule  string `env:"BACKUP_SCHEDULE"`
 }
 
-// MiddlewareConfig middleware configuration
-type MiddlewareConfig struct {
-	// Rate limiting configuration
-	RateLimit RateLimiterConfig
-	// Timeout configuration
-	Timeout TimeoutConfig
-	// Circuit breaker configuration
-	CircuitBreaker CircuitBreakerConfig
-	// Whether to enable each middleware
-	EnableRateLimit      bool `env:"ENABLE_RATE_LIMIT"`
-	EnableTimeout        bool `env:"ENABLE_TIMEOUT"`
-	EnableCircuitBreaker bool `env:"ENABLE_CIRCUIT_BREAKER"`
-	EnableOperationLog   bool `env:"ENABLE_OPERATION_LOG"`
-}
-
-// RateLimiterConfig rate limiting configuration
-type RateLimiterConfig struct {
-	GlobalRPS    int           `env:"RATE_LIMIT_GLOBAL_RPS"`   // Global requests per second
-	GlobalBurst  int           `env:"RATE_LIMIT_GLOBAL_BURST"` // Global burst requests
-	GlobalWindow time.Duration // Global time window
-	UserRPS      int           `env:"RATE_LIMIT_USER_RPS"`   // User requests per second
-	UserBurst    int           `env:"RATE_LIMIT_USER_BURST"` // User burst requests
-	UserWindow   time.Duration // User time window
-	IPRPS        int           `env:"RATE_LIMIT_IP_RPS"`   // IP requests per second
-	IPBurst      int           `env:"RATE_LIMIT_IP_BURST"` // IP burst requests
-	IPWindow     time.Duration // IP time window
-}
-
-// TimeoutConfig timeout configuration
-type TimeoutConfig struct {
-	DefaultTimeout   time.Duration `env:"DEFAULT_TIMEOUT"`
-	FallbackResponse interface{}
-}
-
-// CircuitBreakerConfig circuit breaker configuration
-type CircuitBreakerConfig struct {
-	FailureThreshold      int           `env:"CIRCUIT_BREAKER_FAILURE_THRESHOLD"`
-	SuccessThreshold      int           `env:"CIRCUIT_BREAKER_SUCCESS_THRESHOLD"`
-	Timeout               time.Duration `env:"CIRCUIT_BREAKER_TIMEOUT"`
-	OpenTimeout           time.Duration `env:"CIRCUIT_BREAKER_OPEN_TIMEOUT"`
-	MaxConcurrentRequests int           `env:"CIRCUIT_BREAKER_MAX_CONCURRENT"`
-}
-
 var GlobalConfig *Config
 
 var GlobalStore *lingstorage.Client
 
-func Load() error {
-	// 1. Load .env file based on environment (don't error if it doesn't exist, use default values)
-	env := os.Getenv("APP_ENV")
-	err := utils.LoadEnv(env)
-	if err != nil {
-		// Only log when .env file doesn't exist, don't affect startup
-		log.Printf("Note: .env file not found or failed to load: %v (using default values)", err)
+// resolveAppEnv returns APP_ENV or MODE for layered files like .env-server.development.
+func resolveAppEnv() string {
+	if v := strings.TrimSpace(os.Getenv("APP_ENV")); v != "" {
+		return v
 	}
+	return strings.TrimSpace(os.Getenv("MODE"))
+}
 
-	// 2. Load global configuration
+// Load loads `.env-server` then `.env-server.{APP_ENV|MODE}` and builds GlobalConfig (cmd/server, cmd/sip, tests).
+func Load() error {
+	if err := utils.LoadModuleEnvs("server", resolveAppEnv()); err != nil {
+		log.Printf("Note: module env load: %v", err)
+	}
+	return buildGlobalConfig()
+}
+
+func buildGlobalConfig() error {
 	GlobalConfig = &Config{
 		MachineID: utils.GetIntEnv("MACHINE_ID"),
 		Server: ServerConfig{
@@ -522,108 +479,6 @@ func loadCacheConfig() cache.Config {
 			DefaultExpiration: localDefaultExpiration,
 			CleanupInterval:   localCleanupInterval,
 		},
-	}
-}
-
-// loadMiddlewareConfig loads middleware configuration
-func loadMiddlewareConfig() MiddlewareConfig {
-	mode := getStringOrDefault("MODE", "development")
-	var defaultConfig MiddlewareConfig
-
-	if mode == "production" {
-		defaultConfig = MiddlewareConfig{
-			RateLimit: RateLimiterConfig{
-				GlobalRPS:    2000,
-				GlobalBurst:  4000,
-				GlobalWindow: time.Minute,
-				UserRPS:      200,
-				UserBurst:    400,
-				UserWindow:   time.Minute,
-				IPRPS:        100,
-				IPBurst:      200,
-				IPWindow:     time.Minute,
-			},
-			Timeout: TimeoutConfig{
-				DefaultTimeout: 30 * time.Second,
-				FallbackResponse: map[string]interface{}{
-					"error":   "service_unavailable",
-					"message": "Service temporarily unavailable, please try again later",
-					"code":    503,
-				},
-			},
-			CircuitBreaker: CircuitBreakerConfig{
-				FailureThreshold:      3,
-				SuccessThreshold:      2,
-				Timeout:               30 * time.Second,
-				OpenTimeout:           30 * time.Second,
-				MaxConcurrentRequests: 200,
-			},
-			EnableRateLimit:      true,
-			EnableTimeout:        true,
-			EnableCircuitBreaker: true,
-			EnableOperationLog:   true,
-		}
-	} else {
-		defaultConfig = MiddlewareConfig{
-			RateLimit: RateLimiterConfig{
-				GlobalRPS:    10000,
-				GlobalBurst:  20000,
-				GlobalWindow: time.Minute,
-				UserRPS:      1000,
-				UserBurst:    2000,
-				UserWindow:   time.Minute,
-				IPRPS:        500,
-				IPBurst:      1000,
-				IPWindow:     time.Minute,
-			},
-			Timeout: TimeoutConfig{
-				DefaultTimeout: 60 * time.Second,
-				FallbackResponse: map[string]interface{}{
-					"error":   "service_unavailable",
-					"message": "Service temporarily unavailable, please try again later",
-					"code":    503,
-				},
-			},
-			CircuitBreaker: CircuitBreakerConfig{
-				FailureThreshold:      10,
-				SuccessThreshold:      5,
-				Timeout:               60 * time.Second,
-				OpenTimeout:           60 * time.Second,
-				MaxConcurrentRequests: 1000,
-			},
-			EnableRateLimit:      true,
-			EnableTimeout:        true,
-			EnableCircuitBreaker: false,
-			EnableOperationLog:   true,
-		}
-	}
-	return MiddlewareConfig{
-		RateLimit: RateLimiterConfig{
-			GlobalRPS:    getIntOrDefault("RATE_LIMIT_GLOBAL_RPS", defaultConfig.RateLimit.GlobalRPS),
-			GlobalBurst:  getIntOrDefault("RATE_LIMIT_GLOBAL_BURST", defaultConfig.RateLimit.GlobalBurst),
-			GlobalWindow: parseDuration(getStringOrDefault("RATE_LIMIT_GLOBAL_WINDOW", "1m"), defaultConfig.RateLimit.GlobalWindow),
-			UserRPS:      getIntOrDefault("RATE_LIMIT_USER_RPS", defaultConfig.RateLimit.UserRPS),
-			UserBurst:    getIntOrDefault("RATE_LIMIT_USER_BURST", defaultConfig.RateLimit.UserBurst),
-			UserWindow:   parseDuration(getStringOrDefault("RATE_LIMIT_USER_WINDOW", "1m"), defaultConfig.RateLimit.UserWindow),
-			IPRPS:        getIntOrDefault("RATE_LIMIT_IP_RPS", defaultConfig.RateLimit.IPRPS),
-			IPBurst:      getIntOrDefault("RATE_LIMIT_IP_BURST", defaultConfig.RateLimit.IPBurst),
-			IPWindow:     parseDuration(getStringOrDefault("RATE_LIMIT_IP_WINDOW", "1m"), defaultConfig.RateLimit.IPWindow),
-		},
-		Timeout: TimeoutConfig{
-			DefaultTimeout:   parseDuration(getStringOrDefault("DEFAULT_TIMEOUT", "30s"), defaultConfig.Timeout.DefaultTimeout),
-			FallbackResponse: defaultConfig.Timeout.FallbackResponse,
-		},
-		CircuitBreaker: CircuitBreakerConfig{
-			FailureThreshold:      getIntOrDefault("CIRCUIT_BREAKER_FAILURE_THRESHOLD", defaultConfig.CircuitBreaker.FailureThreshold),
-			SuccessThreshold:      getIntOrDefault("CIRCUIT_BREAKER_SUCCESS_THRESHOLD", defaultConfig.CircuitBreaker.SuccessThreshold),
-			Timeout:               parseDuration(getStringOrDefault("CIRCUIT_BREAKER_TIMEOUT", "30s"), defaultConfig.CircuitBreaker.Timeout),
-			OpenTimeout:           parseDuration(getStringOrDefault("CIRCUIT_BREAKER_OPEN_TIMEOUT", "30s"), defaultConfig.CircuitBreaker.OpenTimeout),
-			MaxConcurrentRequests: getIntOrDefault("CIRCUIT_BREAKER_MAX_CONCURRENT", defaultConfig.CircuitBreaker.MaxConcurrentRequests),
-		},
-		EnableRateLimit:      getBoolOrDefault("ENABLE_RATE_LIMIT", defaultConfig.EnableRateLimit),
-		EnableTimeout:        getBoolOrDefault("ENABLE_TIMEOUT", defaultConfig.EnableTimeout),
-		EnableCircuitBreaker: getBoolOrDefault("ENABLE_CIRCUIT_BREAKER", defaultConfig.EnableCircuitBreaker),
-		EnableOperationLog:   getBoolOrDefault("ENABLE_OPERATION_LOG", defaultConfig.EnableOperationLog),
 	}
 }
 

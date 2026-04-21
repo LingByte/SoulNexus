@@ -35,6 +35,7 @@ const AlertCenter = lazy(() => import('@/pages/AlertCenter'))
 const KnowledgeBases = lazy(() => import('@/pages/KnowledgeBases'))
 const Devices = lazy(() => import('@/pages/Devices'))
 const ChatData = lazy(() => import('@/pages/ChatData'))
+const ServiceHealth = lazy(() => import('@/pages/ServiceHealth'))
 
 function App() {
   const { refreshUserInfo, isAuthenticated } = useAuthStore()
@@ -144,6 +145,7 @@ function App() {
             <Route path="/knowledge-bases" element={<ProtectedRoute><KnowledgeBases /></ProtectedRoute>} />
             <Route path="/devices" element={<ProtectedRoute><Devices /></ProtectedRoute>} />
             <Route path="/chat-data" element={<ProtectedRoute><ChatData /></ProtectedRoute>} />
+            <Route path="/service-health" element={<ProtectedRoute><ServiceHealth /></ProtectedRoute>} />
 
             {/* 默认重定向 */}
             <Route path="/" element={<Navigate to="/users" replace />} />

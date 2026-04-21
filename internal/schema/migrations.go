@@ -1,0 +1,97 @@
+package schema
+
+// Copyright (c) 2026 LingByte. All rights reserved.
+// SPDX-License-Identifier: AGPL-3.0
+
+// Entity lists for GORM AutoMigrate per binary; imported by cmd/* entrypoints via bootstrap.Options.MigrateModels.
+
+import (
+	"github.com/LingByte/SoulNexus/internal/models"
+	"github.com/LingByte/SoulNexus/pkg/middleware"
+	"github.com/LingByte/SoulNexus/pkg/notification"
+	"github.com/LingByte/SoulNexus/pkg/utils"
+)
+
+// ServerEntities is the full schema for cmd/server (and SIP when sharing the main API database).
+func ServerEntities() []any {
+	return []any{
+		&utils.Config{},
+		&models.User{},
+		&models.Group{},
+		&models.UserCredential{},
+		&models.GroupMember{},
+		&models.GroupInvitation{},
+		&models.GroupActivityLog{},
+		&models.Assistant{},
+		&models.KnowledgeBase{},
+		&models.ChatSession{},
+		&models.ChatMessage{},
+		&models.LLMUsage{},
+		&notification.InternalNotification{},
+		&notification.MailLog{},
+		&models.VoiceTrainingTask{},
+		&models.VoiceClone{},
+		&models.Voiceprint{},
+		&models.VoiceSynthesis{},
+		&models.VoiceTrainingText{},
+		&models.VoiceTrainingTextSegment{},
+		&middleware.OperationLog{},
+		&models.JSTemplate{},
+		&models.JSTemplateVersion{},
+		&models.Device{},
+		&models.OTA{},
+		&models.UsageRecord{},
+		&models.Bill{},
+		&models.AlertRule{},
+		&models.Alert{},
+		&models.AlertNotification{},
+		&models.Announcement{},
+		&models.UserQuota{},
+		&models.GroupQuota{},
+		&models.WorkflowDefinition{},
+		&models.WorkflowInstance{},
+		&models.WorkflowVersion{},
+		&models.WorkflowPlugin{},
+		&models.WorkflowPluginVersion{},
+		&models.WorkflowPluginReview{},
+		&models.WorkflowPluginInstallation{},
+		&models.NodePlugin{},
+		&models.NodePluginVersion{},
+		&models.NodePluginReview{},
+		&models.NodePluginInstallation{},
+		&models.OverviewConfig{},
+		&models.UserDevice{},
+		&models.LoginHistory{},
+		&models.AccountLock{},
+		&models.DeviceErrorLog{},
+		&models.CallRecording{},
+		&models.MCPServer{},
+		&models.MCPTool{},
+		&models.MCPCallLog{},
+		&models.MCPMarketplaceItem{},
+		&models.MCPUserInstallation{},
+		&models.MCPReview{},
+		&models.MCPCategory{},
+		&models.OAuthClient{},
+		&models.RTCSFURoomAssignment{},
+		&models.RTCSFUMediaSession{},
+		&models.AgentRun{},
+		&models.AgentStep{},
+	}
+}
+
+// AuthEntities is the subset migrated by cmd/auth when running as a standalone user service.
+func AuthEntities() []any {
+	return []any{
+		&utils.Config{},
+		&models.User{},
+		&models.UserCredential{},
+		&models.LoginHistory{},
+		&models.AccountLock{},
+		&notification.InternalNotification{},
+		&notification.MailLog{},
+		&models.OAuthClient{},
+		&models.UserDevice{},
+		&models.Device{},
+	}
+}

@@ -10,16 +10,19 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/LingByte/SoulNexus/cmd/bootstrap"
-	"github.com/LingByte/SoulNexus/internal/handler"
+	handlers "github.com/LingByte/SoulNexus/internal/handler"
+	"github.com/LingByte/SoulNexus/internal/schema"
 	"github.com/LingByte/SoulNexus/internal/listeners"
 	"github.com/LingByte/SoulNexus/internal/sipserver"
 	"github.com/LingByte/SoulNexus/internal/task"
 	"github.com/LingByte/SoulNexus/pkg/config"
 	"github.com/LingByte/SoulNexus/pkg/constants"
+	"github.com/LingByte/SoulNexus/pkg/health"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/middleware"
 	"github.com/LingByte/SoulNexus/pkg/utils"
@@ -61,6 +64,12 @@ func main() {
 		os.Setenv("MODE", *mode)
 	}
 
+	if s := strings.TrimSpace(os.Getenv("SOULNEXUS_SERVICE")); s != "" {
+		health.SetServiceName(s)
+	} else {
+		health.SetServiceName("sip")
+	}
+
 	// 3. Load Global Configuration
 	if err := config.Load(); err != nil {
 		panic("config load failed: " + err.Error())
@@ -81,9 +90,10 @@ func main() {
 
 	// 7. Load Data Source
 	db, err := bootstrap.SetupDatabase(os.Stdout, &bootstrap.Options{
-		InitSQLPath: *initSQL,
-		AutoMigrate: *init,
-		SeedNonProd: *seed,
+		InitSQLPath:   *initSQL,
+		AutoMigrate:   *init,
+		SeedNonProd:   *seed,
+		MigrateModels: schema.ServerEntities,
 	})
 
 	if err != nil {
