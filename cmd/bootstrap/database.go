@@ -10,11 +10,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/config"
 	"github.com/LingByte/SoulNexus/pkg/logger"
-	"github.com/LingByte/SoulNexus/pkg/middleware"
-	"github.com/LingByte/SoulNexus/pkg/notification"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"go.uber.org/zap"
 
@@ -29,6 +26,9 @@ type Options struct {
 	AutoMigrate bool
 	// SeedNonProd whether to write default configuration in non-production environments (default true)
 	SeedNonProd bool
+	// MigrateModels returns entities passed to GORM AutoMigrate when AutoMigrate is true.
+	// Required for entity migration when AutoMigrate is true (each binary supplies its own list).
+	MigrateModels func() []any
 }
 
 // SetupDatabase unified entry: connect database -> run initialization SQL -> migrate entities -> (non-production) write default configuration
@@ -60,7 +60,9 @@ func SetupDatabase(logWriter io.Writer, opts *Options) (*gorm.DB, error) {
 			logger.Warn("run migration scripts failed", zap.String("dir", migrationsDir), zap.Error(err))
 		}
 
-		if err := RunMigrations(db); err != nil {
+		if opts.MigrateModels == nil {
+			logger.Warn("AutoMigrate enabled but MigrateModels callback is nil; skipping GORM AutoMigrate")
+		} else if err := RunMigrations(db, opts.MigrateModels()); err != nil {
 			logger.Error("migration failed", zap.Error(err))
 			return nil, err
 		}
@@ -167,73 +169,13 @@ func runMigrationScripts(db *gorm.DB, migrationsDir string) error {
 	return nil
 }
 
-// RunMigrations executes entity migration
-func RunMigrations(db *gorm.DB) error {
+// RunMigrations executes GORM AutoMigrate for the given entities.
+func RunMigrations(db *gorm.DB, entities []any) error {
 	if db == nil {
 		return errors.New("db is nil")
 	}
-	return utils.MakeMigrates(db, []any{
-		&utils.Config{},
-		&models.User{},
-		&models.Group{},
-		&models.UserCredential{},
-		&models.GroupMember{},
-		&models.GroupInvitation{},
-		&models.GroupActivityLog{},
-		&models.Assistant{},
-		&models.KnowledgeBase{},
-		&models.ChatSession{},
-		&models.ChatMessage{},
-		&models.LLMUsage{},
-		&notification.InternalNotification{},
-		&notification.MailLog{},
-		&models.VoiceTrainingTask{},
-		&models.VoiceClone{},
-		&models.Voiceprint{},
-		&models.VoiceSynthesis{},
-		&models.VoiceTrainingText{},
-		&models.VoiceTrainingTextSegment{},
-		&middleware.OperationLog{},
-		&models.JSTemplate{},
-		&models.JSTemplateVersion{},
-		&models.Device{},
-		&models.OTA{},
-		&models.UsageRecord{},
-		&models.Bill{},
-		&models.AlertRule{},
-		&models.Alert{},
-		&models.AlertNotification{},
-		&models.Announcement{},
-		&models.UserQuota{},
-		&models.GroupQuota{},
-		&models.WorkflowDefinition{},
-		&models.WorkflowInstance{},
-		&models.WorkflowVersion{},
-		&models.WorkflowPlugin{},
-		&models.WorkflowPluginVersion{},
-		&models.WorkflowPluginReview{},
-		&models.WorkflowPluginInstallation{},
-		&models.NodePlugin{},
-		&models.NodePluginVersion{},
-		&models.NodePluginReview{},
-		&models.NodePluginInstallation{},
-		&models.OverviewConfig{},
-		&models.UserDevice{},
-		&models.LoginHistory{},
-		&models.AccountLock{},
-		&models.DeviceErrorLog{},
-		&models.CallRecording{},
-		&models.MCPServer{},
-		&models.MCPTool{},
-		&models.MCPCallLog{},
-		&models.MCPMarketplaceItem{},
-		&models.MCPUserInstallation{},
-		&models.MCPReview{},
-		&models.MCPCategory{},
-		&models.OAuthClient{},
-		&models.RTCSFURoomAssignment{},
-		&models.RTCSFUMediaSession{},
-		&models.AgentRun{},
-		&models.AgentStep{},
-	})
+	if len(entities) == 0 {
+		return nil
+	}
+	return utils.MakeMigrates(db, entities)
 }

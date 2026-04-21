@@ -1,7 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-import { getSiteConfig, type SiteConfig } from '@/services/adminApi'
+import { type SiteConfig } from '@/services/adminApi'
 import { buildLogoUrl } from '@/utils/logoUrl'
-import { useLocalStorage } from '@/hooks/useLocalStorage'
 
 interface SiteConfigContextType {
   config: SiteConfig | null
@@ -13,29 +12,9 @@ interface SiteConfigContextType {
 
 const SiteConfigContext = createContext<SiteConfigContextType | undefined>(undefined)
 
-// 缓存键名
-const SITE_CONFIG_CACHE_KEY = 'lingstorage_site_config'
-const SITE_CONFIG_CACHE_TIMESTAMP_KEY = 'lingstorage_site_config_timestamp'
-
-// 缓存有效期（毫秒）- 24小时
-const CACHE_DURATION = 24 * 60 * 60 * 1000
-
 export const SiteConfigProvider = ({ children }: { children: ReactNode }) => {
   const [config, setConfig] = useState<SiteConfig | null>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<Error | null>(null)
-  
-  // 使用本地存储缓存配置
-  const [cachedConfig, setCachedConfig] = useLocalStorage<SiteConfig | null>(SITE_CONFIG_CACHE_KEY, null)
-  const [cacheTimestamp, setCacheTimestamp] = useLocalStorage<number>(SITE_CONFIG_CACHE_TIMESTAMP_KEY, 0)
-
-  // 检查缓存是否有效
-  const isCacheValid = () => {
-    if (!cachedConfig || !cacheTimestamp) return false
-    const now = Date.now()
-    return (now - cacheTimestamp) < CACHE_DURATION
-  }
-
   // 应用配置到页面
   const applyConfigToPage = (siteConfig: SiteConfig) => {
     // 更新页面标题
@@ -79,8 +58,8 @@ export const SiteConfigProvider = ({ children }: { children: ReactNode }) => {
 
   // 获取默认配置
   const getDefaultConfig = (): SiteConfig => ({
-    SITE_NAME: 'SoulNexus管理',
-    SITE_DESCRIPTION: 'SoulNexus管理',
+    SITE_NAME: 'SoulNexus',
+    SITE_DESCRIPTION: 'SoulNexus',
     SITE_TERMS_URL: '',
     SITE_URL: '',
     SITE_LOGO_URL: '',
@@ -99,19 +78,16 @@ export const SiteConfigProvider = ({ children }: { children: ReactNode }) => {
   // 清除缓存
   const clearCache = () => {
     console.log('清除站点配置缓存')
-    setCachedConfig(null)
-    setCacheTimestamp(0)
   }
 
   useEffect(() => {
     fetchConfig()
   }, [])
 
-  return (
+    return (
     <SiteConfigContext.Provider value={{ 
       config, 
-      loading, 
-      error, 
+      loading,
       refresh: () => fetchConfig(true), // 强制刷新
       clearCache 
     }}>

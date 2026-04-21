@@ -11,10 +11,12 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/LingByte/SoulNexus"
 	"github.com/LingByte/SoulNexus/cmd/bootstrap"
+	"github.com/LingByte/SoulNexus/internal/schema"
 	handlers "github.com/LingByte/SoulNexus/internal/handler"
 	"github.com/LingByte/SoulNexus/internal/listeners"
 	"github.com/LingByte/SoulNexus/internal/models"
@@ -22,6 +24,7 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/cache"
 	"github.com/LingByte/SoulNexus/pkg/config"
 	"github.com/LingByte/SoulNexus/pkg/constants"
+	"github.com/LingByte/SoulNexus/pkg/health"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/middleware"
 	"github.com/LingByte/SoulNexus/pkg/utils"
@@ -59,11 +62,21 @@ func main() {
 		os.Setenv("APP_ENV", *mode)
 	}
 
-	if err := config.Load(); err != nil {
-		panic("config load failed: " + err.Error())
+	if s := strings.TrimSpace(os.Getenv("SOULNEXUS_SERVICE")); s != "" {
+		health.SetServiceName(s)
+	} else {
+		health.SetServiceName("auth")
 	}
 
-	if err := logger.Init(&config.GlobalConfig.Log, config.GlobalConfig.Server.Mode); err != nil {
+	if err := config.LoadAuth(); err != nil {
+		panic("config load failed: " + err.Error())
+	}
+	if config.AuthGlobalConfig == nil {
+		panic("config: AuthGlobalConfig is nil after LoadAuth")
+	}
+	a := config.AuthGlobalConfig
+
+	if err := logger.Init(&a.Log, a.Server.Mode); err != nil {
 		panic(err)
 	}
 
@@ -74,9 +87,10 @@ func main() {
 	bootstrap.LogConfigInfo()
 
 	db, err := bootstrap.SetupDatabase(os.Stdout, &bootstrap.Options{
-		InitSQLPath: *initSQL,
-		AutoMigrate: *init,
-		SeedNonProd: *seed,
+		InitSQLPath:   *initSQL,
+		AutoMigrate:   *init,
+		SeedNonProd:   *seed,
+		MigrateModels: schema.AuthEntities,
 	})
 	if err != nil {
 		logger.Error("database setup failed", zap.Error(err))
@@ -93,7 +107,7 @@ func main() {
 
 	logger.Info("user-service listen", zap.String("addr", addr), zap.Bool("init", *init))
 
-	if err := cache.InitGlobalCache(config.GlobalConfig.Cache); err != nil {
+	if err := cache.InitGlobalCache(a.Cache); err != nil {
 		logger.Error("failed to initialize cache", zap.Error(err))
 		logger.Info("falling back to default local cache")
 	}
@@ -106,7 +120,7 @@ func main() {
 
 	app := NewLingEchoAuthService(db)
 
-	middleware.InitGlobalMiddlewareManager(config.GlobalConfig.Middleware)
+	middleware.InitGlobalMiddlewareManager(a.Middleware)
 
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
@@ -122,8 +136,8 @@ func main() {
 	r.MaxMultipartMemory = 32 << 20
 
 	secret := utils.GetEnv(constants.ENV_SESSION_SECRET)
-	if secret == "" && config.GlobalConfig != nil {
-		secret = config.GlobalConfig.Auth.SessionSecret
+	if secret == "" {
+		secret = a.Auth.SessionSecret
 	}
 	if secret != "" {
 		expireDays := utils.GetIntEnv(constants.ENV_SESSION_EXPIRE_DAYS)
@@ -144,7 +158,7 @@ func main() {
 		staticRootDir = "static"
 	}
 	staticAssets := LingEcho.NewCombineEmbedFS(LingEcho.HintAssetsRoot(staticRootDir), LingEcho.EmbedFS{"static", LingEcho.EmbedStaticAssets})
-	apiPrefix := config.GlobalConfig.Server.APIPrefix
+	apiPrefix := a.Server.APIPrefix
 	if apiPrefix == "" {
 		apiPrefix = "/api"
 	}
@@ -169,7 +183,7 @@ func main() {
 		MaxHeaderBytes: 1 << 20,
 	}
 
-	if config.GlobalConfig.Server.SSLEnabled && listeners.IsSSLEnabled() {
+	if a.Server.SSLEnabled && listeners.IsSSLEnabled() {
 		tlsConfig, err := listeners.GetTLSConfig()
 		if err != nil {
 			logger.Error("failed to get TLS config", zap.Error(err))

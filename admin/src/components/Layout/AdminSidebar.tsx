@@ -26,7 +26,8 @@ import {
   AlertTriangle,
   BookOpen,
   Smartphone,
-  MessageSquareText,
+  MessageSquare,
+  Activity,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import { useSidebar } from '@/contexts/SidebarContext'
@@ -40,6 +41,59 @@ interface NavItem {
   badge?: number
   children?: NavItem[]
 }
+
+const ADMIN_NAVIGATION: NavItem[] = [
+  { name: '用户管理', href: '/users', icon: Users },
+  { name: '助手管理', href: '/assistants', icon: Bot },
+  { name: '企业管理', href: '/groups', icon: Building2 },
+  { name: '密钥管理', href: '/credentials', icon: Key },
+  { name: 'OAuth 客户端', href: '/oauth-clients', icon: KeyRound },
+  { name: 'JS 模版', href: '/js-templates', icon: Code2 },
+  { name: '账单管理', href: '/bills', icon: Receipt },
+  { name: '音色训练', href: '/voice-training', icon: Mic },
+  {
+    name: 'MCP 栏',
+    href: '/mcp-marketplace',
+    icon: Boxes,
+    children: [
+      { name: 'MCP 官方', href: '/mcp-marketplace', icon: Boxes },
+      { name: 'MCP 管理', href: '/mcp-servers', icon: Bot },
+    ],
+  },
+  {
+    name: '工作流',
+    href: '/workflows',
+    icon: Boxes,
+    children: [
+      { name: '工作流管理', href: '/workflows', icon: Boxes },
+      { name: '插件市场', href: '/workflow-plugins', icon: Puzzle },
+    ],
+  },
+  { name: '通知中心', href: '/notification-center', icon: Bell },
+  { name: '告警管理', href: '/alerts', icon: AlertTriangle },
+  { name: '知识库', href: '/knowledge-bases', icon: BookOpen },
+  { name: '设备管理', href: '/devices', icon: Smartphone },
+  { name: '会话与用量', href: '/chat-data', icon: MessageSquare },
+  { name: '配置管理', href: '/configs', icon: Sliders },
+  {
+    name: '安全管理',
+    href: '/security',
+    icon: Lock,
+    children: [
+      { name: '操作日志', href: '/operation-logs', icon: FileText },
+      { name: '账号锁定', href: '/account-locks', icon: Lock },
+    ],
+  },
+  {
+    name: '系统设置',
+    href: '/settings',
+    icon: Settings,
+    children: [
+      { name: '常规设置', href: '/settings', icon: Settings },
+      { name: '服务存活', href: '/service-health', icon: Activity },
+    ],
+  },
+]
 
 const AdminSidebar = () => {
   const { isCollapsed, toggleCollapse } = useSidebar()
@@ -71,50 +125,20 @@ const AdminSidebar = () => {
     }
   }, [showDropdown])
 
-  const navigation: NavItem[] = [
-    { name: '用户管理', href: '/users', icon: Users },
-    { name: '助手管理', href: '/assistants', icon: Bot },
-    { name: '企业管理', href: '/groups', icon: Building2 },
-    { name: '密钥管理', href: '/credentials', icon: Key },
-    { name: 'OAuth 客户端', href: '/oauth-clients', icon: KeyRound },
-    { name: 'JS 模版', href: '/js-templates', icon: Code2 },
-    { name: '账单管理', href: '/bills', icon: Receipt },
-    { name: '音色训练', href: '/voice-training', icon: Mic },
-    {
-      name: 'MCP 栏',
-      href: '/mcp-marketplace',
-      icon: Boxes,
-      children: [
-        { name: 'MCP 官方', href: '/mcp-marketplace', icon: Boxes },
-        { name: 'MCP 管理', href: '/mcp-servers', icon: Bot },
-      ],
-    },
-    {
-      name: '工作流',
-      href: '/workflows',
-      icon: Boxes,
-      children: [
-        { name: '工作流管理', href: '/workflows', icon: Boxes },
-        { name: '插件市场', href: '/workflow-plugins', icon: Puzzle },
-      ],
-    },
-    { name: '通知中心', href: '/notification-center', icon: Bell },
-    { name: '告警管理', href: '/alerts', icon: AlertTriangle },
-    { name: '知识库', href: '/knowledge-bases', icon: BookOpen },
-    { name: '设备管理', href: '/devices', icon: Smartphone },
-    { name: '会话与用量', href: '/chat-data', icon: MessageSquareText },
-    { name: '配置管理', href: '/configs', icon: Sliders },
-    {
-      name: '安全管理',
-      href: '/security',
-      icon: Lock,
-      children: [
-        { name: '操作日志', href: '/operation-logs', icon: FileText },
-        { name: '账号锁定', href: '/account-locks', icon: Lock },
-      ],
-    },
-    { name: '系统设置', href: '/settings', icon: Settings },
-  ]
+  useEffect(() => {
+    const path = location.pathname
+    const parents = ADMIN_NAVIGATION.filter((item) =>
+      item.children?.some((c) => path === c.href || path.startsWith(`${c.href}/`)),
+    ).map((item) => item.name)
+    if (parents.length === 0) return
+    setExpandedItems((prev) => {
+      const merged = [...new Set([...prev, ...parents])]
+      if (merged.length === prev.length && parents.every((n) => prev.includes(n))) return prev
+      return merged
+    })
+  }, [location.pathname])
+
+  const navigation = ADMIN_NAVIGATION
 
   const toggleExpand = (itemName: string) => {
     setExpandedItems((prev) =>
@@ -163,7 +187,7 @@ const AdminSidebar = () => {
                     />
                   </div>
                 </div>
-                <span className="font-semibold text-xs whitespace-nowrap leading-none">
+                <span className="font-semibold whitespace-nowrap leading-none">
                   {currentSiteName}
                 </span>
               </Link>
@@ -205,7 +229,8 @@ const AdminSidebar = () => {
           const Icon = item.icon
           const hasChildren = item.children && item.children.length > 0
           const isExpanded = expandedItems.includes(item.name)
-          const itemActive = isActive(item.href)
+          const childActive = !!item.children?.some((c) => isActive(c.href))
+          const itemActive = isActive(item.href) || childActive
 
           if (hasChildren) {
             return (
