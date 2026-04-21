@@ -4,7 +4,6 @@ package models
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
@@ -19,7 +18,6 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/config"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/logger"
-	"github.com/LingByte/SoulNexus/pkg/metrics"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/gin-contrib/sessions"
@@ -459,15 +457,7 @@ func VerifyEncryptedPassword(encryptedPassword, storedPasswordHash string) bool 
 
 func GetUserByUID(db *gorm.DB, userID uint) (*User, error) {
 	var val User
-	start := time.Now()
 	result := db.Where("id", userID).Where("status", UserStatusActive).Take(&val)
-	duration := time.Since(start)
-
-	// Record database query metrics (if monitoring system is available)
-	if monitor := metrics.GetGlobalMonitor(); monitor != nil {
-		monitor.RecordSQLQuery(context.Background(), "SELECT * FROM users WHERE id = ? AND status = ?",
-			[]interface{}{userID, UserStatusActive}, constants.USER_TABLE_NAME, "SELECT", duration, 1, result.Error)
-	}
 
 	if result.Error != nil {
 		return nil, result.Error
@@ -477,15 +467,7 @@ func GetUserByUID(db *gorm.DB, userID uint) (*User, error) {
 
 func GetUserByEmail(db *gorm.DB, email string) (user *User, err error) {
 	var val User
-	start := time.Now()
 	result := db.Table(constants.USER_TABLE_NAME).Where("email", strings.ToLower(email)).Take(&val)
-	duration := time.Since(start)
-
-	// Record database query metrics (if monitoring system is available)
-	if monitor := metrics.GetGlobalMonitor(); monitor != nil {
-		monitor.RecordSQLQuery(context.Background(), "SELECT * FROM users WHERE email = ?",
-			[]interface{}{email}, constants.USER_TABLE_NAME, "SELECT", duration, 1, result.Error)
-	}
 
 	if result.Error != nil {
 		return nil, result.Error
@@ -648,26 +630,14 @@ func CreateUserWithMeta(db *gorm.DB, email, password, source, status string) (*U
 		}
 	}
 
-	start := time.Now()
 	result := db.Create(&user)
-	duration := time.Since(start)
-	if monitor := metrics.GetGlobalMonitor(); monitor != nil {
-		monitor.RecordSQLQuery(context.Background(), "INSERT INTO users (email, password, status, source) VALUES (?, ?, ?, ?)",
-			[]interface{}{email, user.Password, status, source}, constants.USER_TABLE_NAME, "INSERT", duration, 1, result.Error)
-	}
 	return &user, result.Error
 }
 func UpdateUserFields(db *gorm.DB, user *User, vals map[string]any) error {
 	if _, ok := vals["update_by"]; !ok {
 		vals["update_by"] = "system"
 	}
-	start := time.Now()
 	result := db.Model(user).Updates(vals)
-	duration := time.Since(start)
-	if monitor := metrics.GetGlobalMonitor(); monitor != nil {
-		monitor.RecordSQLQuery(context.Background(), "UPDATE users SET ... WHERE id = ?",
-			[]interface{}{user.ID}, constants.USER_TABLE_NAME, "UPDATE", duration, 1, result.Error)
-	}
 
 	return result.Error
 }
@@ -681,13 +651,7 @@ func SetLastLogin(db *gorm.DB, user *User, lastIp string) error {
 	user.LastLogin = &now
 	user.LastLoginIP = lastIp
 
-	start := time.Now()
 	result := db.Model(user).Updates(vals)
-	duration := time.Since(start)
-	if monitor := metrics.GetGlobalMonitor(); monitor != nil {
-		monitor.RecordSQLQuery(context.Background(), "UPDATE users SET LastLoginIP = ?, LastLogin = ? WHERE id = ?",
-			[]interface{}{lastIp, &now, user.ID}, constants.USER_TABLE_NAME, "UPDATE", duration, 1, result.Error)
-	}
 
 	return result.Error
 }

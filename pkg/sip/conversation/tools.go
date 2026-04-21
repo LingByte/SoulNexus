@@ -11,8 +11,8 @@ import (
 // Copyright (c) 2026 LingByte
 // SPDX-License-Identifier: MIT
 
-func registerSIPTransferTool(provider llm.LLMProvider, callID string, lg *zap.Logger) {
-	if provider == nil || strings.TrimSpace(callID) == "" {
+func registerSIPTransferTool(handler llm.LLMHandler, callID string, lg *zap.Logger) {
+	if handler == nil || strings.TrimSpace(callID) == "" {
 		return
 	}
 	params := json.RawMessage(`{
@@ -24,7 +24,7 @@ func registerSIPTransferTool(provider llm.LLMProvider, callID string, lg *zap.Lo
 		"required":[],
 		"additionalProperties":true
 	}`)
-	provider.RegisterFunctionTool(
+	handler.RegisterFunctionTool(
 		"transfer_to_agent",
 		"当且仅当用户明确要求转人工客服时调用该工具。调用后系统会执行转人工，不要让用户重复确认。",
 		params,

@@ -8,11 +8,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/LingByte/SoulNexus/pkg/media"
 	"github.com/LingByte/SoulNexus/pkg/logger"
-	"github.com/LingByte/SoulNexus/pkg/scriptlisten"
+	"github.com/LingByte/SoulNexus/pkg/media"
 	sipdtmf "github.com/LingByte/SoulNexus/pkg/sip/dtmf"
 	"github.com/LingByte/SoulNexus/pkg/sip/outbound"
+	"github.com/LingByte/SoulNexus/pkg/sip/scriptlisten"
 	sipSession "github.com/LingByte/SoulNexus/pkg/sip/session"
 	"github.com/LingByte/SoulNexus/pkg/sip/webseat"
 	"github.com/LingByte/SoulNexus/pkg/utils"
@@ -25,15 +25,15 @@ type TransferDialer interface {
 }
 
 var (
-	transferMu       sync.Mutex
-	transferDialer   TransferDialer
+	transferMu     sync.Mutex
+	transferDialer TransferDialer
 	// Optional: DB-backed dial target (e.g. sip_users) tried before TransferDialTargetFromEnv.
 	// inboundCallID is the PSTN inbound Call-ID (used to bind Web ACD rows to this call).
 	transferDialTarget func(context.Context, string) (outbound.DialTarget, bool)
 	// WebSeatTransfer starts inbound ↔ browser WebRTC bridging when DialTarget.WebSeat (SIP_TRANSFER_NUMBER=web).
 	// If nil and WebSeat is requested, transfer logs a warning and releases the dedupe slot.
-	webSeatTransfer func(inboundCallID string, lg *zap.Logger)
-	transferStarted sync.Map // inbound Call-ID -> bool (dedupe)
+	webSeatTransfer  func(inboundCallID string, lg *zap.Logger)
+	transferStarted  sync.Map // inbound Call-ID -> bool (dedupe)
 	transferRingMu   sync.Mutex
 	transferRingStop map[string]context.CancelFunc
 )

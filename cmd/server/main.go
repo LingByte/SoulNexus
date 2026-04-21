@@ -25,7 +25,6 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/graph"
 	"github.com/LingByte/SoulNexus/pkg/logger"
-	"github.com/LingByte/SoulNexus/pkg/metrics"
 	"github.com/LingByte/SoulNexus/pkg/middleware"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/LingByte/SoulNexus/pkg/utils/backup"
@@ -144,57 +143,7 @@ func main() {
 	//// 11. New App
 	app := NewLingEchoService(db)
 
-	// 12. Initialize Monitoring System
-	// Can be overridden via environment variables, default values suitable for 2GB memory servers
-	maxSpansEnv := utils.GetIntEnv("METRICS_MAX_SPANS")
-	maxQueriesEnv := utils.GetIntEnv("METRICS_MAX_QUERIES")
-	maxStatsEnv := utils.GetIntEnv("METRICS_MAX_STATS")
-
-	maxSpans := int(maxSpansEnv)
-	if maxSpans == 0 {
-		maxSpans = 500 // Default 500 (originally 10000), reducing 95% memory usage
-	}
-
-	maxQueries := int(maxQueriesEnv)
-	if maxQueries == 0 {
-		maxQueries = 500 // Default 500 (originally 10000), reducing 95% memory usage
-	}
-
-	maxStats := int(maxStatsEnv)
-	if maxStats == 0 {
-		maxStats = 100 // Default 100 (originally 1000), reducing 90% memory usage
-	}
-
-	// Tracing feature consumes the most memory, disabled by default
-	enableTracing := utils.GetBoolEnv("METRICS_ENABLE_TRACING")
-	enableSQLAnalysis := utils.GetBoolEnv("METRICS_ENABLE_SQL_ANALYSIS")
-	if !enableSQLAnalysis && utils.GetEnv("METRICS_ENABLE_SQL_ANALYSIS") == "" {
-		enableSQLAnalysis = true // Enable SQL analysis by default
-	}
-	enableSystemMonitor := utils.GetBoolEnv("METRICS_ENABLE_SYSTEM_MONITOR")
-	if !enableSystemMonitor && utils.GetEnv("METRICS_ENABLE_SYSTEM_MONITOR") == "" {
-		enableSystemMonitor = true // Enable system monitoring by default
-	}
-
-	monitor := metrics.NewMonitor(&metrics.MonitorConfig{
-		EnableMetrics:       true,
-		EnableTracing:       enableTracing,
-		MaxSpans:            maxSpans,
-		EnableSQLAnalysis:   enableSQLAnalysis,
-		MaxQueries:          maxQueries,
-		SlowThreshold:       100 * time.Millisecond,
-		EnableSystemMonitor: enableSystemMonitor,
-		MaxStats:            maxStats,
-		MonitorInterval:     30 * time.Second,
-	})
-
-	// 13. Set Global Monitor
-	metrics.SetGlobalMonitor(monitor)
-
-	monitor.Start()
-	defer monitor.Stop()
-
-	// 13.5. Initialize Global Middleware Manager
+	// 12. Initialize Global Middleware Manager
 	middleware.InitGlobalMiddlewareManager(config.GlobalConfig.Middleware)
 	logger.Info("Global middleware manager initialized with config",
 		zap.Bool("rateLimit", config.GlobalConfig.Middleware.EnableRateLimit),
@@ -253,9 +202,6 @@ func main() {
 	r.RedirectFixedPath = false
 	r.MaxMultipartMemory = 32 << 20 // 32 MB
 
-	// 16. use middleware
-	r.Use(metrics.MonitorMiddleware(monitor))
-
 	// Cookie Register
 	secret := utils.GetEnv(constants.ENV_SESSION_SECRET)
 	if secret == "" && config.GlobalConfig != nil {
@@ -292,17 +238,6 @@ func main() {
 
 	// 18. Register Routes
 	app.RegisterRoutes(r)
-	// Get monitor prefix from config (default: /metrics)
-	monitorPrefix := config.GlobalConfig.Server.MonitorPrefix
-	if monitorPrefix == "" {
-		monitorPrefix = "/metrics"
-	}
-	// Combine API prefix with monitor prefix: /api/metrics
-	fullMonitorPrefix := apiPrefix + monitorPrefix
-	monitorGroup := r.Group(fullMonitorPrefix)
-	monitorAPI := metrics.NewMonitorAPI(monitor)
-	monitorAPI.RegisterRoutes(monitorGroup)
-	logger.Info("Metrics monitor routes registered", zap.String("prefix", fullMonitorPrefix))
 
 	// 19. Initialize System Listener
 	listeners.InitLLMListenerWithDB(db)

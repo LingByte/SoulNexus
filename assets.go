@@ -24,9 +24,6 @@ import (
 	"gorm.io/gorm"
 )
 
-//go:embed static/admin/monitor.html
-var MonitorUIHTML string
-
 //go:embed static
 var EmbedStaticAssets embed.FS
 

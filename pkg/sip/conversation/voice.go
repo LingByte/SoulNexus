@@ -17,10 +17,10 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/media"
 	"github.com/LingByte/SoulNexus/pkg/media/encoder"
 	"github.com/LingByte/SoulNexus/pkg/recognizer"
-	"github.com/LingByte/SoulNexus/pkg/scriptlisten"
 	"github.com/LingByte/SoulNexus/pkg/sip"
 	sipasr "github.com/LingByte/SoulNexus/pkg/sip/asr"
 	sipdtmf "github.com/LingByte/SoulNexus/pkg/sip/dtmf"
+	"github.com/LingByte/SoulNexus/pkg/sip/scriptlisten"
 	sipSession "github.com/LingByte/SoulNexus/pkg/sip/session"
 	"github.com/LingByte/SoulNexus/pkg/sip/siputil"
 	siptts "github.com/LingByte/SoulNexus/pkg/sip/tts"
@@ -363,11 +363,11 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 	if strings.EqualFold(env.LLMProvider, "alibaba") {
 		llmEndpointOrAppID = strings.TrimSpace(env.LLMAppID)
 	}
-	llmProvider, err := llm.NewLLMProvider(ctx, env.LLMProvider, env.LLMAPIKey, llmEndpointOrAppID, systemPrompt)
+	llmHandler, err := llm.NewLLMProvider(ctx, env.LLMProvider, env.LLMAPIKey, llmEndpointOrAppID, systemPrompt)
 	if err != nil {
 		return fmt.Errorf("sip conversation: llm provider init: %w", err)
 	}
-	registerSIPTransferTool(llmProvider, cs.CallID, lg)
+	registerSIPTransferTool(llmHandler, cs.CallID, lg)
 	lg.Info("sip voice pipeline config",
 		zap.String("llm_model", llmModel),
 		zap.String("llm_provider", env.LLMProvider),
@@ -527,7 +527,7 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 				}()
 				ttsPlaying.Store(true)
 				ttsStartedAtNS.Store(time.Now().UnixNano())
-				reply, streamMeta, err = streamLLMToTTS(ms.GetContext(), llmProvider, llmModel, userText, ttsPipe, lg)
+				reply, streamMeta, err = streamLLMToTTS(ms.GetContext(), llmHandler, llmModel, userText, ttsPipe, lg)
 			}
 			if err != nil {
 				lg.Warn("sip voice llm/tts", zap.Error(err))
@@ -544,16 +544,7 @@ func attachVoiceInner(ctx context.Context, cs *sipSession.CallSession, env Voice
 				// In script mode, output is controlled by script steps (say/llm_reply). Do not auto-play here.
 				return
 			}
-			if ap, ok := llmProvider.(*llm.AlibabaProvider); ok {
-				if action := ap.ConsumePendingAction(); action == "transfer_to_agent" {
-					if ms != nil && ms.GetContext().Err() == nil {
-						lg.Info("sip voice: transfer after ai tts confirmation",
-							zap.String("call_id", cs.CallID),
-						)
-						TriggerTransferToAgent(context.Background(), cs.CallID, lg)
-					}
-				}
-			} else if consumeSIPTransferPending(cs.CallID) || shouldFallbackTransferByText(userText) {
+			if consumeSIPTransferPending(cs.CallID) || shouldFallbackTransferByText(userText) {
 				if ms != nil && ms.GetContext().Err() == nil {
 					lg.Info("sip voice: transfer after ai tts confirmation (tool/fallback)",
 						zap.String("call_id", cs.CallID),
@@ -817,10 +808,10 @@ func playWelcomeWav(ctx context.Context, ms *media.MediaSession, lg *zap.Logger,
 	return nil
 }
 
-func streamLLMToTTS(ctx context.Context, llmProvider llm.LLMProvider, model, userText string, ttsPipe *siptts.Pipeline, lg *zap.Logger) (string, StreamTurnTimings, error) {
+func streamLLMToTTS(ctx context.Context, h llm.LLMHandler, model, userText string, ttsPipe *siptts.Pipeline, lg *zap.Logger) (string, StreamTurnTimings, error) {
 	var meta StreamTurnTimings
-	if llmProvider == nil {
-		return "", meta, fmt.Errorf("nil llm provider")
+	if h == nil {
+		return "", meta, fmt.Errorf("nil llm handler")
 	}
 	if ttsPipe == nil {
 		return "", meta, fmt.Errorf("nil tts pipe")
@@ -859,32 +850,32 @@ func streamLLMToTTS(ctx context.Context, llmProvider llm.LLMProvider, model, use
 	}
 	// Alibaba App API usually returns one JSON message per turn; non-streaming avoids long
 	// silent waits when SSE chunks are sparse on some networks.
-	if _, isAlibaba := llmProvider.(*llm.AlibabaProvider); isAlibaba {
+	if _, isAlibaba := h.(*llm.AlibabaHandler); isAlibaba {
 		t0 := time.Now()
-		reply, err := llmProvider.Query(userText, model)
+		replyText, err := h.Query(userText, model)
 		meta.LLMWallMs = int(time.Since(t0).Milliseconds())
 		meta.LLMFirstMs = meta.LLMWallMs
 		if err != nil {
 			return "", meta, err
 		}
-		reply = normalizeTTSText(reply)
-		if reply == "" {
+		replyText = normalizeTTSText(replyText)
+		if replyText == "" {
 			return "", meta, nil
 		}
-		if err := speak(reply); err != nil {
+		if err := speak(replyText); err != nil {
 			meta.TTSMs = ttsMs
 			if errors.Is(err, context.Canceled) {
-				return reply, meta, nil
+				return replyText, meta, nil
 			}
 			return "", meta, err
 		}
 		meta.TTSMs = ttsMs
-		return strings.TrimSpace(reply), meta, nil
+		return strings.TrimSpace(replyText), meta, nil
 	}
 	streamStart := time.Now()
 	gotFirst := false
-	options := llm.QueryOptions{Model: model, Stream: true}
-	reply, err := llmProvider.QueryStream(userText, options, func(piece string, _ bool) error {
+	opts := &llm.QueryOptions{Model: model}
+	streamResp, err := h.QueryStream(userText, opts, func(piece string, _ bool) error {
 		piece = strings.TrimSpace(piece)
 		if piece == "" {
 			return nil
@@ -902,44 +893,45 @@ func streamLLMToTTS(ctx context.Context, llmProvider llm.LLMProvider, model, use
 		// fallback to non-streaming so behavior stays stable even if provider stream fails.
 		ttsMs = 0
 		t0 := time.Now()
-		reply, err = llmProvider.Query(userText, model)
+		replyText, qerr := h.Query(userText, model)
 		meta.LLMWallMs = int(time.Since(t0).Milliseconds())
 		meta.LLMFirstMs = meta.LLMWallMs
-		if err != nil {
-			return "", meta, err
+		if qerr != nil {
+			return "", meta, qerr
 		}
-		reply = normalizeTTSText(reply)
-		if reply == "" {
+		replyText = normalizeTTSText(replyText)
+		if replyText == "" {
 			if lg != nil {
 				lg.Warn("sip voice tts skip empty/invalid reply after sanitize")
 			}
 			return "", meta, nil
 		}
-		if err := speak(reply); err != nil {
+		if err := speak(replyText); err != nil {
 			meta.TTSMs = ttsMs
 			if errors.Is(err, context.Canceled) {
 				if lg != nil {
 					lg.Info("sip voice tts stopped (barge-in or cancel)")
 				}
-				return reply, meta, nil
+				return replyText, meta, nil
 			}
 			return "", meta, err
 		}
 		meta.TTSMs = ttsMs
-		return strings.TrimSpace(reply), meta, nil
+		return strings.TrimSpace(replyText), meta, nil
 	}
-	if strings.TrimSpace(reply) == "" {
-		reply = full.String()
+	replyText := strings.TrimSpace(full.String())
+	if replyText == "" && streamResp != nil && len(streamResp.Choices) > 0 {
+		replyText = strings.TrimSpace(streamResp.Choices[0].Content)
 	}
 	if err := flush(true); err != nil {
 		meta.TTSMs = ttsMs
 		if errors.Is(err, context.Canceled) {
-			return strings.TrimSpace(reply), meta, nil
+			return replyText, meta, nil
 		}
 		return "", meta, err
 	}
 	meta.TTSMs = ttsMs
-	return strings.TrimSpace(reply), meta, nil
+	return replyText, meta, nil
 }
 
 // SpeakTextOnce sends one synthesized sentence to the current SIP media output.
