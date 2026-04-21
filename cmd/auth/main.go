@@ -23,7 +23,6 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/config"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/logger"
-	"github.com/LingByte/SoulNexus/pkg/metrics"
 	"github.com/LingByte/SoulNexus/pkg/middleware"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	utilscaptcha "github.com/LingByte/SoulNexus/pkg/utils/captcha"
@@ -107,43 +106,6 @@ func main() {
 
 	app := NewLingEchoAuthService(db)
 
-	maxSpans := int(utils.GetIntEnv("METRICS_MAX_SPANS"))
-	if maxSpans == 0 {
-		maxSpans = 500
-	}
-	maxQueries := int(utils.GetIntEnv("METRICS_MAX_QUERIES"))
-	if maxQueries == 0 {
-		maxQueries = 500
-	}
-	maxStats := int(utils.GetIntEnv("METRICS_MAX_STATS"))
-	if maxStats == 0 {
-		maxStats = 100
-	}
-	enableTracing := utils.GetBoolEnv("METRICS_ENABLE_TRACING")
-	enableSQLAnalysis := utils.GetBoolEnv("METRICS_ENABLE_SQL_ANALYSIS")
-	if !enableSQLAnalysis && utils.GetEnv("METRICS_ENABLE_SQL_ANALYSIS") == "" {
-		enableSQLAnalysis = true
-	}
-	enableSystemMonitor := utils.GetBoolEnv("METRICS_ENABLE_SYSTEM_MONITOR")
-	if !enableSystemMonitor && utils.GetEnv("METRICS_ENABLE_SYSTEM_MONITOR") == "" {
-		enableSystemMonitor = true
-	}
-
-	monitor := metrics.NewMonitor(&metrics.MonitorConfig{
-		EnableMetrics:       true,
-		EnableTracing:       enableTracing,
-		MaxSpans:            maxSpans,
-		EnableSQLAnalysis:   enableSQLAnalysis,
-		MaxQueries:          maxQueries,
-		SlowThreshold:       100 * time.Millisecond,
-		EnableSystemMonitor: enableSystemMonitor,
-		MaxStats:            maxStats,
-		MonitorInterval:     30 * time.Second,
-	})
-	metrics.SetGlobalMonitor(monitor)
-	monitor.Start()
-	defer monitor.Stop()
-
 	middleware.InitGlobalMiddlewareManager(config.GlobalConfig.Middleware)
 
 	gin.SetMode(gin.ReleaseMode)
@@ -158,8 +120,6 @@ func main() {
 	r.RedirectTrailingSlash = false
 	r.RedirectFixedPath = false
 	r.MaxMultipartMemory = 32 << 20
-
-	r.Use(metrics.MonitorMiddleware(monitor))
 
 	secret := utils.GetEnv(constants.ENV_SESSION_SECRET)
 	if secret == "" && config.GlobalConfig != nil {
@@ -194,15 +154,6 @@ func main() {
 	})
 
 	app.registerRoutes(r)
-
-	monitorPrefix := config.GlobalConfig.Server.MonitorPrefix
-	if monitorPrefix == "" {
-		monitorPrefix = "/metrics"
-	}
-	fullMonitorPrefix := apiPrefix + monitorPrefix
-	monitorGroup := r.Group(fullMonitorPrefix)
-	metrics.NewMonitorAPI(monitor).RegisterRoutes(monitorGroup)
-	logger.Info("user-service metrics", zap.String("prefix", fullMonitorPrefix))
 
 	listeners.InitSystemListeners()
 	utils.Sig().Emit(models.SigInitSystemConfig, nil)

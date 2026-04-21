@@ -42,10 +42,9 @@ type ServerConfig struct {
 	Addr          string `env:"ADDR"`
 	Mode          string `env:"MODE"`
 	DocsPrefix    string `env:"DOCS_PREFIX"`
-	APIPrefix     string `env:"API_PREFIX"`
-	AuthPrefix    string `env:"AUTH_PREFIX"`
-	MonitorPrefix string `env:"MONITOR_PREFIX"`
-	SSLEnabled    bool   `env:"SSL_ENABLED"`
+	APIPrefix  string `env:"API_PREFIX"`
+	AuthPrefix string `env:"AUTH_PREFIX"`
+	SSLEnabled bool   `env:"SSL_ENABLED"`
 	SSLCertFile   string `env:"SSL_CERT_FILE"`
 	SSLKeyFile    string `env:"SSL_KEY_FILE"`
 }
@@ -269,10 +268,9 @@ func Load() error {
 			Addr:          getStringOrDefault("ADDR", ":7072"),
 			Mode:          getStringOrDefault("MODE", "development"),
 			DocsPrefix:    getStringOrDefault("DOCS_PREFIX", "/api/docs"),
-			APIPrefix:     getStringOrDefault("API_PREFIX", "/api"),
-			AuthPrefix:    getStringOrDefault("AUTH_PREFIX", "/auth"),
-			MonitorPrefix: getStringOrDefault("MONITOR_PREFIX", "/metrics"),
-			SSLEnabled:    getBoolOrDefault("SSL_ENABLED", false),
+			APIPrefix:  getStringOrDefault("API_PREFIX", "/api"),
+			AuthPrefix: getStringOrDefault("AUTH_PREFIX", "/auth"),
+			SSLEnabled: getBoolOrDefault("SSL_ENABLED", false),
 			SSLCertFile:   getStringOrDefault("SSL_CERT_FILE", ""),
 			SSLKeyFile:    getStringOrDefault("SSL_KEY_FILE", ""),
 		},

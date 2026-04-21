@@ -46,7 +46,6 @@ func setAllEnvs(t *testing.T) {
 	t.Setenv("SEARCH_PATH", "/var/search")
 	t.Setenv("SEARCH_BATCH_SIZE", "500")
 
-	t.Setenv("MONITOR_PREFIX", "/monitor")
 	t.Setenv("LANGUAGE_ENABLED", "true")
 	t.Setenv("API_SECRET_KEY", "api-secret")
 
@@ -94,7 +93,6 @@ func TestLoad_WithExplicitAppEnv(t *testing.T) {
 	// 路由前缀
 	if GlobalConfig.Server.DocsPrefix != "/docs" ||
 		GlobalConfig.Server.APIPrefix != "/api" ||
-		GlobalConfig.Server.AdminPrefix != "/admin" ||
 		GlobalConfig.Server.AuthPrefix != "/auth" {
 		t.Fatalf("prefix mismatch: %+v", *GlobalConfig)
 	}
@@ -128,9 +126,8 @@ func TestLoad_WithExplicitAppEnv(t *testing.T) {
 	}
 
 	// 其他
-	if GlobalConfig.Server.MonitorPrefix != "/monitor" ||
-		GlobalConfig.Auth.APISecretKey != "api-secret" {
-		t.Fatalf("monitor/lang/api mismatch: %+v", *GlobalConfig)
+	if GlobalConfig.Auth.APISecretKey != "api-secret" {
+		t.Fatalf("lang/api mismatch: %+v", *GlobalConfig)
 	}
 }
 

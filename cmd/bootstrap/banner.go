@@ -430,7 +430,6 @@ func LogConfigInfo() {
 		zap.String("addr", config.GlobalConfig.Server.Addr),
 		zap.String("db_driver", config.GlobalConfig.Database.Driver),
 		zap.String("dsn", config.GlobalConfig.Database.DSN),
-		zap.String("monitor_prefix", config.GlobalConfig.Server.MonitorPrefix),
 		zap.Bool("language_enabled", config.GlobalConfig.Features.LanguageEnabled),
 		zap.String("api_secret_key", config.GlobalConfig.Auth.APISecretKey),
 	)

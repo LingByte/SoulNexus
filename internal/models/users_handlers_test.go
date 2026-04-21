@@ -39,8 +39,7 @@ func setupHandlerTestRouter(t *testing.T, db *gorm.DB) *gin.Engine {
 			Header: "Authorization",
 		},
 		Server: config.ServerConfig{
-			APIPrefix:     "/api",
-			MonitorPrefix: "/monitor",
+			APIPrefix: "/api",
 		},
 	}
 
