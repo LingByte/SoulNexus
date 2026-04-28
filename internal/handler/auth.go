@@ -409,6 +409,24 @@ func getRefreshTokenTTL(db *gorm.DB) time.Duration {
 	return ttl
 }
 
+// authTokenTTLFromDB reads AUTH_TOKEN_EXPIRED from system_config; empty uses def with no log noise.
+// Non-empty but invalid values log a warning and fall back to def.
+func authTokenTTLFromDB(db *gorm.DB, def time.Duration) time.Duration {
+	val := strings.TrimSpace(utils.GetValue(db, constants.KEY_AUTH_TOKEN_EXPIRED))
+	if val == "" {
+		return def
+	}
+	d, err := time.ParseDuration(val)
+	if err != nil || d <= 0 {
+		logger.Warn("invalid AUTH_TOKEN_EXPIRED config value, using default",
+			zap.String("raw", val),
+			zap.Duration("default", def),
+			zap.Error(err))
+		return def
+	}
+	return d
+}
+
 func buildTokenPair(db *gorm.DB, user *models.User, accessTTL time.Duration) (string, string, error) {
 	if accessTTL <= 0 {
 		accessTTL = 24 * time.Hour
@@ -2090,8 +2108,7 @@ func (h *Handlers) handleUserSigninByEmail(c *gin.Context) {
 	// 如果需要 Token，生成 AuthToken
 	var refreshToken string
 	if form.AuthToken {
-		val := utils.GetValue(db, constants.KEY_AUTH_TOKEN_EXPIRED)
-		expired, _ := time.ParseDuration(val)
+		expired := authTokenTTLFromDB(db, 24*time.Hour)
 		if expired < 24*time.Hour {
 			expired = 24 * time.Hour
 		}
@@ -2471,7 +2488,17 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 			zap.String("deviceID", deviceID),
 			zap.Bool("isTrusted", isTrusted),
 			zap.Bool("isSuspicious", isSuspicious))
-		utils.Sig().Emit(constants.SigUserNewDeviceLogin, user, "", db)
+		deviceInfo := map[string]interface{}{
+			"deviceID":     deviceID,
+			"clientIP":     clientIP,
+			"location":     location,
+			"deviceType":   deviceType,
+			"os":           os,
+			"browser":      browser,
+			"isSuspicious": isSuspicious,
+			"loginTime":    time.Now().Format("2006-01-02 15:04:05"),
+		}
+		utils.Sig().Emit(constants.SigUserNewDeviceLogin, user, deviceInfo, db)
 	} else {
 		logger.Info("Skipping new device login alert - device is trusted and not suspicious",
 			zap.String("email", user.Email),
@@ -2504,13 +2531,7 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 	}
 
 	// 生成认证Token
-	val := utils.GetValue(db, constants.KEY_AUTH_TOKEN_EXPIRED) // 7d
-	expired, err := time.ParseDuration(val)
-	if err != nil {
-		logger.Warn("Failed to parse auth token expired duration, using default 7 days", zap.Error(err))
-		// 7 days
-		expired = 7 * 24 * time.Hour
-	}
+	expired := authTokenTTLFromDB(db, 7*24*time.Hour)
 	accessToken, refreshToken, err := buildTokenPair(db, user, expired)
 	if err != nil {
 		response.AbortWithJSONError(c, http.StatusInternalServerError, err)
@@ -2622,12 +2643,7 @@ func (h *Handlers) handleUserSignin(c *gin.Context) {
 	models.Login(c, user)
 
 	if form.Remember {
-		val := utils.GetValue(db, constants.KEY_AUTH_TOKEN_EXPIRED) // 7d
-		expired, err := time.ParseDuration(val)
-		if err != nil {
-			// 7 days
-			expired = 7 * 24 * time.Hour
-		}
+		expired := authTokenTTLFromDB(db, 7*24*time.Hour)
 		km := utils.JWTKeyManager()
 		if km != nil {
 			if tok, signErr := utils.SignAccessTokenWithKey(utils.AccessPayload{

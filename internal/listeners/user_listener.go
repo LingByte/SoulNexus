@@ -4,6 +4,8 @@ package listeners
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"fmt"
+
 	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/internal/config"
 	"github.com/LingByte/SoulNexus/pkg/constants"
@@ -319,15 +321,19 @@ func sendNewDeviceLoginAlert(user *models.User, deviceInfo map[string]interface{
 		changePasswordURL,
 	)
 
+	deviceIDStr := ""
+	if v, ok := deviceInfo["deviceID"]; ok {
+		deviceIDStr = fmt.Sprint(v)
+	}
 	if err != nil {
 		logger.Error("Failed to send new device login alert email",
 			zap.Error(err),
 			zap.String("email", user.Email),
-			zap.String("deviceID", deviceInfo["deviceID"].(string)))
+			zap.String("deviceID", deviceIDStr))
 	} else {
 		logger.Info("New device login alert email sent",
 			zap.String("email", user.Email),
-			zap.String("deviceID", deviceInfo["deviceID"].(string)),
+			zap.String("deviceID", deviceIDStr),
 			zap.Bool("isSuspicious", isSuspicious))
 	}
 }
