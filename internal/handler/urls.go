@@ -292,8 +292,6 @@ func (h *Handlers) Register(engine *gin.Engine) {
 	h.registerEmailLogRoutes(r)
 	h.registerSendCloudWebhookRoutes(r)
 	h.registerGroupRoutes(r)
-	h.registerQuotaRoutes(r)
-	h.registerAlertRoutes(r)
 	h.registerAnnouncementRoutes(r)
 	h.registerWebSocketRoutes(r)
 	h.registerAssistantRoutes(r)
@@ -569,43 +567,6 @@ func (h *Handlers) registerGroupRoutes(r *gin.RouterGroup) {
 		group.GET("/:id", h.GetGroup)
 		group.PUT("/:id", h.UpdateGroup)
 		group.DELETE("/:id", h.DeleteGroup)
-	}
-}
-
-// registerQuotaRoutes registers quota routes
-func (h *Handlers) registerQuotaRoutes(r *gin.RouterGroup) {
-	quota := r.Group("quota")
-	quota.Use(models.AuthRequired)
-	{
-		quota.GET("/user", h.ListUserQuotas)
-		quota.GET("/user/:type", h.GetUserQuota)
-		quota.POST("/user", h.CreateUserQuota)
-		quota.PUT("/user/:type", h.UpdateUserQuota)
-		quota.DELETE("/user/:type", h.DeleteUserQuota)
-
-		quota.GET("/group/:id", h.ListGroupQuotas)
-		quota.GET("/group/:id/:type", h.GetGroupQuota)
-		quota.POST("/group/:id", h.CreateGroupQuota)
-		quota.PUT("/group/:id/:type", h.UpdateGroupQuota)
-		quota.DELETE("/group/:id/:type", h.DeleteGroupQuota)
-	}
-}
-
-// registerAlertRoutes registers alert routes
-func (h *Handlers) registerAlertRoutes(r *gin.RouterGroup) {
-	alert := r.Group("alert")
-	alert.Use(models.AuthRequired)
-	{
-		alert.POST("/rules", h.CreateAlertRule)
-		alert.GET("/rules", h.ListAlertRules)
-		alert.GET("/rules/:id", h.GetAlertRule)
-		alert.PUT("/rules/:id", h.UpdateAlertRule)
-		alert.DELETE("/rules/:id", h.DeleteAlertRule)
-
-		alert.GET("", h.ListAlerts)
-		alert.GET("/:id", h.GetAlert)
-		alert.POST("/:id/resolve", h.ResolveAlert)
-		alert.POST("/:id/mute", h.MuteAlert)
 	}
 }
 
@@ -1055,13 +1016,6 @@ func (h *Handlers) registerAdminManagementRoutes(r *gin.RouterGroup) {
 		nodePlugins.GET("", h.handleAdminListNodePlugins)
 		nodePlugins.GET("/:id", h.handleAdminGetNodePlugin)
 		nodePlugins.DELETE("/:id", h.handleAdminDeleteNodePlugin)
-	}
-
-	alerts := r.Group("admin/alerts", adminGuard...)
-	{
-		alerts.GET("", h.handleAdminListAlerts)
-		alerts.GET("/:id", h.handleAdminGetAlert)
-		alerts.DELETE("/:id", h.handleAdminDeleteAlert)
 	}
 
 	notificationCenter := r.Group("admin/notifications", adminGuard...)

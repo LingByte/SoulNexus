@@ -23,7 +23,6 @@ export const frOverrides: Record<string, string> = {
   'nav.sidebar.quotas': 'Quotas',
   'nav.sidebar.billing': 'Facturation',
   'nav.sidebar.groups': 'Organisations',
-  'nav.sidebar.alerts': 'Alertes',
   'nav.sidebar.deviceManagement': 'Appareils',
   'nav.sidebar.overview': 'Vue d ensemble',
   'nav.sidebar.currentOrganization': 'Organisation actuelle',

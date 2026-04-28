@@ -1750,18 +1750,6 @@ func (h *Handlers) handleAdminDeleteKnowledgeBase(c *gin.Context) {
 	h.handleAdminDeleteGenericTableItem(c, "knowledge_bases")
 }
 
-func (h *Handlers) handleAdminListAlerts(c *gin.Context) {
-	h.handleAdminListGenericTable(c, "alerts", "title", "message", "alert_type", "status", "severity")
-}
-
-func (h *Handlers) handleAdminGetAlert(c *gin.Context) {
-	h.handleAdminGetGenericTableItem(c, "alerts")
-}
-
-func (h *Handlers) handleAdminDeleteAlert(c *gin.Context) {
-	h.handleAdminDeleteGenericTableItem(c, "alerts")
-}
-
 func (h *Handlers) handleAdminListInternalNotifications(c *gin.Context) {
 	h.handleAdminListGenericTable(c, "internal_notifications", "title", "content")
 }

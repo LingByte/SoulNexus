@@ -1900,22 +1900,6 @@ func (h *Handlers) CloneGroup(c *gin.Context) {
 	}
 	h.db.Create(&newMember)
 
-	// 复制配额设置（如果有）
-	var quotas []models.GroupQuota
-	if err := h.db.Where("group_id = ?", sourceGroup.ID).Find(&quotas).Error; err == nil {
-		for _, quota := range quotas {
-			newQuota := models.GroupQuota{
-				GroupID:     newGroup.ID,
-				QuotaType:   quota.QuotaType,
-				TotalQuota:  quota.TotalQuota,
-				UsedQuota:   0, // 重置使用量
-				Period:      quota.Period,
-				Description: quota.Description,
-			}
-			h.db.Create(&newQuota)
-		}
-	}
-
 	// 记录日志
 	details := map[string]interface{}{
 		"source_group_id":   sourceGroup.ID,
@@ -1961,10 +1945,6 @@ func (h *Handlers) ExportGroup(c *gin.Context) {
 	var members []models.GroupMember
 	h.db.Where("group_id = ?", groupID).Preload("User").Find(&members)
 
-	// 获取配额信息
-	var quotas []models.GroupQuota
-	h.db.Where("group_id = ?", groupID).Find(&quotas)
-
 	// 获取活动日志（最近100条）
 	var logs []models.GroupActivityLog
 	h.db.Where("group_id = ?", groupID).
@@ -1992,19 +1972,6 @@ func (h *Handlers) ExportGroup(c *gin.Context) {
 					"displayName": m.User.DisplayName,
 					"role":        m.Role,
 					"joinedAt":    m.CreatedAt,
-				}
-			}
-			return result
-		}(),
-		"quotas": func() []map[string]interface{} {
-			result := make([]map[string]interface{}, len(quotas))
-			for i, q := range quotas {
-				result[i] = map[string]interface{}{
-					"type":        q.QuotaType,
-					"total":       q.TotalQuota,
-					"used":        q.UsedQuota,
-					"period":      q.Period,
-					"description": q.Description,
 				}
 			}
 			return result

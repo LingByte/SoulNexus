@@ -144,9 +144,6 @@ func FinalizeAccountDeletion(db *gorm.DB, userID uint, operator string) error {
 		if err := tx.Unscoped().Where("user_id = ?", userID).Delete(&UserCredential{}).Error; err != nil {
 			return err
 		}
-		if err := tx.Unscoped().Where("user_id = ?", userID).Delete(&UserQuota{}).Error; err != nil {
-			return err
-		}
 		if err := tx.Unscoped().Where("user_id = ?", userID).Delete(&GroupMember{}).Error; err != nil {
 			return err
 		}

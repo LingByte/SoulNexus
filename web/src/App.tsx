@@ -28,10 +28,6 @@ import GroupMembers from '@/pages/GroupMembers.tsx';
 import GroupSettings from '@/pages/GroupSettings.tsx';
 import GroupActivityLogs from '@/pages/GroupActivityLogs.tsx';
 import OverviewEditorPage from '@/pages/OverviewEditorPage.tsx';
-import Alerts from '@/pages/Alerts.tsx';
-import AlertRules from '@/pages/AlertRules.tsx';
-import AlertRuleForm from '@/pages/AlertRuleForm.tsx';
-import AlertDetail from '@/pages/AlertDetail.tsx';
 import UserQuotas from '@/pages/UserQuotas.tsx';
 import DeviceManagement from '@/pages/DeviceManagement.tsx';
 import DeviceDetail from '@/pages/DeviceDetail.tsx';
@@ -231,41 +227,6 @@ function AppRoutes() {
                             <ProtectedRoute>
                                 <Layout>
                                     <OverviewEditorPage />
-                                </Layout>
-                            </ProtectedRoute>
-                        } />
-                        <Route path="/alerts" element={
-                            <ProtectedRoute>
-                                <Layout>
-                                    <Alerts />
-                                </Layout>
-                            </ProtectedRoute>
-                        } />
-                        <Route path="/alerts/rules" element={
-                            <ProtectedRoute>
-                                <Layout>
-                                    <AlertRules />
-                                </Layout>
-                            </ProtectedRoute>
-                        } />
-                        <Route path="/alerts/rules/new" element={
-                            <ProtectedRoute>
-                                <Layout>
-                                    <AlertRuleForm />
-                                </Layout>
-                            </ProtectedRoute>
-                        } />
-                        <Route path="/alerts/rules/:id/edit" element={
-                            <ProtectedRoute>
-                                <Layout>
-                                    <AlertRuleForm />
-                                </Layout>
-                            </ProtectedRoute>
-                        } />
-                        <Route path="/alerts/:id" element={
-                            <ProtectedRoute>
-                                <Layout>
-                                    <AlertDetail />
                                 </Layout>
                             </ProtectedRoute>
                         } />
