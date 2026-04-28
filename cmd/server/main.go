@@ -198,7 +198,6 @@ func main() {
 
 	// 15. Start Timed task
 	task.StartEmailCleaner(db)
-	task.StartQuotaAlertChecker(db)
 	if config.GlobalConfig.Features.BackupEnabled {
 		backup.StartBackupScheduler(db)
 	}

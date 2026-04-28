@@ -31,7 +31,6 @@ const Workflows = lazy(() => import('@/pages/Workflows'))
 const WorkflowPlugins = lazy(() => import('@/pages/WorkflowPlugins'))
 const NodePlugins = lazy(() => import('@/pages/NodePlugins'))
 const NotificationCenter = lazy(() => import('@/pages/NotificationCenter'))
-const AlertCenter = lazy(() => import('@/pages/AlertCenter'))
 const KnowledgeBases = lazy(() => import('@/pages/KnowledgeBases'))
 const Devices = lazy(() => import('@/pages/Devices'))
 const ChatData = lazy(() => import('@/pages/ChatData'))
@@ -173,7 +172,6 @@ function App() {
             <Route path="/workflow-plugins" element={<ProtectedRoute><WorkflowPlugins /></ProtectedRoute>} />
             <Route path="/node-plugins" element={<ProtectedRoute><NodePlugins /></ProtectedRoute>} />
             <Route path="/notification-center" element={<ProtectedRoute><NotificationCenter /></ProtectedRoute>} />
-            <Route path="/alerts" element={<ProtectedRoute><AlertCenter /></ProtectedRoute>} />
             <Route path="/knowledge-bases" element={<ProtectedRoute><KnowledgeBases /></ProtectedRoute>} />
             <Route path="/devices" element={<ProtectedRoute><Devices /></ProtectedRoute>} />
             <Route path="/chat-data" element={<ProtectedRoute><ChatData /></ProtectedRoute>} />

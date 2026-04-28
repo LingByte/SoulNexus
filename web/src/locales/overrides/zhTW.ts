@@ -23,7 +23,6 @@ export const zhTWOverrides: Record<string, string> = {
   'nav.sidebar.quotas': '配額管理',
   'nav.sidebar.billing': '帳單管理',
   'nav.sidebar.groups': '組織管理',
-  'nav.sidebar.alerts': '告警管理',
   'nav.sidebar.deviceManagement': '裝置管理',
   'nav.sidebar.overview': '資料總覽',
   'nav.sidebar.currentOrganization': '目前組織',
