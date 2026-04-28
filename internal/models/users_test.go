@@ -213,68 +213,6 @@ func TestSetLastLogin(t *testing.T) {
 	assert.Equal(t, "192.168.1.1", retrieved.LastLoginIP)
 }
 
-func TestEncodeHashToken(t *testing.T) {
-	user := &User{
-		Email:    "test@example.com",
-		Password: HashPassword("password123"),
-	}
-
-	timestamp := time.Now().Add(24 * time.Hour).Unix()
-	token := EncodeHashToken(user, timestamp, false)
-	assert.NotEmpty(t, token)
-	assert.Contains(t, token, "-")
-
-	// Test with last login
-	now := time.Now()
-	user.LastLogin = &now
-	token2 := EncodeHashToken(user, timestamp, true)
-	assert.NotEmpty(t, token2)
-	assert.NotEqual(t, token, token2) // Should be different
-}
-
-func TestDecodeHashToken(t *testing.T) {
-	db := setupTestDB(t)
-
-	user, err := CreateUser(db, "test@example.com", "password123")
-	require.NoError(t, err)
-
-	timestamp := time.Now().Add(24 * time.Hour).Unix()
-	token := EncodeHashToken(user, timestamp, false)
-
-	// Decode token
-	decoded, err := DecodeHashToken(db, token, false)
-	require.NoError(t, err)
-	assert.Equal(t, user.ID, decoded.ID)
-	assert.Equal(t, user.Email, decoded.Email)
-
-	// Test invalid token
-	_, err = DecodeHashToken(db, "invalid-token", false)
-	assert.Error(t, err)
-
-	// Test expired token
-	expiredTimestamp := time.Now().Add(-1 * time.Hour).Unix()
-	expiredToken := EncodeHashToken(user, expiredTimestamp, false)
-	_, err = DecodeHashToken(db, expiredToken, false)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "expired")
-
-	// Test bad token format (no dash)
-	_, err = DecodeHashToken(db, "notoken", false)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "bad token")
-
-	// Test bad token format (invalid base64)
-	_, err = DecodeHashToken(db, "invalid-base64-token", false)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "bad token")
-
-	// Test with useLastLogin=true
-	token2 := EncodeHashToken(user, timestamp, true)
-	decoded2, err := DecodeHashToken(db, token2, true)
-	require.NoError(t, err)
-	assert.Equal(t, user.ID, decoded2.ID)
-}
-
 func TestCheckUserAllowLogin(t *testing.T) {
 	db := setupTestDB(t)
 
@@ -291,17 +229,6 @@ func TestCheckUserAllowLogin(t *testing.T) {
 	err = CheckUserAllowLogin(db, user)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "not allow login")
-}
-
-func TestBuildAuthToken(t *testing.T) {
-	user := &User{
-		Email:    "test@example.com",
-		Password: HashPassword("password123"),
-	}
-
-	token := BuildAuthToken(user, 24*time.Hour, false)
-	assert.NotEmpty(t, token)
-	assert.Contains(t, token, "-")
 }
 
 func TestChangePassword(t *testing.T) {

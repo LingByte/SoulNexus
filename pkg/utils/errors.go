@@ -52,8 +52,6 @@ var ErrNotActivated = errors.New("user not activated") // User account is not ac
 
 var ErrTokenRequired = errors.New("token required") // Missing required token, for example when accessing protected resources
 
-var ErrInvalidToken = errors.New("invalid token") // Token format is illegal or does not conform to specifications
-
 var ErrBadToken = errors.New("bad token") // Token has been tampered with, forged or is invalid
 
 var ErrTokenExpired = errors.New("token expired") // Token has expired

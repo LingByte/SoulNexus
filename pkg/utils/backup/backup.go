@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/LingByte/SoulNexus/pkg/config"
+	"github.com/LingByte/SoulNexus/internal/config"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/robfig/cron/v3"
 	"go.uber.org/zap"

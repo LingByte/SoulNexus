@@ -31,23 +31,32 @@ type Config struct {
 	Features     FeaturesConfig     `mapstructure:"features"`
 	Middleware   MiddlewareConfig   `mapstructure:"middleware"`
 	RTCSFU       RTCSFUConfig       `mapstructure:"rtcs"`
+	JWT          JWTConfig
+}
+
+// JWTConfig JWT related configuration
+type JWTConfig struct {
+	Algorithm    string `env:"JWT_ALGORITHM"`
+	KeyFile      string `env:"JWT_KEY_FILE"`
+	RotationDays int    `env:"JWT_ROTATION_DAYS"`
+	KeepOldKeys  int    `env:"JWT_KEEP_OLD_KEYS"`
 }
 
 // ServerConfig server configuration
 type ServerConfig struct {
-	Name          string `env:"SERVER_NAME"`
-	Desc          string `env:"SERVER_DESC"`
-	URL           string `env:"SERVER_URL"`
-	Logo          string `env:"SERVER_LOGO"`
-	TermsURL      string `env:"SERVER_TERMS_URL"`
-	Addr          string `env:"ADDR"`
-	Mode          string `env:"MODE"`
-	DocsPrefix    string `env:"DOCS_PREFIX"`
-	APIPrefix  string `env:"API_PREFIX"`
-	AuthPrefix string `env:"AUTH_PREFIX"`
-	SSLEnabled bool   `env:"SSL_ENABLED"`
-	SSLCertFile   string `env:"SSL_CERT_FILE"`
-	SSLKeyFile    string `env:"SSL_KEY_FILE"`
+	Name        string `env:"SERVER_NAME"`
+	Desc        string `env:"SERVER_DESC"`
+	URL         string `env:"SERVER_URL"`
+	Logo        string `env:"SERVER_LOGO"`
+	TermsURL    string `env:"SERVER_TERMS_URL"`
+	Addr        string `env:"ADDR"`
+	Mode        string `env:"MODE"`
+	DocsPrefix  string `env:"DOCS_PREFIX"`
+	APIPrefix   string `env:"API_PREFIX"`
+	AuthPrefix  string `env:"AUTH_PREFIX"`
+	SSLEnabled  bool   `env:"SSL_ENABLED"`
+	SSLCertFile string `env:"SSL_CERT_FILE"`
+	SSLKeyFile  string `env:"SSL_KEY_FILE"`
 }
 
 // RTCSFUConfig enables the hybrid multi-SFU control-plane HTTP API (pkg/rtcsfu) and embedded Pion SFU.
@@ -217,19 +226,19 @@ func buildGlobalConfig() error {
 	GlobalConfig = &Config{
 		MachineID: utils.GetIntEnv("MACHINE_ID"),
 		Server: ServerConfig{
-			Name:          getStringOrDefault("SERVER_NAME", ""),
-			Desc:          getStringOrDefault("SERVER_DESC", ""),
-			URL:           getStringOrDefault("SERVER_URL", ""),
-			Logo:          getStringOrDefault("SERVER_LOGO", ""),
-			TermsURL:      getStringOrDefault("SERVER_TERMS_URL", ""),
-			Addr:          getStringOrDefault("ADDR", ":7072"),
-			Mode:          getStringOrDefault("MODE", "development"),
-			DocsPrefix:    getStringOrDefault("DOCS_PREFIX", "/api/docs"),
-			APIPrefix:  getStringOrDefault("API_PREFIX", "/api"),
-			AuthPrefix: getStringOrDefault("AUTH_PREFIX", "/auth"),
-			SSLEnabled: getBoolOrDefault("SSL_ENABLED", false),
-			SSLCertFile:   getStringOrDefault("SSL_CERT_FILE", ""),
-			SSLKeyFile:    getStringOrDefault("SSL_KEY_FILE", ""),
+			Name:        getStringOrDefault("SERVER_NAME", ""),
+			Desc:        getStringOrDefault("SERVER_DESC", ""),
+			URL:         getStringOrDefault("SERVER_URL", ""),
+			Logo:        getStringOrDefault("SERVER_LOGO", ""),
+			TermsURL:    getStringOrDefault("SERVER_TERMS_URL", ""),
+			Addr:        getStringOrDefault("ADDR", ":7072"),
+			Mode:        getStringOrDefault("MODE", "development"),
+			DocsPrefix:  getStringOrDefault("DOCS_PREFIX", "/api/docs"),
+			APIPrefix:   getStringOrDefault("API_PREFIX", "/api"),
+			AuthPrefix:  getStringOrDefault("AUTH_PREFIX", "/auth"),
+			SSLEnabled:  getBoolOrDefault("SSL_ENABLED", false),
+			SSLCertFile: getStringOrDefault("SSL_CERT_FILE", ""),
+			SSLKeyFile:  getStringOrDefault("SSL_KEY_FILE", ""),
 		},
 		Database: DatabaseConfig{
 			Driver: getStringOrDefault("DB_DRIVER", "sqlite"),
@@ -340,6 +349,12 @@ func buildGlobalConfig() error {
 			ReplicaStaleSeconds:           getIntOrDefault("RTCSFU_REPLICA_STALE_SECONDS", 0),
 			ReplicaTouchHMACSecret:        getStringOrDefault("RTCSFU_REPLICA_TOUCH_HMAC_SECRET", ""),
 			ReplicaTouchTokenTTLSeconds:   getIntOrDefault("RTCSFU_REPLICA_TOUCH_TOKEN_TTL_SECONDS", 0),
+		},
+		JWT: JWTConfig{
+			Algorithm:    getStringOrDefault("JWT_ALGORITHM", "RS256"),
+			KeyFile:      getStringOrDefault("JWT_KEY_FILE", "./keys/jwks.json"),
+			RotationDays: getIntOrDefault("JWT_ROTATION_DAYS", 30),
+			KeepOldKeys:  getIntOrDefault("JWT_KEEP_OLD_KEYS", 2),
 		},
 	}
 	GlobalStore = lingstorage.NewClient(&lingstorage.Config{

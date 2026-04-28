@@ -16,13 +16,13 @@ import (
 
 	"github.com/LingByte/SoulNexus"
 	"github.com/LingByte/SoulNexus/cmd/bootstrap"
-	"github.com/LingByte/SoulNexus/internal/schema"
 	handlers "github.com/LingByte/SoulNexus/internal/handler"
 	"github.com/LingByte/SoulNexus/internal/listeners"
 	"github.com/LingByte/SoulNexus/internal/models"
+	"github.com/LingByte/SoulNexus/internal/schema"
 	"github.com/LingByte/SoulNexus/internal/task"
 	"github.com/LingByte/SoulNexus/pkg/cache"
-	"github.com/LingByte/SoulNexus/pkg/config"
+	"github.com/LingByte/SoulNexus/internal/config"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/health"
 	"github.com/LingByte/SoulNexus/pkg/logger"
@@ -118,6 +118,12 @@ func main() {
 	utils.InitGlobalLoginSecurityManager(logger.Lg)
 	utils.InitGlobalIntelligentRiskControl(logger.Lg)
 
+	// Initialize KeyManager
+	if err := bootstrap.InitializeKeyManager(); err != nil {
+		logger.Error("key manager initialization failed", zap.Error(err))
+		return
+	}
+	
 	app := NewLingEchoAuthService(db)
 
 	middleware.InitGlobalMiddlewareManager(a.Middleware)

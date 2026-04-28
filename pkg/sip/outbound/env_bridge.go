@@ -3,7 +3,7 @@ package outbound
 import (
 	"strings"
 
-	"github.com/LingByte/SoulNexus/pkg/config"
+	"github.com/LingByte/SoulNexus/internal/config"
 )
 
 func normalizeSIPRequestURI(u string) string {
