@@ -184,44 +184,42 @@ type UpdateUserRequest struct {
 
 type User struct {
 	BaseModel
-	Email                string     `json:"email" gorm:"size:128;uniqueIndex"`
-	WechatOpenID         string     `json:"wechatOpenId,omitempty" gorm:"size:128;index"`
-	WechatUnionID        string     `json:"wechatUnionId,omitempty" gorm:"size:128;index"`
-	GithubID             string     `json:"githubId,omitempty" gorm:"size:64;index"`
-	GithubLogin          string     `json:"githubLogin,omitempty" gorm:"size:128;index"`
-	Password             string     `json:"-" gorm:"size:128"`
-	Phone                string     `json:"phone,omitempty" gorm:"size:64;index"`
-	FirstName            string     `json:"firstName,omitempty" gorm:"size:128"`
-	LastName             string     `json:"lastName,omitempty" gorm:"size:128"`
-	DisplayName          string     `json:"displayName,omitempty" gorm:"size:128"`
-	Status               string     `json:"status" gorm:"size:32;index;default:'active';comment:Account status"`
-	LastLogin            *time.Time `json:"lastLogin,omitempty"`
-	LastLoginIP          string     `json:"-" gorm:"size:128"`
-	Source               string     `json:"source" gorm:"size:64;index"`
-	Locale               string     `json:"locale,omitempty" gorm:"size:20"`
-	Timezone             string     `json:"timezone,omitempty" gorm:"size:200"`
-	AuthToken            string     `json:"token,omitempty" gorm:"-"`
-	Avatar               string     `json:"avatar,omitempty"`
-	Gender               string     `json:"gender,omitempty"`
-	City                 string     `json:"city,omitempty"`
-	Region               string     `json:"region,omitempty"`
-	EmailNotifications   bool       `json:"emailNotifications"`                           // 邮件通知
-	PushNotifications    bool       `json:"pushNotifications" gorm:"default:true"`        // 推送通知
-	EmailVerified        bool       `json:"emailVerified" gorm:"default:false"`           // 邮箱已验证
-	PhoneVerified        bool       `json:"phoneVerified" gorm:"default:false"`           // 手机已验证
-	TwoFactorEnabled     bool       `json:"twoFactorEnabled" gorm:"default:false"`        // 双因素认证
-	TwoFactorSecret      string     `json:"-" gorm:"size:128"`                            // 双因素认证密钥
-	EmailVerifyToken     string     `json:"-" gorm:"size:128"`                            // 邮箱验证令牌
-	PhoneVerifyToken     string     `json:"-" gorm:"size:128"`                            // 手机验证令牌
-	PasswordResetToken   string     `json:"-" gorm:"size:128"`                            // 密码重置令牌
-	PasswordResetExpires *time.Time `json:"-"`                                            // 密码重置过期时间
-	EmailVerifyExpires   *time.Time `json:"-"`                                            // 邮箱验证过期时间
-	LoginCount           int        `json:"loginCount" gorm:"default:0"`                  // 登录次数
-	LastPasswordChange   *time.Time `json:"lastPasswordChange,omitempty"`                 // 最后密码修改时间
-	ProfileComplete      int        `json:"profileComplete" gorm:"default:0"`             // 资料完整度百分比
-	Role                 string     `json:"role,omitempty" gorm:"size:50;default:'user'"` // 用户角色
-
-	// 账号注销冷静期：到达 AccountDeletionEffectiveAt 后由定时任务执行永久注销（仅清除账号与绑定，不删用户创建的业务资源）
+	Email                      string     `json:"email" gorm:"size:128;uniqueIndex"`
+	WechatOpenID               string     `json:"wechatOpenId,omitempty" gorm:"size:128;index"`
+	WechatUnionID              string     `json:"wechatUnionId,omitempty" gorm:"size:128;index"`
+	GithubID                   string     `json:"githubId,omitempty" gorm:"size:64;index"`
+	GithubLogin                string     `json:"githubLogin,omitempty" gorm:"size:128;index"`
+	Password                   string     `json:"-" gorm:"size:128"`
+	Phone                      string     `json:"phone,omitempty" gorm:"size:64;index"`
+	FirstName                  string     `json:"firstName,omitempty" gorm:"size:128"`
+	LastName                   string     `json:"lastName,omitempty" gorm:"size:128"`
+	DisplayName                string     `json:"displayName,omitempty" gorm:"size:128"`
+	Status                     string     `json:"status" gorm:"size:32;index;default:'active';comment:Account status"`
+	LastLogin                  *time.Time `json:"lastLogin,omitempty"`
+	LastLoginIP                string     `json:"-" gorm:"size:128"`
+	Source                     string     `json:"source" gorm:"size:64;index"`
+	Locale                     string     `json:"locale,omitempty" gorm:"size:20"`
+	Timezone                   string     `json:"timezone,omitempty" gorm:"size:200"`
+	AuthToken                  string     `json:"token,omitempty" gorm:"-"`
+	Avatar                     string     `json:"avatar,omitempty"`
+	Gender                     string     `json:"gender,omitempty"`
+	City                       string     `json:"city,omitempty"`
+	Region                     string     `json:"region,omitempty"`
+	EmailNotifications         bool       `json:"emailNotifications"`                           // 邮件通知
+	PushNotifications          bool       `json:"pushNotifications" gorm:"default:true"`        // 推送通知
+	EmailVerified              bool       `json:"emailVerified" gorm:"default:false"`           // 邮箱已验证
+	PhoneVerified              bool       `json:"phoneVerified" gorm:"default:false"`           // 手机已验证
+	TwoFactorEnabled           bool       `json:"twoFactorEnabled" gorm:"default:false"`        // 双因素认证
+	TwoFactorSecret            string     `json:"-" gorm:"size:128"`                            // 双因素认证密钥
+	EmailVerifyToken           string     `json:"-" gorm:"size:128"`                            // 邮箱验证令牌
+	PhoneVerifyToken           string     `json:"-" gorm:"size:128"`                            // 手机验证令牌
+	PasswordResetToken         string     `json:"-" gorm:"size:128"`                            // 密码重置令牌
+	PasswordResetExpires       *time.Time `json:"-"`                                            // 密码重置过期时间
+	EmailVerifyExpires         *time.Time `json:"-"`                                            // 邮箱验证过期时间
+	LoginCount                 int        `json:"loginCount" gorm:"default:0"`                  // 登录次数
+	LastPasswordChange         *time.Time `json:"lastPasswordChange,omitempty"`                 // 最后密码修改时间
+	ProfileComplete            int        `json:"profileComplete" gorm:"default:0"`             // 资料完整度百分比
+	Role                       string     `json:"role,omitempty" gorm:"size:50;default:'user'"` // 用户角色
 	AccountDeletionRequestedAt *time.Time `json:"accountDeletionRequestedAt,omitempty"`
 	AccountDeletionEffectiveAt *time.Time `json:"accountDeletionEffectiveAt,omitempty" gorm:"index"`
 }
@@ -315,7 +313,7 @@ func AuthRequired(c *gin.Context) {
 			"code": http.StatusForbidden,
 			"msg":  "账号正在注销冷静期内，暂时无法使用 SoulNexus 产品功能。请使用「撤销注销」完成验证后恢复，或等待冷静期结束后账号将被永久注销。",
 			"data": gin.H{
-				"accountDeletionPending":       true,
+				"accountDeletionPending":     true,
 				"accountDeletionEffectiveAt": effective,
 			},
 		})

@@ -43,8 +43,6 @@ import (
 	"github.com/LingByte/lingstorage-sdk-go"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
-	"github.com/pquerna/otp/totp"
-	"github.com/skip2/go-qrcode"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -159,14 +157,6 @@ func verifyRequestCaptcha(captchaID, captchaCode, captchaData, captchaType strin
 	default:
 		return false, errors.New("unsupported captcha type")
 	}
-}
-
-type wechatQRCodeCreateResp struct {
-	Ticket        string `json:"ticket"`
-	ExpireSeconds int    `json:"expire_seconds"`
-	URL           string `json:"url"`
-	ErrCode       int    `json:"errcode"`
-	ErrMsg        string `json:"errmsg"`
 }
 
 type wechatAccessTokenResp struct {
@@ -711,11 +701,11 @@ func (h *Handlers) finishWechatSessionSuccess(c *gin.Context, session *wechatLog
 			effective = wxFresh.AccountDeletionEffectiveAt.UTC().Format(time.RFC3339)
 		}
 		return gin.H{
-			"status":                       "account_deletion_pending",
-			"accountDeletionPending":       true,
-			"accountDeletionEffectiveAt":   effective,
-			"email":                        wxFresh.Email,
-			"message":                      "账号处于注销冷静期，暂无法登录。请使用撤销注销流程恢复。",
+			"status":                     "account_deletion_pending",
+			"accountDeletionPending":     true,
+			"accountDeletionEffectiveAt": effective,
+			"email":                      wxFresh.Email,
+			"message":                    "账号处于注销冷静期，暂无法登录。请使用撤销注销流程恢复。",
 		}, nil
 	}
 	models.Login(c, user)
@@ -983,14 +973,14 @@ func (h *Handlers) handleOIDCExchange(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("code is required"))
 		return
 	}
-	if configuredClientID := strings.TrimSpace(os.Getenv("OIDC_CLIENT_ID")); configuredClientID != "" {
+	if configuredClientID := strings.TrimSpace(utils.GetEnv("OIDC_CLIENT_ID")); configuredClientID != "" {
 		req.ClientID = configuredClientID
 	}
 	if req.ClientID == "" {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("client_id is required"))
 		return
 	}
-	req.ClientSecret = strings.TrimSpace(os.Getenv("OIDC_CLIENT_SECRET"))
+	req.ClientSecret = strings.TrimSpace(utils.GetEnv("OIDC_CLIENT_SECRET"))
 	if req.ClientSecret == "" {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("OIDC_CLIENT_SECRET is not configured"))
 		return
@@ -1084,7 +1074,7 @@ func (h *Handlers) processOIDCTokenReq(c *gin.Context, req oidcTokenReq) {
 			"code": http.StatusForbidden,
 			"msg":  "账号正在注销冷静期，无法完成授权。请撤销注销或等待冷静期结束。",
 			"data": gin.H{
-				"accountDeletionPending":       true,
+				"accountDeletionPending":     true,
 				"accountDeletionEffectiveAt": effective,
 			},
 		})
@@ -1135,7 +1125,7 @@ func (h *Handlers) handleRefreshToken(c *gin.Context) {
 			"code": http.StatusForbidden,
 			"msg":  "账号正在注销冷静期，无法刷新令牌。请撤销注销或等待冷静期结束。",
 			"data": gin.H{
-				"accountDeletionPending":       true,
+				"accountDeletionPending":     true,
 				"accountDeletionEffectiveAt": effective,
 			},
 		})
@@ -2265,7 +2255,7 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 			})
 			return
 		}
-		valid := totp.Validate(code, user.TwoFactorSecret)
+		valid := utils.ValidateTOTP(code, user.TwoFactorSecret)
 		if !valid {
 			response.Fail(c, "两步验证码错误，请重新输入", errors.New("invalid 2fa code"))
 			return
@@ -2494,7 +2484,7 @@ func (h *Handlers) handleUserSignin(c *gin.Context) {
 	if user.TwoFactorEnabled {
 		// 如果提供了两步验证码，验证它
 		if form.TwoFactorCode != "" {
-			valid := totp.Validate(form.TwoFactorCode, user.TwoFactorSecret)
+			valid := utils.ValidateTOTP(form.TwoFactorCode, user.TwoFactorSecret)
 			if !valid {
 				response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("invalid 2fa code"))
 				return
@@ -3745,12 +3735,7 @@ func (h *Handlers) handleTwoFactorSetup(c *gin.Context) {
 		return
 	}
 
-	// 生成新的密钥
-	key, err := totp.Generate(totp.GenerateOpts{
-		Issuer:      "LingEcho",
-		AccountName: user.Email,
-		SecretSize:  32,
-	})
+	setup, err := utils.GenerateTOTPSetup("", user.Email, 0)
 	if err != nil {
 		response.Fail(c, "Failed to generate two-factor secret", err)
 		return
@@ -3758,34 +3743,17 @@ func (h *Handlers) handleTwoFactorSetup(c *gin.Context) {
 
 	// 保存密钥到数据库（不启用）
 	err = models.UpdateUser(h.db, user, map[string]interface{}{
-		"two_factor_secret": key.Secret(),
+		"two_factor_secret": setup.Secret,
 	})
 	if err != nil {
 		response.Fail(c, "Failed to save two-factor secret", err)
 		return
 	}
 
-	// 生成QR码
-	qrCode, err := qrcode.New(key.URL(), qrcode.Medium)
-	if err != nil {
-		response.Fail(c, "Failed to generate QR code", err)
-		return
-	}
-
-	// 将QR码转换为PNG图片的base64编码
-	png, err := qrCode.PNG(256)
-	if err != nil {
-		response.Fail(c, "Failed to generate QR code image", err)
-		return
-	}
-
-	// 转换为base64字符串
-	qrCodeBase64 := "data:image/png;base64," + base64.StdEncoding.EncodeToString(png)
-
 	response.Success(c, "Two-factor setup initiated", gin.H{
-		"secret": key.Secret(),
-		"qrCode": qrCodeBase64,
-		"url":    key.URL(),
+		"secret": setup.Secret,
+		"qrCode": setup.QRDataURL,
+		"url":    setup.URL,
 	})
 }
 
@@ -3805,9 +3773,7 @@ func (h *Handlers) handleTwoFactorEnable(c *gin.Context) {
 		return
 	}
 
-	// 验证TOTP代码
-	valid := totp.Validate(req.Code, user.TwoFactorSecret)
-	if !valid {
+	if !utils.ValidateTOTP(req.Code, user.TwoFactorSecret) {
 		response.Fail(c, "Invalid verification code", errors.New("invalid code"))
 		return
 	}
@@ -3840,9 +3806,7 @@ func (h *Handlers) handleTwoFactorDisable(c *gin.Context) {
 		return
 	}
 
-	// 验证TOTP代码
-	valid := totp.Validate(req.Code, user.TwoFactorSecret)
-	if !valid {
+	if !utils.ValidateTOTP(req.Code, user.TwoFactorSecret) {
 		response.Fail(c, "Invalid verification code", errors.New("invalid code"))
 		return
 	}

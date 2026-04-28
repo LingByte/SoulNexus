@@ -4,11 +4,17 @@ package handlers
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"context"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"mime"
+	"net"
 	"net/http"
+	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,6 +28,174 @@ import (
 	"github.com/gorilla/websocket"
 	gonanoid "github.com/matoous/go-nanoid"
 )
+
+// Open ASR 支持：① 查询参数 url / audio_url；② JSON {"url"|"audioUrl"|"audio_url"}；③ multipart 字段 file；④ 原始 WAV 正文。
+const openASRMaxBodyBytes = int64(32 << 20)
+
+var errOpenASRMultipartNoBoundary = errors.New("multipart/form-data 缺少 boundary：请勿手写 Content-Type；发送 FormData 时请让运行时自动生成带头（不要用 axios 固定为 multipart/form-data）")
+
+func validateOpenASRFetchURL(u *url.URL) error {
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return errors.New("仅支持 http(s) 音频链接")
+	}
+	host := strings.ToLower(strings.Trim(u.Hostname(), "[]"))
+	if host == "" {
+		return errors.New("无效的音频 URL")
+	}
+	if host == "localhost" {
+		return errors.New("不允许使用该主机名")
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsUnspecified() {
+			return errors.New("不允许访问该地址")
+		}
+		return nil
+	}
+	ips, err := net.LookupIP(host)
+	if err != nil {
+		return fmt.Errorf("DNS 解析失败: %w", err)
+	}
+	for _, ip := range ips {
+		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsUnspecified() {
+			return errors.New("域名解析到不允许的地址")
+		}
+	}
+	return nil
+}
+
+func fetchOpenASRAudioFromURL(ctx context.Context, raw string) ([]byte, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, errors.New("url 为空")
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateOpenASRFetchURL(u); err != nil {
+		return nil, err
+	}
+
+	client := &http.Client{
+		Timeout: 45 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 8 {
+				return errors.New("重定向次数过多")
+			}
+			if req.URL != nil {
+				return validateOpenASRFetchURL(req.URL)
+			}
+			return nil
+		},
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, raw, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("下载音频失败: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("下载音频 HTTP %d", resp.StatusCode)
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, openASRMaxBodyBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > openASRMaxBodyBytes {
+		return nil, errors.New("音频过大")
+	}
+	if len(data) == 0 {
+		return nil, errors.New("下载的音频为空")
+	}
+	return data, nil
+}
+
+func resolveOpenASRAudioPayload(c *gin.Context) ([]byte, error) {
+	ctx := c.Request.Context()
+	if u := strings.TrimSpace(c.Query("url")); u != "" {
+		return fetchOpenASRAudioFromURL(ctx, u)
+	}
+	if u := strings.TrimSpace(c.Query("audio_url")); u != "" {
+		return fetchOpenASRAudioFromURL(ctx, u)
+	}
+
+	rawCT := c.GetHeader("Content-Type")
+	mt, _, err := mime.ParseMediaType(rawCT)
+	if err != nil && rawCT != "" {
+		mt = ""
+	}
+	if mt == "application/json" {
+		body, err := io.ReadAll(io.LimitReader(c.Request.Body, openASRMaxBodyBytes+1))
+		if err != nil {
+			return nil, err
+		}
+		if int64(len(body)) > openASRMaxBodyBytes {
+			return nil, errors.New("请求体过大")
+		}
+		var req struct {
+			URL       string `json:"url"`
+			AudioURL  string `json:"audioUrl"`
+			AudioURL2 string `json:"audio_url"`
+		}
+		if err := json.Unmarshal(body, &req); err != nil {
+			return nil, fmt.Errorf("JSON 解析失败: %w", err)
+		}
+		raw := strings.TrimSpace(req.URL)
+		if raw == "" {
+			raw = strings.TrimSpace(req.AudioURL)
+		}
+		if raw == "" {
+			raw = strings.TrimSpace(req.AudioURL2)
+		}
+		if raw == "" {
+			return nil, errors.New("JSON 中需提供 url（或 audioUrl）为可下载的 WAV 地址，或改用 multipart 字段 file / 二进制正文上传")
+		}
+		return fetchOpenASRAudioFromURL(ctx, raw)
+	}
+
+	return readOpenASRWAVPayload(c)
+}
+
+func readOpenASRWAVPayload(c *gin.Context) ([]byte, error) {
+	rawCT := c.GetHeader("Content-Type")
+	mt, params, err := mime.ParseMediaType(rawCT)
+	if err != nil && rawCT != "" {
+		mt = ""
+	}
+
+	if mt == "multipart/form-data" {
+		if params["boundary"] == "" {
+			return nil, errOpenASRMultipartNoBoundary
+		}
+		if err := c.Request.ParseMultipartForm(openASRMaxBodyBytes); err != nil {
+			return nil, err
+		}
+		if c.Request.MultipartForm == nil || len(c.Request.MultipartForm.File["file"]) == 0 {
+			return nil, errors.New("multipart 表单中缺少 file 字段")
+		}
+		f, err := c.Request.MultipartForm.File["file"][0].Open()
+		if err != nil {
+			return nil, err
+		}
+		defer f.Close()
+		return io.ReadAll(io.LimitReader(f, openASRMaxBodyBytes))
+	}
+
+	data, err := io.ReadAll(io.LimitReader(c.Request.Body, openASRMaxBodyBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > openASRMaxBodyBytes {
+		return nil, errors.New("音频数据超过大小限制")
+	}
+	if len(data) == 0 {
+		return nil, errors.New("请求体为空：请使用 ?url= 指定音频地址，或 POST JSON {\"url\":\"...\"}，或 multipart 字段 file，或 WAV 二进制正文")
+	}
+	return data, nil
+}
 
 // registerOpenAPIRoutes 注册对外开放 API 路由，使用 apiKey + apiSecret 鉴权
 func (h *Handlers) registerOpenAPIRoutes(r *gin.RouterGroup) {
@@ -152,18 +326,11 @@ func (h *Handlers) openTTS(c *gin.Context) {
 	})
 }
 
-// openASR 一句话识别，上传 WAV 文件返回识别文字
+// openASR 一句话识别：音频来源可为 URL（查询参数或 JSON）、multipart 文件或原始 WAV 正文。
 func (h *Handlers) openASR(c *gin.Context) {
-	file, _, err := c.Request.FormFile("file")
+	audioData, err := resolveOpenASRAudioPayload(c)
 	if err != nil {
 		response.Fail(c, "获取文件失败", err.Error())
-		return
-	}
-	defer file.Close()
-
-	audioData, err := io.ReadAll(file)
-	if err != nil {
-		response.Fail(c, "读取文件失败", err.Error())
 		return
 	}
 	cred := h.getCredentialFromCtx(c)
@@ -172,16 +339,28 @@ func (h *Handlers) openASR(c *gin.Context) {
 		return
 	}
 
-	appID := cred.GetASRConfigString("appId")
-	secretID := cred.GetASRConfigString("secretId")
-	secretKey := cred.GetASRConfigString("secret")
-	if appID == "" || secretID == "" || secretKey == "" {
-		response.Fail(c, "ASR 配置不完整", "缺少 appId/secretId/secret")
+	asrProvider := cred.GetASRProvider()
+	if asrProvider == "" {
+		asrProvider = "qcloud"
+	}
+	asrCfg := map[string]interface{}{
+		"provider": asrProvider,
+		"language": "zh",
+	}
+	for k, v := range cred.AsrConfig {
+		asrCfg[k] = v
+	}
+	cfg, err := recognizer.NewTranscriberConfigFromMap(asrProvider, asrCfg, "zh")
+	if err != nil {
+		response.Fail(c, "ASR 配置无效", err.Error())
 		return
 	}
-
-	opt := recognizer.NewQcloudASROption(appID, secretID, secretKey)
-	asr := recognizer.NewQcloudASR(opt)
+	asrService, err := recognizer.GetGlobalFactory().CreateTranscriber(cfg)
+	if err != nil {
+		response.Fail(c, "初始化 ASR 失败", err.Error())
+		return
+	}
+	defer func() { _ = asrService.StopConn() }()
 
 	var (
 		resultText string
@@ -189,7 +368,7 @@ func (h *Handlers) openASR(c *gin.Context) {
 		wg         sync.WaitGroup
 	)
 	wg.Add(1)
-	asr.Init(
+	asrService.Init(
 		func(text string, final bool, _ time.Duration, _ string) {
 			if final {
 				resultText = text
@@ -203,7 +382,7 @@ func (h *Handlers) openASR(c *gin.Context) {
 	)
 
 	dialogID, _ := gonanoid.Nanoid()
-	if err := asr.ConnAndReceive(dialogID); err != nil {
+	if err := asrService.ConnAndReceive(dialogID); err != nil {
 		response.Fail(c, "ASR 连接失败", err.Error())
 		return
 	}
@@ -221,12 +400,12 @@ func (h *Handlers) openASR(c *gin.Context) {
 		if end > len(pcm) {
 			end = len(pcm)
 		}
-		if err := asr.SendAudioBytes(pcm[i:end]); err != nil {
+		if err := asrService.SendAudioBytes(pcm[i:end]); err != nil {
 			break
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	_ = asr.SendEnd()
+	_ = asrService.SendEnd()
 
 	wg.Wait()
 
