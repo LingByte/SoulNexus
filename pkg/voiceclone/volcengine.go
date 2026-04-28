@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LingByte/SoulNexus/pkg/config"
+	"github.com/LingByte/SoulNexus/internal/config"
 	"github.com/LingByte/lingstorage-sdk-go"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"

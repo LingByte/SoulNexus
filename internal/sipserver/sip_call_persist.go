@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/LingByte/SoulNexus/internal/config"
 	"github.com/LingByte/SoulNexus/internal/models"
-	"github.com/LingByte/SoulNexus/pkg/config"
 	"github.com/LingByte/SoulNexus/pkg/sip/conversation"
 	"github.com/LingByte/SoulNexus/pkg/sip/scriptlisten"
 	sipServer "github.com/LingByte/SoulNexus/pkg/sip/server"

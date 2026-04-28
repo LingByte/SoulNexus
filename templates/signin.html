@@ -1037,10 +1037,20 @@
             return;
           }
 
+          if (result.suspiciousLogin) {
+            setMessage('login-message', result.message || '检测到陌生环境登录，已发送提醒邮件。正在跳转…', 'info');
+          }
+
           const token = result.token || result.authToken || data.token;
           const refreshToken = result.refreshToken || data.refreshToken;
-          if (token) localStorage.setItem('auth_token', token);
-          if (refreshToken) localStorage.setItem('refresh_token', refreshToken);
+          try {
+            if (token) localStorage.setItem('auth_token', token);
+            if (refreshToken) localStorage.setItem('refresh_token', refreshToken);
+          } catch (e) {
+            setMessage('login-message', '无法写入本地存储，请关闭无痕模式或清理浏览器存储后重试。', 'error');
+            setBtnLoading('login-submit', false, '登录', '登录中...');
+            return;
+          }
           setMessage('login-message', '登录处理中，正在跳转...', 'info');
           setTimeout(() => {
             const oidcURL = buildOIDCRedirect();

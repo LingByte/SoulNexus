@@ -30,9 +30,9 @@ import (
 	"time"
 
 	"github.com/LingByte/SoulNexus"
+	"github.com/LingByte/SoulNexus/internal/config"
 	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/cache"
-	"github.com/LingByte/SoulNexus/pkg/config"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/middleware"
@@ -409,13 +409,36 @@ func getRefreshTokenTTL(db *gorm.DB) time.Duration {
 	return ttl
 }
 
-func buildTokenPair(db *gorm.DB, user *models.User, accessTTL time.Duration) (string, string) {
+func buildTokenPair(db *gorm.DB, user *models.User, accessTTL time.Duration) (string, string, error) {
 	if accessTTL <= 0 {
 		accessTTL = 24 * time.Hour
 	}
-	accessToken := models.BuildAuthToken(user, accessTTL, false)
-	refreshToken := models.BuildRefreshToken(user, getRefreshTokenTTL(db), false)
-	return accessToken, refreshToken
+	km := utils.JWTKeyManager()
+	if km == nil {
+		return "", "", errors.New("jwt key manager not initialized")
+	}
+
+	accessToken, err := utils.SignAccessTokenWithKey(utils.AccessPayload{
+		UserID: user.ID,
+		Email:  user.Email,
+		Role:   user.Role,
+	}, km, accessTTL)
+	if err != nil {
+		logger.Error("jwt access token sign failed", zap.Error(err))
+		return "", "", err
+	}
+
+	refreshToken, err := utils.SignRefreshTokenWithKey(utils.RefreshPayload{
+		UserID: user.ID,
+		Email:  user.Email,
+		Role:   user.Role,
+	}, km, getRefreshTokenTTL(db))
+	if err != nil {
+		logger.Error("jwt refresh token sign failed", zap.Error(err))
+		return "", "", err
+	}
+
+	return accessToken, refreshToken, nil
 }
 
 func getWechatAccessToken() (string, error) {
@@ -709,7 +732,10 @@ func (h *Handlers) finishWechatSessionSuccess(c *gin.Context, session *wechatLog
 		}, nil
 	}
 	models.Login(c, user)
-	accessToken, refreshToken := buildTokenPair(h.db, user, 7*24*time.Hour)
+	accessToken, refreshToken, err := buildTokenPair(h.db, user, 7*24*time.Hour)
+	if err != nil {
+		return nil, err
+	}
 	user.AuthToken = accessToken
 	return gin.H{
 		"status":       "success",
@@ -903,6 +929,46 @@ func (h *Handlers) handleWechatOAuthCallback(c *gin.Context) {
 	c.Redirect(http.StatusFound, "/api/auth/login?wechat=ok")
 }
 
+// oidcUserFromContextOrSession resolves the user for GET /oidc/authorize.
+// Browser navigations do not send Authorization; after password login we only have a session cookie.
+// JWT-based CurrentUser reads gin context (set by AuthRequired), so we fall back to session uid here.
+func oidcUserFromContextOrSession(c *gin.Context) *models.User {
+	if u := models.CurrentUser(c); u != nil {
+		return u
+	}
+	session := sessions.Default(c)
+	v := session.Get(constants.UserField)
+	if v == nil {
+		return nil
+	}
+	var uid uint
+	switch x := v.(type) {
+	case uint:
+		uid = x
+	case int:
+		if x > 0 {
+			uid = uint(x)
+		}
+	case int64:
+		if x > 0 {
+			uid = uint(x)
+		}
+	case float64:
+		if x > 0 {
+			uid = uint(x)
+		}
+	default:
+		return nil
+	}
+	if uid == 0 {
+		return nil
+	}
+	return &models.User{
+		BaseModel: models.BaseModel{ID: uid},
+		Status:    models.UserStatusActive,
+	}
+}
+
 func (h *Handlers) handleOIDCAuthorize(c *gin.Context) {
 	clientID := strings.TrimSpace(c.Query("client_id"))
 	redirectURI := strings.TrimSpace(c.Query("redirect_uri"))
@@ -921,7 +987,7 @@ func (h *Handlers) handleOIDCAuthorize(c *gin.Context) {
 		return
 	}
 
-	user := models.CurrentUser(c)
+	user := oidcUserFromContextOrSession(c)
 	if user == nil {
 		loginURL := fmt.Sprintf("/api/auth/login?client_id=%s&redirect_uri=%s", url.QueryEscape(clientID), url.QueryEscape(redirectURI))
 		if state != "" {
@@ -1080,7 +1146,11 @@ func (h *Handlers) processOIDCTokenReq(c *gin.Context, req oidcTokenReq) {
 		})
 		return
 	}
-	accessToken, refreshToken := buildTokenPair(h.db, user, 24*time.Hour)
+	accessToken, refreshToken, err := buildTokenPair(h.db, user, 24*time.Hour)
+	if err != nil {
+		response.AbortWithJSONError(c, http.StatusInternalServerError, err)
+		return
+	}
 	response.Success(c, "oidc token issued", gin.H{
 		"access_token":  accessToken,
 		"refresh_token": refreshToken,
@@ -1106,32 +1176,27 @@ func (h *Handlers) handleRefreshToken(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("refresh_token is required"))
 		return
 	}
-	user, err := models.DecodeRefreshToken(h.db, req.RefreshToken, false)
-	if err != nil || user == nil {
+	km := utils.JWTKeyManager()
+	if km == nil {
+		response.AbortWithJSONError(c, http.StatusInternalServerError, errors.New("jwt key manager not initialized"))
+		return
+	}
+	payload, err := utils.ParseRefreshTokenWithKey(req.RefreshToken, km)
+	if err != nil || payload == nil || payload.UserID == 0 {
 		response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("invalid refresh token"))
 		return
 	}
-	if err = models.CheckUserAllowLogin(h.db, user); err != nil {
-		response.AbortWithJSONError(c, http.StatusForbidden, err)
+	user := &models.User{
+		BaseModel: models.BaseModel{ID: payload.UserID},
+		Email:     payload.Email,
+		Role:      payload.Role,
+		Status:    models.UserStatusActive,
+	}
+	accessToken, refreshToken, err := buildTokenPair(h.db, user, 24*time.Hour)
+	if err != nil {
+		response.AbortWithJSONError(c, http.StatusInternalServerError, err)
 		return
 	}
-	var refreshFresh models.User
-	if err := h.db.Where("id = ? AND is_deleted = ?", user.ID, models.SoftDeleteStatusActive).First(&refreshFresh).Error; err == nil && models.AccountDeletionPending(&refreshFresh) {
-		effective := ""
-		if refreshFresh.AccountDeletionEffectiveAt != nil {
-			effective = refreshFresh.AccountDeletionEffectiveAt.UTC().Format(time.RFC3339)
-		}
-		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
-			"code": http.StatusForbidden,
-			"msg":  "账号正在注销冷静期，无法刷新令牌。请撤销注销或等待冷静期结束。",
-			"data": gin.H{
-				"accountDeletionPending":     true,
-				"accountDeletionEffectiveAt": effective,
-			},
-		})
-		return
-	}
-	accessToken, refreshToken := buildTokenPair(h.db, user, 24*time.Hour)
 	response.Success(c, "token refreshed", gin.H{
 		"token":         accessToken,
 		"access_token":  accessToken,
@@ -1330,7 +1395,11 @@ func (h *Handlers) handleGitHubCallback(c *gin.Context) {
 		return
 	}
 	models.Login(c, user)
-	token, refreshToken := buildTokenPair(h.db, user, 7*24*time.Hour)
+	token, refreshToken, err := buildTokenPair(h.db, user, 7*24*time.Hour)
+	if err != nil {
+		response.AbortWithJSONError(c, http.StatusInternalServerError, err)
+		return
+	}
 
 	target, _ := url.Parse("/api/auth/login")
 	q := target.Query()
@@ -1747,7 +1816,16 @@ func (h *Handlers) handleUserInfo(c *gin.Context) {
 			if expired >= 24*time.Hour {
 				expired = 24 * time.Hour
 			}
-			user.AuthToken = models.BuildAuthToken(user, expired, false)
+			km := utils.JWTKeyManager()
+			if km != nil {
+				if tok, signErr := utils.SignAccessTokenWithKey(utils.AccessPayload{
+					UserID: user.ID,
+					Email:  user.Email,
+					Role:   user.Role,
+				}, km, expired); signErr == nil {
+					user.AuthToken = tok
+				}
+			}
 		}
 	}
 	response.Success(c, "success", user)
@@ -2017,7 +2095,12 @@ func (h *Handlers) handleUserSigninByEmail(c *gin.Context) {
 		if expired < 24*time.Hour {
 			expired = 24 * time.Hour
 		}
-		user.AuthToken, refreshToken = buildTokenPair(db, user, expired)
+		var err error
+		user.AuthToken, refreshToken, err = buildTokenPair(db, user, expired)
+		if err != nil {
+			response.AbortWithJSONError(c, http.StatusInternalServerError, err)
+			return
+		}
 	}
 
 	// 返回登录结果（包含可疑登录警告）
@@ -2230,10 +2313,21 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 			return
 		}
 	} else {
-		user, err = models.DecodeHashToken(db, form.AuthToken, false)
-		if err != nil {
+		km := utils.JWTKeyManager()
+		if km == nil {
+			response.AbortWithJSONError(c, http.StatusInternalServerError, errors.New("jwt key manager not initialized"))
+			return
+		}
+		p, err := utils.ParseAccessTokenWithKey(form.AuthToken, km)
+		if err != nil || p == nil || p.UserID == 0 {
 			logger.Warn("Login failed: invalid auth token", zap.String("ip", clientIP), zap.Error(err))
-			response.Fail(c, "login failed", err)
+			response.Fail(c, "login failed", errors.New("invalid auth token"))
+			return
+		}
+		user, err = models.GetUserByUID(db, p.UserID)
+		if err != nil {
+			logger.Warn("Login failed: user not found by auth token", zap.String("ip", clientIP), zap.Error(err))
+			response.Fail(c, "login failed", errors.New("user not found"))
 			return
 		}
 	}
@@ -2417,7 +2511,11 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 		// 7 days
 		expired = 7 * 24 * time.Hour
 	}
-	accessToken, refreshToken := buildTokenPair(db, user, expired)
+	accessToken, refreshToken, err := buildTokenPair(db, user, expired)
+	if err != nil {
+		response.AbortWithJSONError(c, http.StatusInternalServerError, err)
+		return
+	}
 	user.AuthToken = accessToken
 
 	// 17. 返回登录结果（包含可疑登录警告）
@@ -2467,9 +2565,19 @@ func (h *Handlers) handleUserSignin(c *gin.Context) {
 			return
 		}
 	} else {
-		user, err = models.DecodeHashToken(db, form.AuthToken, false)
+		km := utils.JWTKeyManager()
+		if km == nil {
+			response.AbortWithJSONError(c, http.StatusInternalServerError, errors.New("jwt key manager not initialized"))
+			return
+		}
+		p, err := utils.ParseAccessTokenWithKey(form.AuthToken, km)
+		if err != nil || p == nil || p.UserID == 0 {
+			response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("invalid auth token"))
+			return
+		}
+		user, err = models.GetUserByUID(db, p.UserID)
 		if err != nil {
-			response.AbortWithJSONError(c, http.StatusUnauthorized, err)
+			response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("user not found"))
 			return
 		}
 	}
@@ -2520,7 +2628,16 @@ func (h *Handlers) handleUserSignin(c *gin.Context) {
 			// 7 days
 			expired = 7 * 24 * time.Hour
 		}
-		user.AuthToken = models.BuildAuthToken(user, expired, false)
+		km := utils.JWTKeyManager()
+		if km != nil {
+			if tok, signErr := utils.SignAccessTokenWithKey(utils.AccessPayload{
+				UserID: user.ID,
+				Email:  user.Email,
+				Role:   user.Role,
+			}, km, expired); signErr == nil {
+				user.AuthToken = tok
+			}
+		}
 	}
 	c.JSON(http.StatusOK, user)
 }
@@ -3690,8 +3807,20 @@ func sendHashMail(db *gorm.DB, user *models.User, signame, expireKey, defaultExp
 	if err != nil {
 		d, _ = time.ParseDuration(defaultExpired)
 	}
-	n := time.Now().Add(d)
-	hash := models.EncodeHashToken(user, n.Unix(), true)
+	km := utils.JWTKeyManager()
+	if km == nil {
+		logger.Error("jwt key manager not initialized (cannot issue email token)")
+		return
+	}
+	hash, err := utils.SignAccessTokenWithKey(utils.AccessPayload{
+		UserID: user.ID,
+		Email:  user.Email,
+		Role:   user.Role,
+	}, km, d)
+	if err != nil {
+		logger.Error("failed to sign email token", zap.Error(err))
+		return
+	}
 
 	// 发送信号，让监听器处理邮件发送
 	utils.Sig().Emit(signame, user, hash, clientIp, useragent, db)

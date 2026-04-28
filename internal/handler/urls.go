@@ -8,11 +8,12 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/LingByte/SoulNexus/cmd/bootstrap"
+	"github.com/LingByte/SoulNexus/internal/config"
 	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/internal/service"
 	"github.com/LingByte/SoulNexus/internal/sfu"
 	"github.com/LingByte/SoulNexus/internal/sipserver"
-	"github.com/LingByte/SoulNexus/pkg/config"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/middleware"
@@ -191,6 +192,7 @@ func NewUserServiceHandlers(db *gorm.DB) *Handlers {
 
 // RegisterUserServiceRoutes registers auth routes and a minimal system health check under the API prefix.
 func (h *Handlers) RegisterUserServiceRoutes(engine *gin.Engine) {
+	engine.GET("/.well-known/jwks.json", h.JWKSHandler)
 	apiPrefix := config.GlobalConfig.Server.APIPrefix
 	if apiPrefix == "" {
 		apiPrefix = "/api"
@@ -1093,4 +1095,24 @@ func (h *Handlers) registerAdminManagementRoutes(r *gin.RouterGroup) {
 		devices.GET("/:id", h.handleAdminGetDevice)
 		devices.DELETE("/:id", h.handleAdminDeleteDevice)
 	}
+}
+
+// JWKSHandler returns the JSON Web Key Set (JWKS) endpoint
+func (h *Handlers) JWKSHandler(c *gin.Context) {
+	c.Header("Content-Type", "application/json")
+	c.Header("Cache-Control", "public, max-age=3600")
+	km := utils.JWTKeyManager()
+	if km == nil {
+		km = bootstrap.GlobalKeyManager
+	}
+	if km == nil {
+		c.JSON(500, gin.H{"error": "key manager not initialized"})
+		return
+	}
+	jwksJSON, err := km.GetJWKSJSON()
+	if err != nil {
+		c.JSON(500, gin.H{"error": "failed to generate JWKS"})
+		return
+	}
+	c.String(200, jwksJSON)
 }

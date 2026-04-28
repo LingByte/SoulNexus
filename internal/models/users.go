@@ -5,17 +5,15 @@ package models
 
 import (
 	"crypto/sha256"
-	"encoding/base64"
 	"errors"
 	"fmt"
 
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/LingByte/SoulNexus/pkg/config"
+	"github.com/LingByte/SoulNexus/internal/config"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/response"
@@ -269,11 +267,6 @@ func Logout(c *gin.Context, user *User) {
 }
 
 func AuthRequired(c *gin.Context) {
-	if CurrentUser(c) != nil {
-		c.Next()
-		return
-	}
-
 	// 检查配置是否存在
 	if config.GlobalConfig == nil {
 		response.AbortWithJSONError(c, http.StatusInternalServerError, errors.New("server configuration not initialized"))
@@ -289,36 +282,24 @@ func AuthRequired(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("authorization required"))
 		return
 	}
-	db := c.MustGet(constants.DbField).(*gorm.DB)
+
 	token = strings.TrimPrefix(token, constants.AUTHORIZATION_PREFIX)
-	user, err := DecodeHashToken(db, token, false)
-	if err != nil {
-		response.AbortWithJSONError(c, http.StatusUnauthorized, err)
+	km := utils.JWTKeyManager()
+	if km == nil {
+		response.AbortWithJSONError(c, http.StatusInternalServerError, errors.New("jwt key manager not initialized"))
 		return
 	}
-
-	var fresh User
-	if err := db.Where("id = ? AND is_deleted = ?", user.ID, SoftDeleteStatusActive).First(&fresh).Error; err != nil {
-		response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("user not found"))
+	p, err := utils.ParseAccessTokenWithKey(token, km)
+	if err != nil || p == nil || p.UserID == 0 {
+		response.AbortWithJSONError(c, http.StatusUnauthorized, utils.ErrInvalidToken)
 		return
 	}
-	c.Set(constants.UserField, &fresh)
-
-	if AccountDeletionPending(&fresh) && !authPathExemptWhileAccountDeletionPending(c) {
-		effective := ""
-		if fresh.AccountDeletionEffectiveAt != nil {
-			effective = fresh.AccountDeletionEffectiveAt.UTC().Format(time.RFC3339)
-		}
-		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
-			"code": http.StatusForbidden,
-			"msg":  "账号正在注销冷静期内，暂时无法使用 SoulNexus 产品功能。请使用「撤销注销」完成验证后恢复，或等待冷静期结束后账号将被永久注销。",
-			"data": gin.H{
-				"accountDeletionPending":     true,
-				"accountDeletionEffectiveAt": effective,
-			},
-		})
-		return
-	}
+	c.Set(constants.UserField, &User{
+		BaseModel: BaseModel{ID: p.UserID},
+		Email:     p.Email,
+		Role:      p.Role,
+		Status:    UserStatusActive,
+	})
 	c.Next()
 }
 
@@ -343,18 +324,9 @@ func CurrentUser(c *gin.Context) *User {
 	if cachedObj, exists := c.Get(constants.UserField); exists && cachedObj != nil {
 		return cachedObj.(*User)
 	}
-	session := sessions.Default(c)
-	userId := session.Get(constants.UserField)
-	if userId == nil {
-		return nil
-	}
-	db := c.MustGet(constants.DbField).(*gorm.DB)
-	user, err := GetUserByUID(db, userId.(uint))
-	if err != nil {
-		return nil
-	}
-	c.Set(constants.UserField, user)
-	return user
+	// JWT auth stores a minimal user object in context; we intentionally do not
+	// resolve sessions or hit the database on every request.
+	return nil
 }
 
 func CheckPassword(user *User, password string) bool {
@@ -479,11 +451,6 @@ func IsExistsByEmail(db *gorm.DB, email string) bool {
 }
 
 func AuthApiRequired(c *gin.Context) {
-	if CurrentUser(c) != nil {
-		c.Next()
-		return
-	}
-
 	apiKey := c.GetHeader(constants.CREDENTIAL_API_KEY)
 	apiSecret := c.GetHeader(constants.CREDENTIAL_API_SECRET)
 	if apiKey != "" && apiSecret != "" {
@@ -520,15 +487,23 @@ func AuthApiRequired(c *gin.Context) {
 		return
 	}
 
-	db := c.MustGet(constants.DbField).(*gorm.DB)
-	// split bearer
 	token = strings.TrimPrefix(token, "Bearer ")
-	user, err := DecodeHashToken(db, token, false)
-	if err != nil {
-		response.AbortWithJSONError(c, http.StatusUnauthorized, err)
+	km := utils.JWTKeyManager()
+	if km == nil {
+		response.AbortWithJSONError(c, http.StatusInternalServerError, errors.New("jwt key manager not initialized"))
 		return
 	}
-	c.Set(constants.UserField, user)
+	p, err := utils.ParseAccessTokenWithKey(token, km)
+	if err != nil || p == nil || p.UserID == 0 {
+		response.AbortWithJSONError(c, http.StatusUnauthorized, utils.ErrInvalidToken)
+		return
+	}
+	c.Set(constants.UserField, &User{
+		BaseModel: BaseModel{ID: p.UserID},
+		Email:     p.Email,
+		Role:      p.Role,
+		Status:    UserStatusActive,
+	})
 	c.Next()
 }
 
@@ -654,96 +629,6 @@ func SetLastLogin(db *gorm.DB, user *User, lastIp string) error {
 	return result.Error
 }
 
-func EncodeHashToken(user *User, timestamp int64, useLastlogin bool) (hash string) {
-	// ts-uid-token
-	logintimestamp := "0"
-	if useLastlogin && user.LastLogin != nil {
-		logintimestamp = fmt.Sprintf("%d", user.LastLogin.Unix())
-	}
-	t := fmt.Sprintf("%s$%d", user.Email, timestamp)
-	hashVal := sha256.Sum256([]byte(logintimestamp + user.Password + t))
-	hash = base64.RawStdEncoding.EncodeToString([]byte(t)) + "-" + fmt.Sprintf("%x", hashVal)
-	return hash
-}
-
-func DecodeHashToken(db *gorm.DB, hash string, useLastLogin bool) (user *User, err error) {
-	vals := strings.Split(hash, "-")
-	if len(vals) != 2 {
-		return nil, errors.New("bad token")
-	}
-	data, err := base64.RawStdEncoding.DecodeString(vals[0])
-	if err != nil {
-		return nil, errors.New("bad token")
-	}
-
-	vals = strings.Split(string(data), "$")
-	if len(vals) != 2 {
-		return nil, errors.New("bad token")
-	}
-
-	ts, err := strconv.ParseInt(vals[1], 10, 64)
-	if err != nil {
-		return nil, errors.New("bad token")
-	}
-
-	if time.Now().Unix() > ts {
-		return nil, errors.New("token expired")
-	}
-
-	user, err = GetUserByEmail(db, vals[0])
-	if err != nil {
-		return nil, errors.New("bad token")
-	}
-	token := EncodeHashToken(user, ts, useLastLogin)
-	if token != hash {
-		return nil, errors.New("bad token")
-	}
-	return user, nil
-}
-
-func EncodeRefreshToken(user *User, timestamp int64, useLastlogin bool) (hash string) {
-	logintimestamp := "0"
-	if useLastlogin && user.LastLogin != nil {
-		logintimestamp = fmt.Sprintf("%d", user.LastLogin.Unix())
-	}
-	secret := strings.TrimSpace(os.Getenv("REFRESH_TOKEN_SECRET"))
-	t := fmt.Sprintf("%s$%d$rt", user.Email, timestamp)
-	hashVal := sha256.Sum256([]byte(logintimestamp + user.Password + secret + t))
-	hash = base64.RawStdEncoding.EncodeToString([]byte(t)) + "-" + fmt.Sprintf("%x", hashVal)
-	return hash
-}
-
-func DecodeRefreshToken(db *gorm.DB, hash string, useLastLogin bool) (user *User, err error) {
-	vals := strings.Split(hash, "-")
-	if len(vals) != 2 {
-		return nil, errors.New("bad refresh token")
-	}
-	data, err := base64.RawStdEncoding.DecodeString(vals[0])
-	if err != nil {
-		return nil, errors.New("bad refresh token")
-	}
-	parts := strings.Split(string(data), "$")
-	if len(parts) != 3 || parts[2] != "rt" {
-		return nil, errors.New("bad refresh token")
-	}
-	ts, err := strconv.ParseInt(parts[1], 10, 64)
-	if err != nil {
-		return nil, errors.New("bad refresh token")
-	}
-	if time.Now().Unix() > ts {
-		return nil, errors.New("refresh token expired")
-	}
-	user, err = GetUserByEmail(db, parts[0])
-	if err != nil {
-		return nil, errors.New("bad refresh token")
-	}
-	token := EncodeRefreshToken(user, ts, useLastLogin)
-	if token != hash {
-		return nil, errors.New("bad refresh token")
-	}
-	return user, nil
-}
-
 func CheckUserAllowLogin(db *gorm.DB, user *User) error {
 	if user == nil {
 		return errors.New("user not allow login")
@@ -787,16 +672,6 @@ func InTimezone(c *gin.Context, timezone string) {
 	session := sessions.Default(c)
 	session.Set(constants.TzField, timezone)
 	session.Save()
-}
-
-func BuildAuthToken(user *User, expired time.Duration, useLoginTime bool) string {
-	n := time.Now().Add(expired)
-	return EncodeHashToken(user, n.Unix(), useLoginTime)
-}
-
-func BuildRefreshToken(user *User, expired time.Duration, useLoginTime bool) string {
-	n := time.Now().Add(expired)
-	return EncodeRefreshToken(user, n.Unix(), useLoginTime)
 }
 
 func UpdateUser(db *gorm.DB, user *User, vals map[string]any) error {

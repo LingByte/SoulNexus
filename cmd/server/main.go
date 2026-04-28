@@ -16,14 +16,14 @@ import (
 
 	"github.com/LingByte/SoulNexus"
 	"github.com/LingByte/SoulNexus/cmd/bootstrap"
-	"github.com/LingByte/SoulNexus/internal/schema"
 	handlers "github.com/LingByte/SoulNexus/internal/handler"
 	"github.com/LingByte/SoulNexus/internal/listeners"
 	"github.com/LingByte/SoulNexus/internal/models"
+	"github.com/LingByte/SoulNexus/internal/schema"
 	"github.com/LingByte/SoulNexus/internal/task"
 	workflowdef "github.com/LingByte/SoulNexus/internal/workflow"
 	"github.com/LingByte/SoulNexus/pkg/cache"
-	"github.com/LingByte/SoulNexus/pkg/config"
+	"github.com/LingByte/SoulNexus/internal/config"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/graph"
 	"github.com/LingByte/SoulNexus/pkg/health"
@@ -149,6 +149,11 @@ func main() {
 
 	// Initialize global intelligent risk control manager
 	utils.InitGlobalIntelligentRiskControl(logger.Lg)
+
+	if err := bootstrap.InitializeKeyManager(); err != nil {
+		logger.Error("JWT key manager initialization failed", zap.Error(err))
+		return
+	}
 
 	//// 11. New App
 	app := NewLingEchoService(db)

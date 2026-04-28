@@ -1,4 +1,4 @@
-import { useEffect, lazy, Suspense } from 'react'
+import { useEffect, useState, lazy, Suspense } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import ErrorBoundary from '@/components/ErrorBoundary/ErrorBoundary'
 import PWAInstaller from '@/components/PWA/PWAInstaller'
@@ -39,14 +39,46 @@ const ServiceHealth = lazy(() => import('@/pages/ServiceHealth'))
 
 function App() {
   const { refreshUserInfo, isAuthenticated } = useAuthStore()
+  const [authHydrated, setAuthHydrated] = useState(() => {
+    const p = (useAuthStore as unknown as { persist?: { hasHydrated?: () => boolean } }).persist
+    if (!p?.hasHydrated) return true
+    return p.hasHydrated()
+  })
 
-  // 初始化时检查用户登录状态
   useEffect(() => {
-    const token = localStorage.getItem('auth_token')
-    if (token && !isAuthenticated) {
-      refreshUserInfo()
+    const p = (useAuthStore as unknown as {
+      persist?: {
+        hasHydrated?: () => boolean
+        onFinishHydration?: (fn: () => void) => () => void
+      }
+    }).persist
+    if (!p?.onFinishHydration) {
+      setAuthHydrated(true)
+      return
     }
+    if (p.hasHydrated?.()) {
+      setAuthHydrated(true)
+      return
+    }
+    return p.onFinishHydration(() => setAuthHydrated(true))
   }, [])
+
+  // 持久化恢复完成后再尝试用本地 token 拉取用户信息，避免与 persist 写入竞态
+  useEffect(() => {
+    if (!authHydrated) return
+    const token = localStorage.getItem('auth_token')
+    if (token && !useAuthStore.getState().isAuthenticated) {
+      void refreshUserInfo()
+    }
+  }, [authHydrated, refreshUserInfo])
+
+  if (!authHydrated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F7F9FC] dark:bg-slate-950 text-slate-500">
+        正在恢复登录状态…
+      </div>
+    )
+  }
 
   return (
     <ErrorBoundary>
@@ -60,7 +92,7 @@ function App() {
             <Route
               path="/login"
               element={
-                isAuthenticated ? <Navigate to="/wordbooks" replace /> : <Login />
+                isAuthenticated ? <Navigate to="/users" replace /> : <Login />
               }
             />
 

@@ -91,16 +91,16 @@ func sessionCookieOptions(maxAge int) sessions.Options {
 func WithMemSession(secret string) gin.HandlerFunc {
 	store := memstore.NewStore([]byte(secret))
 	store.Options(sessionCookieOptions(0))
-	return sessions.Sessions(GetCarrotSessionField(), store)
+	return sessions.Sessions(GetLingSessionField(), store)
 }
 
 func WithCookieSession(secret string, maxAge int) gin.HandlerFunc {
 	store := cookie.NewStore([]byte(secret))
 	store.Options(sessionCookieOptions(maxAge))
-	return sessions.Sessions(GetCarrotSessionField(), store)
+	return sessions.Sessions(GetLingSessionField(), store)
 }
 
-func GetCarrotSessionField() string {
+func GetLingSessionField() string {
 	v := utils.GetEnv(constants.ENV_SESSION_FIELD)
 	if v == "" {
 		return "lingecho"

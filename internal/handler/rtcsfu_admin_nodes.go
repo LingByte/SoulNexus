@@ -7,7 +7,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/LingByte/SoulNexus/pkg/config"
+	"github.com/LingByte/SoulNexus/internal/config"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/rtcsfu"
 	"github.com/gin-gonic/gin"

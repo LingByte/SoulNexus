@@ -86,12 +86,37 @@ const Login = () => {
         return
       }
 
-      const { token, user: userData } = response.data
+      const payload = response.data || {}
+      const token =
+        (payload as any).token ||
+        (payload as any).access_token ||
+        (payload as any).accessToken ||
+        (payload as any).user?.token
+      const userData = (payload as any).user
+      const refreshTok = (payload as any).refreshToken || (payload as any).refresh_token
 
       if (!token) throw new Error('登录失败：未获取到 token')
+      if (!userData) throw new Error('登录失败：未获取到用户信息')
 
-      if (!['admin', 'superadmin'].includes(userData?.role)) {
+      const roleNorm = String(userData?.role || '').toLowerCase()
+      if (!['admin', 'superadmin'].includes(roleNorm)) {
         throw new Error('权限不足，仅管理员可登录后台')
+      }
+
+      if (refreshTok) {
+        try {
+          localStorage.setItem('refresh_token', refreshTok)
+        } catch {
+          /* ignore */
+        }
+      }
+
+      if ((payload as any).suspiciousLogin) {
+        showAlert(
+          (payload as any).message || '检测到陌生环境登录，已发送提醒邮件，仍将继续进入后台。',
+          'warning',
+          '安全提示',
+        )
       }
 
       await login(token, {
@@ -103,7 +128,8 @@ const Login = () => {
       })
 
       showAlert('登录成功', 'success', '欢迎回来')
-      navigate('/users')
+      await new Promise<void>((r) => queueMicrotask(r))
+      navigate('/users', { replace: true })
     } catch (error: any) {
       showAlert(error?.msg || error?.message || '登录失败，请检查用户名和密码', 'error', '登录失败')
     } finally {

@@ -9,9 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LingByte/SoulNexus/pkg/config"
+	"github.com/LingByte/SoulNexus/internal/config"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/logger"
+	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
@@ -147,9 +148,8 @@ func TestAuthRequired_WithSession(t *testing.T) {
 	}
 	router.ServeHTTP(w2, req2)
 
-	// If session was set correctly, we should get 200
-	// Otherwise, we might get 401, which is also acceptable for this test
-	assert.True(t, w2.Code == http.StatusOK || w2.Code == http.StatusUnauthorized)
+	// JWT auth intentionally does not resolve sessions / hit DB per request.
+	assert.Equal(t, http.StatusUnauthorized, w2.Code)
 }
 
 func TestAuthRequired_WithToken(t *testing.T) {
@@ -159,8 +159,16 @@ func TestAuthRequired_WithToken(t *testing.T) {
 	user, err := CreateUser(db, "test@example.com", "password123")
 	require.NoError(t, err)
 
-	timestamp := int64(9999999999) // Future timestamp
-	token := EncodeHashToken(user, timestamp, false)
+	km := utils.NewKeyManager("RS256")
+	_, err = km.GenerateKey()
+	require.NoError(t, err)
+	utils.InstallJWTKeyManager(km)
+	token, err := utils.SignAccessTokenWithKey(utils.AccessPayload{
+		UserID: user.ID,
+		Email:  user.Email,
+		Role:   RoleUser,
+	}, km, time.Hour)
+	require.NoError(t, err)
 
 	router.Use(AuthRequired)
 	router.GET("/protected", func(c *gin.Context) {
@@ -183,7 +191,16 @@ func TestAuthRequired_WithTestToken(t *testing.T) {
 	user, err := CreateUser(db, "test@example.com", "password123")
 	require.NoError(t, err)
 
-	token := EncodeHashToken(user, time.Now().Unix(), false)
+	km := utils.NewKeyManager("RS256")
+	_, err = km.GenerateKey()
+	require.NoError(t, err)
+	utils.InstallJWTKeyManager(km)
+	token, err := utils.SignAccessTokenWithKey(utils.AccessPayload{
+		UserID: user.ID,
+		Email:  user.Email,
+		Role:   RoleUser,
+	}, km, time.Hour)
+	require.NoError(t, err)
 
 	router.Use(AuthRequired)
 	router.GET("/protected", func(c *gin.Context) {

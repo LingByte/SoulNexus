@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/LingByte/SoulNexus/pkg/config"
+	"github.com/LingByte/SoulNexus/internal/config"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"

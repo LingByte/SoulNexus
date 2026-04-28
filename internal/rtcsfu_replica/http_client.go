@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LingByte/SoulNexus/pkg/config"
+	"github.com/LingByte/SoulNexus/internal/config"
 )
 
 // JoinPrimaryAPI joins primary base URL (with or without trailing slash) with an API path that must start with "/".
