@@ -5,7 +5,6 @@ import { buildLogoUrl } from '@/utils/logoUrl'
 interface SiteConfigContextType {
   config: SiteConfig | null
   loading: boolean
-  error: Error | null
   refresh: () => Promise<void>
   clearCache: () => void
 }

@@ -148,7 +148,7 @@ func buildQCloudConfig(config map[string]interface{}) (*QCloudASROption, error) 
 		secretID = utils.GetEnv("QCLOUD_SECRET_ID")
 	}
 
-	secretKey := cfg.String("secret_key", "secretKey")
+	secretKey := cfg.String("secret_key", "secretKey", "secret")
 	if secretKey == "" {
 		secretKey = utils.GetEnv("QCLOUD_SECRET")
 	}
