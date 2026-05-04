@@ -78,27 +78,27 @@ export interface AssistantListItem {
 
 // 创建助手
 export const createAssistant = async (data: CreateAssistantForm): Promise<ApiResponse<Assistant>> => {
-  return post('/assistant/add', data)
+  return post('/agents/add', data)
 }
 
 // 获取助手列表
 export const getAssistantList = async (): Promise<ApiResponse<AssistantListItem[]>> => {
-  return get('/assistant')
+  return get('/agents')
 }
 
 // 获取助手详情
 export const getAssistant = async (id: number): Promise<ApiResponse<Assistant>> => {
-  return get(`/assistant/${id}`)
+  return get(`/agents/${id}`)
 }
 
 // 更新助手
 export const updateAssistant = async (id: number, data: UpdateAssistantForm): Promise<ApiResponse<Assistant>> => {
-  return put(`/assistant/${id}`, data)
+  return put(`/agents/${id}`, data)
 }
 
 // 删除助手
 export const deleteAssistant = async (id: number): Promise<ApiResponse<null>> => {
-  return del(`/assistant/${id}`)
+  return del(`/agents/${id}`)
 }
 
 // 语音相关接口
@@ -109,7 +109,7 @@ export interface VoiceClone {
 }
 
 export interface OneShotRequest {
-  assistantId: number
+  agentId: number
   language?: string
   speaker?: string
   voiceCloneId?: number
@@ -121,7 +121,7 @@ export interface OneShotTextV2Request {
   apiKey: string
   apiSecret: string
   text: string
-  assistantId?: number
+  agentId?: number
   language?: string
   sessionId?: string
   systemPrompt?: string
@@ -334,13 +334,13 @@ export interface GraphStats {
 
 // 助手图数据
 export interface AssistantGraphData {
-  assistantId: number
+  agentId: number
   nodes: GraphNode[]
   edges: GraphEdge[]
   stats: GraphStats
 }
 
 // 获取助手图数据
-export const getAssistantGraphData = async (assistantId: number): Promise<ApiResponse<AssistantGraphData>> => {
-  return get(`/assistant/${assistantId}/graph`)
+export const getAssistantGraphData = async (agentId: number): Promise<ApiResponse<AssistantGraphData>> => {
+  return get(`/agents/${agentId}/graph`)
 }

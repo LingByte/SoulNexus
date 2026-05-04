@@ -5,7 +5,7 @@ import { ApiResponse } from '@/utils/request'
 export interface VoiceprintRecord {
   id: number
   speaker_id: string
-  assistant_id: string
+  agent_id: string
   speaker_name: string
   description?: string
   created_at: string
@@ -23,7 +23,7 @@ export interface VoiceprintListResponse {
 // 创建声纹请求
 export interface CreateVoiceprintRequest {
   speaker_id: string
-  assistant_id: string
+  agent_id: string
   speaker_name: string
   description?: string
 }
@@ -54,8 +54,8 @@ export interface VoiceprintVerifyResponse {
 }
 
 // 获取声纹列表
-export const getVoiceprints = async (assistantId: string): Promise<ApiResponse<VoiceprintListResponse>> => {
-  return get(`/voiceprint?assistant_id=${assistantId}`)
+export const getVoiceprints = async (agentId: string): Promise<ApiResponse<VoiceprintListResponse>> => {
+  return get(`/voiceprint?agent_id=${encodeURIComponent(agentId)}`)
 }
 
 // 创建声纹记录
@@ -65,13 +65,13 @@ export const createVoiceprint = async (data: CreateVoiceprintRequest): Promise<A
 
 // 注册声纹（上传音频）
 export const registerVoiceprint = async (
-  assistantId: string,
+  agentId: string,
   speakerName: string,
   audioFile: File,
   description?: string
 ): Promise<ApiResponse<VoiceprintRecord>> => {
   const formData = new FormData()
-  formData.append('assistant_id', assistantId)
+  formData.append('agent_id', agentId)
   formData.append('speaker_name', speakerName)
   formData.append('audio_file', audioFile)
   if (description) {
@@ -93,11 +93,11 @@ export const deleteVoiceprint = async (id: number): Promise<ApiResponse<void>> =
 
 // 声纹识别
 export const identifyVoiceprint = async (
-  assistantId: string,
+  agentId: string,
   audioFile: File
 ): Promise<ApiResponse<VoiceprintIdentifyResponse>> => {
   const formData = new FormData()
-  formData.append('assistant_id', assistantId)
+  formData.append('agent_id', agentId)
   formData.append('audio_file', audioFile)
 
   return post('/voiceprint/identify', formData)
@@ -105,12 +105,12 @@ export const identifyVoiceprint = async (
 
 // 声纹验证
 export const verifyVoiceprint = async (
-  assistantId: string,
+  agentId: string,
   speakerId: string,
   audioFile: File
 ): Promise<ApiResponse<VoiceprintVerifyResponse>> => {
   const formData = new FormData()
-  formData.append('assistant_id', assistantId)
+  formData.append('agent_id', agentId)
   formData.append('speaker_id', speakerId)
   formData.append('audio_file', audioFile)
 

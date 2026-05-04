@@ -220,6 +220,10 @@ type User struct {
 	Role                       string     `json:"role,omitempty" gorm:"size:50;default:'user'"` // 用户角色
 	AccountDeletionRequestedAt *time.Time `json:"accountDeletionRequestedAt,omitempty"`
 	AccountDeletionEffectiveAt *time.Time `json:"accountDeletionEffectiveAt,omitempty" gorm:"index"`
+
+	// 访问控制摘要：仅 JSON 输出，不落库
+	RoleSlugs      []string `json:"roleSlugs,omitempty" gorm:"-"`
+	PermissionKeys []string `json:"permissionKeys,omitempty" gorm:"-"`
 }
 
 func (u *User) TableName() string {
@@ -427,12 +431,21 @@ func VerifyEncryptedPassword(encryptedPassword, storedPasswordHash string) bool 
 
 func GetUserByUID(db *gorm.DB, userID uint) (*User, error) {
 	var val User
-	result := db.Where("id", userID).Where("status", UserStatusActive).Take(&val)
-
-	if result.Error != nil {
-		return nil, result.Error
+	err := db.Where("id = ? AND status = ? AND is_deleted = ?", userID, UserStatusActive, SoftDeleteStatusActive).First(&val).Error
+	if err != nil {
+		return nil, err
 	}
 	return &val, nil
+}
+
+// GetUserByID loads a user by ID for profile/auth responses (any status, not deleted).
+func GetUserByID(db *gorm.DB, userID uint) (*User, error) {
+	var u User
+	err := db.Where("id = ? AND is_deleted = ?", userID, SoftDeleteStatusActive).First(&u).Error
+	if err != nil {
+		return nil, err
+	}
+	return &u, nil
 }
 
 func GetUserByEmail(db *gorm.DB, email string) (user *User, err error) {

@@ -17,12 +17,17 @@ func ServerEntities() []any {
 	return []any{
 		&utils.Config{},
 		&models.User{},
+		&models.Role{},
+		&models.Permission{},
+		&models.RolePermission{},
+		&models.UserRole{},
+		&models.UserPermission{},
 		&models.Group{},
 		&models.UserCredential{},
 		&models.GroupMember{},
 		&models.GroupInvitation{},
 		&models.GroupActivityLog{},
-		&models.Assistant{},
+		&models.Agent{},
 		&models.KnowledgeBase{},
 		&models.ChatSession{},
 		&models.ChatMessage{},
@@ -70,8 +75,6 @@ func ServerEntities() []any {
 		&models.OAuthClient{},
 		&models.RTCSFURoomAssignment{},
 		&models.RTCSFUMediaSession{},
-		&models.AgentRun{},
-		&models.AgentStep{},
 	}
 }
 
@@ -80,6 +83,11 @@ func AuthEntities() []any {
 	return []any{
 		&utils.Config{},
 		&models.User{},
+		&models.Role{},
+		&models.Permission{},
+		&models.RolePermission{},
+		&models.UserRole{},
+		&models.UserPermission{},
 		&models.UserCredential{},
 		&models.LoginHistory{},
 		&models.AccountLock{},

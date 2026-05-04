@@ -1,0 +1,15 @@
+validation:
+  rule:
+    required: "字段「%s」为必填项"
+    email: "字段「%s」必须是有效的邮箱地址"
+    xss: "字段「%s」包含不安全的内容"
+    sql: "字段「%s」包含不安全的 SQL 片段"
+    min: "字段「%s」低于最小值"
+    max: "字段「%s」超过最大值"
+    minlen: "字段「%s」长度不足"
+    maxlen: "字段「%s」过长"
+    url: "字段「%s」必须是有效的 URL"
+    phone: "字段「%s」必须是有效的电话号码"
+    alphanum: "字段「%s」必须为字母数字"
+    numeric: "字段「%s」必须为数字"
+    alpha: "字段「%s」只能包含字母"

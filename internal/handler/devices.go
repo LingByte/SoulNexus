@@ -132,7 +132,7 @@ func (h *Handlers) BindDevice(c *gin.Context) {
 	logger.Info("解析助手ID成功", zap.Uint("assistantID", assistantID))
 
 	// Verify that assistant exists and belongs to current user
-	var assistant models.Assistant
+	var assistant models.Agent
 	if err := h.db.Where("id = ?", assistantID).First(&assistant).Error; err != nil {
 		logger.Error("查询助手失败", zap.Error(err), zap.Uint("assistantID", assistantID))
 		response.Fail(c, "Assistant does not exist", nil)
@@ -189,7 +189,7 @@ func (h *Handlers) BindDevice(c *gin.Context) {
 		AppVersion:    appVersion,
 		UserID:        user.ID,
 		GroupID:       assistant.GroupID, // 如果助手属于组织，设备也属于该组织
-		AssistantID:   &assistantID,
+		AgentID:   &assistantID,
 		AutoUpdate:    1,
 		LastConnected: &now,
 		LastSeen:      &now, // Set LastSeen to current time to avoid MySQL datetime error
@@ -459,7 +459,7 @@ func (h *Handlers) ManualAddDevice(c *gin.Context) {
 	logger.Info("解析助手ID成功", zap.Uint("assistantID", assistantID))
 
 	// 验证 assistant 是否存在且属于当前用户
-	var assistant models.Assistant
+	var assistant models.Agent
 	if err := h.db.Where("id = ?", assistantID).First(&assistant).Error; err != nil {
 		logger.Error("查询助手失败", zap.Error(err), zap.Uint("assistantID", assistantID))
 		response.Fail(c, "助手不存在", nil)
@@ -530,7 +530,7 @@ func (h *Handlers) ManualAddDevice(c *gin.Context) {
 		AppVersion:    req.AppVersion,
 		UserID:        user.ID,
 		GroupID:       req.GroupID,
-		AssistantID:   &assistantID,
+		AgentID:   &assistantID,
 		AutoUpdate:    1,
 		LastConnected: &now,
 		LastSeen:      &now, // Set LastSeen to current time to avoid MySQL datetime error
@@ -584,15 +584,15 @@ func (h *Handlers) GetDeviceConfig(c *gin.Context) {
 	}
 
 	// 检查设备是否绑定了助手
-	if device.AssistantID == nil {
+	if device.AgentID == nil {
 		response.Fail(c, "Device is not bound to an assistant", nil)
 		return
 	}
 
-	assistantID := *device.AssistantID
+	assistantID := *device.AgentID
 
 	// 获取助手配置
-	var assistant models.Assistant
+	var assistant models.Agent
 	if err := h.db.Where("id = ?", assistantID).First(&assistant).Error; err != nil {
 		logger.Error("Failed to get assistant", zap.Error(err), zap.Uint("assistantID", assistantID))
 		response.Fail(c, "Failed to get assistant configuration", nil)
@@ -612,7 +612,7 @@ func (h *Handlers) GetDeviceConfig(c *gin.Context) {
 	// 返回配置信息
 	config := map[string]interface{}{
 		"deviceId":             deviceID,
-		"assistantId":          assistantID,
+		"agentId":              assistantID,
 		"apiKey":               assistant.ApiKey,
 		"apiSecret":            assistant.ApiSecret,
 		"speaker":              assistant.Speaker,
@@ -932,7 +932,7 @@ func (h *Handlers) GetCallRecordings(c *gin.Context) {
 	}
 
 	// 过滤参数
-	assistantIDStr := c.Query("assistant_id")
+	assistantIDStr := c.Query("agent_id")
 	macAddress := c.Query("mac_address")
 
 	var recordings []models.CallRecording
@@ -946,7 +946,7 @@ func (h *Handlers) GetCallRecordings(c *gin.Context) {
 			response.Fail(c, "助手ID格式错误", nil)
 			return
 		}
-		recordings, total, err = models.GetCallRecordingsByAssistant(h.db, user.ID, uint(assistantID), pageSize, (page-1)*pageSize)
+		recordings, total, err = models.GetCallRecordingsByAgent(h.db, user.ID, uint(assistantID), pageSize, (page-1)*pageSize)
 	} else if macAddress != "" {
 		// 按设备MAC地址查询
 		recordings, total, err = models.GetCallRecordingsByDevice(h.db, user.ID, macAddress, pageSize, (page-1)*pageSize)
@@ -973,7 +973,7 @@ func (h *Handlers) GetCallRecordings(c *gin.Context) {
 		recordingItem := map[string]interface{}{
 			"id":             recording.ID,
 			"userId":         recording.UserID,
-			"assistantId":    recording.AssistantID,
+			"agentId":        recording.AgentID,
 			"deviceId":       recording.DeviceID,
 			"macAddress":     recording.MacAddress,
 			"sessionId":      recording.SessionID,
@@ -1056,9 +1056,9 @@ func (h *Handlers) AnalyzeCallRecording(c *gin.Context) {
 		}
 
 		// 获取助手信息
-		var assistant models.Assistant
-		if err := h.db.Where("id = ?", recording.AssistantID).First(&assistant).Error; err != nil {
-			logger.Error("获取助手信息失败", zap.Error(err), zap.Uint("assistantID", recording.AssistantID))
+		var assistant models.Agent
+		if err := h.db.Where("id = ?", recording.AgentID).First(&assistant).Error; err != nil {
+			logger.Error("获取助手信息失败", zap.Error(err), zap.Uint("assistantID", recording.AgentID))
 			return
 		}
 
@@ -1185,7 +1185,7 @@ func (h *Handlers) BatchAnalyzeCallRecordings(c *gin.Context) {
 	}
 
 	var req struct {
-		AssistantID *uint `json:"assistantId"`
+		AgentID *uint `json:"agentId"`
 		Limit       int   `json:"limit"`
 	}
 
@@ -1291,7 +1291,7 @@ func (h *Handlers) GetCallRecordingDetail(c *gin.Context) {
 	detailResponse := map[string]interface{}{
 		"id":              recording.ID,
 		"userId":          recording.UserID,
-		"assistantId":     recording.AssistantID,
+		"agentId":         recording.AgentID,
 		"deviceId":        recording.DeviceID,
 		"macAddress":      recording.MacAddress,
 		"sessionId":       recording.SessionID,

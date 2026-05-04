@@ -281,7 +281,7 @@ func (h *Handlers) Register(engine *gin.Engine) {
 	h.registerGroupRoutes(r)
 	h.registerAnnouncementRoutes(r)
 	h.registerWebSocketRoutes(r)
-	h.registerAssistantRoutes(r)
+	h.registerAgentRoutes(r)
 	h.registerChatRoutes(r)
 	h.registerCredentialsRoutes(r)
 	h.registerKnowledgeBaseRoutes(r)
@@ -557,23 +557,23 @@ func (h *Handlers) registerGroupRoutes(r *gin.RouterGroup) {
 	}
 }
 
-// registerAssistantRoutes Assistant Module
-func (h *Handlers) registerAssistantRoutes(r *gin.RouterGroup) {
-	assistant := r.Group("assistant")
+// registerAgentRoutes Agent module (REST prefix /agents)
+func (h *Handlers) registerAgentRoutes(r *gin.RouterGroup) {
+	agents := r.Group("agents")
 	{
-		assistant.POST("add", models.AuthRequired, h.CreateAssistant)
+		agents.POST("add", models.AuthRequired, h.CreateAgent)
 
-		assistant.GET("", models.AuthRequired, h.ListAssistants)
+		agents.GET("", models.AuthRequired, h.ListAgents)
 
-		assistant.GET("/:id", models.AuthRequired, h.GetAssistant)
+		agents.GET("/:id", models.AuthRequired, h.GetAgent)
 
-		assistant.GET("/:id/graph", models.AuthRequired, h.GetAssistantGraphData)
+		agents.GET("/:id/graph", models.AuthRequired, h.GetAgentGraphData)
 
-		assistant.PUT("/:id", models.AuthRequired, h.UpdateAssistant)
+		agents.PUT("/:id", models.AuthRequired, h.UpdateAgent)
 
-		assistant.DELETE("/:id", models.AuthRequired, h.DeleteAssistant)
+		agents.DELETE("/:id", models.AuthRequired, h.DeleteAgent)
 
-		assistant.GET("/lingecho/client/:id/loader.js", h.ServeVoiceSculptorLoaderJS)
+		agents.GET("/lingecho/client/:id/loader.js", h.ServeVoiceSculptorLoaderJS)
 
 	}
 }
@@ -619,7 +619,7 @@ func (h *Handlers) registerChatRoutes(r *gin.RouterGroup) {
 
 		chat.GET("chat-session-log/by-session/:sessionId", h.getChatSessionLogsBySession)
 
-		chat.GET("chat-session-log/by-assistant/:assistantId", h.getChatSessionLogByAssistant)
+		chat.GET("chat-session-log/by-agent/:agentId", h.getChatSessionLogByAgent)
 	}
 }
 
@@ -873,6 +873,8 @@ func (h *Handlers) registerAuthRoutes(r *gin.RouterGroup) {
 func (h *Handlers) registerAdminManagementRoutes(r *gin.RouterGroup) {
 	adminGuard := []gin.HandlerFunc{models.AuthRequired, h.requireAdmin}
 
+	h.registerAccessAdminRoutes(r)
+
 	users := r.Group("users", adminGuard...)
 	{
 		users.GET("", h.handleAdminListUsers)
@@ -900,12 +902,12 @@ func (h *Handlers) registerAdminManagementRoutes(r *gin.RouterGroup) {
 		oauthClients.DELETE("/:id", h.handleAdminDeleteOAuthClient)
 	}
 
-	assistants := r.Group("admin/assistants", adminGuard...)
+	adminAgents := r.Group("admin/agents", adminGuard...)
 	{
-		assistants.GET("", h.handleAdminListAssistants)
-		assistants.GET("/:id", h.handleAdminGetAssistant)
-		assistants.PUT("/:id", h.handleAdminUpdateAssistant)
-		assistants.DELETE("/:id", h.handleAdminDeleteAssistant)
+		adminAgents.GET("", h.handleAdminListAgents)
+		adminAgents.GET("/:id", h.handleAdminGetAgent)
+		adminAgents.PUT("/:id", h.handleAdminUpdateAgent)
+		adminAgents.DELETE("/:id", h.handleAdminDeleteAgent)
 	}
 
 	chatSessions := r.Group("admin/chat-sessions", adminGuard...)
@@ -1035,6 +1037,34 @@ func (h *Handlers) registerAdminManagementRoutes(r *gin.RouterGroup) {
 		devices.GET("", h.handleAdminListDevices)
 		devices.GET("/:id", h.handleAdminGetDevice)
 		devices.DELETE("/:id", h.handleAdminDeleteDevice)
+	}
+}
+
+func (h *Handlers) registerAccessAdminRoutes(r *gin.RouterGroup) {
+	guard := []gin.HandlerFunc{models.AuthRequired, h.requireAdmin, h.requireAccessManage}
+
+	perms := r.Group("admin/permissions", guard...)
+	{
+		perms.GET("", h.handleAdminListPermissions)
+		perms.POST("", h.handleAdminCreatePermission)
+		perms.PUT("/:id", h.handleAdminUpdatePermission)
+		perms.DELETE("/:id", h.handleAdminDeletePermission)
+	}
+
+	roles := r.Group("admin/roles", guard...)
+	{
+		roles.GET("", h.handleAdminListRoles)
+		roles.POST("", h.handleAdminCreateRole)
+		roles.PUT("/:id/permissions", h.handleAdminSetRolePermissions)
+		roles.GET("/:id", h.handleAdminGetRole)
+		roles.PUT("/:id", h.handleAdminUpdateRole)
+		roles.DELETE("/:id", h.handleAdminDeleteRole)
+	}
+
+	userAccess := r.Group("admin/users", guard...)
+	{
+		userAccess.GET("/:id/access", h.handleAdminGetUserAccess)
+		userAccess.PUT("/:id/access", h.handleAdminSetUserAccess)
 	}
 }
 

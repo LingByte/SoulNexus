@@ -19,7 +19,8 @@ export interface VoiceChatSession {
   id: number
   content: string
   createdAt: string
-  assistantName?: string
+  agentName?: string
+  assistantName?: string // legacy client field
   chatType?: string
 }
 

@@ -102,10 +102,10 @@ const DeviceManagement: React.FC = () => {
         }
     }, [selectedAssistantId]);
 
-    const fetchDevices = async (assistantId: string) => {
+    const fetchDevices = async (agentId: string) => {
         try {
             setIsLoading(true);
-            const res = await getUserDevices(assistantId);
+            const res = await getUserDevices(agentId);
             if (res.code === 200) {
                 setDevices(res.data);
             } else {

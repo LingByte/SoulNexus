@@ -37,6 +37,7 @@ interface ChatLog {
   createdAt: string
   llmUsage?: LLMUsage
   assistantName?: string
+  agentName?: string
 }
 
 interface ChatLogDetailProps {
@@ -157,7 +158,7 @@ const ChatLogDetail: React.FC<ChatLogDetailProps> = ({
                         <div className="flex-1 flex items-center justify-between">
                           <div>
                             <span className="text-sm font-medium text-green-700 dark:text-green-300">
-                              {log.assistantName || assistantName}
+                              {log.agentName || log.assistantName || assistantName}
                             </span>
                             <span className="ml-2 text-xs text-gray-400 dark:text-gray-500">
                               {new Date(log.createdAt).toLocaleString('zh-CN')}

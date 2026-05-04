@@ -151,7 +151,7 @@ export const groups: Record<Language, Record<string, string>> = {
     'activityLog.action.avatar_updated': '更新头像',
     
     // 资源类型
-    'activityLog.resource.assistant': '助手',
+    'activityLog.resource.assistant': '智能体',
     'activityLog.resource.knowledge': '知识库',
     'activityLog.resource.member': '成员',
     'activityLog.resource.group': '组织',
@@ -191,8 +191,8 @@ export const groups: Record<Language, Record<string, string>> = {
 
     // GroupSettings 共享资源
     'groupSettings.sharedResources': '共享资源',
-    'groupSettings.assistants': '助手',
-    'groupSettings.noSharedAssistants': '暂无共享的助手',
+    'groupSettings.assistants': '智能体',
+    'groupSettings.noSharedAssistants': '暂无共享的智能体',
     'groupSettings.knowledgeBases': '知识库',
     'groupSettings.noSharedKnowledgeBases': '暂无共享的知识库',
     'groupSettings.avatarFormatHint': '支持 JPG、PNG、GIF、WebP 格式，文件大小不超过 5MB',
@@ -207,7 +207,7 @@ export const groups: Record<Language, Record<string, string>> = {
     'groupSettings.deleteGroupDesc': '删除组织后，以下操作将无法撤销：',
     'groupSettings.deleteGroupItem1': '组织及其所有数据将被永久删除',
     'groupSettings.deleteGroupItem2': '所有成员将失去对组织的访问权限',
-    'groupSettings.deleteGroupItem3': '组织下的所有资源（助手、知识库等）将被删除',
+    'groupSettings.deleteGroupItem3': '组织下的所有资源（智能体、知识库等）将被删除',
     'groupSettings.deleteGroupWarning': '请谨慎操作！',
     'groupSettings.messages.nameRequired': '组织名称不能为空',
     'groupSettings.messages.saveSuccess': '组织信息保存成功',
@@ -371,7 +371,7 @@ export const groups: Record<Language, Record<string, string>> = {
     'activityLog.action.avatar_updated': 'Avatar Updated',
     
     // Resource Types
-    'activityLog.resource.assistant': 'Assistant',
+    'activityLog.resource.assistant': 'Agent',
     'activityLog.resource.knowledge': 'Knowledge Base',
     'activityLog.resource.member': 'Member',
     'activityLog.resource.group': 'Organization',
@@ -411,8 +411,8 @@ export const groups: Record<Language, Record<string, string>> = {
 
     // GroupSettings Shared Resources
     'groupSettings.sharedResources': 'Shared Resources',
-    'groupSettings.assistants': 'Assistants',
-    'groupSettings.noSharedAssistants': 'No shared assistants',
+    'groupSettings.assistants': 'Agents',
+    'groupSettings.noSharedAssistants': 'No shared agents',
     'groupSettings.knowledgeBases': 'Knowledge Bases',
     'groupSettings.noSharedKnowledgeBases': 'No shared knowledge bases',
     'groupSettings.avatarFormatHint': 'Supports JPG, PNG, GIF, WebP formats, file size not exceeding 5MB',
@@ -427,7 +427,7 @@ export const groups: Record<Language, Record<string, string>> = {
     'groupSettings.deleteGroupDesc': 'After deleting the organization, the following operations cannot be undone:',
     'groupSettings.deleteGroupItem1': 'The organization and all its data will be permanently deleted',
     'groupSettings.deleteGroupItem2': 'All members will lose access to the organization',
-    'groupSettings.deleteGroupItem3': 'All resources under the organization (assistants, knowledge bases, etc.) will be deleted',
+    'groupSettings.deleteGroupItem3': 'All resources under the organization (agents, knowledge bases, etc.) will be deleted',
     'groupSettings.deleteGroupWarning': 'Please operate with caution!',
     'groupSettings.messages.nameRequired': 'Organization name cannot be empty',
     'groupSettings.messages.saveSuccess': 'Organization information saved successfully',
@@ -559,8 +559,8 @@ export const groups: Record<Language, Record<string, string>> = {
 
     // グループ設定共有リソース
     'groupSettings.sharedResources': '共有リソース',
-    'groupSettings.assistants': 'アシスタント',
-    'groupSettings.noSharedAssistants': '共有アシスタントなし',
+    'groupSettings.assistants': 'エージェント',
+    'groupSettings.noSharedAssistants': '共有エージェントなし',
     'groupSettings.knowledgeBases': 'ナレッジベース',
     'groupSettings.noSharedKnowledgeBases': '共有ナレッジベースなし',
     'groupSettings.avatarFormatHint': 'JPG、PNG、GIF、WebP形式をサポート、ファイルサイズは5MB以下',
@@ -643,7 +643,7 @@ export const groups: Record<Language, Record<string, string>> = {
     'activityLog.action.avatar_updated': 'アバター更新',
     
     // リソースタイプ
-    'activityLog.resource.assistant': 'アシスタント',
+    'activityLog.resource.assistant': 'エージェント',
     'activityLog.resource.knowledge': 'ナレッジベース',
     'activityLog.resource.member': 'メンバー',
     'activityLog.resource.group': '組織',

@@ -11,7 +11,7 @@ export const zhTWOverrides: Record<string, string> = {
   'nav.enterSystem': '進入系統',
   'nav.logout': '登出',
   'nav.loginRegister': '登入 / 註冊',
-  'nav.sidebar.smartAssistant': '智慧助手',
+  'nav.sidebar.smartAssistant': '智能體',
   'nav.sidebar.voiceTraining': '音色訓練',
   'nav.sidebar.knowledgeBase': '知識庫',
   'nav.sidebar.workflow': '工作流',

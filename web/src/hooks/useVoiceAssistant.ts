@@ -7,7 +7,7 @@ export type TextMode = 'voice' | 'text'
 interface UseVoiceAssistantOptions {
   apiKey: string
   apiSecret: string
-  assistantId: number
+  agentId: number
   language: string
   systemPrompt: string
   selectedVoiceCloneId: number | null
@@ -29,7 +29,7 @@ export const useVoiceAssistant = (options: UseVoiceAssistantOptions) => {
   const {
     apiKey,
     apiSecret,
-    assistantId,
+    agentId,
     language,
     systemPrompt,
     selectedVoiceCloneId,
@@ -109,7 +109,7 @@ export const useVoiceAssistant = (options: UseVoiceAssistantOptions) => {
         apiKey: apiKey,
         apiSecret: apiSecret,
         text: text,
-        assistantId: assistantId || 1,
+        agentId: agentId || 1,
         language,
         sessionId: sessionId || `text_${Date.now()}`,
         systemPrompt,

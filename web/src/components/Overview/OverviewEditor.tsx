@@ -1274,7 +1274,7 @@ const OverviewEditor: React.FC<OverviewEditorProps> = ({ config, onSave, onCance
                       >
                         <option value="">-- 选择数据键 --</option>
                         <option value="totalMembers">成员总数 (totalMembers)</option>
-                        <option value="totalAssistants">助手总数 (totalAssistants)</option>
+                        <option value="totalAssistants">智能体总数 (totalAssistants)</option>
                         <option value="totalKnowledgeBases">知识库总数 (totalKnowledgeBases)</option>
                         <option value="totalCalls">通话总数 (totalCalls)</option>
                         <option value="totalWorkflows">工作流总数 (totalWorkflows)</option>
@@ -1484,7 +1484,7 @@ const OverviewEditor: React.FC<OverviewEditorProps> = ({ config, onSave, onCance
                         <option value="">-- 选择数据键 --</option>
                         <option value="value">进度值 (value)</option>
                         <option value="totalMembers">成员总数 (totalMembers)</option>
-                        <option value="totalAssistants">助手总数 (totalAssistants)</option>
+                        <option value="totalAssistants">智能体总数 (totalAssistants)</option>
                         <option value="totalLLMCalls">LLM调用次数 (billStatistics.totalLLMCalls)</option>
                         <option value="totalCallCount">通话次数 (billStatistics.totalCallCount)</option>
                         <option value="totalASRCount">ASR次数 (billStatistics.totalASRCount)</option>

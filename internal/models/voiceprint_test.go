@@ -30,7 +30,7 @@ func TestVoiceprint_CRUD(t *testing.T) {
 	featureVector := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}
 	voiceprint := &Voiceprint{
 		SpeakerID:     "speaker-001",
-		AssistantID:   "assistant-123",
+		AgentID:   "assistant-123",
 		SpeakerName:   "张三",
 		FeatureVector: featureVector,
 	}
@@ -45,7 +45,7 @@ func TestVoiceprint_CRUD(t *testing.T) {
 	err = db.First(&retrieved, voiceprint.ID).Error
 	assert.NoError(t, err)
 	assert.Equal(t, "speaker-001", retrieved.SpeakerID)
-	assert.Equal(t, "assistant-123", retrieved.AssistantID)
+	assert.Equal(t, "assistant-123", retrieved.AgentID)
 	assert.Equal(t, "张三", retrieved.SpeakerName)
 	assert.Equal(t, featureVector, retrieved.FeatureVector)
 
@@ -79,19 +79,19 @@ func TestVoiceprint_QueryBySpeakerID(t *testing.T) {
 	voiceprints := []*Voiceprint{
 		{
 			SpeakerID:     "speaker-001",
-			AssistantID:   "assistant-123",
+			AgentID:   "assistant-123",
 			SpeakerName:   "张三",
 			FeatureVector: []byte{0x01, 0x02, 0x03},
 		},
 		{
 			SpeakerID:     "speaker-002",
-			AssistantID:   "assistant-123",
+			AgentID:   "assistant-123",
 			SpeakerName:   "李四",
 			FeatureVector: []byte{0x04, 0x05, 0x06},
 		},
 		{
 			SpeakerID:     "speaker-001",
-			AssistantID:   "assistant-456",
+			AgentID:   "assistant-456",
 			SpeakerName:   "张三",
 			FeatureVector: []byte{0x07, 0x08, 0x09},
 		},
@@ -114,16 +114,16 @@ func TestVoiceprint_QueryBySpeakerID(t *testing.T) {
 		assert.Equal(t, "张三", vp.SpeakerName)
 	}
 
-	// 验证不同的AssistantID
+	// 验证不同的AgentID
 	assistantIDs := make([]string, len(speakerVoiceprints))
 	for i, vp := range speakerVoiceprints {
-		assistantIDs[i] = vp.AssistantID
+		assistantIDs[i] = vp.AgentID
 	}
 	assert.Contains(t, assistantIDs, "assistant-123")
 	assert.Contains(t, assistantIDs, "assistant-456")
 }
 
-func TestVoiceprint_QueryByAssistantID(t *testing.T) {
+func TestVoiceprint_QueryByAgentID(t *testing.T) {
 	db := setupVoiceprintTestDB(t)
 
 	assistantID := "assistant-789"
@@ -132,19 +132,19 @@ func TestVoiceprint_QueryByAssistantID(t *testing.T) {
 	voiceprints := []*Voiceprint{
 		{
 			SpeakerID:     "speaker-001",
-			AssistantID:   assistantID,
+			AgentID:   assistantID,
 			SpeakerName:   "用户A",
 			FeatureVector: []byte{0x01, 0x02, 0x03},
 		},
 		{
 			SpeakerID:     "speaker-002",
-			AssistantID:   assistantID,
+			AgentID:   assistantID,
 			SpeakerName:   "用户B",
 			FeatureVector: []byte{0x04, 0x05, 0x06},
 		},
 		{
 			SpeakerID:     "speaker-003",
-			AssistantID:   "other-assistant",
+			AgentID:   "other-assistant",
 			SpeakerName:   "其他用户",
 			FeatureVector: []byte{0x07, 0x08, 0x09},
 		},
@@ -155,16 +155,16 @@ func TestVoiceprint_QueryByAssistantID(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	// 按AssistantID查询
+	// 按AgentID查询
 	var assistantVoiceprints []Voiceprint
-	err := db.Where("assistant_id = ?", assistantID).Find(&assistantVoiceprints).Error
+	err := db.Where("agent_id = ?", assistantID).Find(&assistantVoiceprints).Error
 	assert.NoError(t, err)
 	assert.Len(t, assistantVoiceprints, 2)
 
 	// 验证查询结果
 	speakerNames := make([]string, len(assistantVoiceprints))
 	for i, vp := range assistantVoiceprints {
-		assert.Equal(t, assistantID, vp.AssistantID)
+		assert.Equal(t, assistantID, vp.AgentID)
 		speakerNames[i] = vp.SpeakerName
 	}
 	assert.Contains(t, speakerNames, "用户A")
@@ -177,7 +177,7 @@ func TestVoiceprint_UniqueConstraint(t *testing.T) {
 	// 创建第一个声纹记录
 	voiceprint1 := &Voiceprint{
 		SpeakerID:     "speaker-unique",
-		AssistantID:   "assistant-unique",
+		AgentID:   "assistant-unique",
 		SpeakerName:   "唯一用户",
 		FeatureVector: []byte{0x01, 0x02, 0x03},
 	}
@@ -185,10 +185,10 @@ func TestVoiceprint_UniqueConstraint(t *testing.T) {
 	err := db.Create(voiceprint1).Error
 	assert.NoError(t, err)
 
-	// 尝试创建相同SpeakerID和AssistantID的记录
+	// 尝试创建相同SpeakerID和AgentID的记录
 	voiceprint2 := &Voiceprint{
 		SpeakerID:     "speaker-unique",
-		AssistantID:   "assistant-unique",
+		AgentID:   "assistant-unique",
 		SpeakerName:   "重复用户",
 		FeatureVector: []byte{0x04, 0x05, 0x06},
 	}
@@ -200,7 +200,7 @@ func TestVoiceprint_UniqueConstraint(t *testing.T) {
 
 	// 检查是否存在重复记录
 	var count int64
-	err = db.Model(&Voiceprint{}).Where("speaker_id = ? AND assistant_id = ?", "speaker-unique", "assistant-unique").Count(&count).Error
+	err = db.Model(&Voiceprint{}).Where("speaker_id = ? AND agent_id = ?", "speaker-unique", "assistant-unique").Count(&count).Error
 	assert.NoError(t, err)
 	// 如果有唯一约束，count应该是1；如果没有，可能是2
 }
@@ -242,7 +242,7 @@ func TestVoiceprint_FeatureVectorHandling(t *testing.T) {
 	for i, tc := range testCases {
 		voiceprint := &Voiceprint{
 			SpeakerID:     "speaker-" + string(rune('1'+i)),
-			AssistantID:   "assistant-vector-test",
+			AgentID:   "assistant-vector-test",
 			SpeakerName:   tc.description,
 			FeatureVector: tc.featureVector,
 		}
@@ -265,7 +265,7 @@ func TestVoiceprint_TimeTracking(t *testing.T) {
 	beforeCreate := time.Now()
 	voiceprint := &Voiceprint{
 		SpeakerID:     "speaker-time-test",
-		AssistantID:   "assistant-time-test",
+		AgentID:   "assistant-time-test",
 		SpeakerName:   "时间测试用户",
 		FeatureVector: []byte{0x01, 0x02, 0x03},
 	}
@@ -303,21 +303,21 @@ func TestVoiceprint_EmptyAndNullValues(t *testing.T) {
 	// 测试空字符串和空特征向量
 	voiceprint := &Voiceprint{
 		SpeakerID:     "",
-		AssistantID:   "",
+		AgentID:   "",
 		SpeakerName:   "",
 		FeatureVector: []byte{},
 	}
 
 	err := db.Create(voiceprint).Error
 	// 根据数据库约束，这可能会失败或成功
-	// 如果SpeakerID和AssistantID有NOT NULL约束，应该失败
+	// 如果SpeakerID和AgentID有NOT NULL约束，应该失败
 	if err == nil {
 		// 如果创建成功，验证空值处理
 		var retrieved Voiceprint
 		err = db.First(&retrieved, voiceprint.ID).Error
 		assert.NoError(t, err)
 		assert.Equal(t, "", retrieved.SpeakerID)
-		assert.Equal(t, "", retrieved.AssistantID)
+		assert.Equal(t, "", retrieved.AgentID)
 		assert.Equal(t, "", retrieved.SpeakerName)
 		assert.Equal(t, []byte{}, retrieved.FeatureVector)
 	}
@@ -325,7 +325,7 @@ func TestVoiceprint_EmptyAndNullValues(t *testing.T) {
 	// 测试有效的最小数据
 	minimalVoiceprint := &Voiceprint{
 		SpeakerID:     "min-speaker",
-		AssistantID:   "min-assistant",
+		AgentID:   "min-assistant",
 		SpeakerName:   "最小用户",
 		FeatureVector: []byte{0x01},
 	}
@@ -337,7 +337,7 @@ func TestVoiceprint_EmptyAndNullValues(t *testing.T) {
 	err = db.First(&retrieved, minimalVoiceprint.ID).Error
 	assert.NoError(t, err)
 	assert.Equal(t, "min-speaker", retrieved.SpeakerID)
-	assert.Equal(t, "min-assistant", retrieved.AssistantID)
+	assert.Equal(t, "min-assistant", retrieved.AgentID)
 	assert.Equal(t, "最小用户", retrieved.SpeakerName)
 	assert.Equal(t, []byte{0x01}, retrieved.FeatureVector)
 }
@@ -349,25 +349,25 @@ func TestVoiceprint_ComplexQueries(t *testing.T) {
 	testData := []*Voiceprint{
 		{
 			SpeakerID:     "speaker-001",
-			AssistantID:   "assistant-A",
+			AgentID:   "assistant-A",
 			SpeakerName:   "张三",
 			FeatureVector: []byte{0x01, 0x02, 0x03},
 		},
 		{
 			SpeakerID:     "speaker-002",
-			AssistantID:   "assistant-A",
+			AgentID:   "assistant-A",
 			SpeakerName:   "李四",
 			FeatureVector: []byte{0x04, 0x05, 0x06},
 		},
 		{
 			SpeakerID:     "speaker-003",
-			AssistantID:   "assistant-B",
+			AgentID:   "assistant-B",
 			SpeakerName:   "王五",
 			FeatureVector: []byte{0x07, 0x08, 0x09},
 		},
 		{
 			SpeakerID:     "speaker-001",
-			AssistantID:   "assistant-B",
+			AgentID:   "assistant-B",
 			SpeakerName:   "张三",
 			FeatureVector: []byte{0x0A, 0x0B, 0x0C},
 		},
@@ -380,7 +380,7 @@ func TestVoiceprint_ComplexQueries(t *testing.T) {
 
 	// 复杂查询：按助手ID和说话人姓名查询
 	var results []Voiceprint
-	err := db.Where("assistant_id = ? AND speaker_name = ?", "assistant-A", "张三").Find(&results).Error
+	err := db.Where("agent_id = ? AND speaker_name = ?", "assistant-A", "张三").Find(&results).Error
 	assert.NoError(t, err)
 	assert.Len(t, results, 1)
 	assert.Equal(t, "speaker-001", results[0].SpeakerID)
@@ -391,7 +391,7 @@ func TestVoiceprint_ComplexQueries(t *testing.T) {
 	assert.Len(t, results, 2)
 
 	// 复杂查询：按助手ID查询并按创建时间排序
-	err = db.Where("assistant_id = ?", "assistant-A").Order("created_at DESC").Find(&results).Error
+	err = db.Where("agent_id = ?", "assistant-A").Order("created_at DESC").Find(&results).Error
 	assert.NoError(t, err)
 	assert.Len(t, results, 2)
 	// 验证排序（后创建的在前）
@@ -399,7 +399,7 @@ func TestVoiceprint_ComplexQueries(t *testing.T) {
 
 	// 统计查询：按助手ID统计声纹数量
 	var count int64
-	err = db.Model(&Voiceprint{}).Where("assistant_id = ?", "assistant-A").Count(&count).Error
+	err = db.Model(&Voiceprint{}).Where("agent_id = ?", "assistant-A").Count(&count).Error
 	assert.NoError(t, err)
 	assert.Equal(t, int64(2), count)
 }
@@ -422,7 +422,7 @@ func BenchmarkVoiceprint_Create(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		voiceprint := &Voiceprint{
 			SpeakerID:     "speaker-" + string(rune(i)),
-			AssistantID:   "assistant-benchmark",
+			AgentID:   "assistant-benchmark",
 			SpeakerName:   "Benchmark User " + string(rune(i)),
 			FeatureVector: featureVector,
 		}
@@ -437,7 +437,7 @@ func BenchmarkVoiceprint_QueryBySpeakerID(b *testing.B) {
 	for i := 0; i < 1000; i++ {
 		voiceprint := &Voiceprint{
 			SpeakerID:     "speaker-" + string(rune(i%100)),
-			AssistantID:   "assistant-" + string(rune(i%10)),
+			AgentID:   "assistant-" + string(rune(i%10)),
 			SpeakerName:   "User " + string(rune(i)),
 			FeatureVector: []byte{byte(i), byte(i + 1), byte(i + 2)},
 		}
@@ -451,14 +451,14 @@ func BenchmarkVoiceprint_QueryBySpeakerID(b *testing.B) {
 	}
 }
 
-func BenchmarkVoiceprint_QueryByAssistantID(b *testing.B) {
+func BenchmarkVoiceprint_QueryByAgentID(b *testing.B) {
 	db := setupVoiceprintTestDB(&testing.T{})
 
 	// 创建测试数据
 	for i := 0; i < 1000; i++ {
 		voiceprint := &Voiceprint{
 			SpeakerID:     "speaker-" + string(rune(i)),
-			AssistantID:   "assistant-" + string(rune(i%10)),
+			AgentID:   "assistant-" + string(rune(i%10)),
 			SpeakerName:   "User " + string(rune(i)),
 			FeatureVector: []byte{byte(i), byte(i + 1), byte(i + 2)},
 		}
@@ -468,6 +468,6 @@ func BenchmarkVoiceprint_QueryByAssistantID(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		var results []Voiceprint
-		db.Where("assistant_id = ?", "assistant-"+string(rune(i%10))).Find(&results)
+		db.Where("agent_id = ?", "assistant-"+string(rune(i%10))).Find(&results)
 	}
 }

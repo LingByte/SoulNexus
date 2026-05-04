@@ -1433,7 +1433,7 @@ type OneShotTextRequest struct {
 	APIKey            string  `json:"apiKey" binding:"required"`
 	APISecret         string  `json:"apiSecret" binding:"required"`
 	Text              string  `json:"text" binding:"required"`
-	AssistantID       int     `json:"assistantId"`
+	AgentID           int     `json:"agentId"`
 	Language          string  `json:"language"`
 	SessionID         string  `json:"sessionId"`
 	SystemPrompt      string  `json:"systemPrompt"`
@@ -1465,7 +1465,6 @@ func (h *Handlers) OneShotText(c *gin.Context) {
 		response.Fail(c, "参数错误", err.Error())
 		return
 	}
-
 	// 1. 查询用户凭证配置
 	credential, err := models.GetUserCredentialByApiSecretAndApiKey(h.db, req.APIKey, req.APISecret)
 	if err != nil {
@@ -1500,10 +1499,10 @@ func (h *Handlers) OneShotText(c *gin.Context) {
 			llmBaseURL = utils.GetEnv("LLM_BASE_URL")
 		}
 		// 获取模型和参数，优先级：Assistant配置 > 环境变量 > 默认值
-		var assistant models.Assistant
+		var assistant models.Agent
 		llmModel := ""
-		if req.AssistantID > 0 {
-			if err := h.db.First(&assistant, req.AssistantID).Error; err == nil {
+		if req.AgentID > 0 {
+			if err := h.db.First(&assistant, req.AgentID).Error; err == nil {
 				if assistant.LLMModel != "" {
 					llmModel = assistant.LLMModel
 				}
@@ -1526,7 +1525,7 @@ func (h *Handlers) OneShotText(c *gin.Context) {
 
 		if req.Temperature > 0 {
 			temp = &req.Temperature
-		} else if req.AssistantID > 0 {
+		} else if req.AgentID > 0 {
 			// 从 assistant 中读取
 			if assistant.Temperature > 0 {
 				temp = &assistant.Temperature
@@ -1540,7 +1539,7 @@ func (h *Handlers) OneShotText(c *gin.Context) {
 
 		if req.MaxTokens > 0 {
 			maxTokens = &req.MaxTokens
-		} else if req.AssistantID > 0 {
+		} else if req.AgentID > 0 {
 			// 从 assistant 中读取
 			if assistant.MaxTokens > 0 {
 				maxTokens = &assistant.MaxTokens
@@ -1550,7 +1549,7 @@ func (h *Handlers) OneShotText(c *gin.Context) {
 		// 构建系统提示词，如果设置了 maxTokens，添加回复长度指导
 		systemPrompt := req.SystemPrompt
 		if systemPrompt == "" {
-			if req.AssistantID > 0 && assistant.SystemPrompt != "" {
+			if req.AgentID > 0 && assistant.SystemPrompt != "" {
 				systemPrompt = assistant.SystemPrompt
 			} else {
 				systemPrompt = "请用中文回复用户的问题。"
@@ -1561,7 +1560,7 @@ func (h *Handlers) OneShotText(c *gin.Context) {
 		if config.GlobalConfig.Services.GraphMemory.Neo4j.Enabled && assistant.EnableGraphMemory {
 			if store := graph.GetDefaultStore(); store != nil {
 				ctx := c.Request.Context()
-				if userCtx, err := store.GetUserContext(ctx, user.ID, int64(req.AssistantID)); err == nil {
+				if userCtx, err := store.GetUserContext(ctx, user.ID, int64(req.AgentID)); err == nil {
 					if len(userCtx.Topics) > 0 {
 						preferenceText := fmt.Sprintf("该用户在历史对话中经常讨论这些主题：%s。请在回答时优先从这些兴趣和习惯的角度来组织内容，让风格尽量贴近他的偏好。",
 							strings.Join(userCtx.Topics, "、"))
@@ -1595,7 +1594,7 @@ func (h *Handlers) OneShotText(c *gin.Context) {
 		}
 		queryText := buildQueryTextWithAttachment(req.Text, req.AttachmentContent, req.AttachmentName)
 
-		llm.CreateSession(sessionID, fmt.Sprintf("%d", user.ID), int64(req.AssistantID), assistant.Name, credential.LLMProvider, llmModel, systemPrompt)
+		llm.CreateSession(sessionID, fmt.Sprintf("%d", user.ID), int64(req.AgentID), assistant.Name, credential.LLMProvider, llmModel, systemPrompt)
 		_ = h.compressSessionMessagesIfNeeded(llmHandler, sessionID, llmModel, credential.LLMProvider)
 		historyMessages := h.loadSessionShortTermMessages(sessionID, getShortTermMessageLimit())
 		llm.CreateMessage(utils.SnowflakeUtil.GenID(), sessionID, "user", queryText, 0, llmModel, credential.LLMProvider, "")
@@ -1643,7 +1642,7 @@ func (h *Handlers) OneShotText(c *gin.Context) {
 		"requestId": requestId, // 用于轮询
 	})
 
-	// 4. 聊天记录已通过 LLMListener 自动保存（如果提供了 UserID 和 AssistantID）
+	// 4. 聊天记录已通过 LLMListener 自动保存（如果提供了 UserID 和 AgentID）
 	// 这里不再需要手动保存，避免重复记录
 
 	// 5. 异步处理音频合成（使用pkg/synthesis）
@@ -1655,7 +1654,7 @@ type SimpleTextChatRequest struct {
 	APIKey       string  `json:"apiKey" binding:"required"`
 	APISecret    string  `json:"apiSecret" binding:"required"`
 	Text         string  `json:"text" binding:"required"`
-	AssistantID  int     `json:"assistantId" binding:"required"`
+	AgentID      int     `json:"agentId" binding:"required,min=1"`
 	SessionID    string  `json:"sessionId"`
 	Temperature  float32 `json:"temperature"`
 	MaxTokens    int     `json:"maxTokens"`
@@ -1675,7 +1674,6 @@ func (h *Handlers) SimpleTextChat(c *gin.Context) {
 		response.Fail(c, "参数错误", err.Error())
 		return
 	}
-
 	// 1. 验证凭证
 	credential, err := models.GetUserCredentialByApiSecretAndApiKey(h.db, req.APIKey, req.APISecret)
 	if err != nil {
@@ -1695,8 +1693,8 @@ func (h *Handlers) SimpleTextChat(c *gin.Context) {
 	}
 
 	// 3. 获取助手配置
-	var assistant models.Assistant
-	if err := h.db.First(&assistant, req.AssistantID).Error; err != nil {
+	var assistant models.Agent
+	if err := h.db.First(&assistant, req.AgentID).Error; err != nil {
 		response.Fail(c, "助手不存在", err.Error())
 		return
 	}
@@ -1755,7 +1753,7 @@ func (h *Handlers) SimpleTextChat(c *gin.Context) {
 	if config.GlobalConfig.Services.GraphMemory.Neo4j.Enabled && assistant.EnableGraphMemory {
 		if store := graph.GetDefaultStore(); store != nil {
 			ctx := c.Request.Context()
-			if userCtx, err := store.GetUserContext(ctx, user.ID, int64(req.AssistantID)); err == nil {
+			if userCtx, err := store.GetUserContext(ctx, user.ID, int64(req.AgentID)); err == nil {
 				if len(userCtx.Topics) > 0 {
 					preferenceText := fmt.Sprintf("该用户在历史对话中经常讨论这些主题：%s。请在回答时优先从这些兴趣和习惯的角度来组织内容，让风格尽量贴近他的偏好。",
 						strings.Join(userCtx.Topics, "、"))
@@ -1787,7 +1785,7 @@ func (h *Handlers) SimpleTextChat(c *gin.Context) {
 	if sessionID == "" {
 		sessionID = fmt.Sprintf("simple_text_%d_%d", user.ID, time.Now().Unix())
 	}
-	llm.CreateSession(sessionID, fmt.Sprintf("%d", user.ID), int64(req.AssistantID), assistant.Name, credential.LLMProvider, llmModel, systemPrompt)
+	llm.CreateSession(sessionID, fmt.Sprintf("%d", user.ID), int64(req.AgentID), assistant.Name, credential.LLMProvider, llmModel, systemPrompt)
 	_ = h.compressSessionMessagesIfNeeded(llmHandler, sessionID, llmModel, credential.LLMProvider)
 	historyMessages := h.loadSessionShortTermMessages(sessionID, getShortTermMessageLimit())
 	llm.CreateMessage(utils.SnowflakeUtil.GenID(), sessionID, "user", queryText, 0, llmModel, credential.LLMProvider, "")
@@ -1837,10 +1835,9 @@ func (h *Handlers) PlainText(c *gin.Context) {
 		response.Fail(c, "参数错误", err.Error())
 		return
 	}
-
 	// 1. 检查助手是否存在
-	var assistant models.Assistant
-	if err := h.db.First(&assistant, req.AssistantID).Error; err != nil {
+	var assistant models.Agent
+	if err := h.db.First(&assistant, req.AgentID).Error; err != nil {
 		response.Fail(c, "助手不存在", "请检查助手ID是否正确")
 		return
 	}
@@ -1888,7 +1885,7 @@ func (h *Handlers) PlainText(c *gin.Context) {
 		if config.GlobalConfig.Services.GraphMemory.Neo4j.Enabled && assistant.EnableGraphMemory {
 			if store := graph.GetDefaultStore(); store != nil {
 				ctx := c.Request.Context()
-				if userCtx, err := store.GetUserContext(ctx, user.ID, int64(req.AssistantID)); err == nil {
+				if userCtx, err := store.GetUserContext(ctx, user.ID, int64(req.AgentID)); err == nil {
 					if len(userCtx.Topics) > 0 {
 						preferenceText := fmt.Sprintf("该用户在历史对话中经常讨论这些主题：%s。请在回答时优先从这些兴趣和习惯的角度来组织内容，让风格尽量贴近他的偏好。",
 							strings.Join(userCtx.Topics, "、"))
@@ -1922,7 +1919,7 @@ func (h *Handlers) PlainText(c *gin.Context) {
 
 		if req.Temperature > 0 {
 			temp = &req.Temperature
-		} else if req.AssistantID > 0 {
+		} else if req.AgentID > 0 {
 			// 从 assistant 中读取
 			if assistant.Temperature > 0 {
 				temp = &assistant.Temperature
@@ -1936,7 +1933,7 @@ func (h *Handlers) PlainText(c *gin.Context) {
 
 		if req.MaxTokens > 0 {
 			maxTokens = &req.MaxTokens
-		} else if req.AssistantID > 0 {
+		} else if req.AgentID > 0 {
 			// 从 assistant 中读取
 			if assistant.MaxTokens > 0 {
 				maxTokens = &assistant.MaxTokens
@@ -1951,7 +1948,7 @@ func (h *Handlers) PlainText(c *gin.Context) {
 		}
 		queryText := buildQueryTextWithAttachment(req.Text, req.AttachmentContent, req.AttachmentName)
 
-		llm.CreateSession(sessionID, fmt.Sprintf("%d", user.ID), int64(req.AssistantID), assistant.Name, credential.LLMProvider, llmModel, systemPrompt)
+		llm.CreateSession(sessionID, fmt.Sprintf("%d", user.ID), int64(req.AgentID), assistant.Name, credential.LLMProvider, llmModel, systemPrompt)
 		_ = h.compressSessionMessagesIfNeeded(llmHandler, sessionID, llmModel, credential.LLMProvider)
 		historyMessages := h.loadSessionShortTermMessages(sessionID, getShortTermMessageLimit())
 		llm.CreateMessage(utils.SnowflakeUtil.GenID(), sessionID, "user", queryText, 0, llmModel, credential.LLMProvider, "")

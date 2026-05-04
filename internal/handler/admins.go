@@ -69,7 +69,7 @@ type adminCredentialStatusReq struct {
 	UnlimitedQuota *bool   `json:"unlimitedQuota"`
 }
 
-type adminAssistantUpdateReq struct {
+type adminAgentUpdateReq struct {
 	Name              string   `json:"name"`
 	Description       string   `json:"description"`
 	SystemPrompt      string   `json:"systemPrompt"`
@@ -101,11 +101,15 @@ func (h *Handlers) requireAdmin(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("authorization required"))
 		return
 	}
-	if !user.IsAdmin() {
-		response.AbortWithJSONError(c, http.StatusForbidden, errors.New("admin permission required"))
+	if user.IsAdmin() {
+		c.Next()
 		return
 	}
-	c.Next()
+	if models.UserHasAdminAccess(h.db, user.ID) {
+		c.Next()
+		return
+	}
+	response.AbortWithJSONError(c, http.StatusForbidden, errors.New("admin permission required"))
 }
 
 func (h *Handlers) parsePagination(c *gin.Context) (int, int) {
@@ -294,6 +298,7 @@ func (h *Handlers) handleAdminCreateUser(c *gin.Context) {
 		return
 	}
 	_ = h.db.First(user, user.ID).Error
+	_ = models.SyncUserRolesFromLegacyRole(h.db, user)
 	response.Success(c, "user created", user)
 }
 
@@ -398,6 +403,9 @@ func (h *Handlers) handleAdminUpdateUser(c *gin.Context) {
 		return
 	}
 	_ = h.db.First(&user, user.ID).Error
+	if _, hasRole := updateVals["role"]; hasRole {
+		_ = models.SyncUserRolesFromLegacyRole(h.db, &user)
+	}
 	response.Success(c, "user updated", &user)
 }
 
@@ -1389,11 +1397,11 @@ func (h *Handlers) handleAdminDeleteOAuthClient(c *gin.Context) {
 	response.Success(c, "oauth client deleted", nil)
 }
 
-func (h *Handlers) handleAdminListAssistants(c *gin.Context) {
+func (h *Handlers) handleAdminListAgents(c *gin.Context) {
 	page, pageSize := h.parsePagination(c)
 	search := strings.TrimSpace(c.Query("search"))
 
-	query := h.db.Model(&models.Assistant{})
+	query := h.db.Model(&models.Agent{})
 	if search != "" {
 		like := "%" + search + "%"
 		query = query.Where("name LIKE ? OR description LIKE ? OR persona_tag LIKE ? OR llm_model LIKE ?", like, like, like, like)
@@ -1405,27 +1413,27 @@ func (h *Handlers) handleAdminListAssistants(c *gin.Context) {
 		return
 	}
 
-	var assistants []models.Assistant
+	var assistants []models.Agent
 	if err := query.Order("id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&assistants).Error; err != nil {
 		response.Fail(c, "list assistants failed", err)
 		return
 	}
 
-	response.Success(c, "assistants fetched", gin.H{
-		"assistants": assistants,
+	response.Success(c, "agents fetched", gin.H{
+		"agents": assistants,
 		"total":      total,
 		"page":       page,
 		"pageSize":   pageSize,
 	})
 }
 
-func (h *Handlers) handleAdminGetAssistant(c *gin.Context) {
+func (h *Handlers) handleAdminGetAgent(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil || id <= 0 {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid assistant id"))
 		return
 	}
-	var assistant models.Assistant
+	var assistant models.Agent
 	if err = h.db.First(&assistant, id).Error; err != nil {
 		response.Fail(c, "assistant not found", err)
 		return
@@ -1433,18 +1441,18 @@ func (h *Handlers) handleAdminGetAssistant(c *gin.Context) {
 	response.Success(c, "assistant fetched", assistant)
 }
 
-func (h *Handlers) handleAdminUpdateAssistant(c *gin.Context) {
+func (h *Handlers) handleAdminUpdateAgent(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil || id <= 0 {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid assistant id"))
 		return
 	}
-	var req adminAssistantUpdateReq
+	var req adminAgentUpdateReq
 	if err = c.ShouldBindJSON(&req); err != nil {
 		response.AbortWithJSONError(c, http.StatusBadRequest, err)
 		return
 	}
-	var assistant models.Assistant
+	var assistant models.Agent
 	if err = h.db.First(&assistant, id).Error; err != nil {
 		response.Fail(c, "assistant not found", err)
 		return
@@ -1493,13 +1501,13 @@ func (h *Handlers) handleAdminUpdateAssistant(c *gin.Context) {
 	response.Success(c, "assistant updated", assistant)
 }
 
-func (h *Handlers) handleAdminDeleteAssistant(c *gin.Context) {
+func (h *Handlers) handleAdminDeleteAgent(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil || id <= 0 {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid assistant id"))
 		return
 	}
-	if err = h.db.Delete(&models.Assistant{}, id).Error; err != nil {
+	if err = h.db.Delete(&models.Agent{}, id).Error; err != nil {
 		response.Fail(c, "delete assistant failed", err)
 		return
 	}

@@ -18,7 +18,7 @@
  * 
  * // 连接语音通话
  * await sdk.connectVoice({
- *   assistantId: 1,
+ *   agentId: 1,
  *   onMessage: (message) => console.log(message),
  *   onError: (error) => console.error(error)
  * });
@@ -54,7 +54,7 @@
             this.baseURL = serverBase;
             this.apiKey = config.apiKey || '';
             this.apiSecret = config.apiSecret || '';
-            this.assistantId = config.assistantId || null;
+            this.agentId = config.agentId != null ? config.agentId : null;
             this.assistantName = assistantName;
             
             // WebSocket连接状态
@@ -238,7 +238,7 @@
          */
         async connectVoice(options = {}) {
             const {
-                assistantId = this.assistantId,
+                agentId: optAgentId,
                 apiKey = this.apiKey,
                 apiSecret = this.apiSecret,
                 onMessage = null,
@@ -248,13 +248,14 @@
                 onTrack = null
             } = options;
 
-            if (!assistantId) {
-                throw new Error('assistantId is required');
+            const resolvedAgentId = optAgentId ?? this.agentId;
+            if (!resolvedAgentId) {
+                throw new Error('agentId is required');
             }
 
             try {
                 // 1. 构建WebSocket URL
-                const wsUrl = `${this.buildWebSocketURL('/api/chat/call')}?apiKey=${encodeURIComponent(apiKey)}&apiSecret=${encodeURIComponent(apiSecret)}`;
+                const wsUrl = `${this.buildWebSocketURL('/api/chat/call')}?apiKey=${encodeURIComponent(apiKey)}&apiSecret=${encodeURIComponent(apiSecret)}&agentId=${encodeURIComponent(resolvedAgentId)}`;
                 
                 // 2. 创建WebSocket连接
                 const ws = new WebSocket(wsUrl);
@@ -436,8 +437,8 @@
         /**
          * 获取指定助手的日志
          */
-        async getChatLogsByAssistant(assistantId) {
-            return this.get(`/api/chat/chat-session-log/by-assistant/${assistantId}`);
+        async getChatLogsByAgent(agentId) {
+            return this.get(`/api/chat/chat-session-log/by-agent/${agentId}`);
         }
 
         /**

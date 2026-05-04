@@ -4,6 +4,6 @@ package constants
 // SPDX-License-Identifier: AGPL-3.0
 
 const (
-	// AssistantCreate create assistant event
-	AssistantCreate = "assistant.create"
+	// AgentCreate create agent event
+	AgentCreate = "agent.create"
 )

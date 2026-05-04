@@ -62,11 +62,11 @@ const AddAssistantModal: React.FC<AddAssistantModalProps> = ({
     const newErrors: { name?: string; description?: string } = {}
     
     if (!name.trim()) {
-      newErrors.name = t('assistants.validation.nameRequired') || '请输入助手名称'
+      newErrors.name = t('assistants.validation.nameRequired') || '请输入智能体名称'
     }
     
     if (!description.trim()) {
-      newErrors.description = t('assistants.validation.descriptionRequired') || '请输入助手描述'
+      newErrors.description = t('assistants.validation.descriptionRequired') || '请输入智能体描述'
     }
     
     setErrors(newErrors)
@@ -111,7 +111,7 @@ const AddAssistantModal: React.FC<AddAssistantModalProps> = ({
               {/* 助手名称 */}
               <div>
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">
-                  {t('assistants.name') || '助手名称'}
+                  {t('assistants.name') || '智能体名称'}
                 </label>
                 <input
                   value={name}
@@ -127,7 +127,7 @@ const AddAssistantModal: React.FC<AddAssistantModalProps> = ({
                       ? 'border-red-500 dark:border-red-500 bg-red-50 dark:bg-red-900/10' 
                       : 'border-gray-300 dark:border-neutral-600'
                   )}
-                  placeholder={t('assistants.namePlaceholder') || '请输入助手名称'}
+                  placeholder={t('assistants.namePlaceholder') || '请输入智能体名称'}
                 />
                 {errors.name && (
                   <div className="flex items-center gap-1 mt-1 text-red-600 dark:text-red-400 text-xs">
@@ -140,7 +140,7 @@ const AddAssistantModal: React.FC<AddAssistantModalProps> = ({
               {/* 助手描述 */}
               <div>
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">
-                  {t('assistants.description') || '助手描述'}
+                  {t('assistants.description') || '智能体描述'}
                 </label>
                 <textarea
                   value={description}
@@ -157,7 +157,7 @@ const AddAssistantModal: React.FC<AddAssistantModalProps> = ({
                       : 'border-gray-300 dark:border-neutral-600'
                   )}
                   rows={2}
-                  placeholder={t('assistants.descriptionPlaceholder') || '请输入助手描述'}
+                  placeholder={t('assistants.descriptionPlaceholder') || '请输入智能体描述'}
                 />
                 {errors.description && (
                   <div className="flex items-center gap-1 mt-1 text-red-600 dark:text-red-400 text-xs">
@@ -245,7 +245,7 @@ const AddAssistantModal: React.FC<AddAssistantModalProps> = ({
                   variant="primary"
                   size="md"
                 >
-                  {t('assistants.save') || '保存助手'}
+                  {t('assistants.save') || '保存智能体'}
                 </Button>
               </div>
             </div>

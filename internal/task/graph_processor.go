@@ -65,14 +65,13 @@ func processConversation(ctx context.Context, db *gorm.DB, assistantID int64, se
 	}
 
 	// 2. 获取助手信息
-	var assistant models.Assistant
-	if err := db.First(&assistant, assistantID).Error; err != nil {
-		return fmt.Errorf("failed to get assistant: %w", err)
+	var agent models.Agent
+	if err := db.First(&agent, assistantID).Error; err != nil {
+		return fmt.Errorf("failed to get agent: %w", err)
 	}
 
-	// 如果该助手未开启图记忆功能，则直接跳过（不写入 Neo4j）
-	if !assistant.EnableGraphMemory {
-		logger.Info("Graph memory is disabled for assistant, skip graph processing",
+	if !agent.EnableGraphMemory {
+		logger.Info("Graph memory is disabled for agent, skip graph processing",
 			zap.Int64("assistantID", assistantID),
 			zap.String("sessionID", sessionID))
 		return nil
@@ -81,31 +80,27 @@ func processConversation(ctx context.Context, db *gorm.DB, assistantID int64, se
 	// 3. 获取助手的 LLM 配置（用于总结对话）
 	// 通过 assistant 的 ApiKey 和 ApiSecret 查找对应的 UserCredential
 	var credential models.UserCredential
-	if assistant.ApiKey != "" && assistant.ApiSecret != "" {
-		if err := db.Where("api_key = ? AND api_secret = ? AND llm_provider != ''", assistant.ApiKey, assistant.ApiSecret).First(&credential).Error; err != nil {
-			logger.Warn("No LLM credential found for assistant's API key/secret",
-				zap.String("apiKey", assistant.ApiKey),
+	if agent.ApiKey != "" && agent.ApiSecret != "" {
+		if err := db.Where("api_key = ? AND api_secret = ? AND llm_provider != ''", agent.ApiKey, agent.ApiSecret).First(&credential).Error; err != nil {
+			logger.Warn("No LLM credential found for agent API key/secret",
+				zap.String("apiKey", agent.ApiKey),
 				zap.Error(err))
-			// 如果没有找到对应的 LLM 凭证，仍然可以存储基础信息
-			return storeBasicConversationInfo(ctx, assistantID, sessionID, userID, assistant.Name, logs)
+			return storeBasicConversationInfo(ctx, assistantID, sessionID, userID, agent.Name, logs)
 		}
 	} else {
-		// 如果 assistant 没有配置 ApiKey/ApiSecret，回退到使用 userID 查找
 		if err := db.Where("user_id = ? AND llm_provider != ''", userID).First(&credential).Error; err != nil {
 			logger.Warn("No LLM credential found for conversation summary", zap.Error(err))
-			// 如果没有 LLM 凭证，仍然可以存储基础信息
-			return storeBasicConversationInfo(ctx, assistantID, sessionID, userID, assistant.Name, logs)
+			return storeBasicConversationInfo(ctx, assistantID, sessionID, userID, agent.Name, logs)
 		}
 	}
 	// 4. 构建对话文本用于 LLM 总结
 	conversationText := buildConversationText(logs)
 
 	// 5. 调用 LLM 进行总结
-	summary, relevant, err := summarizeConversation(ctx, &credential, conversationText, assistant, logs, userID, sessionID)
+	summary, relevant, err := summarizeConversation(ctx, &credential, conversationText, agent, logs, userID, sessionID)
 	if err != nil {
 		logger.Warn("Failed to summarize conversation with LLM, storing basic info", zap.Error(err))
-		// LLM 总结失败时，仍然存储基础信息
-		return storeBasicConversationInfo(ctx, assistantID, sessionID, userID, assistant.Name, logs)
+		return storeBasicConversationInfo(ctx, assistantID, sessionID, userID, agent.Name, logs)
 	}
 
 	// 6. 如果对话与助手定位不相关，则不存储到图数据库
@@ -134,7 +129,7 @@ func buildConversationText(logs []models.ChatSessionLog) string {
 
 // summarizeConversation 使用 LLM 总结对话
 // 返回: summary, relevant, error
-func summarizeConversation(ctx context.Context, credential *models.UserCredential, conversationText string, assistant models.Assistant, logs []models.ChatSessionLog, userID uint, sessionID string) (*graph.ConversationSummary, bool, error) {
+func summarizeConversation(ctx context.Context, credential *models.UserCredential, conversationText string, agent models.Agent, logs []models.ChatSessionLog, userID uint, sessionID string) (*graph.ConversationSummary, bool, error) {
 	// 创建 LLM provider
 	// 传入一个非空的系统提示词，避免 DashScope 等兼容模式 API 报错（Content 不能为空）
 	systemPrompt := "You are a helpful assistant for analyzing conversations."
@@ -145,17 +140,17 @@ func summarizeConversation(ctx context.Context, credential *models.UserCredentia
 	defer llmProvider.Hangup()
 
 	// 构建总结 prompt
-	prompt := buildSummaryPrompt(conversationText, assistant)
+	prompt := buildSummaryPrompt(conversationText, agent)
 
 	// 调用 LLM
 	temp := float32(0.4) // 降低温度以获得更稳定的总结
 	options := llm.QueryOptions{
-		Model:       assistant.LLMModel,
+		Model:       agent.LLMModel,
 		Temperature: temp,
 		MaxTokens:   2000,
 	}
 
-	if assistant.LLMModel == "" {
+	if agent.LLMModel == "" {
 		// 如果没有指定模型，使用默认模型
 		options.Model = "gpt-4o-mini"
 	}
@@ -170,7 +165,7 @@ func summarizeConversation(ctx context.Context, credential *models.UserCredentia
 	}
 
 	// 解析 LLM 返回的 JSON
-	summary, relevant, err := parseSummaryResponse(response, assistant.ID, assistant.Name, userID, sessionID, logs)
+	summary, relevant, err := parseSummaryResponse(response, agent.ID, agent.Name, userID, sessionID, logs)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to parse summary response: %w", err)
 	}
@@ -179,17 +174,16 @@ func summarizeConversation(ctx context.Context, credential *models.UserCredentia
 }
 
 // buildSummaryPrompt 构建总结 prompt
-func buildSummaryPrompt(conversationText string, assistant models.Assistant) string {
-	// 构建助手上下文信息
-	assistantContext := fmt.Sprintf("助手名称: %s", assistant.Name)
-	if assistant.Description != "" {
-		assistantContext += fmt.Sprintf("\n助手描述: %s", assistant.Description)
+func buildSummaryPrompt(conversationText string, agent models.Agent) string {
+	agentContext := fmt.Sprintf("助手名称: %s", agent.Name)
+	if agent.Description != "" {
+		agentContext += fmt.Sprintf("\n助手描述: %s", agent.Description)
 	}
-	if assistant.SystemPrompt != "" {
-		assistantContext += fmt.Sprintf("\n系统提示词: %s", assistant.SystemPrompt)
+	if agent.SystemPrompt != "" {
+		agentContext += fmt.Sprintf("\n系统提示词: %s", agent.SystemPrompt)
 	}
-	if assistant.PersonaTag != "" {
-		assistantContext += fmt.Sprintf("\n角色标签: %s", assistant.PersonaTag)
+	if agent.PersonaTag != "" {
+		agentContext += fmt.Sprintf("\n角色标签: %s", agent.PersonaTag)
 	}
 
 	return fmt.Sprintf(`你是一个专业的对话分析助手。请分析以下对话内容，提取关键信息并返回 JSON 格式的结果。
@@ -226,12 +220,12 @@ func buildSummaryPrompt(conversationText string, assistant models.Assistant) str
 2. topics 应该是具体的主题名称，如"机器学习"、"Python编程"等
 3. intents 应该是用户的意图，如"学习新知识"、"解决问题"、"获取建议"等
 4. knowledge 应该是有价值的知识点，避免过于琐碎的信息
-5. 只返回 JSON，不要包含其他文字说明`, assistantContext, conversationText)
+5. 只返回 JSON，不要包含其他文字说明`, agentContext, conversationText)
 }
 
 // parseSummaryResponse 解析 LLM 返回的总结
 // 返回: summary, relevant, error
-func parseSummaryResponse(response string, assistantID int64, assistantName string, userID uint, sessionID string, logs []models.ChatSessionLog) (*graph.ConversationSummary, bool, error) {
+func parseSummaryResponse(response string, agentID int64, agentName string, userID uint, sessionID string, logs []models.ChatSessionLog) (*graph.ConversationSummary, bool, error) {
 	// 尝试提取 JSON（可能 LLM 返回了 markdown 代码块）
 	response = strings.TrimSpace(response)
 	if strings.HasPrefix(response, "```json") {
@@ -283,22 +277,22 @@ func parseSummaryResponse(response string, assistantID int64, assistantName stri
 	}
 
 	summary := &graph.ConversationSummary{
-		AssistantID:   assistantID,
-		AssistantName: assistantName,
-		UserID:        userID,
-		SessionID:     sessionID,
-		Summary:       result.Summary,
-		Topics:        result.Topics,
-		Intents:       result.Intents,
-		Turns:         turns,
-		Knowledge:     result.Knowledge,
+		AgentID:   agentID,
+		AgentName: agentName,
+		UserID:    userID,
+		SessionID: sessionID,
+		Summary:   result.Summary,
+		Topics:    result.Topics,
+		Intents:   result.Intents,
+		Turns:     turns,
+		Knowledge: result.Knowledge,
 	}
 
 	return summary, relevant, nil
 }
 
 // storeBasicConversationInfo 存储基础对话信息（当 LLM 总结失败时）
-func storeBasicConversationInfo(ctx context.Context, assistantID int64, sessionID string, userID uint, assistantName string, logs []models.ChatSessionLog) error {
+func storeBasicConversationInfo(ctx context.Context, assistantID int64, sessionID string, userID uint, agentName string, logs []models.ChatSessionLog) error {
 	// 从对话中提取基础主题（简单的关键词提取）
 	topics := extractBasicTopics(logs)
 
@@ -313,15 +307,15 @@ func storeBasicConversationInfo(ctx context.Context, assistantID int64, sessionI
 	}
 
 	summary := &graph.ConversationSummary{
-		AssistantID:   assistantID,
-		AssistantName: assistantName,
-		UserID:        userID,
-		SessionID:     sessionID,
-		Summary:       fmt.Sprintf("包含 %d 轮对话", len(logs)),
-		Topics:        topics,
-		Intents:       []string{},
-		Turns:         turns,
-		Knowledge:     []graph.Knowledge{},
+		AgentID:   assistantID,
+		AgentName: agentName,
+		UserID:    userID,
+		SessionID: sessionID,
+		Summary:   fmt.Sprintf("包含 %d 轮对话", len(logs)),
+		Topics:    topics,
+		Intents:   []string{},
+		Turns:     turns,
+		Knowledge: []graph.Knowledge{},
 	}
 
 	return graphStore.ProcessConversation(ctx, assistantID, sessionID, summary)

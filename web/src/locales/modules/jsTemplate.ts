@@ -4,7 +4,7 @@ export const jsTemplate: Record<Language, Record<string, string>> = {
   zh: {
     // JSTemplateManager 页面
     'jsTemplate.title': 'JS模板管理',
-    'jsTemplate.desc': '创建和管理JavaScript模板，为语音助手应用接入提供自定义能力',
+    'jsTemplate.desc': '创建和管理JavaScript模板，为语音智能体应用接入提供自定义能力',
     'jsTemplate.back': '返回',
     'jsTemplate.create': '创建模板',
     'jsTemplate.templateCount': '{count} 个模板',
@@ -25,7 +25,7 @@ export const jsTemplate: Record<Language, Record<string, string>> = {
     'jsTemplate.createModal.title': '创建JS模板',
     'jsTemplate.editModal.desc': '编辑自定义JavaScript模板',
     'jsTemplate.createModal.desc': '创建自定义JavaScript模板',
-    'jsTemplate.modal.descSuffix': '，用于语音助手应用接入',
+    'jsTemplate.modal.descSuffix': '，用于语音智能体应用接入',
     'jsTemplate.templateName': '模板名称',
     'jsTemplate.templateNamePlaceholder': '请输入模板名称',
     'jsTemplate.templateType': '模板类型',
@@ -60,7 +60,7 @@ export const jsTemplate: Record<Language, Record<string, string>> = {
   en: {
     // JSTemplateManager Page
     'jsTemplate.title': 'JS Template Management',
-    'jsTemplate.desc': 'Create and manage JavaScript templates to provide custom capabilities for voice assistant application integration',
+    'jsTemplate.desc': 'Create and manage JavaScript templates to provide custom capabilities for voice agent application integration',
     'jsTemplate.back': 'Back',
     'jsTemplate.create': 'Create Template',
     'jsTemplate.templateCount': '{count} templates',
@@ -81,7 +81,7 @@ export const jsTemplate: Record<Language, Record<string, string>> = {
     'jsTemplate.createModal.title': 'Create JS Template',
     'jsTemplate.editModal.desc': 'Edit custom JavaScript template',
     'jsTemplate.createModal.desc': 'Create custom JavaScript template',
-    'jsTemplate.modal.descSuffix': ' for voice assistant application integration',
+    'jsTemplate.modal.descSuffix': ' for voice agent application integration',
     'jsTemplate.templateName': 'Template Name',
     'jsTemplate.templateNamePlaceholder': 'Enter template name',
     'jsTemplate.templateType': 'Template Type',

@@ -9,27 +9,23 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestInitAssistantListener(t *testing.T) {
-	// Initialize the listener
+func TestInitAgentListener(t *testing.T) {
 	assert.NotPanics(t, func() {
-		InitAssistantListener()
+		InitAgentListener()
 	})
 }
 
-// Test that the listener initialization completes without error
-func TestAssistantListener_Initialization(t *testing.T) {
-	// Test multiple initializations
+func TestAgentListener_Initialization(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		assert.NotPanics(t, func() {
-			InitAssistantListener()
+			InitAgentListener()
 		})
 	}
 }
 
-// Benchmark test
-func BenchmarkInitAssistantListener(b *testing.B) {
+func BenchmarkInitAgentListener(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		InitAssistantListener()
+		InitAgentListener()
 	}
 }

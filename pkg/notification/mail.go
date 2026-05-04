@@ -264,7 +264,7 @@ func (m *MailNotification) SendNewDeviceLoginAlert(to, username, loginTime, ipAd
 
 	subject := "新设备登录提醒"
 	if isSuspicious {
-		subject = "⚠️ 可疑登录警告"
+		subject = "可疑登录警告"
 	}
 
 	return m.SendHTML(to, subject, htmlBody)

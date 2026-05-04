@@ -662,9 +662,9 @@ const GroupSettings: React.FC = () => {
                   <Bot className="w-5 h-5" />
                   {t('groupSettings.assistants')} ({resources?.assistants?.length || 0})
                 </h3>
-                {resources?.assistants && resources.assistants.length > 0 ? (
+                {resources?.agents && resources.agents.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {resources.assistants.map(assistant => (
+                    {resources.agents.map(assistant => (
                       <div
                         key={assistant.id}
                         className="p-4 border border-gray-200 dark:border-neutral-700 rounded-lg hover:border-purple-400 transition-colors cursor-pointer"

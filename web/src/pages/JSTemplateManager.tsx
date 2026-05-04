@@ -257,7 +257,7 @@ const JSTemplateManager = () => {
                 const sdkPath = `https://store.lingecho.com/uploads/buckets/default/lingecho-sdk.js`
                 
                 // 模拟模板变量（用于预览环境）
-                const mockAssistantID = 1
+                const mockAgentID = 1
                 const mockAssistantName = '预览助手'
                 const mockBaseURL = baseURL
                 
@@ -290,8 +290,8 @@ const JSTemplateManager = () => {
         if (typeof Name === 'undefined') {
             var Name = '${mockAssistantName}';
         }
-        if (typeof AssistantID === 'undefined') {
-            var AssistantID = ${mockAssistantID};
+        if (typeof AgentID === 'undefined') {
+            var AgentID = ${mockAgentID};
         }
         
         // 加载SDK
@@ -311,7 +311,7 @@ const JSTemplateManager = () => {
                                     window.lingEcho = new LingEchoSDK({
                                         baseURL: SERVER_BASE,
                                         assistantName: ASSISTANT_NAME,
-                                        assistantId: AssistantID
+                                        agentId: AgentID
                                     });
                                     console.log('[Preview] SDK instance created');
                                 } catch (e) {
@@ -338,7 +338,7 @@ const JSTemplateManager = () => {
                         window.lingEcho = new LingEchoSDK({
                             baseURL: SERVER_BASE,
                             assistantName: ASSISTANT_NAME,
-                            assistantId: AssistantID
+                            agentId: AgentID
                         });
                     } catch (e) {
                         console.error('[Preview] Failed to create SDK instance:', e);

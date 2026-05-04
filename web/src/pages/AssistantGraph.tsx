@@ -9,7 +9,7 @@ import Card, { CardContent, CardHeader, CardTitle } from '@/components/UI/Card'
 
 const AssistantGraph: React.FC = () => {
   const { id } = useParams<{ id: string }>()
-  const assistantId = id ? parseInt(id) : 0
+  const agentId = id ? parseInt(id) : 0
   const navigate = useNavigate()
 
   const [graphData, setGraphData] = useState<GraphData | null>(null)
@@ -19,7 +19,7 @@ const AssistantGraph: React.FC = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!assistantId) {
+      if (!agentId) {
         setError('Invalid assistant ID')
         setLoading(false)
         return
@@ -30,7 +30,7 @@ const AssistantGraph: React.FC = () => {
         setError(null)
 
         // 获取助手信息
-        const assistantRes = await getAssistant(assistantId)
+        const assistantRes = await getAssistant(agentId)
         if (assistantRes.code === 200 && assistantRes.data) {
           setAssistantName(assistantRes.data.name)
           
@@ -43,7 +43,7 @@ const AssistantGraph: React.FC = () => {
         }
 
         // 获取图数据
-        const graphRes = await getAssistantGraphData(assistantId)
+        const graphRes = await getAssistantGraphData(agentId)
         if (graphRes.code === 200) {
           setGraphData(graphRes.data)
         } else {
@@ -59,7 +59,7 @@ const AssistantGraph: React.FC = () => {
     }
 
     fetchData()
-  }, [assistantId])
+  }, [agentId])
 
   if (loading) {
     return (

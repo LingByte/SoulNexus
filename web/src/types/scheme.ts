@@ -7,8 +7,8 @@ export interface Scheme {
   description?: string
   username: string
   
-  // AI助手配置
-  assistantId?: number
+  // AI智能体配置
+  agentId?: number
   assistant?: any // Assistant 对象
   autoAnswer: boolean
   autoAnswerDelay: number
@@ -52,7 +52,7 @@ export interface KeywordReply {
 export interface CreateSchemeRequest {
   schemeName: string
   description?: string
-  assistantId?: number
+  agentId?: number
   autoAnswer: boolean
   autoAnswerDelay: number
   openingMessage?: string

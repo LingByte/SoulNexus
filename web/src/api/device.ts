@@ -9,7 +9,7 @@ export interface Device {
     board?: string
     appVersion?: string
     autoUpdate: number
-    assistantId?: number
+    agentId?: number
     alias?: string
 
     // 运行状态
@@ -130,13 +130,13 @@ export const resolveDeviceError = async (errorId: number): Promise<ApiResponse<n
 export const getCallRecordings = async (params: {
     page?: number
     pageSize?: number
-    assistantId?: string
+    agentId?: string
     macAddress?: string
 }): Promise<ApiResponse<{
     recordings: Array<{
         id: number
         userId: number
-        assistantId: number
+        agentId: number
         deviceId?: number
         macAddress: string
         sessionId: string
@@ -177,7 +177,7 @@ export const getCallRecordings = async (params: {
     const queryParams = new URLSearchParams()
     if (params.page) queryParams.append('page', params.page.toString())
     if (params.pageSize) queryParams.append('page_size', params.pageSize.toString())
-    if (params.assistantId) queryParams.append('assistant_id', params.assistantId)
+    if (params.agentId) queryParams.append('agent_id', params.agentId)
     if (params.macAddress) queryParams.append('mac_address', params.macAddress)
 
     return get(`/device/call-recordings?${queryParams.toString()}`)
@@ -189,7 +189,7 @@ export const analyzeCallRecording = async (recordingId: number, force = false): 
 }
 
 // 批量分析通话录音
-export const batchAnalyzeCallRecordings = async (data: { assistantId?: number; limit?: number }): Promise<ApiResponse<null>> => {
+export const batchAnalyzeCallRecordings = async (data: { agentId?: number; limit?: number }): Promise<ApiResponse<null>> => {
     return post('/device/call-recordings/batch-analyze', data)
 }
 
@@ -221,7 +221,7 @@ export const getCallRecordingAnalysis = async (recordingId: number): Promise<Api
 export const getCallRecordingDetail = async (recordingId: number): Promise<ApiResponse<{
     id: number
     userId: number
-    assistantId: number
+    agentId: number
     deviceId?: number
     macAddress: string
     sessionId: string
