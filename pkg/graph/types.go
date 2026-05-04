@@ -5,8 +5,8 @@ package graph
 
 // ConversationSummary 对话总结
 type ConversationSummary struct {
-	AssistantID   int64       `json:"assistantId"`
-	AssistantName string      `json:"assistantName"`
+	AgentID   int64       `json:"agentId"`
+	AgentName string      `json:"agentName"`
 	UserID        uint        `json:"userId"`
 	SessionID     string      `json:"sessionId"`
 	Summary       string      `json:"summary"`   // 对话总结
@@ -33,8 +33,8 @@ type Knowledge struct {
 
 // UserContext 用户上下文
 type UserContext struct {
-	UserID      uint     `json:"userId"`
-	AssistantID int64    `json:"assistantId"`
+	UserID  uint  `json:"userId"`
+	AgentID int64 `json:"agentId"`
 	Topics      []string `json:"topics"` // 用户偏好的主题
 }
 
@@ -55,9 +55,9 @@ type GraphEdge struct {
 	Props  map[string]interface{} `json:"props"`  // 边属性
 }
 
-// AssistantGraphData 助手图数据
-type AssistantGraphData struct {
-	AssistantID int64       `json:"assistantId"`
+// AgentGraphData Neo4j graph payload for an agent (SQL entity is agents).
+type AgentGraphData struct {
+	AgentID int64 `json:"agentId"`
 	Nodes       []GraphNode `json:"nodes"`
 	Edges       []GraphEdge `json:"edges"`
 	Stats       GraphStats  `json:"stats"`

@@ -951,7 +951,7 @@ func (h *Handlers) GetGroupSharedResources(c *gin.Context) {
 	}
 
 	// 查询组织共享的助手
-	var assistants []models.Assistant
+	var assistants []models.Agent
 	if err := h.db.Where("group_id = ?", groupID).Order("created_at DESC").Find(&assistants).Error; err != nil {
 		response.Fail(c, "查询助手失败", err.Error())
 		return
@@ -959,7 +959,7 @@ func (h *Handlers) GetGroupSharedResources(c *gin.Context) {
 
 	// 构建响应
 	result := map[string]interface{}{
-		"assistants": assistants,
+		"agents": assistants,
 	}
 
 	response.Success(c, "获取成功", result)
@@ -1409,7 +1409,7 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 
 		go func() {
 			defer wg.Done()
-			h.db.Model(&models.Assistant{}).Where("group_id = ?", group.ID).Count(&result.assistantCount)
+			h.db.Model(&models.Agent{}).Where("group_id = ?", group.ID).Count(&result.assistantCount)
 		}()
 
 		go func() {
@@ -1435,7 +1435,7 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 		go func() {
 			defer wg.Done()
 			var ids []uint
-			h.db.Model(&models.Assistant{}).Where("group_id = ?", group.ID).Pluck("id", &ids)
+			h.db.Model(&models.Agent{}).Where("group_id = ?", group.ID).Pluck("id", &ids)
 			result.assistantIDs = ids
 
 			// 统计通话记录数量（通过助手关联）
@@ -1445,7 +1445,7 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 					assistantIDsInt64 = append(assistantIDsInt64, int64(id))
 				}
 				h.db.Model(&models.ChatSessionLog{}).
-					Where("assistant_id IN (?) AND chat_type = ?", assistantIDsInt64, "realtime").
+					Where("agent_id IN (?) AND chat_type = ?", assistantIDsInt64, "realtime").
 					Count(&result.callCount)
 			}
 		}()
@@ -1499,7 +1499,7 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 				TotalTokens int64
 			}
 			h.db.Model(&models.UsageRecord{}).
-				Where("assistant_id IN (?) AND usage_type = ? AND usage_time >= ? AND usage_time <= ?",
+				Where("agent_id IN (?) AND usage_type = ? AND usage_time >= ? AND usage_time <= ?",
 					assistantIDsInt64, models.UsageTypeLLM, startTime, endTime).
 				Select("COUNT(*) as count, COALESCE(SUM(total_tokens), 0) as total_tokens").
 				Scan(&llmStats)
@@ -1515,7 +1515,7 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 				Duration int64
 			}
 			h.db.Model(&models.UsageRecord{}).
-				Where("assistant_id IN (?) AND usage_type = ? AND usage_time >= ? AND usage_time <= ?",
+				Where("agent_id IN (?) AND usage_type = ? AND usage_time >= ? AND usage_time <= ?",
 					assistantIDsInt64, models.UsageTypeCall, startTime, endTime).
 				Select("COUNT(*) as count, COALESCE(SUM(call_duration), 0) as duration").
 				Scan(&callStats)
@@ -1531,7 +1531,7 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 				Duration int64
 			}
 			h.db.Model(&models.UsageRecord{}).
-				Where("assistant_id IN (?) AND usage_type = ? AND usage_time >= ? AND usage_time <= ?",
+				Where("agent_id IN (?) AND usage_type = ? AND usage_time >= ? AND usage_time <= ?",
 					assistantIDsInt64, models.UsageTypeASR, startTime, endTime).
 				Select("COUNT(*) as count, COALESCE(SUM(audio_duration), 0) as duration").
 				Scan(&asrStats)
@@ -1547,7 +1547,7 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 				Duration int64
 			}
 			h.db.Model(&models.UsageRecord{}).
-				Where("assistant_id IN (?) AND usage_type = ? AND usage_time >= ? AND usage_time <= ?",
+				Where("agent_id IN (?) AND usage_type = ? AND usage_time >= ? AND usage_time <= ?",
 					assistantIDsInt64, models.UsageTypeTTS, startTime, endTime).
 				Select("COUNT(*) as count, COALESCE(SUM(audio_duration), 0) as duration").
 				Scan(&ttsStats)
@@ -1562,7 +1562,7 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 				Count int64
 			}
 			h.db.Model(&models.UsageRecord{}).
-				Where("assistant_id IN (?) AND usage_type = ? AND usage_time >= ? AND usage_time <= ?",
+				Where("agent_id IN (?) AND usage_type = ? AND usage_time >= ? AND usage_time <= ?",
 					assistantIDsInt64, models.UsageTypeAPI, startTime, endTime).
 				Select("COUNT(*) as count").
 				Scan(&apiStats)
@@ -1597,7 +1597,7 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 			Tokens int64
 		}
 		h.db.Model(&models.UsageRecord{}).
-			Where("assistant_id IN (?) AND usage_type = ? AND usage_time >= ? AND usage_time <= ?",
+			Where("agent_id IN (?) AND usage_type = ? AND usage_time >= ? AND usage_time <= ?",
 				assistantIDsInt64, models.UsageTypeLLM, dayStart, dayEnd).
 			Select("DATE(usage_time) as date, COUNT(*) as count, COALESCE(SUM(total_tokens), 0) as tokens").
 			Group("DATE(usage_time)").
@@ -1608,7 +1608,7 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 			Count int64
 		}
 		h.db.Model(&models.UsageRecord{}).
-			Where("assistant_id IN (?) AND usage_type = ? AND usage_time >= ? AND usage_time <= ?",
+			Where("agent_id IN (?) AND usage_type = ? AND usage_time >= ? AND usage_time <= ?",
 				assistantIDsInt64, models.UsageTypeCall, dayStart, dayEnd).
 			Select("DATE(usage_time) as date, COUNT(*) as count").
 			Group("DATE(usage_time)").
@@ -1672,7 +1672,7 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 	tableRows := [][]interface{}{}
 
 	// 助手数据
-	var assistants []models.Assistant
+	var assistants []models.Agent
 	h.db.Where("group_id = ?", group.ID).Order("created_at DESC").Limit(5).Find(&assistants)
 	for _, a := range assistants {
 		tableRows = append(tableRows, []interface{}{
@@ -1706,7 +1706,7 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 	recentActivity := []map[string]interface{}{}
 
 	// 从助手表获取最近创建的活动
-	var recentAssistants []models.Assistant
+	var recentAssistants []models.Agent
 	h.db.Where("group_id = ?", group.ID).Order("created_at DESC").Limit(3).Find(&recentAssistants)
 	for _, a := range recentAssistants {
 		recentActivity = append(recentActivity, map[string]interface{}{

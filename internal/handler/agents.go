@@ -35,8 +35,8 @@ func hashString(s string) int {
 	return int(val % 100)
 }
 
-// CreateAssistant create new assistant
-func (h *Handlers) CreateAssistant(c *gin.Context) {
+// CreateAgent create new agent
+func (h *Handlers) CreateAgent(c *gin.Context) {
 	var input struct {
 		Name        string `json:"name" binding:"required"`
 		Description string `json:"description"`
@@ -67,7 +67,7 @@ func (h *Handlers) CreateAssistant(c *gin.Context) {
 		}
 	}
 
-	assistant := models.Assistant{
+	agent := models.Agent{
 		UserID:       user.ID,
 		GroupID:      input.GroupID,
 		Name:         input.Name,
@@ -83,22 +83,22 @@ func (h *Handlers) CreateAssistant(c *gin.Context) {
 		UpdatedAt:    time.Now(),
 	}
 
-	if err := h.db.Create(&assistant).Error; err != nil {
-		response.Fail(c, fmt.Sprintf("Failed to create assistant %s", assistant.Name), nil)
+	if err := h.db.Create(&agent).Error; err != nil {
+		response.Fail(c, fmt.Sprintf("Failed to create agent %s", agent.Name), nil)
 		return
 	}
-	utils.Sig().Emit(constants.AssistantCreate, user, h.db, assistant)
-	response.Success(c, fmt.Sprintf("Successfully created assistant %s", assistant.Name), assistant)
+	utils.Sig().Emit(constants.AgentCreate, user, h.db, &agent)
+	response.Success(c, fmt.Sprintf("Successfully created agent %s", agent.Name), agent)
 }
 
-// ListAssistants Query all assistants of the current user, including organization-shared assistants
-func (h *Handlers) ListAssistants(c *gin.Context) {
+// ListAgents lists agents for the current user (including org-shared).
+func (h *Handlers) ListAgents(c *gin.Context) {
 	user := models.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "unauthorized", "User not logged in")
 		return
 	}
-	var list []models.Assistant
+	var list []models.Agent
 
 	// Query user's own assistants and organization-shared assistants
 	// 1. Assistants created by the user (user_id = ?)
@@ -108,7 +108,7 @@ func (h *Handlers) ListAssistants(c *gin.Context) {
 		Where("user_id = ?", user.ID).
 		Pluck("group_id", &groupIDs)
 
-	query := h.db.Model(&models.Assistant{})
+	query := h.db.Model(&models.Agent{})
 	if len(groupIDs) > 0 {
 		// User's own assistants OR organization-shared assistants
 		query = query.Where("user_id = ? OR (group_id IN ? AND group_id IS NOT NULL)", user.ID, groupIDs)
@@ -125,11 +125,11 @@ func (h *Handlers) ListAssistants(c *gin.Context) {
 	response.Success(c, "select assistants successful", list)
 }
 
-// GetAssistant Query a single assistant
-func (h *Handlers) GetAssistant(c *gin.Context) {
+// GetAgent returns a single agent
+func (h *Handlers) GetAgent(c *gin.Context) {
 	user := models.CurrentUser(c)
 	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
-	var assistant models.Assistant
+	var assistant models.Agent
 	if err := h.db.First(&assistant, id).Error; err != nil {
 		response.Fail(c, "not found", "this assistant is not exist")
 		return
@@ -141,8 +141,8 @@ func (h *Handlers) GetAssistant(c *gin.Context) {
 	response.Success(c, "select assistant successful", assistant)
 }
 
-// UpdateAssistant Update assistant
-func (h *Handlers) UpdateAssistant(c *gin.Context) {
+// UpdateAgent updates an agent
+func (h *Handlers) UpdateAgent(c *gin.Context) {
 	user := models.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "unauthorized", "User not logged in")
@@ -188,7 +188,7 @@ func (h *Handlers) UpdateAssistant(c *gin.Context) {
 		return
 	}
 
-	var assistant models.Assistant
+	var assistant models.Agent
 	if err := h.db.First(&assistant, id).Error; err != nil {
 		response.Fail(c, "not found", "Assistant does not exist.")
 		return
@@ -284,8 +284,8 @@ func (h *Handlers) UpdateAssistant(c *gin.Context) {
 	response.Success(c, "Update successful", assistant)
 }
 
-// GetAssistantGraphData 获取助手在图数据库中的图数据
-func (h *Handlers) GetAssistantGraphData(c *gin.Context) {
+// GetAgentGraphData returns Neo4j graph data for an agent
+func (h *Handlers) GetAgentGraphData(c *gin.Context) {
 	user := models.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "unauthorized", "User not logged in")
@@ -293,7 +293,7 @@ func (h *Handlers) GetAssistantGraphData(c *gin.Context) {
 	}
 
 	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
-	var assistant models.Assistant
+	var assistant models.Agent
 	if err := h.db.First(&assistant, id).Error; err != nil {
 		response.Fail(c, "not found", "Assistant does not exist")
 		return
@@ -324,9 +324,9 @@ func (h *Handlers) GetAssistantGraphData(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
-	graphData, err := store.GetAssistantGraphData(ctx, id)
+	graphData, err := store.GetAgentGraphData(ctx, id)
 	if err != nil {
-		logger.Error("Failed to get assistant graph data", zap.Error(err), zap.Int64("assistantID", id))
+		logger.Error("Failed to get agent graph data", zap.Error(err), zap.Int64("agentID", id))
 		response.Fail(c, "Failed to get graph data", err.Error())
 		return
 	}
@@ -334,8 +334,8 @@ func (h *Handlers) GetAssistantGraphData(c *gin.Context) {
 	response.Success(c, "Graph data retrieved successfully", graphData)
 }
 
-// DeleteAssistant Delete assistant
-func (h *Handlers) DeleteAssistant(c *gin.Context) {
+// DeleteAgent deletes an agent
+func (h *Handlers) DeleteAgent(c *gin.Context) {
 	user := models.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "unauthorized", "User not logged in")
@@ -344,7 +344,7 @@ func (h *Handlers) DeleteAssistant(c *gin.Context) {
 
 	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
 
-	var assistant models.Assistant
+	var assistant models.Agent
 	if err := h.db.First(&assistant, id).Error; err != nil {
 		response.Fail(c, "not found", "Assistant does not exist")
 		return
@@ -365,12 +365,12 @@ func (h *Handlers) DeleteAssistant(c *gin.Context) {
 
 func (h *Handlers) ServeVoiceSculptorLoaderJS(c *gin.Context) {
 	jsSourceID := c.Param("id")
-	var assistant models.Assistant
-	err := h.db.Where("js_source_id = ?", jsSourceID).First(&assistant).Error
+	var agent models.Agent
+	err := h.db.Where("js_source_id = ?", jsSourceID).First(&agent).Error
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"code":  http.StatusNotFound,
-			"error": "assistant is not exists",
+			"error": "agent does not exist",
 			"data":  nil,
 		})
 		return
@@ -385,9 +385,9 @@ func (h *Handlers) ServeVoiceSculptorLoaderJS(c *gin.Context) {
 
 	// Check if there is a bound JS template
 	var templateContent string
-	if assistant.JsSourceID != "" {
+	if agent.JsSourceID != "" {
 		// Try to get the bound JS template
-		jsTemplate, err := models.GetJSTemplateByJsSourceID(h.db, assistant.JsSourceID)
+		jsTemplate, err := models.GetJSTemplateByJsSourceID(h.db, agent.JsSourceID)
 		if err == nil && jsTemplate.Content != "" {
 			// 检查是否有灰度版本
 			activeVersion, err := models.GetActiveJSTemplateVersion(h.db, jsTemplate.ID)
@@ -497,7 +497,7 @@ func (h *Handlers) ServeVoiceSculptorLoaderJS(c *gin.Context) {
 	data := struct {
 		BaseURL        string
 		Name           string
-		AssistantID    int64
+		AgentID        int64
 		JsSourceID     string
 		Description    string
 		Speaker        string
@@ -509,16 +509,16 @@ func (h *Handlers) ServeVoiceSculptorLoaderJS(c *gin.Context) {
 		SERVER_BASE    string
 	}{
 		BaseURL:        baseURL,
-		Name:           assistant.Name,
-		AssistantID:    assistant.ID,
-		JsSourceID:     assistant.JsSourceID,
-		Description:    assistant.Description,
-		Speaker:        assistant.Speaker,
-		TtsProvider:    assistant.TtsProvider,
-		LLMModel:       assistant.LLMModel,
-		Temperature:    assistant.Temperature,
-		MaxTokens:      assistant.MaxTokens,
-		ASSISTANT_NAME: assistant.Name,
+		Name:           agent.Name,
+		AgentID:        agent.ID,
+		JsSourceID:     agent.JsSourceID,
+		Description:    agent.Description,
+		Speaker:        agent.Speaker,
+		TtsProvider:    agent.TtsProvider,
+		LLMModel:       agent.LLMModel,
+		Temperature:    agent.Temperature,
+		MaxTokens:      agent.MaxTokens,
+		ASSISTANT_NAME: agent.Name,
 		SERVER_BASE:    baseURL,
 	}
 	var body bytes.Buffer

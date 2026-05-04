@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/LingByte/SoulNexus/internal/config"
+	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"go.uber.org/zap"
@@ -60,11 +61,18 @@ func SetupDatabase(logWriter io.Writer, opts *Options) (*gorm.DB, error) {
 			logger.Warn("run migration scripts failed", zap.String("dir", migrationsDir), zap.Error(err))
 		}
 
+		if err := models.MigrateLegacyAssistantsNaming(db); err != nil {
+			logger.Warn("legacy assistants/agents schema migrate failed", zap.Error(err))
+		}
+
 		if opts.MigrateModels == nil {
 			logger.Warn("AutoMigrate enabled but MigrateModels callback is nil; skipping GORM AutoMigrate")
 		} else if err := RunMigrations(db, opts.MigrateModels()); err != nil {
 			logger.Error("migration failed", zap.Error(err))
 			return nil, err
+		}
+		if err := models.EnsureAccessDefaults(db); err != nil {
+			logger.Warn("access defaults sync failed", zap.Error(err))
 		}
 		logger.Info("migration success",
 			zap.String("database", config.GlobalConfig.Database.Driver),

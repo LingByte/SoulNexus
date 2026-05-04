@@ -12,39 +12,11 @@ import (
 	"gorm.io/gorm"
 )
 
-// Assistant 表示一个自定义的 AI 助手
-type Assistant struct {
-	ID                   int64     `json:"id" gorm:"primaryKey;autoIncrement"`
-	UserID               uint      `json:"userId" gorm:"index"`
-	GroupID              *uint     `json:"groupId,omitempty" gorm:"index"` // 组织ID，如果设置则表示这是组织共享的助手
-	Name                 string    `json:"name" gorm:"index"`
-	Description          string    `json:"description"`
-	Icon                 string    `json:"icon"`
-	SystemPrompt         string    `json:"systemPrompt"`
-	PersonaTag           string    `json:"personaTag"`
-	Temperature          float32   `json:"temperature"`
-	JsSourceID           string    `json:"jsSourceId" gorm:"index:idx_assistant_js_source"` // 关联的JS模板ID
-	MaxTokens            int       `json:"maxTokens"`
-	Speaker              string    `json:"speaker" gorm:"column:speaker"`                                       // 发音人ID
-	VoiceCloneID         *int      `json:"voiceCloneId" gorm:"column:voice_clone_id"`                           // 训练音色ID（可选）
-	TtsProvider          string    `json:"ttsProvider" gorm:"column:tts_provider"`                              // TTS提供商
-	ApiKey               string    `json:"apiKey" gorm:"column:api_key"`                                        // API密钥
-	ApiSecret            string    `json:"apiSecret" gorm:"column:api_secret"`                                  // API密钥
-	LLMModel             string    `json:"llmModel" gorm:"column:llm_model"`                                    // LLM模型名称
-	EnableGraphMemory    bool      `json:"enableGraphMemory" gorm:"column:enable_graph_memory;default:false"`   // 是否启用基于图数据库的长期记忆
-	EnableVAD            bool      `json:"enableVAD" gorm:"column:enable_vad;default:true"`                     // 是否启用VAD（语音活动检测）用于打断TTS
-	VADThreshold         float64   `json:"vadThreshold" gorm:"column:vad_threshold;default:500"`                // VAD阈值（RMS值，范围0-32768，默认500）
-	VADConsecutiveFrames int       `json:"vadConsecutiveFrames" gorm:"column:vad_consecutive_frames;default:2"` // 需要连续超过阈值的帧数（默认2帧，约40ms）
-	EnableJSONOutput     bool      `json:"enableJSONOutput" gorm:"column:enable_json_output;default:false"`     // 是否启用JSON格式化输出
-	CreatedAt            time.Time `json:"createdAt" gorm:"autoCreateTime"`
-	UpdatedAt            time.Time `json:"updatedAt" gorm:"autoUpdateTime"`
-}
-
 // ChatSession 聊天会话表
 type ChatSession struct {
 	ID           string     `json:"id" gorm:"primaryKey;type:varchar(64)"`
 	UserID       string     `json:"user_id" gorm:"type:varchar(64);not null;index"`
-	AssistantID  int64      `json:"assistant_id" gorm:"index"`
+	AgentID      int64      `json:"agentId" gorm:"column:agent_id;index"`
 	Title        string     `json:"title" gorm:"type:varchar(255)"`
 	Provider     string     `json:"provider" gorm:"type:varchar(50);not null"`
 	Model        string     `json:"model" gorm:"type:varchar(100);not null"`
@@ -107,7 +79,7 @@ type ChatSessionLog struct {
 	ID           int64     `json:"id"`
 	SessionID    string    `json:"sessionId"`
 	UserID       uint      `json:"userId"`
-	AssistantID  int64     `json:"assistantId"`
+	AgentID      int64     `json:"agentId"`
 	ChatType     string    `json:"chatType"`
 	UserMessage  string    `json:"userMessage"`
 	AgentMessage string    `json:"agentMessage"`
@@ -125,12 +97,12 @@ const (
 )
 
 // CreateChatSessionLog 创建聊天记录
-func CreateChatSessionLog(db *gorm.DB, userID uint, assistantID int64, chatType, sessionID, userMessage, agentMessage, audioURL string, duration int) (*ChatSessionLog, error) {
-	return CreateChatSessionLogWithUsage(db, userID, assistantID, chatType, sessionID, userMessage, agentMessage, audioURL, duration, nil)
+func CreateChatSessionLog(db *gorm.DB, userID uint, agentID int64, chatType, sessionID, userMessage, agentMessage, audioURL string, duration int) (*ChatSessionLog, error) {
+	return CreateChatSessionLogWithUsage(db, userID, agentID, chatType, sessionID, userMessage, agentMessage, audioURL, duration, nil)
 }
 
 // CreateChatSessionLogWithUsage 创建聊天记录（包含LLM Usage信息）
-func CreateChatSessionLogWithUsage(db *gorm.DB, userID uint, assistantID int64, chatType, sessionID, userMessage, agentMessage, audioURL string, duration int, usage *LLMUsage) (*ChatSessionLog, error) {
+func CreateChatSessionLogWithUsage(db *gorm.DB, userID uint, agentID int64, chatType, sessionID, userMessage, agentMessage, audioURL string, duration int, usage *LLMUsage) (*ChatSessionLog, error) {
 	cleanedUserMessage := utils.RemoveEmoji(userMessage)
 	cleanedAgentMessage := utils.RemoveEmoji(agentMessage)
 	if sessionID == "" {
@@ -149,10 +121,10 @@ func CreateChatSessionLogWithUsage(db *gorm.DB, userID uint, assistantID int64, 
 	}
 
 	session := ChatSession{
-		ID:          sessionID,
-		UserID:      fmt.Sprintf("%d", userID),
-		AssistantID: assistantID,
-		Title:       fmt.Sprintf("assistant_%d", assistantID),
+		ID:      sessionID,
+		UserID:  fmt.Sprintf("%d", userID),
+		AgentID: agentID,
+		Title:   fmt.Sprintf("agent_%d", agentID),
 		Provider:    provider,
 		Model:       model,
 		Status:      "active",
@@ -228,7 +200,7 @@ func CreateChatSessionLogWithUsage(db *gorm.DB, userID uint, assistantID int64, 
 		ID:           now.UnixMilli(),
 		SessionID:    sessionID,
 		UserID:       userID,
-		AssistantID:  assistantID,
+		AgentID:      agentID,
 		ChatType:     chatType,
 		UserMessage:  cleanedUserMessage,
 		AgentMessage: cleanedAgentMessage,
@@ -259,11 +231,11 @@ func GetChatSessionLogs(db *gorm.DB, userID uint, pageSize int, cursor int64) ([
 		var lastMsg ChatMessage
 		_ = db.Where("session_id = ?", s.ID).Order("created_at DESC").First(&lastMsg).Error
 
-		assistantName := ""
-		if s.AssistantID > 0 {
-			var assistant Assistant
-			if err := db.Select("name").Where("id = ?", s.AssistantID).First(&assistant).Error; err == nil {
-				assistantName = assistant.Name
+		agentName := ""
+		if s.AgentID > 0 {
+			var agent Agent
+			if err := db.Select("name").Where("id = ?", s.AgentID).First(&agent).Error; err == nil {
+				agentName = agent.Name
 			}
 		}
 
@@ -272,10 +244,10 @@ func GetChatSessionLogs(db *gorm.DB, userID uint, pageSize int, cursor int64) ([
 			preview = preview[:50]
 		}
 		logs = append(logs, ChatSessionLogSummary{
-			ID:            s.UpdatedAt.UnixMilli(),
-			SessionID:     s.ID,
-			AssistantID:   s.AssistantID,
-			AssistantName: assistantName,
+			ID:        s.UpdatedAt.UnixMilli(),
+			SessionID: s.ID,
+			AgentID:   s.AgentID,
+			AgentName: agentName,
 			ChatType:      ChatTypeText,
 			Preview:       preview,
 			CreatedAt:     s.CreatedAt,
@@ -309,10 +281,10 @@ func GetChatSessionLogDetail(db *gorm.DB, logID int64, userID uint) (*ChatSessio
 
 	last := logs[len(logs)-1]
 	detail := ChatSessionLogDetail{
-		ID:            target.ID,
-		SessionID:     target.SessionID,
-		AssistantID:   target.AssistantID,
-		AssistantName: target.AssistantName,
+		ID:        target.ID,
+		SessionID: target.SessionID,
+		AgentID:   target.AgentID,
+		AgentName: target.AgentName,
 		ChatType:      ChatTypeText,
 		UserMessage:   last.UserMessage,
 		AgentMessage:  last.AgentMessage,
@@ -354,10 +326,10 @@ func GetChatSessionLogsBySession(db *gorm.DB, sessionID string, userID uint) ([]
 		}
 
 		log := ChatSessionLog{
-			ID:           userMsg.CreatedAt.UnixMilli(),
-			SessionID:    sessionID,
-			UserID:       userID,
-			AssistantID:  session.AssistantID,
+			ID:        userMsg.CreatedAt.UnixMilli(),
+			SessionID: sessionID,
+			UserID:    userID,
+			AgentID:   session.AgentID,
 			ChatType:     ChatTypeText,
 			UserMessage:  userMsg.Content,
 			AgentMessage: "",
@@ -375,10 +347,10 @@ func GetChatSessionLogsBySession(db *gorm.DB, sessionID string, userID uint) ([]
 
 // ChatSessionLogSummary 聊天记录摘要（用于列表显示）
 type ChatSessionLogSummary struct {
-	ID            int64     `json:"id"`
-	SessionID     string    `json:"sessionId"`
-	AssistantID   int64     `json:"assistantId"`
-	AssistantName string    `json:"assistantName"`
+	ID        int64     `json:"id"`
+	SessionID string    `json:"sessionId"`
+	AgentID   int64     `json:"agentId"`
+	AgentName string    `json:"agentName"`
 	ChatType      string    `json:"chatType"`
 	Preview       string    `json:"preview"` // 预览文本（用户消息或AI回复的前50个字符）
 	CreatedAt     time.Time `json:"createdAt"`
@@ -387,10 +359,10 @@ type ChatSessionLogSummary struct {
 
 // ChatSessionLogDetail 聊天记录详情（用于详情页面）
 type ChatSessionLogDetail struct {
-	ID            int64     `json:"id"`
-	SessionID     string    `json:"sessionId"`
-	AssistantID   int64     `json:"assistantId"`
-	AssistantName string    `json:"assistantName"`
+	ID        int64     `json:"id"`
+	SessionID string    `json:"sessionId"`
+	AgentID   int64     `json:"agentId"`
+	AgentName string    `json:"agentName"`
 	ChatType      string    `json:"chatType"`
 	UserMessage   string    `json:"userMessage"`
 	AgentMessage  string    `json:"agentMessage"`
@@ -747,12 +719,3 @@ type TemplateManager struct {
 	customTemplates  map[string]*JSTemplate
 }
 
-// GetAssistantByJSTemplateID 根据JS模板ID获取关联的助手
-func GetAssistantByJSTemplateID(db *gorm.DB, jsTemplateID string) (*Assistant, error) {
-	var assistant Assistant
-	err := db.Where("js_source_id = ?", jsTemplateID).First(&assistant).Error
-	if err != nil {
-		return nil, err
-	}
-	return &assistant, nil
-}

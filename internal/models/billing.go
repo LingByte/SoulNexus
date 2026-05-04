@@ -68,7 +68,7 @@ type UsageRecord struct {
 	UserID       uint    `json:"userId" gorm:"index:idx_user_credential_time"`
 	GroupID      *uint   `json:"groupId,omitempty" gorm:"index"` // 组织ID，如果设置则表示这是组织相关的使用量记录
 	CredentialID uint    `json:"credentialId" gorm:"index:idx_user_credential_time"`
-	AssistantID  *uint   `json:"assistantId,omitempty" gorm:"index"`
+	AgentID      *uint   `json:"agentId,omitempty" gorm:"column:agent_id;index"`
 	SessionID    string  `json:"sessionId,omitempty" gorm:"index;size:200"`
 	CallLogID    *uint64 `json:"callLogId,omitempty" gorm:"index"`
 
@@ -218,9 +218,8 @@ func GetUsageRecords(db *gorm.DB, userID uint, params map[string]interface{}) ([
 		query = query.Where("credential_id = ?", credentialID)
 	}
 
-	// 按助手ID筛选
-	if assistantID, ok := params["assistantId"].(uint); ok && assistantID > 0 {
-		query = query.Where("assistant_id = ?", assistantID)
+	if agentID, ok := params["agentId"].(uint); ok && agentID > 0 {
+		query = query.Where("agent_id = ?", agentID)
 	}
 
 	// 按使用量类型筛选
@@ -279,8 +278,8 @@ func GetUsageStatistics(db *gorm.DB, userID uint, startTime, endTime time.Time, 
 		if groupID != nil && *groupID > 0 {
 			// 组织账单：只统计该组织下助手的使用量
 			var assistantIDs []uint
-			if err := db.Table("assistants").Where("group_id = ?", *groupID).Pluck("id", &assistantIDs).Error; err == nil && len(assistantIDs) > 0 {
-				query = query.Where("assistant_id IN (?)", assistantIDs)
+			if err := db.Table("agents").Where("group_id = ?", *groupID).Pluck("id", &assistantIDs).Error; err == nil && len(assistantIDs) > 0 {
+				query = query.Where("agent_id IN (?)", assistantIDs)
 			} else {
 				// 如果组织下没有助手，返回空统计
 				query = query.Where("1 = 0") // 永远不匹配的条件
@@ -380,8 +379,8 @@ func GetDailyUsageData(db *gorm.DB, userID uint, startTime, endTime time.Time, c
 	if groupID != nil && *groupID > 0 {
 		// 组织账单：只统计该组织下助手的使用量
 		var assistantIDs []uint
-		if err := db.Table("assistants").Where("group_id = ?", *groupID).Pluck("id", &assistantIDs).Error; err == nil && len(assistantIDs) > 0 {
-			baseQuery = baseQuery.Where("assistant_id IN (?)", assistantIDs)
+		if err := db.Table("agents").Where("group_id = ?", *groupID).Pluck("id", &assistantIDs).Error; err == nil && len(assistantIDs) > 0 {
+			baseQuery = baseQuery.Where("agent_id IN (?)", assistantIDs)
 		} else {
 			// 如果组织下没有助手，返回空数据
 			baseQuery = baseQuery.Where("1 = 0") // 永远不匹配的条件
@@ -535,7 +534,7 @@ func RecordLLMUsage(db *gorm.DB, userID, credentialID uint, assistantID *uint, g
 		UserID:           userID,
 		GroupID:          groupID,
 		CredentialID:     credentialID,
-		AssistantID:      assistantID,
+		AgentID:      assistantID,
 		SessionID:        sessionID,
 		UsageType:        UsageTypeLLM,
 		Model:            model,
@@ -553,7 +552,7 @@ func RecordCallUsage(db *gorm.DB, userID, credentialID uint, assistantID *uint, 
 		UserID:       userID,
 		GroupID:      groupID,
 		CredentialID: credentialID,
-		AssistantID:  assistantID,
+		AgentID:  assistantID,
 		SessionID:    sessionID,
 		CallLogID:    callLogID,
 		UsageType:    UsageTypeCall,
@@ -570,7 +569,7 @@ func RecordASRUsage(db *gorm.DB, userID, credentialID uint, assistantID *uint, g
 		UserID:        userID,
 		GroupID:       groupID,
 		CredentialID:  credentialID,
-		AssistantID:   assistantID,
+		AgentID:   assistantID,
 		SessionID:     sessionID,
 		UsageType:     UsageTypeASR,
 		AudioDuration: duration,
@@ -586,7 +585,7 @@ func RecordTTSUsage(db *gorm.DB, userID, credentialID uint, assistantID *uint, g
 		UserID:        userID,
 		GroupID:       groupID,
 		CredentialID:  credentialID,
-		AssistantID:   assistantID,
+		AgentID:   assistantID,
 		SessionID:     sessionID,
 		UsageType:     UsageTypeTTS,
 		AudioDuration: duration,
@@ -602,7 +601,7 @@ func RecordAPIUsage(db *gorm.DB, userID, credentialID uint, assistantID *uint, g
 		UserID:       userID,
 		GroupID:      groupID,
 		CredentialID: credentialID,
-		AssistantID:  assistantID,
+		AgentID:  assistantID,
 		SessionID:    sessionID,
 		UsageType:    UsageTypeAPI,
 		APICallCount: apiCallCount,

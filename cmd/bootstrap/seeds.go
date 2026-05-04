@@ -25,6 +25,9 @@ func (s *SeedService) SeedAll() error {
 	if err := s.seedAdminUsers(); err != nil {
 		return err
 	}
+	if err := models.EnsureAccessDefaults(s.db); err != nil {
+		return err
+	}
 	if err := s.seedAssistants(); err != nil {
 		return err
 	}
@@ -151,14 +154,14 @@ func (s *SeedService) seedAdminUsers() error {
 
 func (s *SeedService) seedAssistants() error {
 	var count int64
-	if err := s.db.Model(&models.Assistant{}).Count(&count).Error; err != nil {
+	if err := s.db.Model(&models.Agent{}).Count(&count).Error; err != nil {
 		return err
 	}
 	if count != 0 {
 		return nil // Data already exists, skip
 	}
 
-	defaultAssistant := []models.Assistant{
+	defaultAssistant := []models.Agent{
 		{
 			UserID:       2,
 			Name:         "Technical Support",

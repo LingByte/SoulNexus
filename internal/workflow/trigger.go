@@ -30,7 +30,7 @@ type WorkflowTriggerConfig struct {
 	Webhook *WebhookTriggerConfig `json:"webhook,omitempty"`
 
 	// 智能体触发配置
-	Assistant *AssistantTriggerConfig `json:"assistant,omitempty"`
+	Agent *AgentTriggerConfig `json:"agent,omitempty"`
 }
 
 // APITriggerConfig API触发配置
@@ -63,10 +63,10 @@ type WebhookTriggerConfig struct {
 	Method  string `json:"method,omitempty"` // HTTP方法，默认POST
 }
 
-// AssistantTriggerConfig 智能体触发配置
-type AssistantTriggerConfig struct {
-	Enabled      bool     `json:"enabled"`                // 是否启用
-	AssistantIDs []int64  `json:"assistantIds,omitempty"` // 关联的智能体ID列表（为空表示所有智能体都可以调用）
+// AgentTriggerConfig 智能体触发配置
+type AgentTriggerConfig struct {
+	Enabled   bool    `json:"enabled"`             // 是否启用
+	AgentIDs  []int64 `json:"agentIds,omitempty"`  // 关联的智能体 ID（为空表示全部）
 	Intents      []string `json:"intents,omitempty"`      // 触发意图列表（为空表示智能体可以自由调用）
 	Description  string   `json:"description,omitempty"`  // 智能体调用时的描述
 }
@@ -97,7 +97,7 @@ func (c *WorkflowTriggerConfig) HasAnyTrigger() bool {
 		(c.Event != nil && c.Event.Enabled) ||
 		(c.Schedule != nil && c.Schedule.Enabled) ||
 		(c.Webhook != nil && c.Webhook.Enabled) ||
-		(c.Assistant != nil && c.Assistant.Enabled)
+		(c.Agent != nil && c.Agent.Enabled)
 }
 
 // GetPublicAPIKey 获取公开API密钥（如果启用）
@@ -124,20 +124,18 @@ func (c *WorkflowTriggerConfig) ShouldTriggerOnEvent(eventType string) bool {
 	return false
 }
 
-// CanBeCalledByAssistant 检查是否可以被指定智能体调用
-func (c *WorkflowTriggerConfig) CanBeCalledByAssistant(assistantID int64) bool {
-	if c.Assistant == nil || !c.Assistant.Enabled {
+// CanBeCalledByAgent 检查是否可以被指定智能体调用
+func (c *WorkflowTriggerConfig) CanBeCalledByAgent(agentID int64) bool {
+	if c.Agent == nil || !c.Agent.Enabled {
 		return false
 	}
 
-	// 如果没有指定智能体列表，所有智能体都可以调用
-	if len(c.Assistant.AssistantIDs) == 0 {
+	if len(c.Agent.AgentIDs) == 0 {
 		return true
 	}
 
-	// 检查智能体是否在允许列表中
-	for _, id := range c.Assistant.AssistantIDs {
-		if id == assistantID {
+	for _, id := range c.Agent.AgentIDs {
+		if id == agentID {
 			return true
 		}
 	}

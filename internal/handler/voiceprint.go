@@ -24,14 +24,14 @@ import (
 
 // GetVoiceprints 获取声纹列表
 func (h *Handlers) GetVoiceprints(c *gin.Context) {
-	assistantID := c.Query("assistant_id")
+	assistantID := c.Query("agent_id")
 	if assistantID == "" {
-		response.Fail(c, "assistant_id is required", nil)
+		response.Fail(c, "agent_id is required", nil)
 		return
 	}
 
 	var voiceprints []models.Voiceprint
-	result := h.db.Where("assistant_id = ?", assistantID).Find(&voiceprints)
+	result := h.db.Where("agent_id = ?", assistantID).Find(&voiceprints)
 	if result.Error != nil {
 		response.Fail(c, "Failed to get voiceprints: "+result.Error.Error(), nil)
 		return
@@ -43,7 +43,7 @@ func (h *Handlers) GetVoiceprints(c *gin.Context) {
 		voiceprintResponses[i] = models.VoiceprintResponse{
 			ID:          vp.ID,
 			SpeakerID:   vp.SpeakerID,
-			AssistantID: vp.AssistantID,
+			AgentID:     vp.AgentID,
 			SpeakerName: vp.SpeakerName,
 			Description: vp.Description,
 			CreatedAt:   vp.CreatedAt,
@@ -65,9 +65,9 @@ func (h *Handlers) CreateVoiceprint(c *gin.Context) {
 		return
 	}
 
-	// 检查是否已存在相同的speaker_id和assistant_id组合
+	// 检查是否已存在相同的speaker_id和agent_id组合
 	var existingVoiceprint models.Voiceprint
-	result := h.db.Where("speaker_id = ? AND assistant_id = ?", req.SpeakerID, req.AssistantID).First(&existingVoiceprint)
+	result := h.db.Where("speaker_id = ? AND agent_id = ?", req.SpeakerID, req.AgentID).First(&existingVoiceprint)
 	if result.Error == nil {
 		response.Fail(c, "Voiceprint already exists for this speaker and assistant", nil)
 		return
@@ -75,8 +75,8 @@ func (h *Handlers) CreateVoiceprint(c *gin.Context) {
 
 	// 创建声纹记录
 	voiceprint := models.Voiceprint{
-		SpeakerID:     req.SpeakerID,
-		AssistantID:   req.AssistantID,
+		SpeakerID: req.SpeakerID,
+		AgentID:   req.AgentID,
 		SpeakerName:   req.SpeakerName,
 		Description:   req.Description,
 		FeatureVector: []byte{}, // 初始为空，等待音频上传后更新
@@ -88,9 +88,9 @@ func (h *Handlers) CreateVoiceprint(c *gin.Context) {
 	}
 
 	response.Success(c, "Voiceprint created successfully", models.VoiceprintResponse{
-		ID:          voiceprint.ID,
-		SpeakerID:   voiceprint.SpeakerID,
-		AssistantID: voiceprint.AssistantID,
+		ID:        voiceprint.ID,
+		SpeakerID: voiceprint.SpeakerID,
+		AgentID:   voiceprint.AgentID,
 		SpeakerName: voiceprint.SpeakerName,
 		Description: voiceprint.Description,
 		CreatedAt:   voiceprint.CreatedAt,
@@ -100,12 +100,12 @@ func (h *Handlers) CreateVoiceprint(c *gin.Context) {
 
 // RegisterVoiceprint 注册声纹（上传音频并调用voiceprint-api）
 func (h *Handlers) RegisterVoiceprint(c *gin.Context) {
-	assistantID := c.PostForm("assistant_id")
+	assistantID := c.PostForm("agent_id")
 	speakerName := c.PostForm("speaker_name")
 	description := c.PostForm("description")
 
 	if assistantID == "" || speakerName == "" {
-		response.Fail(c, "assistant_id and speaker_name are required", nil)
+		response.Fail(c, "agent_id and speaker_name are required", nil)
 		return
 	}
 
@@ -135,7 +135,7 @@ func (h *Handlers) RegisterVoiceprint(c *gin.Context) {
 
 	// 检查是否已存在相同姓名的声纹（在同一助手下）
 	var existingVoiceprint models.Voiceprint
-	result := h.db.Where("speaker_name = ? AND assistant_id = ?", speakerName, assistantID).First(&existingVoiceprint)
+	result := h.db.Where("speaker_name = ? AND agent_id = ?", speakerName, assistantID).First(&existingVoiceprint)
 	if result.Error == nil {
 		response.Fail(c, "A voiceprint with this name already exists for this assistant", nil)
 		return
@@ -150,14 +150,14 @@ func (h *Handlers) RegisterVoiceprint(c *gin.Context) {
 	// Python服务注册成功后，在Go数据库中更新或创建记录
 	voiceprint := models.Voiceprint{
 		SpeakerID:     speakerID,
-		AssistantID:   assistantID,
+		AgentID:   assistantID,
 		SpeakerName:   speakerName,
 		Description:   description,
 		FeatureVector: []byte{}, // 特征向量由Python服务管理
 	}
 
 	// 使用UPSERT操作：如果存在则更新，不存在则创建
-	if err := h.db.Where("speaker_id = ? AND assistant_id = ?", speakerID, assistantID).
+	if err := h.db.Where("speaker_id = ? AND agent_id = ?", speakerID, assistantID).
 		Assign(models.Voiceprint{SpeakerName: speakerName, Description: description}).
 		FirstOrCreate(&voiceprint).Error; err != nil {
 		response.Fail(c, "Failed to update voiceprint record: "+err.Error(), nil)
@@ -167,7 +167,7 @@ func (h *Handlers) RegisterVoiceprint(c *gin.Context) {
 	response.Success(c, "Voiceprint registered successfully", models.VoiceprintResponse{
 		ID:          voiceprint.ID,
 		SpeakerID:   voiceprint.SpeakerID,
-		AssistantID: voiceprint.AssistantID,
+		AgentID: voiceprint.AgentID,
 		SpeakerName: voiceprint.SpeakerName,
 		Description: voiceprint.Description,
 		CreatedAt:   voiceprint.CreatedAt,
@@ -222,7 +222,7 @@ func (h *Handlers) UpdateVoiceprint(c *gin.Context) {
 	response.Success(c, "Voiceprint updated successfully", models.VoiceprintResponse{
 		ID:          voiceprint.ID,
 		SpeakerID:   voiceprint.SpeakerID,
-		AssistantID: voiceprint.AssistantID,
+		AgentID: voiceprint.AgentID,
 		SpeakerName: voiceprint.SpeakerName,
 		Description: voiceprint.Description,
 		CreatedAt:   voiceprint.CreatedAt,
@@ -250,7 +250,7 @@ func (h *Handlers) DeleteVoiceprint(c *gin.Context) {
 	}
 
 	// 调用voiceprint-api删除声纹特征
-	if err := h.callVoiceprintDeleteAPI(voiceprint.SpeakerID, voiceprint.AssistantID); err != nil {
+	if err := h.callVoiceprintDeleteAPI(voiceprint.SpeakerID, voiceprint.AgentID); err != nil {
 		// 记录错误但不阻止删除数据库记录
 		fmt.Printf("Warning: Failed to delete voiceprint from API: %v\n", err)
 	}
@@ -266,11 +266,11 @@ func (h *Handlers) DeleteVoiceprint(c *gin.Context) {
 
 // VerifyVoiceprint 验证特定声纹
 func (h *Handlers) VerifyVoiceprint(c *gin.Context) {
-	assistantID := c.PostForm("assistant_id")
+	assistantID := c.PostForm("agent_id")
 	speakerID := c.PostForm("speaker_id")
 
 	if assistantID == "" || speakerID == "" {
-		response.Fail(c, "assistant_id and speaker_id are required", nil)
+		response.Fail(c, "agent_id and speaker_id are required", nil)
 		return
 	}
 
@@ -297,7 +297,7 @@ func (h *Handlers) VerifyVoiceprint(c *gin.Context) {
 
 	// 验证目标声纹是否存在
 	var targetVoiceprint models.Voiceprint
-	if err := h.db.Where("speaker_id = ? AND assistant_id = ?", speakerID, assistantID).First(&targetVoiceprint).Error; err != nil {
+	if err := h.db.Where("speaker_id = ? AND agent_id = ?", speakerID, assistantID).First(&targetVoiceprint).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			response.Fail(c, "Target voiceprint not found", nil)
 		} else {
@@ -308,7 +308,7 @@ func (h *Handlers) VerifyVoiceprint(c *gin.Context) {
 
 	// 获取该助手下的所有声纹记录（用于识别）
 	var voiceprints []models.Voiceprint
-	if err := h.db.Where("assistant_id = ?", assistantID).Find(&voiceprints).Error; err != nil {
+	if err := h.db.Where("agent_id = ?", assistantID).Find(&voiceprints).Error; err != nil {
 		response.Fail(c, "Failed to get voiceprints: "+err.Error(), nil)
 		return
 	}
@@ -367,9 +367,9 @@ func (h *Handlers) VerifyVoiceprint(c *gin.Context) {
 
 // IdentifyVoiceprint 声纹识别
 func (h *Handlers) IdentifyVoiceprint(c *gin.Context) {
-	assistantID := c.PostForm("assistant_id")
+	assistantID := c.PostForm("agent_id")
 	if assistantID == "" {
-		response.Fail(c, "assistant_id is required", nil)
+		response.Fail(c, "agent_id is required", nil)
 		return
 	}
 
@@ -396,7 +396,7 @@ func (h *Handlers) IdentifyVoiceprint(c *gin.Context) {
 
 	// 获取该助手下的所有声纹记录
 	var voiceprints []models.Voiceprint
-	if err := h.db.Where("assistant_id = ?", assistantID).Find(&voiceprints).Error; err != nil {
+	if err := h.db.Where("agent_id = ?", assistantID).Find(&voiceprints).Error; err != nil {
 		response.Fail(c, "Failed to get voiceprints: "+err.Error(), nil)
 		return
 	}
@@ -456,7 +456,7 @@ func (h *Handlers) callVoiceprintRegisterAPI(speakerID, assistantID string, audi
 
 	// 添加表单字段
 	writer.WriteField("speaker_id", speakerID)
-	writer.WriteField("assistant_id", assistantID)
+	writer.WriteField("agent_id", assistantID)
 
 	// 添加文件
 	part, err := writer.CreateFormFile("file", "audio.wav")
@@ -505,7 +505,7 @@ func (h *Handlers) callVoiceprintIdentifyAPI(candidateIDs []string, assistantID 
 
 	// 添加表单字段
 	writer.WriteField("speaker_ids", strings.Join(candidateIDs, ","))
-	writer.WriteField("assistant_id", assistantID)
+	writer.WriteField("agent_id", assistantID)
 
 	// 添加文件
 	part, err := writer.CreateFormFile("file", "audio.wav")
@@ -560,7 +560,7 @@ func (h *Handlers) callVoiceprintDeleteAPI(speakerID, assistantID string) error 
 	// 创建form data
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
-	writer.WriteField("assistant_id", assistantID)
+	writer.WriteField("agent_id", assistantID)
 	writer.Close()
 
 	// 创建请求

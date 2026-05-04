@@ -2225,14 +2225,14 @@ const TriggerConfigPanel: React.FC<TriggerConfigPanelProps> = ({
           <label className="relative inline-flex items-center cursor-pointer">
             <input
               type="checkbox"
-              checked={safeTriggerConfig.assistant?.enabled || false}
+              checked={safeTriggerConfig.agent?.enabled || false}
               onChange={(e) => onUpdate({
                 ...safeTriggerConfig,
-                assistant: {
-                  ...safeTriggerConfig.assistant,
+                agent: {
+                  ...safeTriggerConfig.agent,
                   enabled: e.target.checked,
-                  assistantIds: safeTriggerConfig.assistant?.assistantIds || [],
-                  intents: safeTriggerConfig.assistant?.intents || []
+                  agentIds: safeTriggerConfig.agent?.agentIds || [],
+                  intents: safeTriggerConfig.agent?.intents || []
                 }
               })}
               className="sr-only peer"
@@ -2241,7 +2241,7 @@ const TriggerConfigPanel: React.FC<TriggerConfigPanelProps> = ({
           </label>
         </div>
         
-        {safeTriggerConfig.assistant?.enabled && (
+        {safeTriggerConfig.agent?.enabled && (
           <div className="space-y-4 mt-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -2250,11 +2250,11 @@ const TriggerConfigPanel: React.FC<TriggerConfigPanelProps> = ({
               <textarea
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
                 rows={4}
-                value={safeTriggerConfig.assistant?.description || ''}
+                value={safeTriggerConfig.agent?.description || ''}
                 onChange={(e) => onUpdate({
                   ...safeTriggerConfig,
-                  assistant: {
-                    ...safeTriggerConfig.assistant,
+                  agent: {
+                    ...safeTriggerConfig.agent,
                     enabled: true,
                     description: e.target.value
                   }

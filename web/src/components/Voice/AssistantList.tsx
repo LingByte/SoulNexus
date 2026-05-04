@@ -74,7 +74,7 @@ const AssistantList: React.FC<AssistantListProps> = ({
             <motion.button
               onClick={onAddAssistant}
               className="p-1 hover:bg-gray-100 dark:hover:bg-neutral-700 rounded-md transition-colors"
-              title="添加助手"
+              title="添加智能体"
             >
               <Plus className="w-4 h-4 text-purple-600" />
             </motion.button>
@@ -88,7 +88,7 @@ const AssistantList: React.FC<AssistantListProps> = ({
           <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
           <input
             type="text"
-            placeholder="搜索助手..."
+            placeholder="搜索智能体..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-8 pr-8 py-1.5 text-xs border border-gray-200 dark:border-neutral-600 rounded-md 
@@ -156,7 +156,7 @@ const AssistantList: React.FC<AssistantListProps> = ({
                       className="p-1.5 hover:bg-gray-100 dark:hover:bg-neutral-600 rounded-lg transition-colors"
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
-                      title="配置助手"
+                      title="配置智能体"
                     >
                       <Settings className="w-4 h-4 text-gray-500 hover:text-purple-600" />
                     </motion.button>
@@ -170,7 +170,7 @@ const AssistantList: React.FC<AssistantListProps> = ({
           <div className="text-center py-8 text-gray-500 dark:text-gray-400">
             <Search className="w-8 h-8 mx-auto mb-2 opacity-50" />
             <p className="text-sm">
-              {searchQuery ? '未找到匹配的助手' : '暂无助手'}
+              {searchQuery ? '未找到匹配的智能体' : '暂无智能体'}
             </p>
             {searchQuery && (
               <button

@@ -28,6 +28,8 @@ import {
   Smartphone,
   MessageSquare,
   Activity,
+  Shield,
+  UserCog,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import { useSidebar } from '@/contexts/SidebarContext'
@@ -44,7 +46,17 @@ interface NavItem {
 
 const ADMIN_NAVIGATION: NavItem[] = [
   { name: '用户管理', href: '/users', icon: Users },
-  { name: '助手管理', href: '/assistants', icon: Bot },
+  {
+    name: '访问控制',
+    href: '/permissions',
+    icon: Shield,
+    children: [
+      { name: '权限', href: '/permissions', icon: KeyRound },
+      { name: '角色', href: '/roles', icon: Users },
+      { name: '用户授权', href: '/user-access', icon: UserCog },
+    ],
+  },
+  { name: '智能体管理', href: '/assistants', icon: Bot },
   { name: '企业管理', href: '/groups', icon: Building2 },
   { name: '密钥管理', href: '/credentials', icon: Key },
   { name: 'OAuth 客户端', href: '/oauth-clients', icon: KeyRound },

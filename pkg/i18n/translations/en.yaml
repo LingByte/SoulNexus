@@ -1,0 +1,15 @@
+validation:
+  rule:
+    required: "field '%s' is required"
+    email: "field '%s' must be a valid email address"
+    xss: "field '%s' contains potentially unsafe content"
+    sql: "field '%s' contains potentially unsafe SQL patterns"
+    min: "field '%s' is below minimum"
+    max: "field '%s' exceeds maximum"
+    minlen: "field '%s' is too short"
+    maxlen: "field '%s' is too long"
+    url: "field '%s' must be a valid URL"
+    phone: "field '%s' must be a valid phone number"
+    alphanum: "field '%s' must be alphanumeric"
+    numeric: "field '%s' must be numeric"
+    alpha: "field '%s' must contain only letters"

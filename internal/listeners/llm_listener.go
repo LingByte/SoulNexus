@@ -102,7 +102,7 @@ func initSignalConnections(db *gorm.DB) {
 		session := &models.ChatSession{
 			ID:           sessionID,
 			UserID:       data.UserID,
-			AssistantID:  data.AssistantID,
+			AgentID:  data.AgentID,
 			Title:        data.Title,
 			Provider:     data.Provider,
 			Model:        data.Model,

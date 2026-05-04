@@ -18,7 +18,7 @@ func setupBillingDB(t testing.TB) *gorm.DB {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
-	err = db.AutoMigrate(&UsageRecord{}, &Bill{}, &Assistant{})
+	err = db.AutoMigrate(&UsageRecord{}, &Bill{}, &Agent{})
 	require.NoError(t, err)
 
 	return db
@@ -108,7 +108,7 @@ func TestCreateUsageRecord(t *testing.T) {
 	record := &UsageRecord{
 		UserID:           1,
 		CredentialID:     1,
-		AssistantID:      uintPtr(1),
+		AgentID:      uintPtr(1),
 		SessionID:        "session-123",
 		UsageType:        UsageTypeLLM,
 		Model:            "gpt-3.5-turbo",
@@ -134,7 +134,7 @@ func TestGetUsageRecords(t *testing.T) {
 		{
 			UserID:       1,
 			CredentialID: 1,
-			AssistantID:  uintPtr(1),
+			AgentID:  uintPtr(1),
 			UsageType:    UsageTypeLLM,
 			TotalTokens:  100,
 			UsageTime:    now.Add(-2 * time.Hour),
@@ -142,7 +142,7 @@ func TestGetUsageRecords(t *testing.T) {
 		{
 			UserID:       1,
 			CredentialID: 2,
-			AssistantID:  uintPtr(2),
+			AgentID:  uintPtr(2),
 			UsageType:    UsageTypeCall,
 			CallDuration: 300,
 			UsageTime:    now.Add(-1 * time.Hour),
@@ -150,7 +150,7 @@ func TestGetUsageRecords(t *testing.T) {
 		{
 			UserID:       2,
 			CredentialID: 3,
-			AssistantID:  uintPtr(1),
+			AgentID:  uintPtr(1),
 			UsageType:    UsageTypeLLM,
 			TotalTokens:  200,
 			UsageTime:    now.Add(-30 * time.Minute),

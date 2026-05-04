@@ -50,7 +50,7 @@ const VoiceprintManagement = () => {
   const [isVerifyingVoiceprint, setIsVerifyingVoiceprint] = useState(false)
   const [isDeletingVoiceprint, setIsDeletingVoiceprint] = useState(false)
 
-  // 获取助手列表
+  // 获取智能体列表
   useEffect(() => {
     const fetchAssistants = async () => {
       try {
@@ -61,10 +61,10 @@ const VoiceprintManagement = () => {
             setSelectedAssistantId(String(res.data[0].id))
           }
         } else {
-          showAlert('无法获取助手列表', 'error', '获取失败')
+          showAlert('无法获取智能体列表', 'error', '获取失败')
         }
       } catch (err: any) {
-        showAlert(err?.msg || err?.message || '无法获取助手列表', 'error', '获取失败')
+        showAlert(err?.msg || err?.message || '无法获取智能体列表', 'error', '获取失败')
       }
     }
     fetchAssistants()
@@ -119,7 +119,7 @@ const VoiceprintManagement = () => {
     }
 
     if (!selectedAssistantId) {
-      showAlert('请先选择助手', 'warning', '参数错误')
+      showAlert('请先选择智能体', 'warning', '参数错误')
       return
     }
 
@@ -317,7 +317,7 @@ const VoiceprintManagement = () => {
           className="mb-6"
         />
 
-        {/* 助手选择器 - 使用按钮组样式 */}
+        {/* 智能体选择器 - 使用按钮组样式 */}
         {assistants.length > 0 ? (
           <div className="w-full">
             <div className="flex flex-wrap gap-2 mb-6">
@@ -385,7 +385,7 @@ const VoiceprintManagement = () => {
                             <Volume2 className="w-5 h-5 text-orange-600 dark:text-orange-400" />
                           </div>
                           <div>
-                            <p className="text-sm text-gray-600 dark:text-gray-400">当前助手</p>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">当前智能体</p>
                             <p className="font-semibold">{assistant.name}</p>
                           </div>
                         </div>
@@ -429,7 +429,7 @@ const VoiceprintManagement = () => {
                         <EmptyState
                           icon={Mic}
                           title="暂无声纹记录"
-                          description={`还没有为助手 ${assistant.name} 注册任何声纹`}
+                          description={`还没有为智能体 ${assistant.name} 注册任何声纹`}
                           iconClassName="text-purple-400 dark:text-purple-500"
                           action={systemInfo?.voiceprint?.enabled ? {
                             label: '添加声纹',
@@ -523,8 +523,8 @@ const VoiceprintManagement = () => {
         ) : (
           <EmptyState
             icon={Bot}
-            title="暂无助手"
-            description="请先创建助手后再进行声纹识别管理"
+            title="暂无智能体"
+            description="请先创建智能体后再进行声纹识别管理"
             iconClassName="text-gray-400"
           />
         )}
@@ -632,10 +632,10 @@ const VoiceprintManagement = () => {
                 <Bot className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
                 <div>
                   <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
-                    当前助手: {selectedAssistant?.name}
+                    当前智能体: {selectedAssistant?.name}
                   </p>
                   <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
-                    声纹将注册到此助手下，仅在该助手的对话中生效
+                    声纹将注册到此智能体下，仅在该智能体的对话中生效
                   </p>
                 </div>
               </div>
@@ -678,10 +678,10 @@ const VoiceprintManagement = () => {
                 <Bot className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
                 <div>
                   <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
-                    当前助手: {selectedAssistant?.name}
+                    当前智能体: {selectedAssistant?.name}
                   </p>
                   <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
-                    将在该助手的 {voiceprints.length} 个声纹中进行识别
+                    将在该智能体的 {voiceprints.length} 个声纹中进行识别
                   </p>
                 </div>
               </div>

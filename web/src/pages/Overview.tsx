@@ -139,6 +139,7 @@ const Overview: React.FC = () => {
         const keyMap: Record<string, string> = {
           '成员': 'totalMembers',
           '助手': 'totalAssistants',
+          '智能体': 'totalAssistants',
           '知识库': 'totalKnowledgeBases',
           '通话': 'totalCalls',
           '工作流': 'totalWorkflows',

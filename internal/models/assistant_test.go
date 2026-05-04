@@ -25,7 +25,7 @@ func TestGenerateUUID(t *testing.T) {
 func setupAssistantTestDB(t *testing.T) *gorm.DB {
 	return setupTestDBWithSilentLogger(t,
 		&User{},
-		&Assistant{},
+		&Agent{},
 		&ChatSessionLog{},
 		&JSTemplate{},
 	)
@@ -42,7 +42,7 @@ func TestCreateChatSessionLog(t *testing.T) {
 	assert.NotZero(t, log.ID)
 	assert.Equal(t, "session-123", log.SessionID)
 	assert.Equal(t, user.ID, log.UserID)
-	assert.Equal(t, int64(1), log.AssistantID)
+	assert.Equal(t, int64(1), log.AgentID)
 	assert.Equal(t, ChatTypeText, log.ChatType)
 	assert.Equal(t, "Hello", log.UserMessage)
 	assert.Equal(t, "Hi there", log.AgentMessage)
@@ -484,7 +484,7 @@ func TestGetAssistantByJSTemplateID(t *testing.T) {
 	user, err := CreateUser(db, "test@example.com", "password123")
 	require.NoError(t, err)
 
-	assistant := &Assistant{
+	assistant := &Agent{
 		UserID:     user.ID,
 		Name:       "Test Assistant",
 		JsSourceID: "js-test-123",
@@ -493,12 +493,12 @@ func TestGetAssistantByJSTemplateID(t *testing.T) {
 	require.NoError(t, err)
 
 	// Get assistant by JS template ID
-	retrieved, err := GetAssistantByJSTemplateID(db, "js-test-123")
+	retrieved, err := GetAgentByJSTemplateID(db, "js-test-123")
 	require.NoError(t, err)
 	assert.Equal(t, assistant.ID, retrieved.ID)
 
 	// Test non-existent
-	_, err = GetAssistantByJSTemplateID(db, "nonexistent")
+	_, err = GetAgentByJSTemplateID(db, "nonexistent")
 	assert.Error(t, err)
 }
 
@@ -624,7 +624,7 @@ func TestGetChatSessionLogDetail_WithAssistantName(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create assistant
-	assistant := &Assistant{
+	assistant := &Agent{
 		UserID: user.ID,
 		Name:   "Test Assistant",
 	}
@@ -639,7 +639,7 @@ func TestGetChatSessionLogDetail_WithAssistantName(t *testing.T) {
 	detail, err := GetChatSessionLogDetail(db, log.ID, user.ID)
 	require.NoError(t, err)
 	assert.Equal(t, log.ID, detail.ID)
-	assert.Equal(t, "Test Assistant", detail.AssistantName)
+	assert.Equal(t, "Test Assistant", detail.AgentName)
 }
 
 func TestGetJSTemplatesByName_EmptyResult(t *testing.T) {

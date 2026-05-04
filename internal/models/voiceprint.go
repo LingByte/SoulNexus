@@ -11,7 +11,7 @@ import (
 type Voiceprint struct {
 	ID            int       `json:"id" gorm:"primaryKey;autoIncrement"`
 	SpeakerID     string    `json:"speaker_id" gorm:"type:varchar(255);not null"`
-	AssistantID   string    `json:"assistant_id" gorm:"type:varchar(255);not null"`
+	AgentID       string    `json:"agent_id" gorm:"column:agent_id;type:varchar(255);not null"`
 	SpeakerName   string    `json:"speaker_name" gorm:"type:varchar(255)"`
 	Description   string    `json:"description" gorm:"type:text;comment:用户描述：身份、职业、成就等"`
 	FeatureVector []byte    `json:"-" gorm:"type:longblob;not null"`
@@ -27,7 +27,7 @@ func (Voiceprint) TableName() string {
 // VoiceprintCreateRequest 创建声纹请求
 type VoiceprintCreateRequest struct {
 	SpeakerID   string `json:"speaker_id" binding:"required"`
-	AssistantID string `json:"assistant_id" binding:"required"`
+	AgentID     string `json:"agent_id" binding:"required"`
 	SpeakerName string `json:"speaker_name" binding:"required"`
 	Description string `json:"description"`
 }
@@ -42,7 +42,7 @@ type VoiceprintUpdateRequest struct {
 type VoiceprintResponse struct {
 	ID          int        `json:"id"`
 	SpeakerID   string     `json:"speaker_id"`
-	AssistantID string     `json:"assistant_id"`
+	AgentID     string     `json:"agent_id"`
 	SpeakerName string     `json:"speaker_name"`
 	Description string     `json:"description"`
 	CreatedAt   time.Time  `json:"created_at"`
@@ -60,13 +60,13 @@ type VoiceprintListResponse struct {
 // VoiceprintRegisterRequest 声纹注册请求（用于调用voiceprint-api）
 type VoiceprintRegisterRequest struct {
 	SpeakerID   string `json:"speaker_id"`
-	AssistantID string `json:"assistant_id"`
+	AgentID     string `json:"agent_id"`
 	AudioFile   []byte `json:"-"`
 }
 
 // VoiceprintIdentifyRequest 声纹识别请求
 type VoiceprintIdentifyRequest struct {
-	AssistantID  string   `json:"assistant_id" binding:"required"`
+	AgentID      string   `json:"agent_id" binding:"required"`
 	CandidateIDs []string `json:"candidate_ids"`
 	AudioFile    []byte   `json:"-"`
 }

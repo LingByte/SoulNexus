@@ -17,11 +17,11 @@ func CreateCallRecording(db *gorm.DB, recording *CallRecording) error {
 	return db.Create(recording).Error
 }
 
-// GetCallRecordingsByAssistant 获取助手的通话录音列表
-func GetCallRecordingsByAssistant(db *gorm.DB, userID, assistantID uint, limit, offset int) ([]CallRecording, int64, error) {
+// GetCallRecordingsByAgent 获取 Agent 的通话录音列表
+func GetCallRecordingsByAgent(db *gorm.DB, userID, agentID uint, limit, offset int) ([]CallRecording, int64, error) {
 	var recordings []CallRecording
 	var total int64
-	query := db.Where("user_id = ? AND assistant_id = ?", userID, assistantID)
+	query := db.Where("user_id = ? AND agent_id = ?", userID, agentID)
 	query.Model(&CallRecording{}).Count(&total)
 	err := query.Order("created_at DESC").Limit(limit).Offset(offset).Find(&recordings).Error
 	return recordings, total, err
@@ -81,7 +81,7 @@ func GetCallRecordingsByUser(db *gorm.DB, userID uint, limit, offset int) ([]Cal
 type CallRecording struct {
 	BaseModel
 	UserID                  uint       `json:"userId" gorm:"index;not null"`
-	AssistantID             uint       `json:"assistantId" gorm:"index;not null"`
+	AgentID                 uint       `json:"agentId" gorm:"column:agent_id;index;not null"`
 	DeviceID                string     `json:"deviceId" gorm:"size:64;index"`                         // 设备ID (MAC地址)
 	MacAddress              string     `json:"macAddress" gorm:"size:64;index"`                       // MAC地址
 	SessionID               string     `json:"sessionId" gorm:"size:128;index"`                       // 会话ID

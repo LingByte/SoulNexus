@@ -281,7 +281,7 @@ type LLMRequestErrorData struct {
 type SessionCreatedData struct {
 	SessionID    string `json:"session_id"`
 	UserID       string `json:"user_id"`
-	AssistantID  int64  `json:"assistant_id"`
+	AgentID  int64  `json:"agent_id"`
 	Title        string `json:"title"`
 	Provider     string `json:"provider"`
 	Model        string `json:"model"`

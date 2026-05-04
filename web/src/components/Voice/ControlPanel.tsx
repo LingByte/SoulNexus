@@ -463,7 +463,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                           {t('controlPanel.assistant.graphMemoryTitle') || 'Neo4j 长期记忆'}
                                             </label>
                                                     <p className="text-xs text-gray-500 dark:text-gray-400">
-                                                        {t('controlPanel.assistant.graphMemoryDesc') || '开启后，将把该助手的对话写入 Neo4j，用于个性化记忆和知识图谱。'}
+                                                        {t('controlPanel.assistant.graphMemoryDesc') || '开启后，将把该智能体的对话写入 Neo4j，用于个性化记忆和知识图谱。'}
                                                     </p>
                                                 </div>
                                                 <div className="ml-4 flex-shrink-0">

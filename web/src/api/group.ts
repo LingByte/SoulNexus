@@ -166,7 +166,7 @@ export const searchUsers = async (keyword: string, limit: number = 20): Promise<
 
 // 组织共享的资源
 export interface GroupSharedResources {
-  assistants: Array<{
+  agents: Array<{
     id: number
     name: string
     description: string

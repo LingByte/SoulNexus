@@ -2,14 +2,14 @@ import { useState, useEffect } from 'react'
 import { showAlert } from '@/utils/notification'
 
 interface UseVoiceConnectionOptions {
-  assistantId: number
+  agentId: number
   apiKey: string
   apiSecret: string
 }
 
 export const useVoiceConnection = (options: UseVoiceConnectionOptions) => {
   const {
-    assistantId,
+    agentId,
     apiKey,
     apiSecret,
   } = options
@@ -64,8 +64,8 @@ export const useVoiceConnection = (options: UseVoiceConnectionOptions) => {
 
   // 开始通话
   const startCall = async () => {
-    if (assistantId === 0) {
-      showAlert('请先选择一个AI助手', 'warning')
+    if (agentId === 0) {
+      showAlert('请先选择一个AI智能体', 'warning')
       return false
     }
 

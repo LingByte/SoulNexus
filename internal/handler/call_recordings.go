@@ -45,7 +45,7 @@ func (h *CallRecordingHandler) GetCallRecordings(c *gin.Context) {
 	// 获取查询参数
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "20"))
-	assistantID, _ := strconv.Atoi(c.Query("assistantId"))
+	agentID, _ := strconv.Atoi(c.Query("agentId"))
 	macAddress := c.Query("macAddress")
 
 	if page < 1 {
@@ -59,9 +59,8 @@ func (h *CallRecordingHandler) GetCallRecordings(c *gin.Context) {
 	var total int64
 	var err error
 
-	if assistantID > 0 {
-		// 按助手查询
-		recordings, total, err = models.GetCallRecordingsByAssistant(h.db, userID, uint(assistantID), pageSize, (page-1)*pageSize)
+	if agentID > 0 {
+		recordings, total, err = models.GetCallRecordingsByAgent(h.db, userID, uint(agentID), pageSize, (page-1)*pageSize)
 	} else if macAddress != "" {
 		// 按设备查询
 		recordings, total, err = models.GetCallRecordingsByDevice(h.db, userID, macAddress, pageSize, (page-1)*pageSize)
@@ -155,16 +154,15 @@ func (h *CallRecordingHandler) GetCallRecordingStats(c *gin.Context) {
 	}
 
 	// 获取查询参数
-	assistantID, _ := strconv.Atoi(c.Query("assistantId"))
+	agentID, _ := strconv.Atoi(c.Query("agentId"))
 	macAddress := c.Query("macAddress")
 
 	// Simple stats implementation - just return basic counts for now
 	var totalRecordings int64
 	query := h.db.Model(&models.CallRecording{}).Where("user_id = ?", userID)
 
-	// Apply filters if provided
-	if assistantID > 0 {
-		query = query.Where("assistant_id = ?", assistantID)
+	if agentID > 0 {
+		query = query.Where("agent_id = ?", agentID)
 	}
 	if macAddress != "" {
 		query = query.Where("mac_address = ?", macAddress)

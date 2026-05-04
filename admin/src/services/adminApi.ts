@@ -1155,8 +1155,8 @@ export const deleteAdminBill = async (id: number): Promise<void> => {
   await del(`${ADMIN_BILLS_API_BASE}/${id}`)
 }
 
-// ==================== Admin Assistants API ====================
-const ADMIN_ASSISTANTS_API_BASE = `${BACKEND_BASE}/admin/assistants`
+// ==================== Admin Agents API ====================
+const ADMIN_AGENTS_API_BASE = `${BACKEND_BASE}/admin/agents`
 
 export interface AdminAssistant {
   id: number
@@ -1177,7 +1177,7 @@ export interface AdminAssistant {
 }
 
 export interface AdminAssistantListResponse {
-  assistants: AdminAssistant[]
+  agents: AdminAssistant[]
   total: number
   page: number
   pageSize: number
@@ -1188,7 +1188,7 @@ export const listAdminAssistants = async (params?: { page?: number; pageSize?: n
   if (params?.page) queryParams.page = params.page
   if (params?.pageSize) queryParams.pageSize = params.pageSize
   if (params?.search) queryParams.search = params.search
-  const res = await get<AdminAssistantListResponse>(ADMIN_ASSISTANTS_API_BASE, { params: queryParams })
+  const res = await get<AdminAssistantListResponse>(ADMIN_AGENTS_API_BASE, { params: queryParams })
   return res.data
 }
 
@@ -1198,12 +1198,12 @@ export const getAdminAssistant = async (id: number): Promise<AdminAssistant> => 
 }
 
 export const updateAdminAssistant = async (id: number, data: Partial<AdminAssistant>) => {
-  const res = await put(`${ADMIN_ASSISTANTS_API_BASE}/${id}`, data)
+  const res = await put(`${ADMIN_AGENTS_API_BASE}/${id}`, data)
   return res.data
 }
 
 export const deleteAdminAssistant = async (id: number): Promise<void> => {
-  await del(`${ADMIN_ASSISTANTS_API_BASE}/${id}`)
+  await del(`${ADMIN_AGENTS_API_BASE}/${id}`)
 }
 
 
@@ -1429,7 +1429,8 @@ export const deleteAdminAnnouncement = async (id: number) => del(`${BACKEND_BASE
 export interface AdminChatSession {
   id: string
   user_id: string
-  assistant_id: number
+  agent_id?: number
+  agentId?: number
   title: string
   provider: string
   model: string

@@ -2,7 +2,7 @@ import { get, post, ApiResponse } from '@/utils/request'
 
 // 聊天请求参数
 export interface ChatRequest {
-  assistantId: number
+  agentId: number
   systemPrompt?: string
   speaker?: string
   language?: string
@@ -23,8 +23,8 @@ export interface ChatResponse {
 export interface ChatSessionLogSummary {
   id: number
   sessionId: string
-  assistantId: number
-  assistantName: string
+  agentId: number
+  agentName: string
   chatType: string
   preview: string
   createdAt: string
@@ -89,8 +89,8 @@ export interface LLMUsage {
 export interface ChatSessionLogDetail {
   id: number
   sessionId: string
-  assistantId: number
-  assistantName: string
+  agentId: number
+  agentName: string
   chatType: string
   userMessage: string
   agentMessage: string
@@ -106,7 +106,7 @@ export interface ChatSessionLogListResponse {
   logs: ChatSessionLogSummary[]
   nextCursor: number
   hasMoreData: boolean
-  assistantId?: number
+  agentId?: number
 }
 
 // 开始聊天会话
@@ -142,8 +142,8 @@ export const getChatSessionLogsBySession = async (sessionId: string): Promise<Ap
   return get(`/chat/chat-session-log/by-session/${sessionId}`)
 }
 
-// 获取指定助手的聊天会话日志
-export const getChatSessionLogsByAssistant = async (assistantId: number, params: {
+/** @param agentId numeric agent id */
+export const getChatSessionLogsByAssistant = async (agentId: number, params: {
   pageSize?: number
   cursor?: string
 }): Promise<ApiResponse<ChatSessionLogListResponse>> => {
@@ -152,5 +152,5 @@ export const getChatSessionLogsByAssistant = async (assistantId: number, params:
   if (params.cursor) queryParams.append('cursor', params.cursor)
   
   const queryString = queryParams.toString()
-  return get(`/chat/chat-session-log/by-assistant/${assistantId}${queryString ? `?${queryString}` : ''}`)
+  return get(`/chat/chat-session-log/by-agent/${agentId}${queryString ? `?${queryString}` : ''}`)
 }

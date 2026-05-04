@@ -191,6 +191,10 @@ export interface User {
   status?: string
   /** 注册来源：SYSTEM | ADMIN | WECHAT | GITHUB */
   source?: string
+  /** 角色 slug（user_roles） */
+  roleSlugs?: string[]
+  /** 合并后的权限 key（角色 ∪ 用户附加权限） */
+  permissionKeys?: string[]
   /** 注销冷静期预计完成永久注销的时间（RFC3339） */
   accountDeletionEffectiveAt?: string | null
   accountDeletionRequestedAt?: string | null

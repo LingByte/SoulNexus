@@ -25,16 +25,12 @@ type Group struct {
 	Permission GroupPermission `json:"permission,omitempty" gorm:"type:json"`
 	CreatorID  uint            `json:"creatorId" gorm:"index"`
 	Creator    User            `json:"creator,omitempty" gorm:"foreignKey:CreatorID"`
-
-	// 归档相关
-	IsArchived bool       `json:"isArchived" gorm:"default:false;index"`
-	ArchivedAt *time.Time `json:"archivedAt,omitempty"`
-	ArchivedBy *uint      `json:"archivedBy,omitempty"`
-
-	// 模板相关
-	IsTemplate bool  `json:"isTemplate" gorm:"default:false;index"`
-	TemplateID *uint `json:"templateId,omitempty" gorm:"index"` // 如果是从模板创建的，记录模板ID
-	ClonedFrom *uint `json:"clonedFrom,omitempty" gorm:"index"` // 如果是克隆的，记录源组织ID
+	IsArchived bool            `json:"isArchived" gorm:"default:false;index"`
+	ArchivedAt *time.Time      `json:"archivedAt,omitempty"`
+	ArchivedBy *uint           `json:"archivedBy,omitempty"`
+	IsTemplate bool            `json:"isTemplate" gorm:"default:false;index"`
+	TemplateID *uint           `json:"templateId,omitempty" gorm:"index"` // 如果是从模板创建的，记录模板ID
+	ClonedFrom *uint           `json:"clonedFrom,omitempty" gorm:"index"` // 如果是克隆的，记录源组织ID
 }
 
 // 实现 driver.Valuer 接口

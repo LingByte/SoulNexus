@@ -64,7 +64,7 @@ type Device struct {
 	Board       string `json:"board,omitempty" gorm:"size:128"`      // Board type
 	AppVersion  string `json:"appVersion,omitempty" gorm:"size:64"`  // Application version
 	AutoUpdate  int    `json:"autoUpdate" gorm:"default:1"`          // 0 = disabled, 1 = enabled
-	AssistantID *uint  `json:"assistantId,omitempty" gorm:"index"`   // Assistant ID (对应 xiaozhi-esp32 的 agentId)
+	AgentID     *uint  `json:"agentId,omitempty" gorm:"column:agent_id;index"` // Agent ID（对应 xiaozhi-esp32 的 agentId）
 	Alias       string `json:"alias,omitempty" gorm:"size:128"`      // Device alias
 
 	// 运行状态监控
@@ -206,7 +206,7 @@ func CreateDevice(db *gorm.DB, device *Device) error {
 		zap.String("deviceId", device.ID),
 		zap.String("macAddress", device.MacAddress),
 		zap.Uint("userId", device.UserID),
-		zap.Any("assistantId", device.AssistantID),
+		zap.Any("agentId", device.AgentID),
 		zap.Any("groupId", device.GroupID),
 		zap.String("board", device.Board),
 		zap.String("appVersion", device.AppVersion),
@@ -286,7 +286,7 @@ func GetUserDevices(db *gorm.DB, userID uint, assistantID *uint) ([]Device, erro
 	// 构建查询
 	query := db.Model(&Device{})
 	if assistantID != nil {
-		query = query.Where("assistant_id = ?", *assistantID)
+		query = query.Where("agent_id = ?", *assistantID)
 	}
 
 	// 权限过滤：用户自己的设备 + 组织共享的设备

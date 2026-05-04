@@ -1822,10 +1822,22 @@ func (h *Handlers) handleUserLogout(c *gin.Context) {
 
 // handleUserInfo handle user info
 func (h *Handlers) handleUserInfo(c *gin.Context) {
-	user := models.CurrentUser(c)
-	if user == nil {
+	ctxUser := models.CurrentUser(c)
+	if ctxUser == nil {
 		response.AbortWithStatus(c, http.StatusUnauthorized)
 		return
+	}
+	db := c.MustGet(constants.DbField).(*gorm.DB)
+	user, err := models.GetUserByID(db, ctxUser.ID)
+	if err != nil || user == nil {
+		response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("user not found"))
+		return
+	}
+	if keys, err := models.EffectivePermissionKeys(db, user.ID); err == nil {
+		user.PermissionKeys = keys
+	}
+	if slugs, err := models.UserRoleSlugs(db, user.ID); err == nil {
+		user.RoleSlugs = slugs
 	}
 	withToken := c.Query("with_token")
 	if withToken != "" {

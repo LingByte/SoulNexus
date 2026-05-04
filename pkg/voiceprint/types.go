@@ -10,7 +10,7 @@ import (
 // RegisterRequest 声纹注册请求
 type RegisterRequest struct {
 	SpeakerID   string                 `json:"speaker_id" validate:"required"`
-	AssistantID string                 `json:"assistant_id" validate:"required"`
+	AgentID string                 `json:"agent_id" validate:"required"`
 	AudioData   []byte                 `json:"-"`
 	AudioFormat string                 `json:"audio_format,omitempty"`
 	Metadata    map[string]interface{} `json:"metadata,omitempty"`
@@ -27,7 +27,7 @@ type RegisterResponse struct {
 // IdentifyRequest 声纹识别请求
 type IdentifyRequest struct {
 	CandidateIDs []string `json:"candidate_ids" validate:"required,min=1"`
-	AssistantID  string   `json:"assistant_id" validate:"required"`
+	AgentID  string   `json:"agent_id" validate:"required"`
 	AudioData    []byte   `json:"-"`
 	AudioFormat  string   `json:"audio_format,omitempty"`
 	Threshold    float64  `json:"threshold,omitempty"`
@@ -45,7 +45,7 @@ type IdentifyResponse struct {
 // DeleteRequest 声纹删除请求
 type DeleteRequest struct {
 	SpeakerID   string `json:"speaker_id" validate:"required"`
-	AssistantID string `json:"assistant_id,omitempty"`
+	AgentID string `json:"agent_id,omitempty"`
 }
 
 // DeleteResponse 声纹删除响应

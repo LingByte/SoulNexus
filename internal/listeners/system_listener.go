@@ -28,7 +28,7 @@ func InitSystemListeners() {
 		// Load SSL certificates
 		loadSSLCertificates()
 	})
-	InitAssistantListener()
+	InitAgentListener()
 	InitUserListeners()
 	// InitLLMListener is initialized in main.go (requires database connection)
 	logger.Info("system module listener is already")

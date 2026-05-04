@@ -49,7 +49,7 @@ const Devices = () => {
 
   const exportCsv = () => {
     const headers = [
-      'id', 'alias', 'device_name', 'board', 'app_version', 'assistant_id', 'is_online', 'last_connected',
+      'id', 'alias', 'device_name', 'board', 'app_version', 'agent_id', 'is_online', 'last_connected',
       'error_count', 'last_error_at', 'created_at'
     ]
     const rows = list.map((i) => headers.map((h) => toText(i[h])))
@@ -81,7 +81,7 @@ const Devices = () => {
       ['设备名称', detail.device_name],
       ['Board', detail.board],
       ['App Version', detail.app_version],
-      ['Assistant ID', detail.assistant_id],
+      ['Agent ID', detail.agent_id ?? detail.agentId],
       ['组织ID', detail.group_id],
       ['自动更新', yesNo(detail.auto_update)],
       ['创建时间', detail.created_at],
