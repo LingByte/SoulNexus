@@ -13,7 +13,6 @@ import (
 	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/internal/service"
 	"github.com/LingByte/SoulNexus/internal/sfu"
-	"github.com/LingByte/SoulNexus/internal/sipserver"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/middleware"
@@ -31,7 +30,6 @@ type Handlers struct {
 	wsHub                *websocket.Hub
 	searchHandler        *search.SearchHandlers
 	ipLocationService    *utils.IPLocationService
-	campaignSvc          *sipserver.CampaignService
 	rtcsfu               *rtcsfu.ControlPlane
 	sfuEng               *sfu.Engine
 	p2p                  *sfu.P2PBroker
@@ -151,15 +149,6 @@ func NewHandlers(db *gorm.DB) *Handlers {
 	return h
 }
 
-// SetCampaignService wires the embedded SIP outbound worker (optional). Call after sipserver.Start
-// so Gin routes can expose dial-side counters (e.g. GET .../sip-center/campaigns/worker-metrics).
-func (h *Handlers) SetCampaignService(svc *sipserver.CampaignService) {
-	if h == nil {
-		return
-	}
-	h.campaignSvc = svc
-}
-
 func NewSIPServiceHandlers(db *gorm.DB) *Handlers {
 	return &Handlers{
 		db: db,
@@ -175,8 +164,6 @@ func (h *Handlers) RegisterSIPServiceRoutes(engine *gin.Engine) {
 	r := engine.Group(apiPrefix)
 	r.Use(middleware.InjectDB(h.db))
 	r.Use(middleware.MutatingRequestTrustedOrigin())
-	h.registerSIPContactCenterRoutes(r)
-	h.registerLingechoWebSeatRoutes(r)
 }
 
 // NewUserServiceHandlers returns handlers for the standalone user (auth) service binary.
