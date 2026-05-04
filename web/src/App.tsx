@@ -28,7 +28,6 @@ import GroupMembers from '@/pages/GroupMembers.tsx';
 import GroupSettings from '@/pages/GroupSettings.tsx';
 import GroupActivityLogs from '@/pages/GroupActivityLogs.tsx';
 import OverviewEditorPage from '@/pages/OverviewEditorPage.tsx';
-import UserQuotas from '@/pages/UserQuotas.tsx';
 import DeviceManagement from '@/pages/DeviceManagement.tsx';
 import DeviceDetail from '@/pages/DeviceDetail.tsx';
 import RedirectToDevices from '@/components/RedirectToDevices.tsx';
@@ -83,13 +82,6 @@ function AppRoutes() {
                             <ProtectedRoute>
                                 <Layout>
                                     <Profile />
-                                </Layout>
-                            </ProtectedRoute>
-                        } />
-                        <Route path="/quotas" element={
-                            <ProtectedRoute>
-                                <Layout>
-                                    <UserQuotas />
                                 </Layout>
                             </ProtectedRoute>
                         } />
