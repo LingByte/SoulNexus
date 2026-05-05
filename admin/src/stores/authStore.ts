@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { getCurrentUser } from '@/services/adminApi'
+import { mergeUserPartial } from '@/utils/authUserProfile'
 import { getAuthApiBaseURL } from '@/config/apiConfig'
 
 // 用户类型定义（可以根据实际需求修改）
@@ -83,7 +84,7 @@ export const useAuthStore = create<AuthState>()(
       updateProfile: (data: Partial<User>) => {
         const { user } = get()
         if (user) {
-          set({ user: { ...user, ...data } })
+          set({ user: mergeUserPartial(user as unknown as Record<string, unknown>, data as Partial<Record<string, unknown>>) as User })
         }
       },
 

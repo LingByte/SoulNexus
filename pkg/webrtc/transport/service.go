@@ -232,9 +232,10 @@ func NewAIClient(conn *websocket.Conn, transport *rtcmedia.WebRTCTransport, sess
 					// 获取组织ID（如果助手属于组织）
 					var groupID *uint
 					if client.assistantID != nil {
-						var assistant models.Assistant
+						var assistant models.Agent
 						if err := client.db.Where("id = ?", *client.assistantID).First(&assistant).Error; err == nil {
-							groupID = assistant.GroupID
+							g := assistant.GroupID
+							groupID = &g
 						}
 					}
 
@@ -447,9 +448,10 @@ func NewAIClientWithCredential(
 					// 获取组织ID（如果助手属于组织）
 					var groupID *uint
 					if client.assistantID != nil {
-						var assistant models.Assistant
+						var assistant models.Agent
 						if err := client.db.Where("id = ?", *client.assistantID).First(&assistant).Error; err == nil {
-							groupID = assistant.GroupID
+							g := assistant.GroupID
+							groupID = &g
 						}
 					}
 
@@ -1036,9 +1038,10 @@ func (c *AIClient) GenerateTTS(text string) {
 			// 获取组织ID（如果助手属于组织）
 			var groupID *uint
 			if c.assistantID != nil {
-				var assistant models.Assistant
+				var assistant models.Agent
 				if err := c.db.Where("id = ?", *c.assistantID).First(&assistant).Error; err == nil {
-					groupID = assistant.GroupID
+					g := assistant.GroupID
+					groupID = &g
 				}
 			}
 

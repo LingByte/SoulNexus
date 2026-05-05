@@ -120,7 +120,7 @@ func (t *VoiceprintIdentifyTool) Identify(ctx context.Context) (*IdentifiedSpeak
 
 	// 获取该助手下的所有声纹
 	var voiceprints []models.Voiceprint
-	if err := t.db.Where("assistant_id = ?", t.assistantID).Find(&voiceprints).Error; err != nil {
+	if err := t.db.Where("agent_id = ?", t.assistantID).Find(&voiceprints).Error; err != nil {
 		return nil, fmt.Errorf("failed to get voiceprints: %w", err)
 	}
 
@@ -143,7 +143,7 @@ func (t *VoiceprintIdentifyTool) Identify(ctx context.Context) (*IdentifiedSpeak
 	// 调用声纹识别服务
 	result, err := t.voiceprintService.IdentifyVoiceprint(ctx, &voiceprint.IdentifyRequest{
 		CandidateIDs: candidateIDs,
-		AssistantID:  t.assistantID,
+		AgentID:  t.assistantID,
 		AudioData:    wavData,
 	})
 	if err != nil {

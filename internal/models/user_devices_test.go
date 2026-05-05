@@ -17,7 +17,7 @@ func setupUserDevicesTestDB(t *testing.T) *gorm.DB {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
-	err = db.AutoMigrate(&User{}, &UserDevice{}, &LoginHistory{}, &AccountLock{})
+	err = db.AutoMigrate(&User{}, &UserProfile{}, &UserDevice{}, &LoginHistory{}, &AccountLock{})
 	require.NoError(t, err)
 
 	return db

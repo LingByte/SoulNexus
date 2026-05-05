@@ -8,7 +8,7 @@ import (
 	"fmt"
 
 	"github.com/LingByte/SoulNexus/internal/models"
-	"github.com/LingByte/SoulNexus/pkg/cache"
+	"github.com/LingByte/SoulNexus/pkg/utils/cache"
 	"github.com/LingByte/SoulNexus/pkg/voice/constants"
 	"github.com/LingByte/SoulNexus/pkg/voice/protocol"
 	"github.com/LingByte/SoulNexus/pkg/voiceprint"
@@ -20,7 +20,7 @@ import (
 // HardwareOptions hardware options
 type HardwareOptions struct {
 	Conn                 *websocket.Conn        // websocket connection
-	AssistantID          uint                   // assistant id
+	AgentID              uint                   // assistant id
 	Credential           *models.UserCredential // credential
 	Language             string                 // language
 	Speaker              string                 // speaker
@@ -60,13 +60,13 @@ func NewHardwareHandler(db *gorm.DB, logger *zap.Logger) *HardwareHandler {
 func (h *HardwareHandler) HandlerHardwareWebsocket(
 	ctx context.Context,
 	options *HardwareOptions) {
-	if options == nil || options.AssistantID == 0 {
+	if options == nil || options.AgentID == 0 {
 		h.logger.Error("options is nil or assistantID is 0 please check")
 		return
 	}
 	options.loadConfigs()
 	defer options.Conn.Close()
-	h.logger.Info(fmt.Sprintf("create hardwareSession assistantID: %d", options.AssistantID))
+	h.logger.Info(fmt.Sprintf("create hardwareSession assistantID: %d", options.AgentID))
 	voiceprintConfig := voiceprint.DefaultConfig()
 	if err := voiceprintConfig.Validate(); err != nil {
 		h.logger.Warn("[Handler] --- 验证声纹识别服务配置失败", zap.Error(err))
@@ -79,7 +79,7 @@ func (h *HardwareHandler) HandlerHardwareWebsocket(
 	session := protocol.NewHardwareSession(ctx, &protocol.HardwareSessionOption{
 		Conn:                 options.Conn,
 		Logger:               h.logger,
-		AssistantID:          options.AssistantID,
+		AgentID:              options.AgentID,
 		LLMModel:             options.LLMModel,
 		Credential:           options.Credential,
 		SystemPrompt:         options.SystemPrompt,

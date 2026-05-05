@@ -42,7 +42,7 @@ const GroupMembers: React.FC = () => {
       setMembers(res.data.members || []);
     } catch (err: any) {
       showAlert(err?.msg || t('groupMembers.messages.fetchGroupFailed'), 'error');
-      navigate('/groups');
+      navigate('/profile/teams');
     } finally {
       setLoading(false);
     }
@@ -206,7 +206,7 @@ const GroupMembers: React.FC = () => {
       <div className="max-w-7xl w-full mx-auto pt-10 pb-4 px-4">
         <div className="mb-8">
           <Button
-            onClick={() => navigate('/groups')}
+            onClick={() => navigate('/profile/teams')}
             variant="ghost"
             size="sm"
             leftIcon={<ArrowLeft className="w-4 h-4" />}

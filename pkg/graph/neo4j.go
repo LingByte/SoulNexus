@@ -33,8 +33,8 @@ type Store interface {
 	// GetUserContext 获取用户上下文（偏好、历史主题等）
 	GetUserContext(ctx context.Context, userID uint, assistantID int64) (*UserContext, error)
 
-	// GetAssistantGraphData 获取助手在图数据库中的完整图数据
-	GetAssistantGraphData(ctx context.Context, assistantID int64) (*AssistantGraphData, error)
+	// GetAgentGraphData 获取助手在图数据库中的完整图数据
+	GetAgentGraphData(ctx context.Context, assistantID int64) (*AgentGraphData, error)
 
 	// Close 关闭连接
 	Close() error
@@ -88,7 +88,7 @@ func (s *Neo4jStore) ProcessConversation(ctx context.Context, assistantID int64,
 			RETURN a`
 		_, err := tx.Run(ctx, assistantQuery, map[string]any{
 			"assistantID":   assistantID,
-			"assistantName": summary.AssistantName,
+			"assistantName": summary.AgentName,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create/update assistant: %w", err)
@@ -295,7 +295,7 @@ func (s *Neo4jStore) GetUserContext(ctx context.Context, userID uint, assistantI
 			// 如果没有记录，返回空上下文
 			return &UserContext{
 				UserID:      userID,
-				AssistantID: assistantID,
+				AgentID: assistantID,
 				Topics:      []string{},
 			}, nil
 		}
@@ -314,7 +314,7 @@ func (s *Neo4jStore) GetUserContext(ctx context.Context, userID uint, assistantI
 
 		return &UserContext{
 			UserID:      userID,
-			AssistantID: assistantID,
+			AgentID: assistantID,
 			Topics:      topicsList,
 		}, nil
 	})
@@ -326,8 +326,8 @@ func (s *Neo4jStore) GetUserContext(ctx context.Context, userID uint, assistantI
 	return result.(*UserContext), nil
 }
 
-// GetAssistantGraphData 获取助手在图数据库中的完整图数据
-func (s *Neo4jStore) GetAssistantGraphData(ctx context.Context, assistantID int64) (*AssistantGraphData, error) {
+// GetAgentGraphData 获取助手在图数据库中的完整图数据
+func (s *Neo4jStore) GetAgentGraphData(ctx context.Context, assistantID int64) (*AgentGraphData, error) {
 	session := s.driver.NewSession(ctx, neo4j.SessionConfig{
 		DatabaseName: s.db,
 		AccessMode:   neo4j.AccessModeRead,
@@ -342,11 +342,11 @@ func (s *Neo4jStore) GetAssistantGraphData(ctx context.Context, assistantID int6
 		return nil, fmt.Errorf("failed to get assistant graph data: %w", err)
 	}
 
-	return result.(*AssistantGraphData), nil
+	return result.(*AgentGraphData), nil
 }
 
 // getDetailedGraphData 获取详细的图数据（当简单查询返回空时使用）
-func (s *Neo4jStore) getDetailedGraphData(tx neo4j.ManagedTransaction, ctx context.Context, assistantID int64) (*AssistantGraphData, error) {
+func (s *Neo4jStore) getDetailedGraphData(tx neo4j.ManagedTransaction, ctx context.Context, assistantID int64) (*AgentGraphData, error) {
 	nodesMap := make(map[string]GraphNode)
 	edges := []GraphEdge{}
 
@@ -608,8 +608,8 @@ func (s *Neo4jStore) getDetailedGraphData(tx neo4j.ManagedTransaction, ctx conte
 	stats := s.calculateStats(nodes)
 	stats.TotalEdges = len(edges)
 
-	return &AssistantGraphData{
-		AssistantID: assistantID,
+	return &AgentGraphData{
+		AgentID: assistantID,
 		Nodes:       nodes,
 		Edges:       edges,
 		Stats:       stats,

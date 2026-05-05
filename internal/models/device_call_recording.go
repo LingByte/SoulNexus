@@ -17,38 +17,38 @@ func CreateCallRecording(db *gorm.DB, recording *CallRecording) error {
 	return db.Create(recording).Error
 }
 
-// GetCallRecordingsByAssistant 获取助手的通话录音列表
-func GetCallRecordingsByAssistant(db *gorm.DB, userID, assistantID uint, limit, offset int) ([]CallRecording, int64, error) {
+// GetCallRecordingsByAgent 获取 Agent 的通话录音列表
+func GetCallRecordingsByAgent(db *gorm.DB, groupID, agentID uint, limit, offset int) ([]CallRecording, int64, error) {
 	var recordings []CallRecording
 	var total int64
-	query := db.Where("user_id = ? AND assistant_id = ?", userID, assistantID)
+	query := db.Where("group_id = ? AND agent_id = ?", groupID, agentID)
 	query.Model(&CallRecording{}).Count(&total)
 	err := query.Order("created_at DESC").Limit(limit).Offset(offset).Find(&recordings).Error
 	return recordings, total, err
 }
 
 // GetCallRecordingsByDevice 获取设备的通话录音列表
-func GetCallRecordingsByDevice(db *gorm.DB, userID uint, macAddress string, limit, offset int) ([]CallRecording, int64, error) {
+func GetCallRecordingsByDevice(db *gorm.DB, groupID uint, macAddress string, limit, offset int) ([]CallRecording, int64, error) {
 	var recordings []CallRecording
 	var total int64
-	query := db.Where("user_id = ? AND mac_address = ? AND is_deleted = ?", userID, macAddress, false)
+	query := db.Where("group_id = ? AND mac_address = ? AND is_deleted = ?", groupID, macAddress, false)
 	query.Model(&CallRecording{}).Count(&total)
 	err := query.Order("created_at DESC").Limit(limit).Offset(offset).Find(&recordings).Error
 	return recordings, total, err
 }
 
 // GetCallRecordingByID 根据ID获取通话录音
-func GetCallRecordingByID(db *gorm.DB, userID uint, recordingID uint) (*CallRecording, error) {
+func GetCallRecordingByID(db *gorm.DB, groupID uint, recordingID uint) (*CallRecording, error) {
 	var recording CallRecording
-	err := db.Where("id = ? AND user_id = ? AND is_deleted = ?", recordingID, userID, false).First(&recording).Error
+	err := db.Where("id = ? AND group_id = ? AND is_deleted = ?", recordingID, groupID, false).First(&recording).Error
 	return &recording, err
 }
 
 // DeleteCallRecordingLogical 逻辑删除通话录音
-func DeleteCallRecordingLogical(db *gorm.DB, recordingID, userID uint) error {
+func DeleteCallRecordingLogical(db *gorm.DB, recordingID, groupID uint) error {
 	now := time.Now()
 	return db.Model(&CallRecording{}).
-		Where("id = ? AND user_id = ?", recordingID, userID).
+		Where("id = ? AND group_id = ?", recordingID, groupID).
 		Updates(map[string]interface{}{
 			"is_deleted": true,
 			"deleted_at": now,
@@ -65,23 +65,31 @@ func GetExpiredRecordings(db *gorm.DB, limit int) ([]CallRecording, error) {
 	return recordings, err
 }
 
-// GetCallRecordingsByUser 获取用户的所有通话录音列表
-func GetCallRecordingsByUser(db *gorm.DB, userID uint, limit, offset int) ([]CallRecording, int64, error) {
+// GetCallRecordingsByMemberUser 获取当前用户可访问组织下的通话录音列表
+func GetCallRecordingsByMemberUser(db *gorm.DB, userID uint, limit, offset int) ([]CallRecording, int64, error) {
+	groupIDs, err := MemberGroupIDs(db, userID)
+	if err != nil {
+		return nil, 0, err
+	}
 	var recordings []CallRecording
 	var total int64
-	query := db.Where("user_id = ?", userID)
+	if len(groupIDs) == 0 {
+		return recordings, 0, nil
+	}
+	query := db.Where("group_id IN ?", groupIDs)
 	if err := query.Model(&CallRecording{}).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	err := query.Order("created_at DESC").Limit(limit).Offset(offset).Find(&recordings).Error
+	err = query.Order("created_at DESC").Limit(limit).Offset(offset).Find(&recordings).Error
 	return recordings, total, err
 }
 
 // CallRecording 通话录音表
 type CallRecording struct {
 	BaseModel
-	UserID                  uint       `json:"userId" gorm:"index;not null"`
-	AssistantID             uint       `json:"assistantId" gorm:"index;not null"`
+	GroupID                 uint       `json:"groupId" gorm:"index;not null"`
+	CreatedBy               uint       `json:"createdBy" gorm:"index"`
+	AgentID                 uint       `json:"agentId" gorm:"column:agent_id;index;not null"`
 	DeviceID                string     `json:"deviceId" gorm:"size:64;index"`                         // 设备ID (MAC地址)
 	MacAddress              string     `json:"macAddress" gorm:"size:64;index"`                       // MAC地址
 	SessionID               string     `json:"sessionId" gorm:"size:128;index"`                       // 会话ID

@@ -8,13 +8,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/LingByte/SoulNexus/pkg/i18n"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestNewValidator(t *testing.T) {
-	i18nManager := i18n.NewManager(nil)
-	validator := NewValidator(i18nManager)
+	validator := NewValidator(nil)
 
 	if validator == nil {
 		t.Fatal("expected non-nil validator")
@@ -22,8 +20,7 @@ func TestNewValidator(t *testing.T) {
 }
 
 func TestValidator_ValidateRequired(t *testing.T) {
-	i18nManager := i18n.NewManager(nil)
-	validator := NewValidator(i18nManager)
+	validator := NewValidator(nil)
 
 	type TestStruct struct {
 		Name string `validate:"required"`
@@ -41,8 +38,7 @@ func TestValidator_ValidateRequired(t *testing.T) {
 }
 
 func TestValidator_ValidateEmail(t *testing.T) {
-	i18nManager := i18n.NewManager(nil)
-	validator := NewValidator(i18nManager)
+	validator := NewValidator(nil)
 
 	type TestStruct struct {
 		Email string `validate:"email"`
@@ -60,8 +56,7 @@ func TestValidator_ValidateEmail(t *testing.T) {
 }
 
 func TestValidator_ValidateXSS(t *testing.T) {
-	i18nManager := i18n.NewManager(nil)
-	validator := NewValidator(i18nManager)
+	validator := NewValidator(nil)
 
 	type TestStruct struct {
 		Content string `validate:"xss"`
@@ -79,8 +74,7 @@ func TestValidator_ValidateXSS(t *testing.T) {
 }
 
 func TestValidator_ValidateSQL(t *testing.T) {
-	i18nManager := i18n.NewManager(nil)
-	validator := NewValidator(i18nManager)
+	validator := NewValidator(nil)
 
 	type TestStruct struct {
 		Query string `validate:"sql"`
@@ -103,8 +97,7 @@ func TestValidator_ValidateSQL(t *testing.T) {
 }
 
 func TestValidator_ValidateMinMax(t *testing.T) {
-	i18nManager := i18n.NewManager(nil)
-	validator := NewValidator(i18nManager)
+	validator := NewValidator(nil)
 
 	type TestStruct struct {
 		Age int `validate:"min=18,max=100"`
@@ -127,8 +120,7 @@ func TestValidator_ValidateMinMax(t *testing.T) {
 }
 
 func TestValidator_ValidateMinLenMaxLen(t *testing.T) {
-	i18nManager := i18n.NewManager(nil)
-	validator := NewValidator(i18nManager)
+	validator := NewValidator(nil)
 
 	type TestStruct struct {
 		Password string `validate:"minlen=8,maxlen=20"`
@@ -151,8 +143,7 @@ func TestValidator_ValidateMinLenMaxLen(t *testing.T) {
 }
 
 func TestValidator_ValidateURL(t *testing.T) {
-	i18nManager := i18n.NewManager(nil)
-	validator := NewValidator(i18nManager)
+	validator := NewValidator(nil)
 
 	type TestStruct struct {
 		URL string `validate:"url"`
@@ -170,8 +161,7 @@ func TestValidator_ValidateURL(t *testing.T) {
 }
 
 func TestValidator_ValidatePhone(t *testing.T) {
-	i18nManager := i18n.NewManager(nil)
-	validator := NewValidator(i18nManager)
+	validator := NewValidator(nil)
 
 	type TestStruct struct {
 		Phone string `validate:"phone"`
@@ -189,8 +179,7 @@ func TestValidator_ValidatePhone(t *testing.T) {
 }
 
 func TestValidator_ValidateAlphanum(t *testing.T) {
-	i18nManager := i18n.NewManager(nil)
-	validator := NewValidator(i18nManager)
+	validator := NewValidator(nil)
 
 	type TestStruct struct {
 		Username string `validate:"alphanum"`
@@ -208,8 +197,7 @@ func TestValidator_ValidateAlphanum(t *testing.T) {
 }
 
 func TestValidator_ValidateAlpha(t *testing.T) {
-	i18nManager := i18n.NewManager(nil)
-	validator := NewValidator(i18nManager)
+	validator := NewValidator(nil)
 
 	type TestStruct struct {
 		Name string `validate:"alpha"`
@@ -227,8 +215,7 @@ func TestValidator_ValidateAlpha(t *testing.T) {
 }
 
 func TestValidator_RegisterCustomRule(t *testing.T) {
-	i18nManager := i18n.NewManager(nil)
-	validator := NewValidator(i18nManager)
+	validator := NewValidator(nil)
 
 	// Register custom rule
 	validator.RegisterCustomRule("custom", func(value interface{}, params map[string]interface{}) error {
@@ -258,8 +245,7 @@ func TestValidator_RegisterCustomRule(t *testing.T) {
 }
 
 func TestValidator_ValidateField(t *testing.T) {
-	i18nManager := i18n.NewManager(nil)
-	validator := NewValidator(i18nManager)
+	validator := NewValidator(nil)
 
 	rules := []Rule{
 		{Name: "required", Func: validateRequired},

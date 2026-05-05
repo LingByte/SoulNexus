@@ -45,7 +45,7 @@ func (h *CallRecordingHandler) GetCallRecordings(c *gin.Context) {
 	// 获取查询参数
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "20"))
-	assistantID, _ := strconv.Atoi(c.Query("assistantId"))
+	agentID, _ := strconv.Atoi(c.Query("agentId"))
 	macAddress := c.Query("macAddress")
 
 	if page < 1 {
@@ -59,15 +59,30 @@ func (h *CallRecordingHandler) GetCallRecordings(c *gin.Context) {
 	var total int64
 	var err error
 
-	if assistantID > 0 {
-		// 按助手查询
-		recordings, total, err = models.GetCallRecordingsByAssistant(h.db, userID, uint(assistantID), pageSize, (page-1)*pageSize)
+	if agentID > 0 {
+		var ag models.Agent
+		if err = h.db.First(&ag, agentID).Error; err != nil {
+			response.Fail(c, "助手不存在", nil)
+			return
+		}
+		if !models.UserIsGroupMember(h.db, userID, ag.GroupID) {
+			response.Fail(c, "无权访问", nil)
+			return
+		}
+		recordings, total, err = models.GetCallRecordingsByAgent(h.db, ag.GroupID, uint(agentID), pageSize, (page-1)*pageSize)
 	} else if macAddress != "" {
-		// 按设备查询
-		recordings, total, err = models.GetCallRecordingsByDevice(h.db, userID, macAddress, pageSize, (page-1)*pageSize)
+		dev, derr := models.GetDeviceByMacAddress(h.db, macAddress)
+		if derr != nil || dev == nil {
+			response.Fail(c, "设备不存在", nil)
+			return
+		}
+		if !models.UserIsGroupMember(h.db, userID, dev.GroupID) {
+			response.Fail(c, "无权访问", nil)
+			return
+		}
+		recordings, total, err = models.GetCallRecordingsByDevice(h.db, dev.GroupID, macAddress, pageSize, (page-1)*pageSize)
 	} else {
-		// 查询所有
-		recordings, total, err = models.GetCallRecordingsByUser(h.db, userID, pageSize, (page-1)*pageSize)
+		recordings, total, err = models.GetCallRecordingsByMemberUser(h.db, userID, pageSize, (page-1)*pageSize)
 	}
 
 	if err != nil {
@@ -93,15 +108,19 @@ func (h *CallRecordingHandler) GetCallRecordingDetail(c *gin.Context) {
 	}
 
 	recordingIDStr := c.Param("id")
-	recordingID, err := strconv.ParseUint(recordingIDStr, 10, 32)
-	if err != nil {
+	recordingID, parseErr := strconv.ParseUint(recordingIDStr, 10, 32)
+	if parseErr != nil {
 		response.Fail(c, "无效的记录ID", nil)
 		return
 	}
 
-	// 获取通话记录
+	groupIDs, err := models.MemberGroupIDs(h.db, userID)
+	if err != nil || len(groupIDs) == 0 {
+		response.Fail(c, "通话记录不存在", nil)
+		return
+	}
 	var recording models.CallRecording
-	err = h.db.Where("id = ? AND user_id = ?", recordingID, userID).First(&recording).Error
+	err = h.db.Where("id = ? AND group_id IN ?", recordingID, groupIDs).First(&recording).Error
 	if err != nil {
 		h.logger.Error("获取通话记录详情失败", zap.Error(err), zap.Uint("userID", userID), zap.Uint64("recordingID", recordingID))
 		response.Fail(c, "通话记录不存在", nil)
@@ -135,8 +154,12 @@ func (h *CallRecordingHandler) DeleteCallRecording(c *gin.Context) {
 		return
 	}
 
-	// 删除通话记录
-	err = h.db.Where("id = ? AND user_id = ?", recordingID, userID).Delete(&models.CallRecording{}).Error
+	groupIDs, err := models.MemberGroupIDs(h.db, userID)
+	if err != nil || len(groupIDs) == 0 {
+		response.Fail(c, "删除失败", nil)
+		return
+	}
+	err = h.db.Where("id = ? AND group_id IN ?", recordingID, groupIDs).Delete(&models.CallRecording{}).Error
 	if err != nil {
 		h.logger.Error("删除通话记录失败", zap.Error(err), zap.Uint("userID", userID), zap.Uint64("recordingID", recordingID))
 		response.Fail(c, "删除通话记录失败", nil)
@@ -155,22 +178,26 @@ func (h *CallRecordingHandler) GetCallRecordingStats(c *gin.Context) {
 	}
 
 	// 获取查询参数
-	assistantID, _ := strconv.Atoi(c.Query("assistantId"))
+	agentID, _ := strconv.Atoi(c.Query("agentId"))
 	macAddress := c.Query("macAddress")
 
-	// Simple stats implementation - just return basic counts for now
-	var totalRecordings int64
-	query := h.db.Model(&models.CallRecording{}).Where("user_id = ?", userID)
+	groupIDs, err := models.MemberGroupIDs(h.db, userID)
+	if err != nil || len(groupIDs) == 0 {
+		response.Success(c, "获取成功", gin.H{"totalRecordings": int64(0)})
+		return
+	}
 
-	// Apply filters if provided
-	if assistantID > 0 {
-		query = query.Where("assistant_id = ?", assistantID)
+	var totalRecordings int64
+	query := h.db.Model(&models.CallRecording{}).Where("group_id IN ?", groupIDs)
+
+	if agentID > 0 {
+		query = query.Where("agent_id = ?", agentID)
 	}
 	if macAddress != "" {
 		query = query.Where("mac_address = ?", macAddress)
 	}
 
-	err := query.Count(&totalRecordings).Error
+	err = query.Count(&totalRecordings).Error
 	if err != nil {
 		h.logger.Error("获取通话记录统计失败", zap.Error(err), zap.Uint("userID", userID))
 		response.Fail(c, "获取统计数据失败", nil)

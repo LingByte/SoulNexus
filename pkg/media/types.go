@@ -165,8 +165,8 @@ type CompletedData struct {
 	Duration     time.Duration `json:"duration"`   // total duration
 	Source       MediaPacket   `json:"-"`          // last packet
 	Result       any           `json:"result"`     // result
-	AssistantId  uint          `json:"assistantId"`
-	AssistantVid uint          `json:"assistantVid"`
+	AgentID  uint `json:"agentId"`
+	AgentVID uint `json:"agentVid"`
 	DialogID     string        `json:"dialogID"`
 }
 

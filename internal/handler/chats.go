@@ -65,7 +65,7 @@ func (m *ClientManager) GetClient(sessionID string) (*transports.AIClient, bool)
 }
 
 type ChatRequest struct {
-	AssistantID  int64   `json:"assistantId" binding:"required"`
+	AgentID  int64   `json:"agentId" binding:"required"`
 	SystemPrompt string  `json:"systemPrompt"`
 	Speaker      string  `json:"speaker"`
 	Language     string  `json:"language"`
@@ -82,7 +82,7 @@ type ChatResponse struct {
 }
 
 type ChatSessionMap struct {
-	AssistantID int64
+	AgentID int64
 	//SdkClient   *client.Client
 }
 
@@ -248,8 +248,8 @@ func (h *Handlers) getChatSessionLogsBySession(c *gin.Context) {
 		return
 	}
 
-	var assistantName string
-	_ = h.db.Table("assistants").Where("id = ?", session.AssistantID).Select("name").Scan(&assistantName)
+	var agentName string
+	_ = h.db.Table("agents").Where("id = ?", session.AgentID).Select("name").Scan(&agentName)
 
 	var usages []models.LLMUsage
 	_ = h.db.Where("session_id = ?", sessionID).Order("requested_at ASC, created_at ASC").Find(&usages).Error
@@ -278,10 +278,10 @@ func (h *Handlers) getChatSessionLogsBySession(c *gin.Context) {
 		}
 
 		detail := models.ChatSessionLogDetail{
-			ID:            userMsg.CreatedAt.UnixMilli(),
-			SessionID:     sessionID,
-			AssistantID:   session.AssistantID,
-			AssistantName: assistantName,
+			ID:        userMsg.CreatedAt.UnixMilli(),
+			SessionID: sessionID,
+			AgentID:   session.AgentID,
+			AgentName: agentName,
 			ChatType:      models.ChatTypeText,
 			UserMessage:   userMsg.Content,
 			CreatedAt:     userMsg.CreatedAt,
@@ -309,8 +309,8 @@ func (h *Handlers) getChatSessionLogsBySession(c *gin.Context) {
 	response.Success(c, "Fetched chat session logs successfully", details)
 }
 
-// getChatSessionLogByAssistant 获取指定助手的聊天记录
-func (h *Handlers) getChatSessionLogByAssistant(c *gin.Context) {
+// getChatSessionLogByAgent returns chat logs for an agent
+func (h *Handlers) getChatSessionLogByAgent(c *gin.Context) {
 	// 获取当前登录用户
 	user := models.CurrentUser(c)
 	if user == nil {
@@ -318,16 +318,15 @@ func (h *Handlers) getChatSessionLogByAssistant(c *gin.Context) {
 		return
 	}
 
-	// 获取助手ID
-	assistantIDStr := c.Param("assistantId")
-	if assistantIDStr == "" {
-		response.Fail(c, "Assistant ID is required", nil)
+	agentIDStr := c.Param("agentId")
+	if agentIDStr == "" {
+		response.Fail(c, "Agent ID is required", nil)
 		return
 	}
 
-	assistantID, err := strconv.ParseInt(assistantIDStr, 10, 64)
+	agentID, err := strconv.ParseInt(agentIDStr, 10, 64)
 	if err != nil {
-		response.Fail(c, "Invalid assistant ID", nil)
+		response.Fail(c, "Invalid agent ID", nil)
 		return
 	}
 
@@ -359,7 +358,7 @@ func (h *Handlers) getChatSessionLogByAssistant(c *gin.Context) {
 	}
 	logs := make([]models.ChatSessionLogSummary, 0, pageSizeInt)
 	for _, item := range allLogs {
-		if item.AssistantID == assistantID {
+		if item.AgentID == agentID {
 			logs = append(logs, item)
 			if len(logs) >= pageSizeInt {
 				break
@@ -378,7 +377,7 @@ func (h *Handlers) getChatSessionLogByAssistant(c *gin.Context) {
 		"logs":        logs,
 		"nextCursor":  nextCursor,
 		"hasMoreData": len(logs) == pageSizeInt,
-		"assistantId": assistantID,
+		"agentId": agentID,
 	})
 }
 
@@ -401,7 +400,7 @@ func (h *Handlers) handleConnection(c *gin.Context) {
 	// 从 URL 参数中获取认证信息
 	apiKey := c.Query("apiKey")
 	apiSecret := c.Query("apiSecret")
-	assistantIDStr := c.Query("assistantId")
+	agentIDStr := c.Query("agentId")
 
 	// 验证必需参数 - 在 WebSocket 升级之前验证，失败时直接返回 HTTP 错误
 	if apiKey == "" || apiSecret == "" {
@@ -409,8 +408,8 @@ func (h *Handlers) handleConnection(c *gin.Context) {
 		c.Abort()
 		return
 	}
-	if assistantIDStr == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing required parameter: assistantId is required"})
+	if agentIDStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing required parameter: agentId is required"})
 		c.Abort()
 		return
 	}
@@ -428,43 +427,36 @@ func (h *Handlers) handleConnection(c *gin.Context) {
 		return
 	}
 
-	// 解析 assistantId
-	assistantID, err := strconv.ParseInt(assistantIDStr, 10, 64)
+	agentID, err := strconv.ParseInt(agentIDStr, 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid assistantId format"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid agentId format"})
 		c.Abort()
 		return
 	}
 
-	// 查询 assistant 配置
-	var assistant models.Assistant
-	if err := h.db.First(&assistant, assistantID).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Assistant not found"})
+	var agent models.Agent
+	if err := h.db.First(&agent, agentID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Agent not found"})
 		c.Abort()
 		return
 	}
 
-	// 验证 assistant 是否属于该用户（通过 credential 的 UserID）
-	if assistant.UserID != cred.UserID {
-		// 检查是否是组织共享的助手
-		if assistant.GroupID == nil {
-			c.JSON(http.StatusForbidden, gin.H{"error": "Permission denied: assistant does not belong to you"})
-			c.Abort()
-			return
-		}
-		// TODO: 可以在这里添加组织成员权限检查
+	if cred.GroupID != agent.GroupID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Permission denied: credential and agent are not in the same organization"})
+		c.Abort()
+		return
 	}
 
-	systemPrompt := assistant.SystemPrompt
+	systemPrompt := agent.SystemPrompt
 	if systemPrompt == "" {
 		systemPrompt = "你是一个友好的AI助手，请用简洁明了的语言回答问题。"
 	}
 
 	// 如果开启了图记忆功能，则尝试从 Neo4j 中获取该用户的长期偏好主题，并拼接到系统提示词中
-	if config.GlobalConfig.Services.GraphMemory.Neo4j.Enabled && assistant.EnableGraphMemory {
+	if config.GlobalConfig.Services.GraphMemory.Neo4j.Enabled && agent.EnableGraphMemory {
 		if store := graph.GetDefaultStore(); store != nil {
 			ctx := c.Request.Context()
-			if userCtx, err := store.GetUserContext(ctx, cred.UserID, assistantID); err == nil {
+			if userCtx, err := store.GetUserContext(ctx, cred.CreatedBy, agentID); err == nil {
 				if len(userCtx.Topics) > 0 {
 					// 构建一段自然语言描述用户长期偏好
 					preferenceText := fmt.Sprintf("该用户在历史对话中经常讨论这些主题：%s。请在回答时优先从这些兴趣和习惯的角度来组织内容，让风格尽量贴近他的偏好。",
@@ -479,23 +471,22 @@ func (h *Handlers) handleConnection(c *gin.Context) {
 		}
 	}
 
-	maxTokens := assistant.MaxTokens
+	maxTokens := agent.MaxTokens
 	if maxTokens == 0 {
 		maxTokens = 0 // 0 表示不限制
 	}
 
-	temperature := assistant.Temperature
+	temperature := agent.Temperature
 	if temperature == 0 {
 		temperature = 0.7 // 默认值
 	}
 
 	language := "zh" // 默认中文
 
-	speaker := assistant.Speaker
-	llmModel := assistant.LLMModel
+	speaker := agent.Speaker
+	llmModel := agent.LLMModel
 
-	// 转换 assistantID 为 *uint
-	aid := uint(assistantID)
+	aid := uint(agentID)
 
 	// 升级 HTTP 请求为 WebSocket 连接
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
@@ -540,7 +531,7 @@ func (h *Handlers) handleConnection(c *gin.Context) {
 		sessionID,
 		"",
 		h.db,
-		cred.UserID,
+		cred.CreatedBy,
 		cred.ID,
 		&aid,
 		cred,

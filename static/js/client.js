@@ -369,7 +369,7 @@
                     newSocket.send(JSON.stringify({
                         type: 'offer',
                         sdp: offer.sdp,
-                        assistantId: selectedAssistant || 1,
+                        agentId: selectedAssistant || 1,
                         instruction: instruction,
                         language: language,
                         maxTokens: maxTokens,
@@ -672,8 +672,8 @@
         });
     }
 
-    function getAssistant(assistantId) {
-        return axios.get(`${SERVER_BASE}/api/assistants/${assistantId}`, {
+    function getAssistant(agentId) {
+        return axios.get(`${SERVER_BASE}/api/assistants/${agentId}`, {
             headers: {
                 "X-API-KEY": apiKey,
                 "X-API-SECRET": apiSecret,
@@ -690,8 +690,8 @@
         });
     }
 
-    function updateAssistant(assistantId, data) {
-        return axios.put(`${SERVER_BASE}/api/assistants/${assistantId}`, data, {
+    function updateAssistant(agentId, data) {
+        return axios.put(`${SERVER_BASE}/api/assistants/${agentId}`, data, {
             headers: {
                 "X-API-KEY": apiKey,
                 "X-API-SECRET": apiSecret,
@@ -699,8 +699,8 @@
         });
     }
 
-    function deleteAssistant(assistantId) {
-        return axios.delete(`${SERVER_BASE}/api/assistants/${assistantId}`, {
+    function deleteAssistant(agentId) {
+        return axios.delete(`${SERVER_BASE}/api/assistants/${agentId}`, {
             headers: {
                 "X-API-KEY": apiKey,
                 "X-API-SECRET": apiSecret,
@@ -988,8 +988,8 @@
         if (config.volume !== undefined) {
             volume = config.volume;
         }
-        if (config.assistantId) {
-            selectedAssistant = config.assistantId;
+        if (config.agentId != null) {
+            selectedAssistant = config.agentId;
         }
         
         console.log('[AIPet] 配置已应用:', {

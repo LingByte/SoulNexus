@@ -138,7 +138,7 @@ const AccountDeletionRequest = () => {
       <div className="max-w-lg mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-semibold text-gray-900 dark:text-white">注销账号</h1>
-          <Link to="/profile" className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
+          <Link to="/profile/personal" className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
             返回资料
           </Link>
         </div>

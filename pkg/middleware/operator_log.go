@@ -69,7 +69,7 @@ func OperationLogMiddleware() gin.HandlerFunc {
 
 		// 记录操作日志（异步执行，避免影响响应时间）
 		go func() {
-			err := CreateOperationLog(db, userModel.ID, userModel.DisplayName, action, target, details, ipAddress, userAgent, referer, device, browser+version, os, location.(string), action)
+			err := CreateOperationLog(db, userModel.ID, userModel.EffectiveDisplayName(), action, target, details, ipAddress, userAgent, referer, device, browser+version, os, location.(string), action)
 			if err != nil {
 				// 记录错误但不影响主流程
 				log.Printf("Failed to record operation log: %v", err)

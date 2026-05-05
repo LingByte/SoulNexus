@@ -125,7 +125,7 @@ func IndexUserData(db *gorm.DB, engine search2.Engine) error {
 	assistantOffset := 0
 	assistantBatchSize := 100 // Query 100 items each time
 	for {
-		var assistants []models.Assistant
+		var assistants []models.Agent
 		if err := db.Offset(assistantOffset).Limit(assistantBatchSize).Find(&assistants).Error; err != nil {
 			logger.Error("Failed to query assistants", zap.Error(err))
 			break
@@ -140,7 +140,7 @@ func IndexUserData(db *gorm.DB, engine search2.Engine) error {
 				ID:   fmt.Sprintf("assistant_%d", assistant.ID),
 				Type: "assistant",
 				Fields: map[string]interface{}{
-					"userId":      strconv.Itoa(int(assistant.UserID)),
+					"groupId":     strconv.Itoa(int(assistant.GroupID)),
 					"title":       assistant.Name,
 					"description": assistant.Description,
 					"content":     assistant.SystemPrompt,
@@ -200,7 +200,7 @@ func IndexUserData(db *gorm.DB, engine search2.Engine) error {
 					"description": preview,
 					"content":     log.UserMessage + " " + log.AgentMessage,
 					"type":        "chat",
-					"url":         fmt.Sprintf("/voice-assistant/%d", log.AssistantID),
+					"url":         fmt.Sprintf("/voice-assistant/%d", log.AgentID),
 					"category":    "chat",
 				},
 			}

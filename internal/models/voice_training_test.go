@@ -12,14 +12,21 @@ import (
 )
 
 func setupVoiceTrainingTestDB(t *testing.T) *gorm.DB {
-	return setupTestDBWithSilentLogger(t,
+	db := setupTestDBWithSilentLogger(t,
 		&User{},
+		&UserProfile{},
+		&Role{},
+		&UserRole{},
+		&Group{},
+		&GroupMember{},
 		&VoiceTrainingTask{},
 		&VoiceClone{},
 		&VoiceSynthesis{},
 		&VoiceTrainingText{},
 		&VoiceTrainingTextSegment{},
 	)
+	ensureMinimalRoleForTests(t, db)
+	return db
 }
 
 func TestVoiceTrainingTask_GetStatusText(t *testing.T) {
@@ -266,14 +273,16 @@ func TestVoiceTrainingTask_CRUD(t *testing.T) {
 
 	user, err := CreateUser(db, "test@example.com", "password123")
 	require.NoError(t, err)
+	gid := ensureTestTeamGroup(t, db, user.ID)
 
 	task := &VoiceTrainingTask{
-		UserID:   user.ID,
-		TaskID:   "task-123",
-		TaskName: "Test Task",
-		Status:   TrainingStatusInProgress,
-		Sex:      SexMale,
-		AgeGroup: AgeGroupYouth,
+		GroupID:   gid,
+		CreatedBy: user.ID,
+		TaskID:    "task-123",
+		TaskName:  "Test Task",
+		Status:    TrainingStatusInProgress,
+		Sex:       SexMale,
+		AgeGroup:  AgeGroupYouth,
 	}
 
 	err = db.Create(task).Error
@@ -301,18 +310,21 @@ func TestVoiceClone_CRUD(t *testing.T) {
 
 	user, err := CreateUser(db, "test@example.com", "password123")
 	require.NoError(t, err)
+	gid := ensureTestTeamGroup(t, db, user.ID)
 
 	task := &VoiceTrainingTask{
-		UserID:   user.ID,
-		TaskID:   "task-123",
-		TaskName: "Test Task",
-		Status:   TrainingStatusSuccess,
+		GroupID:   gid,
+		CreatedBy: user.ID,
+		TaskID:    "task-123",
+		TaskName:  "Test Task",
+		Status:    TrainingStatusSuccess,
 	}
 	err = db.Create(task).Error
 	require.NoError(t, err)
 
 	clone := &VoiceClone{
-		UserID:         user.ID,
+		GroupID:        gid,
+		CreatedBy:      user.ID,
 		TrainingTaskID: task.ID,
 		AssetID:        "asset-123",
 		TrainVID:       "vid-123",
@@ -347,18 +359,21 @@ func TestVoiceSynthesis_CRUD(t *testing.T) {
 
 	user, err := CreateUser(db, "test@example.com", "password123")
 	require.NoError(t, err)
+	gid := ensureTestTeamGroup(t, db, user.ID)
 
 	task := &VoiceTrainingTask{
-		UserID:   user.ID,
-		TaskID:   "task-123",
-		TaskName: "Test Task",
-		Status:   TrainingStatusSuccess,
+		GroupID:   gid,
+		CreatedBy: user.ID,
+		TaskID:    "task-123",
+		TaskName:  "Test Task",
+		Status:    TrainingStatusSuccess,
 	}
 	err = db.Create(task).Error
 	require.NoError(t, err)
 
 	clone := &VoiceClone{
-		UserID:         user.ID,
+		GroupID:        gid,
+		CreatedBy:      user.ID,
 		TrainingTaskID: task.ID,
 		AssetID:        "asset-123",
 		VoiceName:      "Test Voice",
@@ -367,7 +382,8 @@ func TestVoiceSynthesis_CRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	synthesis := &VoiceSynthesis{
-		UserID:       user.ID,
+		GroupID:      gid,
+		CreatedBy:    user.ID,
 		VoiceCloneID: clone.ID,
 		Text:         "Hello world",
 		Language:     "zh",

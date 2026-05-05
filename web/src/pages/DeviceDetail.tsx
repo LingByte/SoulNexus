@@ -308,7 +308,7 @@ const DeviceDetail: React.FC = () => {
         try {
             setIsBatchAnalyzing(true);
             const response = await batchAnalyzeCallRecordings({
-                assistantId: device?.assistantId,
+                agentId: device?.agentId,
                 limit: 10
             });
             if (response.code === 200) {

@@ -7,11 +7,11 @@ import { showAlert } from '@/utils/notification'
 import { identifyVoiceprint } from '@/api/voiceprint'
 
 interface VoiceprintTestProps {
-  assistantId: string
+  agentId: string
   assistantName: string
 }
 
-const VoiceprintTest = ({ assistantId, assistantName }: VoiceprintTestProps) => {
+const VoiceprintTest = ({ agentId, assistantName }: VoiceprintTestProps) => {
   const [audioFile, setAudioFile] = useState<File | null>(null)
   const [isIdentifying, setIsIdentifying] = useState(false)
   const [identifyResult, setIdentifyResult] = useState<any>(null)
@@ -24,7 +24,7 @@ const VoiceprintTest = ({ assistantId, assistantName }: VoiceprintTestProps) => 
 
     setIsIdentifying(true)
     try {
-      const response = await identifyVoiceprint(assistantId, audioFile)
+      const response = await identifyVoiceprint(agentId, audioFile)
       if (response.code === 200) {
         setIdentifyResult(response.data)
         if (response.data.is_match) {

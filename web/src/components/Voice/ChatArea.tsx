@@ -299,7 +299,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
       <div className="flex items-center justify-between p-3 border-b dark:border-neutral-700 bg-gray-50 dark:bg-neutral-900">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            {assistantName || '未选择助手'}
+            {assistantName || '未选择智能体'}
           </span>
           {isMuted && (
             <span className="text-xs text-red-500 bg-red-100 dark:bg-red-900 px-2 py-1 rounded">

@@ -11,8 +11,8 @@ import (
 
 type VoiceTrainingTask struct {
 	ID            uint           `json:"id" gorm:"primaryKey"`
-	UserID        uint           `json:"user_id" gorm:"not null;index"`                              // 用户ID，确保隔离
-	GroupID       *uint          `json:"group_id,omitempty" gorm:"index"`                            // 组织ID，如果设置则表示这是组织共享的音色训练任务
+	GroupID       uint           `json:"group_id" gorm:"index"`
+	CreatedBy     uint           `json:"created_by" gorm:"index"`
 	TaskID        string         `json:"task_id" gorm:"uniqueIndex:idx_task_id,length:100;not null"` // 讯飞返回的任务ID
 	TaskName      string         `json:"task_name" gorm:"not null"`                                  // 任务名称
 	Sex           int            `json:"sex" gorm:"default:1"`                                       // 性别 1:男 2:女
@@ -35,8 +35,8 @@ type VoiceTrainingTask struct {
 // VoiceClone 音色克隆（训练成功后的音色资源）
 type VoiceClone struct {
 	ID               uint           `json:"id" gorm:"primaryKey"`
-	UserID           uint           `json:"user_id" gorm:"not null;index"`                                // 用户ID
-	GroupID          *uint          `json:"group_id,omitempty" gorm:"index"`                              // 组织ID，如果设置则表示这是组织共享的音色
+	GroupID          uint           `json:"group_id" gorm:"index"`
+	CreatedBy        uint           `json:"created_by" gorm:"index"`
 	TrainingTaskID   uint           `json:"training_task_id" gorm:"index"`                                // 关联的训练任务ID（火山引擎可能为0）
 	Provider         string         `json:"provider" gorm:"default:'xunfei';index"`                       // 平台提供商: xunfei, volcengine
 	AssetID          string         `json:"asset_id" gorm:"uniqueIndex:idx_asset_id,length:100;not null"` // 平台返回的音色ID
@@ -54,7 +54,8 @@ type VoiceClone struct {
 // VoiceSynthesis 语音合成记录
 type VoiceSynthesis struct {
 	ID            uint           `json:"id" gorm:"primaryKey"`
-	UserID        uint           `json:"user_id" gorm:"not null;index"`        // 用户ID
+	GroupID       uint           `json:"group_id" gorm:"index"`
+	CreatedBy     uint           `json:"created_by" gorm:"index"`
 	VoiceCloneID  uint           `json:"voice_clone_id" gorm:"not null;index"` // 使用的音色ID
 	Text          string         `json:"text" gorm:"not null"`                 // 合成的文本
 	Language      string         `json:"language" gorm:"default:'zh'"`         // 语言

@@ -76,9 +76,15 @@ func (h *Handlers) CreateKnowledgeBase(c *gin.Context) {
 		return
 	}
 
+	gid, err := models.ResolveWriteGroupID(h.db, user.ID, req.GroupID)
+	if err != nil {
+		response.Fail(c, err.Error(), nil)
+		return
+	}
+
 	entity := models.KnowledgeBase{
-		UserID:      user.ID,
-		GroupID:     req.GroupID,
+		GroupID:     gid,
+		CreatedBy:   user.ID,
 		Name:        strings.TrimSpace(req.Name),
 		Description: strings.TrimSpace(req.Description),
 		Provider:    provider,

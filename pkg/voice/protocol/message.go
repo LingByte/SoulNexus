@@ -202,7 +202,7 @@ func (s *HardwareSession) handleHelloMessage(msg map[string]interface{}) {
 		VADThreshold:         s.config.VADThreshold,
 		VADConsecutiveFrames: s.config.VADConsecutiveFrames,
 		VADServiceURL:        utils.GetEnv("VAD_SERVICE_URL"),
-		VADSessionID:         fmt.Sprintf("user_%d", s.config.AssistantID),
+		VADSessionID:         fmt.Sprintf("user_%d", s.config.AgentID),
 	}, s.logger)
 	if err != nil {
 		s.mu.Unlock()

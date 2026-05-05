@@ -13,7 +13,7 @@
 
     // ========== 配置 ==========
     const CONFIG = {
-        assistantId: /*{{.AssistantID}}*/ 1,  // 模板变量，后端会自动替换为实际ID
+        agentId: /*{{.AgentID}}*/ 1,  // 模板变量，后端会自动替换为实际智能体 ID
         apiKey: 'your-api-key',        // 请替换为你的API密钥
         apiSecret: 'your-api-secret'   // 请替换为你的API密钥
     };
@@ -219,7 +219,7 @@
                     status.textContent = '正在连接...';
 
                     await sdk.connectVoice({
-                        assistantId: CONFIG.assistantId,
+                        agentId: CONFIG.agentId,
                         apiKey: CONFIG.apiKey,
                         apiSecret: CONFIG.apiSecret,
                         onOpen: () => {
@@ -263,7 +263,7 @@
                 infoBtn.disabled = true;
                 infoBtn.textContent = '加载中...';
 
-                const response = await sdk.getAssistant(CONFIG.assistantId);
+                const response = await sdk.getAssistant(CONFIG.agentId);
                 const assistant = response.data;
 
                 alert(`助手信息:\n\n名称: ${assistant.name}\n描述: ${assistant.description || '无'}\n语言: ${assistant.language}\n温度: ${assistant.temperature}`);

@@ -68,7 +68,7 @@ func AccountDeletionEligibilityReasons(db *gorm.DB, user *User, accountLocked bo
 	if err := CheckUserAllowLogin(db, user); err != nil {
 		reasons = append(reasons, "账号状态不允许（未激活、已封禁或角色异常）")
 	}
-	if user.Role == RoleSuperAdmin || user.Role == RoleAdmin {
+	if UserHasAdminAccess(db, user.ID) {
 		reasons = append(reasons, "管理员账号不支持自助注销")
 	}
 	if accountLocked {
@@ -141,10 +141,7 @@ func FinalizeAccountDeletion(db *gorm.DB, userID uint, operator string) error {
 		if err := tx.Unscoped().Where("user_id = ?", userID).Delete(&UserDevice{}).Error; err != nil {
 			return err
 		}
-		if err := tx.Unscoped().Where("user_id = ?", userID).Delete(&UserCredential{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Unscoped().Where("user_id = ?", userID).Delete(&UserQuota{}).Error; err != nil {
+		if err := tx.Unscoped().Where("created_by = ?", userID).Delete(&UserCredential{}).Error; err != nil {
 			return err
 		}
 		if err := tx.Unscoped().Where("user_id = ?", userID).Delete(&GroupMember{}).Error; err != nil {
@@ -165,14 +162,9 @@ func FinalizeAccountDeletion(db *gorm.DB, userID uint, operator string) error {
 		}
 
 		tombstone := fmt.Sprintf("deleted.%d.%d@void.invalid", userID, time.Now().UnixNano())
-		updates := map[string]any{
+		userUpdates := map[string]any{
 			"email":                         tombstone,
 			"password":                      "",
-			"display_name":                  "已注销用户",
-			"first_name":                    "",
-			"last_name":                     "",
-			"phone":                         "",
-			"avatar":                        "",
 			"github_id":                     "",
 			"github_login":                  "",
 			"wechat_open_id":                "",
@@ -192,7 +184,18 @@ func FinalizeAccountDeletion(db *gorm.DB, userID uint, operator string) error {
 			"account_deletion_effective_at": nil,
 			"update_by":                     operator,
 		}
-		if err := tx.Model(&User{}).Where("id = ?", userID).Updates(updates).Error; err != nil {
+		if err := tx.Model(&User{}).Where("id = ?", userID).Updates(userUpdates).Error; err != nil {
+			return err
+		}
+		profUpdates := map[string]any{
+			"display_name": "已注销用户",
+			"first_name":   "",
+			"last_name":    "",
+			"phone":        "",
+			"avatar":       "",
+		}
+		_ = EnsureUserProfile(tx, userID)
+		if err := tx.Model(&UserProfile{}).Where("user_id = ?", userID).Updates(profUpdates).Error; err != nil {
 			return err
 		}
 		return nil

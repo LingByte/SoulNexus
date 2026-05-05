@@ -6,11 +6,10 @@ package voiceprint
 import (
 	"context"
 	"fmt"
+	"github.com/LingByte/SoulNexus/pkg/utils/cache"
+	"go.uber.org/zap"
 	"sync"
 	"time"
-
-	"github.com/LingByte/SoulNexus/pkg/cache"
-	"go.uber.org/zap"
 )
 
 // Service 声纹识别服务

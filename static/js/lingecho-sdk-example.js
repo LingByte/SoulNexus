@@ -13,7 +13,7 @@
 //         baseURL: '{{.BaseURL}}',  // 或使用 SERVER_BASE 变量
 //         apiKey: 'your-api-key',
 //         apiSecret: 'your-api-secret',
-//         assistantId: {{.AssistantID}},
+//         agentId: {{.AgentID}},
 //         assistantName: '{{.Name}}'
 //     });
 //
@@ -24,7 +24,7 @@
 //     async function connectVoiceCall() {
 //         try {
 //             const connection = await sdk.connectVoice({
-//                 assistantId: {{.AssistantID}},
+//                 agentId: {{.AgentID}},
 //                 apiKey: 'your-api-key',
 //                 apiSecret: 'your-api-secret',
 //                 onMessage: (message) => {
@@ -69,7 +69,7 @@
 //     // ========== 示例4: 获取助手信息 ==========
 //     async function getAssistantInfo() {
 //         try {
-//             const response = await sdk.getAssistant({{.AssistantID}});
+//             const response = await sdk.getAssistant({{.AgentID}});
 //             console.log('助手信息:', response.data);
 //         } catch (error) {
 //             console.error('获取助手信息失败:', error);
@@ -103,7 +103,7 @@
 //     // ========== 示例7: 更新助手 ==========
 //     async function updateAssistant() {
 //         try {
-//             const response = await sdk.updateAssistant({{.AssistantID}}, {
+//             const response = await sdk.updateAssistant({{.AgentID}}, {
 //                 name: '更新后的名称',
 //                 temperature: 0.8,
 //                 maxTokens: 200
@@ -118,7 +118,7 @@
 //     async function getChatLogs() {
 //         try {
 //             // 获取指定助手的聊天日志
-//             const response = await sdk.getChatLogsByAssistant({{.AssistantID}});
+//             const response = await sdk.getChatLogsByAgent({{.AgentID}});
 //             console.log('聊天日志:', response.data);
 //         } catch (error) {
 //             console.error('获取聊天日志失败:', error);
@@ -145,7 +145,7 @@
 //                 // 连接语音通话
 //                 try {
 //                     await sdk.connectVoice({
-//                         assistantId: {{.AssistantID}},
+//                         agentId: {{.AgentID}},
 //                         onOpen: () => {
 //                             isConnected = true;
 //                             btn.style.background = '#ef4444';
@@ -176,7 +176,7 @@
 //     // 在模板中，你可以使用以下变量：
 //     // - {{.BaseURL}} - 服务器基础URL
 //     // - {{.Name}} - 助手名称
-//     // - {{.AssistantID}} - 助手ID
+//     // - {{.AgentID}} - 助手ID
 //     // - {{.JsSourceID}} - JS源ID
 //     // - {{.Description}} - 助手描述
 //     // - {{.Language}} - 语言设置
@@ -192,7 +192,7 @@
 //
 //     console.log('当前助手:', {
 //         name: '{{.Name}}',
-//         id: {{.AssistantID}},
+//         id: {{.AgentID}},
 //         baseURL: '{{.BaseURL}}'
 //     });
 //

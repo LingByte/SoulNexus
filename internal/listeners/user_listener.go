@@ -4,6 +4,8 @@ package listeners
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"fmt"
+
 	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/internal/config"
 	"github.com/LingByte/SoulNexus/pkg/constants"
@@ -34,6 +36,10 @@ func InitUserListeners() {
 
 		logger.Info("User registered successfully", zap.Uint("userId", user.ID), zap.String("email", user.Email))
 
+		if _, err := models.EnsurePersonalGroupForUser(db, user.ID); err != nil {
+			logger.Error("EnsurePersonalGroupForUser failed", zap.Uint("userId", user.ID), zap.Error(err))
+		}
+
 		// Send welcome email
 		go sendWelcomeEmail(user, db)
 
@@ -55,7 +61,7 @@ func InitUserListeners() {
 
 		notification.NewInternalNotificationService(params[0].(*gorm.DB)).Send(user.ID,
 			"Welcome back",
-			"Dear "+user.DisplayName+", welcome back to LingEcho AI voice platform! You have successfully logged into the system.")
+			"Dear "+user.EffectiveDisplayName()+", welcome back to LingEcho AI voice platform! You have successfully logged into the system.")
 
 		// Log login event
 		logUserEvent(user, "user_login", "User login")
@@ -187,11 +193,11 @@ func sendWelcomeEmail(user *models.User, db *gorm.DB) {
 		return
 	}
 
-	if user.EmailNotifications {
+	if user.Profile.EmailNotifications {
 		mailer := notification.NewMailNotificationWithDB(config.GlobalConfig.Services.Mail, db, user.ID)
 		err := mailer.SendWelcomeEmail(
 			user.Email,
-			user.DisplayName,
+			user.EffectiveDisplayName(),
 			utils.GetValue(db, constants.KEY_SITE_URL), // Welcome page link
 		)
 
@@ -229,7 +235,7 @@ func sendEmailVerification(user *models.User, hash, clientIp, userAgent string, 
 		zap.String("mailAPIUser", config.GlobalConfig.Services.Mail.APIUser))
 
 	mailer := notification.NewMailNotificationWithDB(config.GlobalConfig.Services.Mail, db, user.ID)
-	err := mailer.SendVerificationEmail(user.Email, user.DisplayName, verifyUrl)
+	err := mailer.SendVerificationEmail(user.Email, user.EffectiveDisplayName(), verifyUrl)
 	if err != nil {
 		logger.Error("Failed to send email verification", zap.Error(err), zap.String("email", user.Email))
 	} else {
@@ -254,7 +260,7 @@ func sendPasswordResetEmail(user *models.User, hash, clientIp, userAgent string,
 	resetUrl := siteURL + "/reset-password?token=" + hash
 
 	mailer := notification.NewMailNotificationWithDB(config.GlobalConfig.Services.Mail, db, user.ID)
-	err := mailer.SendPasswordResetEmail(user.Email, user.DisplayName, resetUrl)
+	err := mailer.SendPasswordResetEmail(user.Email, user.EffectiveDisplayName(), resetUrl)
 	if err != nil {
 		logger.Error("Failed to send password reset email", zap.Error(err), zap.String("email", user.Email))
 	} else {
@@ -289,7 +295,7 @@ func sendNewDeviceLoginAlert(user *models.User, deviceInfo map[string]interface{
 	loginTime, _ := deviceInfo["loginTime"].(string)
 
 	// Get display name
-	displayName := user.DisplayName
+	displayName := user.EffectiveDisplayName()
 	if displayName == "" {
 		displayName = user.Email
 	}
@@ -319,15 +325,19 @@ func sendNewDeviceLoginAlert(user *models.User, deviceInfo map[string]interface{
 		changePasswordURL,
 	)
 
+	deviceIDStr := ""
+	if v, ok := deviceInfo["deviceID"]; ok {
+		deviceIDStr = fmt.Sprint(v)
+	}
 	if err != nil {
 		logger.Error("Failed to send new device login alert email",
 			zap.Error(err),
 			zap.String("email", user.Email),
-			zap.String("deviceID", deviceInfo["deviceID"].(string)))
+			zap.String("deviceID", deviceIDStr))
 	} else {
 		logger.Info("New device login alert email sent",
 			zap.String("email", user.Email),
-			zap.String("deviceID", deviceInfo["deviceID"].(string)),
+			zap.String("deviceID", deviceIDStr),
 			zap.Bool("isSuspicious", isSuspicious))
 	}
 }

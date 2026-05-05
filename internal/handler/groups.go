@@ -4,11 +4,9 @@ package handlers
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
-	"crypto/md5"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -103,6 +101,14 @@ func (h *Handlers) CreateGroup(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Fail(c, "参数错误", err.Error())
 		return
+	}
+
+	if strings.TrimSpace(req.Type) == models.GroupTypePersonal {
+		response.Fail(c, "参数错误", "个人组织由系统自动创建，不能手动创建")
+		return
+	}
+	if strings.TrimSpace(req.Type) == "" {
+		req.Type = models.GroupTypeTeam
 	}
 
 	group := models.Group{
@@ -407,23 +413,32 @@ func (h *Handlers) SearchUsers(c *gin.Context) {
 		return
 	}
 
-	// 模糊搜索用户：通过名字、邮箱、显示名称搜索
-	var users []models.User
-	query := h.db.Model(&models.User{}).
-		Where("deleted_at IS NULL").
-		Where("status = ?", models.UserStatusActive).
-		Where("id != ?", user.ID). // 排除当前用户
-		Where("display_name LIKE ? OR email LIKE ? OR first_name LIKE ? OR last_name LIKE ?",
+	// 模糊搜索用户：通过名字、邮箱、显示名称搜索（资料在 user_profiles）
+	type userSearchRow struct {
+		ID          uint      `gorm:"column:id"`
+		Email       string    `gorm:"column:email"`
+		DisplayName string    `gorm:"column:display_name"`
+		FirstName   string    `gorm:"column:first_name"`
+		LastName    string    `gorm:"column:last_name"`
+		Avatar      string    `gorm:"column:avatar"`
+		CreatedAt   time.Time `gorm:"column:created_at"`
+	}
+	var rows []userSearchRow
+	q := h.db.Table("users").
+		Joins("LEFT JOIN user_profiles ON user_profiles.user_id = users.id").
+		Where("users.is_deleted = ?", models.SoftDeleteStatusActive).
+		Where("users.status = ?", models.UserStatusActive).
+		Where("users.id != ?", user.ID).
+		Where(`user_profiles.display_name LIKE ? OR users.email LIKE ? OR user_profiles.first_name LIKE ? OR user_profiles.last_name LIKE ?`,
 			"%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%").
 		Limit(limit).
-		Select("id, email, display_name, first_name, last_name, avatar, created_at")
+		Select("users.id, users.email, user_profiles.display_name AS display_name, user_profiles.first_name AS first_name, user_profiles.last_name AS last_name, user_profiles.avatar AS avatar, users.created_at")
 
-	if err := query.Find(&users).Error; err != nil {
+	if err := q.Scan(&rows).Error; err != nil {
 		response.Fail(c, "搜索失败", err.Error())
 		return
 	}
 
-	// 构建响应
 	type UserSearchResult struct {
 		ID          uint      `json:"id"`
 		Email       string    `json:"email"`
@@ -434,16 +449,16 @@ func (h *Handlers) SearchUsers(c *gin.Context) {
 		CreatedAt   time.Time `json:"createdAt"`
 	}
 
-	var results []UserSearchResult
-	for _, u := range users {
+	results := make([]UserSearchResult, 0, len(rows))
+	for _, r := range rows {
 		results = append(results, UserSearchResult{
-			ID:          u.ID,
-			Email:       u.Email,
-			DisplayName: u.DisplayName,
-			FirstName:   u.FirstName,
-			LastName:    u.LastName,
-			Avatar:      u.Avatar,
-			CreatedAt:   u.CreatedAt,
+			ID:          r.ID,
+			Email:       r.Email,
+			DisplayName: r.DisplayName,
+			FirstName:   r.FirstName,
+			LastName:    r.LastName,
+			Avatar:      r.Avatar,
+			CreatedAt:   r.CreatedAt,
 		})
 	}
 
@@ -489,9 +504,9 @@ func (h *Handlers) InviteUser(c *gin.Context) {
 		}
 	}
 
-	// 查找被邀请用户
-	var invitee models.User
-	if err := h.db.First(&invitee, req.UserID).Error; err != nil {
+	// 查找被邀请用户（含 profile，用于通知与邮件偏好）
+	invitee, err := models.GetUserByID(h.db, req.UserID)
+	if err != nil || invitee == nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, "用户不存在", nil)
 		} else {
@@ -530,14 +545,14 @@ func (h *Handlers) InviteUser(c *gin.Context) {
 	}
 
 	// 加载关联信息
-	h.db.Preload("Group").Preload("Inviter").Preload("Invitee").First(&invitation, invitation.ID)
+	h.db.Preload("Group").Preload("Inviter.Profile").Preload("Invitee.Profile").First(&invitation, invitation.ID)
 
 	// 发送站内通知
 	go func() {
 		notificationService := notification.NewInternalNotificationService(h.db)
 		title := "组织邀请"
 		content := fmt.Sprintf("%s 邀请您加入组织「%s」",
-			user.DisplayName,
+			user.EffectiveDisplayName(),
 			group.Name)
 		if err := notificationService.Send(invitee.ID, title, content); err != nil {
 			logger.Warn("发送站内通知失败", zap.Error(err), zap.Uint("userId", invitee.ID))
@@ -546,7 +561,7 @@ func (h *Handlers) InviteUser(c *gin.Context) {
 
 	// 发送邮件通知（如果用户启用了邮件通知）
 	go func() {
-		if invitee.EmailNotifications && config.GlobalConfig.Services.Mail.APIUser != "" {
+		if invitee.Profile.EmailNotifications && config.GlobalConfig.Services.Mail.APIUser != "" {
 			mailer := notification.NewMailNotification(config.GlobalConfig.Services.Mail)
 
 			// 构建接受邀请的URL
@@ -564,8 +579,8 @@ func (h *Handlers) InviteUser(c *gin.Context) {
 
 			err := mailer.SendGroupInvitationEmail(
 				invitee.Email,
-				invitee.DisplayName,
-				user.DisplayName,
+				invitee.EffectiveDisplayName(),
+				user.EffectiveDisplayName(),
 				group.Name,
 				group.Type,
 				groupDesc,
@@ -951,7 +966,7 @@ func (h *Handlers) GetGroupSharedResources(c *gin.Context) {
 	}
 
 	// 查询组织共享的助手
-	var assistants []models.Assistant
+	var assistants []models.Agent
 	if err := h.db.Where("group_id = ?", groupID).Order("created_at DESC").Find(&assistants).Error; err != nil {
 		response.Fail(c, "查询助手失败", err.Error())
 		return
@@ -959,7 +974,7 @@ func (h *Handlers) GetGroupSharedResources(c *gin.Context) {
 
 	// 构建响应
 	result := map[string]interface{}{
-		"assistants": assistants,
+		"agents": assistants,
 	}
 
 	response.Success(c, "获取成功", result)
@@ -1114,240 +1129,6 @@ func extractKeyFromURL(url string) string {
 	return ""
 }
 
-// GetOverviewConfig 获取组织的概览配置
-func (h *Handlers) GetOverviewConfig(c *gin.Context) {
-	user := models.CurrentUser(c)
-	if user == nil {
-		response.Fail(c, "未授权", "用户未登录")
-		return
-	}
-
-	groupID, err := strconv.ParseUint(c.Param("id"), 10, 32)
-	if err != nil {
-		response.Fail(c, "参数错误", "无效的组织ID")
-		return
-	}
-
-	// 检查用户是否有权限查看（必须是成员）
-	var group models.Group
-	if err := h.db.First(&group, groupID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			response.Fail(c, "组织不存在", nil)
-		} else {
-			response.Fail(c, "查询失败", err.Error())
-		}
-		return
-	}
-
-	// 检查用户是否是成员
-	var member models.GroupMember
-	if err := h.db.Where("group_id = ? AND user_id = ?", group.ID, user.ID).First(&member).Error; err != nil {
-		if group.CreatorID != user.ID {
-			response.Fail(c, "权限不足", "您不是该组织的成员")
-			return
-		}
-	}
-
-	// 获取配置
-	config, err := models.GetOverviewConfig(h.db, uint(groupID))
-	if err != nil {
-		response.Fail(c, "查询配置失败", err.Error())
-		return
-	}
-
-	if config == nil {
-		// 返回null表示没有配置
-		// 返回空配置也可以被短时间缓存
-		c.Header("Cache-Control", "private, max-age=60")
-		response.Success(c, "查询成功", nil)
-		return
-	}
-
-	// 解析配置JSON
-	var configData map[string]interface{}
-	if err := json.Unmarshal(config.Config, &configData); err != nil {
-		response.Fail(c, "解析配置失败", err.Error())
-		return
-	}
-
-	// 生成基于配置更新时间的 ETag，便于浏览器缓存
-	etagSource := fmt.Sprintf("overview-%d-%d", config.ID, config.UpdatedAt.Unix())
-	etagBytes := md5.Sum([]byte(etagSource))
-	etag := fmt.Sprintf(`W"%x"`, etagBytes) // 弱 ETag
-
-	// 如果浏览器带了相同的 ETag，则直接返回 304，避免重复传输
-	if match := c.GetHeader("If-None-Match"); match != "" && match == etag {
-		c.Header("ETag", etag)
-		c.Header("Cache-Control", "private, max-age=60")
-		c.Status(http.StatusNotModified)
-		return
-	}
-
-	// 构建响应
-	result := map[string]interface{}{
-		"id":             config.ID,
-		"organizationId": config.OrganizationID,
-		"name":           config.Name,
-		"description":    config.Description,
-		"createdAt":      config.CreatedAt,
-		"updatedAt":      config.UpdatedAt,
-		"layout":         configData["layout"],
-		"widgets":        configData["widgets"],
-		"theme":          configData["theme"],
-	}
-	if header, ok := configData["header"]; ok {
-		result["header"] = header
-	}
-	if footer, ok := configData["footer"]; ok {
-		result["footer"] = footer
-	}
-
-	// 设置浏览器缓存头，减少 sidebar 数据概览重复加载的延迟
-	c.Header("Cache-Control", "private, max-age=60")
-	c.Header("ETag", etag)
-	c.Header("Vary", "Authorization")
-
-	response.Success(c, "查询成功", result)
-}
-
-// SaveOverviewConfig 保存或更新概览配置
-func (h *Handlers) SaveOverviewConfig(c *gin.Context) {
-	user := models.CurrentUser(c)
-	if user == nil {
-		response.Fail(c, "未授权", "用户未登录")
-		return
-	}
-
-	groupID, err := strconv.ParseUint(c.Param("id"), 10, 32)
-	if err != nil {
-		response.Fail(c, "参数错误", "无效的组织ID")
-		return
-	}
-
-	// 检查权限：只有创建者或管理员可以保存配置
-	var group models.Group
-	if err := h.db.First(&group, groupID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			response.Fail(c, "组织不存在", nil)
-		} else {
-			response.Fail(c, "查询失败", err.Error())
-		}
-		return
-	}
-
-	if group.CreatorID != user.ID {
-		var member models.GroupMember
-		if err := h.db.Where("group_id = ? AND user_id = ? AND role = ?", group.ID, user.ID, models.GroupRoleAdmin).First(&member).Error; err != nil {
-			response.Fail(c, "权限不足", "只有创建者或管理员可以保存配置")
-			return
-		}
-	}
-
-	// 解析请求体
-	var req struct {
-		Name        string                 `json:"name"`
-		Description string                 `json:"description"`
-		Layout      map[string]interface{} `json:"layout"`
-		Widgets     []interface{}          `json:"widgets"`
-		Theme       map[string]interface{} `json:"theme"`
-		Header      map[string]interface{} `json:"header,omitempty"`
-		Footer      map[string]interface{} `json:"footer,omitempty"`
-	}
-
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Fail(c, "参数错误", err.Error())
-		return
-	}
-
-	// 构建配置数据
-	configData := map[string]interface{}{
-		"layout":  req.Layout,
-		"widgets": req.Widgets,
-		"theme":   req.Theme,
-	}
-	if req.Header != nil {
-		configData["header"] = req.Header
-	}
-	if req.Footer != nil {
-		configData["footer"] = req.Footer
-	}
-
-	// 保存配置
-	config, err := models.SaveOverviewConfig(h.db, uint(groupID), req.Name, req.Description, configData)
-	if err != nil {
-		response.Fail(c, "保存配置失败", err.Error())
-		return
-	}
-
-	// 解析配置JSON用于响应
-	var configDataResp map[string]interface{}
-	if err := json.Unmarshal(config.Config, &configDataResp); err != nil {
-		response.Fail(c, "解析配置失败", err.Error())
-		return
-	}
-
-	result := map[string]interface{}{
-		"id":             config.ID,
-		"organizationId": config.OrganizationID,
-		"name":           config.Name,
-		"description":    config.Description,
-		"createdAt":      config.CreatedAt,
-		"updatedAt":      config.UpdatedAt,
-		"layout":         configDataResp["layout"],
-		"widgets":        configDataResp["widgets"],
-		"theme":          configDataResp["theme"],
-	}
-	if header, ok := configDataResp["header"]; ok {
-		result["header"] = header
-	}
-	if footer, ok := configDataResp["footer"]; ok {
-		result["footer"] = footer
-	}
-
-	response.Success(c, "保存成功", result)
-}
-
-// DeleteOverviewConfig 删除概览配置
-func (h *Handlers) DeleteOverviewConfig(c *gin.Context) {
-	user := models.CurrentUser(c)
-	if user == nil {
-		response.Fail(c, "未授权", "用户未登录")
-		return
-	}
-
-	groupID, err := strconv.ParseUint(c.Param("id"), 10, 32)
-	if err != nil {
-		response.Fail(c, "参数错误", "无效的组织ID")
-		return
-	}
-
-	// 检查权限：只有创建者或管理员可以删除配置
-	var group models.Group
-	if err := h.db.First(&group, groupID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			response.Fail(c, "组织不存在", nil)
-		} else {
-			response.Fail(c, "查询失败", err.Error())
-		}
-		return
-	}
-
-	if group.CreatorID != user.ID {
-		var member models.GroupMember
-		if err := h.db.Where("group_id = ? AND user_id = ? AND role = ?", group.ID, user.ID, models.GroupRoleAdmin).First(&member).Error; err != nil {
-			response.Fail(c, "权限不足", "只有创建者或管理员可以删除配置")
-			return
-		}
-	}
-
-	if err := models.DeleteOverviewConfig(h.db, uint(groupID)); err != nil {
-		response.Fail(c, "删除配置失败", err.Error())
-		return
-	}
-
-	response.Success(c, "删除成功", nil)
-}
-
 // GetGroupStatistics 获取组织统计数据
 func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 	user := models.CurrentUser(c)
@@ -1409,7 +1190,7 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 
 		go func() {
 			defer wg.Done()
-			h.db.Model(&models.Assistant{}).Where("group_id = ?", group.ID).Count(&result.assistantCount)
+			h.db.Model(&models.Agent{}).Where("group_id = ?", group.ID).Count(&result.assistantCount)
 		}()
 
 		go func() {
@@ -1435,7 +1216,7 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 		go func() {
 			defer wg.Done()
 			var ids []uint
-			h.db.Model(&models.Assistant{}).Where("group_id = ?", group.ID).Pluck("id", &ids)
+			h.db.Model(&models.Agent{}).Where("group_id = ?", group.ID).Pluck("id", &ids)
 			result.assistantIDs = ids
 
 			// 统计通话记录数量（通过助手关联）
@@ -1445,7 +1226,7 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 					assistantIDsInt64 = append(assistantIDsInt64, int64(id))
 				}
 				h.db.Model(&models.ChatSessionLog{}).
-					Where("assistant_id IN (?) AND chat_type = ?", assistantIDsInt64, "realtime").
+					Where("agent_id IN (?) AND chat_type = ?", assistantIDsInt64, "realtime").
 					Count(&result.callCount)
 			}
 		}()
@@ -1499,7 +1280,7 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 				TotalTokens int64
 			}
 			h.db.Model(&models.UsageRecord{}).
-				Where("assistant_id IN (?) AND usage_type = ? AND usage_time >= ? AND usage_time <= ?",
+				Where("agent_id IN (?) AND usage_type = ? AND usage_time >= ? AND usage_time <= ?",
 					assistantIDsInt64, models.UsageTypeLLM, startTime, endTime).
 				Select("COUNT(*) as count, COALESCE(SUM(total_tokens), 0) as total_tokens").
 				Scan(&llmStats)
@@ -1515,7 +1296,7 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 				Duration int64
 			}
 			h.db.Model(&models.UsageRecord{}).
-				Where("assistant_id IN (?) AND usage_type = ? AND usage_time >= ? AND usage_time <= ?",
+				Where("agent_id IN (?) AND usage_type = ? AND usage_time >= ? AND usage_time <= ?",
 					assistantIDsInt64, models.UsageTypeCall, startTime, endTime).
 				Select("COUNT(*) as count, COALESCE(SUM(call_duration), 0) as duration").
 				Scan(&callStats)
@@ -1531,7 +1312,7 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 				Duration int64
 			}
 			h.db.Model(&models.UsageRecord{}).
-				Where("assistant_id IN (?) AND usage_type = ? AND usage_time >= ? AND usage_time <= ?",
+				Where("agent_id IN (?) AND usage_type = ? AND usage_time >= ? AND usage_time <= ?",
 					assistantIDsInt64, models.UsageTypeASR, startTime, endTime).
 				Select("COUNT(*) as count, COALESCE(SUM(audio_duration), 0) as duration").
 				Scan(&asrStats)
@@ -1547,7 +1328,7 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 				Duration int64
 			}
 			h.db.Model(&models.UsageRecord{}).
-				Where("assistant_id IN (?) AND usage_type = ? AND usage_time >= ? AND usage_time <= ?",
+				Where("agent_id IN (?) AND usage_type = ? AND usage_time >= ? AND usage_time <= ?",
 					assistantIDsInt64, models.UsageTypeTTS, startTime, endTime).
 				Select("COUNT(*) as count, COALESCE(SUM(audio_duration), 0) as duration").
 				Scan(&ttsStats)
@@ -1562,7 +1343,7 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 				Count int64
 			}
 			h.db.Model(&models.UsageRecord{}).
-				Where("assistant_id IN (?) AND usage_type = ? AND usage_time >= ? AND usage_time <= ?",
+				Where("agent_id IN (?) AND usage_type = ? AND usage_time >= ? AND usage_time <= ?",
 					assistantIDsInt64, models.UsageTypeAPI, startTime, endTime).
 				Select("COUNT(*) as count").
 				Scan(&apiStats)
@@ -1597,7 +1378,7 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 			Tokens int64
 		}
 		h.db.Model(&models.UsageRecord{}).
-			Where("assistant_id IN (?) AND usage_type = ? AND usage_time >= ? AND usage_time <= ?",
+			Where("agent_id IN (?) AND usage_type = ? AND usage_time >= ? AND usage_time <= ?",
 				assistantIDsInt64, models.UsageTypeLLM, dayStart, dayEnd).
 			Select("DATE(usage_time) as date, COUNT(*) as count, COALESCE(SUM(total_tokens), 0) as tokens").
 			Group("DATE(usage_time)").
@@ -1608,7 +1389,7 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 			Count int64
 		}
 		h.db.Model(&models.UsageRecord{}).
-			Where("assistant_id IN (?) AND usage_type = ? AND usage_time >= ? AND usage_time <= ?",
+			Where("agent_id IN (?) AND usage_type = ? AND usage_time >= ? AND usage_time <= ?",
 				assistantIDsInt64, models.UsageTypeCall, dayStart, dayEnd).
 			Select("DATE(usage_time) as date, COUNT(*) as count").
 			Group("DATE(usage_time)").
@@ -1672,7 +1453,7 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 	tableRows := [][]interface{}{}
 
 	// 助手数据
-	var assistants []models.Assistant
+	var assistants []models.Agent
 	h.db.Where("group_id = ?", group.ID).Order("created_at DESC").Limit(5).Find(&assistants)
 	for _, a := range assistants {
 		tableRows = append(tableRows, []interface{}{
@@ -1706,14 +1487,14 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 	recentActivity := []map[string]interface{}{}
 
 	// 从助手表获取最近创建的活动
-	var recentAssistants []models.Assistant
+	var recentAssistants []models.Agent
 	h.db.Where("group_id = ?", group.ID).Order("created_at DESC").Limit(3).Find(&recentAssistants)
 	for _, a := range recentAssistants {
 		recentActivity = append(recentActivity, map[string]interface{}{
 			"type":        "create",
 			"description": fmt.Sprintf("创建了助手: %s", a.Name),
 			"time":        a.CreatedAt.Format("2006-01-02 15:04:05"),
-			"user":        user.DisplayName,
+			"user":        user.EffectiveDisplayName(),
 		})
 	}
 
@@ -1900,22 +1681,6 @@ func (h *Handlers) CloneGroup(c *gin.Context) {
 	}
 	h.db.Create(&newMember)
 
-	// 复制配额设置（如果有）
-	var quotas []models.GroupQuota
-	if err := h.db.Where("group_id = ?", sourceGroup.ID).Find(&quotas).Error; err == nil {
-		for _, quota := range quotas {
-			newQuota := models.GroupQuota{
-				GroupID:     newGroup.ID,
-				QuotaType:   quota.QuotaType,
-				TotalQuota:  quota.TotalQuota,
-				UsedQuota:   0, // 重置使用量
-				Period:      quota.Period,
-				Description: quota.Description,
-			}
-			h.db.Create(&newQuota)
-		}
-	}
-
 	// 记录日志
 	details := map[string]interface{}{
 		"source_group_id":   sourceGroup.ID,
@@ -1959,16 +1724,12 @@ func (h *Handlers) ExportGroup(c *gin.Context) {
 
 	// 获取成员列表
 	var members []models.GroupMember
-	h.db.Where("group_id = ?", groupID).Preload("User").Find(&members)
-
-	// 获取配额信息
-	var quotas []models.GroupQuota
-	h.db.Where("group_id = ?", groupID).Find(&quotas)
+	h.db.Where("group_id = ?", groupID).Preload("User.Profile").Find(&members)
 
 	// 获取活动日志（最近100条）
 	var logs []models.GroupActivityLog
 	h.db.Where("group_id = ?", groupID).
-		Preload("User").
+		Preload("User.Profile").
 		Order("created_at DESC").
 		Limit(100).
 		Find(&logs)
@@ -1989,22 +1750,9 @@ func (h *Handlers) ExportGroup(c *gin.Context) {
 			for i, m := range members {
 				result[i] = map[string]interface{}{
 					"email":       m.User.Email,
-					"displayName": m.User.DisplayName,
+					"displayName": m.User.EffectiveDisplayName(),
 					"role":        m.Role,
 					"joinedAt":    m.CreatedAt,
-				}
-			}
-			return result
-		}(),
-		"quotas": func() []map[string]interface{} {
-			result := make([]map[string]interface{}, len(quotas))
-			for i, q := range quotas {
-				result[i] = map[string]interface{}{
-					"type":        q.QuotaType,
-					"total":       q.TotalQuota,
-					"used":        q.UsedQuota,
-					"period":      q.Period,
-					"description": q.Description,
 				}
 			}
 			return result

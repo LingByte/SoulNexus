@@ -79,10 +79,10 @@ const ChatData = () => {
         {tab === 'sessions' && (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead><tr className="border-b"><th className="text-left py-2">ID</th><th>用户</th><th>助手ID</th><th>Provider/Model</th><th>状态</th><th>更新时间</th></tr></thead>
+              <thead><tr className="border-b"><th className="text-left py-2">ID</th><th>用户</th><th>智能体ID</th><th>Provider/Model</th><th>状态</th><th>更新时间</th></tr></thead>
               <tbody>{sessions.map((s) => (
                 <tr key={s.id} className="border-b">
-                  <td className="py-2">{s.id}</td><td>{s.user_id}</td><td>{s.assistant_id}</td><td>{s.provider}/{s.model}</td><td>{s.status}</td><td>{s.updated_at}</td>
+                  <td className="py-2">{s.id}</td><td>{s.user_id}</td><td>{s.agent_id ?? s.agentId}</td><td>{s.provider}/{s.model}</td><td>{s.status}</td><td>{s.updated_at}</td>
                 </tr>
               ))}</tbody>
             </table>
