@@ -10,15 +10,18 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-
-	"github.com/LingByte/SoulNexus/pkg/i18n"
 )
+
+// Translator supplies localized validation messages (optional).
+type Translator interface {
+	GetTranslation(locale string, key string) string
+}
 
 // Validator validates data
 type Validator struct {
 	rules       map[string][]Rule
 	customRules map[string]RuleFunc
-	i18n        *i18n.Manager
+	translator  Translator
 	mu          sync.RWMutex
 }
 
@@ -60,11 +63,11 @@ func (e ValidationErrors) Error() string {
 }
 
 // NewValidator creates a new validator
-func NewValidator(i18nManager *i18n.Manager) *Validator {
+func NewValidator(translator Translator) *Validator {
 	v := &Validator{
 		rules:       make(map[string][]Rule),
 		customRules: make(map[string]RuleFunc),
-		i18n:        i18nManager,
+		translator:  translator,
 	}
 
 	// Register default rules
@@ -92,7 +95,7 @@ func (v *Validator) RegisterCustomRule(name string, ruleFunc RuleFunc) {
 }
 
 // Validate validates a struct
-func (v *Validator) Validate(data interface{}, locale i18n.Locale) ValidationErrors {
+func (v *Validator) Validate(data interface{}, locale string) ValidationErrors {
 	var errors ValidationErrors
 
 	val := reflect.ValueOf(data)
@@ -152,7 +155,7 @@ func (v *Validator) Validate(data interface{}, locale i18n.Locale) ValidationErr
 }
 
 // ValidateField validates a single field
-func (v *Validator) ValidateField(field string, value interface{}, rules []Rule, locale i18n.Locale) ValidationErrors {
+func (v *Validator) ValidateField(field string, value interface{}, rules []Rule, locale string) ValidationErrors {
 	var errors ValidationErrors
 
 	for _, rule := range rules {
@@ -165,7 +168,7 @@ func (v *Validator) ValidateField(field string, value interface{}, rules []Rule,
 }
 
 // validateField validates a field with a rule
-func (v *Validator) validateField(field string, value interface{}, rule Rule, locale i18n.Locale) *ValidationError {
+func (v *Validator) validateField(field string, value interface{}, rule Rule, locale string) *ValidationError {
 	// Check custom rules first
 	if ruleFunc, ok := v.customRules[rule.Name]; ok {
 		if err := ruleFunc(value, rule.Params); err != nil {
@@ -197,23 +200,23 @@ func (v *Validator) validateField(field string, value interface{}, rule Rule, lo
 }
 
 // getErrorMessage gets localized error message
-func (v *Validator) getErrorMessage(field string, rule Rule, locale i18n.Locale, value interface{}) string {
+func (v *Validator) getErrorMessage(field string, rule Rule, locale string, value interface{}) string {
 	// Try custom message first
 	if rule.Message != "" {
 		return rule.Message
 	}
 
-	// Try i18n
-	if v.i18n != nil {
+	// Try translator
+	if v.translator != nil {
 		key := fmt.Sprintf("validation.%s.%s", field, rule.Name)
-		message := v.i18n.GetTranslation(locale, key)
+		message := v.translator.GetTranslation(locale, key)
 		if message != key {
 			return fmt.Sprintf(message, value)
 		}
 
 		// Try generic rule message
 		key = fmt.Sprintf("validation.rule.%s", rule.Name)
-		message = v.i18n.GetTranslation(locale, key)
+		message = v.translator.GetTranslation(locale, key)
 		if message != key {
 			return fmt.Sprintf(message, field, value)
 		}

@@ -256,7 +256,8 @@ func NewHardwareSession(ctx context.Context, hardwareConfig *HardwareSessionOpti
 		db:                hardwareConfig.DB,
 		voiceprintService: hardwareConfig.VoiceprintService,
 		callRecording: &models.CallRecording{
-			UserID:      hardwareConfig.Credential.UserID,
+			GroupID:   hardwareConfig.Credential.GroupID,
+			CreatedBy: hardwareConfig.Credential.CreatedBy,
 			AgentID: hardwareConfig.AgentID,
 			SessionID:   sessionID,
 			DeviceID: func() string {
@@ -287,7 +288,7 @@ func NewHardwareSession(ctx context.Context, hardwareConfig *HardwareSessionOpti
 	}
 
 	// 初始化录音器（本地文件存储）
-	recordingDir := fmt.Sprintf("recordings/%d/%d", hardwareConfig.Credential.UserID, hardwareConfig.AgentID)
+	recordingDir := fmt.Sprintf("recordings/%d/%d", session.callRecording.GroupID, hardwareConfig.AgentID)
 	recordingFile := fmt.Sprintf("%s/%s.wav", recordingDir, sessionID)
 	if recorder, err := NewAudioRecorder(recordingFile, 16000, 1, 16, hardwareConfig.Logger); err != nil {
 		hardwareConfig.Logger.Warn("[Session] 初始化录音器失败", zap.Error(err))
@@ -721,7 +722,7 @@ func (s *HardwareSession) uploadRecordingFile(filePath string) {
 
 	// 生成存储路径
 	storageKey := fmt.Sprintf("recordings/%d/%d/%s.wav",
-		s.callRecording.UserID,
+		s.callRecording.GroupID,
 		s.callRecording.AgentID,
 		s.callRecording.SessionID)
 

@@ -36,7 +36,6 @@ import UsageCharts from '@/components/Billing/UsageCharts'
 import { fetchUserCredentials, type Credential } from '@/api/credential'
 import { useAuthStore } from '@/stores/authStore'
 import { getGroupList, type Group } from '@/api/group'
-import CollapsibleSectionHeader from '@/components/UI/CollapsibleSectionHeader'
 
 const Billing = () => {
   const { t } = useI18nStore()
@@ -433,49 +432,24 @@ const Billing = () => {
   }
   
   return (
-    <div className="container mx-auto px-4 py-6 space-y-6">
+    <div className="w-full space-y-3">
+      {/* 筛选栏 — 紧凑单行 / 换行 */}
       <FadeIn>
-        <CollapsibleSectionHeader
-          title={t('billing.title')}
-          icon={<BarChart3 className="w-4 h-4 text-primary" />}
-          expanded
-          onToggle={() => {}}
-          showChevron={false}
-          clickable={false}
-          compact
-          withDivider
-          className="mb-5"
-          rightContent={(
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => setShowGenerateBill(true)}
-              leftIcon={<Plus className="w-3.5 h-3.5" />}
-            >
-              {t('billing.generateBill')}
-            </Button>
-          )}
-        />
-      </FadeIn>
-      
-      {/* 筛选栏 */}
-      <FadeIn delay={0.1}>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <Card className="shadow-sm border-border/60">
+          <CardContent className="py-3 px-4">
+            <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
               {/* 账单范围选择 */}
-              <div>
-                <label className="text-sm font-medium mb-2 block">账单范围</label>
+              <div className="min-w-[140px]">
+                <label className="text-xs text-muted-foreground mb-1 block">账单范围</label>
                 <Select value={billingScope} onValueChange={(value: any) => {
                   setBillingScope(value)
                   if (value === 'personal') {
                     setSelectedGroupId(null)
                   } else if (value === 'organization' && groups.length > 0 && !selectedGroupId) {
-                    // 默认选择第一个组织
                     setSelectedGroupId(groups[0].id)
                   }
                 }}>
-                  <SelectTrigger>
+                  <SelectTrigger className="h-9 text-sm">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -497,13 +471,13 @@ const Billing = () => {
               
               {/* 组织选择（仅当选择组织账单时显示） */}
               {billingScope === 'organization' && (
-                <div>
-                  <label className="text-sm font-medium mb-2 block">选择组织</label>
+                <div className="min-w-[160px]">
+                  <label className="text-xs text-muted-foreground mb-1 block">组织</label>
                   <Select 
                     value={selectedGroupId?.toString() || ''} 
                     onValueChange={(value) => setSelectedGroupId(value ? parseInt(value) : null)}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="h-9 text-sm">
                       <SelectValue placeholder="请选择组织" />
                     </SelectTrigger>
                     <SelectContent>
@@ -517,10 +491,10 @@ const Billing = () => {
                 </div>
               )}
               
-              <div>
-                <label className="text-sm font-medium mb-2 block">{t('billing.filter.dateRange')}</label>
+              <div className="min-w-[130px]">
+                <label className="text-xs text-muted-foreground mb-1 block">{t('billing.filter.dateRange')}</label>
                 <Select value={dateRange} onValueChange={(value: any) => setDateRange(value)}>
-                  <SelectTrigger>
+                  <SelectTrigger className="h-9 text-sm">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -534,18 +508,20 @@ const Billing = () => {
               
               {dateRange === 'custom' && (
                 <>
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">{t('billing.filter.startDate')}</label>
+                  <div className="min-w-[140px]">
+                    <label className="text-xs text-muted-foreground mb-1 block">{t('billing.filter.startDate')}</label>
                     <Input
                       type="date"
+                      className="h-9 text-sm"
                       value={startDate}
                       onChange={(e) => setStartDate(e.target.value)}
                     />
                   </div>
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">{t('billing.filter.endDate')}</label>
+                  <div className="min-w-[140px]">
+                    <label className="text-xs text-muted-foreground mb-1 block">{t('billing.filter.endDate')}</label>
                     <Input
                       type="date"
+                      className="h-9 text-sm"
                       value={endDate}
                       onChange={(e) => setEndDate(e.target.value)}
                     />
@@ -554,10 +530,10 @@ const Billing = () => {
               )}
               
               {billingScope === 'personal' && (
-              <div>
-                <label className="text-sm font-medium mb-2 block">{t('billing.filter.credential')}</label>
+              <div className="min-w-[140px]">
+                <label className="text-xs text-muted-foreground mb-1 block">{t('billing.filter.credential')}</label>
                 <Select value={credentialFilter} onValueChange={setCredentialFilter}>
-                  <SelectTrigger>
+                  <SelectTrigger className="h-9 text-sm">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -573,10 +549,10 @@ const Billing = () => {
               )}
               
               {activeTab === 'records' && (
-                <div>
-                  <label className="text-sm font-medium mb-2 block">{t('billing.filter.usageType')}</label>
+                <div className="min-w-[120px]">
+                  <label className="text-xs text-muted-foreground mb-1 block">{t('billing.filter.usageType')}</label>
                   <Select value={usageTypeFilter} onValueChange={setUsageTypeFilter}>
-                    <SelectTrigger>
+                    <SelectTrigger className="h-9 text-sm">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -591,10 +567,10 @@ const Billing = () => {
               )}
               
               {activeTab === 'bills' && (
-                <div>
-                  <label className="text-sm font-medium mb-2 block">{t('billing.filter.status')}</label>
+                <div className="min-w-[120px]">
+                  <label className="text-xs text-muted-foreground mb-1 block">{t('billing.filter.status')}</label>
                   <Select value={billStatusFilter} onValueChange={setBillStatusFilter}>
-                    <SelectTrigger>
+                    <SelectTrigger className="h-9 text-sm">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -614,20 +590,33 @@ const Billing = () => {
       
       {/* 主要内容 */}
       <Tabs value={activeTab} onValueChange={(value: any) => setActiveTab(value)}>
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="statistics">
-            <BarChart3 className="w-4 h-4 mr-2" />
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <TabsList className="grid w-full sm:w-auto sm:inline-flex grid-cols-3 h-9">
+          <TabsTrigger value="statistics" className="text-xs sm:text-sm px-3">
+            <BarChart3 className="w-4 h-4 mr-1.5 shrink-0" />
             {t('billing.tabs.statistics')}
           </TabsTrigger>
-          <TabsTrigger value="records">
-            <List className="w-4 h-4 mr-2" />
+          <TabsTrigger value="records" className="text-xs sm:text-sm px-3">
+            <List className="w-4 h-4 mr-1.5 shrink-0" />
             {t('billing.tabs.records')}
           </TabsTrigger>
-          <TabsTrigger value="bills">
-            <FileText className="w-4 h-4 mr-2" />
+          <TabsTrigger value="bills" className="text-xs sm:text-sm px-3">
+            <FileText className="w-4 h-4 mr-1.5 shrink-0" />
             {t('billing.tabs.bills')}
           </TabsTrigger>
         </TabsList>
+        {activeTab === 'bills' && (
+          <Button
+            variant="primary"
+            size="sm"
+            className="shrink-0 w-full sm:w-auto"
+            onClick={() => setShowGenerateBill(true)}
+            leftIcon={<Plus className="w-3.5 h-3.5" />}
+          >
+            {t('billing.generateBill')}
+          </Button>
+        )}
+        </div>
         
         {/* 统计概览 */}
         <TabsContent value="statistics" className="space-y-6">
@@ -847,8 +836,7 @@ const Billing = () => {
           )}
         </TabsContent>
         
-        {/* 账单管理 */}
-        <TabsContent value="bills" className="space-y-6">
+        <TabsContent value="bills" className="space-y-4 mt-3">
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <LoadingAnimation type="progress" size="lg" />

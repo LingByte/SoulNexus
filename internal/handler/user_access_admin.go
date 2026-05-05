@@ -17,8 +17,8 @@ func (h *Handlers) handleAdminGetUserAccess(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid user id"))
 		return
 	}
-	var u models.User
-	if err = h.db.Where("id = ? AND is_deleted = ?", id, models.SoftDeleteStatusActive).First(&u).Error; err != nil {
+	u, err := models.GetUserByID(h.db, uint(id))
+	if err != nil || u == nil {
 		response.Fail(c, "user not found", err)
 		return
 	}
@@ -50,10 +50,10 @@ func (h *Handlers) handleAdminGetUserAccess(c *gin.Context) {
 	effKeys, _ := models.EffectivePermissionKeys(h.db, u.ID)
 	response.Success(c, "success", gin.H{
 		"user": gin.H{
-			"id":         u.ID,
-			"email":      u.Email,
-			"displayName": u.DisplayName,
-			"legacyRole": u.Role,
+			"id":          u.ID,
+			"email":       u.Email,
+			"displayName": u.Profile.DisplayName,
+			"legacyRole":  u.Role,
 		},
 		"roles":                   roles,
 		"extraPermissions":        extraPerms,

@@ -1,5 +1,6 @@
 import { get, put, post, del, ApiResponse } from '@/utils/request'
 import { getUserServiceBaseURL } from '@/config/apiConfig'
+import { normalizeAuthUser } from '@/utils/authUserProfile'
 
 const userServiceConfig = {
   baseURL: getUserServiceBaseURL(),
@@ -14,6 +15,8 @@ export interface UpdateProfileForm {
   lastName?: string
   locale?: string
   timezone?: string
+  themeMode?: string
+  themeColor?: string
   gender?: string
   city?: string
   region?: string
@@ -50,7 +53,11 @@ export interface AvatarUploadResponse {
 
 // 获取用户资料
 export const getProfile = async (): Promise<ApiResponse<any>> => {
-  return get('/auth/info', userServiceConfig)
+  const res = await get<any>('/auth/info', userServiceConfig)
+  if (res.code === 200 && res.data) {
+    return { ...res, data: normalizeAuthUser(res.data as Record<string, unknown>) }
+  }
+  return res
 }
 
 // 更新用户资料 - 对应 PUT /auth/update

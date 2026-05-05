@@ -1,5 +1,6 @@
 import { post, get, ApiResponse } from '@/utils/request'
 import { getUserServiceBaseURL } from '@/config/apiConfig'
+import { normalizeAuthUser } from '@/utils/authUserProfile'
 
 const userServiceConfig = {
   baseURL: getUserServiceBaseURL(),
@@ -170,7 +171,11 @@ export interface User {
   region?: string
   extra?: string
   locale?: string
+  preferredLocale?: string
+  preferredTimezone?: string
   timezone: string
+  themeMode?: string
+  themeColor?: string
   avatar?: string
   role?: 'user' | 'admin'
   createdAt: string
@@ -198,6 +203,8 @@ export interface User {
   /** 注销冷静期预计完成永久注销的时间（RFC3339） */
   accountDeletionEffectiveAt?: string | null
   accountDeletionRequestedAt?: string | null
+  /** 后端 1:1 资料行；`normalizeAuthUser` 会把常用字段同步到根级供旧组件使用 */
+  profile?: Record<string, unknown>
 }
 
 // 用户注册
@@ -242,7 +249,11 @@ export const verifyDevice = async (data: { email: string; deviceId: string; veri
 
 // 获取用户信息
 export const getUserInfo = async (): Promise<ApiResponse<User>> => {
-  return get<User>('/auth/info', userServiceConfig)
+  const res = await get<User>('/auth/info', userServiceConfig)
+  if (res.code === 200 && res.data) {
+    return { ...res, data: normalizeAuthUser(res.data as unknown as Record<string, unknown>) as unknown as User }
+  }
+  return res
 }
 
 // 刷新token
@@ -259,7 +270,11 @@ export const sendEmailVerification = async (): Promise<ApiResponse<null>> => {
 
 // 验证邮箱（通过URL中的token）
 export const verifyEmail = async (token: string): Promise<ApiResponse<User>> => {
-  return get<User>(`/auth/verify-email?token=${token}`, userServiceConfig)
+  const res = await get<User>(`/auth/verify-email?token=${token}`, userServiceConfig)
+  if (res.code === 200 && res.data) {
+    return { ...res, data: normalizeAuthUser(res.data as unknown as Record<string, unknown>) as unknown as User }
+  }
+  return res
 }
 
 // 登出 - 对应 GET /auth/logout

@@ -100,25 +100,17 @@ func (h *Handlers) CreateWorkflowDefinition(c *gin.Context) {
 		return
 	}
 
-	// 获取组织ID（从请求体获取）
-	var groupID *uint
-	if groupIDVal, ok := input.GroupID.(float64); ok && groupIDVal > 0 {
-		uid := uint(groupIDVal)
-		groupID = &uid
-		// 验证用户是否有权限访问该组织
-		var group models.Group
-		if err := h.db.Where("id = ?", uid).First(&group).Error; err != nil {
-			response.Fail(c, "organization not found", nil)
-			return
+	var requested *uint
+	if input.GroupID != nil {
+		if groupIDVal, ok := input.GroupID.(float64); ok && groupIDVal > 0 {
+			uid := uint(groupIDVal)
+			requested = &uid
 		}
-		// 检查用户是否是组织成员或创建者
-		if group.CreatorID != user.ID {
-			var member models.GroupMember
-			if err := h.db.Where("group_id = ? AND user_id = ?", uid, user.ID).First(&member).Error; err != nil {
-				response.Fail(c, "insufficient permissions", "You are not a member of this organization")
-				return
-			}
-		}
+	}
+	gid, err := models.ResolveWriteGroupID(h.db, user.ID, requested)
+	if err != nil {
+		response.Fail(c, "organization error", err.Error())
+		return
 	}
 
 	if err := validateWorkflowGraph(input.Definition); err != nil {
@@ -134,8 +126,8 @@ func (h *Handlers) CreateWorkflowDefinition(c *gin.Context) {
 	}
 
 	def := models.WorkflowDefinition{
-		UserID:      user.ID,
-		GroupID:     groupID,
+		GroupID:     gid,
+		CreatorUID:  user.ID,
 		Name:        input.Name,
 		Slug:        input.Slug,
 		Description: input.Description,
@@ -190,30 +182,18 @@ func (h *Handlers) ListWorkflowDefinitions(c *gin.Context) {
 		list    []models.WorkflowDefinition
 	)
 
-	// 获取用户所属的组织ID列表
-	var groupIDs []uint
-	var groupMembers []models.GroupMember
-	if err := h.db.Where("user_id = ?", user.ID).Find(&groupMembers).Error; err == nil {
-		for _, member := range groupMembers {
-			groupIDs = append(groupIDs, member.GroupID)
-		}
-	}
-	// 获取用户创建的组织ID
-	var userGroups []models.Group
-	if err := h.db.Where("creator_id = ?", user.ID).Find(&userGroups).Error; err == nil {
-		for _, group := range userGroups {
-			groupIDs = append(groupIDs, group.ID)
-		}
+	groupIDs, err := models.MemberGroupIDs(h.db, user.ID)
+	if err != nil {
+		response.Fail(c, "failed to list workflow definitions", err.Error())
+		return
 	}
 
 	query := h.db.Model(&models.WorkflowDefinition{})
-
-	// 查询：用户自己的工作流 + 组织共享的工作流
-	if len(groupIDs) > 0 {
-		query = query.Where("user_id = ? OR (group_id IS NOT NULL AND group_id IN (?))", user.ID, groupIDs)
-	} else {
-		query = query.Where("user_id = ?", user.ID)
+	if len(groupIDs) == 0 {
+		response.Success(c, "ok", list)
+		return
 	}
+	query = query.Where("group_id IN ?", groupIDs)
 
 	if status != "" {
 		query = query.Where("status = ?", status)
@@ -233,6 +213,12 @@ func (h *Handlers) ListWorkflowDefinitions(c *gin.Context) {
 
 // GetWorkflowDefinition returns a single definition.
 func (h *Handlers) GetWorkflowDefinition(c *gin.Context) {
+	user := models.CurrentUser(c)
+	if user == nil {
+		response.Fail(c, "unauthorized", "User not logged in")
+		return
+	}
+
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		response.Fail(c, "invalid id", nil)
@@ -242,6 +228,11 @@ func (h *Handlers) GetWorkflowDefinition(c *gin.Context) {
 	var def models.WorkflowDefinition
 	if err := h.db.First(&def, id).Error; err != nil {
 		response.Fail(c, "workflow definition not found", err.Error())
+		return
+	}
+
+	if !models.UserIsGroupMember(h.db, user.ID, def.GroupID) {
+		response.Fail(c, "forbidden", nil)
 		return
 	}
 
@@ -304,50 +295,23 @@ func (h *Handlers) UpdateWorkflowDefinition(c *gin.Context) {
 		return
 	}
 
-	// 检查权限：只有创建者或组织管理员可以更新
-	if def.UserID != user.ID {
-		if def.GroupID == nil {
-			response.Fail(c, "insufficient permissions", nil)
-			return
-		}
-		// 检查用户是否是组织创建者或管理员
-		var group models.Group
-		if err := h.db.Where("id = ?", *def.GroupID).First(&group).Error; err != nil {
-			response.Fail(c, "organization not found", nil)
-			return
-		}
-		if group.CreatorID != user.ID {
-			var member models.GroupMember
-			if err := h.db.Where("group_id = ? AND user_id = ? AND role = ?", *def.GroupID, user.ID, models.GroupRoleAdmin).First(&member).Error; err != nil {
-				response.Fail(c, "insufficient permissions", "Only creator or admin can update organization-shared workflows")
-				return
-			}
-		}
+	if !models.CanManageTenantResource(h.db, user.ID, def.GroupID, def.CreatorUID) {
+		response.Fail(c, "insufficient permissions", nil)
+		return
 	}
 
-	// 如果更新了 GroupID，验证权限
 	if input.GroupID != nil {
-		var groupID *uint
+		var requested *uint
 		if groupIDVal, ok := input.GroupID.(float64); ok && groupIDVal > 0 {
 			uid := uint(groupIDVal)
-			groupID = &uid
-			var group models.Group
-			if err := h.db.Where("id = ?", uid).First(&group).Error; err != nil {
-				response.Fail(c, "organization not found", nil)
-				return
-			}
-			if group.CreatorID != user.ID {
-				var member models.GroupMember
-				if err := h.db.Where("group_id = ? AND user_id = ?", uid, user.ID).First(&member).Error; err != nil {
-					response.Fail(c, "insufficient permissions", "You are not a member of this organization")
-					return
-				}
-			}
-			def.GroupID = groupID
-		} else {
-			// 如果传入 null，表示取消组织共享
-			def.GroupID = nil
+			requested = &uid
 		}
+		newGid, err := models.ResolveWriteGroupID(h.db, user.ID, requested)
+		if err != nil {
+			response.Fail(c, "organization error", err.Error())
+			return
+		}
+		def.GroupID = newGid
 	}
 
 	// Save current version to history before updating
@@ -417,6 +381,7 @@ func (h *Handlers) UpdateWorkflowDefinition(c *gin.Context) {
 		"output_parameters": def.OutputParameters,
 		"updated_by":        def.UpdatedBy,
 		"version":           def.Version,
+		"group_id":          def.GroupID,
 	}
 
 	tx := h.db.Model(&models.WorkflowDefinition{}).
@@ -454,25 +419,9 @@ func (h *Handlers) DeleteWorkflowDefinition(c *gin.Context) {
 		return
 	}
 
-	// 检查权限：只有创建者或组织管理员可以删除
-	if def.UserID != user.ID {
-		if def.GroupID == nil {
-			response.Fail(c, "insufficient permissions", nil)
-			return
-		}
-		// 检查用户是否是组织创建者或管理员
-		var group models.Group
-		if err := h.db.Where("id = ?", *def.GroupID).First(&group).Error; err != nil {
-			response.Fail(c, "organization not found", nil)
-			return
-		}
-		if group.CreatorID != user.ID {
-			var member models.GroupMember
-			if err := h.db.Where("group_id = ? AND user_id = ? AND role = ?", *def.GroupID, user.ID, models.GroupRoleAdmin).First(&member).Error; err != nil {
-				response.Fail(c, "insufficient permissions", "Only creator or admin can delete organization-shared workflows")
-				return
-			}
-		}
+	if !models.CanManageTenantResource(h.db, user.ID, def.GroupID, def.CreatorUID) {
+		response.Fail(c, "insufficient permissions", nil)
+		return
 	}
 
 	// 软删除：使用 GORM 的 Delete 方法
@@ -584,6 +533,11 @@ func (h *Handlers) RunWorkflowDefinition(c *gin.Context) {
 	var def models.WorkflowDefinition
 	if err := h.db.First(&def, id).Error; err != nil {
 		response.Fail(c, "workflow definition not found", err.Error())
+		return
+	}
+
+	if !models.UserIsGroupMember(h.db, user.ID, def.GroupID) {
+		response.Fail(c, "forbidden", nil)
 		return
 	}
 
@@ -743,6 +697,11 @@ func (h *Handlers) TestWorkflowNode(c *gin.Context) {
 	var def models.WorkflowDefinition
 	if err := h.db.First(&def, id).Error; err != nil {
 		response.Fail(c, "workflow definition not found", err.Error())
+		return
+	}
+
+	if !models.UserIsGroupMember(h.db, user.ID, def.GroupID) {
+		response.Fail(c, "forbidden", nil)
 		return
 	}
 

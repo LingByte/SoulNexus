@@ -24,14 +24,11 @@ import {
 import { showAlert } from '@/utils/notification';
 import { useAuthStore } from '@/stores/authStore';
 import { useI18nStore } from '@/stores/i18nStore';
-import { ArrowLeft, Save, Trash2, AlertTriangle, Bot, BookOpen, Upload, X, Plus, Edit, Database, LayoutDashboard, Archive, RotateCcw, Copy, Download, Activity } from 'lucide-react';
+import { ArrowLeft, Save, Trash2, AlertTriangle, Bot, BookOpen, Upload, X, Plus, Edit, Database, Archive, RotateCcw, Copy, Download, Activity } from 'lucide-react';
 import Button from '@/components/UI/Button';
 import ConfirmDialog from '@/components/UI/ConfirmDialog';
 import QuotaModal from '@/components/Quota/QuotaModal';
 import DeleteConfirmModal from '@/components/Quota/DeleteConfirmModal';
-import { getOverviewConfig } from '@/api/overview';
-import { OverviewConfig, defaultOverviewConfig } from '@/types/overview';
-
 const GroupSettings: React.FC = () => {
   const { t } = useI18nStore();
   const { id } = useParams<{ id: string }>();
@@ -57,8 +54,6 @@ const GroupSettings: React.FC = () => {
     type: '',
     extra: '',
   });
-  const [overviewConfig, setOverviewConfig] = useState<OverviewConfig | null>(null);
-  const [loadingOverview, setLoadingOverview] = useState(false);
   const [showDeleteGroupConfirm, setShowDeleteGroupConfirm] = useState(false);
   const [deletingGroup, setDeletingGroup] = useState(false);
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
@@ -82,7 +77,7 @@ const GroupSettings: React.FC = () => {
       setAvatarPreview(res.data.avatar || null);
     } catch (err: any) {
       showAlert(err?.msg || t('groupSettings.messages.fetchGroupFailed'), 'error');
-      navigate('/groups');
+      navigate('/profile/teams');
     } finally {
       setLoading(false);
     }
@@ -93,7 +88,6 @@ const GroupSettings: React.FC = () => {
     if (id) {
       fetchResources();
       fetchQuotas();
-      fetchOverviewConfig();
     }
   }, [id]);
 
@@ -122,63 +116,6 @@ const GroupSettings: React.FC = () => {
       setLoadingResources(false);
     }
   };
-
-  const fetchOverviewConfig = async () => {
-    if (!id) return;
-    try {
-      setLoadingOverview(true);
-      const configRes = await getOverviewConfig(Number(id));
-      if (configRes.code === 200 && configRes.data) {
-        const backendConfig = configRes.data as any;
-        const currentGroup = group || (await getGroup(Number(id))).data;
-        const loadedConfig: OverviewConfig = {
-          id: backendConfig.id || `config-${Date.now()}`,
-          organizationId: backendConfig.organizationId || Number(id),
-          name: backendConfig.name || `${currentGroup?.name || ''} - 概览`,
-          description: backendConfig.description,
-          layout: {
-            ...defaultOverviewConfig.layout,
-            ...(backendConfig.layout || {})
-          },
-          widgets: backendConfig.widgets || [],
-          theme: {
-            ...defaultOverviewConfig.theme,
-            ...(backendConfig.theme || {})
-          },
-          header: backendConfig.header || defaultOverviewConfig.header,
-          footer: backendConfig.footer || defaultOverviewConfig.footer,
-          createdAt: backendConfig.createdAt,
-          updatedAt: backendConfig.updatedAt
-        };
-        setOverviewConfig(loadedConfig);
-        
-      } else {
-        // 如果没有配置，创建默认配置
-        const currentGroup = group || (await getGroup(Number(id))).data;
-        const defaultConfig: OverviewConfig = {
-          ...defaultOverviewConfig,
-          id: `config-${Date.now()}`,
-          organizationId: Number(id),
-          name: `${currentGroup?.name || ''} - 概览`,
-        };
-        setOverviewConfig(defaultConfig);
-      }
-    } catch (err: any) {
-      console.warn('获取概览配置失败:', err);
-      // 使用默认配置
-      const currentGroup = group || (await getGroup(Number(id))).data;
-      const defaultConfig: OverviewConfig = {
-        ...defaultOverviewConfig,
-        id: `config-${Date.now()}`,
-        organizationId: Number(id),
-        name: `${currentGroup?.name || ''} - 概览`,
-      };
-      setOverviewConfig(defaultConfig);
-    } finally {
-      setLoadingOverview(false);
-    }
-  };
-
 
   const handleSave = async () => {
     if (!id || !group) return;
@@ -215,7 +152,7 @@ const GroupSettings: React.FC = () => {
       setDeletingGroup(true);
       await deleteGroup(Number(id));
       showAlert(t('groupSettings.messages.deleteSuccess'), 'success');
-      navigate('/groups');
+      navigate('/profile/teams');
     } catch (err: any) {
       showAlert(err?.msg || t('groupSettings.messages.deleteFailed'), 'error');
     } finally {
@@ -235,7 +172,7 @@ const GroupSettings: React.FC = () => {
       setArchiving(true);
       await archiveGroup(Number(id));
       showAlert(t('groups.archiveSuccess'), 'success');
-      navigate('/groups');
+      navigate('/profile/teams');
     } catch (err: any) {
       showAlert(err?.msg || t('groups.archiveFailed'), 'error');
     } finally {
@@ -389,7 +326,7 @@ const GroupSettings: React.FC = () => {
           <div className="text-gray-400 text-lg mb-2">{t('groupSettings.insufficientPermissions')}</div>
           <div className="text-gray-500 text-sm mb-6">{t('groupSettings.insufficientPermissionsDesc')}</div>
           <button
-            onClick={() => navigate('/groups')}
+            onClick={() => navigate('/profile/teams')}
             className="px-6 py-3 rounded-lg bg-purple-600 text-white hover:bg-purple-700 transition-colors"
           >
             {t('groupSettings.backToList')}
@@ -452,7 +389,7 @@ const GroupSettings: React.FC = () => {
         {/* 头部 */}
         <div className="mb-8">
           <Button
-            onClick={() => navigate('/groups')}
+            onClick={() => navigate('/profile/teams')}
             variant="ghost"
             size="sm"
             leftIcon={<ArrowLeft className="w-4 h-4" />}
@@ -702,60 +639,6 @@ const GroupSettings: React.FC = () => {
                   <div className="text-gray-400 text-sm py-4">{t('groupSettings.noSharedKnowledgeBases')}</div>
                 )}
               </div>
-            </div>
-          )}
-        </div>
-
-        {/* 概览页面配置 */}
-        <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-gray-200 dark:border-neutral-700 p-6 mb-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
-              <LayoutDashboard className="w-5 h-5" />
-              概览页面
-            </h2>
-            <Button
-              onClick={() => navigate(`/groups/${id}/overview/edit`)}
-              variant="primary"
-              size="sm"
-              leftIcon={<Edit className="w-4 h-4" />}
-            >
-              编辑概览页面
-            </Button>
-          </div>
-
-          {loadingOverview ? (
-            <div className="text-center text-gray-400 py-8">{t('groups.loading')}</div>
-          ) : (
-            <div className="space-y-4">
-              <p className="text-gray-600 dark:text-gray-400 text-sm">
-                {overviewConfig 
-                  ? `当前概览页面已配置，包含 ${overviewConfig.widgets?.length || 0} 个组件。点击"编辑概览页面"按钮进行编辑。`
-                  : '概览页面尚未配置，点击"编辑概览页面"按钮开始创建。'}
-              </p>
-              {overviewConfig && (
-                <div className="bg-gray-50 dark:bg-neutral-900 rounded-lg p-4">
-                  <div className="text-sm space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-gray-600 dark:text-gray-400">配置名称:</span>
-                      <span className="font-medium text-gray-900 dark:text-gray-100">{overviewConfig.name}</span>
-                    </div>
-                    {overviewConfig.description && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-gray-600 dark:text-gray-400">描述:</span>
-                        <span className="font-medium text-gray-900 dark:text-gray-100">{overviewConfig.description}</span>
-                      </div>
-                    )}
-                    <div className="flex items-center justify-between">
-                      <span className="text-gray-600 dark:text-gray-400">组件数量:</span>
-                      <span className="font-medium text-gray-900 dark:text-gray-100">{overviewConfig.widgets?.length || 0}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-gray-600 dark:text-gray-400">主题样式:</span>
-                      <span className="font-medium text-gray-900 dark:text-gray-100">{overviewConfig.theme?.style || 'modern'}</span>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           )}
         </div>

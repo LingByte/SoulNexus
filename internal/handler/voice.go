@@ -321,9 +321,16 @@ func (h *Handlers) CreateTrainingTask(c *gin.Context) {
 	// 2) 保存配置到数据库（如果配置了）
 	h.saveVoiceCloneConfig("xunfei")
 
+	pg, err := models.EnsurePersonalGroupForUser(h.db, user.ID)
+	if err != nil {
+		response.Fail(c, "保存训练任务失败", err.Error())
+		return
+	}
+
 	// 3) 保存到数据库
 	task := &models.VoiceTrainingTask{
-		UserID:   user.ID,
+		GroupID:  pg.ID,
+		CreatedBy: user.ID,
 		TaskID:   taskID,
 		TaskName: req.TaskName,
 		Sex:      req.Sex,
@@ -453,9 +460,17 @@ func (h *Handlers) SubmitAudio(c *gin.Context) {
 		return
 	}
 
-	// 1) 查找训练任务
+	groupIDs, gerr := models.MemberGroupIDs(h.db, user.ID)
+	if gerr != nil {
+		response.Fail(c, "训练任务不存在", gerr.Error())
+		return
+	}
+	if len(groupIDs) == 0 {
+		response.Fail(c, "训练任务不存在", nil)
+		return
+	}
 	var task models.VoiceTrainingTask
-	if err := h.db.Where("user_id = ? AND task_id = ?", user.ID, req.TaskID).First(&task).Error; err != nil {
+	if err := h.db.Where("group_id IN ? AND task_id = ?", groupIDs, req.TaskID).First(&task).Error; err != nil {
 		response.Fail(c, "训练任务不存在", err.Error())
 		return
 	}
@@ -505,9 +520,17 @@ func (h *Handlers) QueryTaskStatus(c *gin.Context) {
 		return
 	}
 
-	// 1) 查找训练任务
+	groupIDs, gerr := models.MemberGroupIDs(h.db, user.ID)
+	if gerr != nil {
+		response.Fail(c, "训练任务不存在", gerr.Error())
+		return
+	}
+	if len(groupIDs) == 0 {
+		response.Fail(c, "训练任务不存在", nil)
+		return
+	}
 	var task models.VoiceTrainingTask
-	if err := h.db.Where("user_id = ? AND task_id = ?", user.ID, req.TaskID).First(&task).Error; err != nil {
+	if err := h.db.Where("group_id IN ? AND task_id = ?", groupIDs, req.TaskID).First(&task).Error; err != nil {
 		response.Fail(c, "训练任务不存在", err.Error())
 		return
 	}
@@ -570,8 +593,17 @@ func (h *Handlers) GetUserVoiceClones(c *gin.Context) {
 		return
 	}
 
+	groupIDs, gerr := models.MemberGroupIDs(h.db, user.ID)
+	if gerr != nil {
+		response.Fail(c, "获取音色列表失败", gerr.Error())
+		return
+	}
+	if len(groupIDs) == 0 {
+		response.Success(c, "获取音色列表成功", []models.VoiceClone{})
+		return
+	}
 	var clones []models.VoiceClone
-	query := h.db.Where("user_id = ? AND is_active = ?", user.ID, true)
+	query := h.db.Where("group_id IN ? AND is_active = ?", groupIDs, true)
 
 	// 支持按 provider 过滤
 	if provider := c.Query("provider"); provider != "" {
@@ -603,9 +635,13 @@ func (h *Handlers) GetVoiceClone(c *gin.Context) {
 	}
 
 	var clone models.VoiceClone
-	if err := h.db.Where("user_id = ? AND id = ? AND is_active = ?", user.ID, uint(cloneID), true).
+	if err := h.db.Where("id = ? AND is_active = ?", uint(cloneID), true).
 		First(&clone).Error; err != nil {
 		response.Fail(c, "音色不存在", err.Error())
+		return
+	}
+	if !models.UserIsGroupMember(h.db, user.ID, clone.GroupID) {
+		response.Fail(c, "音色不存在", nil)
 		return
 	}
 	response.Success(c, "获取音色信息成功", clone)
@@ -635,11 +671,14 @@ func (h *Handlers) SynthesizeWithVoice(c *gin.Context) {
 		req.StorageKey = "voice_synthesis/" + strconv.FormatUint(uint64(req.VoiceCloneID), 10) + "_" + timestamp + "_" + strconv.FormatInt(int64(len(req.Text)), 10) + ".mp3"
 	}
 
-	// 1) 获取音色
 	var clone models.VoiceClone
-	if err := h.db.Where("user_id = ? AND id = ? AND is_active = ?", user.ID, req.VoiceCloneID, true).
+	if err := h.db.Where("id = ? AND is_active = ?", req.VoiceCloneID, true).
 		First(&clone).Error; err != nil {
 		response.Fail(c, "音色不存在", err.Error())
+		return
+	}
+	if !models.UserIsGroupMember(h.db, user.ID, clone.GroupID) {
+		response.Fail(c, "音色不存在", nil)
 		return
 	}
 
@@ -695,9 +734,9 @@ func (h *Handlers) SynthesizeWithVoice(c *gin.Context) {
 		}
 	}
 
-	// 4) 记录合成历史
 	synthesis := &models.VoiceSynthesis{
-		UserID:        user.ID,
+		GroupID:       clone.GroupID,
+		CreatedBy:     user.ID,
 		VoiceCloneID:  clone.ID,
 		Text:          req.Text,
 		Language:      req.Language,
@@ -750,8 +789,17 @@ func (h *Handlers) GetSynthesisHistory(c *gin.Context) {
 	// 支持按 provider 过滤
 	provider := c.Query("provider")
 
+	groupIDs, gerr := models.MemberGroupIDs(h.db, user.ID)
+	if gerr != nil {
+		response.Fail(c, "获取合成历史失败", gerr.Error())
+		return
+	}
+	if len(groupIDs) == 0 {
+		response.Success(c, "获取合成历史成功", []SynthesisHistoryItem{})
+		return
+	}
 	var history []models.VoiceSynthesis
-	query := h.db.Model(&models.VoiceSynthesis{}).Where("voice_syntheses.user_id = ?", user.ID)
+	query := h.db.Model(&models.VoiceSynthesis{}).Where("voice_syntheses.group_id IN ?", groupIDs)
 
 	// 如果指定了 provider，需要 join VoiceClone 表过滤
 	if provider != "" {
@@ -823,15 +871,22 @@ func (h *Handlers) DeleteSynthesisRecord(c *gin.Context) {
 		return
 	}
 
-	// 检查记录是否存在且属于当前用户
+	groupIDs, gerr := models.MemberGroupIDs(h.db, user.ID)
+	if gerr != nil {
+		response.Fail(c, "合成记录不存在", gerr.Error())
+		return
+	}
+	if len(groupIDs) == 0 {
+		response.Fail(c, "合成记录不存在", nil)
+		return
+	}
 	var record models.VoiceSynthesis
-	if err := h.db.Where("user_id = ? AND id = ?", user.ID, req.ID).First(&record).Error; err != nil {
+	if err := h.db.Where("group_id IN ? AND id = ?", groupIDs, req.ID).First(&record).Error; err != nil {
 		response.Fail(c, "合成记录不存在", err.Error())
 		return
 	}
 
-	// 删除记录
-	if err := h.db.Where("user_id = ? AND id = ?", user.ID, req.ID).
+	if err := h.db.Where("group_id IN ? AND id = ?", groupIDs, req.ID).
 		Delete(&models.VoiceSynthesis{}).Error; err != nil {
 		response.Fail(c, "删除合成记录失败", err.Error())
 		return
@@ -854,8 +909,17 @@ func (h *Handlers) UpdateVoiceClone(c *gin.Context) {
 		return
 	}
 
+	var vc models.VoiceClone
+	if err := h.db.Where("id = ?", req.ID).First(&vc).Error; err != nil {
+		response.Fail(c, "更新音色信息失败", err.Error())
+		return
+	}
+	if !models.CanManageTenantResource(h.db, user.ID, vc.GroupID, vc.CreatedBy) {
+		response.Fail(c, "无权更新该音色", nil)
+		return
+	}
 	if err := h.db.Model(&models.VoiceClone{}).
-		Where("user_id = ? AND id = ?", user.ID, req.ID).
+		Where("id = ?", req.ID).
 		Updates(map[string]any{
 			"voice_name":        req.VoiceName,
 			"voice_description": req.VoiceDescription,
@@ -1290,7 +1354,16 @@ func (h *Handlers) DeleteVoiceClone(c *gin.Context) {
 		return
 	}
 
-	if err := h.db.Where("user_id = ? AND id = ?", user.ID, req.ID).
+	var vc models.VoiceClone
+	if err := h.db.Where("id = ?", req.ID).First(&vc).Error; err != nil {
+		response.Fail(c, "删除音色失败", err.Error())
+		return
+	}
+	if !models.CanManageTenantResource(h.db, user.ID, vc.GroupID, vc.CreatedBy) {
+		response.Fail(c, "无权删除该音色", nil)
+		return
+	}
+	if err := h.db.Where("id = ?", req.ID).
 		Delete(&models.VoiceClone{}).Error; err != nil {
 		response.Fail(c, "删除音色失败", err.Error())
 		return
@@ -1374,13 +1447,14 @@ func (h *Handlers) GetTrainingTexts(c *gin.Context) {
 // upsertVoiceClone 如果不存在则创建，存在则更新
 func (h *Handlers) upsertVoiceClone(ctx context.Context, userID uint, task *models.VoiceTrainingTask, assetID, trainVID, provider string) error {
 	var existing models.VoiceClone
-	if err := h.db.Where("user_id = ? AND asset_id = ? AND provider = ?", userID, assetID, provider).First(&existing).Error; err == nil {
+	if err := h.db.Where("group_id = ? AND asset_id = ? AND provider = ?", task.GroupID, assetID, provider).First(&existing).Error; err == nil {
 		existing.TrainVID = trainVID
 		existing.IsActive = true
 		return h.db.Save(&existing).Error
 	}
 	clone := &models.VoiceClone{
-		UserID:           userID,
+		GroupID:          task.GroupID,
+		CreatedBy:        userID,
 		TrainingTaskID:   task.ID,
 		Provider:         provider,
 		AssetID:          assetID,
@@ -1478,7 +1552,7 @@ func (h *Handlers) OneShotText(c *gin.Context) {
 
 	// 获取用户信息
 	var user models.User
-	if err := h.db.First(&user, credential.UserID).Error; err != nil {
+	if err := h.db.First(&user, credential.CreatedBy).Error; err != nil {
 		response.Fail(c, "用户不存在", err.Error())
 		return
 	}
@@ -1687,7 +1761,7 @@ func (h *Handlers) SimpleTextChat(c *gin.Context) {
 
 	// 2. 获取用户信息
 	var user models.User
-	if err := h.db.First(&user, credential.UserID).Error; err != nil {
+	if err := h.db.First(&user, credential.CreatedBy).Error; err != nil {
 		response.Fail(c, "用户不存在", err.Error())
 		return
 	}
@@ -1699,9 +1773,8 @@ func (h *Handlers) SimpleTextChat(c *gin.Context) {
 		return
 	}
 
-	// 验证助手是否属于该用户
-	if assistant.UserID != user.ID {
-		response.Fail(c, "无权访问该助手", "助手不属于当前用户")
+	if assistant.GroupID != credential.GroupID {
+		response.Fail(c, "无权访问该助手", "助手与凭证不属于同一组织")
 		return
 	}
 
@@ -1855,13 +1928,12 @@ func (h *Handlers) PlainText(c *gin.Context) {
 
 	// 3. 获取用户信息
 	var user models.User
-	if err := h.db.First(&user, credential.UserID).Error; err != nil {
+	if err := h.db.First(&user, credential.CreatedBy).Error; err != nil {
 		response.Fail(c, "用户不存在", err.Error())
 		return
 	}
 
-	// 4. 判断是否是该用户的助手
-	if assistant.UserID != user.ID {
+	if assistant.GroupID != credential.GroupID {
 		response.Fail(c, "无权限", "请检查助手ID是否正确")
 		return
 	}
@@ -2058,9 +2130,9 @@ func (h *Handlers) processAudioAsyncV2(ctx context.Context, credential *models.U
 
 	// 如果使用了训练音色，优先使用训练音色（通过 voiceclone 服务）
 	if voiceCloneID > 0 {
-		// 1) 从数据库查询音色克隆信息
+		groupIDs, _ := models.MemberGroupIDs(h.db, userID)
 		var clone models.VoiceClone
-		if err := h.db.Where("user_id = ? AND id = ? AND is_active = ?", userID, voiceCloneID, true).
+		if err := h.db.Where("group_id IN ? AND id = ? AND is_active = ?", groupIDs, voiceCloneID, true).
 			First(&clone).Error; err != nil {
 			fmt.Printf("[V2] 音色克隆不存在或未激活: VoiceCloneID=%d, Error=%v\n", voiceCloneID, err)
 			// 如果音色不存在，继续使用普通TTS合成

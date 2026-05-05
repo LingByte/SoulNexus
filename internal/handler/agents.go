@@ -67,9 +67,15 @@ func (h *Handlers) CreateAgent(c *gin.Context) {
 		}
 	}
 
+	gid, err := models.ResolveWriteGroupID(h.db, user.ID, input.GroupID)
+	if err != nil {
+		response.Fail(c, "Failed to resolve organization", err.Error())
+		return
+	}
+
 	agent := models.Agent{
-		UserID:       user.ID,
-		GroupID:      input.GroupID,
+		GroupID:      gid,
+		CreatedBy:    user.ID,
 		Name:         input.Name,
 		Description:  input.Description,
 		Icon:         input.Icon,
@@ -83,7 +89,7 @@ func (h *Handlers) CreateAgent(c *gin.Context) {
 		UpdatedAt:    time.Now(),
 	}
 
-	if err := h.db.Create(&agent).Error; err != nil {
+	if err = h.db.Create(&agent).Error; err != nil {
 		response.Fail(c, fmt.Sprintf("Failed to create agent %s", agent.Name), nil)
 		return
 	}
@@ -100,22 +106,17 @@ func (h *Handlers) ListAgents(c *gin.Context) {
 	}
 	var list []models.Agent
 
-	// Query user's own assistants and organization-shared assistants
-	// 1. Assistants created by the user (user_id = ?)
-	// 2. Organization-shared assistants (group_id IN (list of organization IDs the user belongs to))
-	var groupIDs []uint
-	h.db.Model(&models.GroupMember{}).
-		Where("user_id = ?", user.ID).
-		Pluck("group_id", &groupIDs)
-
-	query := h.db.Model(&models.Agent{})
-	if len(groupIDs) > 0 {
-		// User's own assistants OR organization-shared assistants
-		query = query.Where("user_id = ? OR (group_id IN ? AND group_id IS NOT NULL)", user.ID, groupIDs)
-	} else {
-		// Only query user's own assistants
-		query = query.Where("user_id = ?", user.ID)
+	groupIDs, err := models.MemberGroupIDs(h.db, user.ID)
+	if err != nil {
+		response.Fail(c, "select assistants failed", err.Error())
+		return
 	}
+	query := h.db.Model(&models.Agent{})
+	if len(groupIDs) == 0 {
+		response.Success(c, "select assistants successful", list)
+		return
+	}
+	query = query.Where("group_id IN ?", groupIDs)
 
 	if err := query.Order("created_at desc").Find(&list).Error; err != nil {
 		response.Fail(c, "select assistants failed", nil)
@@ -128,13 +129,17 @@ func (h *Handlers) ListAgents(c *gin.Context) {
 // GetAgent returns a single agent
 func (h *Handlers) GetAgent(c *gin.Context) {
 	user := models.CurrentUser(c)
+	if user == nil {
+		response.Fail(c, "unauthorized", "User not logged in")
+		return
+	}
 	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
 	var assistant models.Agent
 	if err := h.db.First(&assistant, id).Error; err != nil {
 		response.Fail(c, "not found", "this assistant is not exist")
 		return
 	}
-	if user.ID != assistant.UserID {
+	if !models.UserIsGroupMember(h.db, user.ID, assistant.GroupID) {
 		response.Fail(c, "permission denied", "you are not allowed to access this assistant")
 		return
 	}
@@ -194,7 +199,7 @@ func (h *Handlers) UpdateAgent(c *gin.Context) {
 		return
 	}
 
-	if assistant.UserID != user.ID {
+	if !models.CanManageTenantResource(h.db, user.ID, assistant.GroupID, assistant.CreatedBy) {
 		response.Fail(c, "forbidden", "No permission to operate this assistant.")
 		return
 	}
@@ -299,7 +304,7 @@ func (h *Handlers) GetAgentGraphData(c *gin.Context) {
 		return
 	}
 
-	if assistant.UserID != user.ID {
+	if !models.UserIsGroupMember(h.db, user.ID, assistant.GroupID) {
 		response.Fail(c, "forbidden", "No permission to access this assistant")
 		return
 	}
@@ -350,7 +355,7 @@ func (h *Handlers) DeleteAgent(c *gin.Context) {
 		return
 	}
 
-	if assistant.UserID != user.ID {
+	if !models.CanManageTenantResource(h.db, user.ID, assistant.GroupID, assistant.CreatedBy) {
 		response.Fail(c, "forbidden", "No permission to delete this assistant")
 		return
 	}

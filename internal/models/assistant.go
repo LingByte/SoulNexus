@@ -384,8 +384,8 @@ type JSTemplate struct {
 	Type                  string    `json:"type" gorm:"index:idx_js_templates_type"`                          // "default" 或 "custom"
 	Content               string    `json:"content"`                                                          // content
 	Usage                 string    `json:"usage"`                                                            // usage description
-	UserID                uint      `json:"user_id" gorm:"index:idx_js_templates_user"`                       // user id
-	GroupID               *uint     `json:"group_id,omitempty" gorm:"index"`                                  // 组织ID，如果设置则表示这是组织共享的JS模板
+	GroupID               uint      `json:"group_id" gorm:"index"`
+	CreatedBy             uint      `json:"created_by" gorm:"index"`
 	Version               uint      `json:"version" gorm:"default:1"`                                         // 当前版本号
 	Status                string    `json:"status" gorm:"size:32;default:'active'"`                           // 状态: active, draft, archived
 	WebhookSecret         string    `json:"webhook_secret,omitempty" gorm:"size:128"`                         // Webhook签名密钥
@@ -431,17 +431,17 @@ func CreateJSTemplate(db *gorm.DB, template *JSTemplate) error {
 
 	// 如果没有提供jsSourceId，生成一个唯一的
 	if template.JsSourceID == "" {
-		template.JsSourceID = generateUniqueJsSourceID(db, template.UserID)
+		template.JsSourceID = generateUniqueJsSourceID(db, template.GroupID)
 	}
 	return db.Create(template).Error
 }
 
 // generateUniqueJsSourceID 生成唯一的jsSourceId，确保不重复
-func generateUniqueJsSourceID(db *gorm.DB, userID uint) string {
+func generateUniqueJsSourceID(db *gorm.DB, groupID uint) string {
 	maxAttempts := 10
 	for i := 0; i < maxAttempts; i++ {
-		// 使用UUID + 时间戳 + 用户ID的组合确保唯一性
-		jsSourceID := fmt.Sprintf("js_%d_%d_%s", userID, time.Now().UnixNano(), generateRandomString(8))
+		// 使用UUID + 时间戳 + 租户组织的组合确保唯一性
+		jsSourceID := fmt.Sprintf("js_%d_%d_%s", groupID, time.Now().UnixNano(), generateRandomString(8))
 
 		// 检查是否已存在
 		var count int64
@@ -460,7 +460,7 @@ func generateUniqueJsSourceID(db *gorm.DB, userID uint) string {
 	}
 
 	// 如果所有尝试都失败，使用UUID作为最后手段
-	return fmt.Sprintf("js_%d_%s", userID, generateUUID())
+	return fmt.Sprintf("js_%d_%s", groupID, generateUUID())
 }
 
 // generateRandomString 生成随机字符串
@@ -537,7 +537,14 @@ func ListJSTemplates(db *gorm.DB, userID uint, offset, limit int) ([]JSTemplate,
 	query := db.Offset(offset).Limit(limit).Order("created_at DESC")
 
 	if userID > 0 {
-		query = query.Where("user_id = ?", userID)
+		ids, err := MemberGroupIDs(db, userID)
+		if err != nil {
+			return nil, err
+		}
+		if len(ids) == 0 {
+			return []JSTemplate{}, nil
+		}
+		query = query.Where("group_id IN ?", ids)
 	}
 
 	err := query.Find(&templates).Error
@@ -552,9 +559,15 @@ func ListJSTemplatesByType(db *gorm.DB, templateType string, userID uint, offset
 	var templates []JSTemplate
 	query := db.Where("type = ?", templateType).Offset(offset).Limit(limit).Order("created_at DESC")
 
-	// 如果是自定义模板，还要根据用户ID过滤
 	if templateType == "custom" && userID > 0 {
-		query = query.Where("user_id = ?", userID)
+		ids, err := MemberGroupIDs(db, userID)
+		if err != nil {
+			return nil, err
+		}
+		if len(ids) == 0 {
+			return []JSTemplate{}, nil
+		}
+		query = query.Where("group_id IN ?", ids)
 	}
 
 	err := query.Find(&templates).Error
@@ -574,14 +587,13 @@ func DeleteJSTemplate(db *gorm.DB, id string) error {
 	return db.Where("id = ?", id).Delete(&JSTemplate{}).Error
 }
 
-// IsJSTemplateOwner 检查用户是否为模板的所有者
+// IsJSTemplateOwner 检查用户是否属于模板所在组织（可管理模板）
 func IsJSTemplateOwner(db *gorm.DB, id string, userID uint) (bool, error) {
-	var count int64
-	err := db.Model(&JSTemplate{}).Where("id = ? AND user_id = ?", id, userID).Count(&count).Error
-	if err != nil {
+	var t JSTemplate
+	if err := db.Where("id = ?", id).First(&t).Error; err != nil {
 		return false, err
 	}
-	return count > 0, nil
+	return UserIsGroupMember(db, userID, t.GroupID), nil
 }
 
 // GetJSTemplatesCount 获取模板总数
@@ -594,7 +606,14 @@ func GetJSTemplatesCount(db *gorm.DB, templateType string, userID uint) (int64, 
 	}
 
 	if userID > 0 && templateType == "custom" {
-		query = query.Where("user_id = ?", userID)
+		ids, err := MemberGroupIDs(db, userID)
+		if err != nil {
+			return 0, err
+		}
+		if len(ids) == 0 {
+			return 0, nil
+		}
+		query = query.Where("group_id IN ?", ids)
 	}
 
 	err := query.Count(&count).Error
@@ -615,9 +634,16 @@ func SearchJSTemplates(db *gorm.DB, keyword string, userID uint, offset, limit i
 		query = query.Where("name LIKE ? OR content LIKE ?", searchTerm, searchTerm)
 	}
 
-	// 如果用户ID大于0，只搜索该用户的自定义模板
 	if userID > 0 {
-		query = query.Where("(type = 'custom' AND user_id = ?) OR type = 'default'", userID)
+		ids, err := MemberGroupIDs(db, userID)
+		if err != nil {
+			return nil, err
+		}
+		if len(ids) == 0 {
+			query = query.Where("type = ?", "default")
+		} else {
+			query = query.Where("(type = 'custom' AND group_id IN ?) OR type = 'default'", ids)
+		}
 	}
 
 	err := query.Find(&templates).Error
@@ -700,7 +726,7 @@ func RollbackJSTemplateVersion(db *gorm.DB, templateID string, versionID string)
 		Content:    template.Content,
 		Status:     template.Status,
 		ChangeNote: fmt.Sprintf("Rollback to version %d", version.Version),
-		CreatedBy:  template.UserID,
+		CreatedBy:  template.CreatedBy,
 	}
 	if err := CreateJSTemplateVersion(db, &currentVersion); err != nil {
 		return err

@@ -51,7 +51,6 @@ const Home = () => {
     const { t } = useI18nStore()
     const userDropdownRef = useRef<HTMLDivElement>(null)
 
-    // 动态更新页面标题和meta标签（SEO优化）
     useEffect(() => {
         document.title = 'SoulMy - 智能AI语音通话平台 | WebRTC实时通信解决方案'
         
@@ -189,7 +188,7 @@ const Home = () => {
                         {/* Logo */}
                         <Link to="/" className="flex items-center gap-2">
                             <img
-                                src="https://cetide-1325039295.cos.ap-chengdu.myqcloud.com/folder/icon-192x192.ico"
+                                src="/SoulMy.png"
                                 alt="SoulMy Logo"
                                 className="w-8 h-8 rounded"
                             />

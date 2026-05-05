@@ -17,6 +17,7 @@ func ServerEntities() []any {
 	return []any{
 		&utils.Config{},
 		&models.User{},
+		&models.UserProfile{},
 		&models.Role{},
 		&models.Permission{},
 		&models.RolePermission{},
@@ -59,7 +60,6 @@ func ServerEntities() []any {
 		&models.NodePluginVersion{},
 		&models.NodePluginReview{},
 		&models.NodePluginInstallation{},
-		&models.OverviewConfig{},
 		&models.UserDevice{},
 		&models.LoginHistory{},
 		&models.AccountLock{},
@@ -83,6 +83,7 @@ func AuthEntities() []any {
 	return []any{
 		&utils.Config{},
 		&models.User{},
+		&models.UserProfile{},
 		&models.Role{},
 		&models.Permission{},
 		&models.RolePermission{},

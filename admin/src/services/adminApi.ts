@@ -1,6 +1,7 @@
 import { get, post, put, del, patch } from '@/utils/request'
 import { getMainApiBaseURL, getAuthApiBaseURL } from '@/config/apiConfig'
 import { handleConfigCacheUpdate } from '@/utils/siteConfigCache'
+import { normalizeAuthUser } from '@/utils/authUserProfile'
 
 // 主业务服务 API（不含认证）
 const BACKEND_BASE = getMainApiBaseURL()
@@ -29,6 +30,7 @@ export interface User {
   permissions?: { [key: string]: string[] }
   createdAt: string
   updatedAt?: string
+  profile?: Record<string, unknown>
 }
 
 export interface UserListResponse {
@@ -102,22 +104,26 @@ export const listUsers = async (params?: ListUsersParams): Promise<UserListRespo
   if (params?.hasPhone) queryParams.hasPhone = params.hasPhone
   
   const res = await get<UserListResponse>(`${BACKEND_BASE}/users`, { params: queryParams })
-  return res.data
+  const body = res.data
+  return {
+    ...body,
+    users: body.users.map((u) => normalizeAuthUser(u as unknown as Record<string, unknown>) as User),
+  }
 }
 
 export const getUser = async (id: number): Promise<User> => {
   const res = await get<User>(`${BACKEND_BASE}/users/${id}`)
-  return res.data
+  return normalizeAuthUser(res.data as unknown as Record<string, unknown>) as User
 }
 
 export const createUser = async (data: CreateUserRequest): Promise<User> => {
   const res = await post<User>(`${BACKEND_BASE}/users`, data)
-  return res.data
+  return normalizeAuthUser(res.data as unknown as Record<string, unknown>) as User
 }
 
 export const updateUser = async (id: number, data: UpdateUserRequest): Promise<User> => {
   const res = await put<User>(`${BACKEND_BASE}/users/${id}`, data)
-  return res.data
+  return normalizeAuthUser(res.data as unknown as Record<string, unknown>) as User
 }
 
 export const deleteUser = async (id: number): Promise<void> => {
@@ -478,7 +484,7 @@ export const getCurrentUser = async () => {
   const res = await get(`${ADMIN_AUTH_BASE}/info`)
   // 后端返回格式: {code: 200, msg: "...", data: {...}}
   if (res.code === 200) {
-    return res.data
+    return normalizeAuthUser(res.data as Record<string, unknown>)
   }
   throw new Error(res.msg || '获取用户信息失败')
 }

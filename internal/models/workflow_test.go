@@ -28,7 +28,8 @@ func TestWorkflowDefinition_TableName(t *testing.T) {
 		Slug:        "test-workflow",
 		Description: "Test Description",
 		Status:      "draft",
-		UserID:      1,
+		GroupID:    1,
+		CreatorUID: 1,
 	}
 	err := db.Create(def).Error
 	require.NoError(t, err)
@@ -74,7 +75,8 @@ func TestMigrateWorkflowTables(t *testing.T) {
 	def := &WorkflowDefinition{
 		Name:   "Test",
 		Slug:   "test",
-		UserID: 1,
+		GroupID:    1,
+		CreatorUID: 1,
 	}
 	err = db.Create(def).Error
 	require.NoError(t, err)
@@ -336,7 +338,8 @@ func TestWorkflowDefinition_WithGraph(t *testing.T) {
 	}
 
 	def := &WorkflowDefinition{
-		UserID:      1,
+		GroupID:    1,
+		CreatorUID: 1,
 		Name:        "Test Workflow",
 		Slug:        "test-workflow",
 		Description: "Test Description",
@@ -373,7 +376,8 @@ func TestWorkflowInstance_WithContext(t *testing.T) {
 
 	// Create definition first
 	def := &WorkflowDefinition{
-		UserID: 1,
+		GroupID:    1,
+		CreatorUID: 1,
 		Name:   "Test Workflow",
 		Slug:   "test-workflow",
 		Status: "active",
@@ -409,7 +413,8 @@ func TestWorkflowVersion_Creation(t *testing.T) {
 
 	// Create definition first
 	def := &WorkflowDefinition{
-		UserID: 1,
+		GroupID:    1,
+		CreatorUID: 1,
 		Name:   "Test Workflow",
 		Slug:   "test-workflow",
 		Status: "active",
@@ -501,7 +506,8 @@ func TestWorkflowDefinition_SoftDelete(t *testing.T) {
 	db := setupWorkflowTestDB(t)
 
 	def := &WorkflowDefinition{
-		UserID: 1,
+		GroupID:    1,
+		CreatorUID: 1,
 		Name:   "Test Workflow",
 		Slug:   "test-workflow",
 		Status: "draft",
@@ -617,18 +623,16 @@ func TestStringMap_EmptyAndNil(t *testing.T) {
 func TestWorkflowDefinition_GroupID(t *testing.T) {
 	db := setupWorkflowTestDB(t)
 
-	groupID := uint(100)
 	def := &WorkflowDefinition{
-		UserID:  1,
-		GroupID: &groupID,
-		Name:    "Shared Workflow",
-		Slug:    "shared-workflow",
-		Status:  "active",
+		GroupID:    100,
+		CreatorUID: 1,
+		Name:       "Shared Workflow",
+		Slug:       "shared-workflow",
+		Status:     "active",
 	}
 	err := db.Create(def).Error
 	require.NoError(t, err)
-	assert.NotNil(t, def.GroupID)
-	assert.Equal(t, uint(100), *def.GroupID)
+	assert.Equal(t, uint(100), def.GroupID)
 }
 
 func TestWorkflowEdgeSchema_WithCondition(t *testing.T) {

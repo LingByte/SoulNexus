@@ -57,8 +57,8 @@ func (fi FlexibleInt) Int() *int {
 // Device represents an IoT device
 type Device struct {
 	ID          string `json:"id" gorm:"primaryKey;size:64"` // MAC address as ID
-	UserID      uint   `json:"userId" gorm:"index"`
-	GroupID     *uint  `json:"groupId,omitempty" gorm:"index"` // 组织ID，如果设置则表示这是组织共享的设备
+	GroupID     uint   `json:"groupId" gorm:"index"`          // tenant: organization that owns the device
+	CreatedBy   uint   `json:"createdBy" gorm:"index"`        // user who registered the device (audit)
 	MacAddress  string `json:"macAddress" gorm:"size:64;uniqueIndex"`
 	DeviceName  string `json:"deviceName,omitempty" gorm:"size:128"` // 设备名称/别名
 	Board       string `json:"board,omitempty" gorm:"size:128"`      // Board type
@@ -205,9 +205,9 @@ func CreateDevice(db *gorm.DB, device *Device) error {
 	logger.Info("准备创建设备数据库记录",
 		zap.String("deviceId", device.ID),
 		zap.String("macAddress", device.MacAddress),
-		zap.Uint("userId", device.UserID),
+		zap.Uint("groupId", device.GroupID),
+		zap.Uint("createdBy", device.CreatedBy),
 		zap.Any("agentId", device.AgentID),
-		zap.Any("groupId", device.GroupID),
 		zap.String("board", device.Board),
 		zap.String("appVersion", device.AppVersion),
 		zap.Any("lastSeen", device.LastSeen),
@@ -220,8 +220,8 @@ func CreateDevice(db *gorm.DB, device *Device) error {
 	if device.MacAddress == "" {
 		return fmt.Errorf("device MAC address cannot be empty")
 	}
-	if device.UserID == 0 {
-		return fmt.Errorf("device user ID cannot be zero")
+	if device.GroupID == 0 {
+		return fmt.Errorf("device group ID cannot be zero")
 	}
 
 	// 执行数据库创建操作
@@ -263,40 +263,21 @@ func DeleteDevice(db *gorm.DB, id string) error {
 	return db.Delete(&Device{}, "id = ?", id).Error
 }
 
-// GetUserDevices 获取用户的设备列表（支持组织权限）
+// GetUserDevices lists devices in every organization the user belongs to.
 func GetUserDevices(db *gorm.DB, userID uint, assistantID *uint) ([]Device, error) {
-	var devices []Device
-
-	// 获取用户所属的组织ID列表
-	var groupIDs []uint
-	var groupMembers []GroupMember
-	if err := db.Where("user_id = ?", userID).Find(&groupMembers).Error; err == nil {
-		for _, member := range groupMembers {
-			groupIDs = append(groupIDs, member.GroupID)
-		}
+	groupIDs, err := MemberGroupIDs(db, userID)
+	if err != nil {
+		return nil, err
 	}
-	// 获取用户创建的组织ID
-	var userGroups []Group
-	if err := db.Where("creator_id = ?", userID).Find(&userGroups).Error; err == nil {
-		for _, group := range userGroups {
-			groupIDs = append(groupIDs, group.ID)
-		}
+	if len(groupIDs) == 0 {
+		return []Device{}, nil
 	}
-
-	// 构建查询
-	query := db.Model(&Device{})
+	query := db.Model(&Device{}).Where("group_id IN ?", groupIDs)
 	if assistantID != nil {
 		query = query.Where("agent_id = ?", *assistantID)
 	}
-
-	// 权限过滤：用户自己的设备 + 组织共享的设备
-	if len(groupIDs) > 0 {
-		query = query.Where("user_id = ? OR (group_id IS NOT NULL AND group_id IN (?))", userID, groupIDs)
-	} else {
-		query = query.Where("user_id = ?", userID)
-	}
-
-	err := query.Order("last_seen DESC").Find(&devices).Error
+	var devices []Device
+	err = query.Order("last_seen DESC").Find(&devices).Error
 	return devices, err
 }
 

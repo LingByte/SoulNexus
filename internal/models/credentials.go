@@ -74,7 +74,8 @@ func (pc *ProviderConfig) Scan(value interface{}) error {
 
 type UserCredential struct {
 	BaseModel
-	UserID         uint             `gorm:"index;" json:"userId"`
+	GroupID        uint             `gorm:"index;not null" json:"groupId"`
+	CreatedBy      uint             `gorm:"index" json:"createdBy"`
 	Name           string           `json:"name"`                                                      // 应用名称 or 用途备注
 	APIKey         string           `gorm:"uniqueIndex:idx_api_key,length:100;not null" json:"apiKey"` // 用于认证
 	APISecret      string           `gorm:"not null" json:"apiSecret"`                                 // 用于签名校验
@@ -103,7 +104,8 @@ type UserCredentialResponse struct {
 	ID             uint       `json:"id"`
 	CreatedAt      time.Time  `json:"createdAt"`
 	UpdatedAt      time.Time  `json:"updatedAt"`
-	UserID         uint       `json:"userId"`
+	GroupID        uint       `json:"groupId"`
+	CreatedBy      uint       `json:"createdBy"`
 	Name           string     `json:"name"`
 	LLMProvider    string     `json:"llmProvider"`
 	Status         string     `json:"status"`
@@ -139,7 +141,8 @@ func (uc *UserCredential) ToResponse() *UserCredentialResponse {
 		ID:             uc.ID,
 		CreatedAt:      uc.CreatedAt,
 		UpdatedAt:      uc.UpdatedAt,
-		UserID:         uc.UserID,
+		GroupID:        uc.GroupID,
+		CreatedBy:      uc.CreatedBy,
 		Name:           uc.Name,
 		LLMProvider:    uc.LLMProvider,
 		Status:         string(uc.Status),
@@ -380,8 +383,14 @@ func CreateUserCredential(db *gorm.DB, userID uint, credential *UserCredentialRe
 		unlimitedQuota = *credential.UnlimitedQuota
 	}
 
+	pg, err := EnsurePersonalGroupForUser(db, userID)
+	if err != nil {
+		return nil, err
+	}
+
 	userCred := &UserCredential{
-		UserID:         userID,
+		GroupID:        pg.ID,
+		CreatedBy:      userID,
 		APIKey:         apiKey,
 		APISecret:      apiSecret,
 		Name:           credential.Name,
@@ -438,10 +447,17 @@ func defaultProviderURL(provider string) string {
 	}
 }
 
-// GetUserCredentials 根据用户ID获取其所有的凭证信息
+// GetUserCredentials returns credentials for every organization the user belongs to.
 func GetUserCredentials(db *gorm.DB, userID uint) ([]*UserCredential, error) {
+	ids, err := MemberGroupIDs(db, userID)
+	if err != nil {
+		return nil, err
+	}
 	var credentials []*UserCredential
-	err := db.Where("user_id = ?", userID).Find(&credentials).Error
+	if len(ids) == 0 {
+		return credentials, nil
+	}
+	err = db.Where("group_id IN ?", ids).Find(&credentials).Error
 	if err != nil {
 		return nil, err
 	}
@@ -517,9 +533,16 @@ func ReleaseReservedCredits(db *gorm.DB, credentialID uint, amount int64) error 
 		UpdateColumn("credits_hold", gorm.Expr("credits_hold - ?", amount)).Error
 }
 
-// DeleteUserCredential 删除用户凭证
+// DeleteUserCredential 删除用户凭证（需在用户所属组织内）
 func DeleteUserCredential(db *gorm.DB, userID uint, credentialID uint) error {
-	result := db.Where("user_id = ? AND id = ?", userID, credentialID).Delete(&UserCredential{})
+	ids, err := MemberGroupIDs(db, userID)
+	if err != nil {
+		return err
+	}
+	if len(ids) == 0 {
+		return errors.New("credential not found or access denied")
+	}
+	result := db.Where("id = ? AND group_id IN ?", credentialID, ids).Delete(&UserCredential{})
 	if result.Error != nil {
 		return result.Error
 	}
