@@ -48,12 +48,16 @@ func (h *Handlers) handleAdminGetUserAccess(c *gin.Context) {
 			Find(&extraPerms).Error
 	}
 	effKeys, _ := models.EffectivePermissionKeys(h.db, u.ID)
+	slugs := make([]string, 0, len(roles))
+	for _, r := range roles {
+		slugs = append(slugs, r.Slug)
+	}
 	response.Success(c, "success", gin.H{
 		"user": gin.H{
-			"id":          u.ID,
-			"email":       u.Email,
-			"displayName": u.Profile.DisplayName,
-			"legacyRole":  u.Role,
+			"id":              u.ID,
+			"email":           u.Email,
+			"displayName":     u.Profile.DisplayName,
+			"primaryRoleSlug": models.PrimaryJWTClaimRole(slugs),
 		},
 		"roles":                   roles,
 		"extraPermissions":        extraPerms,
@@ -66,7 +70,7 @@ type userAccessSetBody struct {
 	PermissionIDs []uint `json:"permissionIds"`
 }
 
-// handleAdminSetUserAccess 一次性写入用户的角色与附加权限，并同步 users.role。
+// handleAdminSetUserAccess 一次性写入用户的角色与附加权限。
 func (h *Handlers) handleAdminSetUserAccess(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil || id <= 0 {
@@ -90,7 +94,6 @@ func (h *Handlers) handleAdminSetUserAccess(c *gin.Context) {
 		response.Fail(c, "failed", err)
 		return
 	}
-	primarySlug := ""
 	for _, rid := range body.RoleIDs {
 		if rid == 0 {
 			continue
@@ -105,16 +108,6 @@ func (h *Handlers) handleAdminSetUserAccess(c *gin.Context) {
 			tx.Rollback()
 			response.Fail(c, "failed", err)
 			return
-		}
-		var role models.Role
-		if err = tx.First(&role, rid).Error; err == nil {
-			if role.Slug == models.RoleSuperAdmin {
-				primarySlug = models.RoleSuperAdmin
-			} else if primarySlug != models.RoleSuperAdmin && role.Slug == models.RoleAdmin {
-				primarySlug = models.RoleAdmin
-			} else if primarySlug == "" {
-				primarySlug = role.Slug
-			}
 		}
 	}
 
@@ -136,14 +129,6 @@ func (h *Handlers) handleAdminSetUserAccess(c *gin.Context) {
 		if err = tx.Create(&models.UserPermission{UserID: u.ID, PermissionID: pid}).Error; err != nil {
 			tx.Rollback()
 			response.Fail(c, "failed", err)
-			return
-		}
-	}
-
-	if primarySlug != "" && primarySlug != u.Role {
-		if err = tx.Model(&u).Update("role", primarySlug).Error; err != nil {
-			tx.Rollback()
-			response.Fail(c, "failed to sync legacy role", err)
 			return
 		}
 	}

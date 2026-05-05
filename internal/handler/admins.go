@@ -12,6 +12,7 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type adminUserUpsertReq struct {
@@ -101,10 +102,6 @@ func (h *Handlers) requireAdmin(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("authorization required"))
 		return
 	}
-	if user.IsAdmin() {
-		c.Next()
-		return
-	}
 	if models.UserHasAdminAccess(h.db, user.ID) {
 		c.Next()
 		return
@@ -137,24 +134,22 @@ func (h *Handlers) parsePagination(c *gin.Context) (int, int) {
 	return page, pageSize
 }
 
-func normalizeUserRole(role string) string {
-	role = strings.TrimSpace(strings.ToLower(role))
-	switch role {
-	case "", models.RoleUser:
-		return models.RoleUser
-	case models.RoleAdmin:
-		return models.RoleAdmin
-	case models.RoleSuperAdmin:
-		return models.RoleSuperAdmin
-	default:
-		return ""
+func roleSlugExists(db *gorm.DB, slug string) bool {
+	slug = strings.TrimSpace(strings.ToLower(slug))
+	if slug == "" {
+		return false
 	}
+	var cnt int64
+	if err := db.Model(&models.Role{}).Where("slug = ? AND is_deleted = ?", slug, models.SoftDeleteStatusActive).Count(&cnt).Error; err != nil {
+		return false
+	}
+	return cnt > 0
 }
 
 func (h *Handlers) handleAdminListUsers(c *gin.Context) {
 	page, pageSize := h.parsePagination(c)
 	search := strings.TrimSpace(c.Query("search"))
-	role := normalizeUserRole(c.Query("role"))
+	roleFilter := strings.TrimSpace(strings.ToLower(c.Query("role")))
 	statusQuery := strings.TrimSpace(c.Query("status"))
 	enabledQuery := strings.TrimSpace(c.Query("enabled"))
 	hasPhoneQuery := strings.TrimSpace(c.Query("hasPhone"))
@@ -167,8 +162,10 @@ func (h *Handlers) handleAdminListUsers(c *gin.Context) {
 		query = query.Where("users.email LIKE ? OR user_profiles.display_name LIKE ? OR user_profiles.first_name LIKE ? OR user_profiles.last_name LIKE ?",
 			like, like, like, like)
 	}
-	if role != "" {
-		query = query.Where("users.role = ?", role)
+	if roleFilter != "" && roleSlugExists(h.db, roleFilter) {
+		query = query.Joins("INNER JOIN user_roles ur ON ur.user_id = users.id").
+			Joins("INNER JOIN roles r ON r.id = ur.role_id AND r.is_deleted = ?", models.SoftDeleteStatusActive).
+			Where("r.slug = ?", roleFilter)
 	}
 	if statusQuery != "" {
 		if st := models.NormalizeUserStatus(statusQuery); st != "" {
@@ -186,9 +183,9 @@ func (h *Handlers) handleAdminListUsers(c *gin.Context) {
 	if hasPhoneQuery != "" {
 		if hasPhone, err := strconv.ParseBool(hasPhoneQuery); err == nil {
 			if hasPhone {
-				query = query.Where("user_profiles.phone IS NOT NULL AND user_profiles.phone <> ''")
+				query = query.Where("users.phone IS NOT NULL AND users.phone <> ''")
 			} else {
-				query = query.Where("user_profiles.phone IS NULL OR user_profiles.phone = ''")
+				query = query.Where("users.phone IS NULL OR users.phone = ''")
 			}
 		}
 	}
@@ -238,8 +235,8 @@ func (h *Handlers) handleAdminCreateUser(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("email is required"))
 		return
 	}
-	role := normalizeUserRole(req.Role)
-	if role == "" {
+	roleSlug := strings.TrimSpace(strings.ToLower(req.Role))
+	if !roleSlugExists(h.db, roleSlug) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid role"))
 		return
 	}
@@ -268,8 +265,9 @@ func (h *Handlers) handleAdminCreateUser(c *gin.Context) {
 		return
 	}
 
-	coreVals := map[string]any{
-		"role": role,
+	coreVals := map[string]any{}
+	if strings.TrimSpace(req.Phone) != "" {
+		coreVals["phone"] = strings.TrimSpace(req.Phone)
 	}
 	operator := "system"
 	if current := models.CurrentUser(c); current != nil {
@@ -280,6 +278,12 @@ func (h *Handlers) handleAdminCreateUser(c *gin.Context) {
 	}
 	coreVals["create_by"] = operator
 	coreVals["update_by"] = operator
+	if strings.TrimSpace(req.Locale) != "" {
+		coreVals["preferred_locale"] = strings.TrimSpace(req.Locale)
+	}
+	if strings.TrimSpace(req.Timezone) != "" {
+		coreVals["preferred_timezone"] = strings.TrimSpace(req.Timezone)
+	}
 	if err = h.db.Model(user).Updates(coreVals).Error; err != nil {
 		response.Fail(c, "create user failed", err)
 		return
@@ -289,9 +293,6 @@ func (h *Handlers) handleAdminCreateUser(c *gin.Context) {
 		"display_name": req.DisplayName,
 		"first_name":   req.FirstName,
 		"last_name":    req.LastName,
-		"phone":        req.Phone,
-		"locale":       req.Locale,
-		"timezone":     req.Timezone,
 		"city":         req.City,
 		"region":       req.Region,
 		"gender":       req.Gender,
@@ -308,7 +309,10 @@ func (h *Handlers) handleAdminCreateUser(c *gin.Context) {
 		return
 	}
 	_ = h.db.First(user, user.ID).Error
-	_ = models.SyncUserRolesFromLegacyRole(h.db, user)
+	if err = models.AssignUserSingleRoleBySlug(h.db, user.ID, roleSlug); err != nil {
+		response.Fail(c, "assign role failed", err)
+		return
+	}
 	response.Success(c, "user created", user)
 }
 
@@ -333,6 +337,8 @@ func (h *Handlers) handleAdminUpdateUser(c *gin.Context) {
 
 	coreVals := map[string]any{}
 	profVals := map[string]any{}
+	roleChanged := false
+	var newRoleSlug string
 	if req.Email != "" {
 		coreVals["email"] = strings.TrimSpace(strings.ToLower(req.Email))
 	}
@@ -346,13 +352,13 @@ func (h *Handlers) handleAdminUpdateUser(c *gin.Context) {
 		profVals["last_name"] = req.LastName
 	}
 	if req.Phone != "" {
-		profVals["phone"] = req.Phone
+		coreVals["phone"] = strings.TrimSpace(req.Phone)
 	}
 	if req.Locale != "" {
-		profVals["locale"] = req.Locale
+		coreVals["preferred_locale"] = strings.TrimSpace(req.Locale)
 	}
 	if req.Timezone != "" {
-		profVals["timezone"] = req.Timezone
+		coreVals["preferred_timezone"] = strings.TrimSpace(req.Timezone)
 	}
 	if req.City != "" {
 		profVals["city"] = req.City
@@ -367,12 +373,13 @@ func (h *Handlers) handleAdminUpdateUser(c *gin.Context) {
 		profVals["avatar"] = req.Avatar
 	}
 	if req.Role != "" {
-		role := normalizeUserRole(req.Role)
-		if role == "" {
+		rs := strings.TrimSpace(strings.ToLower(req.Role))
+		if !roleSlugExists(h.db, rs) {
 			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid role"))
 			return
 		}
-		coreVals["role"] = role
+		roleChanged = true
+		newRoleSlug = rs
 	}
 	if req.Password != "" {
 		coreVals["password"] = models.HashPassword(req.Password)
@@ -422,8 +429,11 @@ func (h *Handlers) handleAdminUpdateUser(c *gin.Context) {
 		}
 	}
 	_ = h.db.First(&user, user.ID).Error
-	if _, hasRole := coreVals["role"]; hasRole {
-		_ = models.SyncUserRolesFromLegacyRole(h.db, &user)
+	if roleChanged {
+		if err = models.AssignUserSingleRoleBySlug(h.db, user.ID, newRoleSlug); err != nil {
+			response.Fail(c, "assign role failed", err)
+			return
+		}
 	}
 	response.Success(c, "user updated", &user)
 }

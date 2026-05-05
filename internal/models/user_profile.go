@@ -12,34 +12,20 @@ import (
 )
 
 // UserProfile is the 1:1 extension row for User. Keep auth, OAuth linkage, roles,
-// verification tokens, and login counters on users; store optional presentation,
-// prefs, and rarely touched extras here.
 type UserProfile struct {
-	UserID uint `gorm:"primaryKey;column:user_id" json:"userId"`
-
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt,omitempty"`
-
-	// Contact & presentation (profile UI, admin search).
-	Phone       string `json:"phone,omitempty" gorm:"size:64;index"`
-	FirstName   string `json:"firstName,omitempty" gorm:"size:128"`
-	LastName    string `json:"lastName,omitempty" gorm:"size:128"`
-	DisplayName string `json:"displayName,omitempty" gorm:"size:128"`
-	Avatar      string `json:"avatar,omitempty" gorm:"type:text"`
-
-	// Preferences.
-	Locale   string `json:"locale,omitempty" gorm:"size:20"`
-	Timezone string `json:"timezone,omitempty" gorm:"size:200"`
-
-	EmailNotifications bool `json:"emailNotifications" gorm:"default:true"`
-	PushNotifications  bool `json:"pushNotifications" gorm:"default:true"`
-	ProfileComplete    int  `json:"profileComplete" gorm:"default:0"`
-
-	// Extended demographic / arbitrary payload.
-	Gender string `json:"gender,omitempty" gorm:"size:32"`
-	City   string `json:"city,omitempty" gorm:"size:128"`
-	Region string `json:"region,omitempty" gorm:"size:128"`
-	Extra  string `json:"extra,omitempty" gorm:"type:text"`
+	UserID             uint      `gorm:"primaryKey;column:user_id" json:"userId"`
+	CreatedAt          time.Time `json:"createdAt"`
+	UpdatedAt          time.Time `json:"updatedAt,omitempty"`
+	FirstName          string    `json:"firstName,omitempty" gorm:"size:128"`
+	LastName           string    `json:"lastName,omitempty" gorm:"size:128"`
+	DisplayName        string    `json:"displayName,omitempty" gorm:"size:128"`
+	Avatar             string    `json:"avatar,omitempty" gorm:"type:text"`
+	EmailNotifications bool      `json:"emailNotifications" gorm:"default:true"`
+	PushNotifications  bool      `json:"pushNotifications" gorm:"default:true"`
+	ProfileComplete    int       `json:"profileComplete" gorm:"default:0"`
+	Gender             string    `json:"gender,omitempty" gorm:"size:32"`
+	City               string    `json:"city,omitempty" gorm:"size:128"`
+	Region             string    `json:"region,omitempty" gorm:"size:128"`
 }
 
 func (UserProfile) TableName() string {

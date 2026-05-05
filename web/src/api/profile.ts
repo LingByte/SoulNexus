@@ -16,7 +16,6 @@ export interface UpdateProfileForm {
   locale?: string
   timezone?: string
   themeMode?: string
-  themeColor?: string
   gender?: string
   city?: string
   region?: string

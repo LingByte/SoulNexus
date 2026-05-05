@@ -6,11 +6,10 @@ package models
 // Role 角色（如 superadmin / admin / user）。
 type Role struct {
 	BaseModel
-	Name        string `json:"name" gorm:"size:128;not null"`
-	Slug        string `json:"slug" gorm:"size:64;uniqueIndex;not null"`
-	Description string `json:"description" gorm:"size:512"`
-	IsSystem    bool   `json:"isSystem" gorm:"default:false"`
-	// 关联：角色拥有的权限（role_permissions）
+	Name        string       `json:"name" gorm:"size:128;not null"`
+	Slug        string       `json:"slug" gorm:"size:64;uniqueIndex;not null"`
+	Description string       `json:"description" gorm:"size:512"`
+	IsSystem    bool         `json:"isSystem" gorm:"default:false"`
 	Permissions []Permission `json:"permissions,omitempty" gorm:"many2many:role_permissions;joinForeignKey:RoleID;joinReferences:PermissionID"`
 }
 

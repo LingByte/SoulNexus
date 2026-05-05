@@ -5,6 +5,8 @@ package models
 
 import (
 	"errors"
+	"fmt"
+	"sort"
 	"strings"
 
 	"gorm.io/gorm"
@@ -39,6 +41,7 @@ func UserRoleSlugs(db *gorm.DB, userID uint) ([]string, error) {
 		SELECT DISTINCT r.slug FROM roles r
 		INNER JOIN user_roles ur ON ur.role_id = r.id
 		WHERE ur.user_id = ? AND r.is_deleted = ?
+		ORDER BY r.slug ASC
 	`, userID, SoftDeleteStatusActive).Scan(&slugs).Error
 	return slugs, err
 }
@@ -60,45 +63,72 @@ func UserHasPermission(db *gorm.DB, userID uint, key string) bool {
 	return false
 }
 
-// UserHasAdminAccess 是否可进入管理后台（legacy 角色或 admin.access / *）。
+// UserHasAdminAccess 是否可进入管理后台（admin.access 或 *）。
 func UserHasAdminAccess(db *gorm.DB, userID uint) bool {
 	return UserHasPermission(db, userID, PermAdminAccess) || UserHasPermission(db, userID, PermWildcard)
 }
 
-// SyncUserRolesFromLegacyRole 根据 users.role 字符串重写 user_roles。
-func SyncUserRolesFromLegacyRole(db *gorm.DB, user *User) error {
-	if db == nil || user == nil || user.ID == 0 {
+// AssignUserSingleRoleBySlug replaces all user_roles rows with a single role matching slug.
+func AssignUserSingleRoleBySlug(db *gorm.DB, userID uint, slug string) error {
+	if db == nil || userID == 0 {
 		return errors.New("invalid user")
 	}
-	slug := strings.TrimSpace(strings.ToLower(user.Role))
+	slug = strings.TrimSpace(strings.ToLower(slug))
 	if slug == "" {
-		slug = RoleUser
+		return errors.New("role slug is required")
 	}
 	var role Role
 	if err := db.Where("slug = ? AND is_deleted = ?", slug, SoftDeleteStatusActive).First(&role).Error; err != nil {
 		return err
 	}
 	return db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("user_id = ?", user.ID).Delete(&UserRole{}).Error; err != nil {
+		if err := tx.Where("user_id = ?", userID).Delete(&UserRole{}).Error; err != nil {
 			return err
 		}
-		return tx.Create(&UserRole{UserID: user.ID, RoleID: role.ID}).Error
+		return tx.Create(&UserRole{UserID: userID, RoleID: role.ID}).Error
 	})
 }
 
-// SyncAllUserRolesFromLegacy 将所有用户的 user_roles 与 users.role 对齐。
-func SyncAllUserRolesFromLegacy(db *gorm.DB) error {
-	if db == nil {
-		return nil
+// EnsureUserHasOneRole assigns the lowest-id active role when the user has no role rows yet (e.g. after signup).
+func EnsureUserHasOneRole(db *gorm.DB, userID uint) error {
+	if db == nil || userID == 0 {
+		return errors.New("invalid user")
 	}
-	var users []User
-	if err := db.Select("id", "role").Where("is_deleted = ?", SoftDeleteStatusActive).Find(&users).Error; err != nil {
+	var n int64
+	if err := db.Model(&UserRole{}).Where("user_id = ?", userID).Count(&n).Error; err != nil {
 		return err
 	}
-	for i := range users {
-		if err := SyncUserRolesFromLegacyRole(db, &users[i]); err != nil {
-			continue
+	if n > 0 {
+		return nil
+	}
+	var role Role
+	if err := db.Where("is_deleted = ?", SoftDeleteStatusActive).Order("id ASC").First(&role).Error; err != nil {
+		return fmt.Errorf("no roles defined; create at least one role before registering users: %w", err)
+	}
+	return db.Create(&UserRole{UserID: userID, RoleID: role.ID}).Error
+}
+
+// PrimaryJWTClaimRole picks a stable single slug for JWT claims (lexicographically smallest non-empty slug).
+func PrimaryJWTClaimRole(slugs []string) string {
+	var cleaned []string
+	for _, s := range slugs {
+		u := strings.TrimSpace(strings.ToLower(s))
+		if u != "" {
+			cleaned = append(cleaned, u)
 		}
 	}
-	return nil
+	if len(cleaned) == 0 {
+		return ""
+	}
+	sort.Strings(cleaned)
+	return cleaned[0]
+}
+
+// RoleSlugsFromJWTClaim maps a JWT role claim to RoleSlugs for context (best-effort).
+func RoleSlugsFromJWTClaim(roleClaim string) []string {
+	r := strings.TrimSpace(strings.ToLower(roleClaim))
+	if r == "" {
+		return nil
+	}
+	return []string{r}
 }

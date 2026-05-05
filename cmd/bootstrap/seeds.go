@@ -19,6 +19,9 @@ type SeedService struct {
 }
 
 func (s *SeedService) SeedAll() error {
+	if err := s.seedMinimalRolesIfEmpty(); err != nil {
+		return err
+	}
 	if err := s.seedConfigs(); err != nil {
 		return err
 	}
@@ -114,19 +117,29 @@ func (s *SeedService) seedConfigs() error {
 	return nil
 }
 
+// seedMinimalRolesIfEmpty inserts one generic role when the table is empty so sign-up / seed users can satisfy user_roles.
+func (s *SeedService) seedMinimalRolesIfEmpty() error {
+	var n int64
+	if err := s.db.Model(&models.Role{}).Where("is_deleted = ?", models.SoftDeleteStatusActive).Count(&n).Error; err != nil {
+		return err
+	}
+	if n > 0 {
+		return nil
+	}
+	return s.db.Create(&models.Role{Name: "Member", Slug: "member", IsSystem: true}).Error
+}
+
 func (s *SeedService) seedAdminUsers() error {
 	defaultAdmins := []models.User{
 		{
 			Email:    "admin@lingecho.com",
 			Password: models.HashPassword("admin123"),
-			Role:     models.RoleSuperAdmin,
 			Status:   models.UserStatusActive,
 			Source:   models.UserSourceAdmin,
 		},
 		{
 			Email:    "19511899044@163.com",
 			Password: models.HashPassword("admin123"),
-			Role:     models.RoleSuperAdmin,
 			Status:   models.UserStatusActive,
 			Source:   models.UserSourceAdmin,
 		},
@@ -143,6 +156,9 @@ func (s *SeedService) seedAdminUsers() error {
 				return err
 			}
 			_ = models.UpdateUserProfileFields(s.db, user.ID, map[string]any{"display_name": "Administrator"})
+			if err := models.EnsureUserHasOneRole(s.db, user.ID); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

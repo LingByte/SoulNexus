@@ -25,14 +25,28 @@ func setupTestDBWithSilentLogger(t *testing.T, models ...interface{}) *gorm.DB {
 	return db
 }
 
+func ensureMinimalRoleForTests(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	var n int64
+	require.NoError(t, db.Model(&Role{}).Where("is_deleted = ?", SoftDeleteStatusActive).Count(&n).Error)
+	if n > 0 {
+		return
+	}
+	require.NoError(t, db.Create(&Role{Name: "Test Role", Slug: "test-role", IsSystem: false}).Error)
+}
+
 func setupTestDB(t *testing.T) *gorm.DB {
-	return setupTestDBWithSilentLogger(t,
+	db := setupTestDBWithSilentLogger(t,
 		&User{},
 		&UserProfile{},
 		&UserCredential{},
 		&Group{},
 		&GroupMember{},
+		&Role{},
+		&UserRole{},
 	)
+	ensureMinimalRoleForTests(t, db)
+	return db
 }
 
 func setupTestContext(t *testing.T, db *gorm.DB) *gin.Context {
@@ -191,13 +205,13 @@ func TestUpdateUserFields(t *testing.T) {
 	user, err := CreateUser(db, "test@example.com", "password123")
 	require.NoError(t, err)
 
-	err = UpdateUserFields(db, user, map[string]any{"Role": RoleAdmin})
+	err = UpdateUserFields(db, user, map[string]any{"Phone": "+15551234567"})
 	require.NoError(t, err)
 
 	// Verify updates
 	retrieved, err := GetUserByUID(db, user.ID)
 	require.NoError(t, err)
-	assert.Equal(t, RoleAdmin, retrieved.Role)
+	assert.Equal(t, "+15551234567", retrieved.Phone)
 }
 
 func TestSetLastLogin(t *testing.T) {
@@ -447,8 +461,8 @@ func TestUpdatePreferences(t *testing.T) {
 	// Verify preferences were updated
 	retrieved, err := GetUserByUID(db, user.ID)
 	require.NoError(t, err)
-	assert.Equal(t, "UTC", retrieved.Profile.Timezone)
-	assert.Equal(t, "en-US", retrieved.Profile.Locale)
+	assert.Equal(t, "UTC", retrieved.Timezone)
+	assert.Equal(t, "en-US", retrieved.Locale)
 }
 
 func TestCalculateProfileComplete(t *testing.T) {
@@ -480,14 +494,14 @@ func TestCalculateProfileComplete(t *testing.T) {
 			user: &User{
 				Email:         "test@example.com",
 				EmailVerified: true,
+				Phone:         "1234567890",
+				Timezone:      "UTC",
 				Profile: UserProfile{
 					DisplayName: "Test User",
 					FirstName:   "Test",
 					LastName:    "User",
 					Avatar:      "avatar.jpg",
-					Phone:       "1234567890",
 					City:        "Beijing",
-					Timezone:    "UTC",
 				},
 			},
 			wantMin: 70,
@@ -545,42 +559,6 @@ func TestIncrementLoginCount(t *testing.T) {
 	retrieved2, err := GetUserByUID(db, user.ID)
 	require.NoError(t, err)
 	assert.Equal(t, initialCount+1, retrieved2.LoginCount)
-}
-
-func TestUser_IsAdmin(t *testing.T) {
-	tests := []struct {
-		name string
-		user *User
-		want bool
-	}{
-		{
-			name: "superadmin role",
-			user: &User{
-				Role: RoleSuperAdmin,
-			},
-			want: true,
-		},
-		{
-			name: "admin role",
-			user: &User{
-				Role: RoleAdmin,
-			},
-			want: true,
-		},
-		{
-			name: "regular user",
-			user: &User{
-				Role: "user",
-			},
-			want: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, tt.user.IsAdmin())
-		})
-	}
 }
 
 func TestCurrentUser(t *testing.T) {
@@ -665,7 +643,7 @@ func TestUpdatePreferences_Partial(t *testing.T) {
 	// Verify updates
 	retrieved, err := GetUserByUID(db, user.ID)
 	require.NoError(t, err)
-	assert.Equal(t, "Asia/Shanghai", retrieved.Profile.Timezone)
+	assert.Equal(t, "Asia/Shanghai", retrieved.Timezone)
 }
 
 func TestUpdateNotificationSettings_Empty(t *testing.T) {
@@ -706,15 +684,15 @@ func TestCalculateProfileComplete_AllFields(t *testing.T) {
 	user := &User{
 		Email:         "test@example.com",
 		EmailVerified: true,
+		Phone:         "1234567890",
+		Timezone:      "UTC",
+		Locale:        "zh-CN",
 		Profile: UserProfile{
 			DisplayName: "Test User",
 			FirstName:   "Test",
 			LastName:    "User",
 			Avatar:      "avatar.jpg",
-			Phone:       "1234567890",
 			City:        "Beijing",
-			Timezone:    "UTC",
-			Locale:      "zh-CN",
 		},
 	}
 

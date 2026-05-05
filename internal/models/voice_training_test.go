@@ -12,9 +12,11 @@ import (
 )
 
 func setupVoiceTrainingTestDB(t *testing.T) *gorm.DB {
-	return setupTestDBWithSilentLogger(t,
+	db := setupTestDBWithSilentLogger(t,
 		&User{},
 		&UserProfile{},
+		&Role{},
+		&UserRole{},
 		&Group{},
 		&GroupMember{},
 		&VoiceTrainingTask{},
@@ -23,6 +25,8 @@ func setupVoiceTrainingTestDB(t *testing.T) *gorm.DB {
 		&VoiceTrainingText{},
 		&VoiceTrainingTextSegment{},
 	)
+	ensureMinimalRoleForTests(t, db)
+	return db
 }
 
 func TestVoiceTrainingTask_GetStatusText(t *testing.T) {

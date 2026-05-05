@@ -19,8 +19,6 @@ export const AUTH_USER_PROFILE_FIELD_KEYS = [
   'firstName',
   'lastName',
   'displayName',
-  'locale',
-  'timezone',
   'avatar',
   'gender',
   'city',
@@ -46,15 +44,21 @@ export function normalizeAuthUser<T extends Record<string, unknown>>(raw: T | nu
     if (prof[k] !== undefined) out[k] = prof[k]
   }
   const root = raw as Record<string, unknown>
-  const pl = typeof root.preferredLocale === 'string' ? root.preferredLocale.trim() : ''
-  const pz = typeof root.preferredTimezone === 'string' ? root.preferredTimezone.trim() : ''
-  if (pl) {
-    out.locale = normalizeLegacyLocale(pl)
+  const locRaw =
+    (typeof root.locale === 'string' && root.locale.trim()) ||
+    (typeof root.preferredLocale === 'string' && root.preferredLocale.trim()) ||
+    ''
+  if (locRaw) {
+    out.locale = normalizeLegacyLocale(locRaw)
   } else if (typeof out.locale === 'string') {
     out.locale = normalizeLegacyLocale(out.locale as string)
   }
-  if (pz) {
-    out.timezone = pz
+  const tzRaw =
+    (typeof root.timezone === 'string' && root.timezone.trim()) ||
+    (typeof root.preferredTimezone === 'string' && root.preferredTimezone.trim()) ||
+    ''
+  if (tzRaw) {
+    out.timezone = tzRaw
   }
   return out as T
 }

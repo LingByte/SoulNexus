@@ -3,7 +3,6 @@ package handlers
 import (
 	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/response"
@@ -19,10 +18,6 @@ func (h *Handlers) requireAccessManage(c *gin.Context) {
 	}
 	if models.UserHasPermission(h.db, u.ID, models.PermWildcard) ||
 		models.UserHasPermission(h.db, u.ID, models.PermManageRoles) {
-		c.Next()
-		return
-	}
-	if u.IsSuperAdmin() || strings.EqualFold(strings.TrimSpace(u.Role), models.RoleSuperAdmin) {
 		c.Next()
 		return
 	}
