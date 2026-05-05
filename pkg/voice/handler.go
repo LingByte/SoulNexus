@@ -8,7 +8,7 @@ import (
 	"fmt"
 
 	"github.com/LingByte/SoulNexus/internal/models"
-	"github.com/LingByte/SoulNexus/pkg/cache"
+	"github.com/LingByte/SoulNexus/pkg/utils/cache"
 	"github.com/LingByte/SoulNexus/pkg/voice/constants"
 	"github.com/LingByte/SoulNexus/pkg/voice/protocol"
 	"github.com/LingByte/SoulNexus/pkg/voiceprint"
@@ -20,7 +20,7 @@ import (
 // HardwareOptions hardware options
 type HardwareOptions struct {
 	Conn                 *websocket.Conn        // websocket connection
-	AgentID          uint                   // assistant id
+	AgentID              uint                   // assistant id
 	Credential           *models.UserCredential // credential
 	Language             string                 // language
 	Speaker              string                 // speaker
@@ -79,7 +79,7 @@ func (h *HardwareHandler) HandlerHardwareWebsocket(
 	session := protocol.NewHardwareSession(ctx, &protocol.HardwareSessionOption{
 		Conn:                 options.Conn,
 		Logger:               h.logger,
-		AgentID:          options.AgentID,
+		AgentID:              options.AgentID,
 		LLMModel:             options.LLMModel,
 		Credential:           options.Credential,
 		SystemPrompt:         options.SystemPrompt,

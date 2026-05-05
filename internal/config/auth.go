@@ -12,9 +12,9 @@ import (
 	"log"
 	"time"
 
-	"github.com/LingByte/SoulNexus/pkg/cache"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/utils"
+	"github.com/LingByte/SoulNexus/pkg/utils/cache"
 )
 
 // AuthConfig authentication and authorization credentials (headers, session, API signing).
@@ -27,8 +27,8 @@ type AuthConfig struct {
 
 // MiddlewareConfig gateway middleware (rate limit, timeout, circuit breaker, operation log).
 type MiddlewareConfig struct {
-	RateLimit RateLimiterConfig
-	Timeout   TimeoutConfig
+	RateLimit      RateLimiterConfig
+	Timeout        TimeoutConfig
 	CircuitBreaker CircuitBreakerConfig
 
 	EnableRateLimit      bool `env:"ENABLE_RATE_LIMIT"`
@@ -39,14 +39,14 @@ type MiddlewareConfig struct {
 
 // RateLimiterConfig rate limiting configuration
 type RateLimiterConfig struct {
-	GlobalRPS    int           `env:"RATE_LIMIT_GLOBAL_RPS"`
-	GlobalBurst  int           `env:"RATE_LIMIT_GLOBAL_BURST"`
+	GlobalRPS    int `env:"RATE_LIMIT_GLOBAL_RPS"`
+	GlobalBurst  int `env:"RATE_LIMIT_GLOBAL_BURST"`
 	GlobalWindow time.Duration
-	UserRPS      int           `env:"RATE_LIMIT_USER_RPS"`
-	UserBurst    int           `env:"RATE_LIMIT_USER_BURST"`
+	UserRPS      int `env:"RATE_LIMIT_USER_RPS"`
+	UserBurst    int `env:"RATE_LIMIT_USER_BURST"`
 	UserWindow   time.Duration
-	IPRPS        int           `env:"RATE_LIMIT_IP_RPS"`
-	IPBurst      int           `env:"RATE_LIMIT_IP_BURST"`
+	IPRPS        int `env:"RATE_LIMIT_IP_RPS"`
+	IPBurst      int `env:"RATE_LIMIT_IP_BURST"`
 	IPWindow     time.Duration
 }
 

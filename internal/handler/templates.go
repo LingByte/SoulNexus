@@ -11,11 +11,11 @@ import (
 	"time"
 
 	"github.com/LingByte/SoulNexus/internal/models"
-	"github.com/LingByte/SoulNexus/pkg/cache"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	jsPkg "github.com/LingByte/SoulNexus/pkg/js"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/response"
+	"github.com/LingByte/SoulNexus/pkg/utils/cache"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"go.uber.org/zap"

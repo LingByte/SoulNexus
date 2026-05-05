@@ -15,8 +15,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LingByte/SoulNexus/pkg/cache"
 	"github.com/LingByte/SoulNexus/pkg/logger"
+	"github.com/LingByte/SoulNexus/pkg/utils/cache"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
