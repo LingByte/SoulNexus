@@ -427,6 +427,22 @@ func authTokenTTLFromDB(db *gorm.DB, def time.Duration) time.Duration {
 	return d
 }
 
+func jwtRoleForToken(db *gorm.DB, user *models.User) string {
+	if user == nil {
+		return ""
+	}
+	if len(user.RoleSlugs) > 0 {
+		return models.PrimaryJWTClaimRole(user.RoleSlugs)
+	}
+	if db != nil && user.ID != 0 {
+		slugs, err := models.UserRoleSlugs(db, user.ID)
+		if err == nil && len(slugs) > 0 {
+			return models.PrimaryJWTClaimRole(slugs)
+		}
+	}
+	return ""
+}
+
 func buildTokenPair(db *gorm.DB, user *models.User, accessTTL time.Duration) (string, string, error) {
 	if accessTTL <= 0 {
 		accessTTL = 24 * time.Hour
@@ -435,11 +451,12 @@ func buildTokenPair(db *gorm.DB, user *models.User, accessTTL time.Duration) (st
 	if km == nil {
 		return "", "", errors.New("jwt key manager not initialized")
 	}
+	roleClaim := jwtRoleForToken(db, user)
 
 	accessToken, err := utils.SignAccessTokenWithKey(utils.AccessPayload{
 		UserID: user.ID,
 		Email:  user.Email,
-		Role:   user.Role,
+		Role:   roleClaim,
 	}, km, accessTTL)
 	if err != nil {
 		logger.Error("jwt access token sign failed", zap.Error(err))
@@ -449,7 +466,7 @@ func buildTokenPair(db *gorm.DB, user *models.User, accessTTL time.Duration) (st
 	refreshToken, err := utils.SignRefreshTokenWithKey(utils.RefreshPayload{
 		UserID: user.ID,
 		Email:  user.Email,
-		Role:   user.Role,
+		Role:   roleClaim,
 	}, km, getRefreshTokenTTL(db))
 	if err != nil {
 		logger.Error("jwt refresh token sign failed", zap.Error(err))
@@ -1211,7 +1228,7 @@ func (h *Handlers) handleRefreshToken(c *gin.Context) {
 	user := &models.User{
 		BaseModel: models.BaseModel{ID: payload.UserID},
 		Email:     payload.Email,
-		Role:      payload.Role,
+		RoleSlugs: models.RoleSlugsFromJWTClaim(payload.Role),
 		Status:    models.UserStatusActive,
 	}
 	accessToken, refreshToken, err := buildTokenPair(h.db, user, 24*time.Hour)
@@ -1855,7 +1872,7 @@ func (h *Handlers) handleUserInfo(c *gin.Context) {
 				if tok, signErr := utils.SignAccessTokenWithKey(utils.AccessPayload{
 					UserID: user.ID,
 					Email:  user.Email,
-					Role:   user.Role,
+					Role:   jwtRoleForToken(db, user),
 				}, km, expired); signErr == nil {
 					user.AuthToken = tok
 				}
@@ -2665,7 +2682,7 @@ func (h *Handlers) handleUserSignin(c *gin.Context) {
 			if tok, signErr := utils.SignAccessTokenWithKey(utils.AccessPayload{
 				UserID: user.ID,
 				Email:  user.Email,
-				Role:   user.Role,
+				Role:   jwtRoleForToken(db, user),
 			}, km, expired); signErr == nil {
 				user.AuthToken = tok
 			}
@@ -2831,12 +2848,6 @@ func (h *Handlers) handleUserSignup(c *gin.Context) {
 	if form.LastName != "" {
 		profVals["last_name"] = form.LastName
 	}
-	if form.Locale != "" {
-		profVals["locale"] = form.Locale
-	}
-	if form.Timezone != "" {
-		profVals["timezone"] = form.Timezone
-	}
 	if len(profVals) > 0 {
 		if err = models.UpdateUserProfileFields(db, user.ID, profVals); err != nil {
 			logger.Warn("update user profile fail id:", zap.Uint("userId", user.ID), zap.Any("vals", profVals), zap.Error(err))
@@ -2999,12 +3010,6 @@ func (h *Handlers) handleUserSignupByEmail(c *gin.Context) {
 	if form.LastName != "" {
 		profVals["last_name"] = form.LastName
 	}
-	if form.Locale != "" {
-		profVals["locale"] = form.Locale
-	}
-	if form.Timezone != "" {
-		profVals["timezone"] = form.Timezone
-	}
 	if len(profVals) > 0 {
 		if err = models.UpdateUserProfileFields(db, user.ID, profVals); err != nil {
 			logger.Warn("update user profile fail id:", zap.Uint("userId", user.ID), zap.Any("vals", profVals), zap.Error(err))
@@ -3051,7 +3056,7 @@ func (h *Handlers) handleUserUpdate(c *gin.Context) {
 		coreVals["email"] = strings.TrimSpace(strings.ToLower(req.Email))
 	}
 	if req.Phone != "" {
-		profVals["phone"] = req.Phone
+		coreVals["phone"] = strings.TrimSpace(req.Phone)
 	}
 	if req.FirstName != "" {
 		profVals["first_name"] = req.FirstName
@@ -3064,17 +3069,12 @@ func (h *Handlers) handleUserUpdate(c *gin.Context) {
 	}
 	if req.Locale != "" {
 		coreVals["preferred_locale"] = strings.TrimSpace(req.Locale)
-		profVals["locale"] = req.Locale
 	}
 	if req.Timezone != "" {
 		coreVals["preferred_timezone"] = strings.TrimSpace(req.Timezone)
-		profVals["timezone"] = req.Timezone
 	}
 	if tm := models.NormalizeThemeMode(req.ThemeMode); tm != "" {
 		coreVals["theme_mode"] = tm
-	}
-	if tc := models.NormalizeThemeColor(req.ThemeColor); tc != "" {
-		coreVals["theme_color"] = tc
 	}
 	if req.Gender != "" {
 		profVals["gender"] = req.Gender
@@ -3679,7 +3679,7 @@ func (h *Handlers) handleSendPhoneVerification(c *gin.Context) {
 		return
 	}
 
-	if strings.TrimSpace(user.Profile.Phone) == "" {
+	if strings.TrimSpace(user.Phone) == "" {
 		response.Fail(c, "Phone number not set", errors.New("phone number not set"))
 		return
 	}
@@ -3697,7 +3697,7 @@ func (h *Handlers) handleSendPhoneVerification(c *gin.Context) {
 
 	// 这里可以集成短信服务发送验证码
 	// 目前只是记录日志
-	logger.Info("Phone verification code", zap.String("phone", user.Profile.Phone), zap.String("code", token))
+	logger.Info("Phone verification code", zap.String("phone", user.Phone), zap.String("code", token))
 
 	response.Success(c, "Verification code sent", nil)
 }
@@ -3932,7 +3932,7 @@ func sendHashMail(db *gorm.DB, user *models.User, signame, expireKey, defaultExp
 	hash, err := utils.SignAccessTokenWithKey(utils.AccessPayload{
 		UserID: user.ID,
 		Email:  user.Email,
-		Role:   user.Role,
+		Role:   jwtRoleForToken(db, user),
 	}, km, d)
 	if err != nil {
 		logger.Error("failed to sign email token", zap.Error(err))

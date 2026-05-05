@@ -13,7 +13,9 @@ import (
 )
 
 func setupCredentialsTestDB(t *testing.T) *gorm.DB {
-	return setupTestDBWithSilentLogger(t, &User{}, &UserProfile{}, &Group{}, &GroupMember{}, &UserCredential{})
+	db := setupTestDBWithSilentLogger(t, &User{}, &UserProfile{}, &Group{}, &GroupMember{}, &UserCredential{}, &Role{}, &UserRole{})
+	ensureMinimalRoleForTests(t, db)
+	return db
 }
 
 func minimalUserCredentialRequest(name string) *UserCredentialRequest {

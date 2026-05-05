@@ -24,13 +24,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// 角色常量
-const (
-	RoleSuperAdmin = "superadmin" // 超级管理员
-	RoleAdmin      = "admin"      // 管理员
-	RoleUser       = "user"       // 普通用户
-)
-
 // 用户来源（注册 / 创建渠道）
 const (
 	UserSourceSystem = "SYSTEM"
@@ -177,25 +170,11 @@ type UpdateUserRequest struct {
 	Locale      string `form:"locale" json:"locale"`
 	Timezone    string `form:"timezone" json:"timezone"`
 	ThemeMode   string `form:"themeMode" json:"themeMode"`
-	ThemeColor  string `form:"themeColor" json:"themeColor"`
 	Gender      string `form:"gender" json:"gender"`
 	City        string `form:"city" json:"city"`
 	Region      string `form:"region" json:"region"`
 	Extra       string `form:"extra" json:"extra"`
 	Avatar      string `form:"avatar" json:"avatar"`
-}
-
-// HydrateUIPreferences copies legacy profile locale/timezone onto users-row prefs when unset.
-func HydrateUIPreferences(u *User) {
-	if u == nil {
-		return
-	}
-	if u.PreferredLocale == "" && strings.TrimSpace(u.Profile.Locale) != "" {
-		u.PreferredLocale = strings.TrimSpace(u.Profile.Locale)
-	}
-	if u.PreferredTimezone == "" && strings.TrimSpace(u.Profile.Timezone) != "" {
-		u.PreferredTimezone = strings.TrimSpace(u.Profile.Timezone)
-	}
 }
 
 // NormalizeThemeMode returns light|dark|system or empty if invalid.
@@ -208,26 +187,11 @@ func NormalizeThemeMode(s string) string {
 	}
 }
 
-// NormalizeThemeColor returns a known accent key or empty.
-func NormalizeThemeColor(s string) string {
-	k := strings.ToLower(strings.TrimSpace(s))
-	switch k {
-	case "default", "cherry", "ocean", "nature", "fresh", "sunset", "lavender":
-		return k
-	default:
-		return ""
-	}
-}
-
 // User is the authentication and account row (users table). Presentation, prefs,
 // and extended fields live in UserProfile (JSON field `profile`).
 type User struct {
 	BaseModel
 	Email                      string      `json:"email" gorm:"size:128;uniqueIndex"`
-	WechatOpenID               string      `json:"wechatOpenId,omitempty" gorm:"size:128;index"`
-	WechatUnionID              string      `json:"wechatUnionId,omitempty" gorm:"size:128;index"`
-	GithubID                   string      `json:"githubId,omitempty" gorm:"size:64;index"`
-	GithubLogin                string      `json:"githubLogin,omitempty" gorm:"size:128;index"`
 	Password                   string      `json:"-" gorm:"size:128"`
 	Status                     string      `json:"status" gorm:"size:32;index;default:'active';comment:Account status"`
 	LastLogin                  *time.Time  `json:"lastLogin,omitempty"`
@@ -244,18 +208,20 @@ type User struct {
 	PasswordResetExpires       *time.Time  `json:"-"`                                            // 密码重置过期时间
 	EmailVerifyExpires         *time.Time  `json:"-"`                                            // 邮箱验证过期时间
 	LoginCount                 int         `json:"loginCount" gorm:"default:0"`                  // 登录次数
-	LastPasswordChange         *time.Time  `json:"lastPasswordChange,omitempty"`                 // 最后密码修改时间
-	Role                       string      `json:"role,omitempty" gorm:"size:50;default:'user'"` // 用户角色
+	LastPasswordChange         *time.Time  `json:"lastPasswordChange,omitempty"` // 最后密码修改时间
+	Phone                      string      `json:"phone,omitempty" gorm:"size:64;index"`
 	AccountDeletionRequestedAt *time.Time  `json:"accountDeletionRequestedAt,omitempty"`
 	AccountDeletionEffectiveAt *time.Time  `json:"accountDeletionEffectiveAt,omitempty" gorm:"index"`
-	// UI preferences (persisted on users row; login/profile returns these for client bootstrap).
-	PreferredLocale   string `json:"preferredLocale,omitempty" gorm:"size:32"`
-	PreferredTimezone string `json:"preferredTimezone,omitempty" gorm:"size:128"`
-	ThemeMode         string `json:"themeMode,omitempty" gorm:"size:16"`   // light | dark | system
-	ThemeColor        string `json:"themeColor,omitempty" gorm:"size:24"` // matches web theme accent keys
+	Locale   string `json:"locale,omitempty" gorm:"column:preferred_locale;size:32"`
+	Timezone string `json:"timezone,omitempty" gorm:"column:preferred_timezone;size:128"`
+	ThemeMode                  string      `json:"themeMode,omitempty" gorm:"size:16"` // light | dark | system
 	Profile                    UserProfile `json:"profile,omitempty" gorm:"foreignKey:UserID"`
 	RoleSlugs                  []string    `json:"roleSlugs,omitempty" gorm:"-"`
 	PermissionKeys             []string    `json:"permissionKeys,omitempty" gorm:"-"`
+	WechatOpenID               string      `json:"wechatOpenId,omitempty" gorm:"size:128;index"`
+	WechatUnionID              string      `json:"wechatUnionId,omitempty" gorm:"size:128;index"`
+	GithubID                   string      `json:"githubId,omitempty" gorm:"size:64;index"`
+	GithubLogin                string      `json:"githubLogin,omitempty" gorm:"size:128;index"`
 }
 
 func (u *User) TableName() string {
@@ -351,7 +317,7 @@ func AuthRequired(c *gin.Context) {
 	c.Set(constants.UserField, &User{
 		BaseModel: BaseModel{ID: p.UserID},
 		Email:     p.Email,
-		Role:      p.Role,
+		RoleSlugs: RoleSlugsFromJWTClaim(p.Role),
 		Status:    UserStatusActive,
 	})
 	c.Next()
@@ -490,7 +456,6 @@ func GetUserByUID(db *gorm.DB, userID uint) (*User, error) {
 	if err != nil {
 		return nil, err
 	}
-	HydrateUIPreferences(&val)
 	return &val, nil
 }
 
@@ -502,7 +467,6 @@ func GetUserByID(db *gorm.DB, userID uint) (*User, error) {
 	if err != nil {
 		return nil, err
 	}
-	HydrateUIPreferences(&u)
 	return &u, nil
 }
 
@@ -573,7 +537,7 @@ func AuthApiRequired(c *gin.Context) {
 	c.Set(constants.UserField, &User{
 		BaseModel: BaseModel{ID: p.UserID},
 		Email:     p.Email,
-		Role:      p.Role,
+		RoleSlugs: RoleSlugsFromJWTClaim(p.Role),
 		Status:    UserStatusActive,
 	})
 	c.Next()
@@ -624,7 +588,6 @@ func CreateUserByEmailWithMeta(db *gorm.DB, username, display, email, password, 
 		Password:  HashPassword(password),
 		Status:    status,
 		Source:    source,
-		Role:      RoleUser, // Explicitly set default role
 	}
 	operator := strings.ToLower(strings.TrimSpace(email))
 	if operator == "" {
@@ -639,6 +602,9 @@ func CreateUserByEmailWithMeta(db *gorm.DB, username, display, email, password, 
 	result := db.Create(&user)
 	if result.Error != nil {
 		return nil, result.Error
+	}
+	if err := EnsureUserHasOneRole(db, user.ID); err != nil {
+		return nil, err
 	}
 	profVals := map[string]any{
 		"display_name": display,
@@ -670,7 +636,6 @@ func CreateUserWithMeta(db *gorm.DB, email, password, source, status string) (*U
 		Password:  HashPassword(password),
 		Status:    status,
 		Source:    source,
-		Role:      RoleUser, // Explicitly set default role
 	}
 	operator := strings.ToLower(strings.TrimSpace(email))
 	if operator == "" {
@@ -684,7 +649,13 @@ func CreateUserWithMeta(db *gorm.DB, email, password, source, status string) (*U
 	}
 
 	result := db.Create(&user)
-	return &user, result.Error
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if err := EnsureUserHasOneRole(db, user.ID); err != nil {
+		return nil, err
+	}
+	return &user, nil
 }
 func UpdateUserFields(db *gorm.DB, user *User, vals map[string]any) error {
 	if _, ok := vals["update_by"]; !ok {
@@ -718,28 +689,26 @@ func CheckUserAllowLogin(db *gorm.DB, user *User) error {
 	}
 
 	// Role validation - ensure user has a valid role
-	if err := ValidateUserRole(user); err != nil {
+	if err := ValidateUserRole(db, user); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-// ValidateUserRole validates that the user has a valid role
-func ValidateUserRole(user *User) error {
-	if user.Role == "" {
-		return errors.New("user role is not set")
+// ValidateUserRole validates that the user has at least one RBAC role assignment.
+func ValidateUserRole(db *gorm.DB, user *User) error {
+	if db == nil || user == nil || user.ID == 0 {
+		return errors.New("invalid user")
 	}
-
-	// Check if role is one of the valid roles
-	validRoles := []string{RoleSuperAdmin, RoleAdmin, RoleUser}
-	for _, validRole := range validRoles {
-		if user.Role == validRole {
-			return nil
-		}
+	slugs, err := UserRoleSlugs(db, user.ID)
+	if err != nil {
+		return err
 	}
-
-	return fmt.Errorf("invalid user role: %s", user.Role)
+	if len(slugs) == 0 {
+		return errors.New("user has no roles assigned")
+	}
+	return nil
 }
 
 func InTimezone(c *gin.Context, timezone string) {
@@ -944,32 +913,30 @@ func UpdateNotificationSettings(db *gorm.DB, user *User, settings map[string]boo
 	return nil
 }
 
-// UpdatePreferences 更新用户偏好设置
-// 只处理实际使用的字段：timezone 和 locale
+// UpdatePreferences 更新用户偏好设置（locale / timezone，存 users 表）
 func UpdatePreferences(db *gorm.DB, user *User, preferences map[string]string) error {
 	vals := make(map[string]any)
 
 	if timezone, ok := preferences["timezone"]; ok {
-		vals["timezone"] = timezone
+		vals["preferred_timezone"] = timezone
 	}
 	if locale, ok := preferences["locale"]; ok {
-		vals["locale"] = locale
+		vals["preferred_locale"] = locale
 	}
 
 	if len(vals) == 0 {
 		return nil
 	}
 
-	err := UpdateUserProfileFields(db, user.ID, vals)
-	if err != nil {
+	if err := UpdateUserFields(db, user, vals); err != nil {
 		return err
 	}
 
 	if timezone, ok := preferences["timezone"]; ok {
-		user.Profile.Timezone = timezone
+		user.Timezone = timezone
 	}
 	if locale, ok := preferences["locale"]; ok {
-		user.Profile.Locale = locale
+		user.Locale = locale
 	}
 
 	return nil
@@ -1004,7 +971,7 @@ func CalculateProfileComplete(user *User) int {
 	if user.Email != "" {
 		complete++
 	}
-	if p.Phone != "" {
+	if strings.TrimSpace(user.Phone) != "" {
 		complete++
 	}
 	if user.EmailVerified {
@@ -1022,7 +989,7 @@ func CalculateProfileComplete(user *User) int {
 
 	// 偏好设置 (10%)
 	total += 1
-	if p.Timezone != "" {
+	if strings.TrimSpace(user.Timezone) != "" {
 		complete++
 	}
 
@@ -1082,12 +1049,3 @@ func IncrementLoginCount(db *gorm.DB, user *User) error {
 	return nil
 }
 
-// IsAdmin 检查是否为管理员（基于角色）
-func (u *User) IsAdmin() bool {
-	return u.Role == RoleSuperAdmin || u.Role == RoleAdmin
-}
-
-// IsSuperAdmin 检查是否为超级管理员
-func (u *User) IsSuperAdmin() bool {
-	return u.Role == RoleSuperAdmin
-}

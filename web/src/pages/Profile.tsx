@@ -189,7 +189,7 @@ const Profile = () => {
       themeMode: (user.themeMode as ThemeMode) || prev.themeMode,
       themeColor: (user.themeColor as ThemeColor) || prev.themeColor,
     }))
-  }, [user?.locale, user?.timezone, user?.themeMode, user?.themeColor])
+  }, [user?.locale, user?.timezone, user?.themeMode])
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)

@@ -31,9 +31,11 @@ func TestGenerateUUID(t *testing.T) {
 }
 
 func setupAssistantTestDB(t *testing.T) *gorm.DB {
-	return setupTestDBWithSilentLogger(t,
+	db := setupTestDBWithSilentLogger(t,
 		&User{},
 		&UserProfile{},
+		&Role{},
+		&UserRole{},
 		&Group{},
 		&GroupMember{},
 		&Agent{},
@@ -43,6 +45,8 @@ func setupAssistantTestDB(t *testing.T) *gorm.DB {
 		&ChatSessionLog{},
 		&JSTemplate{},
 	)
+	ensureMinimalRoleForTests(t, db)
+	return db
 }
 
 func TestCreateChatSessionLog(t *testing.T) {

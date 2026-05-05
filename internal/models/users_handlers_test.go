@@ -30,7 +30,9 @@ func init() {
 }
 
 func setupHandlerTestDB(t *testing.T) *gorm.DB {
-	return setupTestDBWithSilentLogger(t, &User{}, &UserProfile{}, &Group{}, &GroupMember{}, &UserCredential{})
+	db := setupTestDBWithSilentLogger(t, &User{}, &UserProfile{}, &Group{}, &GroupMember{}, &UserCredential{}, &Role{}, &UserRole{})
+	ensureMinimalRoleForTests(t, db)
+	return db
 }
 
 func setupHandlerTestRouter(t *testing.T, db *gorm.DB) *gin.Engine {
@@ -169,7 +171,7 @@ func TestAuthRequired_WithToken(t *testing.T) {
 	token, err := utils.SignAccessTokenWithKey(utils.AccessPayload{
 		UserID: user.ID,
 		Email:  user.Email,
-		Role:   RoleUser,
+		Role:   "test-role",
 	}, km, time.Hour)
 	require.NoError(t, err)
 
@@ -201,7 +203,7 @@ func TestAuthRequired_WithTestToken(t *testing.T) {
 	token, err := utils.SignAccessTokenWithKey(utils.AccessPayload{
 		UserID: user.ID,
 		Email:  user.Email,
-		Role:   RoleUser,
+		Role:   "test-role",
 	}, km, time.Hour)
 	require.NoError(t, err)
 
@@ -348,11 +350,11 @@ func TestUpdateUser(t *testing.T) {
 	user, err := CreateUser(db, "test@example.com", "password123")
 	require.NoError(t, err)
 
-	err = UpdateUser(db, user, map[string]any{"Role": RoleAdmin})
+	err = UpdateUser(db, user, map[string]any{"ThemeMode": "dark"})
 	require.NoError(t, err)
 
 	// Verify updates
 	retrieved, err := GetUserByUID(db, user.ID)
 	require.NoError(t, err)
-	assert.Equal(t, RoleAdmin, retrieved.Role)
+	assert.Equal(t, "dark", retrieved.ThemeMode)
 }

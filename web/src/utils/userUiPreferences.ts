@@ -10,8 +10,8 @@ export function applyAuthUserUIPreferences(user: Record<string, unknown> | null 
   if (!user) return
 
   const locRaw =
-    (typeof user.preferredLocale === 'string' && user.preferredLocale.trim()) ||
     (typeof user.locale === 'string' && user.locale.trim()) ||
+    (typeof user.preferredLocale === 'string' && user.preferredLocale.trim()) ||
     ''
   if (locRaw) {
     const loc = normalizeLegacyLocale(locRaw) as Language
