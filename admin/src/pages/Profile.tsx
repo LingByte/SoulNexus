@@ -41,18 +41,19 @@ const Profile = () => {
     try {
       setLoading(true)
       const userData = await getCurrentUser()
+      const pr = (userData as any)?.profile || {}
       setFormData({
-        displayName: userData.displayName || userData.display_name || '',
+        displayName: userData.displayName || userData.display_name || pr.displayName || '',
         email: userData.email || '',
-        phone: userData.phone || '',
-        timezone: userData.timezone || '',
-        gender: userData.gender || '',
-        city: userData.city || '',
-        region: userData.region || '',
-        extra: userData.extra || userData.bio || '',
-        avatar: userData.avatar || '',
-        emailNotifications: userData.emailNotifications ?? true,
-        pushNotifications: userData.pushNotifications ?? true,
+        phone: userData.phone || pr.phone || '',
+        timezone: userData.timezone || pr.timezone || '',
+        gender: userData.gender || pr.gender || '',
+        city: userData.city || pr.city || '',
+        region: userData.region || pr.region || '',
+        extra: userData.extra || userData.bio || pr.extra || '',
+        avatar: userData.avatar || pr.avatar || '',
+        emailNotifications: userData.emailNotifications ?? pr.emailNotifications ?? true,
+        pushNotifications: userData.pushNotifications ?? pr.pushNotifications ?? true,
       })
     } catch (error) {
       console.error('获取用户信息失败:', error)

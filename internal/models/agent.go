@@ -1,59 +1,50 @@
 package models
 
-import "time"
+// Copyright (c) 2026 LingByte. All rights reserved.
+// SPDX-License-Identifier: AGPL-3.0
 
-// Copyright (c) 2026 LingByte
-// SPDX-License-Identifier: MIT
+import (
+	"time"
 
-type AgentRun struct {
-	ID            string    `json:"id" gorm:"primaryKey;type:varchar(64)"`
-	SessionID     string    `json:"session_id" gorm:"type:varchar(64);index;not null"`
-	UserID        string    `json:"user_id" gorm:"type:varchar(64);index;not null"`
-	Goal          string    `json:"goal" gorm:"type:text;not null"`
-	Status        string    `json:"status" gorm:"type:varchar(20);index;not null"` // queued/running/succeeded/failed/cancelled
-	Phase         string    `json:"phase" gorm:"type:varchar(32);index"`           // planning/executing/reflecting
-	PlanJSON      string    `json:"plan_json" gorm:"type:longtext"`
-	ResultText    string    `json:"result_text" gorm:"type:longtext"`
-	ErrorMessage  string    `json:"error_message" gorm:"type:text"`
-	TotalSteps    int       `json:"total_steps" gorm:"default:0"`
-	TotalTokens   int       `json:"total_tokens" gorm:"default:0"`
-	MaxSteps      int       `json:"max_steps" gorm:"default:0"`
-	MaxCostTokens int       `json:"max_cost_tokens" gorm:"default:0"`
-	MaxDurationMs int64     `json:"max_duration_ms" gorm:"default:0"`
-	StartedAt     time.Time `json:"started_at" gorm:"index"`
-	CompletedAt   time.Time `json:"completed_at"`
-	CreatedAt     time.Time `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt     time.Time `json:"updated_at" gorm:"autoUpdateTime"`
+	"gorm.io/gorm"
+)
+
+// Agent 表示一个自定义 AI Agent
+type Agent struct {
+	ID                   int64     `json:"id" gorm:"primaryKey;autoIncrement"`
+	GroupID              uint      `json:"groupId" gorm:"index"`
+	CreatedBy            uint      `json:"createdBy" gorm:"index"`
+	Name                 string    `json:"name" gorm:"index"`
+	Description          string    `json:"description"`
+	Icon                 string    `json:"icon"`
+	SystemPrompt         string    `json:"systemPrompt"`
+	PersonaTag           string    `json:"personaTag"`
+	Temperature          float32   `json:"temperature"`
+	JsSourceID           string    `json:"jsSourceId" gorm:"index:idx_agent_js_source"`
+	MaxTokens            int       `json:"maxTokens"`
+	Speaker              string    `json:"speaker" gorm:"column:speaker"`
+	VoiceCloneID         *int      `json:"voiceCloneId" gorm:"column:voice_clone_id"`
+	TtsProvider          string    `json:"ttsProvider" gorm:"column:tts_provider"`
+	ApiKey               string    `json:"apiKey" gorm:"column:api_key"`
+	ApiSecret            string    `json:"apiSecret" gorm:"column:api_secret"`
+	LLMModel             string    `json:"llmModel" gorm:"column:llm_model"`
+	EnableGraphMemory    bool      `json:"enableGraphMemory" gorm:"column:enable_graph_memory;default:false"`
+	EnableVAD            bool      `json:"enableVAD" gorm:"column:enable_vad;default:true"`
+	VADThreshold         float64   `json:"vadThreshold" gorm:"column:vad_threshold;default:500"`
+	VADConsecutiveFrames int       `json:"vadConsecutiveFrames" gorm:"column:vad_consecutive_frames;default:2"`
+	EnableJSONOutput     bool      `json:"enableJSONOutput" gorm:"column:enable_json_output;default:false"`
+	CreatedAt            time.Time `json:"createdAt" gorm:"autoCreateTime"`
+	UpdatedAt            time.Time `json:"updatedAt" gorm:"autoUpdateTime"`
 }
 
-type AgentStep struct {
-	ID           string    `json:"id" gorm:"primaryKey;type:varchar(64)"`
-	RunID        string    `json:"run_id" gorm:"type:varchar(64);index;not null"`
-	StepID       string    `json:"step_id" gorm:"type:varchar(64);index;not null"`
-	TaskID       string    `json:"task_id" gorm:"type:varchar(64);index"`
-	Title        string    `json:"title" gorm:"type:varchar(255)"`
-	Instruction  string    `json:"instruction" gorm:"type:text"`
-	Status       string    `json:"status" gorm:"type:varchar(20);index;not null"` // queued/running/waiting_tool/succeeded/failed/cancelled
-	Model        string    `json:"model" gorm:"type:varchar(100)"`
-	InputJSON    string    `json:"input_json" gorm:"type:longtext"`
-	OutputText   string    `json:"output_text" gorm:"type:longtext"`
-	ErrorMessage string    `json:"error_message" gorm:"type:text"`
-	Feedback     string    `json:"feedback" gorm:"type:text"`
-	Attempts     int       `json:"attempts" gorm:"default:0"`
-	InputTokens  int       `json:"input_tokens" gorm:"default:0"`
-	OutputTokens int       `json:"output_tokens" gorm:"default:0"`
-	TotalTokens  int       `json:"total_tokens" gorm:"default:0"`
-	LatencyMs    int64     `json:"latency_ms" gorm:"default:0"`
-	StartedAt    time.Time `json:"started_at" gorm:"index"`
-	CompletedAt  time.Time `json:"completed_at"`
-	CreatedAt    time.Time `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt    time.Time `json:"updated_at" gorm:"autoUpdateTime"`
-}
+func (Agent) TableName() string { return "agents" }
 
-func (AgentRun) TableName() string {
-	return "agent_runs"
-}
-
-func (AgentStep) TableName() string {
-	return "agent_steps"
+// GetAgentByJSTemplateID 根据 JS 模板 ID 获取关联的 Agent
+func GetAgentByJSTemplateID(db *gorm.DB, jsTemplateID string) (*Agent, error) {
+	var agent Agent
+	err := db.Where("js_source_id = ?", jsTemplateID).First(&agent).Error
+	if err != nil {
+		return nil, err
+	}
+	return &agent, nil
 }

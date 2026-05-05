@@ -12,6 +12,14 @@ import (
 	"gorm.io/gorm"
 )
 
+func ensureTestTeamGroup(t *testing.T, db *gorm.DB, userID uint) uint {
+	t.Helper()
+	g := Group{Name: fmt.Sprintf("test-org-%d", userID), Type: GroupTypeTeam, CreatorID: userID}
+	require.NoError(t, db.Create(&g).Error)
+	require.NoError(t, db.Create(&GroupMember{UserID: userID, GroupID: g.ID, Role: GroupRoleAdmin}).Error)
+	return g.ID
+}
+
 func TestGenerateUUID(t *testing.T) {
 	uuid1 := generateUUID()
 	uuid2 := generateUUID()
@@ -23,12 +31,22 @@ func TestGenerateUUID(t *testing.T) {
 }
 
 func setupAssistantTestDB(t *testing.T) *gorm.DB {
-	return setupTestDBWithSilentLogger(t,
+	db := setupTestDBWithSilentLogger(t,
 		&User{},
-		&Assistant{},
+		&UserProfile{},
+		&Role{},
+		&UserRole{},
+		&Group{},
+		&GroupMember{},
+		&Agent{},
+		&ChatSession{},
+		&ChatMessage{},
+		&LLMUsage{},
 		&ChatSessionLog{},
 		&JSTemplate{},
 	)
+	ensureMinimalRoleForTests(t, db)
+	return db
 }
 
 func TestCreateChatSessionLog(t *testing.T) {
@@ -42,7 +60,7 @@ func TestCreateChatSessionLog(t *testing.T) {
 	assert.NotZero(t, log.ID)
 	assert.Equal(t, "session-123", log.SessionID)
 	assert.Equal(t, user.ID, log.UserID)
-	assert.Equal(t, int64(1), log.AssistantID)
+	assert.Equal(t, int64(1), log.AgentID)
 	assert.Equal(t, ChatTypeText, log.ChatType)
 	assert.Equal(t, "Hello", log.UserMessage)
 	assert.Equal(t, "Hi there", log.AgentMessage)
@@ -119,6 +137,7 @@ func TestCreateJSTemplate(t *testing.T) {
 
 	user, err := CreateUser(db, "test@example.com", "password123")
 	require.NoError(t, err)
+	gid := ensureTestTeamGroup(t, db, user.ID)
 
 	template := &JSTemplate{
 		ID:         "template-1", // Set ID since it's a string primary key
@@ -127,7 +146,8 @@ func TestCreateJSTemplate(t *testing.T) {
 		Type:       "custom",
 		Content:    "console.log('test');",
 		Usage:      "Test usage",
-		UserID:     user.ID,
+		GroupID:    gid,
+		CreatedBy:  user.ID,
 	}
 
 	err = CreateJSTemplate(db, template)
@@ -141,7 +161,8 @@ func TestCreateJSTemplate(t *testing.T) {
 		JsSourceID: "",
 		Name:       "Test Template 2",
 		Type:       "custom",
-		UserID:     user.ID,
+		GroupID:    gid,
+		CreatedBy:  user.ID,
 	}
 	err = CreateJSTemplate(db, template2)
 	require.NoError(t, err)
@@ -153,7 +174,8 @@ func TestCreateJSTemplate(t *testing.T) {
 		JsSourceID: "",
 		Name:       "Test Template 3",
 		Type:       "custom",
-		UserID:     user.ID,
+		GroupID:    gid,
+		CreatedBy:  user.ID,
 	}
 	err = CreateJSTemplate(db, template3)
 	require.NoError(t, err)
@@ -168,12 +190,14 @@ func TestGetJSTemplateByJsSourceID(t *testing.T) {
 
 	user, err := CreateUser(db, "test@example.com", "password123")
 	require.NoError(t, err)
+	gid := ensureTestTeamGroup(t, db, user.ID)
 
 	template := &JSTemplate{
 		JsSourceID: "js-test-123",
 		Name:       "Test Template",
 		Type:       "custom",
-		UserID:     user.ID,
+		GroupID:    gid,
+		CreatedBy:  user.ID,
 	}
 	err = CreateJSTemplate(db, template)
 	require.NoError(t, err)
@@ -193,12 +217,14 @@ func TestGetJSTemplateByID(t *testing.T) {
 
 	user, err := CreateUser(db, "test@example.com", "password123")
 	require.NoError(t, err)
+	gid := ensureTestTeamGroup(t, db, user.ID)
 
 	template := &JSTemplate{
 		JsSourceID: "js-test-123",
 		Name:       "Test Template",
 		Type:       "custom",
-		UserID:     user.ID,
+		GroupID:    gid,
+		CreatedBy:  user.ID,
 	}
 	err = CreateJSTemplate(db, template)
 	require.NoError(t, err)
@@ -214,6 +240,7 @@ func TestGetJSTemplatesByName(t *testing.T) {
 
 	user, err := CreateUser(db, "test@example.com", "password123")
 	require.NoError(t, err)
+	gid := ensureTestTeamGroup(t, db, user.ID)
 
 	// Create templates with same name
 	template1 := &JSTemplate{
@@ -221,7 +248,8 @@ func TestGetJSTemplatesByName(t *testing.T) {
 		JsSourceID: "js-1",
 		Name:       "Common Name",
 		Type:       "custom",
-		UserID:     user.ID,
+		GroupID:    gid,
+		CreatedBy:  user.ID,
 	}
 	err = CreateJSTemplate(db, template1)
 	require.NoError(t, err)
@@ -231,7 +259,8 @@ func TestGetJSTemplatesByName(t *testing.T) {
 		JsSourceID: "js-2",
 		Name:       "Common Name",
 		Type:       "custom",
-		UserID:     user.ID,
+		GroupID:    gid,
+		CreatedBy:  user.ID,
 	}
 	err = CreateJSTemplate(db, template2)
 	require.NoError(t, err)
@@ -249,6 +278,8 @@ func TestListJSTemplates(t *testing.T) {
 	require.NoError(t, err)
 	user2, err := CreateUser(db, "user2@example.com", "password123")
 	require.NoError(t, err)
+	gid1 := ensureTestTeamGroup(t, db, user1.ID)
+	gid2 := ensureTestTeamGroup(t, db, user2.ID)
 
 	// Create templates for different users
 	template1 := &JSTemplate{
@@ -256,7 +287,8 @@ func TestListJSTemplates(t *testing.T) {
 		JsSourceID: "js-1",
 		Name:       "User1 Template",
 		Type:       "custom",
-		UserID:     user1.ID,
+		GroupID:    gid1,
+		CreatedBy:  user1.ID,
 	}
 	err = CreateJSTemplate(db, template1)
 	require.NoError(t, err)
@@ -266,7 +298,8 @@ func TestListJSTemplates(t *testing.T) {
 		JsSourceID: "js-2",
 		Name:       "User2 Template",
 		Type:       "custom",
-		UserID:     user2.ID,
+		GroupID:    gid2,
+		CreatedBy:  user2.ID,
 	}
 	err = CreateJSTemplate(db, template2)
 	require.NoError(t, err)
@@ -280,7 +313,7 @@ func TestListJSTemplates(t *testing.T) {
 	templates, err = ListJSTemplates(db, user1.ID, 0, 10)
 	require.NoError(t, err)
 	assert.Len(t, templates, 1)
-	assert.Equal(t, user1.ID, templates[0].UserID)
+	assert.Equal(t, user1.ID, templates[0].CreatedBy)
 }
 
 func TestListJSTemplatesByType(t *testing.T) {
@@ -288,6 +321,7 @@ func TestListJSTemplatesByType(t *testing.T) {
 
 	user, err := CreateUser(db, "test@example.com", "password123")
 	require.NoError(t, err)
+	gid := ensureTestTeamGroup(t, db, user.ID)
 
 	// Create templates of different types
 	template1 := &JSTemplate{
@@ -295,7 +329,8 @@ func TestListJSTemplatesByType(t *testing.T) {
 		JsSourceID: "js-1",
 		Name:       "Default Template",
 		Type:       "default",
-		UserID:     0, // Default templates have no user
+		GroupID:    0,
+		CreatedBy:  0,
 	}
 	err = CreateJSTemplate(db, template1)
 	require.NoError(t, err)
@@ -305,7 +340,8 @@ func TestListJSTemplatesByType(t *testing.T) {
 		JsSourceID: "js-2",
 		Name:       "Custom Template",
 		Type:       "custom",
-		UserID:     user.ID,
+		GroupID:    gid,
+		CreatedBy:  user.ID,
 	}
 	err = CreateJSTemplate(db, template2)
 	require.NoError(t, err)
@@ -328,12 +364,14 @@ func TestUpdateJSTemplate(t *testing.T) {
 
 	user, err := CreateUser(db, "test@example.com", "password123")
 	require.NoError(t, err)
+	gid := ensureTestTeamGroup(t, db, user.ID)
 
 	template := &JSTemplate{
 		JsSourceID: "js-test-123",
 		Name:       "Test Template",
 		Type:       "custom",
-		UserID:     user.ID,
+		GroupID:    gid,
+		CreatedBy:  user.ID,
 	}
 	err = CreateJSTemplate(db, template)
 	require.NoError(t, err)
@@ -358,12 +396,14 @@ func TestDeleteJSTemplate(t *testing.T) {
 
 	user, err := CreateUser(db, "test@example.com", "password123")
 	require.NoError(t, err)
+	gid := ensureTestTeamGroup(t, db, user.ID)
 
 	template := &JSTemplate{
 		JsSourceID: "js-test-123",
 		Name:       "Test Template",
 		Type:       "custom",
-		UserID:     user.ID,
+		GroupID:    gid,
+		CreatedBy:  user.ID,
 	}
 	err = CreateJSTemplate(db, template)
 	require.NoError(t, err)
@@ -384,12 +424,14 @@ func TestIsJSTemplateOwner(t *testing.T) {
 	require.NoError(t, err)
 	user2, err := CreateUser(db, "user2@example.com", "password123")
 	require.NoError(t, err)
+	gid := ensureTestTeamGroup(t, db, user1.ID)
 
 	template := &JSTemplate{
 		JsSourceID: "js-test-123",
 		Name:       "Test Template",
 		Type:       "custom",
-		UserID:     user1.ID,
+		GroupID:    gid,
+		CreatedBy:  user1.ID,
 	}
 	err = CreateJSTemplate(db, template)
 	require.NoError(t, err)
@@ -410,6 +452,7 @@ func TestGetJSTemplatesCount(t *testing.T) {
 
 	user, err := CreateUser(db, "test@example.com", "password123")
 	require.NoError(t, err)
+	gid := ensureTestTeamGroup(t, db, user.ID)
 
 	// Create templates
 	template1 := &JSTemplate{
@@ -417,7 +460,8 @@ func TestGetJSTemplatesCount(t *testing.T) {
 		JsSourceID: "js-1",
 		Name:       "Default Template",
 		Type:       "default",
-		UserID:     0,
+		GroupID:    0,
+		CreatedBy:  0,
 	}
 	err = CreateJSTemplate(db, template1)
 	require.NoError(t, err)
@@ -427,7 +471,8 @@ func TestGetJSTemplatesCount(t *testing.T) {
 		JsSourceID: "js-2",
 		Name:       "Custom Template",
 		Type:       "custom",
-		UserID:     user.ID,
+		GroupID:    gid,
+		CreatedBy:  user.ID,
 	}
 	err = CreateJSTemplate(db, template2)
 	require.NoError(t, err)
@@ -451,13 +496,15 @@ func TestSearchJSTemplates(t *testing.T) {
 
 	user, err := CreateUser(db, "test@example.com", "password123")
 	require.NoError(t, err)
+	gid := ensureTestTeamGroup(t, db, user.ID)
 
 	template := &JSTemplate{
 		JsSourceID: "js-test-123",
 		Name:       "Searchable Template",
 		Content:    "This is searchable content",
 		Type:       "custom",
-		UserID:     user.ID,
+		GroupID:    gid,
+		CreatedBy:  user.ID,
 	}
 	err = CreateJSTemplate(db, template)
 	require.NoError(t, err)
@@ -483,9 +530,11 @@ func TestGetAssistantByJSTemplateID(t *testing.T) {
 
 	user, err := CreateUser(db, "test@example.com", "password123")
 	require.NoError(t, err)
+	gid := ensureTestTeamGroup(t, db, user.ID)
 
-	assistant := &Assistant{
-		UserID:     user.ID,
+	assistant := &Agent{
+		GroupID:    gid,
+		CreatedBy:  user.ID,
 		Name:       "Test Assistant",
 		JsSourceID: "js-test-123",
 	}
@@ -493,12 +542,12 @@ func TestGetAssistantByJSTemplateID(t *testing.T) {
 	require.NoError(t, err)
 
 	// Get assistant by JS template ID
-	retrieved, err := GetAssistantByJSTemplateID(db, "js-test-123")
+	retrieved, err := GetAgentByJSTemplateID(db, "js-test-123")
 	require.NoError(t, err)
 	assert.Equal(t, assistant.ID, retrieved.ID)
 
 	// Test non-existent
-	_, err = GetAssistantByJSTemplateID(db, "nonexistent")
+	_, err = GetAgentByJSTemplateID(db, "nonexistent")
 	assert.Error(t, err)
 }
 
@@ -575,6 +624,7 @@ func TestGenerateUniqueJsSourceID(t *testing.T) {
 
 	user, err := CreateUser(db, "test@example.com", "password123")
 	require.NoError(t, err)
+	gid := ensureTestTeamGroup(t, db, user.ID)
 
 	// Test auto-generation when jsSourceID is empty
 	template := &JSTemplate{
@@ -582,7 +632,8 @@ func TestGenerateUniqueJsSourceID(t *testing.T) {
 		JsSourceID: "", // Empty, should be auto-generated
 		Name:       "Test Template",
 		Type:       "custom",
-		UserID:     user.ID,
+		GroupID:    gid,
+		CreatedBy:  user.ID,
 	}
 	err = CreateJSTemplate(db, template)
 	require.NoError(t, err)
@@ -595,7 +646,8 @@ func TestGenerateUniqueJsSourceID(t *testing.T) {
 		JsSourceID: "",
 		Name:       "Test Template 2",
 		Type:       "custom",
-		UserID:     user.ID,
+		GroupID:    gid,
+		CreatedBy:  user.ID,
 	}
 	err = CreateJSTemplate(db, template2)
 	require.NoError(t, err)
@@ -623,10 +675,13 @@ func TestGetChatSessionLogDetail_WithAssistantName(t *testing.T) {
 	user, err := CreateUser(db, "test@example.com", "password123")
 	require.NoError(t, err)
 
+	gid := ensureTestTeamGroup(t, db, user.ID)
+
 	// Create assistant
-	assistant := &Assistant{
-		UserID: user.ID,
-		Name:   "Test Assistant",
+	assistant := &Agent{
+		GroupID:   gid,
+		CreatedBy: user.ID,
+		Name:      "Test Assistant",
 	}
 	err = db.Create(assistant).Error
 	require.NoError(t, err)
@@ -639,7 +694,7 @@ func TestGetChatSessionLogDetail_WithAssistantName(t *testing.T) {
 	detail, err := GetChatSessionLogDetail(db, log.ID, user.ID)
 	require.NoError(t, err)
 	assert.Equal(t, log.ID, detail.ID)
-	assert.Equal(t, "Test Assistant", detail.AssistantName)
+	assert.Equal(t, "Test Assistant", detail.AgentName)
 }
 
 func TestGetJSTemplatesByName_EmptyResult(t *testing.T) {
@@ -656,6 +711,7 @@ func TestListJSTemplates_WithPagination(t *testing.T) {
 
 	user, err := CreateUser(db, "test@example.com", "password123")
 	require.NoError(t, err)
+	gid := ensureTestTeamGroup(t, db, user.ID)
 
 	// Create multiple templates
 	for i := 0; i < 5; i++ {
@@ -664,7 +720,8 @@ func TestListJSTemplates_WithPagination(t *testing.T) {
 			JsSourceID: fmt.Sprintf("js-%d", i),
 			Name:       fmt.Sprintf("Template %d", i),
 			Type:       "custom",
-			UserID:     user.ID,
+			GroupID:    gid,
+			CreatedBy:  user.ID,
 		}
 		err = CreateJSTemplate(db, template)
 		require.NoError(t, err)
@@ -687,10 +744,8 @@ func TestIsJSTemplateOwner_NonExistent(t *testing.T) {
 	user, err := CreateUser(db, "test@example.com", "password123")
 	require.NoError(t, err)
 
-	// Test with non-existent template
-	isOwner, err := IsJSTemplateOwner(db, "nonexistent-id", user.ID)
-	require.NoError(t, err)
-	assert.False(t, isOwner)
+	_, ownerErr := IsJSTemplateOwner(db, "nonexistent-id", user.ID)
+	assert.Error(t, ownerErr)
 }
 
 func TestGetJSTemplatesCount_WithType(t *testing.T) {
@@ -698,6 +753,7 @@ func TestGetJSTemplatesCount_WithType(t *testing.T) {
 
 	user, err := CreateUser(db, "test@example.com", "password123")
 	require.NoError(t, err)
+	gid := ensureTestTeamGroup(t, db, user.ID)
 
 	// Create templates of different types
 	template1 := &JSTemplate{
@@ -705,7 +761,8 @@ func TestGetJSTemplatesCount_WithType(t *testing.T) {
 		JsSourceID: "js-1",
 		Name:       "Default Template",
 		Type:       "default",
-		UserID:     0,
+		GroupID:    0,
+		CreatedBy:  0,
 	}
 	err = CreateJSTemplate(db, template1)
 	require.NoError(t, err)
@@ -715,7 +772,8 @@ func TestGetJSTemplatesCount_WithType(t *testing.T) {
 		JsSourceID: "js-2",
 		Name:       "Custom Template",
 		Type:       "custom",
-		UserID:     user.ID,
+		GroupID:    gid,
+		CreatedBy:  user.ID,
 	}
 	err = CreateJSTemplate(db, template2)
 	require.NoError(t, err)

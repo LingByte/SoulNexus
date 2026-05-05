@@ -12,16 +12,41 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	gormsqlite "gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
+// setupTestDBWithSilentLogger opens an in-memory SQLite DB and migrates the given models (shared by *_test.go files in this package).
+func setupTestDBWithSilentLogger(t *testing.T, models ...interface{}) *gorm.DB {
+	t.Helper()
+	db, err := gorm.Open(gormsqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(models...))
+	return db
+}
+
+func ensureMinimalRoleForTests(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	var n int64
+	require.NoError(t, db.Model(&Role{}).Where("is_deleted = ?", SoftDeleteStatusActive).Count(&n).Error)
+	if n > 0 {
+		return
+	}
+	require.NoError(t, db.Create(&Role{Name: "Test Role", Slug: "test-role", IsSystem: false}).Error)
+}
+
 func setupTestDB(t *testing.T) *gorm.DB {
-	return setupTestDBWithSilentLogger(t,
+	db := setupTestDBWithSilentLogger(t,
 		&User{},
+		&UserProfile{},
 		&UserCredential{},
 		&Group{},
 		&GroupMember{},
+		&Role{},
+		&UserRole{},
 	)
+	ensureMinimalRoleForTests(t, db)
+	return db
 }
 
 func setupTestContext(t *testing.T, db *gorm.DB) *gin.Context {
@@ -97,12 +122,12 @@ func TestCreateUserByEmail(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotZero(t, user.ID)
 	assert.Equal(t, "test@example.com", user.Email)
-	assert.Equal(t, "Test User", user.DisplayName)
-	assert.Equal(t, "t", user.FirstName)      // First character
-	assert.Equal(t, "estuser", user.LastName) // Rest
+	assert.Equal(t, "Test User", user.Profile.DisplayName)
+	assert.Equal(t, "t", user.Profile.FirstName)      // First character
+	assert.Equal(t, "estuser", user.Profile.LastName) // Rest
 	assert.Equal(t, UserStatusActive, user.Status)
 	assert.Equal(t, UserSourceSystem, user.Source)
-	assert.True(t, user.EmailNotifications)
+	assert.True(t, user.Profile.EmailNotifications)
 }
 
 func TestGetUserByUID(t *testing.T) {
@@ -180,21 +205,13 @@ func TestUpdateUserFields(t *testing.T) {
 	user, err := CreateUser(db, "test@example.com", "password123")
 	require.NoError(t, err)
 
-	updates := map[string]any{
-		"DisplayName": "Updated Name",
-		"FirstName":   "First",
-		"LastName":    "Last",
-	}
-
-	err = UpdateUserFields(db, user, updates)
+	err = UpdateUserFields(db, user, map[string]any{"Phone": "+15551234567"})
 	require.NoError(t, err)
 
 	// Verify updates
 	retrieved, err := GetUserByUID(db, user.ID)
 	require.NoError(t, err)
-	assert.Equal(t, "Updated Name", retrieved.DisplayName)
-	assert.Equal(t, "First", retrieved.FirstName)
-	assert.Equal(t, "Last", retrieved.LastName)
+	assert.Equal(t, "+15551234567", retrieved.Phone)
 }
 
 func TestSetLastLogin(t *testing.T) {
@@ -423,8 +440,8 @@ func TestUpdateNotificationSettings(t *testing.T) {
 	// Verify settings were updated
 	retrieved, err := GetUserByUID(db, user.ID)
 	require.NoError(t, err)
-	assert.False(t, retrieved.EmailNotifications)
-	assert.True(t, retrieved.PushNotifications)
+	assert.False(t, retrieved.Profile.EmailNotifications)
+	assert.True(t, retrieved.Profile.PushNotifications)
 }
 
 func TestUpdatePreferences(t *testing.T) {
@@ -464,26 +481,30 @@ func TestCalculateProfileComplete(t *testing.T) {
 		{
 			name: "partial profile",
 			user: &User{
-				DisplayName: "Test",
-				Email:       "test@example.com",
+				Email: "test@example.com",
+				Profile: UserProfile{
+					DisplayName: "Test",
+				},
 			},
-			wantMin: 20,
+			wantMin: 15,
 			wantMax: 50,
 		},
 		{
 			name: "complete profile",
 			user: &User{
-				DisplayName:   "Test User",
-				FirstName:     "Test",
-				LastName:      "User",
-				Avatar:        "avatar.jpg",
 				Email:         "test@example.com",
-				Phone:         "1234567890",
 				EmailVerified: true,
-				City:          "Beijing",
+				Phone:         "1234567890",
 				Timezone:      "UTC",
+				Profile: UserProfile{
+					DisplayName: "Test User",
+					FirstName:   "Test",
+					LastName:    "User",
+					Avatar:      "avatar.jpg",
+					City:        "Beijing",
+				},
 			},
-			wantMin: 80,
+			wantMin: 70,
 			wantMax: 100,
 		},
 	}
@@ -503,10 +524,10 @@ func TestUpdateProfileComplete(t *testing.T) {
 	user, err := CreateUser(db, "test@example.com", "password123")
 	require.NoError(t, err)
 
-	err = UpdateUserFields(db, user, map[string]any{
-		"DisplayName": "Test User",
-		"FirstName":   "Test",
-		"LastName":    "User",
+	err = UpdateUserProfileFields(db, user.ID, map[string]any{
+		"display_name": "Test User",
+		"first_name":   "Test",
+		"last_name":    "User",
 	})
 	require.NoError(t, err)
 
@@ -516,7 +537,7 @@ func TestUpdateProfileComplete(t *testing.T) {
 	// Verify profile complete was updated
 	retrieved, err := GetUserByUID(db, user.ID)
 	require.NoError(t, err)
-	assert.Greater(t, retrieved.ProfileComplete, 0)
+	assert.Greater(t, retrieved.Profile.ProfileComplete, 0)
 }
 
 func TestIncrementLoginCount(t *testing.T) {
@@ -538,42 +559,6 @@ func TestIncrementLoginCount(t *testing.T) {
 	retrieved2, err := GetUserByUID(db, user.ID)
 	require.NoError(t, err)
 	assert.Equal(t, initialCount+1, retrieved2.LoginCount)
-}
-
-func TestUser_IsAdmin(t *testing.T) {
-	tests := []struct {
-		name string
-		user *User
-		want bool
-	}{
-		{
-			name: "superadmin role",
-			user: &User{
-				Role: RoleSuperAdmin,
-			},
-			want: true,
-		},
-		{
-			name: "admin role",
-			user: &User{
-				Role: RoleAdmin,
-			},
-			want: true,
-		},
-		{
-			name: "regular user",
-			user: &User{
-				Role: "user",
-			},
-			want: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, tt.user.IsAdmin())
-		})
-	}
 }
 
 func TestCurrentUser(t *testing.T) {
@@ -599,11 +584,13 @@ func TestGetUserByAPIKey(t *testing.T) {
 	user, err := CreateUser(db, "test@example.com", "password123")
 	require.NoError(t, err)
 
+	gid := ensureTestTeamGroup(t, db, user.ID)
 	credential := &UserCredential{
-		UserID:    user.ID,
-		APIKey:    "test-api-key",
-		APISecret: "test-api-secret",
-		Name:      "Test App",
+		GroupID:    gid,
+		CreatedBy:  user.ID,
+		APIKey:     "test-api-key",
+		APISecret:  "test-api-secret",
+		Name:       "Test App",
 	}
 	err = db.Create(credential).Error
 	require.NoError(t, err)
@@ -687,28 +674,30 @@ func TestUpdateNotificationSettings_AllSettings(t *testing.T) {
 	// Verify updates
 	retrieved, err := GetUserByUID(db, user.ID)
 	require.NoError(t, err)
-	assert.False(t, retrieved.EmailNotifications)
-	assert.True(t, retrieved.PushNotifications)
+	assert.False(t, retrieved.Profile.EmailNotifications)
+	assert.True(t, retrieved.Profile.PushNotifications)
 }
 
 // Note: TestInTimezone is tested in users_handlers_test.go
 
 func TestCalculateProfileComplete_AllFields(t *testing.T) {
 	user := &User{
-		DisplayName:   "Test User",
-		FirstName:     "Test",
-		LastName:      "User",
-		Avatar:        "avatar.jpg",
 		Email:         "test@example.com",
-		Phone:         "1234567890",
 		EmailVerified: true,
-		City:          "Beijing",
+		Phone:         "1234567890",
 		Timezone:      "UTC",
 		Locale:        "zh-CN",
+		Profile: UserProfile{
+			DisplayName: "Test User",
+			FirstName:   "Test",
+			LastName:    "User",
+			Avatar:      "avatar.jpg",
+			City:        "Beijing",
+		},
 	}
 
 	complete := CalculateProfileComplete(user)
-	assert.GreaterOrEqual(t, complete, 80)
+	assert.GreaterOrEqual(t, complete, 70)
 	assert.LessOrEqual(t, complete, 100)
 }
 

@@ -16,8 +16,8 @@ type KnowledgeBase struct {
 	CreatedAt   time.Time      `json:"createdAt" gorm:"autoCreateTime"`
 	UpdatedAt   time.Time      `json:"updatedAt" gorm:"autoUpdateTime"`
 	DeletedAt   gorm.DeletedAt `json:"-" gorm:"index"`
-	UserID      uint           `json:"userId" gorm:"index;not null"`
-	GroupID     *uint          `json:"groupId,omitempty" gorm:"index"`
+	GroupID     uint           `json:"groupId" gorm:"index"`
+	CreatedBy   uint           `json:"createdBy" gorm:"index"`
 	Name        string         `json:"name" gorm:"size:128;index;not null"`
 	Description string         `json:"description,omitempty" gorm:"size:512"`
 	Provider    string         `json:"provider" gorm:"size:64;index;not null"` // qdrant, aliyun, pinecone...
@@ -38,25 +38,44 @@ func CreateKnowledgeBase(db *gorm.DB, kb *KnowledgeBase) error {
 	return db.Create(kb).Error
 }
 
-func UpdateKnowledgeBase(db *gorm.DB, id uint, userID uint, updates map[string]interface{}) error {
-	return db.Model(&KnowledgeBase{}).Where("id = ? AND user_id = ?", id, userID).Updates(updates).Error
+func UpdateKnowledgeBase(db *gorm.DB, id uint, groupID uint, updates map[string]interface{}) error {
+	return db.Model(&KnowledgeBase{}).Where("id = ? AND group_id = ?", id, groupID).Updates(updates).Error
 }
 
-func DeleteKnowledgeBase(db *gorm.DB, id uint, userID uint) error {
-	return db.Where("id = ? AND user_id = ?", id, userID).Delete(&KnowledgeBase{}).Error
+func DeleteKnowledgeBase(db *gorm.DB, id uint, groupID uint) error {
+	return db.Where("id = ? AND group_id = ?", id, groupID).Delete(&KnowledgeBase{}).Error
 }
 
-func GetKnowledgeBaseByID(db *gorm.DB, id uint, userID uint) (*KnowledgeBase, error) {
+func GetKnowledgeBaseByID(db *gorm.DB, id uint, groupID uint) (*KnowledgeBase, error) {
 	var kb KnowledgeBase
-	if err := db.Where("id = ? AND user_id = ?", id, userID).First(&kb).Error; err != nil {
+	if err := db.Where("id = ? AND group_id = ?", id, groupID).First(&kb).Error; err != nil {
+		return nil, err
+	}
+	return &kb, nil
+}
+
+func GetKnowledgeBaseIfMember(db *gorm.DB, id uint, userID uint) (*KnowledgeBase, error) {
+	ids, err := MemberGroupIDs(db, userID)
+	if err != nil {
+		return nil, err
+	}
+	var kb KnowledgeBase
+	if err := db.Where("id = ? AND group_id IN ?", id, ids).First(&kb).Error; err != nil {
 		return nil, err
 	}
 	return &kb, nil
 }
 
 func ListKnowledgeBasesByUser(db *gorm.DB, userID uint) ([]KnowledgeBase, error) {
+	ids, err := MemberGroupIDs(db, userID)
+	if err != nil {
+		return nil, err
+	}
 	var list []KnowledgeBase
-	if err := db.Where("user_id = ?", userID).Order("created_at DESC").Find(&list).Error; err != nil {
+	if len(ids) == 0 {
+		return list, nil
+	}
+	if err := db.Where("group_id IN ?", ids).Order("created_at DESC").Find(&list).Error; err != nil {
 		return nil, err
 	}
 	return list, nil

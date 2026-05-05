@@ -14,10 +14,10 @@ import (
 	"time"
 
 	"github.com/LingByte/SoulNexus/internal/models"
-	"github.com/LingByte/SoulNexus/pkg/cache"
 	"github.com/LingByte/SoulNexus/pkg/llm"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/response"
+	"github.com/LingByte/SoulNexus/pkg/utils/cache"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -103,7 +103,7 @@ func (h *Handlers) BindDevice(c *gin.Context) {
 	if existingDevice != nil {
 		logger.Error("设备绑定失败：设备已被激活",
 			zap.String("deviceId", deviceId),
-			zap.Uint("existingUserId", existingDevice.UserID))
+			zap.Uint("existingGroupId", existingDevice.GroupID))
 		response.Fail(c, "Device has already been activated", nil)
 		return
 	}
@@ -132,7 +132,7 @@ func (h *Handlers) BindDevice(c *gin.Context) {
 	logger.Info("解析助手ID成功", zap.Uint("assistantID", assistantID))
 
 	// Verify that assistant exists and belongs to current user
-	var assistant models.Assistant
+	var assistant models.Agent
 	if err := h.db.Where("id = ?", assistantID).First(&assistant).Error; err != nil {
 		logger.Error("查询助手失败", zap.Error(err), zap.Uint("assistantID", assistantID))
 		response.Fail(c, "Assistant does not exist", nil)
@@ -142,19 +142,14 @@ func (h *Handlers) BindDevice(c *gin.Context) {
 	logger.Info("查询助手成功",
 		zap.Uint("assistantID", uint(assistant.ID)),
 		zap.String("assistantName", assistant.Name),
-		zap.Uint("assistantUserId", assistant.UserID))
+		zap.Uint("assistantGroupId", assistant.GroupID))
 
-	if assistant.UserID != user.ID {
-		// Check if it's an organization-shared assistant
-		if assistant.GroupID == nil {
-			logger.Error("权限验证失败：助手不属于当前用户",
-				zap.Uint("assistantUserId", assistant.UserID),
-				zap.Uint("currentUserId", user.ID))
-			response.Fail(c, "Insufficient permissions: Assistant does not belong to you", nil)
-			return
-		}
-		logger.Info("助手属于组织，跳过权限检查", zap.Uint("groupId", *assistant.GroupID))
-		// TODO: Organization member permission check can be added here
+	if !models.UserIsGroupMember(h.db, user.ID, assistant.GroupID) {
+		logger.Error("权限验证失败：无权使用该助手下的设备",
+			zap.Uint("assistantGroupId", assistant.GroupID),
+			zap.Uint("currentUserId", user.ID))
+		response.Fail(c, "Insufficient permissions: Assistant does not belong to you", nil)
+		return
 	}
 
 	// Get device information from cache
@@ -187,9 +182,9 @@ func (h *Handlers) BindDevice(c *gin.Context) {
 		MacAddress:    macAddress,
 		Board:         board,
 		AppVersion:    appVersion,
-		UserID:        user.ID,
-		GroupID:       assistant.GroupID, // 如果助手属于组织，设备也属于该组织
-		AssistantID:   &assistantID,
+		GroupID:       assistant.GroupID,
+		CreatedBy:     user.ID,
+		AgentID:       &assistantID,
 		AutoUpdate:    1,
 		LastConnected: &now,
 		LastSeen:      &now, // Set LastSeen to current time to avoid MySQL datetime error
@@ -285,8 +280,7 @@ func (h *Handlers) UnbindDevice(c *gin.Context) {
 		return
 	}
 
-	// Verify permissions
-	if device.UserID != user.ID {
+	if !models.CanManageTenantResource(h.db, user.ID, device.GroupID, device.CreatedBy) {
 		response.Fail(c, "Insufficient permissions", nil)
 		return
 	}
@@ -331,42 +325,17 @@ func (h *Handlers) UpdateDeviceInfo(c *gin.Context) {
 		return
 	}
 
-	// Verify permissions: 只有创建者或组织管理员可以更新
-	if device.UserID != user.ID {
-		if device.GroupID == nil {
-			response.Fail(c, "Insufficient permissions", nil)
-			return
-		}
-		// 检查用户是否是组织创建者或管理员
-		var group models.Group
-		if err := h.db.Where("id = ?", *device.GroupID).First(&group).Error; err != nil {
-			response.Fail(c, "Organization not found", nil)
-			return
-		}
-		if group.CreatorID != user.ID {
-			var member models.GroupMember
-			if err := h.db.Where("group_id = ? AND user_id = ? AND role = ?", *device.GroupID, user.ID, models.GroupRoleAdmin).First(&member).Error; err != nil {
-				response.Fail(c, "Insufficient permissions", "Only creator or admin can update organization-shared devices")
-				return
-			}
-		}
+	if !models.CanManageTenantResource(h.db, user.ID, device.GroupID, device.CreatedBy) {
+		response.Fail(c, "Insufficient permissions", nil)
+		return
 	}
 
-	// 如果更新了 GroupID，验证权限
 	if req.GroupID != nil {
-		var group models.Group
-		if err := h.db.Where("id = ?", *req.GroupID).First(&group).Error; err != nil {
-			response.Fail(c, "组织不存在", nil)
+		if !models.UserIsGroupMember(h.db, user.ID, *req.GroupID) {
+			response.Fail(c, "权限不足", "您不是该组织的成员")
 			return
 		}
-		if group.CreatorID != user.ID {
-			var member models.GroupMember
-			if err := h.db.Where("group_id = ? AND user_id = ?", *req.GroupID, user.ID).First(&member).Error; err != nil {
-				response.Fail(c, "权限不足", "您不是该组织的成员")
-				return
-			}
-		}
-		device.GroupID = req.GroupID
+		device.GroupID = *req.GroupID
 	}
 
 	// Update device information
@@ -430,7 +399,7 @@ func (h *Handlers) ManualAddDevice(c *gin.Context) {
 	if existingDevice != nil {
 		logger.Error("手动添加设备失败：MAC地址已存在",
 			zap.String("macAddress", req.MacAddress),
-			zap.Uint("existingUserId", existingDevice.UserID))
+			zap.Uint("existingGroupId", existingDevice.GroupID))
 		response.Fail(c, "MAC address already exists", nil)
 		return
 	}
@@ -459,7 +428,7 @@ func (h *Handlers) ManualAddDevice(c *gin.Context) {
 	logger.Info("解析助手ID成功", zap.Uint("assistantID", assistantID))
 
 	// 验证 assistant 是否存在且属于当前用户
-	var assistant models.Assistant
+	var assistant models.Agent
 	if err := h.db.Where("id = ?", assistantID).First(&assistant).Error; err != nil {
 		logger.Error("查询助手失败", zap.Error(err), zap.Uint("assistantID", assistantID))
 		response.Fail(c, "助手不存在", nil)
@@ -469,19 +438,14 @@ func (h *Handlers) ManualAddDevice(c *gin.Context) {
 	logger.Info("查询助手成功",
 		zap.Uint("assistantID", uint(assistant.ID)),
 		zap.String("assistantName", assistant.Name),
-		zap.Uint("assistantUserId", assistant.UserID))
+		zap.Uint("assistantGroupId", assistant.GroupID))
 
-	if assistant.UserID != user.ID {
-		// 检查是否是组织共享的助手
-		if assistant.GroupID == nil {
-			logger.Error("权限验证失败：助手不属于当前用户",
-				zap.Uint("assistantUserId", assistant.UserID),
-				zap.Uint("currentUserId", user.ID))
-			response.Fail(c, "权限不足：助手不属于您", nil)
-			return
-		}
-		logger.Info("助手属于组织，跳过权限检查", zap.Uint("groupId", *assistant.GroupID))
-		// TODO: 可以在这里添加组织成员权限检查
+	if !models.UserIsGroupMember(h.db, user.ID, assistant.GroupID) {
+		logger.Error("权限验证失败：无权使用该助手",
+			zap.Uint("assistantGroupId", assistant.GroupID),
+			zap.Uint("currentUserId", user.ID))
+		response.Fail(c, "权限不足：助手不属于您", nil)
+		return
 	}
 
 	// Set default values
@@ -513,13 +477,18 @@ func (h *Handlers) ManualAddDevice(c *gin.Context) {
 		logger.Info("组织权限验证通过", zap.Uint("groupId", *req.GroupID))
 	}
 
+	deviceGroupID := assistant.GroupID
+	if req.GroupID != nil {
+		deviceGroupID = *req.GroupID
+	}
+
 	logger.Info("准备创建设备",
 		zap.String("macAddress", req.MacAddress),
 		zap.String("board", req.Board),
 		zap.String("appVersion", req.AppVersion),
 		zap.Uint("userId", user.ID),
 		zap.Uint("assistantID", assistantID),
-		zap.Any("groupId", req.GroupID))
+		zap.Uint("groupId", deviceGroupID))
 
 	// 创建设备
 	now := time.Now()
@@ -528,9 +497,9 @@ func (h *Handlers) ManualAddDevice(c *gin.Context) {
 		MacAddress:    req.MacAddress,
 		Board:         req.Board,
 		AppVersion:    req.AppVersion,
-		UserID:        user.ID,
-		GroupID:       req.GroupID,
-		AssistantID:   &assistantID,
+		GroupID:       deviceGroupID,
+		CreatedBy:     user.ID,
+		AgentID:       &assistantID,
 		AutoUpdate:    1,
 		LastConnected: &now,
 		LastSeen:      &now, // Set LastSeen to current time to avoid MySQL datetime error
@@ -584,15 +553,15 @@ func (h *Handlers) GetDeviceConfig(c *gin.Context) {
 	}
 
 	// 检查设备是否绑定了助手
-	if device.AssistantID == nil {
+	if device.AgentID == nil {
 		response.Fail(c, "Device is not bound to an assistant", nil)
 		return
 	}
 
-	assistantID := *device.AssistantID
+	assistantID := *device.AgentID
 
 	// 获取助手配置
-	var assistant models.Assistant
+	var assistant models.Agent
 	if err := h.db.Where("id = ?", assistantID).First(&assistant).Error; err != nil {
 		logger.Error("Failed to get assistant", zap.Error(err), zap.Uint("assistantID", assistantID))
 		response.Fail(c, "Failed to get assistant configuration", nil)
@@ -612,7 +581,7 @@ func (h *Handlers) GetDeviceConfig(c *gin.Context) {
 	// 返回配置信息
 	config := map[string]interface{}{
 		"deviceId":             deviceID,
-		"assistantId":          assistantID,
+		"agentId":              assistantID,
 		"apiKey":               assistant.ApiKey,
 		"apiSecret":            assistant.ApiSecret,
 		"speaker":              assistant.Speaker,
@@ -780,19 +749,9 @@ func (h *Handlers) GetDeviceDetail(c *gin.Context) {
 		return
 	}
 
-	// 验证设备所有权
-	if device.UserID != user.ID {
-		// 检查是否是组织共享设备
-		if device.GroupID == nil {
-			response.Fail(c, "权限不足", nil)
-			return
-		}
-		// 检查用户是否是组织成员
-		var member models.GroupMember
-		if err := h.db.Where("group_id = ? AND user_id = ?", *device.GroupID, user.ID).First(&member).Error; err != nil {
-			response.Fail(c, "权限不足", nil)
-			return
-		}
+	if !models.UserIsGroupMember(h.db, user.ID, device.GroupID) {
+		response.Fail(c, "权限不足", nil)
+		return
 	}
 
 	response.Success(c, "获取成功", device)
@@ -813,13 +772,12 @@ func (h *Handlers) GetDeviceErrorLogs(c *gin.Context) {
 		return
 	}
 
-	// 验证设备所有权 - 使用MAC地址查询
-	var device models.Device
-	err := h.db.Where("mac_address = ? AND user_id = ?", deviceID, user.ID).First(&device).Error
-	if err != nil {
+	dev, err := models.GetDeviceByMacAddress(h.db, deviceID)
+	if err != nil || dev == nil || !models.UserIsGroupMember(h.db, user.ID, dev.GroupID) {
 		response.Fail(c, "设备不存在", nil)
 		return
 	}
+	device := *dev
 
 	// 分页参数
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
@@ -895,15 +853,14 @@ func (h *Handlers) ResolveDeviceError(c *gin.Context) {
 		return
 	}
 
-	// 验证设备所有权
-	var device models.Device
-	if err := h.db.Where("mac_address = ? AND user_id = ?", errorLog.MacAddress, user.ID).First(&device).Error; err != nil {
+	dev, derr := models.GetDeviceByMacAddress(h.db, errorLog.MacAddress)
+	if derr != nil || dev == nil || !models.UserIsGroupMember(h.db, user.ID, dev.GroupID) {
 		response.Fail(c, "无权限操作此设备", nil)
 		return
 	}
 
 	// 标记为已解决
-	if err := models.ResolveDeviceError(h.db, uint(errorID), user.DisplayName); err != nil {
+	if err := models.ResolveDeviceError(h.db, uint(errorID), user.EffectiveDisplayName()); err != nil {
 		logger.Error("标记错误为已解决失败", zap.Error(err), zap.Uint64("errorId", errorID))
 		response.Fail(c, "标记失败", nil)
 		return
@@ -932,7 +889,7 @@ func (h *Handlers) GetCallRecordings(c *gin.Context) {
 	}
 
 	// 过滤参数
-	assistantIDStr := c.Query("assistant_id")
+	assistantIDStr := c.Query("agent_id")
 	macAddress := c.Query("mac_address")
 
 	var recordings []models.CallRecording
@@ -940,22 +897,34 @@ func (h *Handlers) GetCallRecordings(c *gin.Context) {
 	var err error
 
 	if assistantIDStr != "" {
-		// 按助手ID查询
-		assistantID, err := strconv.ParseUint(assistantIDStr, 10, 32)
-		if err != nil {
+		assistantID, perr := strconv.ParseUint(assistantIDStr, 10, 32)
+		if perr != nil {
 			response.Fail(c, "助手ID格式错误", nil)
 			return
 		}
-		recordings, total, err = models.GetCallRecordingsByAssistant(h.db, user.ID, uint(assistantID), pageSize, (page-1)*pageSize)
+		var ag models.Agent
+		if err := h.db.First(&ag, assistantID).Error; err != nil {
+			response.Fail(c, "助手不存在", nil)
+			return
+		}
+		if !models.UserIsGroupMember(h.db, user.ID, ag.GroupID) {
+			response.Fail(c, "无权访问", nil)
+			return
+		}
+		recordings, total, err = models.GetCallRecordingsByAgent(h.db, ag.GroupID, uint(assistantID), pageSize, (page-1)*pageSize)
 	} else if macAddress != "" {
-		// 按设备MAC地址查询
-		recordings, total, err = models.GetCallRecordingsByDevice(h.db, user.ID, macAddress, pageSize, (page-1)*pageSize)
+		dev, derr := models.GetDeviceByMacAddress(h.db, macAddress)
+		if derr != nil || dev == nil {
+			response.Fail(c, "设备不存在", nil)
+			return
+		}
+		if !models.UserIsGroupMember(h.db, user.ID, dev.GroupID) {
+			response.Fail(c, "无权访问", nil)
+			return
+		}
+		recordings, total, err = models.GetCallRecordingsByDevice(h.db, dev.GroupID, macAddress, pageSize, (page-1)*pageSize)
 	} else {
-		// 查询用户所有录音
-		offset := (page - 1) * pageSize
-		query := h.db.Where("user_id = ?", user.ID)
-		query.Model(&models.CallRecording{}).Count(&total)
-		err = query.Order("created_at DESC").Limit(pageSize).Offset(offset).Find(&recordings).Error
+		recordings, total, err = models.GetCallRecordingsByMemberUser(h.db, user.ID, pageSize, (page-1)*pageSize)
 	}
 
 	if err != nil {
@@ -972,8 +941,8 @@ func (h *Handlers) GetCallRecordings(c *gin.Context) {
 
 		recordingItem := map[string]interface{}{
 			"id":             recording.ID,
-			"userId":         recording.UserID,
-			"assistantId":    recording.AssistantID,
+			"groupId":        recording.GroupID,
+			"agentId":        recording.AgentID,
 			"deviceId":       recording.DeviceID,
 			"macAddress":     recording.MacAddress,
 			"sessionId":      recording.SessionID,
@@ -1033,9 +1002,13 @@ func (h *Handlers) AnalyzeCallRecording(c *gin.Context) {
 		return
 	}
 
-	// 验证录音所有权
+	groupIDs, err := models.MemberGroupIDs(h.db, user.ID)
+	if err != nil || len(groupIDs) == 0 {
+		response.Fail(c, "录音不存在", nil)
+		return
+	}
 	var recording models.CallRecording
-	if err := h.db.Where("id = ? AND user_id = ?", recordingID, user.ID).First(&recording).Error; err != nil {
+	if err := h.db.Where("id = ? AND group_id IN ?", recordingID, groupIDs).First(&recording).Error; err != nil {
 		response.Fail(c, "录音不存在", nil)
 		return
 	}
@@ -1056,9 +1029,9 @@ func (h *Handlers) AnalyzeCallRecording(c *gin.Context) {
 		}
 
 		// 获取助手信息
-		var assistant models.Assistant
-		if err := h.db.Where("id = ?", recording.AssistantID).First(&assistant).Error; err != nil {
-			logger.Error("获取助手信息失败", zap.Error(err), zap.Uint("assistantID", recording.AssistantID))
+		var assistant models.Agent
+		if err := h.db.Where("id = ?", recording.AgentID).First(&assistant).Error; err != nil {
+			logger.Error("获取助手信息失败", zap.Error(err), zap.Uint("assistantID", recording.AgentID))
 			return
 		}
 
@@ -1185,8 +1158,8 @@ func (h *Handlers) BatchAnalyzeCallRecordings(c *gin.Context) {
 	}
 
 	var req struct {
-		AssistantID *uint `json:"assistantId"`
-		Limit       int   `json:"limit"`
+		AgentID *uint `json:"agentId"`
+		Limit   int   `json:"limit"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -1217,9 +1190,13 @@ func (h *Handlers) GetCallRecordingAnalysis(c *gin.Context) {
 		return
 	}
 
-	// 验证录音所有权并获取分析结果
+	groupIDs, gerr := models.MemberGroupIDs(h.db, user.ID)
+	if gerr != nil || len(groupIDs) == 0 {
+		response.Fail(c, "录音不存在", nil)
+		return
+	}
 	var recording models.CallRecording
-	if err := h.db.Where("id = ? AND user_id = ?", recordingID, user.ID).First(&recording).Error; err != nil {
+	if err := h.db.Where("id = ? AND group_id IN ?", recordingID, groupIDs).First(&recording).Error; err != nil {
 		response.Fail(c, "录音不存在", nil)
 		return
 	}
@@ -1263,9 +1240,13 @@ func (h *Handlers) GetCallRecordingDetail(c *gin.Context) {
 		return
 	}
 
-	// 获取通话记录
+	groupIDs, gerr := models.MemberGroupIDs(h.db, user.ID)
+	if gerr != nil || len(groupIDs) == 0 {
+		response.Fail(c, "通话记录不存在", nil)
+		return
+	}
 	var recording models.CallRecording
-	err = h.db.Where("id = ? AND user_id = ?", recordingID, user.ID).First(&recording).Error
+	err = h.db.Where("id = ? AND group_id IN ?", recordingID, groupIDs).First(&recording).Error
 	if err != nil {
 		logger.Error("获取通话记录详情失败", zap.Error(err), zap.Uint("userID", user.ID), zap.Uint64("recordingID", recordingID))
 		response.Fail(c, "通话记录不存在", nil)
@@ -1290,8 +1271,8 @@ func (h *Handlers) GetCallRecordingDetail(c *gin.Context) {
 	// 构建详细响应 - 包含所有字段
 	detailResponse := map[string]interface{}{
 		"id":              recording.ID,
-		"userId":          recording.UserID,
-		"assistantId":     recording.AssistantID,
+		"groupId":         recording.GroupID,
+		"agentId":         recording.AgentID,
 		"deviceId":        recording.DeviceID,
 		"macAddress":      recording.MacAddress,
 		"sessionId":       recording.SessionID,
@@ -1367,13 +1348,21 @@ func (h *Handlers) ServeRecordingFile(c *gin.Context) {
 	// 从URL路径中提取录音ID（如果有的话）
 	// 或者通过文件路径验证用户权限
 
-	// 这里需要验证用户是否有权限访问该录音文件
-	// 可以通过文件路径中的user_id来验证
-	// 例如: /recordings/user_1/assistant_2/2026/01/25/file.wav
-
-	// 简单的权限验证：检查路径是否包含用户ID
-	expectedUserPath := fmt.Sprintf("user_%d", user.ID)
-	if !strings.Contains(decodedPath, expectedUserPath) {
+	// recordings/{scopeId}/{agentId}/... — scopeId 为多租户 group_id；旧数据可能为创建者 user id
+	trimmed := strings.Trim(decodedPath, "/")
+	parts := strings.Split(trimmed, "/")
+	if len(parts) < 2 || parts[0] != "recordings" {
+		response.Fail(c, "权限不足", nil)
+		return
+	}
+	scopeID64, perr := strconv.ParseUint(parts[1], 10, 32)
+	if perr != nil {
+		response.Fail(c, "权限不足", nil)
+		return
+	}
+	scopeID := uint(scopeID64)
+	allowed := scopeID == user.ID || models.UserIsGroupMember(h.db, user.ID, scopeID)
+	if !allowed {
 		response.Fail(c, "权限不足", nil)
 		return
 	}

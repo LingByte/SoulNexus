@@ -10,7 +10,8 @@ import {
     XCircle,
     Clock,
     Eye,
-    EyeOff
+    EyeOff,
+    Search,
 } from 'lucide-react'
 import { useNotificationStore } from '@/stores/notificationStore'
 import { useAuthStore } from '@/stores/authStore'
@@ -18,7 +19,6 @@ import { useI18nStore } from '@/stores/i18nStore'
 import Button from '@/components/UI/Button'
 import Card, { CardContent } from '@/components/UI/Card'
 import Badge from '@/components/UI/Badge'
-import CollapsibleSectionHeader from '@/components/UI/CollapsibleSectionHeader'
 import { showAlert } from '@/utils/notification'
 import { formatDistanceToNow } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
@@ -222,204 +222,129 @@ const NotificationCenter = () => {
   }
 
   return (
-    <div className="h-[calc(100vh-4rem)] bg-background flex flex-col">
-      {/* 主要内容区域 - 横向布局 */}
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-        {/* 左侧：统计和筛选 */}
-        <div className="w-full lg:w-80 flex-shrink-0 border-r bg-card/30 flex flex-col">
-          {/* 头部 */}
-          <div className="p-4 border-b">
-            <CollapsibleSectionHeader
-              title={t('notification.title')}
-              icon={<Bell className="w-4 h-4 text-primary" />}
-              expanded
-              onToggle={() => {}}
-              showChevron={false}
-              clickable={false}
-              compact
-              titleSize="md"
-              withDivider
-              className="mb-3"
+    <div className="flex flex-col gap-3 w-full min-h-0">
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 justify-between">
+          <div className="flex flex-wrap items-center gap-2 min-w-0">
+            <span className="inline-flex items-center gap-1 rounded-md bg-blue-500/10 text-blue-700 dark:text-blue-300 px-2 py-1 text-xs">
+              <Bell className="w-3 h-3 shrink-0" />
+              {t('notification.total')} <strong>{total}</strong>
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-md bg-orange-500/10 text-orange-700 dark:text-orange-300 px-2 py-1 text-xs">
+              <EyeOff className="w-3 h-3 shrink-0" />
+              {t('notification.unread')} <strong>{totalUnread}</strong>
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-md bg-green-500/10 text-green-700 dark:text-green-300 px-2 py-1 text-xs">
+              <Eye className="w-3 h-3 shrink-0" />
+              {t('notification.read')} <strong>{totalRead}</strong>
+            </span>
+            <div className="inline-flex rounded-lg border border-border bg-muted/40 p-0.5">
+              {([
+                { key: 'all' as const, label: t('notification.all') },
+                { key: 'unread' as const, label: t('notification.unread') },
+                { key: 'read' as const, label: t('notification.read') },
+              ]).map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => setFilter(item.key)}
+                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                    filter === item.key ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+            {isSelectMode && notifications.length > 0 && (
+              <label className="inline-flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.length > 0}
+                  onChange={handleSelectAll}
+                  className="w-3.5 h-3.5 text-primary bg-background border-input rounded"
+                />
+                <span>
+                  {selectedIds.length === 0 ? t('notification.selectAll') : `已选择 ${selectedIds.length} 项`}
+                </span>
+              </label>
+            )}
+          </div>
+          <div className="relative w-full sm:w-56 md:w-64 shrink-0">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="搜索标题"
+              className="w-full h-9 pl-9 pr-3 text-sm rounded-md border border-input bg-background"
             />
-            {/* 操作按钮 - 横向排列 */}
-            <div className="flex items-center space-x-1.5">
-              <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={refreshNotifications}
-                  disabled={isLoading}
-                  className="h-7 px-2 text-xs"
-              >
-                {t('notification.refresh')}
-              </Button>
-
-              {!isSelectMode ? (
-                  <>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setIsSelectMode(true)}
-                        className="h-7 px-2 text-xs"
-                    >
-                      {t('notification.select')}
-                    </Button>
-                    {totalUnread > 0 && (
-                        <Button
-                            variant="default"
-                            size="sm"
-                            onClick={handleMarkAllAsRead}
-                            className="h-7 px-2 text-xs"
-                        >
-                          {t('notification.markAllRead')}
-                        </Button>
-                    )}
-                  </>
-              ) : (
-                  <>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setIsSelectMode(false)
-                          setSelectedIds([])
-                        }}
-                        className="h-7 px-2 text-xs"
-                    >
-                      {t('notification.cancel')}
-                    </Button>
-                    {selectedIds.length > 0 && (
-                        <>
-                          <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={handleBatchMarkAsRead}
-                              className="h-7 px-2 text-xs"
-                          >
-                            {t('notification.markRead')} ({selectedIds.length})
-                          </Button>
-                          <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={handleBatchDelete}
-                              className="h-7 px-2 text-xs"
-                          >
-                            {t('notification.delete')} ({selectedIds.length})
-                          </Button>
-                        </>
-                    )}
-                  </>
-              )}
-            </div>
           </div>
-          
-          {/* 统计卡片 */}
-          <div className="p-3 border-b">
-            <h3 className="text-xs font-semibold text-foreground mb-2">{t('notification.stats')}</h3>
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between p-2 bg-blue-50 dark:bg-blue-900/20 rounded-md">
-                <div className="flex items-center space-x-1.5">
-                  <Bell className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                  <span className="text-xs text-blue-700 dark:text-blue-300">{t('notification.total')}</span>
-                </div>
-                <span className="text-sm font-bold text-blue-600 dark:text-blue-400">{total}</span>
-              </div>
-              
-              <div className="flex items-center justify-between p-2 bg-orange-50 dark:bg-orange-900/20 rounded-md">
-                <div className="flex items-center space-x-1.5">
-                  <EyeOff className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
-                  <span className="text-xs text-orange-700 dark:text-orange-300">{t('notification.unread')}</span>
-                </div>
-                <span className="text-sm font-bold text-orange-600 dark:text-orange-400">{totalUnread}</span>
-              </div>
-              
-              <div className="flex items-center justify-between p-2 bg-green-50 dark:bg-green-900/20 rounded-md">
-                <div className="flex items-center space-x-1.5">
-                  <Eye className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
-                  <span className="text-xs text-green-700 dark:text-green-300">{t('notification.read')}</span>
-                </div>
-                <span className="text-sm font-bold text-green-600 dark:text-green-400">{totalRead}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* 搜索和筛选 */}
-          <div className="p-3 border-b">
-            <h3 className="text-xs font-semibold text-foreground mb-2">{t('notification.filter')}</h3>
-
-            {/* 状态筛选 */}
-            <div className="mb-3">
-              <label className="text-xs text-muted-foreground mb-1 block">{t('notification.status')}</label>
-              <div className="space-y-0.5">
-                {[
-                  { key: 'all', label: t('notification.all'), count: total },
-                  { key: 'unread', label: t('notification.unread'), count: totalUnread },
-                  { key: 'read', label: t('notification.read'), count: totalRead },
-                ].map((item) => (
-                  <button
-                    key={item.key}
-                    onClick={() => setFilter(item.key as any)}
-                    className={`w-full flex items-center justify-between px-2 py-1.5 rounded-md text-xs transition-colors ${
-                      filter === item.key
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
-                    }`}
-                  >
-                    <span>{item.label}</span>
-                    <span className="text-xs opacity-75">({item.count})</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* 多选控制 */}
-          {isSelectMode && notifications.length > 0 && (
-            <div className="p-3 border-b">
-              <h3 className="text-xs font-semibold text-foreground mb-2">{t('notification.batchActions')}</h3>
-              <div className="space-y-1">
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.length > 0}
-                    onChange={handleSelectAll}
-                    className="w-3.5 h-3.5 text-primary bg-background border-input rounded focus:ring-2 focus:ring-ring"
-                  />
-                  <span className="text-xs text-muted-foreground">
-                    {selectedIds.length === 0 
-                      ? t('notification.selectAll')
-                      : `已选择 ${selectedIds.length} 项`
-                    }
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* 右侧：通知列表 */}
-        <div className="flex-1 flex flex-col min-w-0">
-          {/* 通知列表标题 */}
-          <div className="flex-shrink-0 px-4 py-3 border-b bg-card/30">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-foreground">
-                {filter === 'all' ? t('notification.allNotifications') :
-                 filter === 'unread' ? t('notification.unreadNotifications') : t('notification.readNotifications')}
-              </h3>
-              <span className="text-xs text-muted-foreground">
-                {t('notification.totalCount').replace('{count}', String(notifications?.length || 0))}
-              </span>
-            </div>
-          </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Button variant="outline" size="sm" onClick={refreshNotifications} disabled={isLoading} className="h-8 px-2 text-xs">
+            {t('notification.refresh')}
+          </Button>
+          {!isSelectMode ? (
+            <>
+              <Button variant="outline" size="sm" onClick={() => setIsSelectMode(true)} className="h-8 px-2 text-xs">
+                {t('notification.select')}
+              </Button>
+              {totalUnread > 0 && (
+                <Button variant="default" size="sm" onClick={handleMarkAllAsRead} className="h-8 px-2 text-xs">
+                  {t('notification.markAllRead')}
+                </Button>
+              )}
+            </>
+          ) : (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setIsSelectMode(false)
+                  setSelectedIds([])
+                }}
+                className="h-8 px-2 text-xs"
+              >
+                {t('notification.cancel')}
+              </Button>
+              {selectedIds.length > 0 && (
+                <>
+                  <Button variant="outline" size="sm" onClick={handleBatchMarkAsRead} className="h-8 px-2 text-xs">
+                    {t('notification.markRead')} ({selectedIds.length})
+                  </Button>
+                  <Button variant="destructive" size="sm" onClick={handleBatchDelete} className="h-8 px-2 text-xs">
+                    {t('notification.delete')} ({selectedIds.length})
+                  </Button>
+                </>
+              )}
+            </>
+          )}
+        </div>
+      </div>
 
-          {/* 通知列表 - 可滚动区域 */}
-          <div className="flex-1 overflow-y-auto">
+      <div className="flex items-center justify-between text-xs text-muted-foreground px-0.5">
+        <span>
+          {filter === 'all'
+            ? t('notification.allNotifications')
+            : filter === 'unread'
+              ? t('notification.unreadNotifications')
+              : t('notification.readNotifications')}
+        </span>
+        <span>{t('notification.totalCount').replace('{count}', String(notifications?.length || 0))}</span>
+      </div>
+
+      <div className="flex-1 min-h-[320px] rounded-lg border border-border bg-card/20 overflow-hidden flex flex-col">
+          <div className="flex-1 overflow-y-auto min-h-0">
             {notifications.length === 0 ? (
-              <div className="flex items-center justify-center h-full">
+              <div className="flex items-center justify-center py-16 px-4">
                 <div className="text-center">
-                  <div className="w-16 h-16 bg-muted/50 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Bell className="w-8 h-8 text-muted-foreground" />
+                  <div className="w-14 h-14 bg-muted/50 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <Bell className="w-7 h-7 text-muted-foreground" />
                   </div>
-                  <h3 className="text-lg font-medium mb-2">
+                  <h3 className="text-base font-medium mb-1">
                     {filter === 'all' ? t('notification.empty.all') :
                      filter === 'unread' ? t('notification.empty.unread') : t('notification.empty.read')}
                   </h3>
@@ -430,132 +355,131 @@ const NotificationCenter = () => {
                 </div>
               </div>
             ) : (
-              <div className="p-1">
+              <div className="p-2">
                 {notifications.map((notification) => (
-                  <div
-                    key={notification.id}
-                    className={`group mb-1 p-3 rounded-lg border transition-all duration-200 hover:shadow-sm ${
-                      !notification.read 
-                        ? 'bg-primary/5 border-primary/20' 
-                        : 'bg-card/30 hover:bg-card/50 border-border'
-                    } ${selectedIds.includes(notification.id) ? 'ring-2 ring-primary' : ''}`}
-                  >
-                    <div className="flex items-start space-x-3">
-                      {isSelectMode && (
-                        <input
-                          type="checkbox"
-                          checked={selectedIds.includes(notification.id)}
-                          onChange={() => handleSelectNotification(notification.id)}
-                          onClick={(e) => e.stopPropagation()}
-                          className="w-4 h-4 text-primary bg-background border-input rounded focus:ring-2 focus:ring-ring mt-0.5"
-                        />
-                      )}
-                      
-                      {/* 通知图标 */}
-                      <div className={`flex-shrink-0 w-6 h-6 rounded-md flex items-center justify-center ${
-                        !notification.read 
-                          ? 'bg-primary/15 text-primary' 
-                          : 'bg-muted/60 text-muted-foreground'
-                      }`}>
-                        {getNotificationIcon(notification.type, notification.read)}
-                      </div>
-                      
-                      {/* 通知内容 */}
-                      <div 
-                        className={`flex-1 min-w-0 ${!isSelectMode ? 'cursor-pointer' : ''}`}
-                        onClick={() => !isSelectMode && openDrawer(notification)}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center space-x-2 mb-1">
-                              <h4 
-                                className={`font-medium text-sm truncate ${
-                                  !notification.read ? 'text-foreground' : 'text-muted-foreground'
-                                } ${highlightResultId === `notification_${notification.id}` ? 'ring-2 ring-yellow-400 rounded px-1' : ''}`}
-                                dangerouslySetInnerHTML={{
-                    __html: highlightContent(
-                      notification.title,
-                      searchKeyword,
-                      highlightFragments || undefined
-                    )
-                                }}
-                              />
-                              
-                              {/* 状态标签 */}
-                              <div className="flex items-center space-x-1 flex-shrink-0">
-                                {!notification.read && (
-                                  <Badge className="h-3 px-1 text-[9px] bg-primary text-primary-foreground">
-                                    未读
-                                  </Badge>
-                                )}
-                                {notification.type && (
-                                  <Badge variant="outline" className="h-3 px-1 text-[9px] border-muted-foreground/40 text-muted-foreground">
-                                    {notification.type}
-                                  </Badge>
-                                )}
-                              </div>
-                            </div>
-                            
-                            {/* 时间和操作按钮 */}
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center space-x-1 text-xs text-muted-foreground">
-                                <Clock className="w-3 h-3" />
-                                <span>
-                                  {notification.created_at ? formatDistanceToNow(new Date(notification.created_at), {
-                                    addSuffix: true,
-                                    locale: zhCN
-                                  }) : t('notification.unknownTime')}
-                                </span>
-                              </div>
-                              
-                              {/* 操作按钮 */}
-                              <div className="relative" onClick={(e) => e.stopPropagation()}>
-                                <button
-                                  onClick={() => setShowActions(
-                                    showActions === notification.id.toString() ? null : notification.id.toString()
-                                  )}
-                                  className="p-1 text-muted-foreground hover:text-foreground rounded hover:bg-accent/50 transition-all duration-200 opacity-0 group-hover:opacity-100"
-                                >
-                                  <MoreVertical className="w-3.5 h-3.5" />
-                                </button>
+  <div
+    key={notification.id}
+    className={`group mb-1 p-2 rounded-lg border transition-all duration-200 hover:shadow-sm ${
+      !notification.read 
+        ? 'bg-primary/5 border-primary/20' 
+        : 'bg-card/30 hover:bg-card/50 border-border'
+    } ${selectedIds.includes(notification.id) ? 'ring-2 ring-primary' : ''}`}
+  >
+    <div className="flex items-center space-x-3"> {/* 👈 改成 items-center 垂直居中 */}
+      {isSelectMode && (
+        <input
+          type="checkbox"
+          checked={selectedIds.includes(notification.id)}
+          onChange={() => handleSelectNotification(notification.id)}
+          onClick={(e) => e.stopPropagation()}
+          className="w-4 h-4 text-primary bg-background border-input rounded focus:ring-2 focus:ring-ring mt-0.5"
+        />
+      )}
+      
+      {/* 通知图标 */}
+      <div className={`flex-shrink-0 w-6 h-6 rounded-md flex items-center justify-center ${
+        !notification.read 
+          ? 'bg-primary/15 text-primary' 
+          : 'bg-muted/60 text-muted-foreground'
+      }`}>
+        {getNotificationIcon(notification.type, notification.read)}
+      </div>
+      
+      {/* 通知内容 - 标题、标签、时间 全部在同一行 */}
+      <div 
+        className={`flex-1 min-w-0 ${!isSelectMode ? 'cursor-pointer' : ''}`}
+        onClick={() => !isSelectMode && openDrawer(notification)}
+      >
+        {/* 👀 关键：一行布局：标题 + 标签 + 时间 + 更多按钮 */}
+        <div className="flex items-center justify-between gap-2 min-w-0">
+          {/* 左侧：标题 + 标签 */}
+          <div className="flex items-center space-x-2 min-w-0">
+            <h4 
+              className={`font-medium text-sm truncate ${
+                !notification.read ? 'text-foreground' : 'text-muted-foreground'
+              } ${highlightResultId === `notification_${notification.id}` ? 'ring-2 ring-yellow-400 rounded px-1' : ''}`}
+              dangerouslySetInnerHTML={{
+                __html: highlightContent(
+                  notification.title,
+                  searchKeyword,
+                  highlightFragments || undefined
+                )
+              }}
+            />
+            
+            {/* 状态标签 */}
+            <div className="flex items-center space-x-1 flex-shrink-0">
+              {!notification.read && (
+                <Badge className="h-3 px-1 text-[9px] bg-primary text-primary-foreground">
+                  未读
+                </Badge>
+              )}
+              {notification.type && (
+                <Badge variant="outline" className="h-3 px-1 text-[9px] border-muted-foreground/40 text-muted-foreground">
+                  {notification.type}
+                </Badge>
+              )}
+            </div>
+          </div>
 
-                                {showActions === notification.id.toString() && (
-                                  <div className="absolute right-0 top-full mt-1 w-28 bg-popover rounded-lg shadow-lg border z-10 overflow-hidden">
-                                    <div className="py-1">
-                                      {!notification.read && (
-                                        <button
-                                          onClick={() => handleMarkAsRead(notification.id.toString())}
-                                          className="flex items-center w-full px-2 py-1.5 text-xs text-foreground hover:bg-accent transition-colors"
-                                        >
-                                          <Check className="w-3 h-3 mr-1.5" />
-                                          {t('notification.markAsRead')}
-                                        </button>
-                                      )}
-                                      <button
-                                        onClick={() => handleDelete(notification.id.toString())}
-                                        className="flex items-center w-full px-2 py-1.5 text-xs text-destructive hover:bg-destructive/10 transition-colors"
-                                      >
-                                        <Trash2 className="w-3 h-3 mr-1.5" />
-                                        {t('notification.delete')}
-                                      </button>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+          {/* 右侧：时间 + 更多按钮 */}
+          <div className="flex items-center space-x-1 flex-shrink-0">
+            <div className="flex items-center space-x-1 text-xs text-muted-foreground whitespace-nowrap">
+              <Clock className="w-3 h-3" />
+              <span>
+                {notification.created_at ? formatDistanceToNow(new Date(notification.created_at), {
+                  addSuffix: true,
+                  locale: zhCN
+                }) : t('notification.unknownTime')}
+              </span>
+            </div>
+            
+            {/* 操作按钮 */}
+            <div className="relative" onClick={(e) => e.stopPropagation()}>
+              <button
+                onClick={() => setShowActions(
+                  showActions === notification.id.toString() ? null : notification.id.toString()
+                )}
+                className="p-1 text-muted-foreground hover:text-foreground rounded hover:bg-accent/50 transition-all duration-200 opacity-0 group-hover:opacity-100"
+              >
+                <MoreVertical className="w-3.5 h-3.5" />
+              </button>
+
+              {showActions === notification.id.toString() && (
+                <div className="absolute right-0 top-full mt-1 w-28 bg-popover rounded-lg shadow-lg border z-10 overflow-hidden">
+                  <div className="py-1">
+                    {!notification.read && (
+                      <button
+                        onClick={() => handleMarkAsRead(notification.id.toString())}
+                        className="flex items-center w-full px-2 py-1.5 text-xs text-foreground hover:bg-accent transition-colors"
+                      >
+                        <Check className="w-3 h-3 mr-1.5" />
+                        {t('notification.markAsRead')}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleDelete(notification.id.toString())}
+                      className="flex items-center w-full px-2 py-1.5 text-xs text-destructive hover:bg-destructive/10 transition-colors"
+                    >
+                      <Trash2 className="w-3 h-3 mr-1.5" />
+                      {t('notification.delete')}
+                    </button>
                   </div>
-                ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+))}
               </div>
             )}
           </div>
 
-          {/* 分页 - 固定在底部 */}
           {totalPages > 1 && (
-            <div className="flex-shrink-0 border-t bg-card/30 px-4 py-3">
+            <div className="flex-shrink-0 border-t border-border bg-muted/20 px-3 py-2">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
                 <div className="text-sm text-muted-foreground">
                   {t('notification.totalCount').replace('{count}', String(total))}
@@ -615,7 +539,6 @@ const NotificationCenter = () => {
               </div>
             </div>
           )}
-        </div>
       </div>
 
       {/* 详情抽屉 */}

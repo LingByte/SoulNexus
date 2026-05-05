@@ -44,7 +44,7 @@ const VoiceAssistant = () => {
     const { t } = useI18nStore()
     const navigate = useNavigate()
     const { id } = useParams();
-    const assistantId = id ? parseInt(id, 10) : 0;
+    const agentId = id ? parseInt(id, 10) : 0;
 
     // 引导动画状态管理
     const [showOnboarding, setShowOnboarding] = useState(false)
@@ -186,12 +186,12 @@ const VoiceAssistant = () => {
     const [showLogModal, setShowLogModal] = useState(false)
 
     // 获取选中助手的 jsSourceId
-    const jsSourceId = assistants.find(a => a.id === assistantId)?.jsSourceId || ''
+    const jsSourceId = assistants.find(a => a.id === agentId)?.jsSourceId || ''
 
     // 当选中助手变化时，更新基础配置
     useEffect(() => {
-        if (assistantId && assistants.length > 0) {
-            const currentAssistant = assistants.find(a => a.id === assistantId)
+        if (agentId && assistants.length > 0) {
+            const currentAssistant = assistants.find(a => a.id === agentId)
             if (currentAssistant) {
                 // 同步助手基础配置（包括图记忆开关和VAD配置）
                 setAssistantName(currentAssistant.name || '')
@@ -215,7 +215,7 @@ const VoiceAssistant = () => {
                 }
             }
         }
-    }, [assistantId, assistants])
+    }, [agentId, assistants])
 
     // 状态管理中新增
     const [ttsProvider, setTtsProvider] = useState<string | undefined>(undefined)
@@ -426,7 +426,7 @@ const VoiceAssistant = () => {
     const voiceAssistantHook = useVoiceAssistant({
         apiKey,
         apiSecret,
-        assistantId,
+        agentId,
         language,
         systemPrompt,
         selectedVoiceCloneId,
@@ -686,7 +686,7 @@ const VoiceAssistant = () => {
         }
 
         // 连接通用WebSocket语音服务
-        const wsUrl = `${buildWebSocketURL('/api/voice/websocket')}?apiKey=${encodeURIComponent(apiKey)}&apiSecret=${encodeURIComponent(apiSecret)}&assistantId=${assistantId}&language=${language}&speaker=${selectedSpeaker}`
+        const wsUrl = `${buildWebSocketURL('/api/voice/websocket')}?apiKey=${encodeURIComponent(apiKey)}&apiSecret=${encodeURIComponent(apiSecret)}&agentId=${agentId}&language=${language}&speaker=${selectedSpeaker}`
         const newSocket = new WebSocket(wsUrl)
 
         newSocket.onopen = async () => {
@@ -1088,8 +1088,8 @@ const VoiceAssistant = () => {
         // 将认证信息作为查询参数添加到URL中（使用表单配置的API密钥）
         const currentApiKey = apiKey
         const currentApiSecret = apiSecret
-        // 添加 assistantId 参数（必需）
-        const wsUrl = `${buildWebSocketURL('/api/chat/call')}?apiKey=${currentApiKey}&apiSecret=${currentApiSecret}&assistantId=${assistantId}`
+        // 添加 agentId 参数（必需）
+        const wsUrl = `${buildWebSocketURL('/api/chat/call')}?apiKey=${currentApiKey}&apiSecret=${currentApiSecret}&agentId=${agentId}`
         const newSocket = new WebSocket(wsUrl)
 
         // 用于存储会话信息和 ICE candidates
@@ -1513,11 +1513,11 @@ const VoiceAssistant = () => {
                     localStorage.setItem('hasVisitedVoiceAssistant', 'true');
                 }
 
-                // 如果有特定的 assistantId（从 URL 参数获取），优先直接加载该助手配置
+                // 如果有特定的 agentId（从 URL 参数获取），优先直接加载该助手配置
                 // 这样可以更快地显示配置，而不是等待助手列表加载完成
-                if (assistantId && assistantId > 0) {
+                if (agentId && agentId > 0) {
                     try {
-                        const response = await getAssistant(assistantId)
+                        const response = await getAssistant(agentId)
                         const detail = response.data
                         if (detail) {
                             // 使用 ?? 来判断，确保空字符串也能正确赋值
@@ -1564,15 +1564,15 @@ const VoiceAssistant = () => {
 
                 // 获取聊天历史（只获取当前助手的记录）
                 try {
-                    if (assistantId && assistantId > 0) {
-                        const historyResponse = await getChatSessionLogsByAssistant(assistantId, { pageSize: 20 })
+                    if (agentId && agentId > 0) {
+                        const historyResponse = await getChatSessionLogsByAssistant(agentId, { pageSize: 20 })
                         if (historyResponse.data && historyResponse.data.logs) {
                             setChatHistory(historyResponse.data.logs.map(log => ({
                                 id: log.id,
                                 sessionId: log.sessionId,
                                 content: log.preview,
                                 createdAt: log.createdAt,
-                                assistantName: log.assistantName,
+                                agentName: log.agentName,
                                 chatType: log.chatType,
                                 messageCount: log.messageCount || 1
                             })))
@@ -1617,19 +1617,19 @@ const VoiceAssistant = () => {
         }
     }, [])
 
-    // 当 assistantId 变化时（比如从 URL 参数或用户点击助手），自动加载助手配置
+    // 当 agentId 变化时（比如从 URL 参数或用户点击助手），自动加载助手配置
     // 注意：初始化时的加载已经在 initializeData 中直接处理了，这里主要处理切换助手的情况
-    // 但是为了避免重复加载，我们只在助手列表加载完成后，且 assistantId 发生变化时才加载
+    // 但是为了避免重复加载，我们只在助手列表加载完成后，且 agentId 发生变化时才加载
     useEffect(() => {
         // 只在助手列表加载完成后才处理切换，避免初始化时重复加载
-        if (assistantId && assistantId > 0 && assistants.length > 0) {
+        if (agentId && agentId > 0 && assistants.length > 0) {
             // 防止重复调用同一个 agentId（StrictMode 会导致重复执行）
-            if (lastSelectedAgentRef.current !== assistantId) {
-                lastSelectedAgentRef.current = assistantId
-                handleSelectAgent(assistantId)
+            if (lastSelectedAgentRef.current !== agentId) {
+                lastSelectedAgentRef.current = agentId
+                handleSelectAgent(agentId)
             }
         }
-    }, [assistantId, assistants.length])
+    }, [agentId, assistants.length])
 
 
     // 键盘快捷键支持
@@ -1679,7 +1679,7 @@ const VoiceAssistant = () => {
 
     // 开始通话
     const startCall = async () => {
-        if (assistantId === 0) {
+        if (agentId === 0) {
             showAlert('请先选择一个AI助手', 'warning')
             return
         }
@@ -1808,15 +1808,15 @@ const VoiceAssistant = () => {
 
         // 刷新聊天记录
         try {
-            if (assistantId && assistantId > 0) {
-                const historyResponse = await getChatSessionLogsByAssistant(assistantId, { pageSize: 20 })
+            if (agentId && agentId > 0) {
+                const historyResponse = await getChatSessionLogsByAssistant(agentId, { pageSize: 20 })
                 if (historyResponse.data && historyResponse.data.logs) {
                     setChatHistory(historyResponse.data.logs.map(log => ({
                         id: log.id,
                         sessionId: log.sessionId,
                         content: log.preview,
                         createdAt: log.createdAt,
-                        assistantName: log.assistantName,
+                        agentName: log.agentName,
                         chatType: log.chatType,
                         messageCount: log.messageCount || 1
                     })))
@@ -1883,7 +1883,7 @@ const VoiceAssistant = () => {
                             sessionId: log.sessionId,
                             content: log.preview,
                             createdAt: log.createdAt,
-                            assistantName: log.assistantName,
+                            agentName: log.agentName,
                             chatType: log.chatType,
                             messageCount: log.messageCount || 1
                         })))
@@ -1956,12 +1956,12 @@ const VoiceAssistant = () => {
                 setIsSavingSettings(true)
 
                 // 合并两个请求为一个
-                const response = await updateAssistant(assistantId, {
+                const response = await updateAssistant(agentId, {
                     name: assistantName,
                     description: assistantDescription,
                     icon: assistantIcon,
                     systemPrompt,
-                    persona_tag: assistants.find(a => a.id === assistantId)?.name || '',
+                    persona_tag: assistants.find(a => a.id === agentId)?.name || '',
                     temperature: temperature,
                     maxTokens: maxTokens,
                     language,
@@ -1981,7 +1981,7 @@ const VoiceAssistant = () => {
 
                 // 使用返回的助手数据更新列表，避免额外的GET请求
                 if (response.code === 200 && response.data) {
-                    setAssistants(assistants.map(a => a.id === assistantId ? response.data : a))
+                    setAssistants(assistants.map(a => a.id === agentId ? response.data : a))
                 }
 
                 showAlert('设置保存成功', 'success')
@@ -2005,7 +2005,7 @@ const VoiceAssistant = () => {
     // 删除助手
     const handleDeleteAssistant = async () => {
         try {
-            await deleteAssistant(assistantId)
+            await deleteAssistant(agentId)
             setShowDeleteConfirm(false)
             setSystemPrompt('')
             setLlmModel('')
@@ -2042,7 +2042,7 @@ const VoiceAssistant = () => {
                     const sessionDetails = {
                         sessionId: sessionId,
                         logs: response.data,
-                        assistantName: response.data[0]?.assistantName || '未知助手',
+                        assistantName: response.data[0]?.agentName || response.data[0]?.assistantName || '未知助手',
                         assistantIcon: assistantIcon,
                         chatType: response.data[0]?.chatType || 'text'
                     }
@@ -2079,7 +2079,7 @@ const VoiceAssistant = () => {
 
     // 处理接入方法点击
     const handleMethodClick = (method: string) => {
-        if (assistantId === 0) {
+        if (agentId === 0) {
             showAlert('请先选择一个AI助手', 'warning')
             return
         }
@@ -2130,7 +2130,7 @@ const VoiceAssistant = () => {
                                 {isCalling ? '通话中...' : isConnecting ? '连接中...' : '待机中'}
                             </h2>
                             <p className="text-xs text-gray-500 mt-1">
-                                {assistants.find(a => a.id === assistantId)?.name || '未选择助手'}
+                                {assistants.find(a => a.id === agentId)?.name || '未选择智能体'}
                             </p>
                             {isCalling && (
                                 <p className="text-sm text-purple-600 mt-2 font-mono">
@@ -2164,7 +2164,7 @@ const VoiceAssistant = () => {
                             isGlobalMuted={isGlobalMuted}
                             onMuteToggle={setIsGlobalMuted}
                             onNewSession={startNewSession}
-                            assistantName={assistants.find(a => a.id === assistantId)?.name}
+                            assistantName={assistants.find(a => a.id === agentId)?.name}
                         />
                         {showOnboarding && highlightedElement === 'chat-area' && (
                             <GuideTooltip
@@ -2236,7 +2236,7 @@ const VoiceAssistant = () => {
                     </div>
 
                     {/* 控制面板内容 */}
-                    {!isControlPanelCollapsed && assistantId !== 0 && (
+                    {!isControlPanelCollapsed && agentId !== 0 && (
                         <div className={`flex-1 overflow-y-auto custom-scrollbar ${showOnboarding && highlightedElement === 'control-panel' ? 'border-2 border-blue-500' : ''}`}>
                             <ControlPanel
                                 apiKey={apiKey}
@@ -2309,7 +2309,7 @@ const VoiceAssistant = () => {
                     )}
 
                     {/* 未选择助手时的提示 */}
-                    {!isControlPanelCollapsed && assistantId === 0 && (
+                    {!isControlPanelCollapsed && agentId === 0 && (
                         <div className="flex-1 flex items-center justify-center p-6">
                             <div className="text-center text-gray-500 dark:text-gray-400">
                                 <Settings className="w-12 h-12 mx-auto mb-4 opacity-50" />
@@ -2333,7 +2333,7 @@ const VoiceAssistant = () => {
                 isOpen={showIntegrationModal}
                 onClose={() => setShowIntegrationModal(false)}
                 selectedMethod={selectedMethod}
-                selectedAgent={assistantId}
+                selectedAgent={agentId}
                 jsSourceId={jsSourceId}
             />
 
@@ -2394,7 +2394,7 @@ const VoiceAssistant = () => {
             {showLogModal && selectedLogDetail && (
                 <ChatLogDetail
                     logs={selectedLogDetail.logs || [selectedLogDetail]}
-                    assistantName={selectedLogDetail.assistantName || assistantName}
+                    assistantName={selectedLogDetail.agentName || selectedLogDetail.assistantName || assistantName}
                     assistantIcon={selectedLogDetail.assistantIcon || assistantIcon}
                     onClose={() => setShowLogModal(false)}
                 />

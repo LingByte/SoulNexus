@@ -17,6 +17,9 @@ const Notifications = lazy(() => import('@/pages/Notifications'))
 const Configs = lazy(() => import('@/pages/Configs'))
 const OAuthClients = lazy(() => import('@/pages/OAuthClients'))
 const Users = lazy(() => import('@/pages/Users'))
+const Permissions = lazy(() => import('@/pages/Permissions'))
+const Roles = lazy(() => import('@/pages/Roles'))
+const UserAccess = lazy(() => import('@/pages/UserAccess'))
 const Assistants = lazy(() => import('@/pages/Assistants'))
 const OperationLogs = lazy(() => import('@/pages/OperationLogs'))
 const AccountLocks = lazy(() => import('@/pages/AccountLocks'))
@@ -31,7 +34,6 @@ const Workflows = lazy(() => import('@/pages/Workflows'))
 const WorkflowPlugins = lazy(() => import('@/pages/WorkflowPlugins'))
 const NodePlugins = lazy(() => import('@/pages/NodePlugins'))
 const NotificationCenter = lazy(() => import('@/pages/NotificationCenter'))
-const AlertCenter = lazy(() => import('@/pages/AlertCenter'))
 const KnowledgeBases = lazy(() => import('@/pages/KnowledgeBases'))
 const Devices = lazy(() => import('@/pages/Devices'))
 const ChatData = lazy(() => import('@/pages/ChatData'))
@@ -145,6 +147,30 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/permissions"
+              element={
+                <ProtectedRoute>
+                  <Permissions />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/roles"
+              element={
+                <ProtectedRoute>
+                  <Roles />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/user-access"
+              element={
+                <ProtectedRoute>
+                  <UserAccess />
+                </ProtectedRoute>
+              }
+            />
             <Route path="/assistants" element={<ProtectedRoute><Assistants /></ProtectedRoute>} />
             <Route
               path="/operation-logs"
@@ -173,7 +199,6 @@ function App() {
             <Route path="/workflow-plugins" element={<ProtectedRoute><WorkflowPlugins /></ProtectedRoute>} />
             <Route path="/node-plugins" element={<ProtectedRoute><NodePlugins /></ProtectedRoute>} />
             <Route path="/notification-center" element={<ProtectedRoute><NotificationCenter /></ProtectedRoute>} />
-            <Route path="/alerts" element={<ProtectedRoute><AlertCenter /></ProtectedRoute>} />
             <Route path="/knowledge-bases" element={<ProtectedRoute><KnowledgeBases /></ProtectedRoute>} />
             <Route path="/devices" element={<ProtectedRoute><Devices /></ProtectedRoute>} />
             <Route path="/chat-data" element={<ProtectedRoute><ChatData /></ProtectedRoute>} />

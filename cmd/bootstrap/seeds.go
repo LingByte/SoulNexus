@@ -19,6 +19,9 @@ type SeedService struct {
 }
 
 func (s *SeedService) SeedAll() error {
+	if err := s.seedMinimalRolesIfEmpty(); err != nil {
+		return err
+	}
 	if err := s.seedConfigs(); err != nil {
 		return err
 	}
@@ -114,23 +117,31 @@ func (s *SeedService) seedConfigs() error {
 	return nil
 }
 
+// seedMinimalRolesIfEmpty inserts one generic role when the table is empty so sign-up / seed users can satisfy user_roles.
+func (s *SeedService) seedMinimalRolesIfEmpty() error {
+	var n int64
+	if err := s.db.Model(&models.Role{}).Where("is_deleted = ?", models.SoftDeleteStatusActive).Count(&n).Error; err != nil {
+		return err
+	}
+	if n > 0 {
+		return nil
+	}
+	return s.db.Create(&models.Role{Name: "Member", Slug: "member", IsSystem: true}).Error
+}
+
 func (s *SeedService) seedAdminUsers() error {
 	defaultAdmins := []models.User{
 		{
-			Email:       "admin@lingecho.com",
-			Password:    models.HashPassword("admin123"),
-			Role:        models.RoleSuperAdmin,
-			DisplayName: "Administrator",
-			Status:      models.UserStatusActive,
-			Source:      models.UserSourceAdmin,
+			Email:    "admin@lingecho.com",
+			Password: models.HashPassword("admin123"),
+			Status:   models.UserStatusActive,
+			Source:   models.UserSourceAdmin,
 		},
 		{
-			Email:       "19511899044@163.com",
-			Password:    models.HashPassword("admin123"),
-			Role:        models.RoleSuperAdmin,
-			DisplayName: "Administrator",
-			Status:      models.UserStatusActive,
-			Source:      models.UserSourceAdmin,
+			Email:    "19511899044@163.com",
+			Password: models.HashPassword("admin123"),
+			Status:   models.UserStatusActive,
+			Source:   models.UserSourceAdmin,
 		},
 	}
 
@@ -144,6 +155,10 @@ func (s *SeedService) seedAdminUsers() error {
 			if err := s.db.Create(&user).Error; err != nil {
 				return err
 			}
+			_ = models.UpdateUserProfileFields(s.db, user.ID, map[string]any{"display_name": "Administrator"})
+			if err := models.EnsureUserHasOneRole(s.db, user.ID); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -151,16 +166,26 @@ func (s *SeedService) seedAdminUsers() error {
 
 func (s *SeedService) seedAssistants() error {
 	var count int64
-	if err := s.db.Model(&models.Assistant{}).Count(&count).Error; err != nil {
+	if err := s.db.Model(&models.Agent{}).Count(&count).Error; err != nil {
 		return err
 	}
 	if count != 0 {
 		return nil // Data already exists, skip
 	}
 
-	defaultAssistant := []models.Assistant{
+	g2, err := models.EnsurePersonalGroupForUser(s.db, 2)
+	if err != nil {
+		return err
+	}
+	g1, err := models.EnsurePersonalGroupForUser(s.db, 1)
+	if err != nil {
+		return err
+	}
+
+	defaultAssistant := []models.Agent{
 		{
-			UserID:       2,
+			GroupID:      g2.ID,
+			CreatedBy:    2,
 			Name:         "Technical Support",
 			Description:  "Provides technical support and answers various technical support questions",
 			Icon:         "MessageCircle",
@@ -172,7 +197,8 @@ func (s *SeedService) seedAssistants() error {
 			UpdatedAt:    time.Now(),
 		},
 		{
-			UserID:       2,
+			GroupID:      g2.ID,
+			CreatedBy:    2,
 			Name:         "Smart Assistant",
 			Description:  "Smart assistant providing various intelligent services",
 			Icon:         "Bot",
@@ -184,7 +210,8 @@ func (s *SeedService) seedAssistants() error {
 			UpdatedAt:    time.Now(),
 		},
 		{
-			UserID:       1,
+			GroupID:      g1.ID,
+			CreatedBy:    1,
 			Name:         "Mentor",
 			Description:  "Mentor providing various guidance services",
 			Icon:         "Users",
@@ -196,7 +223,8 @@ func (s *SeedService) seedAssistants() error {
 			UpdatedAt:    time.Now(),
 		},
 		{
-			UserID:       1,
+			GroupID:      g1.ID,
+			CreatedBy:    1,
 			Name:         "Assistant",
 			Description:  "An assistant that you can use to answer your questions.",
 			Icon:         "Zap",

@@ -24,13 +24,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// 角色常量
-const (
-	RoleSuperAdmin = "superadmin" // 超级管理员
-	RoleAdmin      = "admin"      // 管理员
-	RoleUser       = "user"       // 普通用户
-)
-
 // 用户来源（注册 / 创建渠道）
 const (
 	UserSourceSystem = "SYSTEM"
@@ -122,6 +115,9 @@ type LoginForm struct {
 type EmailOperatorForm struct {
 	UserName    string `json:"userName"`
 	DisplayName string `json:"displayName"`
+	FirstName   string `json:"firstName"`
+	LastName    string `json:"lastName"`
+	Locale      string `json:"locale"`
 	Email       string `json:"email" comment:"Email address"`
 	Code        string `json:"code"`
 	Password    string `json:"password"`
@@ -173,6 +169,7 @@ type UpdateUserRequest struct {
 	DisplayName string `form:"displayName" json:"displayName"`
 	Locale      string `form:"locale" json:"locale"`
 	Timezone    string `form:"timezone" json:"timezone"`
+	ThemeMode   string `form:"themeMode" json:"themeMode"`
 	Gender      string `form:"gender" json:"gender"`
 	City        string `form:"city" json:"city"`
 	Region      string `form:"region" json:"region"`
@@ -180,50 +177,73 @@ type UpdateUserRequest struct {
 	Avatar      string `form:"avatar" json:"avatar"`
 }
 
+// NormalizeThemeMode returns light|dark|system or empty if invalid.
+func NormalizeThemeMode(s string) string {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "light", "dark", "system":
+		return strings.ToLower(strings.TrimSpace(s))
+	default:
+		return ""
+	}
+}
+
+// User is the authentication and account row (users table). Presentation, prefs,
+// and extended fields live in UserProfile (JSON field `profile`).
 type User struct {
 	BaseModel
-	Email                      string     `json:"email" gorm:"size:128;uniqueIndex"`
-	WechatOpenID               string     `json:"wechatOpenId,omitempty" gorm:"size:128;index"`
-	WechatUnionID              string     `json:"wechatUnionId,omitempty" gorm:"size:128;index"`
-	GithubID                   string     `json:"githubId,omitempty" gorm:"size:64;index"`
-	GithubLogin                string     `json:"githubLogin,omitempty" gorm:"size:128;index"`
-	Password                   string     `json:"-" gorm:"size:128"`
-	Phone                      string     `json:"phone,omitempty" gorm:"size:64;index"`
-	FirstName                  string     `json:"firstName,omitempty" gorm:"size:128"`
-	LastName                   string     `json:"lastName,omitempty" gorm:"size:128"`
-	DisplayName                string     `json:"displayName,omitempty" gorm:"size:128"`
-	Status                     string     `json:"status" gorm:"size:32;index;default:'active';comment:Account status"`
-	LastLogin                  *time.Time `json:"lastLogin,omitempty"`
-	LastLoginIP                string     `json:"-" gorm:"size:128"`
-	Source                     string     `json:"source" gorm:"size:64;index"`
-	Locale                     string     `json:"locale,omitempty" gorm:"size:20"`
-	Timezone                   string     `json:"timezone,omitempty" gorm:"size:200"`
-	AuthToken                  string     `json:"token,omitempty" gorm:"-"`
-	Avatar                     string     `json:"avatar,omitempty"`
-	Gender                     string     `json:"gender,omitempty"`
-	City                       string     `json:"city,omitempty"`
-	Region                     string     `json:"region,omitempty"`
-	EmailNotifications         bool       `json:"emailNotifications"`                           // 邮件通知
-	PushNotifications          bool       `json:"pushNotifications" gorm:"default:true"`        // 推送通知
-	EmailVerified              bool       `json:"emailVerified" gorm:"default:false"`           // 邮箱已验证
-	PhoneVerified              bool       `json:"phoneVerified" gorm:"default:false"`           // 手机已验证
-	TwoFactorEnabled           bool       `json:"twoFactorEnabled" gorm:"default:false"`        // 双因素认证
-	TwoFactorSecret            string     `json:"-" gorm:"size:128"`                            // 双因素认证密钥
-	EmailVerifyToken           string     `json:"-" gorm:"size:128"`                            // 邮箱验证令牌
-	PhoneVerifyToken           string     `json:"-" gorm:"size:128"`                            // 手机验证令牌
-	PasswordResetToken         string     `json:"-" gorm:"size:128"`                            // 密码重置令牌
-	PasswordResetExpires       *time.Time `json:"-"`                                            // 密码重置过期时间
-	EmailVerifyExpires         *time.Time `json:"-"`                                            // 邮箱验证过期时间
-	LoginCount                 int        `json:"loginCount" gorm:"default:0"`                  // 登录次数
-	LastPasswordChange         *time.Time `json:"lastPasswordChange,omitempty"`                 // 最后密码修改时间
-	ProfileComplete            int        `json:"profileComplete" gorm:"default:0"`             // 资料完整度百分比
-	Role                       string     `json:"role,omitempty" gorm:"size:50;default:'user'"` // 用户角色
-	AccountDeletionRequestedAt *time.Time `json:"accountDeletionRequestedAt,omitempty"`
-	AccountDeletionEffectiveAt *time.Time `json:"accountDeletionEffectiveAt,omitempty" gorm:"index"`
+	Email                      string      `json:"email" gorm:"size:128;uniqueIndex"`
+	Password                   string      `json:"-" gorm:"size:128"`
+	Status                     string      `json:"status" gorm:"size:32;index;default:'active';comment:Account status"`
+	LastLogin                  *time.Time  `json:"lastLogin,omitempty"`
+	LastLoginIP                string      `json:"-" gorm:"size:128"`
+	Source                     string      `json:"source" gorm:"size:64;index"`
+	AuthToken                  string      `json:"token,omitempty" gorm:"-"`
+	EmailVerified              bool        `json:"emailVerified" gorm:"default:false"`           // 邮箱已验证
+	PhoneVerified              bool        `json:"phoneVerified" gorm:"default:false"`           // 手机已验证
+	TwoFactorEnabled           bool        `json:"twoFactorEnabled" gorm:"default:false"`        // 双因素认证
+	TwoFactorSecret            string      `json:"-" gorm:"size:128"`                            // 双因素认证密钥
+	EmailVerifyToken           string      `json:"-" gorm:"size:128"`                            // 邮箱验证令牌
+	PhoneVerifyToken           string      `json:"-" gorm:"size:128"`                            // 手机验证令牌
+	PasswordResetToken         string      `json:"-" gorm:"size:128"`                            // 密码重置令牌
+	PasswordResetExpires       *time.Time  `json:"-"`                                            // 密码重置过期时间
+	EmailVerifyExpires         *time.Time  `json:"-"`                                            // 邮箱验证过期时间
+	LoginCount                 int         `json:"loginCount" gorm:"default:0"`                  // 登录次数
+	LastPasswordChange         *time.Time  `json:"lastPasswordChange,omitempty"` // 最后密码修改时间
+	Phone                      string      `json:"phone,omitempty" gorm:"size:64;index"`
+	AccountDeletionRequestedAt *time.Time  `json:"accountDeletionRequestedAt,omitempty"`
+	AccountDeletionEffectiveAt *time.Time  `json:"accountDeletionEffectiveAt,omitempty" gorm:"index"`
+	Locale   string `json:"locale,omitempty" gorm:"column:preferred_locale;size:32"`
+	Timezone string `json:"timezone,omitempty" gorm:"column:preferred_timezone;size:128"`
+	ThemeMode                  string      `json:"themeMode,omitempty" gorm:"size:16"` // light | dark | system
+	Profile                    UserProfile `json:"profile,omitempty" gorm:"foreignKey:UserID"`
+	RoleSlugs                  []string    `json:"roleSlugs,omitempty" gorm:"-"`
+	PermissionKeys             []string    `json:"permissionKeys,omitempty" gorm:"-"`
+	WechatOpenID               string      `json:"wechatOpenId,omitempty" gorm:"size:128;index"`
+	WechatUnionID              string      `json:"wechatUnionId,omitempty" gorm:"size:128;index"`
+	GithubID                   string      `json:"githubId,omitempty" gorm:"size:64;index"`
+	GithubLogin                string      `json:"githubLogin,omitempty" gorm:"size:128;index"`
 }
 
 func (u *User) TableName() string {
 	return constants.USER_TABLE_NAME
+}
+
+// EffectiveDisplayName returns profile display name, or the email local-part when unset.
+func (u *User) EffectiveDisplayName() string {
+	if u == nil {
+		return ""
+	}
+	if s := strings.TrimSpace(u.Profile.DisplayName); s != "" {
+		return s
+	}
+	email := strings.TrimSpace(strings.ToLower(u.Email))
+	if email == "" {
+		return ""
+	}
+	if i := strings.IndexByte(email, '@'); i > 0 {
+		return email[:i]
+	}
+	return email
 }
 
 // Login Handle-User-Login
@@ -297,7 +317,7 @@ func AuthRequired(c *gin.Context) {
 	c.Set(constants.UserField, &User{
 		BaseModel: BaseModel{ID: p.UserID},
 		Email:     p.Email,
-		Role:      p.Role,
+		RoleSlugs: RoleSlugsFromJWTClaim(p.Role),
 		Status:    UserStatusActive,
 	})
 	c.Next()
@@ -425,19 +445,35 @@ func VerifyEncryptedPassword(encryptedPassword, storedPasswordHash string) bool 
 	return isValid
 }
 
+func scopeUserWithProfile(db *gorm.DB) *gorm.DB {
+	return db.Joins("Profile")
+}
+
 func GetUserByUID(db *gorm.DB, userID uint) (*User, error) {
 	var val User
-	result := db.Where("id", userID).Where("status", UserStatusActive).Take(&val)
-
-	if result.Error != nil {
-		return nil, result.Error
+	tbl := constants.USER_TABLE_NAME
+	err := scopeUserWithProfile(db).Where(tbl+".id = ? AND "+tbl+".status = ? AND "+tbl+".is_deleted = ?", userID, UserStatusActive, SoftDeleteStatusActive).First(&val).Error
+	if err != nil {
+		return nil, err
 	}
 	return &val, nil
 }
 
+// GetUserByID loads a user by ID for profile/auth responses (any status, not deleted).
+func GetUserByID(db *gorm.DB, userID uint) (*User, error) {
+	var u User
+	tbl := constants.USER_TABLE_NAME
+	err := scopeUserWithProfile(db).Where(tbl+".id = ? AND "+tbl+".is_deleted = ?", userID, SoftDeleteStatusActive).First(&u).Error
+	if err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
 func GetUserByEmail(db *gorm.DB, email string) (user *User, err error) {
 	var val User
-	result := db.Table(constants.USER_TABLE_NAME).Where("email", strings.ToLower(email)).Take(&val)
+	tbl := constants.USER_TABLE_NAME
+	result := scopeUserWithProfile(db).Where(tbl+".email = ?", strings.ToLower(email)).Take(&val)
 
 	if result.Error != nil {
 		return nil, result.Error
@@ -501,7 +537,7 @@ func AuthApiRequired(c *gin.Context) {
 	c.Set(constants.UserField, &User{
 		BaseModel: BaseModel{ID: p.UserID},
 		Email:     p.Email,
-		Role:      p.Role,
+		RoleSlugs: RoleSlugsFromJWTClaim(p.Role),
 		Status:    UserStatusActive,
 	})
 	c.Next()
@@ -514,12 +550,12 @@ func GetUserByAPIKey(c *gin.Context, apiKey, apiSecret string) (*User, error) {
 	if err != nil {
 		return nil, err
 	}
-	var user *User
-	err = db.Model(&User{}).Where("id = ? AND status = ?", userCredential.UserID, UserStatusActive).Find(&user).Error
+	var u User
+	err = db.Where("id = ? AND status = ?", userCredential.CreatedBy, UserStatusActive).First(&u).Error
 	if err != nil {
 		return nil, err
 	}
-	return user, nil
+	return &u, nil
 }
 
 func CreateUserByEmail(db *gorm.DB, username, display, email, password string) (*User, error) {
@@ -547,16 +583,11 @@ func CreateUserByEmailWithMeta(db *gorm.DB, username, display, email, password, 
 	}
 
 	user := User{
-		BaseModel:          BaseModel{},
-		DisplayName:        display,
-		FirstName:          firstName,
-		LastName:           lastName,
-		Email:              email,
-		Password:           HashPassword(password),
-		Status:             status,
-		Source:             source,
-		EmailNotifications: true,
-		Role:               RoleUser, // Explicitly set default role
+		BaseModel: BaseModel{},
+		Email:     email,
+		Password:  HashPassword(password),
+		Status:    status,
+		Source:    source,
 	}
 	operator := strings.ToLower(strings.TrimSpace(email))
 	if operator == "" {
@@ -569,7 +600,22 @@ func CreateUserByEmailWithMeta(db *gorm.DB, username, display, email, password, 
 		}
 	}
 	result := db.Create(&user)
-	return &user, result.Error
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if err := EnsureUserHasOneRole(db, user.ID); err != nil {
+		return nil, err
+	}
+	profVals := map[string]any{
+		"display_name": display,
+		"first_name":   firstName,
+		"last_name":    lastName,
+	}
+	if err := UpdateUserProfileFields(db, user.ID, profVals); err != nil {
+		return nil, err
+	}
+	_ = db.Where("id = ?", user.ID).First(&user).Error
+	return &user, nil
 }
 
 func CreateUser(db *gorm.DB, email, password string) (*User, error) {
@@ -590,7 +636,6 @@ func CreateUserWithMeta(db *gorm.DB, email, password, source, status string) (*U
 		Password:  HashPassword(password),
 		Status:    status,
 		Source:    source,
-		Role:      RoleUser, // Explicitly set default role
 	}
 	operator := strings.ToLower(strings.TrimSpace(email))
 	if operator == "" {
@@ -604,7 +649,13 @@ func CreateUserWithMeta(db *gorm.DB, email, password, source, status string) (*U
 	}
 
 	result := db.Create(&user)
-	return &user, result.Error
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if err := EnsureUserHasOneRole(db, user.ID); err != nil {
+		return nil, err
+	}
+	return &user, nil
 }
 func UpdateUserFields(db *gorm.DB, user *User, vals map[string]any) error {
 	if _, ok := vals["update_by"]; !ok {
@@ -638,28 +689,26 @@ func CheckUserAllowLogin(db *gorm.DB, user *User) error {
 	}
 
 	// Role validation - ensure user has a valid role
-	if err := ValidateUserRole(user); err != nil {
+	if err := ValidateUserRole(db, user); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-// ValidateUserRole validates that the user has a valid role
-func ValidateUserRole(user *User) error {
-	if user.Role == "" {
-		return errors.New("user role is not set")
+// ValidateUserRole validates that the user has at least one RBAC role assignment.
+func ValidateUserRole(db *gorm.DB, user *User) error {
+	if db == nil || user == nil || user.ID == 0 {
+		return errors.New("invalid user")
 	}
-
-	// Check if role is one of the valid roles
-	validRoles := []string{RoleSuperAdmin, RoleAdmin, RoleUser}
-	for _, validRole := range validRoles {
-		if user.Role == validRole {
-			return nil
-		}
+	slugs, err := UserRoleSlugs(db, user.ID)
+	if err != nil {
+		return err
 	}
-
-	return fmt.Errorf("invalid user role: %s", user.Role)
+	if len(slugs) == 0 {
+		return errors.New("user has no roles assigned")
+	}
+	return nil
 }
 
 func InTimezone(c *gin.Context, timezone string) {
@@ -850,43 +899,39 @@ func UpdateNotificationSettings(db *gorm.DB, user *User, settings map[string]boo
 		return nil
 	}
 
-	err := UpdateUserFields(db, user, vals)
+	err := UpdateUserProfileFields(db, user.ID, vals)
 	if err != nil {
 		return err
 	}
 
-	// 更新用户对象
 	if emailNotif, ok := settings["emailNotifications"]; ok {
-		user.EmailNotifications = emailNotif
+		user.Profile.EmailNotifications = emailNotif
 	}
 	if pushNotif, ok := settings["pushNotifications"]; ok {
-		user.PushNotifications = pushNotif
+		user.Profile.PushNotifications = pushNotif
 	}
 	return nil
 }
 
-// UpdatePreferences 更新用户偏好设置
-// 只处理实际使用的字段：timezone 和 locale
+// UpdatePreferences 更新用户偏好设置（locale / timezone，存 users 表）
 func UpdatePreferences(db *gorm.DB, user *User, preferences map[string]string) error {
 	vals := make(map[string]any)
 
 	if timezone, ok := preferences["timezone"]; ok {
-		vals["timezone"] = timezone
+		vals["preferred_timezone"] = timezone
 	}
 	if locale, ok := preferences["locale"]; ok {
-		vals["locale"] = locale
+		vals["preferred_locale"] = locale
 	}
 
 	if len(vals) == 0 {
 		return nil
 	}
 
-	err := UpdateUserFields(db, user, vals)
-	if err != nil {
+	if err := UpdateUserFields(db, user, vals); err != nil {
 		return err
 	}
 
-	// 更新用户对象
 	if timezone, ok := preferences["timezone"]; ok {
 		user.Timezone = timezone
 	}
@@ -899,21 +944,25 @@ func UpdatePreferences(db *gorm.DB, user *User, preferences map[string]string) e
 
 // CalculateProfileComplete 计算资料完整度
 func CalculateProfileComplete(user *User) int {
+	if user == nil {
+		return 0
+	}
+	p := &user.Profile
 	complete := 0
 	total := 0
 
 	// 基本信息 (40%)
 	total += 4
-	if user.DisplayName != "" {
+	if p.DisplayName != "" {
 		complete++
 	}
-	if user.FirstName != "" {
+	if p.FirstName != "" {
 		complete++
 	}
-	if user.LastName != "" {
+	if p.LastName != "" {
 		complete++
 	}
-	if user.Avatar != "" {
+	if p.Avatar != "" {
 		complete++
 	}
 
@@ -922,7 +971,7 @@ func CalculateProfileComplete(user *User) int {
 	if user.Email != "" {
 		complete++
 	}
-	if user.Phone != "" {
+	if strings.TrimSpace(user.Phone) != "" {
 		complete++
 	}
 	if user.EmailVerified {
@@ -931,16 +980,16 @@ func CalculateProfileComplete(user *User) int {
 
 	// 地址信息 (20%)
 	total += 2
-	if user.City != "" {
+	if p.City != "" {
 		complete++
 	}
-	if user.Region != "" {
+	if p.Region != "" {
 		complete++
 	}
 
 	// 偏好设置 (10%)
 	total += 1
-	if user.Timezone != "" {
+	if strings.TrimSpace(user.Timezone) != "" {
 		complete++
 	}
 
@@ -963,15 +1012,27 @@ func CalculateProfileComplete(user *User) int {
 
 // UpdateProfileComplete 更新资料完整度
 func UpdateProfileComplete(db *gorm.DB, user *User) error {
+	if user == nil || user.ID == 0 {
+		return errors.New("invalid user")
+	}
+	if user.Profile.UserID != user.ID {
+		p, err := loadUserProfile(db, user.ID)
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		if err == nil && p != nil {
+			user.Profile = *p
+		}
+	}
 	complete := CalculateProfileComplete(user)
-	err := UpdateUserFields(db, user, map[string]any{
-		"ProfileComplete": complete,
+	err := UpdateUserProfileFields(db, user.ID, map[string]any{
+		"profile_complete": complete,
 	})
 	if err != nil {
 		return err
 	}
 
-	user.ProfileComplete = complete
+	user.Profile.ProfileComplete = complete
 	return nil
 }
 
@@ -988,12 +1049,3 @@ func IncrementLoginCount(db *gorm.DB, user *User) error {
 	return nil
 }
 
-// IsAdmin 检查是否为管理员（基于角色）
-func (u *User) IsAdmin() bool {
-	return u.Role == RoleSuperAdmin || u.Role == RoleAdmin
-}
-
-// IsSuperAdmin 检查是否为超级管理员
-func (u *User) IsSuperAdmin() bool {
-	return u.Role == RoleSuperAdmin
-}

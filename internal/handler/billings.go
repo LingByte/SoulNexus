@@ -228,10 +228,9 @@ func (h *Handlers) GetUsageRecords(c *gin.Context) {
 		}
 	}
 
-	// Assistant ID
-	if assistantIDStr := c.Query("assistantId"); assistantIDStr != "" {
-		if id, err := strconv.ParseUint(assistantIDStr, 10, 32); err == nil {
-			params["assistantId"] = uint(id)
+	if agentIDStr := c.Query("agentId"); agentIDStr != "" {
+		if id, err := strconv.ParseUint(agentIDStr, 10, 32); err == nil {
+			params["agentId"] = uint(id)
 		}
 	}
 
@@ -314,10 +313,9 @@ func (h *Handlers) ExportUsageRecords(c *gin.Context) {
 		}
 	}
 
-	// Assistant ID
-	if assistantIDStr := c.Query("assistantId"); assistantIDStr != "" {
-		if id, err := strconv.ParseUint(assistantIDStr, 10, 32); err == nil {
-			params["assistantId"] = uint(id)
+	if agentIDStr := c.Query("agentId"); agentIDStr != "" {
+		if id, err := strconv.ParseUint(agentIDStr, 10, 32); err == nil {
+			params["agentId"] = uint(id)
 		}
 	}
 
@@ -760,7 +758,7 @@ func (h *Handlers) exportRecordsToCSV(records []models.UsageRecord, filePath str
 			fmt.Sprintf("%d", record.ID),
 			fmt.Sprintf("%d", record.UserID),
 			fmt.Sprintf("%d", record.CredentialID),
-			h.formatUintPtr(record.AssistantID),
+			h.formatUintPtr(record.AgentID),
 			record.SessionID,
 			string(record.UsageType),
 			record.Model,

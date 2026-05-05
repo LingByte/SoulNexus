@@ -1,6 +1,7 @@
 import { get, post, put, del, patch } from '@/utils/request'
 import { getMainApiBaseURL, getAuthApiBaseURL } from '@/config/apiConfig'
 import { handleConfigCacheUpdate } from '@/utils/siteConfigCache'
+import { normalizeAuthUser } from '@/utils/authUserProfile'
 
 // 主业务服务 API（不含认证）
 const BACKEND_BASE = getMainApiBaseURL()
@@ -29,6 +30,7 @@ export interface User {
   permissions?: { [key: string]: string[] }
   createdAt: string
   updatedAt?: string
+  profile?: Record<string, unknown>
 }
 
 export interface UserListResponse {
@@ -102,22 +104,26 @@ export const listUsers = async (params?: ListUsersParams): Promise<UserListRespo
   if (params?.hasPhone) queryParams.hasPhone = params.hasPhone
   
   const res = await get<UserListResponse>(`${BACKEND_BASE}/users`, { params: queryParams })
-  return res.data
+  const body = res.data
+  return {
+    ...body,
+    users: body.users.map((u) => normalizeAuthUser(u as unknown as Record<string, unknown>) as User),
+  }
 }
 
 export const getUser = async (id: number): Promise<User> => {
   const res = await get<User>(`${BACKEND_BASE}/users/${id}`)
-  return res.data
+  return normalizeAuthUser(res.data as unknown as Record<string, unknown>) as User
 }
 
 export const createUser = async (data: CreateUserRequest): Promise<User> => {
   const res = await post<User>(`${BACKEND_BASE}/users`, data)
-  return res.data
+  return normalizeAuthUser(res.data as unknown as Record<string, unknown>) as User
 }
 
 export const updateUser = async (id: number, data: UpdateUserRequest): Promise<User> => {
   const res = await put<User>(`${BACKEND_BASE}/users/${id}`, data)
-  return res.data
+  return normalizeAuthUser(res.data as unknown as Record<string, unknown>) as User
 }
 
 export const deleteUser = async (id: number): Promise<void> => {
@@ -478,7 +484,7 @@ export const getCurrentUser = async () => {
   const res = await get(`${ADMIN_AUTH_BASE}/info`)
   // 后端返回格式: {code: 200, msg: "...", data: {...}}
   if (res.code === 200) {
-    return res.data
+    return normalizeAuthUser(res.data as Record<string, unknown>)
   }
   throw new Error(res.msg || '获取用户信息失败')
 }
@@ -1155,8 +1161,8 @@ export const deleteAdminBill = async (id: number): Promise<void> => {
   await del(`${ADMIN_BILLS_API_BASE}/${id}`)
 }
 
-// ==================== Admin Assistants API ====================
-const ADMIN_ASSISTANTS_API_BASE = `${BACKEND_BASE}/admin/assistants`
+// ==================== Admin Agents API ====================
+const ADMIN_AGENTS_API_BASE = `${BACKEND_BASE}/admin/agents`
 
 export interface AdminAssistant {
   id: number
@@ -1177,7 +1183,7 @@ export interface AdminAssistant {
 }
 
 export interface AdminAssistantListResponse {
-  assistants: AdminAssistant[]
+  agents: AdminAssistant[]
   total: number
   page: number
   pageSize: number
@@ -1188,7 +1194,7 @@ export const listAdminAssistants = async (params?: { page?: number; pageSize?: n
   if (params?.page) queryParams.page = params.page
   if (params?.pageSize) queryParams.pageSize = params.pageSize
   if (params?.search) queryParams.search = params.search
-  const res = await get<AdminAssistantListResponse>(ADMIN_ASSISTANTS_API_BASE, { params: queryParams })
+  const res = await get<AdminAssistantListResponse>(ADMIN_AGENTS_API_BASE, { params: queryParams })
   return res.data
 }
 
@@ -1198,12 +1204,12 @@ export const getAdminAssistant = async (id: number): Promise<AdminAssistant> => 
 }
 
 export const updateAdminAssistant = async (id: number, data: Partial<AdminAssistant>) => {
-  const res = await put(`${ADMIN_ASSISTANTS_API_BASE}/${id}`, data)
+  const res = await put(`${ADMIN_AGENTS_API_BASE}/${id}`, data)
   return res.data
 }
 
 export const deleteAdminAssistant = async (id: number): Promise<void> => {
-  await del(`${ADMIN_ASSISTANTS_API_BASE}/${id}`)
+  await del(`${ADMIN_AGENTS_API_BASE}/${id}`)
 }
 
 
@@ -1429,7 +1435,8 @@ export const deleteAdminAnnouncement = async (id: number) => del(`${BACKEND_BASE
 export interface AdminChatSession {
   id: string
   user_id: string
-  assistant_id: number
+  agent_id?: number
+  agentId?: number
   title: string
   provider: string
   model: string

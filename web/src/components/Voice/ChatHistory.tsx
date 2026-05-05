@@ -90,10 +90,10 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center space-x-2">
-                    <span className="font-medium text-gray-900 dark:text-white text-xs truncate max-w-[60px]" title={session.assistantName || '未知助手'}>
-                      {session.assistantName && session.assistantName.length > 5 
-                        ? `${session.assistantName.slice(0, 5)}...` 
-                        : (session.assistantName || '未知助手')}
+                    <span className="font-medium text-gray-900 dark:text-white text-xs truncate max-w-[60px]" title={session.agentName || session.assistantName || '未知助手'}>
+                      {(session.agentName || session.assistantName || '').length > 5
+                        ? `${(session.agentName || session.assistantName || '').slice(0, 5)}...`
+                        : (session.agentName || session.assistantName || '未知助手')}
                     </span>
                     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
                       {chatTypeInfo.text}

@@ -15,8 +15,8 @@ import (
 // WorkflowPlugin 工作流插件 - 将工作流发布为可复用的插件
 type WorkflowPlugin struct {
 	ID               uint                   `json:"id" gorm:"primaryKey"`
-	UserID           uint                   `json:"userId" gorm:"index"`                    // 创建者ID
-	GroupID          *uint                  `json:"groupId,omitempty" gorm:"index"`         // 组织ID（可选）
+	GroupID          uint                   `json:"groupId" gorm:"index"`
+	CreatedBy        uint                   `json:"createdBy" gorm:"index"`
 	WorkflowID       uint                   `json:"workflowId" gorm:"index"`                // 源工作流ID
 	Name             string                 `json:"name" gorm:"size:128;not null"`          // 插件名称
 	Slug             string                 `json:"slug" gorm:"size:128;uniqueIndex"`       // 唯一标识符
@@ -43,7 +43,6 @@ type WorkflowPlugin struct {
 	DeletedAt        gorm.DeletedAt         `json:"-" gorm:"index"`
 
 	// 关联
-	User     *User                   `json:"user,omitempty" gorm:"foreignKey:UserID"`
 	Group    *Group                  `json:"group,omitempty" gorm:"foreignKey:GroupID"`
 	Workflow *WorkflowDefinition     `json:"workflow,omitempty" gorm:"foreignKey:WorkflowID"`
 	Versions []WorkflowPluginVersion `json:"versions,omitempty" gorm:"foreignKey:PluginID"`
@@ -122,7 +121,8 @@ type WorkflowPluginReview struct {
 // WorkflowPluginInstallation 工作流插件安装记录
 type WorkflowPluginInstallation struct {
 	ID        uint           `json:"id" gorm:"primaryKey"`
-	UserID    uint           `json:"userId" gorm:"index;not null"`
+	GroupID   uint           `json:"groupId" gorm:"index;not null"`
+	CreatedBy uint           `json:"createdBy" gorm:"index"`
 	PluginID  uint           `json:"pluginId" gorm:"index;not null"`
 	Version   string         `json:"version" gorm:"size:32;not null"`
 	Status    string         `json:"status" gorm:"size:32;default:'active'"` // active, inactive
@@ -132,7 +132,6 @@ type WorkflowPluginInstallation struct {
 	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
 
 	// 关联
-	User   *User           `json:"user,omitempty" gorm:"foreignKey:UserID"`
 	Plugin *WorkflowPlugin `json:"plugin,omitempty" gorm:"foreignKey:PluginID"`
 }
 

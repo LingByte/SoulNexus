@@ -31,7 +31,7 @@ import (
 type HardwareSessionOption struct {
 	Conn                 *websocket.Conn
 	Logger               *zap.Logger
-	AssistantID          uint
+	AgentID          uint
 	Credential           *models.UserCredential
 	LLMModel             string
 	SystemPrompt         string
@@ -237,7 +237,7 @@ func NewHardwareSession(ctx context.Context, hardwareConfig *HardwareSessionOpti
 	if err := pipeline.Start(sessionCtx); err != nil {
 		logger.Fatal("启动 TTS Pipeline 失败", zap.Error(err))
 	}
-	sessionID := fmt.Sprintf("%s%d_%d", constants.HARDWARE_SESSION_PREFIX, hardwareConfig.AssistantID, time.Now().UnixNano())
+	sessionID := fmt.Sprintf("%s%d_%d", constants.HARDWARE_SESSION_PREFIX, hardwareConfig.AgentID, time.Now().UnixNano())
 	session = &HardwareSession{
 		sessionID:         sessionID,
 		config:            hardwareConfig,
@@ -256,8 +256,9 @@ func NewHardwareSession(ctx context.Context, hardwareConfig *HardwareSessionOpti
 		db:                hardwareConfig.DB,
 		voiceprintService: hardwareConfig.VoiceprintService,
 		callRecording: &models.CallRecording{
-			UserID:      hardwareConfig.Credential.UserID,
-			AssistantID: hardwareConfig.AssistantID,
+			GroupID:   hardwareConfig.Credential.GroupID,
+			CreatedBy: hardwareConfig.Credential.CreatedBy,
+			AgentID: hardwareConfig.AgentID,
 			SessionID:   sessionID,
 			DeviceID: func() string {
 				if hardwareConfig.DeviceID != nil {
@@ -287,7 +288,7 @@ func NewHardwareSession(ctx context.Context, hardwareConfig *HardwareSessionOpti
 	}
 
 	// 初始化录音器（本地文件存储）
-	recordingDir := fmt.Sprintf("recordings/%d/%d", hardwareConfig.Credential.UserID, hardwareConfig.AssistantID)
+	recordingDir := fmt.Sprintf("recordings/%d/%d", session.callRecording.GroupID, hardwareConfig.AgentID)
 	recordingFile := fmt.Sprintf("%s/%s.wav", recordingDir, sessionID)
 	if recorder, err := NewAudioRecorder(recordingFile, 16000, 1, 16, hardwareConfig.Logger); err != nil {
 		hardwareConfig.Logger.Warn("[Session] 初始化录音器失败", zap.Error(err))
@@ -306,7 +307,7 @@ func NewHardwareSession(ctx context.Context, hardwareConfig *HardwareSessionOpti
 		session.onTTSComplete()
 	})
 	if hardwareConfig.DB != nil && hardwareConfig.VoiceprintService != nil {
-		assistantIDStr := fmt.Sprintf("%d", hardwareConfig.AssistantID)
+		assistantIDStr := fmt.Sprintf("%d", hardwareConfig.AgentID)
 		session.voiceprintTool = tools.NewVoiceprintIdentifyTool(
 			hardwareConfig.DB,
 			hardwareConfig.VoiceprintService,
@@ -721,8 +722,8 @@ func (s *HardwareSession) uploadRecordingFile(filePath string) {
 
 	// 生成存储路径
 	storageKey := fmt.Sprintf("recordings/%d/%d/%s.wav",
-		s.callRecording.UserID,
-		s.callRecording.AssistantID,
+		s.callRecording.GroupID,
+		s.callRecording.AgentID,
 		s.callRecording.SessionID)
 
 	s.logger.Info("[Session] 开始上传录音文件",

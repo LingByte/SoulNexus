@@ -12,6 +12,7 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type adminUserUpsertReq struct {
@@ -69,7 +70,7 @@ type adminCredentialStatusReq struct {
 	UnlimitedQuota *bool   `json:"unlimitedQuota"`
 }
 
-type adminAssistantUpdateReq struct {
+type adminAgentUpdateReq struct {
 	Name              string   `json:"name"`
 	Description       string   `json:"description"`
 	SystemPrompt      string   `json:"systemPrompt"`
@@ -101,11 +102,11 @@ func (h *Handlers) requireAdmin(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("authorization required"))
 		return
 	}
-	if !user.IsAdmin() {
-		response.AbortWithJSONError(c, http.StatusForbidden, errors.New("admin permission required"))
+	if models.UserHasAdminAccess(h.db, user.ID) {
+		c.Next()
 		return
 	}
-	c.Next()
+	response.AbortWithJSONError(c, http.StatusForbidden, errors.New("admin permission required"))
 }
 
 func (h *Handlers) parsePagination(c *gin.Context) (int, int) {
@@ -133,55 +134,58 @@ func (h *Handlers) parsePagination(c *gin.Context) (int, int) {
 	return page, pageSize
 }
 
-func normalizeUserRole(role string) string {
-	role = strings.TrimSpace(strings.ToLower(role))
-	switch role {
-	case "", models.RoleUser:
-		return models.RoleUser
-	case models.RoleAdmin:
-		return models.RoleAdmin
-	case models.RoleSuperAdmin:
-		return models.RoleSuperAdmin
-	default:
-		return ""
+func roleSlugExists(db *gorm.DB, slug string) bool {
+	slug = strings.TrimSpace(strings.ToLower(slug))
+	if slug == "" {
+		return false
 	}
+	var cnt int64
+	if err := db.Model(&models.Role{}).Where("slug = ? AND is_deleted = ?", slug, models.SoftDeleteStatusActive).Count(&cnt).Error; err != nil {
+		return false
+	}
+	return cnt > 0
 }
 
 func (h *Handlers) handleAdminListUsers(c *gin.Context) {
 	page, pageSize := h.parsePagination(c)
 	search := strings.TrimSpace(c.Query("search"))
-	role := normalizeUserRole(c.Query("role"))
+	roleFilter := strings.TrimSpace(strings.ToLower(c.Query("role")))
 	statusQuery := strings.TrimSpace(c.Query("status"))
 	enabledQuery := strings.TrimSpace(c.Query("enabled"))
 	hasPhoneQuery := strings.TrimSpace(c.Query("hasPhone"))
 
-	query := h.db.Model(&models.User{}).Where("is_deleted = ?", models.SoftDeleteStatusActive)
+	query := h.db.Model(&models.User{}).
+		Joins("LEFT JOIN user_profiles ON user_profiles.user_id = users.id").
+		Where("users.is_deleted = ?", models.SoftDeleteStatusActive)
 	if search != "" {
 		like := "%" + search + "%"
-		query = query.Where("email LIKE ? OR display_name LIKE ? OR first_name LIKE ? OR last_name LIKE ?", like, like, like, like)
+		query = query.Where("users.email LIKE ? OR user_profiles.display_name LIKE ? OR user_profiles.first_name LIKE ? OR user_profiles.last_name LIKE ?",
+			like, like, like, like)
 	}
-	if role != "" {
-		query = query.Where("role = ?", role)
+	if roleFilter != "" && roleSlugExists(h.db, roleFilter) {
+		query = query.Joins("INNER JOIN user_roles ur ON ur.user_id = users.id").
+			Joins("INNER JOIN roles r ON r.id = ur.role_id AND r.is_deleted = ?", models.SoftDeleteStatusActive).
+			Where("r.slug = ?", roleFilter)
 	}
 	if statusQuery != "" {
 		if st := models.NormalizeUserStatus(statusQuery); st != "" {
-			query = query.Where("status = ?", st)
+			query = query.Where("users.status = ?", st)
 		}
 	} else if enabledQuery != "" {
 		if enabled, err := strconv.ParseBool(enabledQuery); err == nil {
 			if enabled {
-				query = query.Where("status = ?", models.UserStatusActive)
+				query = query.Where("users.status = ?", models.UserStatusActive)
 			} else {
-				query = query.Where("status <> ?", models.UserStatusActive)
+				query = query.Where("users.status <> ?", models.UserStatusActive)
 			}
 		}
 	}
 	if hasPhoneQuery != "" {
 		if hasPhone, err := strconv.ParseBool(hasPhoneQuery); err == nil {
 			if hasPhone {
-				query = query.Where("phone IS NOT NULL AND phone <> ''")
+				query = query.Where("users.phone IS NOT NULL AND users.phone <> ''")
 			} else {
-				query = query.Where("phone IS NULL OR phone = ''")
+				query = query.Where("users.phone IS NULL OR users.phone = ''")
 			}
 		}
 	}
@@ -193,7 +197,7 @@ func (h *Handlers) handleAdminListUsers(c *gin.Context) {
 	}
 
 	var users []models.User
-	if err := query.Order("id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&users).Error; err != nil {
+	if err := query.Order("users.id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&users).Error; err != nil {
 		response.Fail(c, "list users failed", err)
 		return
 	}
@@ -231,8 +235,8 @@ func (h *Handlers) handleAdminCreateUser(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("email is required"))
 		return
 	}
-	role := normalizeUserRole(req.Role)
-	if role == "" {
+	roleSlug := strings.TrimSpace(strings.ToLower(req.Role))
+	if !roleSlugExists(h.db, roleSlug) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid role"))
 		return
 	}
@@ -261,18 +265,9 @@ func (h *Handlers) handleAdminCreateUser(c *gin.Context) {
 		return
 	}
 
-	updateVals := map[string]any{
-		"display_name": req.DisplayName,
-		"first_name":   req.FirstName,
-		"last_name":    req.LastName,
-		"phone":        req.Phone,
-		"locale":       req.Locale,
-		"timezone":     req.Timezone,
-		"city":         req.City,
-		"region":       req.Region,
-		"gender":       req.Gender,
-		"avatar":       req.Avatar,
-		"role":         role,
+	coreVals := map[string]any{}
+	if strings.TrimSpace(req.Phone) != "" {
+		coreVals["phone"] = strings.TrimSpace(req.Phone)
 	}
 	operator := "system"
 	if current := models.CurrentUser(c); current != nil {
@@ -281,19 +276,43 @@ func (h *Handlers) handleAdminCreateUser(c *gin.Context) {
 			operator = "system"
 		}
 	}
-	updateVals["create_by"] = operator
-	updateVals["update_by"] = operator
+	coreVals["create_by"] = operator
+	coreVals["update_by"] = operator
+	if strings.TrimSpace(req.Locale) != "" {
+		coreVals["preferred_locale"] = strings.TrimSpace(req.Locale)
+	}
+	if strings.TrimSpace(req.Timezone) != "" {
+		coreVals["preferred_timezone"] = strings.TrimSpace(req.Timezone)
+	}
+	if err = h.db.Model(user).Updates(coreVals).Error; err != nil {
+		response.Fail(c, "create user failed", err)
+		return
+	}
+
+	profVals := map[string]any{
+		"display_name": req.DisplayName,
+		"first_name":   req.FirstName,
+		"last_name":    req.LastName,
+		"city":         req.City,
+		"region":       req.Region,
+		"gender":       req.Gender,
+		"avatar":       req.Avatar,
+	}
 	if req.EmailNotifications != nil {
-		updateVals["email_notifications"] = *req.EmailNotifications
+		profVals["email_notifications"] = *req.EmailNotifications
 	}
 	if req.PushNotifications != nil {
-		updateVals["push_notifications"] = *req.PushNotifications
+		profVals["push_notifications"] = *req.PushNotifications
 	}
-	if err = h.db.Model(user).Updates(updateVals).Error; err != nil {
+	if err = models.UpdateUserProfileFields(h.db, user.ID, profVals); err != nil {
 		response.Fail(c, "create user failed", err)
 		return
 	}
 	_ = h.db.First(user, user.ID).Error
+	if err = models.AssignUserSingleRoleBySlug(h.db, user.ID, roleSlug); err != nil {
+		response.Fail(c, "assign role failed", err)
+		return
+	}
 	response.Success(c, "user created", user)
 }
 
@@ -316,50 +335,54 @@ func (h *Handlers) handleAdminUpdateUser(c *gin.Context) {
 		return
 	}
 
-	updateVals := map[string]any{}
+	coreVals := map[string]any{}
+	profVals := map[string]any{}
+	roleChanged := false
+	var newRoleSlug string
 	if req.Email != "" {
-		updateVals["email"] = strings.TrimSpace(strings.ToLower(req.Email))
+		coreVals["email"] = strings.TrimSpace(strings.ToLower(req.Email))
 	}
 	if req.DisplayName != "" {
-		updateVals["display_name"] = req.DisplayName
+		profVals["display_name"] = req.DisplayName
 	}
 	if req.FirstName != "" {
-		updateVals["first_name"] = req.FirstName
+		profVals["first_name"] = req.FirstName
 	}
 	if req.LastName != "" {
-		updateVals["last_name"] = req.LastName
+		profVals["last_name"] = req.LastName
 	}
 	if req.Phone != "" {
-		updateVals["phone"] = req.Phone
+		coreVals["phone"] = strings.TrimSpace(req.Phone)
 	}
 	if req.Locale != "" {
-		updateVals["locale"] = req.Locale
+		coreVals["preferred_locale"] = strings.TrimSpace(req.Locale)
 	}
 	if req.Timezone != "" {
-		updateVals["timezone"] = req.Timezone
+		coreVals["preferred_timezone"] = strings.TrimSpace(req.Timezone)
 	}
 	if req.City != "" {
-		updateVals["city"] = req.City
+		profVals["city"] = req.City
 	}
 	if req.Region != "" {
-		updateVals["region"] = req.Region
+		profVals["region"] = req.Region
 	}
 	if req.Gender != "" {
-		updateVals["gender"] = req.Gender
+		profVals["gender"] = req.Gender
 	}
 	if req.Avatar != "" {
-		updateVals["avatar"] = req.Avatar
+		profVals["avatar"] = req.Avatar
 	}
 	if req.Role != "" {
-		role := normalizeUserRole(req.Role)
-		if role == "" {
+		rs := strings.TrimSpace(strings.ToLower(req.Role))
+		if !roleSlugExists(h.db, rs) {
 			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid role"))
 			return
 		}
-		updateVals["role"] = role
+		roleChanged = true
+		newRoleSlug = rs
 	}
 	if req.Password != "" {
-		updateVals["password"] = models.HashPassword(req.Password)
+		coreVals["password"] = models.HashPassword(req.Password)
 	}
 	if req.Status != nil {
 		raw := strings.TrimSpace(*req.Status)
@@ -371,16 +394,16 @@ func (h *Handlers) handleAdminUpdateUser(c *gin.Context) {
 			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid status"))
 			return
 		} else {
-			updateVals["status"] = st
+			coreVals["status"] = st
 		}
 	}
 	if req.EmailNotifications != nil {
-		updateVals["email_notifications"] = *req.EmailNotifications
+		profVals["email_notifications"] = *req.EmailNotifications
 	}
 	if req.PushNotifications != nil {
-		updateVals["push_notifications"] = *req.PushNotifications
+		profVals["push_notifications"] = *req.PushNotifications
 	}
-	if len(updateVals) == 0 {
+	if len(coreVals) == 0 && len(profVals) == 0 {
 		response.Success(c, "nothing changed", &user)
 		return
 	}
@@ -391,13 +414,27 @@ func (h *Handlers) handleAdminUpdateUser(c *gin.Context) {
 			operator = "system"
 		}
 	}
-	updateVals["update_by"] = operator
 
-	if err = h.db.Model(&user).Updates(updateVals).Error; err != nil {
-		response.Fail(c, "update user failed", err)
-		return
+	if len(coreVals) > 0 {
+		coreVals["update_by"] = operator
+		if err = h.db.Model(&user).Updates(coreVals).Error; err != nil {
+			response.Fail(c, "update user failed", err)
+			return
+		}
+	}
+	if len(profVals) > 0 {
+		if err = models.UpdateUserProfileFields(h.db, user.ID, profVals); err != nil {
+			response.Fail(c, "update user profile failed", err)
+			return
+		}
 	}
 	_ = h.db.First(&user, user.ID).Error
+	if roleChanged {
+		if err = models.AssignUserSingleRoleBySlug(h.db, user.ID, newRoleSlug); err != nil {
+			response.Fail(c, "assign role failed", err)
+			return
+		}
+	}
 	response.Success(c, "user updated", &user)
 }
 
@@ -1389,11 +1426,11 @@ func (h *Handlers) handleAdminDeleteOAuthClient(c *gin.Context) {
 	response.Success(c, "oauth client deleted", nil)
 }
 
-func (h *Handlers) handleAdminListAssistants(c *gin.Context) {
+func (h *Handlers) handleAdminListAgents(c *gin.Context) {
 	page, pageSize := h.parsePagination(c)
 	search := strings.TrimSpace(c.Query("search"))
 
-	query := h.db.Model(&models.Assistant{})
+	query := h.db.Model(&models.Agent{})
 	if search != "" {
 		like := "%" + search + "%"
 		query = query.Where("name LIKE ? OR description LIKE ? OR persona_tag LIKE ? OR llm_model LIKE ?", like, like, like, like)
@@ -1405,27 +1442,27 @@ func (h *Handlers) handleAdminListAssistants(c *gin.Context) {
 		return
 	}
 
-	var assistants []models.Assistant
+	var assistants []models.Agent
 	if err := query.Order("id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&assistants).Error; err != nil {
 		response.Fail(c, "list assistants failed", err)
 		return
 	}
 
-	response.Success(c, "assistants fetched", gin.H{
-		"assistants": assistants,
+	response.Success(c, "agents fetched", gin.H{
+		"agents": assistants,
 		"total":      total,
 		"page":       page,
 		"pageSize":   pageSize,
 	})
 }
 
-func (h *Handlers) handleAdminGetAssistant(c *gin.Context) {
+func (h *Handlers) handleAdminGetAgent(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil || id <= 0 {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid assistant id"))
 		return
 	}
-	var assistant models.Assistant
+	var assistant models.Agent
 	if err = h.db.First(&assistant, id).Error; err != nil {
 		response.Fail(c, "assistant not found", err)
 		return
@@ -1433,18 +1470,18 @@ func (h *Handlers) handleAdminGetAssistant(c *gin.Context) {
 	response.Success(c, "assistant fetched", assistant)
 }
 
-func (h *Handlers) handleAdminUpdateAssistant(c *gin.Context) {
+func (h *Handlers) handleAdminUpdateAgent(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil || id <= 0 {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid assistant id"))
 		return
 	}
-	var req adminAssistantUpdateReq
+	var req adminAgentUpdateReq
 	if err = c.ShouldBindJSON(&req); err != nil {
 		response.AbortWithJSONError(c, http.StatusBadRequest, err)
 		return
 	}
-	var assistant models.Assistant
+	var assistant models.Agent
 	if err = h.db.First(&assistant, id).Error; err != nil {
 		response.Fail(c, "assistant not found", err)
 		return
@@ -1493,13 +1530,13 @@ func (h *Handlers) handleAdminUpdateAssistant(c *gin.Context) {
 	response.Success(c, "assistant updated", assistant)
 }
 
-func (h *Handlers) handleAdminDeleteAssistant(c *gin.Context) {
+func (h *Handlers) handleAdminDeleteAgent(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil || id <= 0 {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid assistant id"))
 		return
 	}
-	if err = h.db.Delete(&models.Assistant{}, id).Error; err != nil {
+	if err = h.db.Delete(&models.Agent{}, id).Error; err != nil {
 		response.Fail(c, "delete assistant failed", err)
 		return
 	}
@@ -1748,18 +1785,6 @@ func (h *Handlers) handleAdminGetKnowledgeBase(c *gin.Context) {
 
 func (h *Handlers) handleAdminDeleteKnowledgeBase(c *gin.Context) {
 	h.handleAdminDeleteGenericTableItem(c, "knowledge_bases")
-}
-
-func (h *Handlers) handleAdminListAlerts(c *gin.Context) {
-	h.handleAdminListGenericTable(c, "alerts", "title", "message", "alert_type", "status", "severity")
-}
-
-func (h *Handlers) handleAdminGetAlert(c *gin.Context) {
-	h.handleAdminGetGenericTableItem(c, "alerts")
-}
-
-func (h *Handlers) handleAdminDeleteAlert(c *gin.Context) {
-	h.handleAdminDeleteGenericTableItem(c, "alerts")
 }
 
 func (h *Handlers) handleAdminListInternalNotifications(c *gin.Context) {

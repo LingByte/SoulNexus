@@ -29,7 +29,7 @@ const GroupActivityLogs: React.FC = () => {
       setGroup(res.data);
     } catch (err: any) {
       showAlert(err?.msg || 'Failed to fetch group', 'error');
-      navigate('/groups');
+      navigate('/profile/teams');
     }
   };
 

@@ -7,7 +7,7 @@ export interface UsageRecord {
   id: number
   userId: number
   credentialId: number
-  assistantId?: number
+  agentId?: number
   sessionId?: string
   callLogId?: number
   usageType: UsageType
@@ -137,7 +137,7 @@ export const getUsageRecords = async (params?: {
   page?: number
   size?: number
   credentialId?: number
-  assistantId?: number
+  agentId?: number
   groupId?: number
   usageType?: UsageType
   startTime?: string
@@ -153,7 +153,7 @@ export const getUsageRecords = async (params?: {
   if (params?.page) queryParams.append('page', params.page.toString())
   if (params?.size) queryParams.append('size', params.size.toString())
   if (params?.credentialId) queryParams.append('credentialId', params.credentialId.toString())
-  if (params?.assistantId) queryParams.append('assistantId', params.assistantId.toString())
+  if (params?.agentId) queryParams.append('agentId', params.agentId.toString())
   if (params?.groupId) queryParams.append('groupId', params.groupId.toString())
   if (params?.usageType) queryParams.append('usageType', params.usageType)
   if (params?.startTime) queryParams.append('startTime', params.startTime)
@@ -166,7 +166,7 @@ export const getUsageRecords = async (params?: {
 // 导出使用量记录
 export const exportUsageRecords = async (params?: {
   credentialId?: number
-  assistantId?: number
+  agentId?: number
   usageType?: UsageType
   startTime?: string
   endTime?: string
@@ -174,7 +174,7 @@ export const exportUsageRecords = async (params?: {
 }): Promise<void> => {
   const queryParams = new URLSearchParams()
   if (params?.credentialId) queryParams.append('credentialId', params.credentialId.toString())
-  if (params?.assistantId) queryParams.append('assistantId', params.assistantId.toString())
+  if (params?.agentId) queryParams.append('agentId', params.agentId.toString())
   if (params?.usageType) queryParams.append('usageType', params.usageType)
   if (params?.startTime) queryParams.append('startTime', params.startTime)
   if (params?.endTime) queryParams.append('endTime', params.endTime)

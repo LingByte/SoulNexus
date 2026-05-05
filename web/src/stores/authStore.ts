@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { registerUser, getUserInfo, logoutUser, type User, type RegisterUserForm } from '../api/auth'
+import { mergeUserPartial } from '@/utils/authUserProfile'
+import { applyAuthUserUIPreferences } from '@/utils/userUiPreferences'
 import { buildSSOLogoutURL } from '@/utils/sso'
 
 interface AuthState {
@@ -49,6 +51,7 @@ export const useAuthStore = create<AuthState>()(
             set({
               user: userResponse.data
             })
+            applyAuthUserUIPreferences(userResponse.data as unknown as Record<string, unknown>)
             return true
           } else {
             throw new Error(userResponse.msg || '获取用户信息失败')
@@ -116,6 +119,7 @@ export const useAuthStore = create<AuthState>()(
           const response = await getUserInfo()
           if (response.code === 200) {
             set({ user: response.data, isAuthenticated: true, token })
+            applyAuthUserUIPreferences(response.data as unknown as Record<string, unknown>)
           } else {
             throw new Error(response.msg || '获取用户信息失败')
           }
@@ -131,7 +135,7 @@ export const useAuthStore = create<AuthState>()(
       updateProfile: (data: Partial<User>) => {
         const { user } = get()
         if (user) {
-          set({ user: { ...user, ...data } })
+          set({ user: mergeUserPartial(user as unknown as Record<string, unknown>, data as Partial<Record<string, unknown>>) as User })
         }
       },
 

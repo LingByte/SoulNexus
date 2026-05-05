@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/LingByte/SoulNexus/internal/config"
+	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"go.uber.org/zap"
@@ -52,19 +53,16 @@ func SetupDatabase(logWriter io.Writer, opts *Options) (*gorm.DB, error) {
 		}
 	}
 
-	// 3) Migrate entities
+	// 3) Migrate entities (GORM AutoMigrate only; domain-specific SQL/helpers belong elsewhere)
 	if opts.AutoMigrate {
-		// 首先执行迁移 SQL 脚本
-		migrationsDir := "cmd/bootstrap/migrations"
-		if err := runMigrationScripts(db, migrationsDir); err != nil {
-			logger.Warn("run migration scripts failed", zap.String("dir", migrationsDir), zap.Error(err))
-		}
-
 		if opts.MigrateModels == nil {
 			logger.Warn("AutoMigrate enabled but MigrateModels callback is nil; skipping GORM AutoMigrate")
 		} else if err := RunMigrations(db, opts.MigrateModels()); err != nil {
 			logger.Error("migration failed", zap.Error(err))
 			return nil, err
+		}
+		if err := models.MigrateGroupTenancyResources(db); err != nil {
+			logger.Warn("group tenancy data migrate", zap.Error(err))
 		}
 		logger.Info("migration success",
 			zap.String("database", config.GlobalConfig.Database.Driver),
@@ -136,37 +134,6 @@ func RunInitSQL(db *gorm.DB, sqlFilePath string) error {
 		}
 	}
 	return scanner.Err()
-}
-
-// runMigrationScripts executes all .sql files in the migrations directory
-func runMigrationScripts(db *gorm.DB, migrationsDir string) error {
-	entries, err := os.ReadDir(migrationsDir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			// 迁移目录不存在，跳过
-			return nil
-		}
-		return err
-	}
-
-	// 按文件名排序执行迁移脚本
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		if !strings.HasSuffix(entry.Name(), ".sql") {
-			continue
-		}
-
-		filePath := migrationsDir + "/" + entry.Name()
-		logger.Info("executing migration script", zap.String("file", filePath))
-		if err := RunInitSQL(db, filePath); err != nil {
-			logger.Error("migration script failed", zap.String("file", filePath), zap.Error(err))
-			return err
-		}
-	}
-
-	return nil
 }
 
 // RunMigrations executes GORM AutoMigrate for the given entities.

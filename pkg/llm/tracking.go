@@ -253,7 +253,7 @@ func CreateSession(sessionID, userID string, assistantID int64, title, provider,
 	startData := SessionCreatedData{
 		SessionID:    sessionID,
 		UserID:       userID,
-		AssistantID:  assistantID,
+		AgentID:  assistantID,
 		Title:        title,
 		Provider:     provider,
 		Model:        model,

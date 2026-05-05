@@ -1,12 +1,11 @@
 import { useState, useRef } from 'react'
-// TODO: 实现语音助手相关的API调用
-// import { oneShotText } from '@/api/assistant'
+import { post } from '@/utils/request'
 import { showAlert } from '@/utils/notification'
 
 interface UseVoiceAssistantOptions {
   apiKey: string
   apiSecret: string
-  assistantId: number
+  agentId: number
   language: string
   systemPrompt: string
   selectedVoiceCloneId: number | null
@@ -24,7 +23,7 @@ export const useVoiceAssistant = (options: UseVoiceAssistantOptions) => {
   const {
     apiKey,
     apiSecret,
-    assistantId,
+    agentId,
     language,
     systemPrompt,
     selectedVoiceCloneId,
@@ -97,7 +96,7 @@ export const useVoiceAssistant = (options: UseVoiceAssistantOptions) => {
         apiKey: apiKey,
         apiSecret: apiSecret,
         text: text,
-        assistantId: assistantId || 1,
+        agentId: agentId || 1,
         language,
         sessionId: sessionId || `text_${Date.now()}`,
         systemPrompt,
@@ -105,7 +104,7 @@ export const useVoiceAssistant = (options: UseVoiceAssistantOptions) => {
         ...(selectedVoiceCloneId ? { voiceCloneId: selectedVoiceCloneId } : { speaker: selectedSpeaker }),
       }
 
-      const response = await oneShotText(requestData)
+      const response = await post('/voice/oneshot_text', requestData)
       console.log('OneShotText响应:', response)
 
       // 移除loading消息

@@ -117,9 +117,9 @@ func (c *Client) RegisterVoiceprint(ctx context.Context, req *RegisterRequest) (
 		return nil, ErrAPIRequest(fmt.Sprintf("write speaker_id failed: %v", err))
 	}
 
-	// 添加 assistant_id 字段
-	if err := writer.WriteField("assistant_id", req.AssistantID); err != nil {
-		return nil, ErrAPIRequest(fmt.Sprintf("write assistant_id failed: %v", err))
+	// 添加 agent_id 字段
+	if err := writer.WriteField("agent_id", req.AgentID); err != nil {
+		return nil, ErrAPIRequest(fmt.Sprintf("write agent_id failed: %v", err))
 	}
 
 	// 添加音频文件
@@ -168,7 +168,7 @@ func (c *Client) RegisterVoiceprint(ctx context.Context, req *RegisterRequest) (
 	if c.config.LogEnabled {
 		c.logger.Info("Voiceprint registered successfully",
 			zap.String("speaker_id", req.SpeakerID),
-			zap.String("assistant_id", req.AssistantID),
+			zap.String("agent_id", req.AgentID),
 			zap.Bool("success", result.Success),
 			zap.Duration("duration", time.Since(startTime)))
 	}
@@ -197,8 +197,8 @@ func (c *Client) IdentifyVoiceprint(ctx context.Context, req *IdentifyRequest) (
 	}
 
 	// 添加助手ID
-	if err := writer.WriteField("assistant_id", req.AssistantID); err != nil {
-		return nil, ErrAPIRequest(fmt.Sprintf("write assistant_id failed: %v", err))
+	if err := writer.WriteField("agent_id", req.AgentID); err != nil {
+		return nil, ErrAPIRequest(fmt.Sprintf("write agent_id failed: %v", err))
 	}
 
 	// 添加音频文件
@@ -247,7 +247,7 @@ func (c *Client) IdentifyVoiceprint(ctx context.Context, req *IdentifyRequest) (
 	if c.config.LogEnabled {
 		c.logger.Info("Voiceprint identified",
 			zap.String("speaker_id", result.SpeakerID),
-			zap.String("assistant_id", req.AssistantID),
+			zap.String("agent_id", req.AgentID),
 			zap.Float64("score", result.Score),
 			zap.String("confidence", result.Confidence),
 			zap.Int("candidates", len(req.CandidateIDs)),
@@ -274,7 +274,7 @@ func (c *Client) DeleteVoiceprint(ctx context.Context, speakerID string, assista
 	if len(assistantID) > 0 && assistantID[0] != "" {
 		var buf bytes.Buffer
 		writer := multipart.NewWriter(&buf)
-		writer.WriteField("assistant_id", assistantID[0])
+		writer.WriteField("agent_id", assistantID[0])
 		writer.Close()
 		reqBody = &buf
 	}
@@ -327,8 +327,8 @@ func (c *Client) validateRegisterRequest(req *RegisterRequest) error {
 		return ErrInvalidConfig("speaker_id is required")
 	}
 
-	if req.AssistantID == "" {
-		return ErrInvalidConfig("assistant_id is required")
+	if req.AgentID == "" {
+		return ErrInvalidConfig("agent_id is required")
 	}
 
 	if len(req.AudioData) == 0 {
@@ -349,8 +349,8 @@ func (c *Client) validateIdentifyRequest(req *IdentifyRequest) error {
 		return ErrInvalidConfig("candidate_ids is required")
 	}
 
-	if req.AssistantID == "" {
-		return ErrInvalidConfig("assistant_id is required")
+	if req.AgentID == "" {
+		return ErrInvalidConfig("agent_id is required")
 	}
 
 	if len(req.CandidateIDs) > c.config.MaxCandidates {

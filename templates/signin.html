@@ -439,6 +439,12 @@
       color: var(--text);
       margin: 0 0 16px 0;
     }
+    .modal-desc {
+      margin: -8px 0 14px 0;
+      font-size: 14px;
+      line-height: 1.55;
+      color: var(--muted);
+    }
     .verify-box {
       border: 1px solid var(--border);
       border-radius: 12px;
@@ -641,6 +647,23 @@
     </div>
   </div>
 
+  <div id="email-login-limit-modal" class="modal-overlay">
+    <div class="modal">
+      <h3 class="modal-title">需要邮箱验证码</h3>
+      <p id="email-login-limit-desc" class="modal-desc"></p>
+      <div class="field" style="margin-bottom: 10px;">
+        <label for="login-limit-email-code">邮箱验证码</label>
+        <input id="login-limit-email-code" class="input" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="请输入邮箱中的验证码" />
+      </div>
+      <div id="email-login-limit-message" class="message"></div>
+      <div class="actions">
+        <button id="send-login-limit-email-code" class="btn secondary" type="button">发送验证码</button>
+        <button id="close-email-login-limit-modal" class="btn secondary" type="button">关闭</button>
+        <button id="confirm-email-login-limit" class="btn primary" type="button">验证并登录</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     (function () {
       const state = { mode: 'password', captchaId: '', captchaType: 'image', captchaCount: 0, captchaWords: [], captchaPoints: [], pendingDeviceId: '', wechatSessionId: '', wechatPolling: null };
@@ -705,6 +728,22 @@
       };
       const closeDeviceVerifyModal = () => {
         $('device-verify-modal').classList.remove('active');
+      };
+      const localizeEmailLimitHint = (msg) => {
+        if (!msg || typeof msg !== 'string') return '密码登录次数已达上限，请使用邮箱验证码完成登录。';
+        const m = msg.trim();
+        if (m.indexOf('Password login limit') !== -1) return '密码登录次数已达上限，请使用邮箱验证码完成登录。';
+        return m;
+      };
+      const openEmailLoginLimitModal = (hintMessage) => {
+        $('login-limit-email-code').value = '';
+        setMessage('email-login-limit-message', '', '');
+        const desc = $('email-login-limit-desc');
+        if (desc) desc.textContent = localizeEmailLimitHint(hintMessage);
+        $('email-login-limit-modal').classList.add('active');
+      };
+      const closeEmailLoginLimitModal = () => {
+        $('email-login-limit-modal').classList.remove('active');
       };
       const setMode = (mode) => {
         state.mode = mode;
@@ -869,6 +908,7 @@
       });
 
       let emailCodeCooldown = false;
+      let emailLimitModalCooldown = false;
       $('send-email-code').addEventListener('click', async () => {
         if (emailCodeCooldown) return;
         const email = $('email').value.trim();
@@ -897,6 +937,64 @@
           setMessage('login-message', err.message || '发送邮箱验证码失败', 'error');
         } finally {
           setBtnLoading('send-email-code', false, '发送验证码', '发送中...');
+        }
+      });
+
+      $('send-login-limit-email-code').addEventListener('click', async () => {
+        if (emailLimitModalCooldown) return;
+        const email = $('email').value.trim();
+        if (!email) {
+          setMessage('email-login-limit-message', '请先在登录表单中填写邮箱地址', 'error');
+          return;
+        }
+        setBtnLoading('send-login-limit-email-code', true, '发送验证码', '发送中...');
+        try {
+          const { resp, data } = await apiRequest('/api/auth/send/email', { email: email });
+          if (!resp.ok || data.code !== 200) throw new Error(data.msg || '发送邮箱验证码失败');
+          setMessage('email-login-limit-message', '验证码已发送，请查收邮箱', 'success');
+          emailLimitModalCooldown = true;
+          let remaining = 180;
+          const btn = $('send-login-limit-email-code');
+          const interval = setInterval(() => {
+            btn.textContent = remaining + '秒后重发';
+            remaining--;
+            if (remaining < 0) {
+              clearInterval(interval);
+              emailLimitModalCooldown = false;
+              btn.textContent = '发送验证码';
+            }
+          }, 1000);
+        } catch (err) {
+          setMessage('email-login-limit-message', err.message || '发送邮箱验证码失败', 'error');
+        } finally {
+          setBtnLoading('send-login-limit-email-code', false, '发送验证码', '发送中...');
+        }
+      });
+
+      $('close-email-login-limit-modal').addEventListener('click', () => {
+        closeEmailLoginLimitModal();
+      });
+
+      $('confirm-email-login-limit').addEventListener('click', async () => {
+        const code = $('login-limit-email-code').value.trim();
+        if (!code) {
+          setMessage('email-login-limit-message', '请输入邮箱验证码', 'error');
+          return;
+        }
+        $('email-code').value = code;
+        $('twofactor-code').value = '';
+        $('twofactor-field').classList.add('hidden');
+        setMode('email');
+        closeEmailLoginLimitModal();
+        setMessage('login-message', '请完成图形验证码后使用邮箱验证码登录', 'info');
+        await loadCaptcha();
+        $('modal-captcha-code').value = '';
+        $('captcha-modal').classList.add('active');
+      });
+
+      $('email-login-limit-modal').addEventListener('click', (event) => {
+        if (event.target === $('email-login-limit-modal')) {
+          closeEmailLoginLimitModal();
         }
       });
 
@@ -1034,6 +1132,15 @@
             setTimeout(() => { $('send-device-code').click(); }, 0);
             setMessage('login-message', result.message || '当前设备需要验证后才能登录', 'info');
             setBtnLoading('login-submit', false, '登录', '登录中...');
+            return;
+          }
+
+          if (result.requiresEmailVerification) {
+            const hint = (result.message || data.msg || '').trim();
+            openEmailLoginLimitModal(hint);
+            setMessage('login-message', localizeEmailLimitHint(hint), 'info');
+            setBtnLoading('login-submit', false, '登录', '登录中...');
+            setTimeout(() => { $('send-login-limit-email-code').click(); }, 0);
             return;
           }
 

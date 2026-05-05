@@ -404,7 +404,7 @@ class FunctionToolsService {
       version: '1.0.0',
       description: '基于React的现代化Web应用框架',
       features: [
-        'AI智能助手',
+        'AI智能体',
         '组件库',
         '缓存系统',
         'PWA支持',

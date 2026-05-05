@@ -36,7 +36,7 @@ func (h *Handlers) HandleWebSocketVoice(c *gin.Context) {
 	// 获取参数
 	apiKey := c.Query("apiKey")
 	apiSecret := c.Query("apiSecret")
-	assistantIDStr := c.Query("assistantId")
+	assistantIDStr := c.Query("agentId")
 	language := c.Query("language")
 	if language == "" {
 		language = "zh-cn"
@@ -70,7 +70,7 @@ func (h *Handlers) HandleWebSocketVoice(c *gin.Context) {
 	}
 
 	// 获取助手配置
-	var assistant models.Assistant
+	var assistant models.Agent
 	if err := h.db.Where("id = ?", assistantID).First(&assistant).Error; err != nil {
 		response.Fail(c, "获取助手配置失败: "+err.Error(), nil)
 		return
@@ -100,7 +100,7 @@ func (h *Handlers) HandleWebSocketVoice(c *gin.Context) {
 		if store := graph.GetDefaultStore(); store != nil {
 			// 通过凭证反查用户
 			var user models.User
-			if err := h.db.First(&user, cred.UserID).Error; err == nil {
+			if err := h.db.First(&user, cred.CreatedBy).Error; err == nil {
 				ctx := c.Request.Context()
 				if userCtx, err := store.GetUserContext(ctx, user.ID, int64(assistantID)); err == nil {
 					if len(userCtx.Topics) > 0 {
@@ -120,13 +120,13 @@ func (h *Handlers) HandleWebSocketVoice(c *gin.Context) {
 	handler := voice.NewHardwareHandler(h.db, logger.Lg)
 	handler.HandlerHardwareWebsocket(c.Request.Context(), &voice.HardwareOptions{
 		Conn:                 conn,
-		AssistantID:          uint(assistantID),
+		AgentID:          uint(assistantID),
 		Language:             language,
 		Speaker:              speaker,
 		Temperature:          float64(temperature),
 		SystemPrompt:         systemPrompt,
 		KnowledgeKey:         "",
-		UserID:               cred.UserID,
+		UserID:               cred.CreatedBy,
 		MacAddress:           "",
 		LLMModel:             assistant.LLMModel,
 		Credential:           cred,
@@ -182,7 +182,7 @@ func (h *Handlers) HandleHardwareWebSocketVoice(c *gin.Context) {
 	}
 
 	// 检查设备是否绑定了助手
-	if device.AssistantID == nil {
+	if device.AgentID == nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"code": 500,
 			"msg":  "设备未绑定助手",
@@ -192,10 +192,10 @@ func (h *Handlers) HandleHardwareWebSocketVoice(c *gin.Context) {
 		return
 	}
 
-	assistantID := *device.AssistantID
+	assistantID := *device.AgentID
 
 	// 获取助手配置
-	var assistant models.Assistant
+	var assistant models.Agent
 	if err := h.db.Where("id = ?", assistantID).First(&assistant).Error; err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"code": 500,
@@ -288,14 +288,14 @@ func (h *Handlers) HandleHardwareWebSocketVoice(c *gin.Context) {
 
 	handler.HandlerHardwareWebsocket(ctx, &voice.HardwareOptions{
 		Conn:                 conn,
-		AssistantID:          assistantID,
+		AgentID:          assistantID,
 		DeviceID:             &device.ID,
 		Language:             language,
 		Speaker:              speaker,
 		Temperature:          float64(temperature),
 		SystemPrompt:         systemPrompt,
 		KnowledgeKey:         "",
-		UserID:               device.UserID,
+		UserID:               device.CreatedBy,
 		MacAddress:           device.MacAddress,
 		LLMModel:             llmModel,
 		Credential:           cred,

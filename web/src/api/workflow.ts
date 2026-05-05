@@ -64,9 +64,9 @@ export interface WorkflowTriggerConfig {
     secret?: string
     method?: string
   }
-  assistant?: {
+  agent?: {
     enabled: boolean
-    assistantIds?: number[]
+    agentIds?: number[]
     intents?: string[]
     description?: string
   }

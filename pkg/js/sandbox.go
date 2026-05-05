@@ -26,7 +26,7 @@ var DefaultWhitelist = ASTWhitelist{
 	AllowedGlobals: []string{
 		"window", "document", "console", "JSON", "Math", "Date", "Array", "Object", "String", "Number",
 		"Boolean", "Promise", "setTimeout", "setInterval", "clearTimeout", "clearInterval",
-		"LingEchoSDK", "lingEcho", "SERVER_BASE", "ASSISTANT_NAME", "AssistantID",
+		"LingEchoSDK", "lingEcho", "SERVER_BASE", "ASSISTANT_NAME", "AgentID",
 	},
 	AllowedAPIs: []string{
 		"lingEcho.connectVoice", "lingEcho.sendMessage", "lingEcho.disconnect",

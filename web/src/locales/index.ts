@@ -6,12 +6,10 @@ import { voice } from './modules/voice'
 import { workflow } from './modules/workflow'
 import { billing } from './modules/billing'
 import { groups } from './modules/groups'
-import { alerts } from './modules/alerts'
 import { notification } from './modules/notification'
 import { credential } from './modules/credential'
 import { device } from './modules/device'
 import { jsTemplate } from './modules/jsTemplate'
-import { quota } from './modules/quota'
 import { resetPassword } from './modules/resetPassword'
 import { animation } from './modules/animation'
 import { zhTWOverrides } from './overrides/zhTW'
@@ -54,12 +52,10 @@ export const translations = mergeTranslations(
   workflow,
   billing,
   groups,
-  alerts,
   notification,
   credential,
   device,
   jsTemplate,
-  quota,
   resetPassword,
   animation
 )

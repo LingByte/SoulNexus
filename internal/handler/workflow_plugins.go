@@ -58,14 +58,22 @@ func (h *WorkflowPluginHandler) PublishWorkflowAsPlugin(c *gin.Context) {
 		return
 	}
 
-	// 检查工作流是否存在且属于当前用户
+	groupIDs, gerr := models.MemberGroupIDs(h.db, userID)
+	if gerr != nil {
+		response.Fail(c, "查询失败: "+gerr.Error(), nil)
+		return
+	}
 	var workflow models.WorkflowDefinition
-	if err := h.db.Where("id = ? AND user_id = ?", workflowID, userID).First(&workflow).Error; err != nil {
+	if err := h.db.Where("id = ? AND group_id IN ?", workflowID, groupIDs).First(&workflow).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			response.Fail(c, "工作流不存在或无权限", nil)
 		} else {
 			response.Fail(c, "查询工作流失败: "+err.Error(), nil)
 		}
+		return
+	}
+	if !models.CanManageTenantResource(h.db, userID, workflow.GroupID, workflow.CreatorUID) {
+		response.Fail(c, "工作流不存在或无权限", nil)
 		return
 	}
 
@@ -80,7 +88,7 @@ func (h *WorkflowPluginHandler) PublishWorkflowAsPlugin(c *gin.Context) {
 	}
 
 	plugin := models.WorkflowPlugin{
-		UserID:           userID,
+		CreatedBy:        userID,
 		GroupID:          workflow.GroupID,
 		WorkflowID:       uint(workflowID),
 		Name:             req.Name,
@@ -160,7 +168,7 @@ func (h *WorkflowPluginHandler) ListWorkflowPlugins(c *gin.Context) {
 	}
 	// 注意：当没有指定status时，显示所有状态的插件
 	if req.UserID != 0 {
-		query = query.Where("user_id = ?", req.UserID)
+		query = query.Where("created_by = ?", req.UserID)
 	}
 	if req.Keyword != "" {
 		query = query.Where("name LIKE ? OR display_name LIKE ? OR description LIKE ?",
@@ -238,8 +246,7 @@ func (h *WorkflowPluginHandler) UpdateWorkflowPlugin(c *gin.Context) {
 		return
 	}
 
-	// 检查权限
-	if plugin.UserID != userID {
+	if !models.CanManageTenantResource(h.db, userID, plugin.GroupID, plugin.CreatedBy) {
 		response.Fail(c, "无权限操作", nil)
 		return
 	}
@@ -353,8 +360,7 @@ func (h *WorkflowPluginHandler) PublishWorkflowPlugin(c *gin.Context) {
 		return
 	}
 
-	// 检查权限
-	if plugin.UserID != userID {
+	if !models.CanManageTenantResource(h.db, userID, plugin.GroupID, plugin.CreatedBy) {
 		response.Fail(c, "无权限操作", nil)
 		return
 	}
@@ -383,12 +389,19 @@ func (h *WorkflowPluginHandler) InstallWorkflowPlugin(c *gin.Context) {
 	}
 
 	var req struct {
+		GroupID *uint                  `json:"groupId"`
 		Version string                 `json:"version"`
 		Config  map[string]interface{} `json:"config"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Fail(c, "参数错误: "+err.Error(), nil)
+		return
+	}
+
+	targetGID, err := models.ResolveWriteGroupID(h.db, userID, req.GroupID)
+	if err != nil {
+		response.Fail(c, err.Error(), nil)
 		return
 	}
 
@@ -405,7 +418,7 @@ func (h *WorkflowPluginHandler) InstallWorkflowPlugin(c *gin.Context) {
 
 	// 检查是否已安装
 	var existing models.WorkflowPluginInstallation
-	if err := h.db.Where("user_id = ? AND plugin_id = ?", userID, pluginID).
+	if err := h.db.Where("group_id = ? AND plugin_id = ?", targetGID, pluginID).
 		First(&existing).Error; err == nil {
 		response.Fail(c, "插件已安装", nil)
 		return
@@ -419,11 +432,12 @@ func (h *WorkflowPluginHandler) InstallWorkflowPlugin(c *gin.Context) {
 
 	// 创建安装记录
 	installation := models.WorkflowPluginInstallation{
-		UserID:   userID,
-		PluginID: uint(pluginID),
-		Version:  version,
-		Status:   "active",
-		Config:   models.JSONMap(req.Config),
+		GroupID:   targetGID,
+		CreatedBy: userID,
+		PluginID:  uint(pluginID),
+		Version:   version,
+		Status:    "active",
+		Config:    models.JSONMap(req.Config),
 	}
 
 	if err := h.db.Create(&installation).Error; err != nil {
@@ -445,8 +459,13 @@ func (h *WorkflowPluginHandler) ListInstalledWorkflowPlugins(c *gin.Context) {
 		return
 	}
 
+	groupIDs, gerr := models.MemberGroupIDs(h.db, userID)
+	if gerr != nil {
+		response.Fail(c, "查询失败: "+gerr.Error(), nil)
+		return
+	}
 	var installations []models.WorkflowPluginInstallation
-	if err := h.db.Preload("Plugin").Where("user_id = ? AND status = ?", userID, "active").
+	if err := h.db.Preload("Plugin").Where("group_id IN ? AND status = ?", groupIDs, "active").
 		Find(&installations).Error; err != nil {
 		response.Fail(c, "查询失败: "+err.Error(), nil)
 		return
@@ -479,8 +498,7 @@ func (h *WorkflowPluginHandler) DeleteWorkflowPlugin(c *gin.Context) {
 		return
 	}
 
-	// 检查权限
-	if plugin.UserID != userID {
+	if !models.CanManageTenantResource(h.db, userID, plugin.GroupID, plugin.CreatedBy) {
 		response.Fail(c, "无权限操作", nil)
 		return
 	}
@@ -539,7 +557,7 @@ func (h *WorkflowPluginHandler) GetUserWorkflowPlugins(c *gin.Context) {
 	}
 
 	var plugins []models.WorkflowPlugin
-	if err := h.db.Where("user_id = ?", userID).
+	if err := h.db.Where("created_by = ?", userID).
 		Order("created_at DESC").
 		Find(&plugins).Error; err != nil {
 		response.Fail(c, "查询失败: "+err.Error(), nil)
@@ -563,8 +581,22 @@ func (h *WorkflowPluginHandler) GetWorkflowPublishedPlugin(c *gin.Context) {
 		return
 	}
 
+	var wf models.WorkflowDefinition
+	if err := h.db.First(&wf, workflowID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			response.Fail(c, "工作流不存在", nil)
+		} else {
+			response.Fail(c, "查询失败: "+err.Error(), nil)
+		}
+		return
+	}
+	if !models.UserIsGroupMember(h.db, userID, wf.GroupID) {
+		response.Fail(c, "无权限", nil)
+		return
+	}
+
 	var plugin models.WorkflowPlugin
-	if err := h.db.Where("workflow_id = ? AND user_id = ?", workflowID, userID).
+	if err := h.db.Where("workflow_id = ? AND group_id = ?", workflowID, wf.GroupID).
 		First(&plugin).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			// 工作流未发布过插件
