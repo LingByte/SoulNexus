@@ -1,0 +1,98 @@
+// Sync profile JSON shape from backend (`user.profile`) with legacy flat fields used across the UI.
+
+/** Map legacy locale strings to `Language` keys used by i18n store. */
+export function normalizeLegacyLocale(lc: string): string {
+  const s = (lc || '').trim()
+  const map: Record<string, string> = {
+    'zh-CN': 'zh',
+    zh_CN: 'zh',
+    'en-US': 'en',
+    en_US: 'en',
+    'ja-JP': 'ja',
+    ja_JP: 'ja',
+  }
+  return map[s] || s
+}
+
+export const AUTH_USER_PROFILE_FIELD_KEYS = [
+  'phone',
+  'firstName',
+  'lastName',
+  'displayName',
+  'locale',
+  'timezone',
+  'avatar',
+  'gender',
+  'city',
+  'region',
+  'extra',
+  'emailNotifications',
+  'pushNotifications',
+  'profileComplete',
+  'wifiName',
+  'wifiPassword',
+  'fatherCallName',
+  'motherCallName',
+] as const
+
+/** Copy fields from `user.profile` onto the root object so components can keep using `user.displayName`, etc. */
+export function normalizeAuthUser<T extends Record<string, unknown>>(raw: T | null | undefined): T | null | undefined {
+  if (raw == null || typeof raw !== 'object') return raw
+  const p = raw.profile
+  if (p == null || typeof p !== 'object') return raw
+  const prof = p as Record<string, unknown>
+  const out = { ...raw } as Record<string, unknown>
+  for (const k of AUTH_USER_PROFILE_FIELD_KEYS) {
+    if (prof[k] !== undefined) out[k] = prof[k]
+  }
+  const root = raw as Record<string, unknown>
+  const pl = typeof root.preferredLocale === 'string' ? root.preferredLocale.trim() : ''
+  const pz = typeof root.preferredTimezone === 'string' ? root.preferredTimezone.trim() : ''
+  if (pl) {
+    out.locale = normalizeLegacyLocale(pl)
+  } else if (typeof out.locale === 'string') {
+    out.locale = normalizeLegacyLocale(out.locale as string)
+  }
+  if (pz) {
+    out.timezone = pz
+  }
+  return out as T
+}
+
+/** Deep walk: normalize any object that looks like an auth user (`email` + `profile`). */
+export function normalizeNestedProfileUsers<T>(data: T): T {
+  const walk = (v: unknown): unknown => {
+    if (v == null || typeof v !== 'object') return v
+    if (Array.isArray(v)) return v.map(walk)
+    const o = v as Record<string, unknown>
+    const base =
+      typeof o.email === 'string' && o.profile != null && typeof o.profile === 'object'
+        ? (normalizeAuthUser(o as Record<string, unknown>) as Record<string, unknown>)
+        : o
+    const out: Record<string, unknown> = { ...base }
+    for (const key of Object.keys(out)) {
+      out[key] = walk(out[key])
+    }
+    return out
+  }
+  return walk(data) as T
+}
+
+/** Apply partial updates to both root and nested `profile` when present. */
+export function mergeUserPartial<T extends Record<string, unknown>>(user: T, patch: Partial<T>): T {
+  const next = { ...user, ...patch } as T & Record<string, unknown>
+  const prof = next.profile
+  if (prof != null && typeof prof === 'object') {
+    const p = { ...(prof as Record<string, unknown>) }
+    let changed = false
+    for (const k of AUTH_USER_PROFILE_FIELD_KEYS) {
+      const v = (patch as Record<string, unknown>)[k]
+      if (v !== undefined) {
+        p[k] = v
+        changed = true
+      }
+    }
+    if (changed) next.profile = p as typeof prof
+  }
+  return next as T
+}

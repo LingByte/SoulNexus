@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { 
   Key, Plus, Trash2, Download, 
   Settings, CheckCircle,
@@ -12,7 +12,6 @@ import AutocompleteInput from '../components/UI/AutocompleteInput'
 import Card from '../components/UI/Card'
 import Badge from '../components/UI/Badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/UI/Tabs'
-import FadeIn from '../components/Animations/FadeIn'
 import ConfirmDialog from '../components/UI/ConfirmDialog'
 import { showAlert } from '../utils/notification'
 import {
@@ -99,6 +98,17 @@ const CredentialManager = () => {
     credentialName: '',
     isDeleting: false
   })
+
+  const credentialStats = useMemo(
+    () => ({
+      total: credentials.length,
+      llm: credentials.filter((c) => c.llmProvider).length,
+      asr: credentials.filter((c) => c.asrProvider).length,
+      tts: credentials.filter((c) => c.ttsProvider).length,
+    }),
+    [credentials]
+  )
+
   // 页面加载时获取密钥列表
   useEffect(() => {
     if (!isAuthenticated) {
@@ -349,90 +359,72 @@ const CredentialManager = () => {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* 头部操作栏 */}
-        <FadeIn direction="down">
-          <div className="mb-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-4">
-                <Key className="w-3 h-3 mr-1" />
-                <Badge variant="primary" className="text-xs">
-                  {t('credential.title')}
-                </Badge>
-                <div className="text-sm text-gray-500 dark:text-gray-400">
-                  {t('credential.totalCount', { count: credentials.length })}
-                </div>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Button
-                  variant="primary"
-                  size="sm"
-                  leftIcon={<Plus className="w-4 h-4" />}
-                  onClick={() => setActiveTab('create')}
-                >
-                  {t('credential.create')}
-                </Button>
+        <div className="mb-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <Key className="w-3 h-3 mr-1" />
+              <Badge variant="primary" className="text-xs">
+                {t('credential.title')}
+              </Badge>
+              <div className="text-sm text-gray-500 dark:text-gray-400">
+                {t('credential.totalCount', { count: credentials.length })}
               </div>
             </div>
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="primary"
+                size="sm"
+                leftIcon={<Plus className="w-4 h-4" />}
+                onClick={() => setActiveTab('create')}
+              >
+                {t('credential.create')}
+              </Button>
+            </div>
           </div>
-        </FadeIn>
+        </div>
 
-        {/* 主要内容区域 */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* 左侧：密钥统计卡片 */}
-          <div className="lg:col-span-1">
-            <FadeIn direction="left">
-              <Card className="sticky top-8">
-                {/* 统计信息 */}
-                <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-                  <div className="flex items-center space-x-4">
-                    <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                      <Key className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                        {t('credential.stats')}
-                      </h2>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        {t('credential.statsDesc')}
-                      </p>
-                    </div>
+        {/* 顶部：密钥统计（仅数字卡片，无标题区） */}
+        <Card className="mb-6">
+          <div className="p-5 md:p-6">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/40 px-4 py-3">
+                  <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                    {t('credential.totalKeys')}
+                  </div>
+                  <div className="text-2xl font-semibold font-mono tabular-nums text-gray-900 dark:text-white mt-1">
+                    #{credentialStats.total}
                   </div>
                 </div>
-
-                {/* 统计详情 */}
-                <div className="p-6">
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-600 dark:text-gray-400">{t('credential.totalKeys')}</span>
-                      <span className="text-sm font-mono text-gray-900 dark:text-white">#{credentials.length}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-600 dark:text-gray-400">{t('credential.llmKeys')}</span>
-                      <span className="text-sm text-gray-900 dark:text-white">
-                        {credentials.filter(c => c.llmProvider).length}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-600 dark:text-gray-400">{t('credential.asrKeys')}</span>
-                      <span className="text-sm text-gray-900 dark:text-white">
-                        {credentials.filter(c => c.asrProvider).length}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-600 dark:text-gray-400">{t('credential.ttsKeys')}</span>
-                      <span className="text-sm text-gray-900 dark:text-white">
-                        {credentials.filter(c => c.ttsProvider).length}
-                      </span>
-                    </div>
+                <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/40 px-4 py-3">
+                  <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                    {t('credential.llmKeys')}
+                  </div>
+                  <div className="text-2xl font-semibold tabular-nums text-gray-900 dark:text-white mt-1">
+                    {credentialStats.llm}
                   </div>
                 </div>
-              </Card>
-            </FadeIn>
+                <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/40 px-4 py-3">
+                  <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                    {t('credential.asrKeys')}
+                  </div>
+                  <div className="text-2xl font-semibold tabular-nums text-gray-900 dark:text-white mt-1">
+                    {credentialStats.asr}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/40 px-4 py-3">
+                  <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                    {t('credential.ttsKeys')}
+                  </div>
+                  <div className="text-2xl font-semibold tabular-nums text-gray-900 dark:text-white mt-1">
+                    {credentialStats.tts}
+                  </div>
+                </div>
+            </div>
           </div>
+        </Card>
 
-          {/* 右侧：主要内容区域 */}
-          <div className="lg:col-span-2">
-            <FadeIn direction="right">
-              <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-0">
+        {/* 列表 / 创建 */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-0">
                 <TabsList className="grid w-full grid-cols-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-1">
                   <TabsTrigger value="list" className="flex items-center space-x-2 text-sm py-2">
                     <Key className="w-4 h-4" />
@@ -848,10 +840,7 @@ const CredentialManager = () => {
                     </div>
                   </Card>
                 </TabsContent>
-              </Tabs>
-            </FadeIn>
-          </div>
-        </div>
+        </Tabs>
       </div>
 
       {/* 密钥创建成功弹窗 */}

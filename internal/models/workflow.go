@@ -15,8 +15,8 @@ import (
 // WorkflowDefinition describes a reusable workflow template whose structure is stored as JSON graph data.
 type WorkflowDefinition struct {
 	ID               uint           `json:"id" gorm:"primaryKey"`
-	UserID           uint           `json:"userId" gorm:"index"`            // User ID
-	GroupID          *uint          `json:"groupId,omitempty" gorm:"index"` // Organization ID, if set indicates this is an organization-shared workflow
+	GroupID          uint           `json:"groupId" gorm:"index"`
+	CreatorUID       uint           `json:"creatorUid" gorm:"column:creator_uid;index"`
 	Name             string         `json:"name" gorm:"size:128;not null"`
 	Slug             string         `json:"slug" gorm:"size:128;uniqueIndex"`
 	Description      string         `json:"description" gorm:"type:text"`

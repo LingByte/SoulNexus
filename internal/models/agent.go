@@ -9,11 +9,11 @@ import (
 	"gorm.io/gorm"
 )
 
-// Agent 表示一个自定义 AI Agent（原 assistants 表，现为 agents）
+// Agent 表示一个自定义 AI Agent
 type Agent struct {
 	ID                   int64     `json:"id" gorm:"primaryKey;autoIncrement"`
-	UserID               uint      `json:"userId" gorm:"index"`
-	GroupID              *uint     `json:"groupId,omitempty" gorm:"index"`
+	GroupID              uint      `json:"groupId" gorm:"index"`
+	CreatedBy            uint      `json:"createdBy" gorm:"index"`
 	Name                 string    `json:"name" gorm:"index"`
 	Description          string    `json:"description"`
 	Icon                 string    `json:"icon"`

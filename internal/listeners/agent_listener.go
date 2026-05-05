@@ -39,7 +39,7 @@ func InitAgentListener() {
 			"Agent Description: %s\n\n"+
 			"You can further configure the agent on the agent management page.\n"+
 			"Go to the agent management page now to start using it!",
-			user.DisplayName, agent.Name, agent.Description)
+			user.EffectiveDisplayName(), agent.Name, agent.Description)
 
 		notification.NewInternalNotificationService(db).Send(user.ID, title, content)
 	})

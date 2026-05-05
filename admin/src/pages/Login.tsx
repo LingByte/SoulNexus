@@ -119,12 +119,14 @@ const Login = () => {
         )
       }
 
+      const prof = (userData as any)?.profile || {}
       await login(token, {
         id: userData.id,
         email: userData.email,
-        displayName: userData.displayName || email,
+        displayName: (prof.displayName as string) || userData.displayName || email,
         role: userData.role,
-        avatar: userData.avatar,
+        avatar: (prof.avatar as string) || userData.avatar,
+        profile: userData.profile,
       })
 
       showAlert('登录成功', 'success', '欢迎回来')

@@ -20,7 +20,7 @@ func setupNodePluginTestDB(t *testing.T) *gorm.DB {
 	require.NoError(t, err)
 
 	// 迁移依赖表
-	err = db.AutoMigrate(&User{}, &Group{})
+	err = db.AutoMigrate(&User{}, &UserProfile{}, &Group{})
 	require.NoError(t, err)
 
 	return db

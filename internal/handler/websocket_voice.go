@@ -100,7 +100,7 @@ func (h *Handlers) HandleWebSocketVoice(c *gin.Context) {
 		if store := graph.GetDefaultStore(); store != nil {
 			// 通过凭证反查用户
 			var user models.User
-			if err := h.db.First(&user, cred.UserID).Error; err == nil {
+			if err := h.db.First(&user, cred.CreatedBy).Error; err == nil {
 				ctx := c.Request.Context()
 				if userCtx, err := store.GetUserContext(ctx, user.ID, int64(assistantID)); err == nil {
 					if len(userCtx.Topics) > 0 {
@@ -126,7 +126,7 @@ func (h *Handlers) HandleWebSocketVoice(c *gin.Context) {
 		Temperature:          float64(temperature),
 		SystemPrompt:         systemPrompt,
 		KnowledgeKey:         "",
-		UserID:               cred.UserID,
+		UserID:               cred.CreatedBy,
 		MacAddress:           "",
 		LLMModel:             assistant.LLMModel,
 		Credential:           cred,
@@ -295,7 +295,7 @@ func (h *Handlers) HandleHardwareWebSocketVoice(c *gin.Context) {
 		Temperature:          float64(temperature),
 		SystemPrompt:         systemPrompt,
 		KnowledgeKey:         "",
-		UserID:               device.UserID,
+		UserID:               device.CreatedBy,
 		MacAddress:           device.MacAddress,
 		LLMModel:             llmModel,
 		Credential:           cred,

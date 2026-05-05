@@ -212,14 +212,19 @@ func (h *Handlers) registerOpenAPIRoutes(r *gin.RouterGroup) {
 
 // openGetMe 返回当前鉴权用户的基本信息
 func (h *Handlers) openGetMe(c *gin.Context) {
-	user := models.CurrentUser(c)
-	if user == nil {
+	ctxUser := models.CurrentUser(c)
+	if ctxUser == nil {
+		response.AbortWithStatus(c, http.StatusUnauthorized)
+		return
+	}
+	user, err := models.GetUserByID(h.db, ctxUser.ID)
+	if err != nil || user == nil {
 		response.AbortWithStatus(c, http.StatusUnauthorized)
 		return
 	}
 	response.Success(c, "ok", gin.H{
 		"id":       user.ID,
-		"username": user.DisplayName,
+		"username": user.EffectiveDisplayName(),
 		"email":    user.Email,
 	})
 }

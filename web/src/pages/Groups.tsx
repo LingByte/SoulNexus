@@ -16,6 +16,7 @@ import {
 } from '@/api/group';
 import { showAlert } from '@/utils/notification';
 import { useAuthStore } from '@/stores/authStore';
+import { prefetch } from '@/utils/prefetch';
 import { Users, Plus, X, UserPlus, LogOut, Trash2, Check, XCircle, Crown, Shield, Search, Settings } from 'lucide-react';
 import Button from '@/components/UI/Button';
 import ConfirmDialog from '@/components/UI/ConfirmDialog';
@@ -25,7 +26,7 @@ import CollapsibleSectionHeader from '@/components/UI/CollapsibleSectionHeader';
 
 const Groups: React.FC = () => {
   const { t } = useI18nStore();
-  const { user } = useAuthStore();
+  const { user, currentOrganizationId, setCurrentOrganization } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
   const [groups, setGroups] = useState<Group[]>([]);
@@ -72,15 +73,31 @@ const Groups: React.FC = () => {
     setLastFetchTime(Date.now());
   }, []);
 
-  // 监听路由变化，当从设置页面返回时刷新列表
+  const isTeamsHome =
+    location.pathname === '/groups' || location.pathname === '/profile/teams';
+
+  // 监听路由变化，当从设置页面返回团队列表时刷新列表
   useEffect(() => {
-    // 如果当前在 /groups 页面，且距离上次刷新超过1秒，则刷新列表
-    // 这样可以避免频繁刷新，同时确保从设置页面返回时能获取最新数据
-    if (location.pathname === '/groups' && Date.now() - lastFetchTime > 1000) {
+    if (isTeamsHome && Date.now() - lastFetchTime > 1000) {
       fetchGroups();
       setLastFetchTime(Date.now());
     }
-  }, [location.pathname]);
+  }, [location.pathname, location.search]);
+
+  useEffect(() => {
+    if (loading) return;
+    if (groups.length === 0) {
+      if (currentOrganizationId != null) setCurrentOrganization(null);
+      return;
+    }
+    const ids = new Set(groups.map((g) => g.id));
+    const cur = currentOrganizationId;
+    if (cur == null || !ids.has(cur)) {
+      const nextId = groups[0].id;
+      setCurrentOrganization(nextId);
+      prefetch.prefetchOverview(nextId);
+    }
+  }, [groups, currentOrganizationId, setCurrentOrganization, loading]);
 
   // 搜索用户
   const handleSearchUsers = async (keyword: string) => {
@@ -247,6 +264,38 @@ const Groups: React.FC = () => {
             </Button>
           )}
         />
+
+        {groups.length > 0 && (
+          <div className="mb-6 rounded-xl border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800/80 px-4 py-3">
+            <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
+              当前工作空间（用于概览等）
+            </div>
+            <div className="flex items-center gap-2 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+              {groups.map((group) => {
+                const isSelected = currentOrganizationId === group.id;
+                const avatarUrl =
+                  group.avatar ||
+                  `https://ui-avatars.com/api/?name=${encodeURIComponent(group.name)}&background=6366f1&color=fff&size=32`;
+                return (
+                  <button
+                    key={group.id}
+                    type="button"
+                    title={group.name}
+                    onClick={() => {
+                      setCurrentOrganization(group.id);
+                      prefetch.prefetchOverview(group.id);
+                    }}
+                    className={`relative flex-shrink-0 w-9 h-9 rounded-lg overflow-hidden transition-all ${
+                      isSelected ? 'ring-2 ring-sky-500 ring-offset-2 ring-offset-white dark:ring-offset-neutral-900' : 'opacity-80 hover:opacity-100 hover:ring-2 hover:ring-gray-300 dark:hover:ring-neutral-600'
+                    }`}
+                  >
+                    <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* 待处理的邀请 */}
         {invitations.length > 0 && (

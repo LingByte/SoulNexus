@@ -12,8 +12,8 @@ import DevErrorHandler from "@/components/Dev/DevErrorHandler.tsx";
 import GlobalSearch from "@/components/UI/GlobalSearch.tsx";
 import NotificationContainer from "@/components/UI/NotificationContainer.tsx";
 import { ToastProvider } from "@/components/UI/ToastContainer.tsx";
-import NotificationCenter from "@/pages/NotificationCenter.tsx";
 import Profile from "@/pages/Profile.tsx";
+import ProfileLayout from '@/pages/profile/ProfileLayout.tsx';
 import AnimationShowcase from "@/pages/AnimationShowcase.tsx";
 import Layout from "@/components/Layout/Layout.tsx";
 import ResetPassword from "@/pages/ResetPassword.tsx";
@@ -22,17 +22,13 @@ import ProtectedRoute from "@/components/Auth/ProtectedRoute.tsx";
 import JSTemplateManager from "@/pages/JSTemplateManager.tsx";
 import Assistants from '@/pages/Assistants.tsx';
 import AssistantGraph from '@/pages/AssistantGraph.tsx';
-import Billing from '@/pages/Billing.tsx';
-import Groups from '@/pages/Groups.tsx';
 import GroupMembers from '@/pages/GroupMembers.tsx';
 import GroupSettings from '@/pages/GroupSettings.tsx';
 import GroupActivityLogs from '@/pages/GroupActivityLogs.tsx';
-import OverviewEditorPage from '@/pages/OverviewEditorPage.tsx';
 import DeviceManagement from '@/pages/DeviceManagement.tsx';
 import DeviceDetail from '@/pages/DeviceDetail.tsx';
 import RedirectToDevices from '@/components/RedirectToDevices.tsx';
 import WorkflowManager from '@/pages/WorkflowManager.tsx';
-import Overview from '@/pages/Overview.tsx';
 import CallRecordingAnalytics from '@/pages/CallRecordingAnalytics.tsx';
 import NodePluginMarket from '@/pages/NodePluginMarket.tsx';
 import VoiceprintManagement from '@/pages/VoiceprintManagement.tsx';
@@ -71,20 +67,16 @@ function AppRoutes() {
                         } />
                         
                         {/* 需要登录的页面 */}
-                        <Route path="/overview" element={
-                            <ProtectedRoute>
-                                <Layout>
-                                    <Overview />
-                                </Layout>
-                            </ProtectedRoute>
-                        } />
                         <Route path="/profile" element={
                             <ProtectedRoute>
                                 <Layout>
-                                    <Profile />
+                                    <ProfileLayout />
                                 </Layout>
                             </ProtectedRoute>
-                        } />
+                        }>
+                            <Route index element={<Navigate to="personal" replace />} />
+                            <Route path=":section" element={<Profile />} />
+                        </Route>
                         <Route path="/devices" element={
                             <ProtectedRoute>
                                 <Layout>
@@ -154,9 +146,7 @@ function AppRoutes() {
                         } />
                         <Route path="/notification" element={
                             <ProtectedRoute>
-                                <Layout>
-                                    <NotificationCenter />
-                                </Layout>
+                                <Navigate to="/profile/notifications" replace />
                             </ProtectedRoute>
                         } />
                         <Route path="/credential" element={
@@ -182,16 +172,12 @@ function AppRoutes() {
                         } />
                         <Route path="/billing" element={
                             <ProtectedRoute>
-                                <Layout>
-                                    <Billing />
-                                </Layout>
+                                <Navigate to="/profile/billing" replace />
                             </ProtectedRoute>
                         } />
                         <Route path="/groups" element={
                             <ProtectedRoute>
-                                <Layout>
-                                    <Groups />
-                                </Layout>
+                                <Navigate to="/profile/teams" replace />
                             </ProtectedRoute>
                         } />
                         <Route path="/groups/:id/members" element={
@@ -212,13 +198,6 @@ function AppRoutes() {
                             <ProtectedRoute>
                                 <Layout>
                                     <GroupActivityLogs />
-                                </Layout>
-                            </ProtectedRoute>
-                        } />
-                        <Route path="/groups/:id/overview/edit" element={
-                            <ProtectedRoute>
-                                <Layout>
-                                    <OverviewEditorPage />
                                 </Layout>
                             </ProtectedRoute>
                         } />

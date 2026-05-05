@@ -22,6 +22,27 @@ import (
 	"gorm.io/gorm"
 )
 
+func uintPtrIfNonZero(v uint) *uint {
+	if v == 0 {
+		return nil
+	}
+	return &v
+}
+
+func jsTemplateVisibleToUser(db *gorm.DB, userID uint, t *models.JSTemplate) bool {
+	if t.Type == "default" {
+		return true
+	}
+	return models.UserIsGroupMember(db, userID, t.GroupID)
+}
+
+func jsTemplateMutableByUser(db *gorm.DB, userID uint, t *models.JSTemplate) bool {
+	if t.Type == "default" {
+		return false
+	}
+	return models.CanManageTenantResource(db, userID, t.GroupID, t.CreatedBy)
+}
+
 // CreateJSTemplate creates JS template
 func (h *Handlers) CreateJSTemplate(c *gin.Context) {
 	user := models.CurrentUser(c)
@@ -36,26 +57,14 @@ func (h *Handlers) CreateJSTemplate(c *gin.Context) {
 		return
 	}
 
-	// If it's a custom template, set the user ID
 	if template.Type == "custom" {
-		template.UserID = user.ID
-	}
-
-	// 如果设置了 GroupID，验证用户是否有权限共享到该组织
-	if template.GroupID != nil {
-		var group models.Group
-		if err := h.db.Where("id = ?", *template.GroupID).First(&group).Error; err != nil {
-			response.Fail(c, "Organization not found", nil)
+		gid, err := models.ResolveWriteGroupID(h.db, user.ID, uintPtrIfNonZero(template.GroupID))
+		if err != nil {
+			response.Fail(c, err.Error(), nil)
 			return
 		}
-		// 检查用户是否是组织成员或创建者
-		if group.CreatorID != user.ID {
-			var member models.GroupMember
-			if err := h.db.Where("group_id = ? AND user_id = ?", *template.GroupID, user.ID).First(&member).Error; err != nil {
-				response.Fail(c, "Insufficient permissions", "You are not a member of this organization")
-				return
-			}
-		}
+		template.GroupID = gid
+		template.CreatedBy = user.ID
 	}
 
 	// AST白名单检查
@@ -143,25 +152,9 @@ func (h *Handlers) GetJSTemplate(c *gin.Context) {
 		return
 	}
 
-	// 检查权限：用户自己的模板或组织共享的模板（用户是组织成员）
-	if template.UserID != user.ID {
-		if template.GroupID == nil {
-			response.Fail(c, "Insufficient permissions", nil)
-			return
-		}
-		// 检查用户是否是组织成员
-		var group models.Group
-		if err := h.db.Where("id = ?", *template.GroupID).First(&group).Error; err != nil {
-			response.Fail(c, "Organization not found", nil)
-			return
-		}
-		if group.CreatorID != user.ID {
-			var member models.GroupMember
-			if err := h.db.Where("group_id = ? AND user_id = ?", *template.GroupID, user.ID).First(&member).Error; err != nil {
-				response.Fail(c, "Insufficient permissions", "You are not a member of this organization")
-				return
-			}
-		}
+	if !jsTemplateVisibleToUser(h.db, user.ID, template) {
+		response.Fail(c, "Insufficient permissions", nil)
+		return
 	}
 
 	response.Success(c, "Template retrieved successfully", template)
@@ -207,31 +200,18 @@ func (h *Handlers) ListJSTemplates(c *gin.Context) {
 
 	offset := (pageInt - 1) * limitInt
 
-	// 获取用户所属的组织ID列表
-	var groupIDs []uint
-	var groupMembers []models.GroupMember
-	if err := h.db.Where("user_id = ?", userId).Find(&groupMembers).Error; err == nil {
-		for _, member := range groupMembers {
-			groupIDs = append(groupIDs, member.GroupID)
-		}
-	}
-	// 获取用户创建的组织ID
-	var userGroups []models.Group
-	if err := h.db.Where("creator_id = ?", userId).Find(&userGroups).Error; err == nil {
-		for _, group := range userGroups {
-			groupIDs = append(groupIDs, group.ID)
-		}
+	groupIDs, gerr := models.MemberGroupIDs(h.db, userId)
+	if gerr != nil {
+		response.Fail(c, "Failed to get template list: "+gerr.Error(), nil)
+		return
 	}
 
-	// 查询：用户自己的模板 + 组织共享的模板
 	var templates []models.JSTemplate
 	query := db.Offset(offset).Limit(limitInt).Order("created_at DESC")
-
-	// 构建查询条件：用户自己的模板 OR 组织共享的模板（用户是成员）
 	if len(groupIDs) > 0 {
-		query = query.Where("user_id = ? OR (group_id IS NOT NULL AND group_id IN (?))", userId, groupIDs)
+		query = query.Where("type = ? OR group_id IN ?", "default", groupIDs)
 	} else {
-		query = query.Where("user_id = ?", userId)
+		query = query.Where("type = ?", "default")
 	}
 
 	if err := query.Find(&templates).Error; err != nil {
@@ -239,13 +219,12 @@ func (h *Handlers) ListJSTemplates(c *gin.Context) {
 		return
 	}
 
-	// 获取总数
 	var total int64
 	countQuery := db.Model(&models.JSTemplate{})
 	if len(groupIDs) > 0 {
-		countQuery = countQuery.Where("user_id = ? OR (group_id IS NOT NULL AND group_id IN (?))", userId, groupIDs)
+		countQuery = countQuery.Where("type = ? OR group_id IN ?", "default", groupIDs)
 	} else {
-		countQuery = countQuery.Where("user_id = ?", userId)
+		countQuery = countQuery.Where("type = ?", "default")
 	}
 	if err := countQuery.Count(&total).Error; err != nil {
 		response.Fail(c, "Failed to get total template count: "+err.Error(), nil)
@@ -279,25 +258,13 @@ func (h *Handlers) UpdateJSTemplate(c *gin.Context) {
 	}
 	userId := user.ID
 
-	// 检查权限：只有创建者或组织管理员可以更新
-	if template.UserID != userId {
-		if template.GroupID == nil {
-			response.Fail(c, "Insufficient permissions", nil)
-			return
-		}
-		// 检查用户是否是组织创建者或管理员
-		var group models.Group
-		if err := h.db.Where("id = ?", *template.GroupID).First(&group).Error; err != nil {
-			response.Fail(c, "Organization not found", nil)
-			return
-		}
-		if group.CreatorID != userId {
-			var member models.GroupMember
-			if err := h.db.Where("group_id = ? AND user_id = ? AND role = ?", *template.GroupID, userId, models.GroupRoleAdmin).First(&member).Error; err != nil {
-				response.Fail(c, "Insufficient permissions", "Only creator or admin can update organization-shared templates")
-				return
-			}
-		}
+	if template.Type == "default" {
+		response.Fail(c, "Cannot update default template", nil)
+		return
+	}
+	if !jsTemplateMutableByUser(h.db, userId, template) {
+		response.Fail(c, "Insufficient permissions", "Only creator or admin can update organization-shared templates")
+		return
 	}
 
 	var updates map[string]interface{}
@@ -393,6 +360,7 @@ func (h *Handlers) UpdateJSTemplate(c *gin.Context) {
 	// Avoid updating certain key fields
 	delete(updates, "id")
 	delete(updates, "user_id")
+	delete(updates, "created_by")
 	delete(updates, "created_at")
 
 	if err := models.UpdateJSTemplate(db, id, updates); err != nil {
@@ -441,25 +409,9 @@ func (h *Handlers) DeleteJSTemplate(c *gin.Context) {
 		return
 	}
 
-	// 检查权限：只有创建者或组织管理员可以删除
-	if template.UserID != userId {
-		if template.GroupID == nil {
-			response.Fail(c, "Insufficient permissions", nil)
-			return
-		}
-		// 检查用户是否是组织创建者或管理员
-		var group models.Group
-		if err := h.db.Where("id = ?", *template.GroupID).First(&group).Error; err != nil {
-			response.Fail(c, "Organization not found", nil)
-			return
-		}
-		if group.CreatorID != userId {
-			var member models.GroupMember
-			if err := h.db.Where("group_id = ? AND user_id = ? AND role = ?", *template.GroupID, userId, models.GroupRoleAdmin).First(&member).Error; err != nil {
-				response.Fail(c, "Insufficient permissions", "Only creator or admin can delete organization-shared templates")
-				return
-			}
-		}
+	if !jsTemplateMutableByUser(h.db, userId, template) {
+		response.Fail(c, "Insufficient permissions", "Only creator or admin can delete organization-shared templates")
+		return
 	}
 
 	if err := models.DeleteJSTemplate(db, id); err != nil {
@@ -721,23 +673,9 @@ func (h *Handlers) ListJSTemplateVersions(c *gin.Context) {
 		return
 	}
 
-	if template.UserID != user.ID {
-		if template.GroupID == nil {
-			response.Fail(c, "Insufficient permissions", nil)
-			return
-		}
-		var group models.Group
-		if err := h.db.Where("id = ?", *template.GroupID).First(&group).Error; err != nil {
-			response.Fail(c, "Organization not found", nil)
-			return
-		}
-		if group.CreatorID != user.ID {
-			var member models.GroupMember
-			if err := h.db.Where("group_id = ? AND user_id = ?", *template.GroupID, user.ID).First(&member).Error; err != nil {
-				response.Fail(c, "Insufficient permissions", nil)
-				return
-			}
-		}
+	if !jsTemplateVisibleToUser(h.db, user.ID, template) {
+		response.Fail(c, "Insufficient permissions", nil)
+		return
 	}
 
 	page := c.DefaultQuery("page", "1")
@@ -795,23 +733,9 @@ func (h *Handlers) GetJSTemplateVersion(c *gin.Context) {
 		return
 	}
 
-	if template.UserID != user.ID {
-		if template.GroupID == nil {
-			response.Fail(c, "Insufficient permissions", nil)
-			return
-		}
-		var group models.Group
-		if err := h.db.Where("id = ?", *template.GroupID).First(&group).Error; err != nil {
-			response.Fail(c, "Organization not found", nil)
-			return
-		}
-		if group.CreatorID != user.ID {
-			var member models.GroupMember
-			if err := h.db.Where("group_id = ? AND user_id = ?", *template.GroupID, user.ID).First(&member).Error; err != nil {
-				response.Fail(c, "Insufficient permissions", nil)
-				return
-			}
-		}
+	if !jsTemplateVisibleToUser(h.db, user.ID, template) {
+		response.Fail(c, "Insufficient permissions", nil)
+		return
 	}
 
 	version, err := models.GetJSTemplateVersion(db, templateID, versionID)
@@ -842,23 +766,9 @@ func (h *Handlers) RollbackJSTemplateVersion(c *gin.Context) {
 		return
 	}
 
-	if template.UserID != user.ID {
-		if template.GroupID == nil {
-			response.Fail(c, "Insufficient permissions", nil)
-			return
-		}
-		var group models.Group
-		if err := h.db.Where("id = ?", *template.GroupID).First(&group).Error; err != nil {
-			response.Fail(c, "Organization not found", nil)
-			return
-		}
-		if group.CreatorID != user.ID {
-			var member models.GroupMember
-			if err := h.db.Where("group_id = ? AND user_id = ? AND role = ?", *template.GroupID, user.ID, models.GroupRoleAdmin).First(&member).Error; err != nil {
-				response.Fail(c, "Insufficient permissions", "Only creator or admin can rollback")
-				return
-			}
-		}
+	if !jsTemplateMutableByUser(h.db, user.ID, template) {
+		response.Fail(c, "Insufficient permissions", "Only creator or admin can rollback")
+		return
 	}
 
 	if err := models.RollbackJSTemplateVersion(db, templateID, versionID); err != nil {
@@ -915,23 +825,9 @@ func (h *Handlers) PublishJSTemplateVersion(c *gin.Context) {
 		return
 	}
 
-	if template.UserID != user.ID {
-		if template.GroupID == nil {
-			response.Fail(c, "Insufficient permissions", nil)
-			return
-		}
-		var group models.Group
-		if err := h.db.Where("id = ?", *template.GroupID).First(&group).Error; err != nil {
-			response.Fail(c, "Organization not found", nil)
-			return
-		}
-		if group.CreatorID != user.ID {
-			var member models.GroupMember
-			if err := h.db.Where("group_id = ? AND user_id = ? AND role = ?", *template.GroupID, user.ID, models.GroupRoleAdmin).First(&member).Error; err != nil {
-				response.Fail(c, "Insufficient permissions", "Only creator or admin can publish")
-				return
-			}
-		}
+	if !jsTemplateMutableByUser(h.db, user.ID, template) {
+		response.Fail(c, "Insufficient permissions", "Only creator or admin can publish")
+		return
 	}
 
 	// 获取版本

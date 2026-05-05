@@ -528,11 +528,6 @@ func (h *Handlers) registerGroupRoutes(r *gin.RouterGroup) {
 		group.POST("/invitations/:id/accept", h.AcceptInvitation)
 		group.POST("/invitations/:id/reject", h.RejectInvitation)
 
-		group.GET("/:id/overview/config", h.GetOverviewConfig)
-		group.POST("/:id/overview/config", h.SaveOverviewConfig)
-		group.PUT("/:id/overview/config", h.SaveOverviewConfig)
-		group.DELETE("/:id/overview/config", h.DeleteOverviewConfig)
-
 		group.GET("/:id/statistics", h.GetGroupStatistics)
 
 		group.POST("/:id/leave", h.LeaveGroup)

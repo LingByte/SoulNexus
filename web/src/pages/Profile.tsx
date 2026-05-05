@@ -1,17 +1,17 @@
 import { useState, useEffect, useRef } from 'react'
-import { 
-  User, Mail, Shield, Camera, Save, Edit3, X, Lock, Eye, EyeOff, 
-  Clock, Phone, Settings, Bell, Key, Heart, 
-  CheckCircle, AlertCircle
+import {
+  User, Mail, Shield, Camera, Save, Edit3, X, Lock, Eye, EyeOff,
+  Clock, Phone, Settings, Bell, Key, Heart,
+  CheckCircle, AlertCircle, Smartphone,
 } from 'lucide-react'
 import { useAuthStore } from '../stores/authStore'
 import { useI18nStore } from '../stores/i18nStore'
+import { useThemeStore, type ThemeMode, type ThemeColor } from '../stores/themeStore'
 import Button from '../components/UI/Button'
 import Input from '../components/UI/Input'
 import Card from '../components/UI/Card'
 import Badge from '../components/UI/Badge'
 import Switch from '../components/UI/Switch'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/UI/Tabs'
 import FadeIn from '../components/Animations/FadeIn'
 import LoadingAnimation from '../components/Animations/LoadingAnimation'
 import { showAlert } from '../utils/notification'
@@ -21,10 +21,28 @@ import { motion, AnimatePresence } from 'framer-motion'
 import ConfirmDialog from '../components/UI/ConfirmDialog'
 import AudioController from '../components/UI/AudioController'
 import { beginSSOLogin } from '@/utils/sso'
-import { Link } from 'react-router-dom'
+import { Link, useParams, Navigate } from 'react-router-dom'
+import Billing from '@/pages/Billing.tsx'
+import NotificationCenter from '@/pages/NotificationCenter.tsx'
+import CredentialManager from '@/pages/CredentialManager.tsx'
+import TeamWorkspacePage from '@/pages/profile/TeamWorkspacePage.tsx'
 import { getUserServiceBaseURL } from '@/config/apiConfig'
 
+const VALID_SECTIONS = new Set([
+  'personal',
+  'teams',
+  'activity',
+  'billing',
+  'user-devices',
+  'integrations',
+  'credential',
+  'notifications',
+  'locale',
+  'security',
+])
+
 const Profile = () => {
+  const { section } = useParams<{ section: string }>()
   const { user, isAuthenticated, updateProfile: updateAuthStore } = useAuthStore()
   const { t } = useI18nStore()
   const [isEditing, setIsEditing] = useState(false)
@@ -34,7 +52,6 @@ const Profile = () => {
   const [showCurrentPassword, setShowCurrentPassword] = useState(false)
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [activeTab, setActiveTab] = useState('profile')
   
   // 两步验证相关状态
   const [twoFactorSetup, setTwoFactorSetup] = useState<TwoFactorSetupResponse | null>(null)
@@ -83,8 +100,10 @@ const Profile = () => {
     displayName: user?.displayName || '',
     firstName: user?.firstName || '',
     lastName: user?.lastName || '',
-    locale: user?.locale || 'zh-CN',
+    locale: user?.locale || 'zh',
     timezone: user?.timezone || 'Asia/Shanghai',
+    themeMode: (user?.themeMode as ThemeMode) || useThemeStore.getState().theme.mode,
+    themeColor: (user?.themeColor as ThemeColor) || useThemeStore.getState().theme.color,
     gender: user?.gender || '',
     city: user?.city || '',
     region: user?.region || '',
@@ -131,8 +150,10 @@ const Profile = () => {
             displayName: response.data.displayName || '',
             firstName: response.data.firstName || '',
             lastName: response.data.lastName || '',
-            locale: response.data.locale || 'zh-CN',
+            locale: response.data.locale || 'zh',
             timezone: response.data.timezone || 'Asia/Shanghai',
+            themeMode: response.data.themeMode || useThemeStore.getState().theme.mode,
+            themeColor: response.data.themeColor || useThemeStore.getState().theme.color,
             gender: response.data.gender || '',
             city: response.data.city || '',
             region: response.data.region || '',
@@ -155,9 +176,20 @@ const Profile = () => {
 
   useEffect(() => {
     if (!isAuthenticated) {
-      beginSSOLogin('/profile')
+      beginSSOLogin('/profile/personal')
     }
   }, [isAuthenticated])
+
+  useEffect(() => {
+    if (!user) return
+    setFormData((prev) => ({
+      ...prev,
+      locale: user.locale || prev.locale,
+      timezone: user.timezone || prev.timezone,
+      themeMode: (user.themeMode as ThemeMode) || prev.themeMode,
+      themeColor: (user.themeColor as ThemeColor) || prev.themeColor,
+    }))
+  }, [user?.locale, user?.timezone, user?.themeMode, user?.themeColor])
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -187,12 +219,11 @@ const Profile = () => {
     }
   }, [])
 
-  // 当切换到活动记录标签页时加载活动记录
   useEffect(() => {
-    if (activeTab === 'activity' && isAuthenticated) {
+    if (section === 'activity' && isAuthenticated) {
       loadActivities(1)
     }
-  }, [activeTab, isAuthenticated])
+  }, [section, isAuthenticated])
 
   useEffect(() => {
     if (!wechatBindExpiresAt) return
@@ -217,12 +248,11 @@ const Profile = () => {
     }
   }, [])
 
-  // 当切换到安全设置标签页时加载设备列表
   useEffect(() => {
-    if (activeTab === 'security' && isAuthenticated) {
+    if (section === 'user-devices' && isAuthenticated) {
       loadDevices()
     }
-  }, [activeTab, isAuthenticated])
+  }, [section, isAuthenticated])
 
   // 设置两步验证
   const handleTwoFactorSetup = async () => {
@@ -483,10 +513,7 @@ const Profile = () => {
     try {
       const response = await updateProfile(formData)
       if (response.code === 200) {
-        // 更新全局用户状态
-        if (response.data) {
-          updateAuthStore(response.data)
-        }
+        await useAuthStore.getState().refreshUserInfo()
         setIsEditing(false)
         showAlert(t('profile.messages.updateSuccess'), 'success', t('profile.messages.loadSuccess'))
       } else {
@@ -506,8 +533,10 @@ const Profile = () => {
       displayName: user?.displayName || '',
       firstName: user?.firstName || '',
       lastName: user?.lastName || '',
-      locale: user?.locale || 'zh-CN',
+      locale: user?.locale || 'zh',
       timezone: user?.timezone || 'Asia/Shanghai',
+      themeMode: (user?.themeMode as ThemeMode) || useThemeStore.getState().theme.mode,
+      themeColor: (user?.themeColor as ThemeColor) || useThemeStore.getState().theme.color,
       gender: user?.gender || '',
       city: user?.city || '',
       region: user?.region || '',
@@ -669,7 +698,7 @@ const Profile = () => {
   }
 
   const handleBindGithub = () => {
-    const target = `${window.location.origin}/profile`
+    const target = `${window.location.origin}/profile/personal`
     window.location.href = `${getUserServiceBaseURL()}/auth/github/login?bind=1&redirecturl=${encodeURIComponent(target)}`
   }
 
@@ -747,7 +776,6 @@ const Profile = () => {
     run()
   }
 
-
   if (!isAuthenticated) {
     return null
   }
@@ -768,203 +796,52 @@ const Profile = () => {
     )
   }
 
+  if (!section || !VALID_SECTIONS.has(section)) {
+    return <Navigate to="/profile/personal" replace />
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* 头部操作栏 */}
-        <FadeIn direction="down">
-          <div className="mb-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-4">
-                  <Shield className="w-3 h-3 mr-1" />
-                <Badge variant={user?.role === 'admin' ? 'primary' : 'secondary'} className="text-xs">
-                  {user?.role === 'admin' ? t('profile.admin') : t('profile.user')}
-                </Badge>
-                <div className="text-sm text-gray-500 dark:text-gray-400">
-                  {t('profile.lastLogin')}：{user?.lastLogin ? new Date(user.lastLogin).toLocaleDateString('zh-CN') : t('profile.unknown')}
-                </div>
-              </div>
-            </div>
-          </div>
-        </FadeIn>
-
-        {/* 主要内容区域 */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* 左侧：用户信息卡片 */}
-          <div className="lg:col-span-1">
-            <FadeIn direction="left">
-              <Card className="sticky top-8">
-                {/* 用户头像和基本信息 */}
-                <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-                  <div className="flex items-center space-x-4">
-                    <div className="relative group">
-                      <div className="w-16 h-16 rounded-lg bg-gray-100 dark:bg-gray-800 overflow-hidden">
-                        <img
-                          src={user?.avatar || `https://ui-avatars.com/api/?name=${user?.displayName || 'User'}&background=6366f1&color=fff&size=64`}
-                          alt={user?.displayName || 'User'}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      
-                      {/* 上传按钮 */}
-                      <label className="absolute -bottom-1 -right-1 p-1.5 bg-white dark:bg-gray-800 rounded-full shadow-md hover:shadow-lg transition-all cursor-pointer border border-gray-200 dark:border-gray-700 group-hover:scale-110">
-                        <Camera className="w-3 h-3 text-gray-600 dark:text-gray-300" />
-                        <input
-                          type="file"
-                          accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
-                          onChange={handleAvatarUpload}
-                          className="hidden"
-                          disabled={isLoading}
-                        />
-                      </label>
-
-
-                      {/* 加载状态 */}
-                      {isLoading && (
-                        <div className="absolute inset-0 bg-black bg-opacity-50 rounded-lg flex items-center justify-center">
-                          <LoadingAnimation type="progress" size="sm" color="#ffffff" />
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h2 className="text-lg font-semibold text-gray-900 dark:text-white truncate">
-                        {(() => {
-                          if (user?.displayName) return user.displayName
-                          if (user?.firstName && user?.lastName) return `${user.firstName} ${user.lastName}`
-                          if (user?.firstName) return user.firstName
-                          if (user?.lastName) return user.lastName
-                          if (user?.email) return user.email.split('@')[0]
-                          return '用户'
-                        })()}
-                      </h2>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 truncate">
-                        {user?.email || '未设置邮箱'}
-                      </p>
-                      <div className="flex items-center mt-1">
-                        <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-                        <span className="text-xs text-gray-500 dark:text-gray-400">
-                          {user?.lastLogin 
-                            ? `${t('profile.lastLogin')}: ${new Date(user.lastLogin).toLocaleString('zh-CN')}` 
-                            : t('profile.online')}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 账户信息 */}
-                <div className="p-6">
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-600 dark:text-gray-400">{t('profile.userId')}</span>
-                      <span className="text-sm font-mono text-gray-900 dark:text-white">#{user?.id || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-600 dark:text-gray-400">{t('profile.registerTime')}</span>
-                      <span className="text-sm text-gray-900 dark:text-white">
-                        {user?.createdAt ? new Date(user.createdAt).toLocaleDateString('zh-CN') : t('profile.unknown')}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-600 dark:text-gray-400">{t('profile.accountStatus')}</span>
-                      <Badge variant="success" className="text-xs">{t('profile.active')}</Badge>
-                    </div>
-                    {user?.phone && (
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-600 dark:text-gray-400">{t('profile.phone')}</span>
-                        <span className="text-sm text-gray-900 dark:text-white">{user.phone}</span>
-                      </div>
-                    )}
-                    {(user?.city || user?.region) && (
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-600 dark:text-gray-400">地区</span>
-                        <span className="text-sm text-gray-900 dark:text-white" title={[user?.city, user?.region].filter(Boolean).join(', ')}>
-                          {(() => {
-                            const location = [user?.city, user?.region].filter(Boolean).join(', ') || '未设置';
-                            return location.length > 8 ? location.substring(0, 8) + '...' : location;
-                          })()}
-                        </span>
-                      </div>
-                    )}
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-600 dark:text-gray-400">登录次数</span>
-                      <span className="text-sm text-gray-900 dark:text-white">{user?.loginCount || 0} 次</span>
-                    </div>
-                    {user?.lastPasswordChange && (
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-600 dark:text-gray-400">最后修改密码</span>
-                        <span className="text-sm text-gray-900 dark:text-white">
-                          {new Date(user.lastPasswordChange).toLocaleDateString('zh-CN')}
-                        </span>
-                      </div>
-                    )}
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-600 dark:text-gray-400">资料完整度</span>
-                      <div className="flex items-center space-x-2">
-                        <div className="w-16 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                          <div 
-                            className="bg-blue-500 h-2 rounded-full transition-all duration-300" 
-                            style={{ width: `${user?.profileComplete || 0}%` }}
-                          ></div>
-                        </div>
-                        <span className="text-xs text-gray-600 dark:text-gray-400">{user?.profileComplete || 0}%</span>
-                      </div>
-                    </div>
-                    {(user?.profileComplete || 0) < 100 && (
-                      <div className="mt-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded-md border border-yellow-200 dark:border-yellow-800">
-                        <p className="text-xs text-yellow-700 dark:text-yellow-300">
-                          <span className="font-medium">待完善：</span>
-                          {(() => {
-                            const missing = [];
-                            if (!user?.displayName) missing.push('显示名称');
-                            if (!user?.firstName) missing.push('名字');
-                            if (!user?.lastName) missing.push('姓氏');
-                            if (!user?.avatar) missing.push('头像');
-                            if (!user?.phone) missing.push('手机号码');
-                            if (!user?.emailVerified) missing.push('邮箱验证');
-                            if (!user?.wechatOpenId) missing.push('微信认证');
-                            if (!user?.githubId) missing.push('GitHub认证');
-                            if (!user?.city) missing.push('城市');
-                            if (!user?.region) missing.push('地区');
-                            if (!user?.gender) missing.push('性别');
-                            return missing.slice(0, 3).join('、') + (missing.length > 3 ? '等' : '');
-                          })()}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </Card>
-            </FadeIn>
-          </div>
-
-          {/* 右侧：主要内容区域 */}
-          <div className="lg:col-span-2">
-            <FadeIn direction="right">
-              <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-0">
-                <TabsList className="grid w-full grid-cols-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-1">
-                  <TabsTrigger value="profile" className="flex items-center space-x-2 text-sm py-2">
-                    <User className="w-4 h-4" />
-                    <span>{t('profile.tabs.profile')}</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="settings" className="flex items-center space-x-2 text-sm py-2">
-                    <Settings className="w-4 h-4" />
-                    <span>{t('profile.tabs.settings')}</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="security" className="flex items-center space-x-2 text-sm py-2">
-                    <Shield className="w-4 h-4" />
-                    <span>{t('profile.tabs.security')}</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="activity" className="flex items-center space-x-2 text-sm py-2">
-                    <Clock className="w-4 h-4" />
-                    <span>{t('profile.tabs.activity')}</span>
-                  </TabsTrigger>
-                </TabsList>
-
-                {/* 个人资料标签页 */}
-                <TabsContent value="profile" className="mt-6">
+    <>
+      <FadeIn direction="right">
+        {section === 'personal' && (
                   <Card>
                     <div className="p-6">
+                      <div className="flex items-center gap-4 pb-6 mb-6 border-b border-gray-200 dark:border-gray-700">
+                        <div className="relative group shrink-0">
+                          <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden ring-2 ring-slate-100 dark:ring-gray-700">
+                            <img
+                              src={
+                                user?.avatar ||
+                                `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.displayName || 'User')}&background=6366f1&color=fff&size=128`
+                              }
+                              alt=""
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <label className="absolute -bottom-0.5 -right-0.5 p-1.5 bg-white dark:bg-gray-800 rounded-full shadow border border-gray-200 dark:border-gray-600 cursor-pointer hover:scale-105 transition-transform">
+                            <Camera className="w-3 h-3 text-gray-600 dark:text-gray-300" />
+                            <input
+                              type="file"
+                              accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                              onChange={handleAvatarUpload}
+                              className="hidden"
+                              disabled={isLoading}
+                            />
+                          </label>
+                          {isLoading && (
+                            <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center">
+                              <LoadingAnimation type="progress" size="sm" color="#ffffff" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm text-gray-500 dark:text-gray-400">头像</p>
+                          <p className="font-medium text-gray-900 dark:text-white truncate">
+                            {user?.displayName || user?.email?.split('@')[0] || '—'}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{user?.email || '—'}</p>
+                        </div>
+                      </div>
                       <div className="flex items-center justify-between mb-4">
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t('profile.basicInfo')}</h3>
                         {!isEditing ? (
@@ -1088,43 +965,6 @@ const Profile = () => {
                           />
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                              {t('profile.timezone')}
-                            </label>
-                            <select
-                              value={formData.timezone}
-                              onChange={(e) => setFormData(prev => ({ ...prev, timezone: e.target.value }))}
-                              disabled={!isEditing}
-                              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
-                            >
-                              <option value="Asia/Shanghai">Asia/Shanghai</option>
-                              <option value="Asia/Tokyo">Asia/Tokyo</option>
-                              <option value="America/New_York">America/New_York</option>
-                              <option value="Europe/London">Europe/London</option>
-                              <option value="UTC">UTC</option>
-                            </select>
-                          </div>
-                          
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                              {t('profile.language')}
-                            </label>
-                            <select
-                              value={formData.locale}
-                              onChange={(e) => setFormData(prev => ({ ...prev, locale: e.target.value }))}
-                              disabled={!isEditing}
-                              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
-                            >
-                              <option value="zh-CN">简体中文</option>
-                              <option value="zh-TW">繁體中文</option>
-                              <option value="en-US">English</option>
-                              <option value="ja-JP">日本語</option>
-                            </select>
-                          </div>
-                        </div>
-
                         <Input
                           label={t('profile.bio')}
                           value={formData.extra}
@@ -1137,10 +977,98 @@ const Profile = () => {
                       </div>
                     </div>
                   </Card>
-                </TabsContent>
+                )}
 
-                {/* 账户与偏好 */}
-                <TabsContent value="settings" className="mt-6">
+                {section === 'locale' && (
+                  <Card>
+                    <div className="p-6 space-y-6">
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">语言、时区与外观</h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                          设置界面语言、默认时区与主题外观；保存后写入账户，登录时会自动应用。
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            {t('profile.timezone')}
+                          </label>
+                          <select
+                            value={formData.timezone}
+                            onChange={(e) => setFormData(prev => ({ ...prev, timezone: e.target.value }))}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          >
+                            <option value="Asia/Shanghai">Asia/Shanghai</option>
+                            <option value="Asia/Tokyo">Asia/Tokyo</option>
+                            <option value="America/New_York">America/New_York</option>
+                            <option value="Europe/London">Europe/London</option>
+                            <option value="UTC">UTC</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            {t('profile.language')}
+                          </label>
+                          <select
+                            value={formData.locale}
+                            onChange={(e) => setFormData(prev => ({ ...prev, locale: e.target.value }))}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          >
+                            <option value="zh">简体中文</option>
+                            <option value="zh-TW">繁體中文</option>
+                            <option value="en">English</option>
+                            <option value="ja">日本語</option>
+                            <option value="fr">Français</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            外观模式
+                          </label>
+                          <select
+                            value={formData.themeMode}
+                            onChange={(e) =>
+                              setFormData((prev) => ({ ...prev, themeMode: e.target.value as ThemeMode }))
+                            }
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          >
+                            <option value="system">跟随系统</option>
+                            <option value="light">浅色</option>
+                            <option value="dark">深色</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            主题色
+                          </label>
+                          <select
+                            value={formData.themeColor}
+                            onChange={(e) =>
+                              setFormData((prev) => ({ ...prev, themeColor: e.target.value as ThemeColor }))
+                            }
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          >
+                            <option value="default">默认</option>
+                            <option value="cherry">樱桃</option>
+                            <option value="ocean">海洋</option>
+                            <option value="nature">自然</option>
+                            <option value="fresh">清新</option>
+                            <option value="sunset">日落</option>
+                            <option value="lavender">薰衣草</option>
+                          </select>
+                        </div>
+                      </div>
+                      <Button variant="primary" size="sm" onClick={() => void handleSave()} disabled={isLoading} leftIcon={<Save className="w-4 h-4" />}>
+                        {isLoading ? t('profile.saving') : t('profile.save')}
+                      </Button>
+                    </div>
+                  </Card>
+                )}
+
+                {/* 第三方账号与通知偏好 */}
+                {section === 'integrations' && (
                   <Card>
                     <div className="p-6 space-y-8">
                       <div>
@@ -1295,11 +1223,11 @@ const Profile = () => {
                     </div>
                     </div>
                   </Card>
-                </TabsContent>
+                )}
 
                 {/* 安全设置标签页 */}
-                <TabsContent value="security" className="mt-6">
-                  <Card>
+                {section === 'security' && (
+                  <Card className="w-full max-w-none">
                     <div className="p-6">
                       <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">密码安全</h3>
                       <div className="space-y-4">
@@ -1542,165 +1470,185 @@ const Profile = () => {
                             前往注销
                           </Link>
                         </div>
-
-                        {/* 设备管理 */}
-                        <div className="mt-6">
-                          <div className="flex items-center justify-between mb-4">
-                            <h4 className="text-md font-semibold text-gray-900 dark:text-white">设备管理</h4>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={loadDevices}
-                              disabled={isLoadingDevices}
-                            >
-                              {isLoadingDevices ? '加载中...' : '刷新'}
-                            </Button>
-                          </div>
-                          
-                          {isLoadingDevices ? (
-                            <div className="flex items-center justify-center py-8">
-                              <LoadingAnimation type="progress" size="md" />
-                              <span className="ml-2 text-gray-600 dark:text-gray-400">加载中...</span>
-                            </div>
-                          ) : devices.length === 0 ? (
-                            <div className="text-center py-8 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                              <Settings className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                              <p className="text-gray-500 dark:text-gray-400">暂无设备记录</p>
-                            </div>
-                          ) : (
-                            <div className="space-y-3 max-h-96 overflow-y-auto">
-                              {devices.map((device) => (
-                                <motion.div
-                                  key={device.id}
-                                  initial={{ opacity: 0, y: 20 }}
-                                  animate={{ opacity: 1, y: 0 }}
-                                  className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700"
-                                >
-                                  <div className="flex items-center space-x-4 flex-1">
-                                    <div className={`p-2 rounded-lg ${
-                                      device.isTrusted 
-                                        ? 'bg-green-100 dark:bg-green-900/30' 
-                                        : 'bg-gray-100 dark:bg-gray-700'
-                                    }`}>
-                                      <Settings className={`w-5 h-5 ${
-                                        device.isTrusted 
-                                          ? 'text-green-600 dark:text-green-400' 
-                                          : 'text-gray-600 dark:text-gray-400'
-                                      }`} />
-                                    </div>
-                                    <div className="flex-1">
-                                      <div className="flex items-center space-x-2">
-                                        <h5 className="text-sm font-medium text-gray-900 dark:text-white">
-                                          {device.deviceName || `${device.browser} on ${device.os}`}
-                                        </h5>
-                                        {device.isTrusted && (
-                                          <Badge variant="success" className="text-xs">已信任</Badge>
-                                        )}
-                                      </div>
-                                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                                        {device.os} • {device.browser}
-                                      </p>
-                                      <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                                        {device.location || device.ipAddress} • 最后使用: {new Date(device.lastUsedAt).toLocaleString('zh-CN')}
-                                      </p>
-                                    </div>
-                                  </div>
-                                  <div className="flex items-center space-x-2">
-                                    {!device.isTrusted ? (
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => handleTrustDevice(device.deviceId)}
-                                        disabled={isLoading}
-                                      >
-                                        信任
-                                      </Button>
-                                    ) : (
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => handleUntrustDevice(device.deviceId)}
-                                        disabled={isLoading}
-                                      >
-                                        取消信任
-                                      </Button>
-                                    )}
-                                    <Button
-                                      variant="destructive"
-                                      size="sm"
-                                      onClick={() => handleDeleteDevice(device.deviceId)}
-                                      disabled={isLoading}
-                                    >
-                                      删除
-                                    </Button>
-                                  </div>
-                                </motion.div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
                       </div>
                     </div>
                   </Card>
-                </TabsContent>
+                )}
 
-                {/* 活动记录标签页 */}
-                <TabsContent value="activity" className="mt-6">
-                  <Card>
+                {section === 'user-devices' && (
+                  <Card className="w-full max-w-none">
                     <div className="p-6">
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">最近活动</h3>
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
+                        <div className="flex items-start gap-3 min-w-0">
+                          <div className="p-2 rounded-lg bg-sky-100 dark:bg-sky-900/30 shrink-0">
+                            <Smartphone className="w-5 h-5 text-sky-600 dark:text-sky-400" />
+                          </div>
+                          <div className="min-w-0">
+                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">登录设备</h3>
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                              查看已登录的浏览器与客户端，可信任常用设备或移除不再使用的会话。
+                            </p>
+                          </div>
+                        </div>
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => loadActivities(1)}
-                          disabled={isLoadingActivities}
+                          className="shrink-0 self-start sm:self-center"
+                          onClick={loadDevices}
+                          disabled={isLoadingDevices}
                         >
-                          {isLoadingActivities ? '加载中...' : '刷新'}
+                          {isLoadingDevices ? '加载中...' : '刷新'}
                         </Button>
                       </div>
-                      
-                      {isLoadingActivities ? (
-                        <div className="flex items-center justify-center py-8">
+
+                      {isLoadingDevices ? (
+                        <div className="flex items-center justify-center py-12">
                           <LoadingAnimation type="progress" size="md" />
                           <span className="ml-2 text-gray-600 dark:text-gray-400">加载中...</span>
                         </div>
-                      ) : activities.length === 0 ? (
-                        <div className="text-center py-8">
-                          <Settings className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                          <p className="text-gray-500 dark:text-gray-400">暂无活动记录</p>
+                      ) : devices.length === 0 ? (
+                        <div className="text-center py-12 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                          <Smartphone className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                          <p className="text-gray-500 dark:text-gray-400">暂无设备记录</p>
                         </div>
                       ) : (
-                        <div className="space-y-4 max-h-96 overflow-y-auto">
-                          {activities.map((activity) => (
+                        <div className="space-y-3 max-h-[min(480px,70vh)] overflow-y-auto">
+                          {devices.map((device) => (
                             <motion.div
-                              key={activity.id}
-                              initial={{ opacity: 0, y: 20 }}
+                              key={device.id}
+                              initial={{ opacity: 0, y: 12 }}
                               animate={{ opacity: 1, y: 0 }}
-                              className="flex items-center space-x-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg"
+                              className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700"
                             >
-                              <div className={`p-2 ${getActivityBgColor(activity.action)} rounded-lg`}>
-                                {getActivityIcon(activity.action)}
-                              </div>
-                              <div className="flex-1">
-                                <p className="text-sm font-medium text-gray-900 dark:text-white">
-                                  {formatActivityDescription(activity)}
-                                </p>
-                                <p className="text-xs text-gray-600 dark:text-gray-400">
-                                  {formatTimeAgo(activity.createdAt)} • {activity.browser} • {activity.location}
-                                </p>
-                                {activity.details && (
-                                  <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                                    {activity.details}
+                              <div className="flex items-center space-x-4 flex-1 min-w-0">
+                                <div
+                                  className={`p-2 rounded-lg shrink-0 ${
+                                    device.isTrusted
+                                      ? 'bg-green-100 dark:bg-green-900/30'
+                                      : 'bg-gray-100 dark:bg-gray-700'
+                                  }`}
+                                >
+                                  <Settings
+                                    className={`w-5 h-5 ${
+                                      device.isTrusted
+                                        ? 'text-green-600 dark:text-green-400'
+                                        : 'text-gray-600 dark:text-gray-400'
+                                    }`}
+                                  />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <h5 className="text-sm font-medium text-gray-900 dark:text-white">
+                                      {device.deviceName || `${device.browser} on ${device.os}`}
+                                    </h5>
+                                    {device.isTrusted && (
+                                      <Badge variant="success" className="text-xs">
+                                        已信任
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                    {device.os} • {device.browser}
                                   </p>
+                                  <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                                    {device.location || device.ipAddress} • 最后使用:{' '}
+                                    {new Date(device.lastUsedAt).toLocaleString('zh-CN')}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0 sm:pl-2">
+                                {!device.isTrusted ? (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleTrustDevice(device.deviceId)}
+                                    disabled={isLoading}
+                                  >
+                                    信任
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleUntrustDevice(device.deviceId)}
+                                    disabled={isLoading}
+                                  >
+                                    取消信任
+                                  </Button>
                                 )}
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => handleDeleteDevice(device.deviceId)}
+                                  disabled={isLoading}
+                                >
+                                  删除
+                                </Button>
                               </div>
                             </motion.div>
                           ))}
-                          
-                          {/* 分页 */}
+                        </div>
+                      )}
+                    </div>
+                  </Card>
+                )}
+
+                {/* 活动记录 */}
+                {section === 'activity' && (
+                  <Card className="overflow-hidden border-slate-200/80 dark:border-neutral-700">
+                    <div className="px-5 py-4 border-b border-slate-100 dark:border-neutral-800 flex items-center justify-between bg-slate-50/50 dark:bg-neutral-900/40">
+                      <h3 className="text-base font-semibold text-gray-900 dark:text-white">最近活动</h3>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => loadActivities(1)}
+                        disabled={isLoadingActivities}
+                      >
+                        {isLoadingActivities ? '加载中...' : '刷新'}
+                      </Button>
+                    </div>
+                    <div className="p-0">
+                      {isLoadingActivities ? (
+                        <div className="flex items-center justify-center py-16">
+                          <LoadingAnimation type="progress" size="md" />
+                          <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">加载中...</span>
+                        </div>
+                      ) : activities.length === 0 ? (
+                        <div className="text-center py-14 px-4">
+                          <Clock className="w-10 h-10 text-gray-300 dark:text-neutral-600 mx-auto mb-3" />
+                          <p className="text-sm text-gray-500 dark:text-gray-400">暂无活动记录</p>
+                        </div>
+                      ) : (
+                        <>
+                          <ul className="divide-y divide-slate-100 dark:divide-neutral-800 max-h-[min(560px,70vh)] overflow-y-auto">
+                            {activities.map((activity) => (
+                              <li
+                                key={activity.id}
+                                className="flex gap-4 px-5 py-3.5 hover:bg-slate-50/80 dark:hover:bg-neutral-800/40 transition-colors"
+                              >
+                                <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${getActivityBgColor(activity.action)}`}>
+                                  <span className="scale-90">{getActivityIcon(activity.action)}</span>
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100 leading-snug">
+                                    {formatActivityDescription(activity)}
+                                  </p>
+                                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 tabular-nums">
+                                    {formatTimeAgo(activity.createdAt)}
+                                    <span className="mx-1.5 text-gray-300 dark:text-neutral-600">·</span>
+                                    {[activity.browser, activity.location].filter(Boolean).join(' · ') || '—'}
+                                  </p>
+                                  {activity.details ? (
+                                    <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-500 border-l-2 border-slate-200 dark:border-neutral-600 pl-2">
+                                      {activity.details}
+                                    </p>
+                                  ) : null}
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
                           {activityTotalPages > 1 && (
-                            <div className="flex items-center justify-center space-x-2 mt-6">
+                            <div className="flex items-center justify-center gap-2 px-5 py-3 border-t border-slate-100 dark:border-neutral-800 bg-slate-50/30 dark:bg-neutral-900/30">
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -1709,8 +1657,8 @@ const Profile = () => {
                               >
                                 上一页
                               </Button>
-                              <span className="text-sm text-gray-600 dark:text-gray-400">
-                                第 {activityPage} 页，共 {activityTotalPages} 页
+                              <span className="text-xs text-gray-500 dark:text-gray-400">
+                                第 {activityPage} / {activityTotalPages} 页
                               </span>
                               <Button
                                 variant="outline"
@@ -1722,16 +1670,20 @@ const Profile = () => {
                               </Button>
                             </div>
                           )}
-                        </div>
+                        </>
                       )}
                     </div>
                   </Card>
-                </TabsContent>
-              </Tabs>
+                )}
+
+                {section === 'teams' && <TeamWorkspacePage />}
+
+                {section === 'billing' && <Billing />}
+
+                {section === 'notifications' && <NotificationCenter />}
+
+                {section === 'credential' && <CredentialManager />}
             </FadeIn>
-          </div>
-        </div>
-      </div>
 
       {/* 两步验证设置模态框 */}
       {showTwoFactorSetup && twoFactorSetup && (
@@ -1864,7 +1816,7 @@ const Profile = () => {
         type={confirmDialog.type}
         loading={isLoading}
       />
-    </div>
+    </>
   )
 }
 

@@ -614,12 +614,15 @@ func (h *Handlers) findOrCreateWechatUser(openID string, info *wechatUserInfoRes
 		updates := map[string]any{
 			"wechat_union_id": info.UnionID,
 		}
-		if info.HeadImg != "" {
-			updates["avatar"] = info.HeadImg
-		}
 		if updateErr := h.db.Model(&user).Updates(updates).Error; updateErr != nil {
 			logger.Warn("failed to update existing wechat fields, continue login", zap.Error(updateErr))
 		}
+		if info.HeadImg != "" {
+			if perr := models.UpdateUserProfileFields(h.db, user.ID, map[string]any{"avatar": info.HeadImg}); perr != nil {
+				logger.Warn("failed to update wechat avatar on profile", zap.Error(perr))
+			}
+		}
+		_ = h.db.First(&user, user.ID).Error
 		return &user, nil
 	}
 
@@ -647,13 +650,13 @@ func (h *Handlers) findOrCreateWechatUser(openID string, info *wechatUserInfoRes
 		"wechat_open_id":  openID,
 		"wechat_union_id": info.UnionID,
 	}
-	if info.HeadImg != "" {
-		updates["avatar"] = info.HeadImg
-	}
 	if err = h.db.Model(created).Updates(updates).Error; err != nil {
 		// Some old databases may not have wechat_* columns yet.
 		// Keep login working even if wechat field persistence fails.
 		logger.Warn("failed to persist wechat fields for new user, continue login", zap.Error(err))
+	}
+	if info.HeadImg != "" {
+		_ = models.UpdateUserProfileFields(h.db, created.ID, map[string]any{"avatar": info.HeadImg})
 	}
 	_ = h.db.First(created, created.ID).Error
 	return created, nil
@@ -669,12 +672,13 @@ func (h *Handlers) findOrCreateGitHubUser(githubUser *githubUserResp, githubEmai
 		updates := map[string]any{
 			"github_login": strings.TrimSpace(githubUser.Login),
 		}
-		if githubUser.AvatarURL != "" {
-			updates["avatar"] = githubUser.AvatarURL
-		}
 		if updateErr := h.db.Model(&user).Updates(updates).Error; updateErr != nil {
 			logger.Warn("failed to update github user fields", zap.Error(updateErr))
 		}
+		if githubUser.AvatarURL != "" {
+			_ = models.UpdateUserProfileFields(h.db, user.ID, map[string]any{"avatar": githubUser.AvatarURL})
+		}
+		_ = h.db.First(&user, user.ID).Error
 		return &user, nil
 	}
 
@@ -685,11 +689,11 @@ func (h *Handlers) findOrCreateGitHubUser(githubUser *githubUserResp, githubEmai
 				"github_id":    githubID,
 				"github_login": strings.TrimSpace(githubUser.Login),
 			}
-			if githubUser.AvatarURL != "" {
-				updates["avatar"] = githubUser.AvatarURL
-			}
 			if updateErr := h.db.Model(existing).Updates(updates).Error; updateErr != nil {
 				return nil, updateErr
+			}
+			if githubUser.AvatarURL != "" {
+				_ = models.UpdateUserProfileFields(h.db, existing.ID, map[string]any{"avatar": githubUser.AvatarURL})
 			}
 			_ = h.db.First(existing, existing.ID).Error
 			return existing, nil
@@ -720,11 +724,11 @@ func (h *Handlers) findOrCreateGitHubUser(githubUser *githubUserResp, githubEmai
 		"github_id":    githubID,
 		"github_login": strings.TrimSpace(githubUser.Login),
 	}
-	if githubUser.AvatarURL != "" {
-		updates["avatar"] = githubUser.AvatarURL
-	}
 	if err = h.db.Model(created).Updates(updates).Error; err != nil {
 		logger.Warn("failed to persist github fields for new user", zap.Error(err))
+	}
+	if githubUser.AvatarURL != "" {
+		_ = models.UpdateUserProfileFields(h.db, created.ID, map[string]any{"avatar": githubUser.AvatarURL})
 	}
 	_ = h.db.First(created, created.ID).Error
 	return created, nil
@@ -1399,10 +1403,10 @@ func (h *Handlers) handleGitHubCallback(c *gin.Context) {
 				"github_id":    newGithubID,
 				"github_login": strings.TrimSpace(githubUser.Login),
 			}
-			if githubUser.AvatarURL != "" {
-				updates["avatar"] = githubUser.AvatarURL
-			}
 			_ = h.db.Model(bindUser).Updates(updates).Error
+			if githubUser.AvatarURL != "" {
+				_ = models.UpdateUserProfileFields(h.db, bindUser.ID, map[string]any{"avatar": githubUser.AvatarURL})
+			}
 			c.Redirect(http.StatusFound, buildBindRedirect("github_ok"))
 			return
 		}
@@ -2805,29 +2809,53 @@ func (h *Handlers) handleUserSignup(c *gin.Context) {
 		utils.GlobalRegistrationGuard.RecordRegistrationAttempt(clientIP, form.Email, true, "registration successful")
 	}
 
-	vals := utils.StructAsMap(form, []string{
-		"DisplayName",
-		"FirstName",
-		"LastName",
-		"Locale",
-		"Timezone",
-	})
-
 	n := time.Now().Truncate(1 * time.Second)
-	vals["LastLogin"] = &n
-	vals["LastLoginIP"] = c.ClientIP()
-
-	user.DisplayName = form.DisplayName
-	user.FirstName = form.FirstName
-	user.LastName = form.LastName
-	user.Locale = form.Locale
-	user.Timezone = form.Timezone
+	coreVals := map[string]any{
+		"LastLogin":   &n,
+		"LastLoginIP": c.ClientIP(),
+	}
 	user.LastLogin = &n
 	user.LastLoginIP = c.ClientIP()
 
-	err = models.UpdateUserFields(db, user, vals)
-	if err != nil {
-		logger.Warn("update user fields fail id:", zap.Uint("userId", user.ID), zap.Any("vals", vals), zap.Error(err))
+	if err = models.UpdateUserFields(db, user, coreVals); err != nil {
+		logger.Warn("update user fields fail id:", zap.Uint("userId", user.ID), zap.Any("vals", coreVals), zap.Error(err))
+	}
+
+	profVals := map[string]any{}
+	if form.DisplayName != "" {
+		profVals["display_name"] = form.DisplayName
+	}
+	if form.FirstName != "" {
+		profVals["first_name"] = form.FirstName
+	}
+	if form.LastName != "" {
+		profVals["last_name"] = form.LastName
+	}
+	if form.Locale != "" {
+		profVals["locale"] = form.Locale
+	}
+	if form.Timezone != "" {
+		profVals["timezone"] = form.Timezone
+	}
+	if len(profVals) > 0 {
+		if err = models.UpdateUserProfileFields(db, user.ID, profVals); err != nil {
+			logger.Warn("update user profile fail id:", zap.Uint("userId", user.ID), zap.Any("vals", profVals), zap.Error(err))
+		}
+	}
+	uiVals := map[string]any{}
+	if form.Locale != "" {
+		uiVals["preferred_locale"] = strings.TrimSpace(form.Locale)
+	}
+	if form.Timezone != "" {
+		uiVals["preferred_timezone"] = strings.TrimSpace(form.Timezone)
+	}
+	if len(uiVals) > 0 {
+		if err = models.UpdateUserFields(db, user, uiVals); err != nil {
+			logger.Warn("update user ui prefs fail", zap.Uint("userId", user.ID), zap.Error(err))
+		}
+	}
+	if ru, rerr := models.GetUserByID(db, user.ID); rerr == nil && ru != nil {
+		user = ru
 	}
 
 	utils.Sig().Emit(constants.SigUserCreate, user, c, db)
@@ -2961,17 +2989,41 @@ func (h *Handlers) handleUserSignupByEmail(c *gin.Context) {
 	if utils.GlobalRegistrationGuard != nil {
 		utils.GlobalRegistrationGuard.RecordRegistrationAttempt(clientIP, form.Email, true, "registration successful")
 	}
-	vals := utils.StructAsMap(form, []string{
-		"DisplayName",
-		"FirstName",
-		"LastName",
-		"Locale",
-		"Timezone",
-	})
-	user.Timezone = form.Timezone
-	err = models.UpdateUserFields(db, user, vals)
-	if err != nil {
-		logger.Warn("update user fields fail id:", zap.Uint("userId", user.ID), zap.Any("vals", vals), zap.Error(err))
+	profVals := map[string]any{}
+	if form.DisplayName != "" {
+		profVals["display_name"] = form.DisplayName
+	}
+	if form.FirstName != "" {
+		profVals["first_name"] = form.FirstName
+	}
+	if form.LastName != "" {
+		profVals["last_name"] = form.LastName
+	}
+	if form.Locale != "" {
+		profVals["locale"] = form.Locale
+	}
+	if form.Timezone != "" {
+		profVals["timezone"] = form.Timezone
+	}
+	if len(profVals) > 0 {
+		if err = models.UpdateUserProfileFields(db, user.ID, profVals); err != nil {
+			logger.Warn("update user profile fail id:", zap.Uint("userId", user.ID), zap.Any("vals", profVals), zap.Error(err))
+		}
+	}
+	uiVals := map[string]any{}
+	if form.Locale != "" {
+		uiVals["preferred_locale"] = strings.TrimSpace(form.Locale)
+	}
+	if form.Timezone != "" {
+		uiVals["preferred_timezone"] = strings.TrimSpace(form.Timezone)
+	}
+	if len(uiVals) > 0 {
+		if err = models.UpdateUserFields(db, user, uiVals); err != nil {
+			logger.Warn("update user ui prefs fail", zap.Uint("userId", user.ID), zap.Error(err))
+		}
+	}
+	if ru, rerr := models.GetUserByID(db, user.ID); rerr == nil && ru != nil {
+		user = ru
 	}
 	utils.Sig().Emit(constants.SigUserCreate, user, db)
 	sendHashMail(db, user, constants.SigUserVerifyEmail, constants.KEY_VERIFY_EMAIL_EXPIRED, "180d", c.ClientIP(), c.Request.UserAgent())
@@ -2987,54 +3039,75 @@ func (h *Handlers) handleUserUpdate(c *gin.Context) {
 	}
 
 	user := models.CurrentUser(c)
-	vals := make(map[string]interface{})
+	if user == nil {
+		response.Fail(c, "User not found", errors.New("user not found"))
+		return
+	}
+
+	coreVals := make(map[string]interface{})
+	profVals := make(map[string]interface{})
 
 	if req.Email != "" {
-		vals["email"] = req.Email
+		coreVals["email"] = strings.TrimSpace(strings.ToLower(req.Email))
 	}
 	if req.Phone != "" {
-		vals["phone"] = req.Phone
+		profVals["phone"] = req.Phone
 	}
 	if req.FirstName != "" {
-		vals["first_name"] = req.FirstName
+		profVals["first_name"] = req.FirstName
 	}
 	if req.LastName != "" {
-		vals["last_name"] = req.LastName
+		profVals["last_name"] = req.LastName
 	}
 	if req.DisplayName != "" {
-		vals["display_name"] = req.DisplayName
+		profVals["display_name"] = req.DisplayName
 	}
 	if req.Locale != "" {
-		vals["locale"] = req.Locale
+		coreVals["preferred_locale"] = strings.TrimSpace(req.Locale)
+		profVals["locale"] = req.Locale
 	}
 	if req.Timezone != "" {
-		vals["timezone"] = req.Timezone
+		coreVals["preferred_timezone"] = strings.TrimSpace(req.Timezone)
+		profVals["timezone"] = req.Timezone
+	}
+	if tm := models.NormalizeThemeMode(req.ThemeMode); tm != "" {
+		coreVals["theme_mode"] = tm
+	}
+	if tc := models.NormalizeThemeColor(req.ThemeColor); tc != "" {
+		coreVals["theme_color"] = tc
 	}
 	if req.Gender != "" {
-		vals["gender"] = req.Gender
+		profVals["gender"] = req.Gender
 	}
 	if req.Extra != "" {
-		vals["extra"] = req.Extra
+		profVals["extra"] = req.Extra
 	}
 	if req.Avatar != "" {
-		vals["avatar"] = req.Avatar
+		profVals["avatar"] = req.Avatar
 	}
 	if req.City != "" {
-		vals["city"] = req.City
+		profVals["city"] = req.City
 	}
 	if req.Region != "" {
-		vals["region"] = req.Region
+		profVals["region"] = req.Region
 	}
 	operator := fmt.Sprintf("uid:%d", user.ID)
 	if user.Email != "" {
 		operator = user.Email
 	}
-	vals["update_by"] = operator
 
-	err := models.UpdateUser(h.db, user, vals)
-	if err != nil {
-		response.Fail(c, "update user failed", err)
-		return
+	if len(coreVals) > 0 {
+		coreVals["update_by"] = operator
+		if err := models.UpdateUser(h.db, user, coreVals); err != nil {
+			response.Fail(c, "update user failed", err)
+			return
+		}
+	}
+	if len(profVals) > 0 {
+		if err := models.UpdateUserProfileFields(h.db, user.ID, profVals); err != nil {
+			response.Fail(c, "update user profile failed", err)
+			return
+		}
 	}
 
 	// 重新获取更新后的用户信息
@@ -3055,27 +3128,29 @@ func (h *Handlers) handleUserUpdateBasicInfo(c *gin.Context) {
 		return
 	}
 	user := models.CurrentUser(c)
+	if user == nil {
+		response.Fail(c, "User not found", errors.New("user not found"))
+		return
+	}
 	vals := make(map[string]interface{})
 
 	if req.WifiName != "" {
-		vals["wifiName"] = req.WifiName
+		vals["wifi_name"] = req.WifiName
 	}
 	if req.WifiPassword != "" {
-		vals["wifiPassword"] = req.WifiPassword
+		vals["wifi_password"] = req.WifiPassword
 	}
 	if req.FatherCallName != "" {
-		vals["fatherCallName"] = req.FatherCallName
+		vals["father_call_name"] = req.FatherCallName
 	}
 	if req.MotherCallName != "" {
-		vals["motherCallName"] = req.MotherCallName
+		vals["mother_call_name"] = req.MotherCallName
 	}
-	operator := fmt.Sprintf("uid:%d", user.ID)
-	if user.Email != "" {
-		operator = user.Email
+	if len(vals) == 0 {
+		response.Success(c, "handle update user success", nil)
+		return
 	}
-	vals["update_by"] = operator
-	err := models.UpdateUser(h.db, user, vals)
-	if err != nil {
+	if err := models.UpdateUserProfileFields(h.db, user.ID, vals); err != nil {
 		response.Fail(c, "update user failed", err)
 		return
 	}
@@ -3105,12 +3180,11 @@ func (h *Handlers) handleUserUpdatePreferences(c *gin.Context) {
 	}
 
 	user := models.CurrentUser(c)
-	operator := fmt.Sprintf("uid:%d", user.ID)
-	if user.Email != "" {
-		operator = user.Email
+	if user == nil {
+		response.Fail(c, "User not found", errors.New("user not found"))
+		return
 	}
-	vals["update_by"] = operator
-	if err := models.UpdateUser(h.db, user, vals); err != nil {
+	if err := models.UpdateUserProfileFields(h.db, user.ID, vals); err != nil {
 		response.Fail(c, "update user failed", err)
 		return
 	}
@@ -3415,7 +3489,7 @@ func (h *Handlers) handleSendDeviceVerificationCode(c *gin.Context) {
 
 	// 发送邮件
 	go func() {
-		err := notification.NewMailNotificationWithDB(config.GlobalConfig.Services.Mail, db, user.ID).SendDeviceVerificationCode(user.Email, user.DisplayName, code, form.DeviceID)
+		err := notification.NewMailNotificationWithDB(config.GlobalConfig.Services.Mail, db, user.ID).SendDeviceVerificationCode(user.Email, user.EffectiveDisplayName(), code, form.DeviceID)
 		if err != nil {
 			logger.Error("Failed to send device verification email", zap.Error(err), zap.String("email", user.Email))
 		}
@@ -3504,9 +3578,14 @@ func (h *Handlers) handleVerifyEmail(c *gin.Context) {
 
 // handleSendEmailVerification 发送邮箱验证邮件
 func (h *Handlers) handleSendEmailVerification(c *gin.Context) {
-	user := models.CurrentUser(c)
-	if user == nil {
+	ctxUser := models.CurrentUser(c)
+	if ctxUser == nil {
 		response.Fail(c, "User not found", errors.New("user not found"))
+		return
+	}
+	user, err := models.GetUserByID(h.db, ctxUser.ID)
+	if err != nil || user == nil {
+		response.Fail(c, "User not found", err)
 		return
 	}
 
@@ -3589,13 +3668,18 @@ func (h *Handlers) handleGetSalt(c *gin.Context) {
 
 // handleSendPhoneVerification 发送手机验证码
 func (h *Handlers) handleSendPhoneVerification(c *gin.Context) {
-	user := models.CurrentUser(c)
-	if user == nil {
+	ctxUser := models.CurrentUser(c)
+	if ctxUser == nil {
 		response.Fail(c, "User not found", errors.New("user not found"))
 		return
 	}
+	user, err := models.GetUserByID(h.db, ctxUser.ID)
+	if err != nil || user == nil {
+		response.Fail(c, "User not found", err)
+		return
+	}
 
-	if user.Phone == "" {
+	if strings.TrimSpace(user.Profile.Phone) == "" {
 		response.Fail(c, "Phone number not set", errors.New("phone number not set"))
 		return
 	}
@@ -3613,7 +3697,7 @@ func (h *Handlers) handleSendPhoneVerification(c *gin.Context) {
 
 	// 这里可以集成短信服务发送验证码
 	// 目前只是记录日志
-	logger.Info("Phone verification code", zap.String("phone", user.Phone), zap.String("code", token))
+	logger.Info("Phone verification code", zap.String("phone", user.Profile.Phone), zap.String("code", token))
 
 	response.Success(c, "Verification code sent", nil)
 }
@@ -3679,16 +3763,22 @@ func (h *Handlers) handleGetUserStats(c *gin.Context) {
 		response.Fail(c, "User not found", errors.New("user not found"))
 		return
 	}
+	full, err := models.GetUserByID(h.db, user.ID)
+	if err != nil || full == nil {
+		response.Fail(c, "User not found", err)
+		return
+	}
+	user = full
 
 	// 更新资料完整度
-	err := models.UpdateProfileComplete(h.db, user)
+	err = models.UpdateProfileComplete(h.db, user)
 	if err != nil {
 		logger.Warn("Failed to update profile complete", zap.Error(err))
 	}
 
 	stats := map[string]interface{}{
 		"loginCount":         user.LoginCount,
-		"profileComplete":    user.ProfileComplete,
+		"profileComplete":    user.Profile.ProfileComplete,
 		"emailVerified":      user.EmailVerified,
 		"phoneVerified":      user.PhoneVerified,
 		"twoFactorEnabled":   user.TwoFactorEnabled,
@@ -3788,7 +3878,7 @@ func (h *Handlers) handleUploadAvatar(c *gin.Context) {
 		avatarURL = fmt.Sprintf("%s://%s%s", scheme, host, avatarURL)
 	}
 
-	err = models.UpdateUser(h.db, user, map[string]any{
+	err = models.UpdateUserProfileFields(h.db, user.ID, map[string]any{
 		"avatar": avatarURL,
 	})
 	if err != nil {
@@ -3798,8 +3888,7 @@ func (h *Handlers) handleUploadAvatar(c *gin.Context) {
 		return
 	}
 
-	// 更新用户对象
-	user.Avatar = avatarURL
+	user.Profile.Avatar = avatarURL
 
 	// 更新资料完整度
 	err = models.UpdateProfileComplete(h.db, user)

@@ -441,13 +441,10 @@ func (h *Handlers) handleConnection(c *gin.Context) {
 		return
 	}
 
-	if agent.UserID != cred.UserID {
-		if agent.GroupID == nil {
-			c.JSON(http.StatusForbidden, gin.H{"error": "Permission denied: agent does not belong to you"})
-			c.Abort()
-			return
-		}
-		// TODO: 可以在这里添加组织成员权限检查
+	if cred.GroupID != agent.GroupID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Permission denied: credential and agent are not in the same organization"})
+		c.Abort()
+		return
 	}
 
 	systemPrompt := agent.SystemPrompt
@@ -459,7 +456,7 @@ func (h *Handlers) handleConnection(c *gin.Context) {
 	if config.GlobalConfig.Services.GraphMemory.Neo4j.Enabled && agent.EnableGraphMemory {
 		if store := graph.GetDefaultStore(); store != nil {
 			ctx := c.Request.Context()
-			if userCtx, err := store.GetUserContext(ctx, cred.UserID, agentID); err == nil {
+			if userCtx, err := store.GetUserContext(ctx, cred.CreatedBy, agentID); err == nil {
 				if len(userCtx.Topics) > 0 {
 					// 构建一段自然语言描述用户长期偏好
 					preferenceText := fmt.Sprintf("该用户在历史对话中经常讨论这些主题：%s。请在回答时优先从这些兴趣和习惯的角度来组织内容，让风格尽量贴近他的偏好。",
@@ -534,7 +531,7 @@ func (h *Handlers) handleConnection(c *gin.Context) {
 		sessionID,
 		"",
 		h.db,
-		cred.UserID,
+		cred.CreatedBy,
 		cred.ID,
 		&aid,
 		cred,

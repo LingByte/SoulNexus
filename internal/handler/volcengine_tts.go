@@ -62,10 +62,12 @@ func (h *Handlers) VolcengineSynthesize(c *gin.Context) {
 		return
 	}
 
-	// Find corresponding voice clone by assetId
+	groupIDs, gerr := models.MemberGroupIDs(h.db, user.ID)
 	var clone models.VoiceClone
-	if err := h.db.Where("user_id = ? AND asset_id = ? AND provider = ? AND is_active = ?",
-		user.ID, req.AssetID, "volcengine", true).First(&clone).Error; err != nil {
+	if gerr != nil || len(groupIDs) == 0 {
+		logrus.WithError(gerr).Warn("volcengine: no groups for user, synthesis will proceed without history")
+	} else if err := h.db.Where("group_id IN ? AND asset_id = ? AND provider = ? AND is_active = ?",
+		groupIDs, req.AssetID, "volcengine", true).First(&clone).Error; err != nil {
 		// If voice clone not found, still allow synthesis but don't save history
 		logrus.WithError(err).Warn("volcengine: voice clone not found, synthesis will proceed without history")
 	}
@@ -100,7 +102,8 @@ func (h *Handlers) VolcengineSynthesize(c *gin.Context) {
 	if clone.ID > 0 {
 		// Record synthesis history
 		synthesis := &models.VoiceSynthesis{
-			UserID:       user.ID,
+			GroupID:      clone.GroupID,
+			CreatedBy:    user.ID,
 			VoiceCloneID: clone.ID,
 			Text:         req.Text,
 			Language:     req.Language,
@@ -219,20 +222,22 @@ func (h *Handlers) VolcengineQueryTask(c *gin.Context) {
 		trainStatus = 0
 	}
 
-	// If training succeeded, save to VoiceClone table
 	if trainStatus == 2 && status.AssetID != "" {
-		// Volcengine doesn't have VoiceTrainingTask, need to create or find a virtual task first
-		// Find or create virtual training task (use speaker_id as task_id)
+		pg, perr := models.EnsurePersonalGroupForUser(h.db, user.ID)
+		if perr != nil {
+			response.Fail(c, "Failed to create training task record", perr.Error())
+			return
+		}
 		var task models.VoiceTrainingTask
-		if err := h.db.Where("user_id = ? AND task_id = ?", user.ID, req.SpeakerID).First(&task).Error; err != nil {
-			// Doesn't exist, create virtual task
+		if err := h.db.Where("group_id = ? AND task_id = ?", pg.ID, req.SpeakerID).First(&task).Error; err != nil {
 			task = models.VoiceTrainingTask{
-				UserID:   user.ID,
-				TaskID:   req.SpeakerID,
-				TaskName: fmt.Sprintf("Volcengine Voice %s", req.SpeakerID),
-				Status:   models.TrainingStatusSuccess,
-				AssetID:  status.AssetID,
-				TrainVID: status.TrainVID,
+				GroupID:   pg.ID,
+				CreatedBy: user.ID,
+				TaskID:    req.SpeakerID,
+				TaskName:  fmt.Sprintf("Volcengine Voice %s", req.SpeakerID),
+				Status:    models.TrainingStatusSuccess,
+				AssetID:   status.AssetID,
+				TrainVID:  status.TrainVID,
 			}
 			if err := h.db.Create(&task).Error; err != nil {
 				response.Fail(c, "Failed to create training task record", err.Error())

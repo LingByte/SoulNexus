@@ -30,7 +30,7 @@ func init() {
 }
 
 func setupHandlerTestDB(t *testing.T) *gorm.DB {
-	return setupTestDBWithSilentLogger(t, &User{}, &UserCredential{})
+	return setupTestDBWithSilentLogger(t, &User{}, &UserProfile{}, &Group{}, &GroupMember{}, &UserCredential{})
 }
 
 func setupHandlerTestRouter(t *testing.T, db *gorm.DB) *gin.Engine {
@@ -52,7 +52,10 @@ func setupHandlerTestRouter(t *testing.T, db *gorm.DB) *gin.Engine {
 	router.Use(sessions.Sessions("test-session", store))
 
 	// Inject DB
-	router.Use(InjectDB(db))
+	router.Use(func(c *gin.Context) {
+		c.Set(constants.DbField, db)
+		c.Next()
+	})
 
 	return router
 }
@@ -239,12 +242,14 @@ func TestAuthApiRequired_WithAPIKey(t *testing.T) {
 
 	user, err := CreateUser(db, "test@example.com", "password123")
 	require.NoError(t, err)
+	gid := ensureTestTeamGroup(t, db, user.ID)
 
 	credential := &UserCredential{
-		UserID:    user.ID,
-		APIKey:    "test-api-key",
-		APISecret: "test-api-secret",
-		Name:      "Test App",
+		GroupID:    gid,
+		CreatedBy:  user.ID,
+		APIKey:     "test-api-key",
+		APISecret:  "test-api-secret",
+		Name:       "Test App",
 	}
 	err = db.Create(credential).Error
 	require.NoError(t, err)
@@ -271,12 +276,14 @@ func TestAuthApiRequired_WithQueryParams(t *testing.T) {
 
 	user, err := CreateUser(db, "test@example.com", "password123")
 	require.NoError(t, err)
+	gid := ensureTestTeamGroup(t, db, user.ID)
 
 	credential := &UserCredential{
-		UserID:    user.ID,
-		APIKey:    "test-api-key",
-		APISecret: "test-api-secret",
-		Name:      "Test App",
+		GroupID:    gid,
+		CreatedBy:  user.ID,
+		APIKey:     "test-api-key",
+		APISecret:  "test-api-secret",
+		Name:       "Test App",
 	}
 	err = db.Create(credential).Error
 	require.NoError(t, err)
@@ -296,26 +303,7 @@ func TestAuthApiRequired_WithQueryParams(t *testing.T) {
 }
 
 func TestAuthApiRequired_WithToken(t *testing.T) {
-	db := setupHandlerTestDB(t)
-	router := setupHandlerTestRouter(t, db)
-
-	user, err := CreateUser(db, "test@example.com", "password123")
-	require.NoError(t, err)
-
-	timestamp := int64(9999999999) // Future timestamp
-	token := EncodeHashToken(user, timestamp, false)
-
-	router.Use(AuthApiRequired)
-	router.GET("/api/protected", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"message": "ok"})
-	})
-
-	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("GET", "/api/protected", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	router.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusOK, w.Code)
+	t.Skip("legacy EncodeHashToken auth path no longer present in codebase")
 }
 
 func TestAuthApiRequired_Unauthorized(t *testing.T) {
@@ -360,17 +348,11 @@ func TestUpdateUser(t *testing.T) {
 	user, err := CreateUser(db, "test@example.com", "password123")
 	require.NoError(t, err)
 
-	updates := map[string]any{
-		"DisplayName": "Updated Name",
-		"FirstName":   "First",
-	}
-
-	err = UpdateUser(db, user, updates)
+	err = UpdateUser(db, user, map[string]any{"Role": RoleAdmin})
 	require.NoError(t, err)
 
 	// Verify updates
 	retrieved, err := GetUserByUID(db, user.ID)
 	require.NoError(t, err)
-	assert.Equal(t, "Updated Name", retrieved.DisplayName)
-	assert.Equal(t, "First", retrieved.FirstName)
+	assert.Equal(t, RoleAdmin, retrieved.Role)
 }

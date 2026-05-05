@@ -1,4 +1,12 @@
 import { get, post, put, del, ApiResponse } from '@/utils/request'
+import { normalizeNestedProfileUsers } from '@/utils/authUserProfile'
+
+function withNormalizedGroupUsers<T>(res: ApiResponse<T>): ApiResponse<T> {
+  if (res.code === 200 && res.data != null) {
+    return { ...res, data: normalizeNestedProfileUsers(res.data) }
+  }
+  return res
+}
 
 // 组织权限
 export interface GroupPermission {
@@ -106,22 +114,26 @@ export interface UserSearchResult {
 
 // 创建组织
 export const createGroup = async (data: CreateGroupRequest): Promise<ApiResponse<Group>> => {
-  return post('/group', data)
+  const res = await post<Group>('/group', data)
+  return withNormalizedGroupUsers(res)
 }
 
 // 获取组织列表
 export const getGroupList = async (): Promise<ApiResponse<Group[]>> => {
-  return get('/group')
+  const res = await get<Group[]>('/group')
+  return withNormalizedGroupUsers(res)
 }
 
 // 获取组织详情
 export const getGroup = async (id: number): Promise<ApiResponse<Group>> => {
-  return get(`/group/${id}`)
+  const res = await get<Group>(`/group/${id}`)
+  return withNormalizedGroupUsers(res)
 }
 
 // 更新组织
 export const updateGroup = async (id: number, data: UpdateGroupRequest): Promise<ApiResponse<Group>> => {
-  return put(`/group/${id}`, data)
+  const res = await put<Group>(`/group/${id}`, data)
+  return withNormalizedGroupUsers(res)
 }
 
 // 删除组织
@@ -141,12 +153,14 @@ export const removeMember = async (groupId: number, memberId: number): Promise<A
 
 // 邀请用户
 export const inviteUser = async (groupId: number, data: InviteUserRequest): Promise<ApiResponse<GroupInvitation>> => {
-  return post(`/group/${groupId}/invite`, data)
+  const res = await post<GroupInvitation>(`/group/${groupId}/invite`, data)
+  return withNormalizedGroupUsers(res)
 }
 
 // 获取邀请列表
 export const getInvitations = async (): Promise<ApiResponse<GroupInvitation[]>> => {
-  return get('/group/invitations')
+  const res = await get<GroupInvitation[]>('/group/invitations')
+  return withNormalizedGroupUsers(res)
 }
 
 // 接受邀请
@@ -224,17 +238,20 @@ export interface GroupActivityLog {
 
 // 归档组织
 export const archiveGroup = async (id: number): Promise<ApiResponse<Group>> => {
-  return post(`/group/${id}/archive`)
+  const res = await post<Group>(`/group/${id}/archive`)
+  return withNormalizedGroupUsers(res)
 }
 
 // 恢复归档的组织
 export const restoreGroup = async (id: number): Promise<ApiResponse<Group>> => {
-  return post(`/group/${id}/restore`)
+  const res = await post<Group>(`/group/${id}/restore`)
+  return withNormalizedGroupUsers(res)
 }
 
 // 克隆组织
 export const cloneGroup = async (id: number): Promise<ApiResponse<Group>> => {
-  return post(`/group/${id}/clone`)
+  const res = await post<Group>(`/group/${id}/clone`)
+  return withNormalizedGroupUsers(res)
 }
 
 // 导出组织数据
@@ -264,5 +281,11 @@ export const getGroupActivityLogs = async (
   if (params?.resourceType) queryParams.append('resourceType', params.resourceType)
   
   const queryString = queryParams.toString()
-  return get(`/group/${id}/activity-logs${queryString ? `?${queryString}` : ''}`)
+  const res = await get<{
+    logs: GroupActivityLog[]
+    total: number
+    page: number
+    pageSize: number
+  }>(`/group/${id}/activity-logs${queryString ? `?${queryString}` : ''}`)
+  return withNormalizedGroupUsers(res)
 }

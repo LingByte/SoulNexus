@@ -13,7 +13,16 @@ import (
 )
 
 func setupCredentialsTestDB(t *testing.T) *gorm.DB {
-	return setupTestDBWithSilentLogger(t, &User{}, &UserCredential{})
+	return setupTestDBWithSilentLogger(t, &User{}, &UserProfile{}, &Group{}, &GroupMember{}, &UserCredential{})
+}
+
+func minimalUserCredentialRequest(name string) *UserCredentialRequest {
+	return &UserCredentialRequest{
+		Name:        name,
+		LLMProvider: "openai",
+		LLMApiKey:   "sk-test",
+		LLMApiURL:   "https://api.openai.com/v1",
+	}
 }
 
 func TestUserCredentialRequest_BuildASRConfig(t *testing.T) {
@@ -153,7 +162,7 @@ func TestCreateUserCredential(t *testing.T) {
 	cred, err := CreateUserCredential(db, user.ID, req)
 	require.NoError(t, err)
 	assert.NotZero(t, cred.ID)
-	assert.Equal(t, user.ID, cred.UserID)
+	assert.Equal(t, user.ID, cred.CreatedBy)
 	assert.Equal(t, "Test App", cred.Name)
 	assert.NotEmpty(t, cred.APIKey)
 	assert.NotEmpty(t, cred.APISecret)
@@ -171,11 +180,11 @@ func TestGetUserCredentials(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create multiple credentials
-	req1 := &UserCredentialRequest{Name: "App 1"}
+	req1 := minimalUserCredentialRequest("App 1")
 	cred1, err := CreateUserCredential(db, user.ID, req1)
 	require.NoError(t, err)
 
-	req2 := &UserCredentialRequest{Name: "App 2"}
+	req2 := minimalUserCredentialRequest("App 2")
 	cred2, err := CreateUserCredential(db, user.ID, req2)
 	require.NoError(t, err)
 
@@ -199,7 +208,7 @@ func TestGetUserCredentialByApiSecretAndApiKey(t *testing.T) {
 	user, err := CreateUser(db, "test@example.com", "password123")
 	require.NoError(t, err)
 
-	req := &UserCredentialRequest{Name: "Test App"}
+	req := minimalUserCredentialRequest("Test App")
 	cred, err := CreateUserCredential(db, user.ID, req)
 	require.NoError(t, err)
 
@@ -221,7 +230,7 @@ func TestGetUserCredentialByApiSecretAndApiKey_UnavailableCredential(t *testing.
 	user, err := CreateUser(db, "test@example.com", "password123")
 	require.NoError(t, err)
 
-	req := &UserCredentialRequest{Name: "Test App"}
+	req := minimalUserCredentialRequest("Test App")
 	cred, err := CreateUserCredential(db, user.ID, req)
 	require.NoError(t, err)
 
@@ -248,7 +257,7 @@ func TestCheckAndReserveCredits(t *testing.T) {
 	user, err := CreateUser(db, "test@example.com", "password123")
 	require.NoError(t, err)
 
-	req := &UserCredentialRequest{Name: "Test App"}
+	req := minimalUserCredentialRequest("Test App")
 	cred, err := CreateUserCredential(db, user.ID, req)
 	require.NoError(t, err)
 
@@ -270,7 +279,7 @@ func TestCommitCredits(t *testing.T) {
 	user, err := CreateUser(db, "test@example.com", "password123")
 	require.NoError(t, err)
 
-	req := &UserCredentialRequest{Name: "Test App"}
+	req := minimalUserCredentialRequest("Test App")
 	cred, err := CreateUserCredential(db, user.ID, req)
 	require.NoError(t, err)
 
@@ -289,7 +298,7 @@ func TestReleaseReservedCredits(t *testing.T) {
 	user, err := CreateUser(db, "test@example.com", "password123")
 	require.NoError(t, err)
 
-	req := &UserCredentialRequest{Name: "Test App"}
+	req := minimalUserCredentialRequest("Test App")
 	cred, err := CreateUserCredential(db, user.ID, req)
 	require.NoError(t, err)
 
@@ -310,7 +319,7 @@ func TestDeleteUserCredential(t *testing.T) {
 	user, err := CreateUser(db, "test@example.com", "password123")
 	require.NoError(t, err)
 
-	req := &UserCredentialRequest{Name: "Test App"}
+	req := minimalUserCredentialRequest("Test App")
 	cred, err := CreateUserCredential(db, user.ID, req)
 	require.NoError(t, err)
 
@@ -409,17 +418,9 @@ func TestCreateUserCredential_WithoutConfigs(t *testing.T) {
 	user, err := CreateUser(db, "test@example.com", "password123")
 	require.NoError(t, err)
 
-	req := &UserCredentialRequest{
-		Name: "Test App",
-	}
-
-	cred, err := CreateUserCredential(db, user.ID, req)
-	require.NoError(t, err)
-	assert.NotZero(t, cred.ID)
-	assert.Empty(t, cred.LLMProvider)
-	assert.Nil(t, cred.AsrConfig)
-	assert.Nil(t, cred.TtsConfig)
-	// assert.Nil(t, cred.CloneConfig) // CloneConfig not implemented
+	req := &UserCredentialRequest{Name: "Test App"}
+	_, err = CreateUserCredential(db, user.ID, req)
+	require.Error(t, err)
 }
 
 func TestUserCredentialStatusMethods(t *testing.T) {
@@ -457,7 +458,7 @@ func TestMarkCredentialUsed(t *testing.T) {
 	user, err := CreateUser(db, "test@example.com", "password123")
 	require.NoError(t, err)
 
-	req := &UserCredentialRequest{Name: "Test App"}
+	req := minimalUserCredentialRequest("Test App")
 	cred, err := CreateUserCredential(db, user.ID, req)
 	require.NoError(t, err)
 

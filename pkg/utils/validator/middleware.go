@@ -4,10 +4,26 @@ package validator
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
-	"github.com/LingByte/SoulNexus/pkg/i18n"
+	"strings"
+
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/gin-gonic/gin"
 )
+
+func localeFromGin(c *gin.Context) string {
+	al := c.GetHeader("Accept-Language")
+	if al == "" {
+		return "zh-CN"
+	}
+	al = strings.TrimSpace(al)
+	if i := strings.IndexByte(al, ','); i >= 0 {
+		al = strings.TrimSpace(al[:i])
+	}
+	if i := strings.IndexByte(al, ';'); i >= 0 {
+		al = strings.TrimSpace(al[:i])
+	}
+	return al
+}
 
 // Middleware creates a Gin middleware for validation
 func Middleware(validator *Validator) gin.HandlerFunc {
@@ -21,7 +37,7 @@ func Middleware(validator *Validator) gin.HandlerFunc {
 func ValidateStruct(c *gin.Context, data interface{}) ValidationErrors {
 	validator, _ := c.Get("validator")
 	if v, ok := validator.(*Validator); ok {
-		locale := i18n.GetLocaleFromGin(c)
+		locale := localeFromGin(c)
 		return v.Validate(data, locale)
 	}
 	return ValidationErrors{}

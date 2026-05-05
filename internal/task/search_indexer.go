@@ -140,7 +140,7 @@ func IndexUserData(db *gorm.DB, engine search2.Engine) error {
 				ID:   fmt.Sprintf("assistant_%d", assistant.ID),
 				Type: "assistant",
 				Fields: map[string]interface{}{
-					"userId":      strconv.Itoa(int(assistant.UserID)),
+					"groupId":     strconv.Itoa(int(assistant.GroupID)),
 					"title":       assistant.Name,
 					"description": assistant.Description,
 					"content":     assistant.SystemPrompt,
