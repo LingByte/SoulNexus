@@ -14,10 +14,10 @@ import (
 	"time"
 
 	"github.com/LingByte/SoulNexus/internal/models"
-	"github.com/LingByte/SoulNexus/pkg/cache"
 	"github.com/LingByte/SoulNexus/pkg/llm"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/response"
+	"github.com/LingByte/SoulNexus/pkg/utils/cache"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -184,7 +184,7 @@ func (h *Handlers) BindDevice(c *gin.Context) {
 		AppVersion:    appVersion,
 		GroupID:       assistant.GroupID,
 		CreatedBy:     user.ID,
-		AgentID:   &assistantID,
+		AgentID:       &assistantID,
 		AutoUpdate:    1,
 		LastConnected: &now,
 		LastSeen:      &now, // Set LastSeen to current time to avoid MySQL datetime error
@@ -499,7 +499,7 @@ func (h *Handlers) ManualAddDevice(c *gin.Context) {
 		AppVersion:    req.AppVersion,
 		GroupID:       deviceGroupID,
 		CreatedBy:     user.ID,
-		AgentID:   &assistantID,
+		AgentID:       &assistantID,
 		AutoUpdate:    1,
 		LastConnected: &now,
 		LastSeen:      &now, // Set LastSeen to current time to avoid MySQL datetime error
@@ -1159,7 +1159,7 @@ func (h *Handlers) BatchAnalyzeCallRecordings(c *gin.Context) {
 
 	var req struct {
 		AgentID *uint `json:"agentId"`
-		Limit       int   `json:"limit"`
+		Limit   int   `json:"limit"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
