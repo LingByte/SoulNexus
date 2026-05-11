@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -25,7 +24,6 @@ import (
 	workflowdef "github.com/LingByte/SoulNexus/internal/workflow"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/graph"
-	"github.com/LingByte/SoulNexus/pkg/health"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/middleware"
 	"github.com/LingByte/SoulNexus/pkg/utils"
@@ -65,12 +63,6 @@ func main() {
 	// 2. Set Environment Variables
 	if *mode != "" {
 		os.Setenv("APP_ENV", *mode)
-	}
-
-	if s := strings.TrimSpace(os.Getenv("SOULNEXUS_SERVICE")); s != "" {
-		health.SetServiceName(s)
-	} else {
-		health.SetServiceName("api")
 	}
 
 	// 3. Load Global Configuration

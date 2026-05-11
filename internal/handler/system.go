@@ -15,7 +15,6 @@ import (
 	"github.com/LingByte/SoulNexus/internal/config"
 	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/constants"
-	"github.com/LingByte/SoulNexus/pkg/health"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/LingByte/SoulNexus/pkg/utils/cache"
@@ -528,9 +527,4 @@ func (h *Handlers) UploadAudio(c *gin.Context) {
 		"uploadTime": time.Now().Format(time.RFC3339),
 		"url":        reader.URL,
 	})
-}
-
-// ServicePing exposes process/runtime metrics plus optional DB ping (public, for ops dashboards).
-func (h *Handlers) ServicePing(c *gin.Context) {
-	c.JSON(http.StatusOK, health.BuildSnapshot(h.db))
 }
