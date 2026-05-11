@@ -27,8 +27,6 @@ export const frOverrides: Record<string, string> = {
   'nav.sidebar.overview': 'Vue d ensemble',
   'nav.sidebar.currentOrganization': 'Organisation actuelle',
   'nav.sidebar.selectOrganization': 'Choisir une organisation',
-  'nav.sidebar.mcpManagement': 'Gestion MCP',
-  'nav.sidebar.mcpMarketplace': 'Marketplace MCP',
   'nav.sidebar.announcements': 'Annonces',
   'common.loading': 'Chargement...',
   'common.save': 'Enregistrer',

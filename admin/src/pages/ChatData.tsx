@@ -1,12 +1,30 @@
+// Copyright (c) 2026 LingByte. All rights reserved.
+// SPDX-License-Identifier: AGPL-3.0
+//
+// 会话与用量：Tabs 切换 chat_sessions / chat_messages / llm_usage，每个 tab 独立 Arco Table。
 import { useEffect, useState } from 'react'
-import AdminLayout from '@/components/Layout/AdminLayout'
-import Card from '@/components/UI/Card'
-import Button from '@/components/UI/Button'
-import Input from '@/components/UI/Input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/UI/Select'
-import { listAdminChatMessages, listAdminChatSessions, listAdminLLMUsage, type AdminChatMessage, type AdminChatSession, type AdminLLMUsage } from '@/services/adminApi'
+import { Tabs, Table, Input, Select, Button, Tag, Message, Space, Drawer } from '@arco-design/web-react'
+import { Search, RefreshCw, Eye } from 'lucide-react'
+import PageHeader from '@/components/Layout/PageHeader'
+import {
+  listAdminChatMessages,
+  listAdminChatSessions,
+  listAdminLLMUsage,
+  type AdminChatMessage,
+  type AdminChatSession,
+  type AdminLLMUsage,
+} from '@/services/adminApi'
+
+const TabPane = Tabs.TabPane
+const Option = Select.Option
 
 type TabType = 'sessions' | 'messages' | 'usage'
+
+const SUCCESS_OPTIONS = [
+  { label: '全部结果', value: '' },
+  { label: '成功', value: 'true' },
+  { label: '失败', value: 'false' },
+]
 
 const ChatData = () => {
   const [tab, setTab] = useState<TabType>('sessions')
@@ -14,13 +32,16 @@ const ChatData = () => {
   const [sessionId, setSessionId] = useState('')
   const [success, setSuccess] = useState('')
   const [page, setPage] = useState(1)
-  const [pageSize] = useState(20)
+  const [pageSize, setPageSize] = useState(20)
 
   const [sessions, setSessions] = useState<AdminChatSession[]>([])
   const [messages, setMessages] = useState<AdminChatMessage[]>([])
   const [usage, setUsage] = useState<AdminLLMUsage[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(false)
+
+  // 详情抽屉：消息内容 / 完整响应等长字段。
+  const [detail, setDetail] = useState<{ title: string; rows: Array<{ label: string; value: any }> } | null>(null)
 
   const fetchData = async () => {
     setLoading(true)
@@ -30,101 +51,261 @@ const ChatData = () => {
         setSessions(res.items || [])
         setTotal(res.total || 0)
       } else if (tab === 'messages') {
-        const res = await listAdminChatMessages({ page, pageSize, search: search || undefined, session_id: sessionId || undefined })
+        const res = await listAdminChatMessages({
+          page,
+          pageSize,
+          search: search || undefined,
+          session_id: sessionId || undefined,
+        })
         setMessages(res.items || [])
         setTotal(res.total || 0)
       } else {
-        const res = await listAdminLLMUsage({ page, pageSize, search: search || undefined, session_id: sessionId || undefined, success: success || undefined })
+        const res = await listAdminLLMUsage({
+          page,
+          pageSize,
+          search: search || undefined,
+          session_id: sessionId || undefined,
+          success: success || undefined,
+        })
         setUsage(res.items || [])
         setTotal(res.total || 0)
       }
+    } catch (e: any) {
+      Message.error(`加载失败：${e?.msg || e?.message || e}`)
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => {
+    setPage(1)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab])
+
+  useEffect(() => {
     fetchData()
-  }, [tab, page, search, sessionId, success])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, page, pageSize, sessionId, success])
+
+  const handleSearch = () => {
+    setPage(1)
+    fetchData()
+  }
+
+  const sessionColumns = [
+    { title: 'ID', dataIndex: 'id', width: 220, ellipsis: true },
+    { title: '用户', dataIndex: 'user_id', width: 100 },
+    {
+      title: '智能体',
+      dataIndex: 'agent_id',
+      width: 120,
+      render: (_: any, r: AdminChatSession) => (r as any).agent_id ?? (r as any).agentId ?? '-',
+    },
+    {
+      title: 'Provider / Model',
+      dataIndex: 'provider',
+      ellipsis: true,
+      render: (_: any, r: AdminChatSession) => (
+        <span>
+          <Tag color="arcoblue">{r.provider}</Tag>
+          <span className="ml-1 text-xs text-[var(--color-text-3)]">{r.model}</span>
+        </span>
+      ),
+    },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      width: 100,
+      render: (s: string) => <Tag color={s === 'active' ? 'green' : 'gray'}>{s || '-'}</Tag>,
+    },
+    { title: '更新时间', dataIndex: 'updated_at', width: 170, render: (v: string) => v || '-' },
+  ]
+
+  const messageColumns = [
+    { title: 'ID', dataIndex: 'id', width: 200, ellipsis: true },
+    { title: 'Session', dataIndex: 'session_id', width: 200, ellipsis: true },
+    {
+      title: 'Role',
+      dataIndex: 'role',
+      width: 100,
+      render: (v: string) => <Tag color={v === 'user' ? 'arcoblue' : v === 'assistant' ? 'green' : 'gray'}>{v}</Tag>,
+    },
+    { title: '内容', dataIndex: 'content', ellipsis: true },
+    { title: 'RequestID', dataIndex: 'request_id', width: 220, ellipsis: true },
+    { title: '时间', dataIndex: 'created_at', width: 170 },
+    {
+      title: '操作',
+      key: '__actions__',
+      width: 90,
+      fixed: 'right' as const,
+      render: (_: any, r: AdminChatMessage) => (
+        <Button
+          size="mini"
+          type="text"
+          onClick={() =>
+            setDetail({
+              title: '消息详情',
+              rows: [
+                { label: 'ID', value: r.id },
+                { label: 'Session', value: r.session_id },
+                { label: 'Role', value: r.role },
+                { label: 'RequestID', value: r.request_id },
+                { label: '时间', value: r.created_at },
+                { label: '内容', value: r.content },
+              ],
+            })
+          }
+        >
+          <span className="inline-flex items-center gap-1"><Eye size={14} /> 详情</span>
+        </Button>
+      ),
+    },
+  ]
+
+  const usageColumns = [
+    { title: 'RequestID', dataIndex: 'request_id', width: 220, ellipsis: true },
+    { title: 'Session', dataIndex: 'session_id', width: 200, ellipsis: true },
+    {
+      title: 'Provider / Model',
+      dataIndex: 'provider',
+      width: 220,
+      ellipsis: true,
+      render: (_: any, r: AdminLLMUsage) => (
+        <span>
+          <Tag color="arcoblue">{r.provider}</Tag>
+          <span className="ml-1 text-xs text-[var(--color-text-3)]">{r.model}</span>
+        </span>
+      ),
+    },
+    { title: 'Tokens', dataIndex: 'total_tokens', width: 100 },
+    {
+      title: 'UA / IP',
+      dataIndex: 'user_agent',
+      ellipsis: true,
+      render: (_: any, r: AdminLLMUsage) => `${r.user_agent || '-'} / ${r.ip_address || '-'}`,
+    },
+    { title: '响应摘要', dataIndex: 'response_content', ellipsis: true },
+    {
+      title: '操作',
+      key: '__actions__',
+      width: 90,
+      fixed: 'right' as const,
+      render: (_: any, r: AdminLLMUsage) => (
+        <Button
+          size="mini"
+          type="text"
+          onClick={() =>
+            setDetail({
+              title: 'LLM 用量详情',
+              rows: [
+                { label: 'RequestID', value: r.request_id },
+                { label: 'Session', value: r.session_id },
+                { label: 'Provider', value: r.provider },
+                { label: 'Model', value: r.model },
+                { label: 'Tokens', value: r.total_tokens },
+                { label: 'UA', value: r.user_agent },
+                { label: 'IP', value: r.ip_address },
+                { label: '响应内容', value: r.response_content },
+              ],
+            })
+          }
+        >
+          <span className="inline-flex items-center gap-1"><Eye size={14} /> 详情</span>
+        </Button>
+      ),
+    },
+  ]
+
+  const data: any[] = tab === 'sessions' ? sessions : tab === 'messages' ? messages : usage
+  const columns: any[] = tab === 'sessions' ? sessionColumns : tab === 'messages' ? messageColumns : usageColumns
+  const rowKey = (r: any) => String(r.id || r.request_id)
 
   return (
-    <AdminLayout title="会话与用量" description="查看 chat_sessions / chat_messages / llm_usage">
-      <Card className="space-y-4">
-        <div className="flex gap-3 flex-wrap">
-          <Select value={tab} onValueChange={(v) => setTab(v as TabType)}>
-            <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="sessions">会话</SelectItem>
-              <SelectItem value="messages">消息</SelectItem>
-              <SelectItem value="usage">用量</SelectItem>
-            </SelectContent>
-          </Select>
-          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="搜索关键词" className="max-w-sm" />
-          {(tab === 'messages' || tab === 'usage') && (
-            <Input value={sessionId} onChange={(e) => setSessionId(e.target.value)} placeholder="按 session_id 过滤" className="max-w-sm" />
-          )}
-          {tab === 'usage' && (
-            <Select value={success} onValueChange={setSuccess}>
-              <SelectTrigger className="w-40"><SelectValue placeholder="全部结果" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">全部结果</SelectItem>
-                <SelectItem value="true">成功</SelectItem>
-                <SelectItem value="false">失败</SelectItem>
-              </SelectContent>
-            </Select>
-          )}
-          <Button variant="outline" onClick={fetchData}>刷新</Button>
-        </div>
+    <div className="space-y-4">
+      <PageHeader
+        title="会话与用量"
+        description="查看 chat_sessions / chat_messages / llm_usage 三类数据，可按关键字、session、成功状态过滤。"
+        actions={
+          <Space>
+            <Input
+              prefix={<Search size={14} />}
+              placeholder="关键词"
+              value={search}
+              onChange={(v) => setSearch(v)}
+              onPressEnter={handleSearch}
+              allowClear
+              style={{ width: 200 }}
+            />
+            {(tab === 'messages' || tab === 'usage') && (
+              <Input
+                placeholder="session_id"
+                value={sessionId}
+                onChange={(v) => setSessionId(v)}
+                onPressEnter={handleSearch}
+                allowClear
+                style={{ width: 200 }}
+              />
+            )}
+            {tab === 'usage' && (
+              <Select value={success} onChange={(v) => setSuccess(v)} style={{ width: 130 }}>
+                {SUCCESS_OPTIONS.map((o) => (
+                  <Option key={o.value} value={o.value}>{o.label}</Option>
+                ))}
+              </Select>
+            )}
+            <Button type="primary" onClick={handleSearch}>搜索</Button>
+            <Button onClick={fetchData}>
+              <span className="inline-flex items-center gap-1"><RefreshCw size={14} /> 刷新</span>
+            </Button>
+          </Space>
+        }
+      />
 
-        {tab === 'sessions' && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead><tr className="border-b"><th className="text-left py-2">ID</th><th>用户</th><th>智能体ID</th><th>Provider/Model</th><th>状态</th><th>更新时间</th></tr></thead>
-              <tbody>{sessions.map((s) => (
-                <tr key={s.id} className="border-b">
-                  <td className="py-2">{s.id}</td><td>{s.user_id}</td><td>{s.agent_id ?? s.agentId}</td><td>{s.provider}/{s.model}</td><td>{s.status}</td><td>{s.updated_at}</td>
-                </tr>
-              ))}</tbody>
-            </table>
+      <Tabs activeTab={tab} onChange={(k) => setTab(k as TabType)}>
+        <TabPane key="sessions" title="会话" />
+        <TabPane key="messages" title="消息" />
+        <TabPane key="usage" title="用量" />
+      </Tabs>
+
+      <Table
+        rowKey={rowKey}
+        loading={loading}
+        columns={columns}
+        data={data}
+        scroll={{ x: 1300 }}
+        pagination={{
+          current: page,
+          pageSize,
+          total,
+          showTotal: (t: number) => `共 ${t} 条`,
+          sizeCanChange: true,
+          sizeOptions: [10, 20, 50, 100],
+          onChange: (p: number, ps: number) => { setPage(p); setPageSize(ps) },
+        }}
+      />
+
+      <Drawer
+        title={detail?.title || '详情'}
+        visible={!!detail}
+        width={720}
+        onCancel={() => setDetail(null)}
+        footer={null}
+        autoFocus={false}
+      >
+        {detail && (
+          <div className="space-y-3 text-sm">
+            {detail.rows.map((row) => (
+              <div key={row.label} className="rounded-md border border-[var(--color-border-2)] p-3">
+                <div className="text-xs uppercase tracking-wide text-[var(--color-text-3)] mb-1">{row.label}</div>
+                <pre className="m-0 break-all whitespace-pre-wrap text-[var(--color-text-1)] text-xs">
+                  {row.value === null || row.value === undefined || row.value === '' ? '-' : String(row.value)}
+                </pre>
+              </div>
+            ))}
           </div>
         )}
-
-        {tab === 'messages' && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead><tr className="border-b"><th className="text-left py-2">ID</th><th>Session</th><th>Role</th><th>内容</th><th>RequestID</th><th>时间</th></tr></thead>
-              <tbody>{messages.map((m) => (
-                <tr key={m.id} className="border-b">
-                  <td className="py-2">{m.id}</td><td>{m.session_id}</td><td>{m.role}</td><td className="max-w-[460px] truncate">{m.content}</td><td>{m.request_id}</td><td>{m.created_at}</td>
-                </tr>
-              ))}</tbody>
-            </table>
-          </div>
-        )}
-
-        {tab === 'usage' && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead><tr className="border-b"><th className="text-left py-2">RequestID</th><th>Session</th><th>Provider/Model</th><th>Tokens</th><th>UA/IP</th><th>响应摘要</th></tr></thead>
-              <tbody>{usage.map((u) => (
-                <tr key={u.request_id} className="border-b">
-                  <td className="py-2">{u.request_id}</td><td>{u.session_id}</td><td>{u.provider}/{u.model}</td><td>{u.total_tokens}</td><td className="max-w-[340px] truncate">{u.user_agent} / {u.ip_address}</td><td className="max-w-[420px] truncate">{u.response_content}</td>
-                </tr>
-              ))}</tbody>
-            </table>
-          </div>
-        )}
-
-        <div className="flex justify-between text-sm">
-          <span>共 {total} 条</span>
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>上一页</Button>
-            <Button size="sm" variant="outline" disabled={page * pageSize >= total} onClick={() => setPage((p) => p + 1)}>下一页</Button>
-          </div>
-        </div>
-        {loading && <div className="text-sm text-slate-500">加载中...</div>}
-      </Card>
-    </AdminLayout>
+      </Drawer>
+    </div>
   )
 }
 

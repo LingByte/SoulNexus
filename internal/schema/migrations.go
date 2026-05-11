@@ -8,7 +8,8 @@ package schema
 import (
 	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/middleware"
-	"github.com/LingByte/SoulNexus/pkg/notification"
+	"github.com/LingByte/SoulNexus/pkg/notification/mail"
+	"github.com/LingByte/SoulNexus/pkg/notification/sms"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 )
 
@@ -33,8 +34,11 @@ func ServerEntities() []any {
 		&models.ChatSession{},
 		&models.ChatMessage{},
 		&models.LLMUsage{},
-		&notification.InternalNotification{},
-		&notification.MailLog{},
+		&models.InternalNotification{},
+		&models.NotificationChannel{},
+		&models.MailTemplate{},
+		&mail.MailLog{},
+		&sms.SMSLog{},
 		&models.VoiceTrainingTask{},
 		&models.VoiceClone{},
 		&models.Voiceprint{},
@@ -65,13 +69,6 @@ func ServerEntities() []any {
 		&models.AccountLock{},
 		&models.DeviceErrorLog{},
 		&models.CallRecording{},
-		&models.MCPServer{},
-		&models.MCPTool{},
-		&models.MCPCallLog{},
-		&models.MCPMarketplaceItem{},
-		&models.MCPUserInstallation{},
-		&models.MCPReview{},
-		&models.MCPCategory{},
 		&models.OAuthClient{},
 	}
 }
@@ -90,8 +87,11 @@ func AuthEntities() []any {
 		&models.UserCredential{},
 		&models.LoginHistory{},
 		&models.AccountLock{},
-		&notification.InternalNotification{},
-		&notification.MailLog{},
+		&models.InternalNotification{},
+		&models.NotificationChannel{},
+		&models.MailTemplate{},
+		&mail.MailLog{},
+		&sms.SMSLog{},
 		&models.OAuthClient{},
 		&models.UserDevice{},
 		&models.Device{},

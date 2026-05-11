@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Activity, RefreshCw } from 'lucide-react'
-import AdminLayout from '@/components/Layout/AdminLayout'
 import Card from '@/components/UI/Card'
 import Button from '@/components/UI/Button'
 import Badge from '@/components/UI/Badge'
@@ -129,7 +128,7 @@ const ServiceHealth = () => {
   }
 
   return (
-    <AdminLayout>
+    <>
       <div className="space-y-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
@@ -204,7 +203,7 @@ const ServiceHealth = () => {
           })}
         </div>
       </div>
-    </AdminLayout>
+    </>
   )
 }
 

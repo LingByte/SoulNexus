@@ -6,6 +6,7 @@ import NotificationContainer from '@/components/UI/NotificationContainer'
 import GlobalSearch from '@/components/UI/GlobalSearch'
 import DevErrorHandler from '@/components/Dev/DevErrorHandler'
 import ProtectedRoute from '@/components/Auth/ProtectedRoute'
+import AdminLayout from '@/components/Layout/AdminLayout'
 import { SidebarProvider } from '@/contexts/SidebarContext'
 import { SiteConfigProvider } from '@/contexts/SiteConfigContext'
 import { useAuthStore } from '@/stores/authStore'
@@ -28,12 +29,16 @@ const Credentials = lazy(() => import('@/pages/Credentials'))
 const JSTemplates = lazy(() => import('@/pages/JSTemplates'))
 const Bills = lazy(() => import('@/pages/Bills'))
 const VoiceTraining = lazy(() => import('@/pages/VoiceTraining'))
-const MCPServers = lazy(() => import('@/pages/MCPServers'))
-const MCPMarketplace = lazy(() => import('@/pages/MCPMarketplace'))
 const Workflows = lazy(() => import('@/pages/Workflows'))
 const WorkflowPlugins = lazy(() => import('@/pages/WorkflowPlugins'))
 const NodePlugins = lazy(() => import('@/pages/NodePlugins'))
 const NotificationCenter = lazy(() => import('@/pages/NotificationCenter'))
+const NotificationChannels = lazy(() => import('@/pages/NotificationChannels'))
+const NotificationChannelEdit = lazy(() => import('@/pages/NotificationChannelEdit'))
+const MailTemplates = lazy(() => import('@/pages/MailTemplates'))
+const MailTemplateEdit = lazy(() => import('@/pages/MailTemplateEdit'))
+const MailLogs = lazy(() => import('@/pages/MailLogs'))
+const SMSLogs = lazy(() => import('@/pages/SMSLogs'))
 const KnowledgeBases = lazy(() => import('@/pages/KnowledgeBases'))
 const Devices = lazy(() => import('@/pages/Devices'))
 const ChatData = lazy(() => import('@/pages/ChatData'))
@@ -65,7 +70,6 @@ function App() {
     return p.onFinishHydration(() => setAuthHydrated(true))
   }, [])
 
-  // 持久化恢复完成后再尝试用本地 token 拉取用户信息，避免与 persist 写入竞态
   useEffect(() => {
     if (!authHydrated) return
     const token = localStorage.getItem('auth_token')
@@ -76,7 +80,7 @@ function App() {
 
   if (!authHydrated) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F7F9FC] dark:bg-slate-950 text-slate-500">
+      <div className="min-h-screen flex items-center justify-center text-slate-500">
         正在恢复登录状态…
       </div>
     )
@@ -87,141 +91,75 @@ function App() {
       <SiteConfigProvider>
         <SidebarProvider>
           <Router>
-          <div className="min-h-screen bg-[#F7F9FC] dark:bg-slate-950">
-          <Suspense fallback={<div className="p-8 text-center text-slate-500">页面加载中...</div>}>
-          <Routes>
-            {/* 登录页 */}
-            <Route
-              path="/login"
-              element={
-                isAuthenticated ? <Navigate to="/users" replace /> : <Login />
-              }
-            />
+            <Routes>
+              {/* 登录页：独立无布局 */}
+              <Route
+                path="/login"
+                element={
+                  isAuthenticated ? (
+                    <Navigate to="/users" replace />
+                  ) : (
+                    <Suspense fallback={<div className="p-8 text-center text-slate-500">页面加载中...</div>}>
+                      <Login />
+                    </Suspense>
+                  )
+                }
+              />
 
-            {/* 受保护的路由 */}
-            <Route
-              path="/settings"
-              element={
-                <ProtectedRoute>
-                  <Settings />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/profile"
-              element={
-                <ProtectedRoute>
-                  <Profile />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/notifications"
-              element={
-                <ProtectedRoute>
-                  <Notifications />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/configs"
-              element={
-                <ProtectedRoute>
-                  <Configs />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/oauth-clients"
-              element={
-                <ProtectedRoute>
-                  <OAuthClients />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/users"
-              element={
-                <ProtectedRoute>
-                  <Users />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/permissions"
-              element={
-                <ProtectedRoute>
-                  <Permissions />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/roles"
-              element={
-                <ProtectedRoute>
-                  <Roles />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/user-access"
-              element={
-                <ProtectedRoute>
-                  <UserAccess />
-                </ProtectedRoute>
-              }
-            />
-            <Route path="/assistants" element={<ProtectedRoute><Assistants /></ProtectedRoute>} />
-            <Route
-              path="/operation-logs"
-              element={
-                <ProtectedRoute>
-                  <OperationLogs />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/account-locks"
-              element={
-                <ProtectedRoute>
-                  <AccountLocks />
-                </ProtectedRoute>
-              }
-            />
-            <Route path="/groups" element={<ProtectedRoute><Groups /></ProtectedRoute>} />
-            <Route path="/credentials" element={<ProtectedRoute><Credentials /></ProtectedRoute>} />
-            <Route path="/js-templates" element={<ProtectedRoute><JSTemplates /></ProtectedRoute>} />
-            <Route path="/bills" element={<ProtectedRoute><Bills /></ProtectedRoute>} />
-            <Route path="/voice-training" element={<ProtectedRoute><VoiceTraining /></ProtectedRoute>} />
-            <Route path="/mcp-servers" element={<ProtectedRoute><MCPServers /></ProtectedRoute>} />
-            <Route path="/mcp-marketplace" element={<ProtectedRoute><MCPMarketplace /></ProtectedRoute>} />
-            <Route path="/workflows" element={<ProtectedRoute><Workflows /></ProtectedRoute>} />
-            <Route path="/workflow-plugins" element={<ProtectedRoute><WorkflowPlugins /></ProtectedRoute>} />
-            <Route path="/node-plugins" element={<ProtectedRoute><NodePlugins /></ProtectedRoute>} />
-            <Route path="/notification-center" element={<ProtectedRoute><NotificationCenter /></ProtectedRoute>} />
-            <Route path="/knowledge-bases" element={<ProtectedRoute><KnowledgeBases /></ProtectedRoute>} />
-            <Route path="/devices" element={<ProtectedRoute><Devices /></ProtectedRoute>} />
-            <Route path="/chat-data" element={<ProtectedRoute><ChatData /></ProtectedRoute>} />
-            <Route path="/service-health" element={<ProtectedRoute><ServiceHealth /></ProtectedRoute>} />
+              {/* 后台主路由：所有页面共享 AdminLayout（持久化 sidebar，修复点击刷新回顶问题） */}
+                <Route
+                  element={
+                    <ProtectedRoute>
+                      <AdminLayout />
+                    </ProtectedRoute>
+                  }
+                >
+                  <Route path="/settings" element={<Settings />} />
+                  <Route path="/profile" element={<Profile />} />
+                  <Route path="/notifications" element={<Notifications />} />
+                  <Route path="/configs" element={<Configs />} />
+                  <Route path="/oauth-clients" element={<OAuthClients />} />
+                  <Route path="/users" element={<Users />} />
+                  <Route path="/permissions" element={<Permissions />} />
+                  <Route path="/roles" element={<Roles />} />
+                  <Route path="/user-access" element={<UserAccess />} />
+                  <Route path="/assistants" element={<Assistants />} />
+                  <Route path="/operation-logs" element={<OperationLogs />} />
+                  <Route path="/account-locks" element={<AccountLocks />} />
+                  <Route path="/groups" element={<Groups />} />
+                  <Route path="/credentials" element={<Credentials />} />
+                  <Route path="/js-templates" element={<JSTemplates />} />
+                  <Route path="/bills" element={<Bills />} />
+                  <Route path="/voice-training" element={<VoiceTraining />} />
+                  <Route path="/workflows" element={<Workflows />} />
+                  <Route path="/workflow-plugins" element={<WorkflowPlugins />} />
+                  <Route path="/node-plugins" element={<NodePlugins />} />
+                  <Route path="/notification-center" element={<NotificationCenter />} />
+                  <Route path="/notification-channels" element={<NotificationChannels />} />
+                  <Route path="/notification-channels/new" element={<NotificationChannelEdit />} />
+                  <Route path="/notification-channels/:id/edit" element={<NotificationChannelEdit />} />
+                  <Route path="/mail-templates" element={<MailTemplates />} />
+                  <Route path="/mail-templates/new" element={<MailTemplateEdit />} />
+                  <Route path="/mail-templates/:id/edit" element={<MailTemplateEdit />} />
+                  <Route path="/mail-logs" element={<MailLogs />} />
+                  <Route path="/sms-logs" element={<SMSLogs />} />
+                  <Route path="/knowledge-bases" element={<KnowledgeBases />} />
+                  <Route path="/devices" element={<Devices />} />
+                  <Route path="/chat-data" element={<ChatData />} />
+                  <Route path="/service-health" element={<ServiceHealth />} />
+                </Route>
 
-            {/* 默认重定向 */}
-            <Route path="/" element={<Navigate to="/users" replace />} />
-            <Route path="*" element={<Navigate to="/users" replace />} />
-          </Routes>
-          </Suspense>
+              <Route path="/" element={<Navigate to="/users" replace />} />
+              <Route path="*" element={<Navigate to="/users" replace />} />
+            </Routes>
 
-          {/* 全局组件 */}
-          <PWAInstaller
-            showOnLoad={true}
-            delay={5000}
-            position="bottom-right"
-          />
-          <NotificationContainer />
-          <DevErrorHandler />
-          <GlobalSearch />
-          </div>
-        </Router>
-      </SidebarProvider>
+            {/* 全局组件 */}
+            <PWAInstaller showOnLoad={true} delay={5000} position="bottom-right" />
+            <NotificationContainer />
+            <DevErrorHandler />
+            <GlobalSearch />
+          </Router>
+        </SidebarProvider>
       </SiteConfigProvider>
     </ErrorBoundary>
   )

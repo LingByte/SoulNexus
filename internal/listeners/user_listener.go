@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	"github.com/LingByte/SoulNexus/internal/models"
-	"github.com/LingByte/SoulNexus/internal/config"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/notification"
@@ -59,7 +58,7 @@ func InitUserListeners() {
 		// Send login notification
 		go sendWelcomeEmail(user, params[0].(*gorm.DB))
 
-		notification.NewInternalNotificationService(params[0].(*gorm.DB)).Send(user.ID,
+		models.NewInternalNotificationService(params[0].(*gorm.DB)).Send(user.ID,
 			"Welcome back",
 			"Dear "+user.EffectiveDisplayName()+", welcome back to LingEcho AI voice platform! You have successfully logged into the system.")
 
@@ -188,13 +187,8 @@ func InitUserListeners() {
 
 // sendWelcomeEmail sends welcome email
 func sendWelcomeEmail(user *models.User, db *gorm.DB) {
-	if config.GlobalConfig.Services.Mail.APIUser == "" || config.GlobalConfig.Services.Mail.From == "" || config.GlobalConfig.Services.Mail.APIKey == "" {
-		logger.Warn("Mail configuration not set, skipping sending login notification")
-		return
-	}
-
 	if user.Profile.EmailNotifications {
-		mailer := notification.NewMailNotificationWithDB(config.GlobalConfig.Services.Mail, db, user.ID)
+		mailer := notification.NewMailer(db, 0, user.ID, "")
 		err := mailer.SendWelcomeEmail(
 			user.Email,
 			user.EffectiveDisplayName(),
@@ -215,11 +209,6 @@ func sendEmailVerification(user *models.User, hash, clientIp, userAgent string, 
 		zap.String("email", user.Email),
 		zap.String("hash", hash))
 
-	if config.GlobalConfig.Services.Mail.APIUser == "" {
-		logger.Warn("Mail configuration not set, skipping sending email verification")
-		return
-	}
-
 	// Get site URL
 	siteURL := utils.GetValue(db, constants.KEY_SITE_URL)
 	if siteURL == "" {
@@ -231,10 +220,9 @@ func sendEmailVerification(user *models.User, hash, clientIp, userAgent string, 
 
 	logger.Info("Preparing to send email verification",
 		zap.String("email", user.Email),
-		zap.String("verifyUrl", verifyUrl),
-		zap.String("mailAPIUser", config.GlobalConfig.Services.Mail.APIUser))
+		zap.String("verifyUrl", verifyUrl))
 
-	mailer := notification.NewMailNotificationWithDB(config.GlobalConfig.Services.Mail, db, user.ID)
+	mailer := notification.NewMailer(db, 0, user.ID, "")
 	err := mailer.SendVerificationEmail(user.Email, user.EffectiveDisplayName(), verifyUrl)
 	if err != nil {
 		logger.Error("Failed to send email verification", zap.Error(err), zap.String("email", user.Email))
@@ -245,11 +233,6 @@ func sendEmailVerification(user *models.User, hash, clientIp, userAgent string, 
 
 // sendPasswordResetEmail sends password reset email
 func sendPasswordResetEmail(user *models.User, hash, clientIp, userAgent string, db *gorm.DB) {
-	if config.GlobalConfig.Services.Mail.APIUser == "" {
-		logger.Warn("Mail configuration not set, skipping sending password reset email")
-		return
-	}
-
 	// Get site URL
 	siteURL := utils.GetValue(db, constants.KEY_SITE_URL)
 	if siteURL == "" {
@@ -259,7 +242,7 @@ func sendPasswordResetEmail(user *models.User, hash, clientIp, userAgent string,
 	// Build password reset URL
 	resetUrl := siteURL + "/reset-password?token=" + hash
 
-	mailer := notification.NewMailNotificationWithDB(config.GlobalConfig.Services.Mail, db, user.ID)
+	mailer := notification.NewMailer(db, 0, user.ID, "")
 	err := mailer.SendPasswordResetEmail(user.Email, user.EffectiveDisplayName(), resetUrl)
 	if err != nil {
 		logger.Error("Failed to send password reset email", zap.Error(err), zap.String("email", user.Email))
@@ -280,11 +263,6 @@ func logUserEvent(user *models.User, eventType, description string) {
 
 // sendNewDeviceLoginAlert sends new device login alert email
 func sendNewDeviceLoginAlert(user *models.User, deviceInfo map[string]interface{}, db *gorm.DB) {
-	if config.GlobalConfig.Services.Mail.APIUser == "" {
-		logger.Warn("Mail configuration not set, skipping sending new device login alert")
-		return
-	}
-
 	// Extract device information from the map
 	clientIP, _ := deviceInfo["clientIP"].(string)
 	location, _ := deviceInfo["location"].(string)
@@ -310,7 +288,7 @@ func sendNewDeviceLoginAlert(user *models.User, deviceInfo map[string]interface{
 	changePasswordURL := siteURL + "/password" // Change password page
 
 	// Send the alert email
-	mailer := notification.NewMailNotificationWithDB(config.GlobalConfig.Services.Mail, db, user.ID)
+	mailer := notification.NewMailer(db, 0, user.ID, "")
 	err := mailer.SendNewDeviceLoginAlert(
 		user.Email,
 		displayName,

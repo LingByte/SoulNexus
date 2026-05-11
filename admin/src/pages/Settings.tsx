@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
+import PageHeader from '@/components/Layout/PageHeader'
 import { Bell, Shield, Globe, Mail, QrCode, Key, RefreshCw } from 'lucide-react'
-import AdminLayout from '@/components/Layout/AdminLayout'
 import Card from '@/components/UI/Card'
 import Button from '@/components/UI/Button'
 import Input from '@/components/UI/Input'
@@ -247,10 +247,7 @@ const Settings = () => {
   }
 
   return (
-    <AdminLayout
-      title="系统设置"
-      description="管理系统配置和偏好设置"
-    >
+    <><PageHeader title="系统设置" description="管理系统配置和偏好设置" />
       <div className="space-y-6">
         {/* 基本设置 */}
         <Card className="p-6">
@@ -518,7 +515,7 @@ const Settings = () => {
           </div>
         </Card>
       </div>
-    </AdminLayout>
+    </>
   )
 }
 

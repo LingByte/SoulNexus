@@ -3,9 +3,6 @@ import {motion} from 'framer-motion'
 import {cn} from '@/utils/cn.ts'
 // @ts-ignore
 import {getCurrentTheme, getThemeClasses} from '@/utils/themeAdapter.ts'
-// @ts-ignore
-import {playClickSound, playHoverSound} from '@/utils/audioEffects.ts'
-
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
     variant?: 'default' | 'primary' | 'secondary' | 'outline' | 'ghost' | 'destructive' | 'success' | 'warning'
     size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'icon'
@@ -102,16 +99,10 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         const iconSize = iconSizeClasses[size]
 
         const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
-            if (enableAudio && !disabled && !loading) {
-                playClickSound()
-            }
             onClick?.(e)
         }
 
         const handleMouseEnter = (e: React.MouseEvent<HTMLButtonElement>) => {
-            if (enableAudio && !disabled && !loading) {
-                playHoverSound()
-            }
             onMouseEnter?.(e)
         }
 

@@ -1,14 +1,9 @@
-import { useState, useEffect, useRef } from 'react'
-import faviconUrl from '/favicon.png'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { motion, AnimatePresence } from 'framer-motion'
+import { useEffect, useMemo, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { Menu, Dropdown, Avatar } from '@arco-design/web-react'
+import { User as UserIcon, LogOut } from 'lucide-react'
+import { useAuthStore } from '@/stores/authStore'
 import {
-  Settings,
-  LogOut,
-  Menu,
-  X,
-  ChevronRight,
-  User as UserIcon,
   Users,
   Sliders,
   FileText,
@@ -23,6 +18,8 @@ import {
   Boxes,
   Puzzle,
   Bell,
+  Mail,
+  Send,
   AlertTriangle,
   BookOpen,
   Smartphone,
@@ -30,441 +27,240 @@ import {
   Activity,
   Shield,
   UserCog,
+  Settings,
 } from 'lucide-react'
-import { useAuthStore } from '@/stores/authStore'
-import { useSidebar } from '@/contexts/SidebarContext'
+import faviconUrl from '/favicon.png'
 import { useSiteConfig } from '@/contexts/SiteConfigContext'
-import { cn } from '@/utils/cn'
+import { useSidebar } from '@/contexts/SidebarContext'
+
+const MenuItem = Menu.Item
+const SubMenu = Menu.SubMenu
+
+type IconType = React.ComponentType<{ size?: number | string; className?: string }>
 
 interface NavItem {
+  key: string
   name: string
-  href: string
-  icon: React.ComponentType<{ className?: string }>
-  badge?: number
+  icon: IconType
   children?: NavItem[]
 }
 
-const ADMIN_NAVIGATION: NavItem[] = [
-  { name: '用户管理', href: '/users', icon: Users },
+const NAVIGATION: NavItem[] = [
+  { key: '/users', name: '用户管理', icon: Users },
   {
+    key: 'access',
     name: '访问控制',
-    href: '/permissions',
     icon: Shield,
     children: [
-      { name: '权限', href: '/permissions', icon: KeyRound },
-      { name: '角色', href: '/roles', icon: Users },
-      { name: '用户授权', href: '/user-access', icon: UserCog },
+      { key: '/permissions', name: '权限', icon: KeyRound },
+      { key: '/roles', name: '角色', icon: Users },
+      { key: '/user-access', name: '用户授权', icon: UserCog },
     ],
   },
-  { name: '智能体管理', href: '/assistants', icon: Bot },
-  { name: '企业管理', href: '/groups', icon: Building2 },
-  { name: '密钥管理', href: '/credentials', icon: Key },
-  { name: 'OAuth 客户端', href: '/oauth-clients', icon: KeyRound },
-  { name: 'JS 模版', href: '/js-templates', icon: Code2 },
-  { name: '账单管理', href: '/bills', icon: Receipt },
-  { name: '音色训练', href: '/voice-training', icon: Mic },
+  { key: '/assistants', name: '智能体管理', icon: Bot },
+  { key: '/groups', name: '企业管理', icon: Building2 },
+  { key: '/credentials', name: '密钥管理', icon: Key },
+  { key: '/oauth-clients', name: 'OAuth 客户端', icon: KeyRound },
+  { key: '/js-templates', name: 'JS 模版', icon: Code2 },
+  { key: '/bills', name: '账单管理', icon: Receipt },
+  { key: '/voice-training', name: '音色训练', icon: Mic },
   {
-    name: 'MCP 栏',
-    href: '/mcp-marketplace',
-    icon: Boxes,
-    children: [
-      { name: 'MCP 官方', href: '/mcp-marketplace', icon: Boxes },
-      { name: 'MCP 管理', href: '/mcp-servers', icon: Bot },
-    ],
-  },
-  {
+    key: 'workflow',
     name: '工作流',
-    href: '/workflows',
     icon: Boxes,
     children: [
-      { name: '工作流管理', href: '/workflows', icon: Boxes },
-      { name: '插件市场', href: '/workflow-plugins', icon: Puzzle },
+      { key: '/workflows', name: '工作流管理', icon: Boxes },
+      { key: '/workflow-plugins', name: '插件市场', icon: Puzzle },
     ],
   },
-  { name: '通知中心', href: '/notification-center', icon: Bell },
-  { name: '告警管理', href: '/alerts', icon: AlertTriangle },
-  { name: '知识库', href: '/knowledge-bases', icon: BookOpen },
-  { name: '设备管理', href: '/devices', icon: Smartphone },
-  { name: '会话与用量', href: '/chat-data', icon: MessageSquare },
-  { name: '配置管理', href: '/configs', icon: Sliders },
+  { key: '/notification-center', name: '通知中心', icon: Bell },
   {
+    key: 'notification',
+    name: '通知设置',
+    icon: Send,
+    children: [
+      { key: '/notification-channels', name: '渠道供应商', icon: Send },
+      { key: '/mail-templates', name: '邮件模板', icon: Mail },
+      { key: '/mail-logs', name: '邮件日志', icon: FileText },
+      { key: '/sms-logs', name: '短信日志', icon: FileText },
+    ],
+  },
+  { key: '/alerts', name: '告警管理', icon: AlertTriangle },
+  { key: '/knowledge-bases', name: '知识库', icon: BookOpen },
+  { key: '/devices', name: '设备管理', icon: Smartphone },
+  { key: '/chat-data', name: '会话与用量', icon: MessageSquare },
+  { key: '/configs', name: '配置管理', icon: Sliders },
+  {
+    key: 'security',
     name: '安全管理',
-    href: '/security',
     icon: Lock,
     children: [
-      { name: '操作日志', href: '/operation-logs', icon: FileText },
-      { name: '账号锁定', href: '/account-locks', icon: Lock },
+      { key: '/operation-logs', name: '操作日志', icon: FileText },
+      { key: '/account-locks', name: '账号锁定', icon: Lock },
     ],
   },
   {
+    key: 'settings',
     name: '系统设置',
-    href: '/settings',
     icon: Settings,
     children: [
-      { name: '常规设置', href: '/settings', icon: Settings },
-      { name: '服务存活', href: '/service-health', icon: Activity },
+      { key: '/settings', name: '常规设置', icon: Settings },
+      { key: '/service-health', name: '服务存活', icon: Activity },
     ],
   },
 ]
 
+// 收集所有可点击的叶子路径，用于反向定位父级 submenu。
+const findParentKey = (path: string): string | undefined => {
+  for (const item of NAVIGATION) {
+    if (item.children?.some((c) => path === c.key || path.startsWith(c.key + '/'))) {
+      return item.key
+    }
+  }
+  return undefined
+}
+
+const renderIcon = (Icon: IconType) => <Icon size={16} />
+
 const AdminSidebar = () => {
-  const { isCollapsed, toggleCollapse } = useSidebar()
-  const [isMobileOpen, setIsMobileOpen] = useState(false)
-  const [expandedItems, setExpandedItems] = useState<string[]>([])
-  const [showDropdown, setShowDropdown] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
-  const { user, logout } = useAuthStore()
+  const { isCollapsed } = useSidebar()
   const { config } = useSiteConfig()
-  const dropdownRef = useRef<HTMLDivElement>(null)
-  const siteName = config?.SITE_NAME || 'SoulNexus管理'
-  const logoUrl = faviconUrl
-
-  // 点击外部关闭下拉菜单
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setShowDropdown(false)
-      }
-    }
-
-    if (showDropdown) {
-      document.addEventListener('mousedown', handleClickOutside)
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [showDropdown])
-
-  useEffect(() => {
-    const path = location.pathname
-    const parents = ADMIN_NAVIGATION.filter((item) =>
-      item.children?.some((c) => path === c.href || path.startsWith(`${c.href}/`)),
-    ).map((item) => item.name)
-    if (parents.length === 0) return
-    setExpandedItems((prev) => {
-      const merged = [...new Set([...prev, ...parents])]
-      if (merged.length === prev.length && parents.every((n) => prev.includes(n))) return prev
-      return merged
-    })
-  }, [location.pathname])
-
-  const navigation = ADMIN_NAVIGATION
-
-  const toggleExpand = (itemName: string) => {
-    setExpandedItems((prev) =>
-      prev.includes(itemName)
-        ? prev.filter((name) => name !== itemName)
-        : [...prev, itemName]
-    )
-  }
-
-  const isActive = (path: string) => {
-    return location.pathname === path || location.pathname.startsWith(path + '/')
-  }
+  const { user, logout } = useAuthStore()
+  const siteName = config?.SITE_NAME || 'SoulNexus 管理'
 
   const handleLogout = async () => {
     await logout()
     navigate('/login')
   }
 
-  const SidebarContent = ({ showLogo = true }: { showLogo?: boolean }) => {
-    const { config: sidebarConfig } = useSiteConfig()
-    const currentSiteName = sidebarConfig?.SITE_NAME || 'SoulNexus管理后台'
-    const sidebarLogoUrl = faviconUrl
-    
-    return (
-      <>
-        {/* Logo区域 - 只在桌面端显示，移动端不显示（因为移动端侧边栏已经有logo了） */}
-        {showLogo && (
-          <div className="h-16 flex items-center justify-between px-4 border-b border-slate-200 dark:border-slate-700">
-            {!isCollapsed && (
-              <Link to="/wordbooks" className="flex items-center gap-3 group">
-                <div className="relative">
-                  <div className="absolute inset-0 bg-gradient-to-br from-[#4ECDC4] to-[#45b8b0] rounded-lg blur-sm opacity-50 group-hover:opacity-75 transition-opacity" />
-                  <div className="relative w-10 h-10 rounded-lg bg-gradient-to-br from-[#4ECDC4] to-[#45b8b0] flex items-center justify-center shadow-lg">
-                    <img 
-                      src={sidebarLogoUrl} 
-                      alt={currentSiteName} 
-                      className="w-7 h-7 object-contain"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement
-                        target.style.display = 'none'
-                        const parent = target.parentElement
-                        if (parent) {
-                          parent.innerHTML = '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>'
-                        }
-                      }}
-                    />
-                  </div>
-                </div>
-                <span className="font-semibold whitespace-nowrap leading-none">
-                  {currentSiteName}
-                </span>
-              </Link>
-            )}
-          {isCollapsed && (
-            <div className="relative w-8 h-10 rounded-lg flex items-center justify-center mx-auto">
-              <img 
-                src={sidebarLogoUrl} 
-                alt={currentSiteName} 
-                className="w-7 h-7 object-contain"
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement
-                  target.style.display = 'none'
-                  const parent = target.parentElement
-                  if (parent) {
-                    parent.innerHTML = '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>'
-                  }
-                }}
-              />
-            </div>
-          )}
-          <button
-            onClick={toggleCollapse}
-            className="hidden lg:flex items-center justify-center w-8 h-8 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 transition-colors"
-            title={isCollapsed ? '展开' : '折叠'}
-          >
-            {isCollapsed ? (
-              <ChevronRight className="w-4 h-4" />
-            ) : (
-              <X className="w-4 h-4" />
-            )}
-          </button>
-        </div>
-      )}
+  const userMenu = (
+    <Menu onClickMenuItem={(key) => {
+      if (key === 'profile') navigate('/profile')
+      if (key === 'logout') handleLogout()
+    }}>
+      <Menu.Item key="profile">
+        <span className="inline-flex items-center gap-2">
+          <UserIcon size={14} /> 个人中心
+        </span>
+      </Menu.Item>
+      <Menu.Item key="logout">
+        <span className="inline-flex items-center gap-2 text-red-500">
+          <LogOut size={14} /> 退出登录
+        </span>
+      </Menu.Item>
+    </Menu>
+  )
 
-      {/* 导航菜单 */}
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-        {navigation.map((item) => {
-          const Icon = item.icon
-          const hasChildren = item.children && item.children.length > 0
-          const isExpanded = expandedItems.includes(item.name)
-          const childActive = !!item.children?.some((c) => isActive(c.href))
-          const itemActive = isActive(item.href) || childActive
+  const selectedKeys = useMemo(() => {
+    // 命中规则：完整路径匹配优先，否则按前缀。
+    const path = location.pathname
+    for (const item of NAVIGATION) {
+      if (!item.children && (path === item.key || path.startsWith(item.key + '/'))) {
+        return [item.key]
+      }
+      const hit = item.children?.find((c) => path === c.key || path.startsWith(c.key + '/'))
+      if (hit) return [hit.key]
+    }
+    return []
+  }, [location.pathname])
 
-          if (hasChildren) {
-            return (
-              <div key={item.name}>
-                <button
-                  onClick={() => !isCollapsed && toggleExpand(item.name)}
-                  className={cn(
-                    'w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
-                    itemActive
-                      ? 'bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300'
-                      : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800',
-                    isCollapsed && 'justify-center'
-                  )}
-                >
-                  <div className="flex items-center gap-3">
-                    <Icon className="w-5 h-5" />
-                    {!isCollapsed && <span>{item.name}</span>}
-                  </div>
-                  {!isCollapsed && (
-                    <ChevronRight
-                      className={cn(
-                        'w-4 h-4 transition-transform',
-                        isExpanded && 'rotate-90'
-                      )}
-                    />
-                  )}
-                </button>
-                <AnimatePresence>
-                  {isExpanded && !isCollapsed && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      className="ml-4 mt-1 space-y-1 border-l-2 border-slate-200 dark:border-slate-700 pl-4"
-                    >
-                      {item.children?.map((child) => {
-                        const ChildIcon = child.icon
-                        const childActive = isActive(child.href)
-                        return (
-                          <Link
-                            key={child.name}
-                            to={child.href}
-                            className={cn(
-                              'flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors',
-                              childActive
-                                ? 'bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300'
-                                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-                            )}
-                          >
-                            <ChildIcon className="w-4 h-4" />
-                            <span>{child.name}</span>
-                          </Link>
-                        )
-                      })}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            )
-          }
+  const [openKeys, setOpenKeys] = useState<string[]>(() => {
+    const p = findParentKey(location.pathname)
+    return p ? [p] : []
+  })
 
-          return (
-            <Link
-              key={item.name}
-              to={item.href}
-              className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
-                itemActive
-                  ? 'bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300'
-                  : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800',
-                isCollapsed && 'justify-center'
-              )}
-              title={isCollapsed ? item.name : ''}
-            >
-              <Icon className="w-5 h-5" />
-              {!isCollapsed && (
-                <span className="flex-1">{item.name}</span>
-              )}
-              {item.badge && !isCollapsed && (
-                <span className="px-2 py-0.5 text-xs font-medium bg-teal-100 dark:bg-teal-900 text-teal-700 dark:text-teal-300 rounded-full">
-                  {item.badge}
-                </span>
-              )}
-            </Link>
-          )
-        })}
-      </nav>
+  // 路由切换时自动展开匹配的父菜单（但不会主动关闭已展开的，保持用户操作意图）。
+  useEffect(() => {
+    const p = findParentKey(location.pathname)
+    if (p) {
+      setOpenKeys((prev) => (prev.includes(p) ? prev : [...prev, p]))
+    }
+  }, [location.pathname])
 
-      {/* 底部用户信息 */}
-      {!isCollapsed && (
-        <div className="px-3 py-4 border-t border-slate-200 dark:border-slate-800">
-          <div className="relative" ref={dropdownRef}>
-            <button
-              onClick={() => setShowDropdown(!showDropdown)}
-              className="flex items-center gap-3 w-full p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-            >
-              <img
-                src={user?.avatar || '/favicon.png'}
-                alt="avatar"
-                className="w-9 h-9 rounded-full object-cover border border-slate-200 dark:border-slate-700"
-              />
-              <div className="flex-1 min-w-0 text-left">
-                <p className="text-sm font-medium text-slate-900 truncate">
-                  {user?.displayName || user?.email || '管理员'}
-                </p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                  {user?.email || 'admin@example.com'}
-                </p>
-              </div>
-              <ChevronRight className={cn(
-                "w-4 h-4 text-slate-400 transition-transform",
-                showDropdown && "rotate-90"
-              )} />
-            </button>
-            
-            {/* 下拉菜单 */}
-            {showDropdown && (
-              <div className="absolute bottom-full left-0 right-0 mb-2 bg-white dark:bg-slate-900 rounded-lg shadow-lg border border-slate-200 dark:border-slate-800 overflow-hidden">
-                <button
-                  onClick={() => {
-                    setShowDropdown(false)
-                    navigate('/profile')
-                  }}
-                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-                >
-                  <UserIcon className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-                  <span className="text-sm text-slate-900">个人中心</span>
-                </button>
-                <button
-                  onClick={() => {
-                    setShowDropdown(false)
-                    handleLogout()
-                  }}
-                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-red-600 dark:text-red-400"
-                >
-                  <LogOut className="w-4 h-4" />
-                  <span className="text-sm">退出登录</span>
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-    </>
-    )
+  const handleClickMenuItem = (key: string) => {
+    if (key.startsWith('/')) {
+      navigate(key)
+    }
   }
 
   return (
-    <>
-      {/* 移动端菜单按钮 */}
-      <button
-        onClick={() => setIsMobileOpen(true)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-white dark:bg-slate-800 shadow-lg border border-slate-200 dark:border-slate-700"
-      >
-        <Menu className="w-5 h-5 text-slate-700 dark:text-slate-300" />
-      </button>
-
-      {/* 移动端遮罩 */}
-      <AnimatePresence>
-        {isMobileOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsMobileOpen(false)}
-              className="lg:hidden fixed inset-0 bg-black/50 z-40"
-            />
-            <motion.aside
-              initial={{ x: -280 }}
-              animate={{ x: 0 }}
-              exit={{ x: -280 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="lg:hidden fixed left-0 top-0 bottom-0 w-70 bg-white/95 dark:bg-slate-950/95 backdrop-blur-xl border-r border-slate-200/50 dark:border-slate-800/50 shadow-xl z-50 flex flex-col"
-            >
-              <div className="h-16 flex items-center justify-between px-4 border-b border-slate-200 dark:border-slate-700">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#4ECDC4] to-[#45b8b0] flex items-center justify-center shadow-lg">
-                    <img 
-                      src={logoUrl} 
-                      alt={siteName} 
-                      className="w-6 h-6 object-contain"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement
-                        target.style.display = 'none'
-                        const parent = target.parentElement
-                        if (parent) {
-                          parent.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>'
-                        }
-                      }}
-                    />
-                  </div>
-                  <span className="font-semibold text-xs whitespace-nowrap leading-none">
-                    {siteName}
-                  </span>
-                </div>
-                <button
-                  onClick={() => setIsMobileOpen(false)}
-                  className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
-                >
-                  <X className="w-5 h-5 text-slate-700 dark:text-slate-300" />
-                </button>
-              </div>
-              <SidebarContent showLogo={false} />
-            </motion.aside>
-          </>
+    <div className="h-full flex flex-col bg-white dark:bg-[#17171a] border-r border-[var(--color-border-2)]">
+      <div className="h-14 flex items-center gap-2 px-4 border-b border-[var(--color-border-2)] shrink-0">
+        <img src={faviconUrl} alt="logo" className="w-7 h-7 rounded" />
+        {!isCollapsed && (
+          <span className="text-sm font-semibold text-[var(--color-text-1)] truncate">
+            {siteName}
+          </span>
         )}
-      </AnimatePresence>
-
-      {/* 桌面端侧边栏 */}
-      <motion.aside
-        initial={false}
-        animate={{ width: isCollapsed ? 80 : 220 }}
-        transition={{ duration: 0.2, ease: 'easeInOut' }}
-        className="hidden lg:flex flex-col bg-white/95 dark:bg-slate-950/95 backdrop-blur-xl border-r border-slate-200/50 dark:border-slate-800/50 shadow-lg fixed left-0 top-0 bottom-0 z-30"
-      >
-        <SidebarContent showLogo={true} />
-      </motion.aside>
-
-    </>
+      </div>
+      <div className="flex-1 overflow-y-auto">
+        <Menu
+          mode="vertical"
+          collapse={isCollapsed}
+          selectedKeys={selectedKeys}
+          openKeys={openKeys}
+          onClickMenuItem={handleClickMenuItem}
+          onClickSubMenu={(key, currentOpenKeys) => setOpenKeys(currentOpenKeys)}
+          style={{ width: '100%', border: 'none' }}
+        >
+          {NAVIGATION.map((item) => {
+            if (item.children?.length) {
+              return (
+                <SubMenu
+                  key={item.key}
+                  title={
+                    <span className="inline-flex items-center gap-2">
+                      {renderIcon(item.icon)}
+                      <span>{item.name}</span>
+                    </span>
+                  }
+                >
+                  {item.children.map((child) => (
+                    <MenuItem key={child.key}>
+                      <span className="inline-flex items-center gap-2">
+                        {renderIcon(child.icon)}
+                        <span>{child.name}</span>
+                      </span>
+                    </MenuItem>
+                  ))}
+                </SubMenu>
+              )
+            }
+            return (
+              <MenuItem key={item.key}>
+                <span className="inline-flex items-center gap-2">
+                  {renderIcon(item.icon)}
+                  <span>{item.name}</span>
+                </span>
+              </MenuItem>
+            )
+          })}
+        </Menu>
+      </div>
+      {/* 底部用户信息 */}
+      <div className="border-t border-[var(--color-border-2)] px-2 py-2 shrink-0">
+        <Dropdown droplist={userMenu} position="tr" trigger="click">
+          <button className="w-full flex items-center gap-2 px-2 py-2 rounded hover:bg-[var(--color-fill-2)] transition-colors">
+            <Avatar size={28} style={{ backgroundColor: '#4ECDC4' }}>
+              {(user?.displayName || user?.username || user?.email || 'A').slice(0, 1).toUpperCase()}
+            </Avatar>
+            {!isCollapsed && (
+              <div className="flex-1 min-w-0 text-left">
+                <div className="text-sm font-medium text-[var(--color-text-1)] truncate">
+                  {user?.displayName || user?.username || '管理员'}
+                </div>
+                <div className="text-xs text-[var(--color-text-3)] truncate">
+                  {user?.email || ''}
+                </div>
+              </div>
+            )}
+          </button>
+        </Dropdown>
+      </div>
+    </div>
   )
 }
 
 export default AdminSidebar
-

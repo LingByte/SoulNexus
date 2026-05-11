@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
+import PageHeader from '@/components/Layout/PageHeader'
 import { CheckCheck, Trash2, Search, CheckCircle2, AlertCircle, Info, XCircle, Eye } from 'lucide-react'
-import AdminLayout from '@/components/Layout/AdminLayout'
 import Card from '@/components/UI/Card'
 import Button from '@/components/UI/Button'
 import Input from '@/components/UI/Input'
@@ -224,22 +224,25 @@ const Notifications = () => {
 
   const unreadCount = notifications?.filter(n => !n.read).length || 0
 
+  const headerActions = (
+    <div className="flex gap-2">
+      <Button
+        variant="outline"
+        leftIcon={<CheckCheck className="w-4 h-4" />}
+        onClick={handleMarkAllRead}
+      >
+        全部已读
+      </Button>
+    </div>
+  )
+
   return (
-    <AdminLayout
-      title="消息中心"
-      description={`您有 ${unreadCount} 条未读消息`}
-      actions={
-        <div className="flex gap-2">
-          <Button 
-            variant="outline" 
-            leftIcon={<CheckCheck className="w-4 h-4" />}
-            onClick={handleMarkAllRead}
-          >
-            <span>全部已读</span>
-          </Button>
-        </div>
-      }
-    >
+    <>
+      <PageHeader
+        title="消息中心"
+        description={`您有 ${unreadCount} 条未读消息`}
+        actions={headerActions}
+      />
       <div className="space-y-6">
         {/* 搜索和筛选 */}
         <Card className="p-4">
@@ -444,7 +447,7 @@ const Notifications = () => {
         variant="danger"
         confirmText="删除"
       />
-    </AdminLayout>
+    </>
   )
 }
 

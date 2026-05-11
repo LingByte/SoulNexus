@@ -1326,20 +1326,6 @@ export const listAdminVoiceTrainingTasks = async (params?: { page?: number; page
 export const getAdminVoiceTrainingTask = async (id: number) => (await get(`${BACKEND_BASE}/admin/voice-training/tasks/${id}`)).data
 export const deleteAdminVoiceTrainingTask = async (id: number) => del(`${BACKEND_BASE}/admin/voice-training/tasks/${id}`)
 
-export const listAdminMCPServers = async (params?: { page?: number; pageSize?: number; search?: string }) => {
-  const res = await get<AdminModuleListResponse>(`${BACKEND_BASE}/admin/mcp-servers`, { params })
-  return res.data
-}
-export const getAdminMCPServer = async (id: number) => (await get(`${BACKEND_BASE}/admin/mcp-servers/${id}`)).data
-export const deleteAdminMCPServer = async (id: number) => del(`${BACKEND_BASE}/admin/mcp-servers/${id}`)
-
-export const listAdminMCPMarketplace = async (params?: { page?: number; pageSize?: number; search?: string }) => {
-  const res = await get<AdminModuleListResponse>(`${BACKEND_BASE}/admin/mcp-marketplace`, { params })
-  return res.data
-}
-export const getAdminMCPMarketplace = async (id: number) => (await get(`${BACKEND_BASE}/admin/mcp-marketplace/${id}`)).data
-export const deleteAdminMCPMarketplace = async (id: number) => del(`${BACKEND_BASE}/admin/mcp-marketplace/${id}`)
-
 export const listAdminWorkflows = async (params?: { page?: number; pageSize?: number; search?: string }) => {
   const res = await get<AdminModuleListResponse>(`${BACKEND_BASE}/admin/workflows`, { params })
   return res.data

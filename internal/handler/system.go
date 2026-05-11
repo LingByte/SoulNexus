@@ -66,14 +66,12 @@ func (h *Handlers) SystemInit(c *gin.Context) {
 	// Only persistent databases like MySQL and PostgreSQL don't need warnings
 	isMemoryDB := strings.ToLower(dbDriver) == "sqlite"
 
-	// Check if email configuration is complete
-	mailConfig := config.GlobalConfig.Services.Mail
-	emailConfigured := mailConfig.APIUser != "" &&
-		mailConfig.APIKey != "" ||
-		mailConfig.From != "" ||
-		mailConfig.Host != "" ||
-		mailConfig.Port > 0 ||
-		mailConfig.Username != ""
+	// Check if any enabled email notification channel exists in DB.
+	var enabledMailChannels int64
+	_ = h.db.Model(&models.NotificationChannel{}).
+		Where("type = ? AND enabled = ?", models.NotificationChannelTypeEmail, true).
+		Count(&enabledMailChannels).Error
+	emailConfigured := enabledMailChannels > 0
 
 	// Get voice clone configurations (from database first, then from .env)
 	xunfeiConfig := h.getVoiceCloneConfig("xunfei")

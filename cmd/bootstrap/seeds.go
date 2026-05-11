@@ -7,9 +7,11 @@ import (
 	"strconv"
 	"time"
 
+	LingEcho "github.com/LingByte/SoulNexus"
 	"github.com/LingByte/SoulNexus/internal/config"
 	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/constants"
+	"github.com/LingByte/SoulNexus/pkg/notification"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"gorm.io/gorm"
 )
@@ -31,8 +33,56 @@ func (s *SeedService) SeedAll() error {
 	if err := s.seedAssistants(); err != nil {
 		return err
 	}
-	if err := s.seedMCPMarketplace(); err != nil {
+	if err := s.seedMailTemplates(); err != nil {
 		return err
+	}
+	return nil
+}
+
+// seedMailTemplates 把 templates/email/*.html 内嵌模板写入 mail_templates 表（org_id=0 系统级）。
+// 已存在 (org_id=0, code, locale="") 记录则跳过，便于管理员后续在后台修改。
+func (s *SeedService) seedMailTemplates() error {
+	// MySQL 下确保 mail 相关表使用 utf8mb4，避免旧 utf8mb3 列与 emoji 冲突 (Error 3988)。
+	if s.db.Dialector.Name() == "mysql" {
+		for _, tbl := range []string{"mail_templates", "mail_logs", "sms_logs"} {
+			_ = s.db.Exec("ALTER TABLE " + tbl + " CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci").Error
+		}
+	}
+	type tplDef struct {
+		code, name, subject, html, desc string
+	}
+	defs := []tplDef{
+		{notification.TmplWelcome, "欢迎邮件", "欢迎加入 LingEcho", LingEcho.WelcomeHTML, "用户注册成功欢迎邮件"},
+		{notification.TmplVerification, "通用验证码", "您的 LingEcho 验证码", LingEcho.VerificationHTML, "通用 6 位验证码邮件"},
+		{notification.TmplEmailVerification, "邮箱验证", "请验证您的邮箱地址", LingEcho.EmailVerificationHTML, "注册后邮箱地址验证邮件"},
+		{notification.TmplPasswordReset, "密码重置", "密码重置请求", LingEcho.PasswordResetHTML, "密码重置链接邮件"},
+		{notification.TmplDeviceVerification, "设备验证码", "设备验证码", LingEcho.DeviceVerificationHTML, "新设备登录二次验证邮件"},
+		{notification.TmplGroupInvitation, "组织邀请", "您收到了来自 {{.InviterName}} 的组织邀请", LingEcho.GroupInvitationHTML, "组织 / 团队邀请邮件"},
+		{notification.TmplNewDeviceLogin, "新设备登录提醒", "{{if .IsSuspicious}}可疑登录警告{{else}}新设备登录提醒{{end}}", LingEcho.NewDeviceLoginHTML, "新设备 / 异地登录提醒"},
+	}
+	for _, d := range defs {
+		var n int64
+		if err := s.db.Model(&models.MailTemplate{}).
+			Where("org_id = ? AND code = ? AND locale = ?", 0, d.code, "").
+			Count(&n).Error; err != nil {
+			return err
+		}
+		if n > 0 {
+			continue
+		}
+		tpl := &models.MailTemplate{
+			OrgID:       0,
+			Code:        d.code,
+			Name:        d.name,
+			Subject:     d.subject,
+			Description: d.desc,
+			Locale:      "",
+			Enabled:     true,
+		}
+		models.ApplyMailTemplateHTMLDerivedFields(tpl, d.html, "")
+		if err := s.db.Create(tpl).Error; err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -244,146 +294,5 @@ func (s *SeedService) seedAssistants() error {
 			return err
 		}
 	}
-	return nil
-}
-
-func (s *SeedService) seedMCPMarketplace() error {
-	var count int64
-	if err := s.db.Model(&models.MCPMarketplaceItem{}).Count(&count).Error; err != nil {
-		return err
-	}
-	if count != 0 {
-		return nil // Data already exists, skip
-	}
-
-	// Seed categories first
-	categories := []models.MCPCategory{
-		{
-			Name:        "Database",
-			Description: "Database query and management tools",
-			Order:       1,
-		},
-		{
-			Name:        "File System",
-			Description: "File operations and management tools",
-			Order:       2,
-		},
-		{
-			Name:        "Network",
-			Description: "Network and HTTP request tools",
-			Order:       3,
-		},
-		{
-			Name:        "Utilities",
-			Description: "Utility and helper tools",
-			Order:       4,
-		},
-		{
-			Name:        "System",
-			Description: "System information and management tools",
-			Order:       5,
-		},
-	}
-
-	for i := range categories {
-		if err := s.db.Create(&categories[i]).Error; err != nil {
-			return err
-		}
-	}
-
-	// Seed marketplace items
-	items := []models.MCPMarketplaceItem{
-		{
-			Name:          "Database Query MCP",
-			Description:   "Provides database query tools, supports SQL queries, data export and other functions",
-			Version:       "1.0.0",
-			Author:        "SoulNexus Team",
-			Repository:    "https://github.com/soulmcp/mcp-database",
-			Documentation: "https://docs.soulmcp.com/mcp-database",
-			Category:      "Database",
-			Tags:          []byte(`["database", "query", "sql"]`),
-			Downloads:     1250,
-			Rating:        4.8,
-			Status:        "published",
-			IsFeatured:    true,
-		},
-		{
-			Name:          "File Operations MCP",
-			Description:   "Provides file operation tools, supports read, write, list, delete and other operations",
-			Version:       "1.0.0",
-			Author:        "SoulNexus Team",
-			Repository:    "https://github.com/soulmcp/mcp-file",
-			Documentation: "https://docs.soulmcp.com/mcp-file",
-			Category:      "File System",
-			Tags:          []byte(`["file", "filesystem", "io"]`),
-			Downloads:     980,
-			Rating:        4.6,
-			Status:        "published",
-			IsFeatured:    true,
-		},
-		{
-			Name:          "HTTP API MCP",
-			Description:   "Provides HTTP request tools, supports GET, POST, PUT, DELETE and other methods",
-			Version:       "1.0.0",
-			Author:        "SoulNexus Team",
-			Repository:    "https://github.com/soulmcp/mcp-http",
-			Documentation: "https://docs.soulmcp.com/mcp-http",
-			Category:      "Network",
-			Tags:          []byte(`["http", "api", "rest"]`),
-			Downloads:     750,
-			Rating:        4.5,
-			Status:        "published",
-			IsFeatured:    true,
-		},
-		{
-			Name:          "System Information MCP",
-			Description:   "Provides system information tools, supports OS info, CPU, memory and other metrics",
-			Version:       "1.0.0",
-			Author:        "SoulNexus Team",
-			Repository:    "https://github.com/soulmcp/mcp-system",
-			Documentation: "https://docs.soulmcp.com/mcp-system",
-			Category:      "System",
-			Tags:          []byte(`["system", "info", "metrics"]`),
-			Downloads:     650,
-			Rating:        4.7,
-			Status:        "published",
-			IsFeatured:    true,
-		},
-		{
-			Name:          "Utility Tools MCP",
-			Description:   "Provides utility tools, supports hash, encode, decode, validate and other functions",
-			Version:       "1.0.0",
-			Author:        "SoulNexus Team",
-			Repository:    "https://github.com/soulmcp/mcp-utils",
-			Documentation: "https://docs.soulmcp.com/mcp-utils",
-			Category:      "Utilities",
-			Tags:          []byte(`["utility", "hash", "encode"]`),
-			Downloads:     520,
-			Rating:        4.4,
-			Status:        "published",
-			IsFeatured:    false,
-		},
-		{
-			Name:          "Network Tools MCP",
-			Description:   "Provides network tools, supports ping, DNS lookup, traceroute and other functions",
-			Version:       "1.0.0",
-			Author:        "SoulNexus Team",
-			Repository:    "https://github.com/soulmcp/mcp-network",
-			Documentation: "https://docs.soulmcp.com/mcp-network",
-			Category:      "Network",
-			Tags:          []byte(`["network", "ping", "dns"]`),
-			Downloads:     380,
-			Rating:        4.3,
-			Status:        "published",
-			IsFeatured:    false,
-		},
-	}
-
-	for i := range items {
-		if err := s.db.Create(&items[i]).Error; err != nil {
-			return err
-		}
-	}
-
 	return nil
 }

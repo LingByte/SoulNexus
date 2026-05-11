@@ -18,7 +18,6 @@ import {
   List,
   Image as ImageIcon,
 } from 'lucide-react'
-import AdminLayout from '@/components/Layout/AdminLayout'
 import Card from '@/components/UI/Card'
 import Button from '@/components/UI/Button'
 import Input from '@/components/UI/Input'
@@ -478,7 +477,7 @@ const Storage = () => {
   }, [files.length, commonPrefixes.length, currentPrefix])
 
   return (
-    <AdminLayout>
+    <>
       <div className="space-y-1 flex flex-col overflow-hidden" style={{ height: 'calc(100vh - 152px)', maxHeight: 'calc(100vh - 152px)' }}>
         {/* 存储信息卡片 */}
         {storageInfo && (
@@ -1203,7 +1202,7 @@ const Storage = () => {
           />
         )}
       </div>
-    </AdminLayout>
+    </>
   )
 }
 

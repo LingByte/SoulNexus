@@ -1,14 +1,21 @@
+// Copyright (c) 2026 LingByte. All rights reserved.
+// SPDX-License-Identifier: AGPL-3.0
+//
+// OAuth 客户端管理：Arco Table + Form Modal。
 import { useEffect, useState } from 'react'
-import { Plus, Edit, Trash2, RefreshCw, Save, KeyRound } from 'lucide-react'
-import AdminLayout from '@/components/Layout/AdminLayout'
-import Card from '@/components/UI/Card'
-import Button from '@/components/UI/Button'
-import Input from '@/components/UI/Input'
-import Badge from '@/components/UI/Badge'
-import EmptyState from '@/components/UI/EmptyState'
-import Modal from '@/components/UI/Modal'
-import ConfirmDialog from '@/components/UI/ConfirmDialog'
-import { showAlert } from '@/utils/notification'
+import {
+  Table,
+  Input,
+  Button,
+  Tag,
+  Modal,
+  Form,
+  Popconfirm,
+  Message,
+  Space,
+} from '@arco-design/web-react'
+import { Plus, Edit, Trash2, RefreshCw } from 'lucide-react'
+import PageHeader from '@/components/Layout/PageHeader'
 import {
   listOAuthClients,
   createOAuthClient,
@@ -18,29 +25,26 @@ import {
   type UpsertOAuthClientRequest,
 } from '@/services/adminApi'
 
+const FormItem = Form.Item
+
 const OAuthClients = () => {
   const [clients, setClients] = useState<OAuthClient[]>([])
   const [loading, setLoading] = useState(false)
-  const [showCreateModal, setShowCreateModal] = useState(false)
-  const [showEditModal, setShowEditModal] = useState(false)
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [selectedClient, setSelectedClient] = useState<OAuthClient | null>(null)
-  const [editingClient, setEditingClient] = useState<OAuthClient | null>(null)
-  const [formData, setFormData] = useState<UpsertOAuthClientRequest>({
-    clientId: '',
-    clientSecret: '',
-    name: '',
-    redirectUri: '',
-    status: 1,
-  })
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
+
+  const [modalOpen, setModalOpen] = useState(false)
+  const [editing, setEditing] = useState<OAuthClient | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [form] = Form.useForm<UpsertOAuthClientRequest>()
 
   const fetchClients = async () => {
+    setLoading(true)
     try {
-      setLoading(true)
       const result = await listOAuthClients({ page: 1, pageSize: 200 })
       setClients(result.clients || [])
-    } catch (error: any) {
-      showAlert('获取 OAuth 客户端失败', 'error', error?.msg || error?.message)
+    } catch (e: any) {
+      Message.error(`获取 OAuth 客户端失败：${e?.msg || e?.message || e}`)
     } finally {
       setLoading(false)
     }
@@ -50,190 +54,171 @@ const OAuthClients = () => {
     fetchClients()
   }, [])
 
-  const openCreateModal = () => {
-    setFormData({
-      clientId: '',
-      clientSecret: '',
-      name: '',
-      redirectUri: '',
-      status: 1,
+  const openCreate = () => {
+    setEditing(null)
+    form.resetFields()
+    form.setFieldsValue({ status: 1 })
+    setModalOpen(true)
+  }
+
+  const openEdit = (c: OAuthClient) => {
+    setEditing(c)
+    form.setFieldsValue({
+      clientId: c.clientId,
+      clientSecret: c.clientSecret || '',
+      name: c.name,
+      redirectUri: c.redirectUri,
+      status: c.status,
     })
-    setShowCreateModal(true)
+    setModalOpen(true)
   }
 
-  const submitCreate = async () => {
-    if (!formData.clientId || !formData.name || !formData.redirectUri) {
-      showAlert('请填写 clientId、名称和回调地址', 'error')
-      return
-    }
+  const save = async () => {
     try {
-      await createOAuthClient(formData)
-      showAlert('创建 OAuth 客户端成功', 'success')
-      setShowCreateModal(false)
+      const values = await form.validate()
+      setSaving(true)
+      if (editing) {
+        await updateOAuthClient(editing.id, values)
+        Message.success('已更新')
+      } else {
+        await createOAuthClient(values)
+        Message.success('已创建')
+      }
+      setModalOpen(false)
       fetchClients()
-    } catch (error: any) {
-      showAlert('创建 OAuth 客户端失败', 'error', error?.msg || error?.message)
+    } catch (e: any) {
+      if (e?.message || e?.msg) Message.error(`保存失败：${e?.msg || e?.message}`)
+    } finally {
+      setSaving(false)
     }
   }
 
-  const openEditModal = (client: OAuthClient) => {
-    setEditingClient(client)
-    setFormData({
-      clientId: client.clientId,
-      clientSecret: client.clientSecret || '',
-      name: client.name,
-      redirectUri: client.redirectUri,
-      status: client.status,
-    })
-    setShowEditModal(true)
-  }
-
-  const submitEdit = async () => {
-    if (!editingClient) return
+  const onDelete = async (c: OAuthClient) => {
     try {
-      await updateOAuthClient(editingClient.id, formData)
-      showAlert('更新 OAuth 客户端成功', 'success')
-      setShowEditModal(false)
-      setEditingClient(null)
+      await deleteOAuthClient(c.id)
+      Message.success('已删除')
       fetchClients()
-    } catch (error: any) {
-      showAlert('更新 OAuth 客户端失败', 'error', error?.msg || error?.message)
+    } catch (e: any) {
+      Message.error(`删除失败：${e?.msg || e?.message || e}`)
     }
   }
 
-  const askDelete = (client: OAuthClient) => {
-    setSelectedClient(client)
-    setShowDeleteConfirm(true)
-  }
-
-  const confirmDelete = async () => {
-    if (!selectedClient) return
-    try {
-      await deleteOAuthClient(selectedClient.id)
-      showAlert('删除 OAuth 客户端成功', 'success')
-      setShowDeleteConfirm(false)
-      setSelectedClient(null)
-      fetchClients()
-    } catch (error: any) {
-      showAlert('删除 OAuth 客户端失败', 'error', error?.msg || error?.message)
-    }
-  }
+  const columns = [
+    {
+      title: 'Client ID',
+      dataIndex: 'clientId',
+      width: 240,
+      ellipsis: true,
+      render: (v: string) => <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: 12 }}>{v}</span>,
+    },
+    { title: '名称', dataIndex: 'name', width: 200, ellipsis: true },
+    {
+      title: '回调地址',
+      dataIndex: 'redirectUri',
+      ellipsis: true,
+      render: (v: string) => {
+        const list = (v || '').split(';').map((s) => s.trim()).filter(Boolean)
+        return (
+          <div className="flex flex-col gap-0.5 text-xs break-all">
+            {list.map((u, i) => <div key={i}>{u}</div>)}
+          </div>
+        )
+      },
+    },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      width: 100,
+      render: (v: number) => (v === 1 ? <Tag color="green">启用</Tag> : <Tag color="gray">禁用</Tag>),
+    },
+    {
+      title: '操作',
+      key: '__actions__',
+      width: 180,
+      fixed: 'right' as const,
+      render: (_: any, c: OAuthClient) => (
+        <Space size="mini">
+          <Button size="mini" type="text" onClick={() => openEdit(c)}>
+            <span className="inline-flex items-center gap-1"><Edit size={14} /> 编辑</span>
+          </Button>
+          <Popconfirm title={`确认删除 ${c.name}？`} okText="删除" cancelText="取消" onOk={() => onDelete(c)}>
+            <Button size="mini" type="text" status="danger">
+              <span className="inline-flex items-center gap-1"><Trash2 size={14} /> 删除</span>
+            </Button>
+          </Popconfirm>
+        </Space>
+      ),
+    },
+  ]
 
   return (
-    <AdminLayout>
-      <div className="space-y-6">
-        <Card>
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-slate-600 dark:text-slate-300">管理后台 OAuth Client 列表</div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={fetchClients} leftIcon={<RefreshCw className="w-4 h-4" />}>
-                刷新
-              </Button>
-              <Button onClick={openCreateModal} leftIcon={<Plus className="w-4 h-4" />}>
-                新建客户端
-              </Button>
-            </div>
-          </div>
-        </Card>
+    <div className="space-y-4">
+      <PageHeader
+        title="OAuth 客户端"
+        description="管理可以接入本平台 OAuth 授权的第三方客户端。"
+        actions={
+          <Space>
+            <Button onClick={fetchClients}>
+              <span className="inline-flex items-center gap-1"><RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> 刷新</span>
+            </Button>
+            <Button type="primary" onClick={openCreate}>
+              <span className="inline-flex items-center gap-1"><Plus size={14} /> 新建客户端</span>
+            </Button>
+          </Space>
+        }
+      />
 
-        <Card>
-          {loading ? (
-            <div className="flex justify-center py-12">
-              <RefreshCw className="w-6 h-6 animate-spin text-slate-400" />
-            </div>
-          ) : clients.length === 0 ? (
-            <EmptyState icon={KeyRound} title="暂无 OAuth 客户端" description="点击上方按钮创建" />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-slate-200 dark:border-slate-700">
-                    <th className="text-left py-3 px-4">Client ID</th>
-                    <th className="text-left py-3 px-4">名称</th>
-                    <th className="text-left py-3 px-4">回调地址</th>
-                    <th className="text-left py-3 px-4">状态</th>
-                    <th className="text-right py-3 px-4">操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {clients.map((client) => (
-                    <tr key={client.id} className="border-b border-slate-100 dark:border-slate-800">
-                      <td className="py-3 px-4 font-mono text-xs">{client.clientId}</td>
-                      <td className="py-3 px-4">{client.name}</td>
-                      <td className="py-3 px-4 text-xs whitespace-pre-wrap break-all">
-                        {client.redirectUri?.split(';').map((uri) => uri.trim()).filter(Boolean).join('\n')}
-                      </td>
-                      <td className="py-3 px-4">
-                        <Badge variant={client.status === 1 ? 'success' : 'secondary'}>
-                          {client.status === 1 ? '启用' : '禁用'}
-                        </Badge>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button variant="ghost" size="sm" onClick={() => openEditModal(client)} leftIcon={<Edit className="w-4 h-4" />}>
-                            编辑
-                          </Button>
-                          <Button variant="ghost" size="sm" onClick={() => askDelete(client)} leftIcon={<Trash2 className="w-4 h-4" />}>
-                            删除
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Card>
+      <Table
+        rowKey={(c: OAuthClient) => String(c.id)}
+        loading={loading}
+        columns={columns}
+        data={clients}
+        scroll={{ x: 1100 }}
+        pagination={{
+          current: page,
+          pageSize,
+          total: clients.length,
+          showTotal: (t: number) => `共 ${t} 条`,
+          sizeCanChange: true,
+          sizeOptions: [10, 20, 50, 100],
+          onChange: (p: number, ps: number) => { setPage(p); setPageSize(ps) },
+        }}
+      />
 
-        <Modal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} title="新建 OAuth 客户端" size="lg">
-          <div className="space-y-4">
-            <Input label="Client ID *" value={formData.clientId || ''} onChange={(e) => setFormData({ ...formData, clientId: e.target.value })} />
-            <Input label="名称 *" value={formData.name || ''} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
-            <Input label="Client Secret（可选）" value={formData.clientSecret || ''} onChange={(e) => setFormData({ ...formData, clientSecret: e.target.value })} />
-            <Input
-              label="Redirect URI *（多个用 ; 分隔）"
+      <Modal
+        title={editing ? '编辑 OAuth 客户端' : '新建 OAuth 客户端'}
+        visible={modalOpen}
+        onCancel={() => setModalOpen(false)}
+        onOk={save}
+        confirmLoading={saving}
+        okText="保存"
+        cancelText="取消"
+        autoFocus={false}
+        style={{ width: 580 }}
+      >
+        <Form form={form} layout="vertical" autoComplete="off">
+          <FormItem label="Client ID" field="clientId" rules={[{ required: true, message: '请填写 Client ID' }]}>
+            <Input disabled={!!editing} placeholder="例如：myapp_web" />
+          </FormItem>
+          <FormItem label="名称" field="name" rules={[{ required: true, message: '请填写名称' }]}>
+            <Input placeholder="客户端展示名" />
+          </FormItem>
+          <FormItem label={editing ? 'Client Secret（留空则不改）' : 'Client Secret（可选）'} field="clientSecret">
+            <Input.Password placeholder="OAuth 客户端密钥" />
+          </FormItem>
+          <FormItem
+            label="Redirect URI（多个用 ; 分隔）"
+            field="redirectUri"
+            rules={[{ required: true, message: '请填写回调地址' }]}
+          >
+            <Input.TextArea
+              rows={3}
               placeholder="https://a.com/callback;https://b.com/callback"
-              value={formData.redirectUri || ''}
-              onChange={(e) => setFormData({ ...formData, redirectUri: e.target.value })}
             />
-            <div className="flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setShowCreateModal(false)}>取消</Button>
-              <Button onClick={submitCreate} leftIcon={<Save className="w-4 h-4" />}>创建</Button>
-            </div>
-          </div>
-        </Modal>
-
-        <Modal isOpen={showEditModal} onClose={() => setShowEditModal(false)} title="编辑 OAuth 客户端" size="lg">
-          <div className="space-y-4">
-            <Input label="Client ID *" value={formData.clientId || ''} onChange={(e) => setFormData({ ...formData, clientId: e.target.value })} />
-            <Input label="名称 *" value={formData.name || ''} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
-            <Input label="Client Secret（留空则不改）" value={formData.clientSecret || ''} onChange={(e) => setFormData({ ...formData, clientSecret: e.target.value })} />
-            <Input
-              label="Redirect URI *（多个用 ; 分隔）"
-              placeholder="https://a.com/callback;https://b.com/callback"
-              value={formData.redirectUri || ''}
-              onChange={(e) => setFormData({ ...formData, redirectUri: e.target.value })}
-            />
-            <div className="flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setShowEditModal(false)}>取消</Button>
-              <Button onClick={submitEdit} leftIcon={<Save className="w-4 h-4" />}>保存</Button>
-            </div>
-          </div>
-        </Modal>
-
-        <ConfirmDialog
-          isOpen={showDeleteConfirm}
-          onClose={() => setShowDeleteConfirm(false)}
-          onConfirm={confirmDelete}
-          title="确认删除"
-          message={`确定删除 OAuth 客户端 "${selectedClient?.name}" 吗？`}
-          confirmText="删除"
-          cancelText="取消"
-          variant="danger"
-        />
-      </div>
-    </AdminLayout>
+          </FormItem>
+        </Form>
+      </Modal>
+    </div>
   )
 }
 

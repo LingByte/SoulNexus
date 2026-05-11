@@ -5,6 +5,20 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Arco Button 内的 lucide-react SVG 修正：
+   Tailwind preflight 会让 svg 默认 display:block，导致 Arco Button 的
+   icon slot 与文本换行。此处强制 inline 显示，并给 icon 与文本之间留一点间距。 */
+.arco-btn svg,
+.arco-btn-icon svg {
+  display: inline-block;
+  vertical-align: middle;
+}
+.arco-btn-icon + .arco-btn-text,
+.arco-btn-icon + .arco-btn-children,
+.arco-btn-icon ~ * {
+  margin-left: 4px;
+}
+
 /* Modern Professional UI Base Styles */
 @layer base {
   * {

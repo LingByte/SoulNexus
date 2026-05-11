@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import AdminLayout from '@/components/Layout/AdminLayout'
+import PageHeader from '@/components/Layout/PageHeader'
 import Card from '@/components/UI/Card'
 import Button from '@/components/UI/Button'
 import Input from '@/components/UI/Input'
@@ -44,7 +44,7 @@ const Bills = () => {
   }
 
   return (
-    <AdminLayout title="账单管理" description="管理账单状态与信息">
+    <><PageHeader title="账单管理" description="管理账单状态与信息" />
       <Card className="space-y-4">
         <div className="flex gap-3">
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="搜索账单编号/标题" className="max-w-sm" />
@@ -95,7 +95,7 @@ const Bills = () => {
           </div>
         )}
       </Modal>
-    </AdminLayout>
+    </>
   )
 }
 

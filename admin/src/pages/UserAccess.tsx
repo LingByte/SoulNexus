@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { UserCog } from 'lucide-react'
-import AdminLayout from '@/components/Layout/AdminLayout'
 import Card from '@/components/UI/Card'
 import Button from '@/components/UI/Button'
 import Input from '@/components/UI/Input'
@@ -81,7 +80,7 @@ const UserAccess = () => {
   }
 
   return (
-    <AdminLayout>
+    <>
       <div className="max-w-6xl mx-auto space-y-6">
         <div className="flex items-center gap-3">
           <UserCog className="w-8 h-8 text-indigo-600" />
@@ -168,7 +167,7 @@ const UserAccess = () => {
           )}
         </Card>
       </div>
-    </AdminLayout>
+    </>
   )
 }
 

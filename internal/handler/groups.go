@@ -14,8 +14,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/internal/config"
+	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/notification"
@@ -549,7 +549,7 @@ func (h *Handlers) InviteUser(c *gin.Context) {
 
 	// 发送站内通知
 	go func() {
-		notificationService := notification.NewInternalNotificationService(h.db)
+		notificationService := models.NewInternalNotificationService(h.db)
 		title := "组织邀请"
 		content := fmt.Sprintf("%s 邀请您加入组织「%s」",
 			user.EffectiveDisplayName(),
@@ -561,8 +561,8 @@ func (h *Handlers) InviteUser(c *gin.Context) {
 
 	// 发送邮件通知（如果用户启用了邮件通知）
 	go func() {
-		if invitee.Profile.EmailNotifications && config.GlobalConfig.Services.Mail.APIUser != "" {
-			mailer := notification.NewMailNotification(config.GlobalConfig.Services.Mail)
+		if invitee.Profile.EmailNotifications {
+			mailer := notification.NewMailer(h.db, 0, invitee.ID, "")
 
 			// 构建接受邀请的URL
 			siteURL := utils.GetValue(h.db, constants.KEY_SITE_URL)

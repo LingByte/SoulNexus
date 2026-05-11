@@ -1,143 +1,84 @@
-import { useUIStore } from '../stores/uiStore'
-import { playSuccessSound, playErrorSound, playWarningSound, playInfoSound } from './audioEffects'
-import type { ToastPosition } from '../stores/uiStore'
+// Bridge to Arco's Notification so existing call sites (`showAlert`, `notification.x`, etc.) keep working
+// without the deleted PositionedToast / framer-motion stack.
+import { Notification } from '@arco-design/web-react'
 
-// 通知类型
 export type NotificationType = 'success' | 'error' | 'warning' | 'info'
 
-// 通知选项
 export interface NotificationOptions {
   title: string
   message?: string
   duration?: number
-  position?: ToastPosition
-  scrollToPosition?: {
-    x: number
-    y: number
-    behavior?: 'smooth' | 'instant' | 'auto'
-  }
 }
 
-// 创建通知的工具函数
-export const createNotification = () => {
-  const { addNotification } = useUIStore.getState()
-  
-  return {
-    success: (options: NotificationOptions) => {
-      playSuccessSound()
-      addNotification({
-        type: 'success',
-        title: options.title,
-        message: options.message,
-        duration: options.duration || 5000,
-        position: options.position,
-        scrollToPosition: options.scrollToPosition
-      })
-    },
-    
-    error: (options: NotificationOptions) => {
-      playErrorSound()
-      addNotification({
-        type: 'error',
-        title: options.title,
-        message: options.message,
-        duration: options.duration || 7000,
-        position: options.position,
-        scrollToPosition: options.scrollToPosition
-      })
-    },
-    
-    warning: (options: NotificationOptions) => {
-      playWarningSound()
-      addNotification({
-        type: 'warning',
-        title: options.title,
-        message: options.message,
-        duration: options.duration || 6000,
-        position: options.position,
-        scrollToPosition: options.scrollToPosition
-      })
-    },
-    
-    info: (options: NotificationOptions) => {
-      playInfoSound()
-      addNotification({
-        type: 'info',
-        title: options.title,
-        message: options.message,
-        duration: options.duration || 5000,
-        position: options.position,
-        scrollToPosition: options.scrollToPosition
-      })
-    }
-  }
-}
-
-// 替换alert的便捷函数
-export const showAlert = (
-  message: string, 
-  type: NotificationType = 'info', 
-  title?: string,
-  options?: Partial<NotificationOptions>
-) => {
-  const notification = createNotification()
-  
-  notification[type]({
-    title: title || (type === 'error' ? '错误' : type === 'warning' ? '警告' : type === 'success' ? '成功' : '提示'),
-    message: message,
-    ...options
+const open = (type: NotificationType, opts: NotificationOptions) => {
+  Notification[type]({
+    title: opts.title,
+    content: opts.message ?? '',
+    duration: opts.duration ?? (type === 'error' ? 7000 : 5000),
   })
 }
 
-// 带滚动功能的提示
-export const showAlertWithScroll = (
-  message: string, 
-  type: NotificationType = 'info', 
+export const createNotification = () => ({
+  success: (o: NotificationOptions) => open('success', o),
+  error: (o: NotificationOptions) => open('error', o),
+  warning: (o: NotificationOptions) => open('warning', o),
+  info: (o: NotificationOptions) => open('info', o),
+})
+
+const defaultTitle: Record<NotificationType, string> = {
+  success: '成功',
+  error: '错误',
+  warning: '警告',
+  info: '提示',
+}
+
+export const showAlert = (
+  message: string,
+  type: NotificationType = 'info',
   title?: string,
-  scrollToPosition?: { x: number; y: number; behavior?: 'smooth' | 'instant' | 'auto' }
+  options?: Partial<NotificationOptions>,
 ) => {
-  const notification = createNotification()
-  
-  // 先滚动到指定位置
+  open(type, {
+    title: title || defaultTitle[type],
+    message,
+    ...options,
+  })
+}
+
+export const showAlertWithScroll = (
+  message: string,
+  type: NotificationType = 'info',
+  title?: string,
+  scrollToPosition?: { x: number; y: number; behavior?: ScrollBehavior },
+) => {
   if (scrollToPosition) {
     window.scrollTo({
       left: scrollToPosition.x,
       top: scrollToPosition.y,
-      behavior: scrollToPosition.behavior || 'smooth'
+      behavior: scrollToPosition.behavior || 'smooth',
     })
   }
-  
-  // 然后显示通知
-  notification[type]({
-    title: title || (type === 'error' ? '错误' : type === 'warning' ? '警告' : type === 'success' ? '成功' : '提示'),
-    message: message,
-    duration: type === 'error' ? 7000 : 5000
+  open(type, {
+    title: title || defaultTitle[type],
+    message,
   })
 }
 
-// 确认对话框的替代函数
 export const showConfirm = (
   message: string,
   title: string = '确认',
   onConfirm: () => void,
-  onCancel?: () => void
+  onCancel?: () => void,
 ) => {
-  const confirmed = window.confirm(`${title}\n\n${message}`)
-  if (confirmed) {
-    onConfirm()
-  } else if (onCancel) {
-    onCancel()
-  }
+  const ok = window.confirm(`${title}\n\n${message}`)
+  if (ok) onConfirm()
+  else onCancel?.()
 }
 
-// 输入对话框的替代函数
 export const showPrompt = (
   message: string,
   title: string = '输入',
-  defaultValue: string = ''
-): string | null => {
-  return window.prompt(`${title}\n\n${message}`, defaultValue)
-}
+  defaultValue: string = '',
+): string | null => window.prompt(`${title}\n\n${message}`, defaultValue)
 
-// 导出默认的通知实例
 export const notification = createNotification()

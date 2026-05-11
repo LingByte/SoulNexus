@@ -1,16 +1,24 @@
-import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
-import { Users as UsersIcon, Plus, Search, Edit, Trash2, RefreshCw, Save, UserCheck, UserX } from 'lucide-react'
-import AdminLayout from '@/components/Layout/AdminLayout'
-import Card from '@/components/UI/Card'
-import Button from '@/components/UI/Button'
-import Input from '@/components/UI/Input'
-import Badge from '@/components/UI/Badge'
-import EmptyState from '@/components/UI/EmptyState'
-import Modal from '@/components/UI/Modal'
-import ConfirmDialog from '@/components/UI/ConfirmDialog'
-import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/UI/Select'
-import { showAlert } from '@/utils/notification'
+// Copyright (c) 2026 LingByte. All rights reserved.
+// SPDX-License-Identifier: AGPL-3.0
+//
+// 用户管理：Arco Table + Form Modal（创建/编辑）+ 详情 Drawer。
+import { useEffect, useState } from 'react'
+import {
+  Table,
+  Input,
+  Select,
+  Button,
+  Tag,
+  Modal,
+  Form,
+  Drawer,
+  Switch,
+  Popconfirm,
+  Message,
+  Space,
+} from '@arco-design/web-react'
+import { Search, RefreshCw, Plus, Edit, Trash2, Eye } from 'lucide-react'
+import PageHeader from '@/components/Layout/PageHeader'
 import {
   listUsers,
   getUser,
@@ -22,6 +30,9 @@ import {
   type CreateUserRequest,
   type UpdateUserRequest,
 } from '@/services/adminApi'
+
+const Option = Select.Option
+const FormItem = Form.Item
 
 const ROLES = [
   { value: 'user', label: '普通用户' },
@@ -36,86 +47,74 @@ const ACCOUNT_STATUSES = [
   { value: 'banned', label: '封禁' },
 ]
 
-function accountStatusLabel(status?: string) {
-  const s = status || 'active'
-  const hit = ACCOUNT_STATUSES.find((x) => x.value === s)
-  return hit ? hit.label : s
+const accountStatusLabel = (s?: string) => {
+  const v = s || 'active'
+  return ACCOUNT_STATUSES.find((x) => x.value === v)?.label || v
+}
+
+const statusColor = (s?: string) => {
+  switch (s) {
+    case 'active': return 'green'
+    case 'banned': return 'red'
+    case 'suspended': return 'orange'
+    case 'pending_verification': return 'arcoblue'
+    default: return 'gray'
+  }
 }
 
 const Users = () => {
   const [users, setUsers] = useState<User[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(false)
-  const [search, setSearch] = useState('')
-  const [roleFilter, setRoleFilter] = useState<string>('')
-  const [statusFilter, setStatusFilter] = useState<string>('')
-  const [hasPhoneFilter, setHasPhoneFilter] = useState<string>('')
-  const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize] = useState(20)
-  const [showCreateModal, setShowCreateModal] = useState(false)
-  const [showEditModal, setShowEditModal] = useState(false)
-  const [showDetailModal, setShowDetailModal] = useState(false)
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [selectedUser, setSelectedUser] = useState<User | null>(null)
-  const [editingUser, setEditingUser] = useState<User | null>(null)
-  // Form states
-  const [formData, setFormData] = useState<CreateUserRequest>({
-    email: '',
-    displayName: '',
-    firstName: '',
-    lastName: '',
-    role: 'user',
-    status: 'active',
-    phone: '',
-    locale: '',
-    timezone: '',
-    city: '',
-    region: '',
-    gender: '',
-    emailNotifications: true,
-    pushNotifications: true,
-  })
 
-  // 获取用户列表
+  const [searchInput, setSearchInput] = useState('')
+  const [search, setSearch] = useState('')
+  const [roleFilter, setRoleFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+  const [hasPhoneFilter, setHasPhoneFilter] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
+
+  const [modalOpen, setModalOpen] = useState(false)
+  const [editing, setEditing] = useState<User | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [form] = Form.useForm<CreateUserRequest>()
+
+  const [detail, setDetail] = useState<User | null>(null)
+
   const fetchUsers = async () => {
+    setLoading(true)
     try {
-      setLoading(true)
-      const params: ListUsersParams = {
-        page: currentPage,
-        pageSize: pageSize,
-      }
+      const params: ListUsersParams = { page, pageSize }
       if (search) params.search = search
       if (roleFilter) params.role = roleFilter
-      if (statusFilter === '__inactive__') {
-        params.enabled = 'false'
-      } else if (statusFilter) {
-        params.status = statusFilter
-      }
+      if (statusFilter === '__inactive__') params.enabled = 'false'
+      else if (statusFilter) params.status = statusFilter
       if (hasPhoneFilter) params.hasPhone = hasPhoneFilter
-
       const response = await listUsers(params)
       setUsers(response.users || [])
       setTotal(response.total || 0)
-    } catch (error: any) {
-      showAlert('获取用户列表失败', 'error', error?.msg || error?.message)
+    } catch (e: any) {
+      Message.error(`获取用户列表失败：${e?.msg || e?.message || e}`)
     } finally {
       setLoading(false)
     }
   }
 
-  // Reset to first page when filters change
-  useEffect(() => {
-    setCurrentPage(1)
-  }, [search, roleFilter, statusFilter, hasPhoneFilter])
-
-  // Fetch users when page or filters change
   useEffect(() => {
     fetchUsers()
-  }, [currentPage, search, roleFilter, statusFilter, hasPhoneFilter])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, pageSize, search, roleFilter, statusFilter, hasPhoneFilter])
 
-  // 处理创建用户
-  const handleCreate = () => {
-    setFormData({
+  const handleSearch = () => {
+    setPage(1)
+    setSearch(searchInput)
+  }
+
+  const openCreate = () => {
+    setEditing(null)
+    form.resetFields()
+    form.setFieldsValue({
       email: '',
       displayName: '',
       firstName: '',
@@ -123,550 +122,289 @@ const Users = () => {
       role: 'user',
       status: 'active',
       phone: '',
-      locale: '',
-      timezone: '',
-      city: '',
-      region: '',
-      gender: '',
       emailNotifications: true,
       pushNotifications: true,
     })
-    setShowCreateModal(true)
+    setModalOpen(true)
   }
 
-  // 处理编辑用户
-  const handleEdit = async (user: User) => {
+  const openEdit = async (user: User) => {
     try {
-      const fullUser = await getUser(user.id)
-      setEditingUser(fullUser)
-      setFormData({
-        email: fullUser.email,
-        displayName: fullUser.displayName || '',
-        firstName: fullUser.firstName || '',
-        lastName: fullUser.lastName || '',
-        role: fullUser.role || 'user',
-        status: fullUser.status || 'active',
-        phone: fullUser.phone || '',
-        locale: fullUser.locale || '',
-        timezone: fullUser.timezone || '',
-        city: (fullUser as any).city || '',
-        region: (fullUser as any).region || '',
-        gender: (fullUser as any).gender || '',
-        emailNotifications: (fullUser as any).emailNotifications ?? true,
-        pushNotifications: (fullUser as any).pushNotifications ?? true,
-      })
-      setShowEditModal(true)
-    } catch (error: any) {
-      showAlert('获取用户详情失败', 'error', error?.msg || error?.message)
+      const full = await getUser(user.id)
+      setEditing(full)
+      form.setFieldsValue({
+        email: full.email,
+        displayName: full.displayName || '',
+        firstName: full.firstName || '',
+        lastName: full.lastName || '',
+        role: full.role || 'user',
+        status: full.status || 'active',
+        phone: full.phone || '',
+        locale: full.locale || '',
+        timezone: full.timezone || '',
+        city: (full as any).city || '',
+        region: (full as any).region || '',
+        gender: (full as any).gender || '',
+        emailNotifications: (full as any).emailNotifications ?? true,
+        pushNotifications: (full as any).pushNotifications ?? true,
+      } as any)
+      setModalOpen(true)
+    } catch (e: any) {
+      Message.error(`获取用户详情失败：${e?.msg || e?.message || e}`)
     }
   }
 
-  // 处理删除用户
-  const handleDelete = (user: User) => {
-    setSelectedUser(user)
-    setShowDeleteConfirm(true)
-  }
-
-  const handleViewDetail = async (user: User) => {
+  const save = async () => {
     try {
-      const fullUser = await getUser(user.id)
-      setSelectedUser(fullUser)
-      setShowDetailModal(true)
-    } catch (error: any) {
-      showAlert('获取用户详情失败', 'error', error?.msg || error?.message)
-    }
-  }
-
-  // 提交创建
-  const handleSubmitCreate = async () => {
-    try {
-      if (!formData.email) {
-        showAlert('请输入邮箱', 'error')
-        return
+      const values = await form.validate()
+      setSaving(true)
+      if (editing) {
+        const updateData: UpdateUserRequest = { ...values }
+        if (!updateData.password) delete (updateData as any).password
+        await updateUser(editing.id, updateData)
+        Message.success('更新用户成功')
+      } else {
+        await createUser(values as CreateUserRequest)
+        Message.success('创建用户成功')
       }
-      await createUser(formData)
-      showAlert('创建用户成功', 'success')
-      setShowCreateModal(false)
+      setModalOpen(false)
       fetchUsers()
-    } catch (error: any) {
-      showAlert('创建用户失败', 'error', error?.msg || error?.message)
+    } catch (e: any) {
+      if (e?.message || e?.msg) Message.error(`保存失败：${e?.msg || e?.message}`)
+    } finally {
+      setSaving(false)
     }
   }
 
-  // 提交更新
-  const handleSubmitUpdate = async () => {
-    if (!editingUser) return
+  const onDelete = async (u: User) => {
     try {
-      const updateData: UpdateUserRequest = {
-        email: formData.email,
-        displayName: formData.displayName,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        role: formData.role,
-        status: formData.status,
-        phone: formData.phone,
-        locale: formData.locale,
-        timezone: formData.timezone,
-        city: (formData as any).city,
-        region: (formData as any).region,
-        gender: (formData as any).gender,
-        emailNotifications: (formData as any).emailNotifications,
-        pushNotifications: (formData as any).pushNotifications,
-      }
-      // 只有在编辑模式下且密码不为空时才更新密码
-      if (formData.password) {
-        updateData.password = formData.password
-      }
-      await updateUser(editingUser.id, updateData)
-      showAlert('更新用户成功', 'success')
-      setShowEditModal(false)
-      setEditingUser(null)
+      await deleteUser(u.id)
+      Message.success('已删除')
       fetchUsers()
-    } catch (error: any) {
-      showAlert('更新用户失败', 'error', error?.msg || error?.message)
+    } catch (e: any) {
+      Message.error(`删除失败：${e?.msg || e?.message || e}`)
     }
   }
 
-  // 确认删除
-  const handleConfirmDelete = async () => {
-    if (!selectedUser) return
+  const openDetail = async (u: User) => {
     try {
-      await deleteUser(selectedUser.id)
-      showAlert('删除用户成功', 'success')
-      setShowDeleteConfirm(false)
-      setSelectedUser(null)
-      fetchUsers()
-    } catch (error: any) {
-      showAlert('删除用户失败', 'error', error?.msg || error?.message)
+      const full = await getUser(u.id)
+      setDetail(full)
+    } catch (e: any) {
+      Message.error(`获取详情失败：${e?.msg || e?.message || e}`)
     }
   }
 
-  const totalPages = Math.ceil(total / pageSize)
+  const columns = [
+    { title: 'ID', dataIndex: 'id', width: 100 },
+    { title: '邮箱', dataIndex: 'email', width: 220, ellipsis: true },
+    {
+      title: '姓名',
+      dataIndex: 'displayName',
+      ellipsis: true,
+      render: (_: any, u: User) => u.displayName || `${u.firstName || ''} ${u.lastName || ''}`.trim() || '-',
+    },
+    {
+      title: '角色',
+      dataIndex: 'role',
+      width: 110,
+      render: (v: string) => (
+        <Tag color={v === 'admin' || v === 'superadmin' ? 'arcoblue' : 'gray'}>{v || 'user'}</Tag>
+      ),
+    },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      width: 110,
+      render: (v: string) => <Tag color={statusColor(v)}>{accountStatusLabel(v)}</Tag>,
+    },
+    { title: '手机号', dataIndex: 'phone', width: 130, render: (v: string) => v || '-' },
+    {
+      title: '最近登录',
+      dataIndex: 'lastLogin',
+      width: 170,
+      render: (v: string) => (v ? new Date(v).toLocaleString('zh-CN') : '-'),
+    },
+    { title: '登录次数', dataIndex: 'loginCount', width: 100, render: (v: number) => v || 0 },
+    {
+      title: '操作',
+      key: '__actions__',
+      width: 240,
+      fixed: 'right' as const,
+      render: (_: any, u: User) => (
+        <Space size="mini">
+          <Button size="mini" type="text" onClick={() => openDetail(u)}>
+            <span className="inline-flex items-center gap-1"><Eye size={14} /> 详情</span>
+          </Button>
+          <Button size="mini" type="text" onClick={() => openEdit(u)}>
+            <span className="inline-flex items-center gap-1"><Edit size={14} /> 编辑</span>
+          </Button>
+          <Popconfirm
+            title={`确定删除用户「${u.email}」？此操作不可恢复。`}
+            okText="删除"
+            cancelText="取消"
+            onOk={() => onDelete(u)}
+          >
+            <Button size="mini" type="text" status="danger">
+              <span className="inline-flex items-center gap-1"><Trash2 size={14} /> 删除</span>
+            </Button>
+          </Popconfirm>
+        </Space>
+      ),
+    },
+  ]
 
   return (
-    <AdminLayout>
-      <div className="space-y-6">
-        {/* Toolbar */}
-        <Card>
-          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-            <div className="flex flex-1 flex-wrap gap-3 items-center">
-              <Input
-                placeholder="搜索邮箱、姓名..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full sm:w-64"
-                leftIcon={<Search className="w-4 h-4" />}
-              />
-              <Select value={roleFilter} onValueChange={setRoleFilter}>
-                <SelectTrigger className="w-full sm:w-40">
-                  <SelectValue placeholder="角色" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">全部角色</SelectItem>
-                  {ROLES.map((role) => (
-                    <SelectItem key={role.value} value={role.value}>
-                      {role.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full sm:w-40">
-                  <SelectValue placeholder="状态" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">全部状态</SelectItem>
-                  <SelectItem value="active">正常</SelectItem>
-                  <SelectItem value="pending_verification">待验证</SelectItem>
-                  <SelectItem value="suspended">暂停</SelectItem>
-                  <SelectItem value="banned">封禁</SelectItem>
-                  <SelectItem value="__inactive__">非活跃</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={hasPhoneFilter} onValueChange={setHasPhoneFilter}>
-                <SelectTrigger className="w-full sm:w-36">
-                  <SelectValue placeholder="手机号" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">全部手机号</SelectItem>
-                  <SelectItem value="true">有手机号</SelectItem>
-                  <SelectItem value="false">无手机号</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={fetchUsers}
-                leftIcon={<RefreshCw className="w-4 h-4" />}
-              >
-                <span>刷新</span>
-              </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={handleCreate}
-                leftIcon={<Plus className="w-4 h-4" />}
-              >
-                <span>新建用户</span>
-              </Button>
-            </div>
-          </div>
-        </Card>
-
-        {/* Users Table */}
-        <Card>
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <RefreshCw className="w-6 h-6 animate-spin text-slate-400" />
-            </div>
-          ) : users.length === 0 ? (
-            <EmptyState
-              icon={UsersIcon}
-              title="暂无用户"
-              description="创建第一个用户开始使用"
-            />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-slate-200 dark:border-slate-700">
-                    <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-300">ID</th>
-                    <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-300">邮箱</th>
-                    <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-300">姓名</th>
-                    <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-300">角色</th>
-                    <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-300">状态</th>
-                    <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-300">手机号</th>
-                    <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-300">最近登录</th>
-                    <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-300">登录次数</th>
-                    <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-300">操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((user) => (
-                    <motion.tr
-                      key={user.id}
-                      className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                    >
-                      <td className="py-3 px-4">{user.id}</td>
-                      <td className="py-3 px-4">{user.email}</td>
-                      <td className="py-3 px-4">
-                        {user.displayName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || '-'}
-                      </td>
-                      <td className="py-3 px-4">
-                        <Badge variant={user.role === 'admin' || user.role === 'superadmin' ? 'primary' : 'secondary'}>
-                          {user.role || 'user'}
-                        </Badge>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {(() => {
-                            const st = user.status || 'active'
-                            const variant: 'success' | 'error' | 'secondary' =
-                              st === 'active' ? 'success' : st === 'banned' ? 'error' : 'secondary'
-                            const Icon = st === 'active' ? UserCheck : UserX
-                            return (
-                              <Badge variant={variant} icon={<Icon className="w-3 h-3" />}>
-                                {accountStatusLabel(user.status)}
-                              </Badge>
-                            )
-                          })()}
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">{user.phone || '-'}</td>
-                      <td className="py-3 px-4">{user.lastLogin ? new Date(user.lastLogin).toLocaleString('zh-CN') : '-'}</td>
-                      <td className="py-3 px-4">{user.loginCount || 0}</td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleViewDetail(user)}
-                          >
-                            <span>详情</span>
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEdit(user)}
-                            leftIcon={<Edit className="w-4 h-4" />}
-                          >
-                            <span>编辑</span>
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDelete(user)}
-                            leftIcon={<Trash2 className="w-4 h-4" />}
-                            className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                          >
-                            <span>删除</span>
-                          </Button>
-                        </div>
-                      </td>
-                    </motion.tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
-              <div className="text-sm text-slate-600 dark:text-slate-400">
-                共 {total} 条，第 {currentPage} / {totalPages} 页
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                >
-                  上一页
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                >
-                  下一页
-                </Button>
-              </div>
-            </div>
-          )}
-        </Card>
-
-        {/* Create Modal */}
-        <Modal
-          isOpen={showCreateModal}
-          onClose={() => setShowCreateModal(false)}
-          title="新建用户"
-          size="lg"
-        >
-          <div className="space-y-4">
+    <div className="space-y-4">
+      <PageHeader
+        title="用户管理"
+        description="维护后台用户、角色、状态与基础资料。"
+        actions={
+          <Space wrap>
             <Input
-              label="邮箱 *"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              type="email"
-              required
+              prefix={<Search size={14} />}
+              placeholder="搜索邮箱 / 姓名"
+              value={searchInput}
+              onChange={(v) => setSearchInput(v)}
+              onPressEnter={handleSearch}
+              allowClear
+              onClear={() => { setPage(1); setSearch('') }}
+              style={{ width: 220 }}
             />
-            <Input
-              label="显示名称"
-              value={formData.displayName}
-              onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
-            />
-            <div className="grid grid-cols-2 gap-4">
-              <Input
-                label="名"
-                value={formData.firstName}
-                onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-              />
-              <Input
-                label="姓"
-                value={formData.lastName}
-                onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">角色</label>
-                <Select value={formData.role || ''} onValueChange={(value) => setFormData({ ...formData, role: value })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="选择角色">
-                      {ROLES.find(r => r.value === formData.role)?.label || '选择角色'}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ROLES.map((role) => (
-                      <SelectItem key={role.value} value={role.value}>
-                        {role.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Input
-                label="手机号"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-              />
-            </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">账号状态</label>
-                <Select
-                  value={formData.status || 'active'}
-                  onValueChange={(value) => setFormData({ ...formData, status: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="选择状态" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ACCOUNT_STATUSES.map((s) => (
-                      <SelectItem key={s.value} value={s.value}>
-                        {s.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <Select value={roleFilter} onChange={(v) => { setPage(1); setRoleFilter(v) }} placeholder="角色" style={{ width: 130 }}>
+              <Option value="">全部角色</Option>
+              {ROLES.map((r) => <Option key={r.value} value={r.value}>{r.label}</Option>)}
+            </Select>
+            <Select value={statusFilter} onChange={(v) => { setPage(1); setStatusFilter(v) }} placeholder="状态" style={{ width: 130 }}>
+              <Option value="">全部状态</Option>
+              {ACCOUNT_STATUSES.map((s) => <Option key={s.value} value={s.value}>{s.label}</Option>)}
+              <Option value="__inactive__">非活跃</Option>
+            </Select>
+            <Select value={hasPhoneFilter} onChange={(v) => { setPage(1); setHasPhoneFilter(v) }} placeholder="手机号" style={{ width: 130 }}>
+              <Option value="">全部</Option>
+              <Option value="true">有手机号</Option>
+              <Option value="false">无手机号</Option>
+            </Select>
+            <Button type="primary" onClick={handleSearch}>搜索</Button>
+            <Button onClick={fetchUsers}>
+              <span className="inline-flex items-center gap-1"><RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> 刷新</span>
+            </Button>
+            <Button type="primary" onClick={openCreate}>
+              <span className="inline-flex items-center gap-1"><Plus size={14} /> 新建用户</span>
+            </Button>
+          </Space>
+        }
+      />
 
-              <div className="flex justify-end gap-3 pt-4">
-              <Button variant="outline" onClick={() => setShowCreateModal(false)}>
-                <span>取消</span>
-              </Button>
-              <Button variant="primary" onClick={handleSubmitCreate} leftIcon={<Save className="w-4 h-4" />}>
-                <span>创建</span>
-              </Button>
-            </div>
+      <Table
+        rowKey={(r: User) => String(r.id)}
+        loading={loading}
+        columns={columns}
+        data={users}
+        scroll={{ x: 1500 }}
+        pagination={{
+          current: page,
+          pageSize,
+          total,
+          showTotal: (t: number) => `共 ${t} 条`,
+          sizeCanChange: true,
+          sizeOptions: [10, 20, 50, 100],
+          onChange: (p: number, ps: number) => { setPage(p); setPageSize(ps) },
+        }}
+      />
+
+      <Modal
+        title={editing ? '编辑用户' : '新建用户'}
+        visible={modalOpen}
+        onCancel={() => setModalOpen(false)}
+        onOk={save}
+        confirmLoading={saving}
+        okText="保存"
+        cancelText="取消"
+        autoFocus={false}
+        style={{ width: 680 }}
+      >
+        <Form form={form} layout="vertical" autoComplete="off">
+          <FormItem label="邮箱" field="email" rules={[{ required: true, type: 'email', message: '请填写有效邮箱' }]}>
+            <Input disabled={!!editing} placeholder="user@example.com" />
+          </FormItem>
+          <div className="grid grid-cols-2 gap-3">
+            <FormItem label="显示名称" field="displayName"><Input /></FormItem>
+            <FormItem label="手机号" field="phone"><Input /></FormItem>
           </div>
-        </Modal>
-
-        {/* Edit Modal */}
-        <Modal
-          isOpen={showEditModal}
-          onClose={() => {
-            setShowEditModal(false)
-            setEditingUser(null)
-          }}
-          title="编辑用户"
-          size="lg"
-        >
-          {editingUser && (
-            <div className="space-y-4">
-              <Input
-                label="邮箱 *"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                type="email"
-                required
-              />
-              <Input
-                label="显示名称"
-                value={formData.displayName}
-                onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
-              />
-              <div className="grid grid-cols-2 gap-4">
-                <Input
-                  label="名"
-                  value={formData.firstName}
-                  onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                />
-                <Input
-                  label="姓"
-                  value={formData.lastName}
-                  onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2">角色</label>
-                  <Select value={formData.role || 'user'} onValueChange={(value) => setFormData({ ...formData, role: value })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="选择角色">
-                        {ROLES.find(r => r.value === formData.role)?.label || '选择角色'}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ROLES.map((role) => (
-                        <SelectItem key={role.value} value={role.value}>
-                          {role.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Input
-                  label="手机号"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">账号状态</label>
-                <Select
-                  value={formData.status || 'active'}
-                  onValueChange={(value) => setFormData({ ...formData, status: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="选择状态" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ACCOUNT_STATUSES.map((s) => (
-                      <SelectItem key={s.value} value={s.value}>
-                        {s.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4">
-                <Button variant="outline" onClick={() => {
-                  setShowEditModal(false)
-                  setEditingUser(null)
-                }}>
-                  <span>取消</span>
-                </Button>
-                <Button variant="primary" onClick={handleSubmitUpdate} leftIcon={<Save className="w-4 h-4" />}>
-                  <span>保存</span>
-                </Button>
-              </div>
-            </div>
+          <div className="grid grid-cols-2 gap-3">
+            <FormItem label="名" field="firstName"><Input /></FormItem>
+            <FormItem label="姓" field="lastName"><Input /></FormItem>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <FormItem label="角色" field="role" rules={[{ required: true }]}>
+              <Select>
+                {ROLES.map((r) => <Option key={r.value} value={r.value}>{r.label}</Option>)}
+              </Select>
+            </FormItem>
+            <FormItem label="账号状态" field="status" rules={[{ required: true }]}>
+              <Select>
+                {ACCOUNT_STATUSES.map((s) => <Option key={s.value} value={s.value}>{s.label}</Option>)}
+              </Select>
+            </FormItem>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <FormItem label="语言" field="locale"><Input placeholder="zh-CN / en-US" /></FormItem>
+            <FormItem label="时区" field="timezone"><Input placeholder="Asia/Shanghai" /></FormItem>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <FormItem label="城市" field="city"><Input /></FormItem>
+            <FormItem label="地区" field="region"><Input /></FormItem>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <FormItem label="邮件通知" field="emailNotifications" triggerPropName="checked"><Switch /></FormItem>
+            <FormItem label="推送通知" field="pushNotifications" triggerPropName="checked"><Switch /></FormItem>
+          </div>
+          {editing && (
+            <FormItem label="新密码（留空则不改）" field="password">
+              <Input.Password placeholder="留空保持原密码" />
+            </FormItem>
           )}
-        </Modal>
+        </Form>
+      </Modal>
 
-        {/* Delete Confirm Dialog */}
-        <ConfirmDialog
-          isOpen={showDeleteConfirm}
-          onClose={() => {
-            setShowDeleteConfirm(false)
-            setSelectedUser(null)
-          }}
-          onConfirm={handleConfirmDelete}
-          title="确认删除"
-          message={`确定要删除用户 "${selectedUser?.email}" 吗？此操作不可恢复。`}
-          confirmText="删除"
-          cancelText="取消"
-          variant="danger"
-        />
-
-        <Modal
-          isOpen={showDetailModal}
-          onClose={() => {
-            setShowDetailModal(false)
-            setSelectedUser(null)
-          }}
-          title="用户详情"
-          size="lg"
-        >
-          {selectedUser && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-              <div><span className="text-slate-500">ID：</span>{selectedUser.id}</div>
-              <div><span className="text-slate-500">邮箱：</span>{selectedUser.email}</div>
-              <div><span className="text-slate-500">显示名：</span>{selectedUser.displayName || '-'}</div>
-              <div><span className="text-slate-500">角色：</span>{selectedUser.role || 'user'}</div>
-              <div><span className="text-slate-500">手机号：</span>{selectedUser.phone || '-'}</div>
-              <div><span className="text-slate-500">时区：</span>{selectedUser.timezone || '-'}</div>
-              <div><span className="text-slate-500">城市：</span>{(selectedUser as any).city || '-'}</div>
-              <div><span className="text-slate-500">地区：</span>{(selectedUser as any).region || '-'}</div>
-              <div><span className="text-slate-500">性别：</span>{(selectedUser as any).gender || '-'}</div>
-              <div><span className="text-slate-500">最近登录：</span>{selectedUser.lastLogin ? new Date(selectedUser.lastLogin).toLocaleString('zh-CN') : '-'}</div>
-              <div><span className="text-slate-500">登录次数：</span>{selectedUser.loginCount || 0}</div>
-              <div><span className="text-slate-500">状态：</span>{accountStatusLabel(selectedUser.status)}</div>
-              <div><span className="text-slate-500">来源：</span>{selectedUser.source || '-'}</div>
-              <div><span className="text-slate-500">邮件通知：</span>{(selectedUser as any).emailNotifications ? '开' : '关'}</div>
-              <div><span className="text-slate-500">推送通知：</span>{(selectedUser as any).pushNotifications ? '开' : '关'}</div>
-            </div>
-          )}
-        </Modal>
-      </div>
-    </AdminLayout>
+      <Drawer
+        title="用户详情"
+        visible={!!detail}
+        width={640}
+        onCancel={() => setDetail(null)}
+        footer={null}
+        autoFocus={false}
+      >
+        {detail && (
+          <div className="space-y-3 text-sm">
+            <InfoRow label="ID" value={String(detail.id)} />
+            <InfoRow label="邮箱" value={detail.email} />
+            <InfoRow label="显示名" value={detail.displayName || '-'} />
+            <InfoRow label="角色" value={<Tag color={detail.role === 'admin' || detail.role === 'superadmin' ? 'arcoblue' : 'gray'}>{detail.role || 'user'}</Tag>} />
+            <InfoRow label="状态" value={<Tag color={statusColor(detail.status)}>{accountStatusLabel(detail.status)}</Tag>} />
+            <InfoRow label="手机号" value={detail.phone || '-'} />
+            <InfoRow label="时区" value={detail.timezone || '-'} />
+            <InfoRow label="城市" value={(detail as any).city || '-'} />
+            <InfoRow label="地区" value={(detail as any).region || '-'} />
+            <InfoRow label="性别" value={(detail as any).gender || '-'} />
+            <InfoRow label="最近登录" value={detail.lastLogin ? new Date(detail.lastLogin).toLocaleString('zh-CN') : '-'} />
+            <InfoRow label="登录次数" value={String(detail.loginCount || 0)} />
+            <InfoRow label="来源" value={detail.source || '-'} />
+            <InfoRow label="邮件通知" value={(detail as any).emailNotifications ? '开启' : '关闭'} />
+            <InfoRow label="推送通知" value={(detail as any).pushNotifications ? '开启' : '关闭'} />
+          </div>
+        )}
+      </Drawer>
+    </div>
   )
 }
+
+const InfoRow = ({ label, value }: { label: string; value: React.ReactNode }) => (
+  <div className="flex items-start gap-3">
+    <div className="w-24 shrink-0 text-[var(--color-text-3)]">{label}</div>
+    <div className="flex-1 break-all text-[var(--color-text-1)]">{value}</div>
+  </div>
+)
 
 export default Users

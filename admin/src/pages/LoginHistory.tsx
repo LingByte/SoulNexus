@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
+import PageHeader from '@/components/Layout/PageHeader'
 import { motion } from 'framer-motion'
 import { History, CheckCircle2, XCircle, AlertTriangle, Search, RefreshCw } from 'lucide-react'
-import AdminLayout from '@/components/Layout/AdminLayout'
 import Card from '@/components/UI/Card'
 import Button from '@/components/UI/Button'
 import Input from '@/components/UI/Input'
@@ -63,7 +63,7 @@ const LoginHistoryPage = () => {
   const totalPages = Math.ceil(total / pageSize)
 
   return (
-    <AdminLayout title="登录历史" description="查看登录历史记录">
+    <><PageHeader title="登录历史" description="查看登录历史记录" />
       <div className="space-y-6">
         {/* 搜索和过滤 */}
         <Card>
@@ -230,7 +230,7 @@ const LoginHistoryPage = () => {
           )}
         </Card>
       </div>
-    </AdminLayout>
+    </>
   )
 }
 

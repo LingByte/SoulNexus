@@ -33,6 +33,7 @@ github.com/alibabacloud-go/darabonba-encode-util v0.0.2 h1:1uJGrbsGEVqWcWxrS9MyC
 github.com/alibabacloud-go/darabonba-encode-util v0.0.2/go.mod h1:JiW9higWHYXm7F4PKuMgEUETNZasrDM6vqVr/Can7H8=
 github.com/alibabacloud-go/darabonba-map v0.0.2 h1:qvPnGB4+dJbJIxOOfawxzF3hzMnIpjmafa0qOTp6udc=
 github.com/alibabacloud-go/darabonba-map v0.0.2/go.mod h1:28AJaX8FOE/ym8OUFWga+MtEzBunJwQGceGQlvaPGPc=
+github.com/alibabacloud-go/darabonba-openapi/v2 v2.0.11/go.mod h1:wHxkgZT1ClZdcwEVP/pDgYK/9HucsnCfMipmJgCz4xY=
 github.com/alibabacloud-go/darabonba-openapi/v2 v2.1.12/go.mod h1:f2wDpbM7hK9SvLIH09zSKVU1TsyemUNOqErMscMMl7c=
 github.com/alibabacloud-go/darabonba-openapi/v2 v2.1.13 h1:Q00FU3H94Ts0ZIHDmY+fYGgB7dV9D/YX6FGsgorQPgw=
 github.com/alibabacloud-go/darabonba-openapi/v2 v2.1.13/go.mod h1:lxFGfobinVsQ49ntjpgWghXmIF0/Sm4+wvBJ1h5RtaE=
@@ -44,12 +45,16 @@ github.com/alibabacloud-go/debug v0.0.0-20190504072949-9472017b5c68/go.mod h1:6p
 github.com/alibabacloud-go/debug v1.0.0/go.mod h1:8gfgZCCAC3+SCzjWtY053FrOcd4/qlH6IHTI4QyICOc=
 github.com/alibabacloud-go/debug v1.0.1 h1:MsW9SmUtbb1Fnt3ieC6NNZi6aEwrXfDksD4QA6GSbPg=
 github.com/alibabacloud-go/debug v1.0.1/go.mod h1:8gfgZCCAC3+SCzjWtY053FrOcd4/qlH6IHTI4QyICOc=
+github.com/alibabacloud-go/dysmsapi-20170525/v4 v4.1.3 h1:32N2pGk28weVZ5/rjNk9gPx/jrRkR0rX9i8Id6IlyUY=
+github.com/alibabacloud-go/dysmsapi-20170525/v4 v4.1.3/go.mod h1:gPbHx4BTxLIDNRfYNGGmp6aIpeNBamtdDlPcK4UTUto=
 github.com/alibabacloud-go/endpoint-util v1.1.0 h1:r/4D3VSw888XGaeNpP994zDUaxdgTSHBbVfZlzf6b5Q=
 github.com/alibabacloud-go/endpoint-util v1.1.0/go.mod h1:O5FuCALmCKs2Ff7JFJMudHs0I5EBgecXXxZRyswlEjE=
 github.com/alibabacloud-go/green-20220302/v2 v2.23.0 h1:t2WsqrKt/ztPq4X2Orh3cvG5PsFdes/IQDkxZmB/f5k=
 github.com/alibabacloud-go/green-20220302/v2 v2.23.0/go.mod h1:iZWuUEakwGct+e0NDnTBzOMaoblCUXH8Lf7S5v4kGKg=
 github.com/alibabacloud-go/openapi-util v0.1.0 h1:0z75cIULkDrdEhkLWgi9tnLe+KhAFE/r5Pb3312/eAY=
 github.com/alibabacloud-go/openapi-util v0.1.0/go.mod h1:sQuElr4ywwFRlCCberQwKRFhRzIyG4QTP/P4y1CJ6Ws=
+github.com/alibabacloud-go/openapi-util v0.1.1 h1:ujGErJjG8ncRW6XtBBMphzHTvCxn4DjrVw4m04HsS28=
+github.com/alibabacloud-go/openapi-util v0.1.1/go.mod h1:/UehBSE2cf1gYT43GV4E+RxTdLRzURImCYY0aRmlXpw=
 github.com/alibabacloud-go/tea v1.1.0/go.mod h1:IkGyUSX4Ba1V+k4pCtJUc6jDpZLFph9QMy2VUPTwukg=
 github.com/alibabacloud-go/tea v1.1.7/go.mod h1:/tmnEaQMyb4Ky1/5D+SE1BAsa5zj/KeGOFfwYm3N/p4=
 github.com/alibabacloud-go/tea v1.1.8/go.mod h1:/tmnEaQMyb4Ky1/5D+SE1BAsa5zj/KeGOFfwYm3N/p4=
@@ -63,8 +68,10 @@ github.com/alibabacloud-go/tea v1.3.13/go.mod h1:A560v/JTQ1n5zklt2BEpurJzZTI8TUT
 github.com/alibabacloud-go/tea-utils v1.3.1 h1:iWQeRzRheqCMuiF3+XkfybB3kTgUXkXX+JMrqfLeB2I=
 github.com/alibabacloud-go/tea-utils v1.3.1/go.mod h1:EI/o33aBfj3hETm4RLiAxF/ThQdSngxrpF8rKUDJjPE=
 github.com/alibabacloud-go/tea-utils/v2 v2.0.5/go.mod h1:dL6vbUT35E4F4bFTHL845eUloqaerYBYPsdWR2/jhe4=
+github.com/alibabacloud-go/tea-utils/v2 v2.0.6/go.mod h1:qxn986l+q33J5VkialKMqT/TTs3E+U9MJpd001iWQ9I=
 github.com/alibabacloud-go/tea-utils/v2 v2.0.7 h1:WDx5qW3Xa5ZgJ1c8NfqJkF6w+AU5wB8835UdhPr6Ax0=
 github.com/alibabacloud-go/tea-utils/v2 v2.0.7/go.mod h1:qxn986l+q33J5VkialKMqT/TTs3E+U9MJpd001iWQ9I=
+github.com/alibabacloud-go/tea-xml v1.1.3/go.mod h1:Rq08vgCcCAjHyRi/M7xlHKUykZCEtyBy9+DPF6GgEu8=
 github.com/aliyun/credentials-go v1.1.2/go.mod h1:ozcZaMR5kLM7pwtCMEpVmQ242suV6qTJya2bDq4X1Tw=
 github.com/aliyun/credentials-go v1.3.1/go.mod h1:8jKYhQuDawt8x2+fusqa1Y6mPxemTsBEN04dgcAcYz0=
 github.com/aliyun/credentials-go v1.3.6/go.mod h1:1LxUuX7L5YrZUWzBrRyk0SwSdH4OmPrib8NVePL3fxM=
@@ -104,6 +111,8 @@ github.com/aws/aws-sdk-go-v2/service/transcribestreaming v1.32.7 h1:1Tc9J+LOJBWV
 github.com/aws/aws-sdk-go-v2/service/transcribestreaming v1.32.7/go.mod h1:HW8hf7zQ6BmamrcS1SPFA6PG6YqXiS3yX7vq/F656g4=
 github.com/aws/smithy-go v1.24.0 h1:LpilSUItNPFr1eY85RYgTIg5eIEPtvFbskaFcmmIUnk=
 github.com/aws/smithy-go v1.24.0/go.mod h1:LEj2LM3rBRQJxPZTB4KuzZkaZYnZPnvgIhb4pu07mx0=
+github.com/baidubce/bce-sdk-go v0.9.266 h1:MDWm/S4TNRZRH8Mo5J0t4gq34G3y2+WcbG0KCGLEpek=
+github.com/baidubce/bce-sdk-go v0.9.266/go.mod h1:zbYJMQwE4IZuyrJiFO8tO8NbtYiKTFTbwh4eIsqjVdg=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
 github.com/bits-and-blooms/bitset v1.12.0/go.mod h1:7hO7Gc7Pp1vODcmWvKMRA9BNmbv6a/7QIWpPxHddWR8=
@@ -162,6 +171,7 @@ github.com/carlmjohnson/requests v0.25.1/go.mod h1:z3UEf8IE4sZxZ78spW6/tLdqBkfCu
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
 github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
+github.com/clbanning/mxj/v2 v2.5.5/go.mod h1:hNiWqW14h+kc+MdF9C6/YoRfjEJoR3ou6tn/Qo+ve2s=
 github.com/clbanning/mxj/v2 v2.7.0 h1:WA/La7UGCanFe5NpHF0Q3DNtnCsVoxbPKuyBNHWRyME=
 github.com/clbanning/mxj/v2 v2.7.0/go.mod h1:hNiWqW14h+kc+MdF9C6/YoRfjEJoR3ou6tn/Qo+ve2s=
 github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDkc90ppPyw=
@@ -500,8 +510,12 @@ github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.3.52/go.mod h
 github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.3.69/go.mod h1:r5r4xbfxSaeR04b166HGsBa/R4U3SueirEUpXGuw+Q0=
 github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.3.80 h1:zGY70Cyp4EPfeX7GxS8uo+x9mT95PvlSSIgQm/6gPXY=
 github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.3.80/go.mod h1:r5r4xbfxSaeR04b166HGsBa/R4U3SueirEUpXGuw+Q0=
+github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.3.93 h1:LItHgi4vvgkfLLFLhL8FL2yOxoquKMrhaWy70vewa2g=
+github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.3.93/go.mod h1:r5r4xbfxSaeR04b166HGsBa/R4U3SueirEUpXGuw+Q0=
 github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ims v1.3.52 h1:2Y0uqpAPxS94lQP78C2XEq1mIF4nxEazOP0FR2TNYmI=
 github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ims v1.3.52/go.mod h1:39h8+O0qw4F8Pffbv69FQmIuPmB3AK9I3IiJevxVCcE=
+github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/sms v1.3.93 h1:+HmyErvypBJGp0sxVM+e9g9/MtqKZoWXzZtndpHRUwo=
+github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/sms v1.3.93/go.mod h1:TAQeguxskl7xDfyGWDJyUGuy1NfG2lyLEuALJQ6x1zE=
 github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/tms v1.3.10 h1:j0DDmALHehocm01ywNAQ+28gCGdDw5N1eJ7ApbrwsHw=
 github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/tms v1.3.10/go.mod h1:eXjZFblDtYLDO/4oDpeSig4u/8vUeUd8MH15hVfX0Us=
 github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/vod v1.3.80 h1:CT7nlzu6ERqtTrsJTkliTcNroWIZACbERRe5q6Fab0Y=

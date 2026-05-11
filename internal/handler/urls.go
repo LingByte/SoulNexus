@@ -10,7 +10,6 @@ import (
 	"github.com/LingByte/SoulNexus/cmd/bootstrap"
 	"github.com/LingByte/SoulNexus/internal/config"
 	"github.com/LingByte/SoulNexus/internal/models"
-	"github.com/LingByte/SoulNexus/internal/service"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/middleware"
@@ -244,8 +243,6 @@ func (h *Handlers) Register(engine *gin.Engine) {
 	h.registerWorkflowRoutes(r)
 	h.registerWorkflowPluginRoutes(r) // Add workflow plugin routes
 	h.registerNodePluginRoutes(r)     // Add node plugin routes
-	h.registerMCPRoutes(r)            // Add MCP routes
-	h.registerMCPMarketplaceRoutes(r) // Add MCP marketplace routes
 	h.registerOpenAPIRoutes(r)        // Open API (apiKey + apiSecret auth)
 	h.RegisterPublicWorkflowRoutes(r)
 }
@@ -304,52 +301,6 @@ func (h *Handlers) registerWorkflowPluginRoutes(r *gin.RouterGroup) {
 
 		pluginsAuth.GET("/installed", pluginHandler.ListInstalledWorkflowPlugins)
 		pluginsAuth.GET("/my-plugins", pluginHandler.GetUserWorkflowPlugins)
-	}
-}
-
-// registerMCPRoutes MCP Server Management Module
-func (h *Handlers) registerMCPRoutes(r *gin.RouterGroup) {
-	mcpManager := service.NewMCPManager(h.db)
-	mcpHandler := NewMCPHandler(mcpManager)
-
-	mcp := r.Group("mcp")
-	mcp.Use(models.AuthRequired)
-	{
-		mcp.GET("/servers", mcpHandler.ListMCPServers)
-		mcp.GET("/servers/:id", mcpHandler.GetMCPServer)
-		mcp.POST("/servers", mcpHandler.CreateMCPServer)
-		mcp.PATCH("/servers/:id", mcpHandler.UpdateMCPServer)
-		mcp.DELETE("/servers/:id", mcpHandler.DeleteMCPServer)
-		mcp.POST("/servers/:id/enable", mcpHandler.EnableMCPServer)
-		mcp.POST("/servers/:id/disable", mcpHandler.DisableMCPServer)
-
-		mcp.GET("/servers/:id/tools", mcpHandler.GetMCPTools)
-		mcp.POST("/servers/:id/call-tool", mcpHandler.CallMCPTool)
-
-		mcp.GET("/servers/:id/logs", mcpHandler.GetMCPLogs)
-	}
-}
-
-// registerMCPMarketplaceRoutes MCP Marketplace Module
-func (h *Handlers) registerMCPMarketplaceRoutes(r *gin.RouterGroup) {
-	marketplaceService := service.NewMCPMarketplaceService(h.db)
-	marketplaceHandler := NewMCPMarketplaceHandler(marketplaceService)
-
-	marketplace := r.Group("mcp/marketplace")
-	{
-		marketplace.GET("", marketplaceHandler.ListMarketplace)
-		marketplace.GET("/:id", marketplaceHandler.GetMarketplaceItem)
-		marketplace.GET("/categories", marketplaceHandler.GetCategories)
-		marketplace.GET("/featured", marketplaceHandler.GetFeaturedMCPs)
-		marketplace.GET("/trending", marketplaceHandler.GetTrendingMCPs)
-		marketplace.GET("/search/tag/:tag", marketplaceHandler.SearchByTag)
-		marketplace.GET("/:id/reviews", marketplaceHandler.GetMCPReviews)
-
-		marketplace.POST("/:id/install", models.AuthRequired, marketplaceHandler.InstallMCP)
-		marketplace.DELETE("/installations/:id", models.AuthRequired, marketplaceHandler.UninstallMCP)
-		marketplace.GET("/my-installations", models.AuthRequired, marketplaceHandler.GetUserInstalledMCPs)
-		marketplace.PATCH("/installations/:id/config", models.AuthRequired, marketplaceHandler.UpdateInstallationConfig)
-		marketplace.POST("/:id/reviews", models.AuthRequired, marketplaceHandler.ReviewMCP)
 	}
 }
 
@@ -700,13 +651,24 @@ func (h *Handlers) registerDeviceRoutes(r *gin.RouterGroup) {
 	}
 }
 
-// registerEmailLogRoutes Email Log Module
+// registerEmailLogRoutes Email/SMS Log Module（legacy 路径保留以兼容老前端，全部走新 mail.MailLog 表）
 func (h *Handlers) registerEmailLogRoutes(r *gin.RouterGroup) {
 	emailLog := r.Group("email-logs")
 	{
-		emailLog.GET("", models.AuthRequired, h.handleGetEmailLogs)
-		emailLog.GET("/:id", models.AuthRequired, h.handleGetEmailLogDetail)
-		emailLog.GET("/stats/summary", models.AuthRequired, h.handleGetEmailStats)
+		emailLog.GET("", models.AuthRequired, h.handleListMailLogs)
+		emailLog.GET("/:id", models.AuthRequired, h.handleGetMailLogDetail)
+		emailLog.GET("/stats/summary", models.AuthRequired, h.handleGetMailLogStats)
+	}
+	mailLog := r.Group("mail-logs")
+	{
+		mailLog.GET("", models.AuthRequired, h.handleListMailLogs)
+		mailLog.GET("/:id", models.AuthRequired, h.handleGetMailLogDetail)
+		mailLog.GET("/stats/summary", models.AuthRequired, h.handleGetMailLogStats)
+	}
+	smsLog := r.Group("sms-logs")
+	{
+		smsLog.GET("", models.AuthRequired, h.handleListSMSLogs)
+		smsLog.GET("/:id", models.AuthRequired, h.handleGetSMSLogDetail)
 	}
 }
 
@@ -914,20 +876,6 @@ func (h *Handlers) registerAdminManagementRoutes(r *gin.RouterGroup) {
 		voiceTraining.DELETE("/tasks/:id", h.handleAdminDeleteVoiceTrainingTask)
 	}
 
-	mcpServers := r.Group("admin/mcp-servers", adminGuard...)
-	{
-		mcpServers.GET("", h.handleAdminListMCPServers)
-		mcpServers.GET("/:id", h.handleAdminGetMCPServer)
-		mcpServers.DELETE("/:id", h.handleAdminDeleteMCPServer)
-	}
-
-	mcpMarketplace := r.Group("admin/mcp-marketplace", adminGuard...)
-	{
-		mcpMarketplace.GET("", h.handleAdminListMCPMarketplaceItems)
-		mcpMarketplace.GET("/:id", h.handleAdminGetMCPMarketplaceItem)
-		mcpMarketplace.DELETE("/:id", h.handleAdminDeleteMCPMarketplaceItem)
-	}
-
 	workflows := r.Group("admin/workflows", adminGuard...)
 	{
 		workflows.GET("", h.handleAdminListWorkflowDefinitions)
@@ -979,6 +927,40 @@ func (h *Handlers) registerAdminManagementRoutes(r *gin.RouterGroup) {
 		devices.GET("", h.handleAdminListDevices)
 		devices.GET("/:id", h.handleAdminGetDevice)
 		devices.DELETE("/:id", h.handleAdminDeleteDevice)
+	}
+
+	notifChannels := r.Group("admin/notification-channels", adminGuard...)
+	{
+		notifChannels.GET("", h.handleListNotificationChannels)
+		notifChannels.POST("", h.handleCreateNotificationChannel)
+		notifChannels.GET("/:id", h.handleGetNotificationChannel)
+		notifChannels.PUT("/:id", h.handleUpdateNotificationChannel)
+		notifChannels.DELETE("/:id", h.handleDeleteNotificationChannel)
+	}
+
+	mailTemplates := r.Group("admin/mail-templates", adminGuard...)
+	{
+		mailTemplates.GET("", h.handleListMailTemplates)
+		mailTemplates.POST("", h.handleCreateMailTemplate)
+		mailTemplates.GET("/:id", h.handleGetMailTemplate)
+		mailTemplates.PUT("/:id", h.handleUpdateMailTemplate)
+		mailTemplates.DELETE("/:id", h.handleDeleteMailTemplate)
+	}
+
+	mailLogsAdmin := r.Group("admin/mail-logs", adminGuard...)
+	{
+		mailLogsAdmin.GET("", h.handleListMailLogs)
+		mailLogsAdmin.GET("/:id", h.handleGetMailLogDetail)
+		mailLogsAdmin.GET("/stats/summary", h.handleGetMailLogStats)
+	}
+	smsLogsAdmin := r.Group("admin/sms-logs", adminGuard...)
+	{
+		smsLogsAdmin.GET("", h.handleListSMSLogs)
+		smsLogsAdmin.GET("/:id", h.handleGetSMSLogDetail)
+	}
+	smsAdmin := r.Group("admin/sms", adminGuard...)
+	{
+		smsAdmin.POST("/send", h.handleAdminSendSMS)
 	}
 }
 

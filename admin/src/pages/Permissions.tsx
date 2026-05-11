@@ -1,11 +1,23 @@
+// Copyright (c) 2026 LingByte. All rights reserved.
+// SPDX-License-Identifier: AGPL-3.0
+//
+// 权限管理：Arco Table + Form Modal。
 import { useCallback, useEffect, useState } from 'react'
-import { KeyRound } from 'lucide-react'
-import AdminLayout from '@/components/Layout/AdminLayout'
-import Card from '@/components/UI/Card'
-import Button from '@/components/UI/Button'
-import Input from '@/components/UI/Input'
-import Modal from '@/components/UI/Modal'
-import { showAlert } from '@/utils/notification'
+import {
+  Table,
+  Input,
+  Button,
+  Modal,
+  Form,
+  Switch,
+  Tag,
+  Popconfirm,
+  Message,
+  Space,
+  Drawer,
+} from '@arco-design/web-react'
+import { Search, RefreshCw, Plus, Edit, Trash2, Eye } from 'lucide-react'
+import PageHeader from '@/components/Layout/PageHeader'
 import {
   listPermissions,
   createPermission,
@@ -14,41 +26,42 @@ import {
   type PermissionListItem,
 } from '@/services/permissionApi'
 
+const FormItem = Form.Item
+
 const Permissions = () => {
   const [rows, setRows] = useState<PermissionListItem[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
   const [search, setSearch] = useState('')
+  const [searchInput, setSearchInput] = useState('')
   const [withRoles, setWithRoles] = useState(false)
   const [loading, setLoading] = useState(false)
 
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<PermissionListItem | null>(null)
-  const [form, setForm] = useState({ key: '', name: '', description: '', resource: '' })
+  const [saving, setSaving] = useState(false)
+  const [form] = Form.useForm()
 
   const [viewRoles, setViewRoles] = useState<PermissionListItem | null>(null)
 
-  const load = useCallback(
-    async (pageOverride?: number) => {
-      const p = pageOverride ?? page
-      setLoading(true)
-      try {
-        const data = await listPermissions({
-          page: p,
-          pageSize: 20,
-          search: search.trim() || undefined,
-          withRoles,
-        })
-        setRows(data.items || [])
-        setTotal(data.total || 0)
-      } catch (e: any) {
-        showAlert(e?.message || '加载失败', 'error')
-      } finally {
-        setLoading(false)
-      }
-    },
-    [page, search, withRoles]
-  )
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const data = await listPermissions({
+        page,
+        pageSize,
+        search: search.trim() || undefined,
+        withRoles,
+      })
+      setRows(data.items || [])
+      setTotal(data.total || 0)
+    } catch (e: any) {
+      Message.error(`加载失败：${e?.message || e}`)
+    } finally {
+      setLoading(false)
+    }
+  }, [page, pageSize, search, withRoles])
 
   useEffect(() => {
     void load()
@@ -56,13 +69,13 @@ const Permissions = () => {
 
   const openCreate = () => {
     setEditing(null)
-    setForm({ key: '', name: '', description: '', resource: '' })
+    form.resetFields()
     setModalOpen(true)
   }
 
   const openEdit = (row: PermissionListItem) => {
     setEditing(row)
-    setForm({
+    form.setFieldsValue({
       key: row.key,
       name: row.name,
       description: row.description || '',
@@ -73,188 +86,168 @@ const Permissions = () => {
 
   const save = async () => {
     try {
+      const values = await form.validate()
+      setSaving(true)
       if (editing) {
-        await updatePermission(editing.id, form)
-        showAlert('已更新', 'success')
+        await updatePermission(editing.id, values)
+        Message.success('已更新')
       } else {
-        await createPermission(form)
-        showAlert('已创建', 'success')
+        await createPermission(values)
+        Message.success('已创建')
       }
       setModalOpen(false)
-      void load(page)
+      void load()
     } catch (e: any) {
-      showAlert(e?.message || '保存失败', 'error')
+      if (e?.message || e?.msg) {
+        Message.error(`保存失败：${e?.msg || e?.message}`)
+      }
+    } finally {
+      setSaving(false)
     }
   }
 
   const remove = async (row: PermissionListItem) => {
-    if (!confirm(`删除权限「${row.key}」？`)) return
     try {
       await deletePermission(row.id)
-      showAlert('已删除', 'success')
-      void load(page)
+      Message.success('已删除')
+      void load()
     } catch (e: any) {
-      showAlert(e?.message || '删除失败', 'error')
+      Message.error(`删除失败：${e?.msg || e?.message || e}`)
     }
   }
 
-  return (
-    <AdminLayout>
-      <div className="max-w-6xl mx-auto space-y-6">
-        <div className="flex items-center gap-3">
-          <KeyRound className="w-8 h-8 text-indigo-600" />
-          <div>
-            <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">权限</h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              维护权限点；列表展示关联角色数与直连用户数，可选加载关联角色。
-            </p>
-          </div>
-        </div>
-
-        <Card className="p-4 space-y-4">
-          <div className="flex flex-wrap gap-3 items-center justify-between">
-            <div className="flex flex-wrap gap-2 items-center">
-              <Input
-                placeholder="搜索 key / 名称"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-56"
-              />
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setPage(1)
-                  void load(1)
-                }}
-              >
-                搜索
-              </Button>
-              <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 cursor-pointer">
-                <input type="checkbox" checked={withRoles} onChange={(e) => setWithRoles(e.target.checked)} />
-                加载关联角色
-              </label>
-              <Button onClick={openCreate}>新建权限</Button>
-            </div>
-            <Button variant="secondary" onClick={() => void load()} disabled={loading}>
-              刷新
+  const columns = [
+    {
+      title: 'Key',
+      dataIndex: 'key',
+      width: 220,
+      ellipsis: true,
+      render: (v: string) => <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: 12 }}>{v}</span>,
+    },
+    { title: '名称', dataIndex: 'name', ellipsis: true },
+    { title: '资源', dataIndex: 'resource', width: 140, render: (v: string) => v || '—' },
+    { title: '关联角色数', dataIndex: 'roleCount', width: 110, render: (v: number) => v ?? 0 },
+    { title: '直连用户授权', dataIndex: 'directUserGrantCount', width: 130, render: (v: number) => v ?? 0 },
+    {
+      title: '操作',
+      key: '__actions__',
+      width: 240,
+      fixed: 'right' as const,
+      render: (_: any, row: PermissionListItem) => (
+        <Space size="mini">
+          {withRoles && row.roles && row.roles.length > 0 && (
+            <Button size="mini" type="text" onClick={() => setViewRoles(row)}>
+              <span className="inline-flex items-center gap-1"><Eye size={14} /> 角色</span>
             </Button>
-          </div>
+          )}
+          <Button size="mini" type="text" onClick={() => openEdit(row)}>
+            <span className="inline-flex items-center gap-1"><Edit size={14} /> 编辑</span>
+          </Button>
+          <Popconfirm title={`删除权限「${row.key}」？`} okText="删除" cancelText="取消" onOk={() => remove(row)}>
+            <Button size="mini" type="text" status="danger">
+              <span className="inline-flex items-center gap-1"><Trash2 size={14} /> 删除</span>
+            </Button>
+          </Popconfirm>
+        </Space>
+      ),
+    },
+  ]
 
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-700 text-left">
-                  <th className="py-2 pr-4">Key</th>
-                  <th className="py-2 pr-4">名称</th>
-                  <th className="py-2 pr-4">资源</th>
-                  <th className="py-2 pr-4">关联角色数</th>
-                  <th className="py-2 pr-4">直连用户授权</th>
-                  <th className="py-2">操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => (
-                  <tr key={row.id} className="border-b border-slate-100 dark:border-slate-800">
-                    <td className="py-2 pr-4 font-mono text-xs">{row.key}</td>
-                    <td className="py-2 pr-4">{row.name}</td>
-                    <td className="py-2 pr-4">{row.resource || '—'}</td>
-                    <td className="py-2 pr-4">{row.roleCount ?? 0}</td>
-                    <td className="py-2 pr-4">{row.directUserGrantCount ?? 0}</td>
-                    <td className="py-2 flex flex-wrap gap-2">
-                      {withRoles && row.roles && row.roles.length > 0 && (
-                        <Button size="sm" variant="secondary" onClick={() => setViewRoles(row)}>
-                          查看角色
-                        </Button>
-                      )}
-                      <Button size="sm" variant="secondary" onClick={() => openEdit(row)}>
-                        编辑
-                      </Button>
-                      <Button size="sm" variant="secondary" onClick={() => void remove(row)}>
-                        删除
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+  return (
+    <div className="space-y-4">
+      <PageHeader
+        title="权限管理"
+        description="维护权限点；列表展示关联角色数与直连用户数，可选加载关联角色。"
+        actions={
+          <Space>
+            <Input
+              prefix={<Search size={14} />}
+              placeholder="搜索 key / 名称"
+              value={searchInput}
+              onChange={(v) => setSearchInput(v)}
+              onPressEnter={() => { setPage(1); setSearch(searchInput) }}
+              allowClear
+              onClear={() => { setPage(1); setSearch('') }}
+              style={{ width: 220 }}
+            />
+            <Switch checked={withRoles} onChange={(v) => setWithRoles(v)} /> <span className="text-sm text-[var(--color-text-2)]">加载角色</span>
+            <Button type="primary" onClick={() => { setPage(1); setSearch(searchInput) }}>搜索</Button>
+            <Button onClick={() => void load()}>
+              <span className="inline-flex items-center gap-1"><RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> 刷新</span>
+            </Button>
+            <Button type="primary" onClick={openCreate}>
+              <span className="inline-flex items-center gap-1"><Plus size={14} /> 新建权限</span>
+            </Button>
+          </Space>
+        }
+      />
 
-          <div className="flex justify-between text-sm text-slate-500">
-            <span>
-              共 {total} 条 · 第 {page} 页
-            </span>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant="secondary"
-                disabled={page <= 1}
-                onClick={() => {
-                  const p = Math.max(1, page - 1)
-                  setPage(p)
-                  void load(p)
-                }}
-              >
-                上一页
-              </Button>
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => {
-                  const p = page + 1
-                  setPage(p)
-                  void load(p)
-                }}
-              >
-                下一页
-              </Button>
-            </div>
-          </div>
-        </Card>
+      <Table
+        rowKey={(r: PermissionListItem) => String(r.id)}
+        loading={loading}
+        columns={columns}
+        data={rows}
+        scroll={{ x: 1100 }}
+        pagination={{
+          current: page,
+          pageSize,
+          total,
+          showTotal: (t: number) => `共 ${t} 条`,
+          sizeCanChange: true,
+          sizeOptions: [10, 20, 50, 100],
+          onChange: (p: number, ps: number) => { setPage(p); setPageSize(ps) },
+        }}
+      />
 
-        <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? '编辑权限' : '新建权限'}>
-          <div className="space-y-3 p-1">
-            <div>
-              <label className="text-xs text-slate-500">Key</label>
-              <Input value={form.key} onChange={(e) => setForm((f) => ({ ...f, key: e.target.value }))} />
-            </div>
-            <div>
-              <label className="text-xs text-slate-500">名称</label>
-              <Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
-            </div>
-            <div>
-              <label className="text-xs text-slate-500">描述</label>
-              <Input value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
-            </div>
-            <div>
-              <label className="text-xs text-slate-500">资源分组</label>
-              <Input value={form.resource} onChange={(e) => setForm((f) => ({ ...f, resource: e.target.value }))} />
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="secondary" onClick={() => setModalOpen(false)}>
-                取消
-              </Button>
-              <Button onClick={() => void save()}>保存</Button>
-            </div>
-          </div>
-        </Modal>
+      <Modal
+        title={editing ? '编辑权限' : '新建权限'}
+        visible={modalOpen}
+        onCancel={() => setModalOpen(false)}
+        onOk={save}
+        confirmLoading={saving}
+        okText="保存"
+        cancelText="取消"
+        autoFocus={false}
+      >
+        <Form form={form} layout="vertical" autoComplete="off">
+          <FormItem
+            label="Key"
+            field="key"
+            rules={[{ required: true, message: '请填写权限 key' }]}
+          >
+            <Input placeholder="例如：user.read" disabled={!!editing} />
+          </FormItem>
+          <FormItem label="名称" field="name" rules={[{ required: true, message: '请填写名称' }]}>
+            <Input placeholder="展示名称" />
+          </FormItem>
+          <FormItem label="描述" field="description">
+            <Input placeholder="可选" />
+          </FormItem>
+          <FormItem label="资源分组" field="resource">
+            <Input placeholder="可选，例如 user / billing" />
+          </FormItem>
+        </Form>
+      </Modal>
 
-        <Modal
-          isOpen={!!viewRoles}
-          onClose={() => setViewRoles(null)}
-          title={viewRoles ? `关联角色 — ${viewRoles.key}` : ''}
-        >
-          <ul className="text-sm space-y-2 max-h-72 overflow-y-auto">
-            {(viewRoles?.roles || []).map((r) => (
-              <li key={r.id}>
-                <span className="font-mono text-xs text-indigo-600">{r.slug}</span>
-                <span className="ml-2">{r.name}</span>
-              </li>
-            ))}
-            {!viewRoles?.roles?.length && <li className="text-slate-500">暂无</li>}
-          </ul>
-        </Modal>
-      </div>
-    </AdminLayout>
+      <Drawer
+        title={viewRoles ? `关联角色 — ${viewRoles.key}` : ''}
+        visible={!!viewRoles}
+        onCancel={() => setViewRoles(null)}
+        footer={null}
+        width={420}
+        autoFocus={false}
+      >
+        <div className="space-y-2">
+          {(viewRoles?.roles || []).map((r) => (
+            <div key={r.id} className="flex items-center gap-2">
+              <Tag color="arcoblue">{r.slug}</Tag>
+              <span className="text-sm">{r.name}</span>
+            </div>
+          ))}
+          {!viewRoles?.roles?.length && <div className="text-[var(--color-text-3)] text-sm">暂无</div>}
+        </div>
+      </Drawer>
+    </div>
   )
 }
 

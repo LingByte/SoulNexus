@@ -1,83 +1,90 @@
-import { useState, useEffect } from 'react'
-import { Save, User, Mail, Phone, MapPin, Calendar, Edit2, Lock } from 'lucide-react'
-import AdminLayout from '@/components/Layout/AdminLayout'
-import Card from '@/components/UI/Card'
-import Button from '@/components/UI/Button'
-import Input from '@/components/UI/Input'
+// Copyright (c) 2026 LingByte. All rights reserved.
+// SPDX-License-Identifier: AGPL-3.0
+//
+// 个人中心：Arco Form + Form.Item，分卡片展示基本信息 / 通知偏好 / 安全密码。
+import { useEffect, useState } from 'react'
+import {
+  Card,
+  Form,
+  Input,
+  Button,
+  Switch,
+  Avatar,
+  Modal,
+  Message,
+  Space,
+} from '@arco-design/web-react'
+import { Save, Edit2, Lock, Calendar, User as UserIcon } from 'lucide-react'
+import PageHeader from '@/components/Layout/PageHeader'
 import { useAuthStore } from '@/stores/authStore'
-import { getCurrentUser, updateProfile, changePassword, updateNotificationSettings, ProfileUpdateRequest, ChangePasswordRequest } from '@/services/adminApi'
-import { showAlert } from '@/utils/notification'
+import {
+  getCurrentUser,
+  updateProfile,
+  changePassword,
+  updateNotificationSettings,
+  type ProfileUpdateRequest,
+  type ChangePasswordRequest,
+} from '@/services/adminApi'
+
+const FormItem = Form.Item
 
 const Profile = () => {
   const { user, refreshUserInfo } = useAuthStore()
   const [isEditing, setIsEditing] = useState(false)
-  const [isChangingPassword, setIsChangingPassword] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [passwordForm, setPasswordForm] = useState({
-    oldPassword: '',
-    newPassword: '',
-    confirmPassword: '',
-  })
-  
-  const [formData, setFormData] = useState<ProfileUpdateRequest>({
-    displayName: '',
-    email: '',
-    phone: '',
-    timezone: '',
-    gender: '',
-    city: '',
-    region: '',
-    extra: '',
-    avatar: '',
-    emailNotifications: true,
-    pushNotifications: true,
-  })
+  const [saving, setSaving] = useState(false)
 
-  useEffect(() => {
-    fetchUserInfo()
-  }, [])
+  const [profileForm] = Form.useForm<ProfileUpdateRequest>()
+  const [pwModalOpen, setPwModalOpen] = useState(false)
+  const [pwSaving, setPwSaving] = useState(false)
+  const [pwForm] = Form.useForm<{ oldPassword: string; newPassword: string; confirmPassword: string }>()
 
   const fetchUserInfo = async () => {
+    setLoading(true)
     try {
-      setLoading(true)
       const userData = await getCurrentUser()
       const pr = (userData as any)?.profile || {}
-      setFormData({
-        displayName: userData.displayName || userData.display_name || pr.displayName || '',
+      profileForm.setFieldsValue({
+        displayName: userData.displayName || (userData as any).display_name || pr.displayName || '',
         email: userData.email || '',
         phone: userData.phone || pr.phone || '',
         timezone: userData.timezone || pr.timezone || '',
-        gender: userData.gender || pr.gender || '',
-        city: userData.city || pr.city || '',
-        region: userData.region || pr.region || '',
-        extra: userData.extra || userData.bio || pr.extra || '',
-        avatar: userData.avatar || pr.avatar || '',
-        emailNotifications: userData.emailNotifications ?? pr.emailNotifications ?? true,
-        pushNotifications: userData.pushNotifications ?? pr.pushNotifications ?? true,
-      })
-    } catch (error) {
-      console.error('获取用户信息失败:', error)
+        gender: (userData as any).gender || pr.gender || '',
+        city: (userData as any).city || pr.city || '',
+        region: (userData as any).region || pr.region || '',
+        extra: (userData as any).extra || (userData as any).bio || pr.extra || '',
+        avatar: (userData as any).avatar || pr.avatar || '',
+        emailNotifications: (userData as any).emailNotifications ?? pr.emailNotifications ?? true,
+        pushNotifications: (userData as any).pushNotifications ?? pr.pushNotifications ?? true,
+      } as any)
+    } catch (e: any) {
+      Message.error(`获取用户信息失败：${e?.msg || e?.message || e}`)
     } finally {
       setLoading(false)
     }
   }
 
+  useEffect(() => {
+    fetchUserInfo()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const handleSave = async () => {
     try {
-      setLoading(true)
-      await updateProfile(formData)
+      const values = await profileForm.validate()
+      setSaving(true)
+      await updateProfile(values)
       await updateNotificationSettings({
-        email_notifications: (formData as any).emailNotifications,
-        push_notifications: (formData as any).pushNotifications,
+        email_notifications: (values as any).emailNotifications,
+        push_notifications: (values as any).pushNotifications,
       })
       await refreshUserInfo()
       setIsEditing(false)
-      showAlert('保存成功', 'success')
-    } catch (error: any) {
-      console.error('更新用户信息失败:', error)
-      showAlert(error.msg || '保存失败', 'error')
+      Message.success('保存成功')
+    } catch (e: any) {
+      if (e?.message || e?.msg) Message.error(`保存失败：${e?.msg || e?.message}`)
     } finally {
-      setLoading(false)
+      setSaving(false)
     }
   }
 
@@ -86,349 +93,156 @@ const Profile = () => {
     setIsEditing(false)
   }
 
-  const handleChangePassword = async () => {
-    if (!passwordForm.oldPassword || !passwordForm.newPassword) {
-      showAlert('请填写完整信息', 'warning')
-      return
-    }
-
-    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      showAlert('两次输入的密码不一致', 'warning')
-      return
-    }
-
-    if (passwordForm.newPassword.length < 6) {
-      showAlert('密码长度至少6位', 'warning')
-      return
-    }
-
+  const submitChangePassword = async () => {
     try {
-      setLoading(true)
+      const v = await pwForm.validate()
+      if (v.newPassword !== v.confirmPassword) {
+        Message.error('两次输入的密码不一致')
+        return
+      }
+      setPwSaving(true)
       const data: ChangePasswordRequest = {
-        oldPassword: passwordForm.oldPassword,
-        newPassword: passwordForm.newPassword,
+        oldPassword: v.oldPassword,
+        newPassword: v.newPassword,
       }
       await changePassword(data)
-      setIsChangingPassword(false)
-      setPasswordForm({ oldPassword: '', newPassword: '', confirmPassword: '' })
-      showAlert('密码修改成功', 'success')
-    } catch (error: any) {
-      console.error('修改密码失败:', error)
-      showAlert(error.msg || '修改失败', 'error')
+      pwForm.resetFields()
+      setPwModalOpen(false)
+      Message.success('密码修改成功')
+    } catch (e: any) {
+      if (e?.message || e?.msg) Message.error(`修改失败：${e?.msg || e?.message}`)
     } finally {
-      setLoading(false)
+      setPwSaving(false)
     }
   }
 
-  const currentUser = user || {
-    displayName: formData.displayName,
-    email: formData.email,
-  }
+  const avatar = profileForm.getFieldValue('avatar') || (user as any)?.avatar || ''
+  const displayName = profileForm.getFieldValue('displayName') || user?.displayName || user?.email || '管理员'
+  const email = profileForm.getFieldValue('email') || user?.email || ''
+
+  const headerActions = isEditing ? (
+    <Space>
+      <Button onClick={handleCancel}>取消</Button>
+      <Button type="primary" loading={saving} onClick={handleSave}>
+        <span className="inline-flex items-center gap-1"><Save size={14} /> 保存</span>
+      </Button>
+    </Space>
+  ) : (
+    <Button type="primary" onClick={() => setIsEditing(true)}>
+      <span className="inline-flex items-center gap-1"><Edit2 size={14} /> 编辑</span>
+    </Button>
+  )
 
   return (
-    <AdminLayout
-      title="个人中心"
-      description="管理您的个人信息和账户设置"
-      actions={
-        isEditing ? (
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={handleCancel} disabled={loading}>
-              取消
-            </Button>
-            <Button variant="primary" leftIcon={<Save className="w-4 h-4" />} onClick={handleSave} disabled={loading}>
-              {loading ? '保存中...' : '保存'}
-            </Button>
-          </div>
-        ) : (
-          <Button variant="primary" leftIcon={<Edit2 className="w-4 h-4" />} onClick={() => setIsEditing(true)}>
-            编辑资料
-          </Button>
-        )
-      }
-    >
-      <div className="space-y-6">
-        {/* 用户信息卡片 */}
-        <Card className="p-6">
-          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
-            <img
-              src={formData.avatar || user?.avatar || '/favicon.png'}
-              alt="avatar"
-              className="w-20 h-20 rounded-full object-cover border border-slate-200 dark:border-slate-700"
-            />
-            <div className="flex-1 text-center sm:text-left">
-              <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
-                {formData.displayName || currentUser.email || '管理员'}
-              </h2>
-              <p className="text-slate-600 dark:text-slate-400 mb-4">
-                {formData.email || currentUser.email || 'admin@example.com'}
-              </p>
-              <div className="flex flex-wrap gap-4 justify-center sm:justify-start">
-                <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-                  <Calendar className="w-4 h-4" />
-                  <span>注册时间: {user?.createdAt ? new Date(user.createdAt).toLocaleDateString('zh-CN') : '未知'}</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-                  <User className="w-4 h-4" />
-                  <span>管理员</span>
-                </div>
-              </div>
+    <div className="space-y-4">
+      <PageHeader title="个人中心" description="管理您的个人信息和账户设置。" actions={headerActions} />
+
+      <Card>
+        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 py-2">
+          <Avatar size={80} style={{ backgroundColor: '#4ECDC4' }}>
+            {avatar ? <img src={avatar} alt="avatar" /> : (displayName || 'A').slice(0, 1).toUpperCase()}
+          </Avatar>
+          <div className="flex-1 text-center sm:text-left">
+            <div className="text-2xl font-semibold text-[var(--color-text-1)] mb-1">{displayName}</div>
+            <div className="text-[var(--color-text-3)] mb-3">{email}</div>
+            <div className="flex flex-wrap gap-4 text-sm text-[var(--color-text-3)] justify-center sm:justify-start">
+              <span className="inline-flex items-center gap-1">
+                <Calendar size={14} />
+                注册时间：{(user as any)?.createdAt ? new Date((user as any).createdAt).toLocaleDateString('zh-CN') : '未知'}
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <UserIcon size={14} /> {user?.role || '管理员'}
+              </span>
             </div>
           </div>
+        </div>
+      </Card>
+
+      <Form
+        form={profileForm}
+        layout="vertical"
+        autoComplete="off"
+        disabled={!isEditing}
+        loading={loading}
+      >
+        <Card title="个人信息">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4">
+            <FormItem label="显示名称" field="displayName">
+              <Input placeholder="请输入显示名称" />
+            </FormItem>
+            <FormItem label="邮箱" field="email" rules={[{ type: 'email', message: '请输入有效邮箱' }]}>
+              <Input placeholder="user@example.com" />
+            </FormItem>
+            <FormItem label="手机号" field="phone">
+              <Input placeholder="请输入手机号" />
+            </FormItem>
+            <FormItem label="头像 URL" field="avatar">
+              <Input placeholder="https://example.com/avatar.png" />
+            </FormItem>
+            <FormItem label="城市" field="city"><Input /></FormItem>
+            <FormItem label="地区" field="region"><Input /></FormItem>
+            <FormItem label="性别" field="gender"><Input placeholder="male / female / other" /></FormItem>
+            <FormItem label="时区" field="timezone"><Input placeholder="Asia/Shanghai" /></FormItem>
+          </div>
+          <FormItem label="个人简介" field="extra">
+            <Input.TextArea rows={4} placeholder="介绍一下自己..." />
+          </FormItem>
         </Card>
 
-        {/* 个人信息 */}
-        <Card className="p-6">
-          <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-6">
-            个人信息
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                显示名称
-              </label>
-              {isEditing ? (
-                <Input
-                  value={formData.displayName || ''}
-                  onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
-                  leftIcon={<User className="w-4 h-4" />}
-                  placeholder="请输入显示名称"
-                />
-              ) : (
-                <div className="flex items-center gap-2 text-slate-900 dark:text-white">
-                  <User className="w-4 h-4 text-slate-400" />
-                  <span>{formData.displayName || '未设置'}</span>
-                </div>
-              )}
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                邮箱
-              </label>
-              {isEditing ? (
-                <Input
-                  type="email"
-                  value={formData.email || ''}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  leftIcon={<Mail className="w-4 h-4" />}
-                  placeholder="请输入邮箱"
-                />
-              ) : (
-                <div className="flex items-center gap-2 text-slate-900 dark:text-white">
-                  <Mail className="w-4 h-4 text-slate-400" />
-                  <span>{formData.email || '未设置'}</span>
-                </div>
-              )}
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                手机号
-              </label>
-              {isEditing ? (
-                <Input
-                  type="tel"
-                  value={formData.phone || ''}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  leftIcon={<Phone className="w-4 h-4" />}
-                  placeholder="请输入手机号"
-                />
-              ) : (
-                <div className="flex items-center gap-2 text-slate-900 dark:text-white">
-                  <Phone className="w-4 h-4 text-slate-400" />
-                  <span>{formData.phone || '未设置'}</span>
-                </div>
-              )}
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                头像 URL
-              </label>
-              {isEditing ? (
-                <Input
-                  value={(formData as any).avatar || ''}
-                  onChange={(e) => setFormData({ ...formData, avatar: e.target.value } as any)}
-                  placeholder="https://example.com/avatar.png"
-                />
-              ) : (
-                <div className="text-slate-900 dark:text-white break-all">{(formData as any).avatar || '未设置'}</div>
-              )}
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                城市
-              </label>
-              {isEditing ? (
-                <Input
-                  value={(formData as any).city || ''}
-                  onChange={(e) => setFormData({ ...formData, city: e.target.value } as any)}
-                  placeholder="请输入城市"
-                />
-              ) : (
-                <div className="text-slate-900 dark:text-white">{(formData as any).city || '未设置'}</div>
-              )}
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                地区
-              </label>
-              {isEditing ? (
-                <Input
-                  value={(formData as any).region || ''}
-                  onChange={(e) => setFormData({ ...formData, region: e.target.value } as any)}
-                  placeholder="请输入地区"
-                />
-              ) : (
-                <div className="text-slate-900 dark:text-white">{(formData as any).region || '未设置'}</div>
-              )}
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                性别
-              </label>
-              {isEditing ? (
-                <Input
-                  value={(formData as any).gender || ''}
-                  onChange={(e) => setFormData({ ...formData, gender: e.target.value } as any)}
-                  placeholder="male/female/other"
-                />
-              ) : (
-                <div className="text-slate-900 dark:text-white">{(formData as any).gender || '未设置'}</div>
-              )}
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                时区
-              </label>
-              {isEditing ? (
-                <Input
-                  value={formData.timezone || ''}
-                  onChange={(e) => setFormData({ ...formData, timezone: e.target.value })}
-                  placeholder="例如: Asia/Shanghai"
-                />
-              ) : (
-                <div className="flex items-center gap-2 text-slate-900 dark:text-white">
-                  <MapPin className="w-4 h-4 text-slate-400" />
-                  <span>{formData.timezone || '未设置'}</span>
-                </div>
-              )}
-            </div>
-          </div>
-          <div className="mt-6">
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-              个人简介
-            </label>
-            {isEditing ? (
-              <textarea
-                value={formData.extra || ''}
-                onChange={(e) => setFormData({ ...formData, extra: e.target.value })}
-                className="w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                rows={4}
-                placeholder="介绍一下自己..."
-              />
-            ) : (
-              <p className="text-slate-600 dark:text-slate-400">
-                {formData.extra || '暂无简介'}
-              </p>
-            )}
-          </div>
-        </Card>
-
-        <Card className="p-6">
-          <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">通知偏好</h3>
+        <Card title="通知偏好" style={{ marginTop: 16 }}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={(formData as any).emailNotifications ?? true}
-                disabled={!isEditing}
-                onChange={(e) => setFormData({ ...formData, emailNotifications: e.target.checked } as any)}
-              />
-              邮件通知
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={(formData as any).pushNotifications ?? true}
-                disabled={!isEditing}
-                onChange={(e) => setFormData({ ...formData, pushNotifications: e.target.checked } as any)}
-              />
-              推送通知
-            </label>
+            <FormItem label="邮件通知" field="emailNotifications" triggerPropName="checked"><Switch /></FormItem>
+            <FormItem label="推送通知" field="pushNotifications" triggerPropName="checked"><Switch /></FormItem>
           </div>
         </Card>
+      </Form>
 
-        {/* 账户安全 */}
-        <Card className="p-6">
-          <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-6">
-            账户安全
-          </h3>
-          <div className="space-y-4">
-            <div className="p-4 rounded-lg border border-slate-200 dark:border-slate-800">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <p className="font-medium text-slate-900 dark:text-white">修改密码</p>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">定期更新密码以保护账户安全</p>
-                </div>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => setIsChangingPassword(!isChangingPassword)}
-                >
-                  {isChangingPassword ? '取消' : '修改'}
-                </Button>
-              </div>
-              {isChangingPassword && (
-                <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                      当前密码
-                    </label>
-                    <Input
-                      type="password"
-                      value={passwordForm.oldPassword}
-                      onChange={(e) => setPasswordForm({ ...passwordForm, oldPassword: e.target.value })}
-                      leftIcon={<Lock className="w-4 h-4" />}
-                      placeholder="请输入当前密码"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                      新密码
-                    </label>
-                    <Input
-                      type="password"
-                      value={passwordForm.newPassword}
-                      onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
-                      leftIcon={<Lock className="w-4 h-4" />}
-                      placeholder="请输入新密码（至少6位）"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                      确认新密码
-                    </label>
-                    <Input
-                      type="password"
-                      value={passwordForm.confirmPassword}
-                      onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
-                      leftIcon={<Lock className="w-4 h-4" />}
-                      placeholder="请再次输入新密码"
-                    />
-                  </div>
-                  <Button 
-                    variant="primary" 
-                    onClick={handleChangePassword}
-                    disabled={loading}
-                    className="w-full"
-                  >
-                    {loading ? '修改中...' : '确认修改'}
-                  </Button>
-                </div>
-              )}
-            </div>
+      <Card title="账户安全">
+        <div className="flex items-center justify-between p-3 rounded-md border border-[var(--color-border-2)]">
+          <div>
+            <div className="font-medium text-[var(--color-text-1)]">修改密码</div>
+            <div className="text-sm text-[var(--color-text-3)]">定期更新密码以保护账户安全。</div>
           </div>
-        </Card>
-      </div>
-    </AdminLayout>
+          <Button onClick={() => { pwForm.resetFields(); setPwModalOpen(true) }}>
+            <span className="inline-flex items-center gap-1"><Lock size={14} /> 修改</span>
+          </Button>
+        </div>
+      </Card>
+
+      <Modal
+        title="修改密码"
+        visible={pwModalOpen}
+        onCancel={() => setPwModalOpen(false)}
+        onOk={submitChangePassword}
+        confirmLoading={pwSaving}
+        okText="确认修改"
+        cancelText="取消"
+        autoFocus={false}
+      >
+        <Form form={pwForm} layout="vertical" autoComplete="off">
+          <FormItem label="当前密码" field="oldPassword" rules={[{ required: true, message: '请输入当前密码' }]}>
+            <Input.Password placeholder="当前密码" />
+          </FormItem>
+          <FormItem
+            label="新密码"
+            field="newPassword"
+            rules={[
+              { required: true, message: '请输入新密码' },
+              { minLength: 6, message: '密码长度至少 6 位' },
+            ]}
+          >
+            <Input.Password placeholder="新密码（至少 6 位）" />
+          </FormItem>
+          <FormItem
+            label="确认新密码"
+            field="confirmPassword"
+            rules={[{ required: true, message: '请再次输入新密码' }]}
+          >
+            <Input.Password placeholder="再次输入新密码" />
+          </FormItem>
+        </Form>
+      </Modal>
+    </div>
   )
 }
 

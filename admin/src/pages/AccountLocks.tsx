@@ -1,36 +1,52 @@
+// Copyright (c) 2026 LingByte. All rights reserved.
+// SPDX-License-Identifier: AGPL-3.0
+//
+// 账号锁定管理：Arco Table，支持邮箱过滤、是否激活筛选与解锁。
 import { useEffect, useState } from 'react'
-import { Lock, RefreshCw, Unlock, Search } from 'lucide-react'
-import AdminLayout from '@/components/Layout/AdminLayout'
-import Card from '@/components/UI/Card'
-import Button from '@/components/UI/Button'
-import Input from '@/components/UI/Input'
-import Badge from '@/components/UI/Badge'
-import EmptyState from '@/components/UI/EmptyState'
-import { showAlert } from '@/utils/notification'
+import {
+  Table,
+  Input,
+  Select,
+  Button,
+  Tag,
+  Popconfirm,
+  Message,
+  Space,
+} from '@arco-design/web-react'
+import { Search, RefreshCw, Unlock } from 'lucide-react'
+import PageHeader from '@/components/Layout/PageHeader'
 import { getAccountLocks, unlockAccount, type AccountLock } from '@/services/adminApi'
+
+const Option = Select.Option
+
+const ACTIVE_OPTIONS = [
+  { label: '全部', value: '' },
+  { label: '锁定中', value: 'true' },
+  { label: '已解锁', value: 'false' },
+]
 
 const AccountLocks = () => {
   const [locks, setLocks] = useState<AccountLock[]>([])
   const [loading, setLoading] = useState(false)
   const [page, setPage] = useState(1)
-  const [pageSize] = useState(20)
+  const [pageSize, setPageSize] = useState(20)
   const [total, setTotal] = useState(0)
   const [email, setEmail] = useState('')
   const [active, setActive] = useState('')
 
   const fetchLocks = async () => {
+    setLoading(true)
     try {
-      setLoading(true)
-      const result = await getAccountLocks({
+      const res = await getAccountLocks({
         page,
         page_size: pageSize,
         email: email || undefined,
         is_active: active === '' ? undefined : active === 'true',
       })
-      setLocks(result.locks || [])
-      setTotal(result.total || 0)
-    } catch (error: any) {
-      showAlert('获取账号锁定记录失败', 'error', error?.msg || error?.message)
+      setLocks(res.locks || [])
+      setTotal(res.total || 0)
+    } catch (e: any) {
+      Message.error(`获取账号锁定记录失败：${e?.msg || e?.message || e}`)
     } finally {
       setLoading(false)
     }
@@ -38,9 +54,10 @@ const AccountLocks = () => {
 
   useEffect(() => {
     fetchLocks()
-  }, [page])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, pageSize, active])
 
-  const onSearch = () => {
+  const handleSearch = () => {
     setPage(1)
     fetchLocks()
   }
@@ -48,86 +65,106 @@ const AccountLocks = () => {
   const onUnlock = async (id: number) => {
     try {
       await unlockAccount(id)
-      showAlert('账号解锁成功', 'success')
+      Message.success('账号解锁成功')
       fetchLocks()
-    } catch (error: any) {
-      showAlert('账号解锁失败', 'error', error?.msg || error?.message)
+    } catch (e: any) {
+      Message.error(`账号解锁失败：${e?.msg || e?.message || e}`)
     }
   }
 
-  const totalPages = Math.ceil(total / pageSize)
+  const columns = [
+    { title: '邮箱', dataIndex: 'email', ellipsis: true, width: 240 },
+    { title: '失败次数', dataIndex: 'failedAttempts', width: 100 },
+    { title: 'IP', dataIndex: 'ipAddress', width: 140 },
+    {
+      title: '解锁时间',
+      dataIndex: 'unlockAt',
+      width: 180,
+      render: (v: string) => (v ? new Date(v).toLocaleString('zh-CN') : '-'),
+    },
+    {
+      title: '状态',
+      dataIndex: 'isActive',
+      width: 110,
+      render: (v: boolean) =>
+        v ? <Tag color="red">锁定中</Tag> : <Tag color="green">已解锁</Tag>,
+    },
+    {
+      title: '操作',
+      key: '__actions__',
+      width: 110,
+      fixed: 'right' as const,
+      render: (_: any, r: AccountLock) => (
+        <Popconfirm
+          title={`确认解锁 ${r.email}？`}
+          okText="解锁"
+          cancelText="取消"
+          disabled={!r.isActive}
+          onOk={() => onUnlock(r.id)}
+        >
+          <Button size="mini" type="text" disabled={!r.isActive}>
+            <span className="inline-flex items-center gap-1"><Unlock size={14} /> 解锁</span>
+          </Button>
+        </Popconfirm>
+      ),
+    },
+  ]
 
   return (
-    <AdminLayout title="账号锁定管理" description="查看并解锁被风控锁定的账号">
-      <div className="space-y-6">
-        <Card>
-          <div className="flex flex-col sm:flex-row gap-3 items-end">
-            <Input placeholder="邮箱" value={email} onChange={(e) => setEmail(e.target.value)} />
-            <Input placeholder="是否激活( true / false )" value={active} onChange={(e) => setActive(e.target.value)} />
-            <Button onClick={onSearch} leftIcon={<Search className="w-4 h-4" />}>搜索</Button>
-            <Button variant="outline" onClick={fetchLocks} leftIcon={<RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />}>刷新</Button>
-          </div>
-        </Card>
+    <div className="space-y-4">
+      <PageHeader
+        title="账号锁定管理"
+        description="查看并解锁被风控规则锁定的账号；解锁后该账号可立即重新登录。"
+        actions={
+          <Space>
+            <Input
+              prefix={<Search size={14} />}
+              placeholder="邮箱"
+              value={email}
+              onChange={(v) => setEmail(v)}
+              onPressEnter={handleSearch}
+              allowClear
+              style={{ width: 220 }}
+            />
+            <Select
+              value={active}
+              onChange={(v) => { setPage(1); setActive(v) }}
+              style={{ width: 140 }}
+            >
+              {ACTIVE_OPTIONS.map((o) => (
+                <Option key={o.value} value={o.value}>{o.label}</Option>
+              ))}
+            </Select>
+            <Button type="primary" onClick={handleSearch}>搜索</Button>
+            <Button onClick={fetchLocks}>
+              <span className="inline-flex items-center gap-1">
+                <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> 刷新
+              </span>
+            </Button>
+          </Space>
+        }
+      />
 
-        <Card>
-          {loading && locks.length === 0 ? (
-            <div className="flex justify-center py-12"><RefreshCw className="w-6 h-6 animate-spin text-slate-400" /></div>
-          ) : locks.length === 0 ? (
-            <EmptyState icon={Lock} title="暂无锁定记录" description="当前没有匹配的账号锁定记录" />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-slate-200 dark:border-slate-700">
-                    <th className="text-left py-3 px-4">邮箱</th>
-                    <th className="text-left py-3 px-4">失败次数</th>
-                    <th className="text-left py-3 px-4">IP</th>
-                    <th className="text-left py-3 px-4">解锁时间</th>
-                    <th className="text-left py-3 px-4">状态</th>
-                    <th className="text-right py-3 px-4">操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {locks.map((lock) => (
-                    <tr key={lock.id} className="border-b border-slate-100 dark:border-slate-800">
-                      <td className="py-3 px-4">{lock.email}</td>
-                      <td className="py-3 px-4">{lock.failedAttempts}</td>
-                      <td className="py-3 px-4">{lock.ipAddress}</td>
-                      <td className="py-3 px-4">{new Date(lock.unlockAt).toLocaleString('zh-CN')}</td>
-                      <td className="py-3 px-4">
-                        <Badge variant={lock.isActive ? 'error' : 'success'}>{lock.isActive ? '锁定中' : '已解锁'}</Badge>
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => onUnlock(lock.id)}
-                          disabled={!lock.isActive}
-                          leftIcon={<Unlock className="w-4 h-4" />}
-                        >
-                          解锁
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
-              <span className="text-sm text-slate-500">共 {total} 条</span>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => setPage((p) => p - 1)} disabled={page === 1}>上一页</Button>
-                <span className="text-sm text-slate-500">第 {page} / {totalPages} 页</span>
-                <Button variant="outline" size="sm" onClick={() => setPage((p) => p + 1)} disabled={page >= totalPages}>下一页</Button>
-              </div>
-            </div>
-          )}
-        </Card>
-      </div>
-    </AdminLayout>
+      <Table
+        rowKey={(r: AccountLock) => String(r.id)}
+        loading={loading}
+        columns={columns}
+        data={locks}
+        scroll={{ x: 1000 }}
+        pagination={{
+          current: page,
+          pageSize,
+          total,
+          showTotal: (t: number) => `共 ${t} 条`,
+          sizeCanChange: true,
+          sizeOptions: [10, 20, 50, 100],
+          onChange: (p: number, ps: number) => {
+            setPage(p)
+            setPageSize(ps)
+          },
+        }}
+      />
+    </div>
   )
 }
 

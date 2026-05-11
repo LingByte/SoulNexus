@@ -9,7 +9,6 @@ import (
 	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/logger"
-	"github.com/LingByte/SoulNexus/pkg/notification"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -41,6 +40,6 @@ func InitAgentListener() {
 			"Go to the agent management page now to start using it!",
 			user.EffectiveDisplayName(), agent.Name, agent.Description)
 
-		notification.NewInternalNotificationService(db).Send(user.ID, title, content)
+		models.NewInternalNotificationService(db).Send(user.ID, title, content)
 	})
 }

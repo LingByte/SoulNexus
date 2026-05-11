@@ -27,8 +27,6 @@ export const zhTWOverrides: Record<string, string> = {
   'nav.sidebar.overview': '資料總覽',
   'nav.sidebar.currentOrganization': '目前組織',
   'nav.sidebar.selectOrganization': '選擇組織',
-  'nav.sidebar.mcpManagement': 'MCP 管理',
-  'nav.sidebar.mcpMarketplace': 'MCP 市集',
   'nav.sidebar.announcements': '公告中心',
   'common.loading': '載入中...',
   'common.save': '儲存',
