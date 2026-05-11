@@ -11,7 +11,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/LingByte/SoulNexus"
@@ -22,12 +21,11 @@ import (
 	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/internal/schema"
 	"github.com/LingByte/SoulNexus/internal/task"
-	"github.com/LingByte/SoulNexus/pkg/cache"
 	"github.com/LingByte/SoulNexus/pkg/constants"
-	"github.com/LingByte/SoulNexus/pkg/health"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/middleware"
 	"github.com/LingByte/SoulNexus/pkg/utils"
+	"github.com/LingByte/SoulNexus/pkg/utils/cache"
 	utilscaptcha "github.com/LingByte/SoulNexus/pkg/utils/captcha"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -60,12 +58,6 @@ func main() {
 
 	if *mode != "" {
 		os.Setenv("APP_ENV", *mode)
-	}
-
-	if s := strings.TrimSpace(os.Getenv("SOULNEXUS_SERVICE")); s != "" {
-		health.SetServiceName(s)
-	} else {
-		health.SetServiceName("auth")
 	}
 
 	if err := config.LoadAuth(); err != nil {
