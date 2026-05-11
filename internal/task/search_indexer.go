@@ -11,7 +11,6 @@ import (
 	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/logger"
-	"github.com/LingByte/SoulNexus/pkg/notification"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	search2 "github.com/LingByte/SoulNexus/pkg/utils/search"
 	"github.com/robfig/cron/v3"
@@ -225,7 +224,7 @@ func IndexUserData(db *gorm.DB, engine search2.Engine) error {
 	notificationOffset := 0
 	notificationBatchSize := 100
 	for {
-		var notifications []notification.InternalNotification
+		var notifications []models.InternalNotification
 		if err := db.Where("title IS NOT NULL AND title != ''").
 			Offset(notificationOffset).Limit(notificationBatchSize).Find(&notifications).Error; err != nil {
 			logger.Error("Failed to query notifications", zap.Error(err))

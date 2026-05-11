@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import AdminLayout from '@/components/Layout/AdminLayout'
+import PageHeader from '@/components/Layout/PageHeader'
 import Card from '@/components/UI/Card'
 import Button from '@/components/UI/Button'
 import Input from '@/components/UI/Input'
@@ -40,7 +40,7 @@ const JSTemplates = () => {
   }
 
   return (
-    <AdminLayout title="JS 模版管理" description="管理系统中的 JS 模版">
+    <><PageHeader title="JS 模版管理" description="管理系统中的 JS 模版" />
       <Card className="space-y-4">
         <div className="flex gap-3">
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="搜索模版名 / Source ID" className="max-w-sm" />
@@ -86,7 +86,7 @@ const JSTemplates = () => {
           </div>
         )}
       </Modal>
-    </AdminLayout>
+    </>
   )
 }
 

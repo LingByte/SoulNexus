@@ -2,9 +2,11 @@ import { ReactNode } from 'react'
 import { cn } from '@/utils/cn.ts'
 
 interface PageHeaderProps {
-  title: string
-  subtitle?: string
+  title?: ReactNode
+  subtitle?: ReactNode
+  description?: ReactNode
   children?: ReactNode
+  actions?: ReactNode
   className?: string
   breadcrumbs?: Array<{
     label: string
@@ -15,10 +17,14 @@ interface PageHeaderProps {
 const PageHeader = ({
   title,
   subtitle,
+  description,
   children,
+  actions,
   className,
-  breadcrumbs
+  breadcrumbs,
 }: PageHeaderProps) => {
+  const subtitleContent = description ?? subtitle
+  const actionsContent = actions ?? children
   return (
     <div className={cn('mb-8', className)}>
       {/* 面包屑导航 */}
@@ -59,25 +65,25 @@ const PageHeader = ({
       )}
 
       {/* 页面标题和副标题 */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-neutral-900 dark:text-white">
-            {title}
-          </h1>
-          {subtitle && (
-            <p className="mt-2 text-lg text-neutral-600 dark:text-neutral-400">
-              {subtitle}
-            </p>
+      {(title || subtitleContent || actionsContent) && (
+        <div className="flex items-center justify-between">
+          <div>
+            {title && (
+              <h1 className="text-2xl font-semibold text-[var(--color-text-1)]">
+                {title}
+              </h1>
+            )}
+            {subtitleContent && (
+              <p className="mt-1 text-sm text-[var(--color-text-3)]">
+                {subtitleContent}
+              </p>
+            )}
+          </div>
+          {actionsContent && (
+            <div className="flex items-center gap-2">{actionsContent}</div>
           )}
         </div>
-        
-        {/* 右侧操作按钮 */}
-        {children && (
-          <div className="flex items-center gap-3">
-            {children}
-          </div>
-        )}
-      </div>
+      )}
     </div>
   )
 }

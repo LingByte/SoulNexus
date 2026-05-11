@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/LingByte/SoulNexus/internal/models"
-	"github.com/LingByte/SoulNexus/internal/config"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/notification"
@@ -38,9 +37,9 @@ func (h *Handlers) loginBlockedByAccountDeletion(c *gin.Context, db *gorm.DB, us
 		effective = fresh.AccountDeletionEffectiveAt.UTC().Format(time.RFC3339)
 	}
 	response.Success(c, "账号处于注销冷静期，暂无法登录 SoulNexus。请使用「撤销注销」完成验证后恢复账号，或等待冷静期结束后账号将被永久注销。", gin.H{
-		"accountDeletionPending":       true,
+		"accountDeletionPending":     true,
 		"accountDeletionEffectiveAt": effective,
-		"email":                        fresh.Email,
+		"email":                      fresh.Email,
 	})
 	return true
 }
@@ -120,16 +119,16 @@ func (h *Handlers) handleAccountDeletionEligibility(c *gin.Context) {
 	}
 
 	response.Success(c, "ok", gin.H{
-		"eligible":                  len(reasons) == 0,
-		"reasons":                   reasons,
-		"githubBound":               gh,
-		"wechatBound":               wx,
-		"accountLocked":             locked,
-		"remoteLoginRisk":           remote,
-		"recentSuspiciousLogins":    suspicious,
-		"warnings":                  warnings,
-		"cooldownHours":             int(models.DefaultAccountDeletionCooldown().Hours()),
-		"deletionPending":           models.AccountDeletionPending(&fresh),
+		"eligible":                   len(reasons) == 0,
+		"reasons":                    reasons,
+		"githubBound":                gh,
+		"wechatBound":                wx,
+		"accountLocked":              locked,
+		"remoteLoginRisk":            remote,
+		"recentSuspiciousLogins":     suspicious,
+		"warnings":                   warnings,
+		"cooldownHours":              int(models.DefaultAccountDeletionCooldown().Hours()),
+		"deletionPending":            models.AccountDeletionPending(&fresh),
 		"accountDeletionEffectiveAt": fresh.AccountDeletionEffectiveAt,
 		"accountDeletionRequestedAt": fresh.AccountDeletionRequestedAt,
 	})
@@ -150,8 +149,8 @@ func (h *Handlers) handleAccountDeletionSendEmailCode(c *gin.Context) {
 	utils.GlobalCache.Add(cacheKey, code)
 
 	go func() {
-		mail := notification.NewMailNotificationWithDB(config.GlobalConfig.Services.Mail, h.db, user.ID)
-		if err := mail.SendVerificationCode(user.Email, code); err != nil {
+		mailer := notification.NewMailer(h.db, 0, user.ID, "")
+		if err := mailer.SendVerificationCode(user.Email, code); err != nil {
 			logger.Error("account deletion email code failed", zap.Error(err), zap.Uint("userID", user.ID))
 		}
 	}()
@@ -309,8 +308,8 @@ func (h *Handlers) handleAccountDeletionSendCancelCode(c *gin.Context) {
 	code := utils.RandNumberText(6)
 	utils.GlobalCache.Add(cacheKey, code)
 	go func() {
-		mail := notification.NewMailNotificationWithDB(config.GlobalConfig.Services.Mail, h.db, fresh.ID)
-		if err := mail.SendVerificationCode(fresh.Email, code); err != nil {
+		mailer := notification.NewMailer(h.db, 0, fresh.ID, "")
+		if err := mailer.SendVerificationCode(fresh.Email, code); err != nil {
 			logger.Error("account deletion cancel code email failed", zap.Error(err), zap.Uint("userID", fresh.ID))
 		}
 	}()

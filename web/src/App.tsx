@@ -32,8 +32,6 @@ import WorkflowManager from '@/pages/WorkflowManager.tsx';
 import CallRecordingAnalytics from '@/pages/CallRecordingAnalytics.tsx';
 import NodePluginMarket from '@/pages/NodePluginMarket.tsx';
 import VoiceprintManagement from '@/pages/VoiceprintManagement.tsx';
-import MCPManagement from '@/pages/MCPManagement.tsx';
-import MCPMarketplace from '@/pages/MCPMarketplace.tsx';
 import Privacy from '@/pages/Privacy.tsx';
 import Terms from '@/pages/Terms.tsx';
 import CookieConsent from '@/components/CookieConsent.tsx';
@@ -226,20 +224,6 @@ function AppRoutes() {
                             <ProtectedRoute>
                                 <Layout>
                                     <CallRecordingAnalytics />
-                                </Layout>
-                            </ProtectedRoute>
-                        } />
-                        <Route path="/mcp-management" element={
-                            <ProtectedRoute>
-                                <Layout>
-                                    <MCPManagement />
-                                </Layout>
-                            </ProtectedRoute>
-                        } />
-                        <Route path="/mcp-marketplace" element={
-                            <ProtectedRoute>
-                                <Layout>
-                                    <MCPMarketplace />
                                 </Layout>
                             </ProtectedRoute>
                         } />

@@ -1,7 +1,5 @@
 package storage
 
-import "github.com/LingByte/SoulNexus/pkg/cache/constants"
-
 // Copyright (c) 2026 LingByte
 // SPDX-License-Identifier: MIT
 

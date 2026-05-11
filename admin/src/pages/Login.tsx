@@ -98,11 +98,7 @@ const Login = () => {
       if (!token) throw new Error('登录失败：未获取到 token')
       if (!userData) throw new Error('登录失败：未获取到用户信息')
 
-      const roleNorm = String(userData?.role || '').toLowerCase()
-      if (!['admin', 'superadmin'].includes(roleNorm)) {
-        throw new Error('权限不足，仅管理员可登录后台')
-      }
-
+      // 管理员校验已下沉到后端（非管理员后端直接返回 4xx），前端无需重复判断
       if (refreshTok) {
         try {
           localStorage.setItem('refresh_token', refreshTok)

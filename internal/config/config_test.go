@@ -111,13 +111,6 @@ func TestLoad_WithExplicitAppEnv(t *testing.T) {
 		t.Fatalf("log config mismatch: %+v", GlobalConfig.Log)
 	}
 
-	// 邮件
-	if GlobalConfig.Services.Mail.APIUser != "LingEcho" ||
-		GlobalConfig.Services.Mail.APIKey != "14b6e48501c452407421917c943be0c3" ||
-		GlobalConfig.Services.Mail.From != "19511899044@163.com" {
-		t.Fatalf("mail config mismatch: %+v", GlobalConfig.Services.Mail)
-	}
-
 	// LLM
 	if GlobalConfig.Services.LLM.APIKey != "ak" ||
 		GlobalConfig.Services.LLM.BaseURL != "https://llm.example.com" ||

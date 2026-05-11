@@ -13,7 +13,6 @@ import {
   Eye,
   EyeOff,
 } from 'lucide-react'
-import AdminLayout from '@/components/Layout/AdminLayout'
 import Card from '@/components/UI/Card'
 import Button from '@/components/UI/Button'
 import Input from '@/components/UI/Input'
@@ -237,7 +236,7 @@ const Configs = () => {
   const totalPages = Math.ceil(total / pageSize)
 
   return (
-    <AdminLayout>
+    <>
       <div className="space-y-6">
         {/* 搜索和过滤 */}
         <Card>
@@ -662,7 +661,7 @@ const Configs = () => {
           loading={loading}
         />
       </div>
-    </AdminLayout>
+    </>
   )
 }
 

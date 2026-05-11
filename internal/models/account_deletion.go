@@ -150,12 +150,6 @@ func FinalizeAccountDeletion(db *gorm.DB, userID uint, operator string) error {
 		if err := tx.Unscoped().Where("inviter_id = ? OR invitee_id = ?", userID, userID).Delete(&GroupInvitation{}).Error; err != nil {
 			return err
 		}
-		if err := tx.Unscoped().Where("user_id = ?", userID).Delete(&MCPUserInstallation{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Unscoped().Where("user_id = ?", userID).Delete(&MCPReview{}).Error; err != nil {
-			return err
-		}
 		if err := tx.Model(&AccountLock{}).Where("user_id = ? OR email = ?", userID, strings.ToLower(strings.TrimSpace(u.Email))).
 			Update("is_active", false).Error; err != nil {
 			return err

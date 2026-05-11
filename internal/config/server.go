@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/LingByte/SoulNexus/pkg/logger"
-	"github.com/LingByte/SoulNexus/pkg/notification"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/LingByte/SoulNexus/pkg/utils/cache"
 	"github.com/LingByte/lingstorage-sdk-go"
@@ -66,11 +65,10 @@ type DatabaseConfig struct {
 
 // ServicesConfig services configuration
 type ServicesConfig struct {
-	LLM         LLMConfig               `mapstructure:"llm"`
-	Mail        notification.MailConfig `mapstructure:"mail"`
-	GraphMemory GraphMemoryConfig       `mapstructure:"graph_memory"`
-	Voice       VoiceConfig             `mapstructure:"voice"`
-	Storage     StorageConfig           `mapstructure:"storage"`
+	LLM         LLMConfig         `mapstructure:"llm"`
+	GraphMemory GraphMemoryConfig `mapstructure:"graph_memory"`
+	Voice       VoiceConfig       `mapstructure:"voice"`
+	Storage     StorageConfig     `mapstructure:"storage"`
 }
 
 // LLMConfig LLM service configuration
@@ -224,7 +222,6 @@ func buildGlobalConfig() error {
 				MemoryCompressThreshold: getIntOrDefault("LLM_MEMORY_COMPRESS_THRESHOLD", 20),
 				ShortTermMessageLimit:   getIntOrDefault("LLM_SHORT_TERM_MESSAGE_LIMIT", 20),
 			},
-			Mail: loadMailConfig(),
 			GraphMemory: GraphMemoryConfig{
 				Neo4j: Neo4jConfig{
 					Enabled:  getBoolOrDefault("NEO4J_ENABLED", false),
@@ -424,44 +421,4 @@ func loadCacheConfig() cache.Config {
 			CleanupInterval:   localCleanupInterval,
 		},
 	}
-}
-
-// loadMailConfig loads mail configuration from environment variables
-// Supports both SMTP (legacy MAIL_* vars) and SendCloud (SENDCLOUD_* vars)
-func loadMailConfig() notification.MailConfig {
-	provider := getStringOrDefault("MAIL_PROVIDER", "")
-
-	// Auto-detect provider based on available environment variables
-	if provider == "" {
-		// If SendCloud credentials are set, use SendCloud
-		if getStringOrDefault("SENDCLOUD_API_USER", "") != "" {
-			provider = "sendcloud"
-		} else if getStringOrDefault("MAIL_HOST", "") != "" {
-			// If MAIL_HOST is set, use SMTP
-			provider = "smtp"
-		} else {
-			// Default to SendCloud
-			provider = "sendcloud"
-		}
-	}
-
-	config := notification.MailConfig{
-		Provider: provider,
-	}
-
-	if provider == "smtp" {
-		// Load SMTP configuration (supports both MAIL_* and SMTP_* vars)
-		config.Host = getStringOrDefault("SMTP_HOST", getStringOrDefault("MAIL_HOST", ""))
-		config.Username = getStringOrDefault("SMTP_USERNAME", getStringOrDefault("MAIL_USERNAME", ""))
-		config.Password = getStringOrDefault("SMTP_PASSWORD", getStringOrDefault("MAIL_PASSWORD", ""))
-		config.Port = int64(getIntOrDefault("SMTP_PORT", getIntOrDefault("MAIL_PORT", 587)))
-		config.From = getStringOrDefault("MAIL_FROM_EMAIL", getStringOrDefault("MAIL_FROM", ""))
-	} else {
-		// Load SendCloud configuration
-		config.APIUser = getStringOrDefault("SENDCLOUD_API_USER", "")
-		config.APIKey = getStringOrDefault("SENDCLOUD_API_KEY", "")
-		config.From = getStringOrDefault("MAIL_FROM_EMAIL", getStringOrDefault("SENDCLOUD_FROM_EMAIL", ""))
-	}
-
-	return config
 }

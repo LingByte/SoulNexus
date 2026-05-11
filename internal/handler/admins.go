@@ -1449,10 +1449,10 @@ func (h *Handlers) handleAdminListAgents(c *gin.Context) {
 	}
 
 	response.Success(c, "agents fetched", gin.H{
-		"agents": assistants,
-		"total":      total,
-		"page":       page,
-		"pageSize":   pageSize,
+		"agents":   assistants,
+		"total":    total,
+		"page":     page,
+		"pageSize": pageSize,
 	})
 }
 
@@ -1713,30 +1713,6 @@ func (h *Handlers) handleAdminGetVoiceTrainingTask(c *gin.Context) {
 
 func (h *Handlers) handleAdminDeleteVoiceTrainingTask(c *gin.Context) {
 	h.handleAdminDeleteGenericTableItem(c, "voice_training_tasks")
-}
-
-func (h *Handlers) handleAdminListMCPServers(c *gin.Context) {
-	h.handleAdminListGenericTable(c, "mcp_servers", "name", "description", "type", "status")
-}
-
-func (h *Handlers) handleAdminGetMCPServer(c *gin.Context) {
-	h.handleAdminGetGenericTableItem(c, "mcp_servers")
-}
-
-func (h *Handlers) handleAdminDeleteMCPServer(c *gin.Context) {
-	h.handleAdminDeleteGenericTableItem(c, "mcp_servers")
-}
-
-func (h *Handlers) handleAdminListMCPMarketplaceItems(c *gin.Context) {
-	h.handleAdminListGenericTable(c, "mcp_marketplace_items", "name", "author", "category", "status")
-}
-
-func (h *Handlers) handleAdminGetMCPMarketplaceItem(c *gin.Context) {
-	h.handleAdminGetGenericTableItem(c, "mcp_marketplace_items")
-}
-
-func (h *Handlers) handleAdminDeleteMCPMarketplaceItem(c *gin.Context) {
-	h.handleAdminDeleteGenericTableItem(c, "mcp_marketplace_items")
 }
 
 func (h *Handlers) handleAdminListWorkflowDefinitions(c *gin.Context) {
