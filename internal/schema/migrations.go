@@ -73,8 +73,6 @@ func ServerEntities() []any {
 		&models.MCPReview{},
 		&models.MCPCategory{},
 		&models.OAuthClient{},
-		&models.RTCSFURoomAssignment{},
-		&models.RTCSFUMediaSession{},
 	}
 }
 
