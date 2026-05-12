@@ -17,7 +17,6 @@ const Footer: React.FC = () => {
   const productLinks = [
     { name: t('nav.sidebar.smartAssistant'), href: '/assistants' },
     { name: t('nav.sidebar.voiceTraining'), href: '/voice-training' },
-    { name: t('nav.sidebar.knowledgeBase'), href: '/knowledge' },
     { name: t('nav.sidebar.workflow'), href: '/workflows' },
   ]
 

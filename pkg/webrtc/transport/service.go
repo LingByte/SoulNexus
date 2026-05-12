@@ -96,9 +96,7 @@ type AIClient struct {
 	// Track if we've started receiving audio (prevent duplicate processing)
 	AudioReceived bool
 
-	// Knowledge base support
-	knowledgeKey string   // Knowledge base identifier
-	db           *gorm.DB // Database connection for knowledge base retrieval
+	db *gorm.DB // Database connection for usage tracking
 
 	// User information for billing
 	userID       uint  // User ID for usage tracking
@@ -141,7 +139,7 @@ func (c *AIClient) SetEventCallbacks(onASR func(text string, isFinal bool), onLL
 }
 
 // NewAIClient creates a new AI-powered client (legacy, uses environment variables)
-func NewAIClient(conn *websocket.Conn, transport *rtcmedia.WebRTCTransport, sessionID string, knowledgeKey string, db *gorm.DB, userID uint, credentialID uint, assistantID *uint) (*AIClient, error) {
+func NewAIClient(conn *websocket.Conn, transport *rtcmedia.WebRTCTransport, sessionID string, db *gorm.DB, userID uint, credentialID uint, assistantID *uint) (*AIClient, error) {
 	// Initialize ASR (using QCloud as example, you can change to other providers)
 	asrOpt := recognizer.NewQcloudASROption(
 		utils.GetEnv("QCLOUD_APP_ID"),
@@ -192,7 +190,6 @@ func NewAIClient(conn *websocket.Conn, transport *rtcmedia.WebRTCTransport, sess
 		conversationID: fmt.Sprintf("conv_%d", time.Now().UnixNano()),
 		doneChan:       make(chan struct{}),
 		AudioReceived:  false,
-		knowledgeKey:   knowledgeKey,
 		db:             db,
 		userID:         userID,
 		credentialID:   credentialID,
@@ -279,7 +276,6 @@ func NewAIClientWithCredential(
 	conn *websocket.Conn,
 	transport *rtcmedia.WebRTCTransport,
 	sessionID string,
-	knowledgeKey string,
 	db *gorm.DB,
 	userID uint,
 	credentialID uint,
@@ -306,8 +302,8 @@ func NewAIClientWithCredential(
 		return nil, fmt.Errorf("ASR provider not configured in credential")
 	}
 
-	// Normalize provider name
-	normalizedProvider := normalizeProviderName(asrProvider)
+	// Provider 名称统一以 pkg/recognizer 注册名为准，不再做映射。
+	normalizedProvider := strings.ToLower(strings.TrimSpace(asrProvider))
 
 	// Build ASR config
 	asrConfig := make(map[string]interface{})
@@ -355,7 +351,8 @@ func NewAIClientWithCredential(
 		return nil, fmt.Errorf("TTS provider not configured in credential")
 	}
 
-	normalizedTTSProvider := normalizeProviderName(ttsProvider)
+	// Provider 名称统一以 pkg/synthesizer 注册名为准，不再做映射。
+	normalizedTTSProvider := strings.ToLower(strings.TrimSpace(ttsProvider))
 
 	// Build TTS config
 	ttsConfig := make(synthesizer.TTSCredentialConfig)
@@ -409,7 +406,6 @@ func NewAIClientWithCredential(
 		conversationID: fmt.Sprintf("conv_%d", time.Now().UnixNano()),
 		doneChan:       make(chan struct{}),
 		AudioReceived:  false,
-		knowledgeKey:   knowledgeKey,
 		db:             db,
 		userID:         userID,
 		credentialID:   credentialID,
@@ -488,27 +484,6 @@ func NewAIClientWithCredential(
 	}
 
 	return client, nil
-}
-
-// normalizeProviderName normalizes provider name (e.g., "qcloud" -> "tencent", "qiniu" -> "qiniu")
-func normalizeProviderName(provider string) string {
-	provider = strings.ToLower(provider)
-	switch provider {
-	case "qcloud", "tencent", "tencentcloud":
-		return "tencent"
-	case "qiniu":
-		return "qiniu"
-	case "xunfei", "iflytek":
-		return "xunfei"
-	case "openai":
-		return "openai"
-	case "volcengine", "volcano":
-		return "volcengine"
-	case "minimax":
-		return "minimax"
-	default:
-		return provider
-	}
 }
 
 // Close closes the AI client

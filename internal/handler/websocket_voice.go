@@ -120,12 +120,11 @@ func (h *Handlers) HandleWebSocketVoice(c *gin.Context) {
 	handler := voice.NewHardwareHandler(h.db, logger.Lg)
 	handler.HandlerHardwareWebsocket(c.Request.Context(), &voice.HardwareOptions{
 		Conn:                 conn,
-		AgentID:          uint(assistantID),
+		AgentID:              uint(assistantID),
 		Language:             language,
 		Speaker:              speaker,
 		Temperature:          float64(temperature),
 		SystemPrompt:         systemPrompt,
-		KnowledgeKey:         "",
 		UserID:               cred.CreatedBy,
 		MacAddress:           "",
 		LLMModel:             assistant.LLMModel,
@@ -288,13 +287,12 @@ func (h *Handlers) HandleHardwareWebSocketVoice(c *gin.Context) {
 
 	handler.HandlerHardwareWebsocket(ctx, &voice.HardwareOptions{
 		Conn:                 conn,
-		AgentID:          assistantID,
+		AgentID:              assistantID,
 		DeviceID:             &device.ID,
 		Language:             language,
 		Speaker:              speaker,
 		Temperature:          float64(temperature),
 		SystemPrompt:         systemPrompt,
-		KnowledgeKey:         "",
 		UserID:               device.CreatedBy,
 		MacAddress:           device.MacAddress,
 		LLMModel:             llmModel,

@@ -21,7 +21,6 @@ import {
   Mail,
   Send,
   AlertTriangle,
-  BookOpen,
   Smartphone,
   MessageSquare,
   Activity,
@@ -86,7 +85,6 @@ const NAVIGATION: NavItem[] = [
     ],
   },
   { key: '/alerts', name: '告警管理', icon: AlertTriangle },
-  { key: '/knowledge-bases', name: '知识库', icon: BookOpen },
   { key: '/devices', name: '设备管理', icon: Smartphone },
   { key: '/chat-data', name: '会话与用量', icon: MessageSquare },
   {
@@ -224,17 +222,17 @@ const AdminSidebar = () => {
                 <SubMenu
                   key={item.key}
                   title={
-                    <span className="inline-flex items-center gap-2">
+                    <span className="inline-flex items-center gap-2 whitespace-nowrap">
                       {renderIcon(item.icon)}
-                      <span>{item.name}</span>
+                      {!isCollapsed && <span>{item.name}</span>}
                     </span>
                   }
                 >
                   {item.children.map((child) => (
                     <MenuItem key={child.key}>
-                      <span className="inline-flex items-center gap-2">
+                      <span className="inline-flex items-center gap-2 whitespace-nowrap">
                         {renderIcon(child.icon)}
-                        <span>{child.name}</span>
+                        {!isCollapsed && <span>{child.name}</span>}
                       </span>
                     </MenuItem>
                   ))}
@@ -243,9 +241,9 @@ const AdminSidebar = () => {
             }
             return (
               <MenuItem key={item.key}>
-                <span className="inline-flex items-center gap-2">
+                <span className="inline-flex items-center gap-2 whitespace-nowrap">
                   {renderIcon(item.icon)}
-                  <span>{item.name}</span>
+                  {!isCollapsed && <span>{item.name}</span>}
                 </span>
               </MenuItem>
             )
@@ -255,9 +253,18 @@ const AdminSidebar = () => {
       {/* 底部用户信息 */}
       <div className="border-t border-[var(--color-border-2)] px-2 py-2 shrink-0">
         <Dropdown droplist={userMenu} position="tr" trigger="click">
-          <button className="w-full flex items-center gap-2 px-2 py-2 rounded hover:bg-[var(--color-fill-2)] transition-colors">
+          <button
+            type="button"
+            className={`w-full flex items-center rounded hover:bg-[var(--color-fill-2)] transition-colors py-2 ${
+              isCollapsed ? 'justify-center px-0' : 'gap-2 px-2'
+            }`}
+          >
             <Avatar size={28} style={{ backgroundColor: '#4ECDC4' }}>
-              {(user?.displayName || user?.username || user?.email || 'A').slice(0, 1).toUpperCase()}
+              {user?.avatar ? (
+                <img src={user.avatar} alt="avatar" />
+              ) : (
+                (user?.displayName || user?.username || user?.email || 'A').slice(0, 1).toUpperCase()
+              )}
             </Avatar>
             {!isCollapsed && (
               <div className="flex-1 min-w-0 text-left">

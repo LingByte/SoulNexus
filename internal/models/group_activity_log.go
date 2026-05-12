@@ -59,7 +59,6 @@ const (
 // 资源类型常量
 const (
 	ResourceTypeAssistant = "assistant"
-	ResourceTypeKnowledge = "knowledge"
 	ResourceTypeMember    = "member"
 	ResourceTypeQuota     = "quota"
 	ResourceTypeGroup     = "group"

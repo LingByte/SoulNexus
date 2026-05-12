@@ -1361,13 +1361,6 @@ export const listAdminNotifications = async (params?: { page?: number; pageSize?
 export const getAdminNotification = async (id: number) => (await get(`${BACKEND_BASE}/admin/notifications/${id}`)).data
 export const deleteAdminNotification = async (id: number) => del(`${BACKEND_BASE}/admin/notifications/${id}`)
 
-export const listAdminKnowledgeBases = async (params?: { page?: number; pageSize?: number; search?: string }) => {
-  const res = await get<AdminModuleListResponse>(`${BACKEND_BASE}/admin/knowledge-bases`, { params })
-  return res.data
-}
-export const getAdminKnowledgeBase = async (id: number) => (await get(`${BACKEND_BASE}/admin/knowledge-bases/${id}`)).data
-export const deleteAdminKnowledgeBase = async (id: number) => del(`${BACKEND_BASE}/admin/knowledge-bases/${id}`)
-
 export const listAdminDevices = async (params?: { page?: number; pageSize?: number; search?: string }) => {
   const res = await get<AdminModuleListResponse>(`${BACKEND_BASE}/admin/devices`, { params })
   return res.data

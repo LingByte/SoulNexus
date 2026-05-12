@@ -187,12 +187,6 @@ export interface GroupSharedResources {
     icon: string
     createdAt: string
   }>
-  knowledgeBases: Array<{
-    id: number
-    knowledge_key: string
-    knowledge_name: string
-    created_at: string
-  }>
 }
 
 // 获取组织共享的资源

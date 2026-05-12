@@ -1,18 +1,20 @@
 // Copyright (c) 2026 LingByte. All rights reserved.
 // SPDX-License-Identifier: AGPL-3.0
 //
-// 厂商配置 schema 集中注册：
-//   - 每个 provider 描述「需要填什么字段」+「字段类型 / 是否必填 / 是否敏感」
-//   - 表单组件根据 schema 渲染对应输入，再序列化为 channel.config_json
-//   - 未在注册表中的 provider 退化为「原始 JSON」编辑
+// 厂商 schema 注册表。
+// **provider 字段的取值必须严格等于后端 pkg/recognizer (ASR) 与 pkg/synthesizer (TTS) 中的注册名**，
+// 后端不做任何归一化映射（不再有 tencent_tts → tencent 这种隐式映射）。
 //
-// 命名约定：
-//   - field.name 是落到 config_json 的 key（保持后端 snake_case 风格）
-//   - field.secret=true 表示「敏感字段」（密码/密钥），UI 用 password input
-//   - field.placeholder 仅做提示，不参与默认值
-//   - 默认值放在 field.default 中
+// - ASR: 见 pkg/recognizer/factory.go Vendor 常量（qcloud / aliyun / xunfei_mul / funasr / whisper / baidu / google / aws / volcengine / qiniu / local …）
+// - TTS: 见 pkg/synthesizer/synthesis.go NewSynthesisServiceFromCredential 中 switch 的 case
+//        （qcloud | tencent / xunfei / qiniu / baidu / azure / openai / elevenlabs / minimax / volcengine / fishaudio / fishspeech / local …）
 //
-// 后续要新增厂商：在对应分类追加条目即可，无需改 UI。
+// 字段说明：
+//   - field.name 落到 channel.config_json 的 key；保持后端 snake_case / camelCase 风格
+//   - field.secret=true → password 输入；后端编辑时空值默认沿用原值
+//   - field.placeholder 仅做 UI 提示
+//
+// 后续新增厂商：在对应分类追加条目即可，无需改 UI。
 
 export type ProviderFieldType = 'string' | 'number' | 'password' | 'textarea' | 'select' | 'boolean'
 
@@ -31,7 +33,7 @@ export interface ProviderField {
 }
 
 export interface ProviderSchema {
-  /** 唯一标识，对应 channel.provider */
+  /** 唯一标识，对应 channel.provider；必须与后端注册名一致。 */
   provider: string
   /** 人类可读名 */
   label: string
@@ -41,8 +43,6 @@ export interface ProviderSchema {
   fields: ProviderField[]
   /** 备注 / 使用说明 */
   notes?: string
-  /** 该 provider 默认使用的模型 / 音色提示，UI 把它注入 models 字段的 placeholder。 */
-  modelsHint?: string
 }
 
 // ============================================================
@@ -64,34 +64,24 @@ const FIELD_ENDPOINT_OPTIONAL: ProviderField = {
   placeholder: '留空使用官方默认',
 }
 
-const FIELD_REGION: ProviderField = {
-  name: 'region',
-  label: 'Region',
-  type: 'string',
-  placeholder: '如 ap-shanghai / eastus',
-}
-
 // ============================================================
-// ASR Providers
+// ASR Providers — 与 pkg/recognizer/factory.go 的 Vendor 常量一一对应
 // ============================================================
 export const ASR_PROVIDERS: ProviderSchema[] = [
   {
-    provider: 'tencent_asr',
+    provider: 'qcloud',
     label: '腾讯云 · 语音识别',
     docs: 'https://cloud.tencent.com/document/product/1093',
-    modelsHint: '16k_zh,16k_zh_video,16k_en',
     fields: [
-      { name: 'app_id', label: 'AppID', type: 'string', required: true, placeholder: '腾讯云 AppID' },
+      { name: 'app_id', label: 'AppID', type: 'string', required: true },
       { name: 'secret_id', label: 'SecretId', type: 'string', required: true, secret: true },
       { name: 'secret_key', label: 'SecretKey', type: 'password', required: true, secret: true },
-      { ...FIELD_REGION, default: 'ap-shanghai' },
     ],
   },
   {
-    provider: 'aliyun_funasr',
-    label: '阿里云 · 智能语音交互（FunASR / Paraformer）',
+    provider: 'aliyun',
+    label: '阿里云 · 智能语音交互',
     docs: 'https://help.aliyun.com/zh/isi',
-    modelsHint: 'paraformer-realtime-v2,paraformer-v2',
     fields: [
       { name: 'app_key', label: 'AppKey', type: 'string', required: true },
       { name: 'access_key_id', label: 'AccessKeyId', type: 'string', required: true, secret: true },
@@ -100,10 +90,9 @@ export const ASR_PROVIDERS: ProviderSchema[] = [
     ],
   },
   {
-    provider: 'xfyun_asr',
-    label: '讯飞 · 语音听写',
+    provider: 'xfyun_mul',
+    label: '科大讯飞 · 多语种语音听写',
     docs: 'https://www.xfyun.cn/doc/asr/voicedictation/API.html',
-    modelsHint: 'iat,rtasr',
     fields: [
       { name: 'app_id', label: 'AppID', type: 'string', required: true },
       { name: 'api_key', label: 'APIKey', type: 'password', required: true, secret: true },
@@ -111,10 +100,9 @@ export const ASR_PROVIDERS: ProviderSchema[] = [
     ],
   },
   {
-    provider: 'baidu_asr',
+    provider: 'baidu',
     label: '百度智能云 · 短语音识别',
     docs: 'https://ai.baidu.com/ai-doc/SPEECH/Vk38lxily',
-    modelsHint: 'pro,standard',
     fields: [
       { name: 'app_id', label: 'AppID', type: 'string', required: true },
       { name: 'api_key', label: 'API Key', type: 'password', required: true, secret: true },
@@ -122,82 +110,129 @@ export const ASR_PROVIDERS: ProviderSchema[] = [
     ],
   },
   {
-    provider: 'azure',
-    label: 'Microsoft Azure · Speech Services',
-    docs: 'https://learn.microsoft.com/azure/cognitive-services/speech-service/',
-    modelsHint: 'zh-CN,en-US',
+    provider: 'google',
+    label: 'Google Cloud Speech-to-Text',
+    docs: 'https://cloud.google.com/speech-to-text/docs',
     fields: [
-      { name: 'subscription_key', label: 'Subscription Key', type: 'password', required: true, secret: true },
-      { ...FIELD_REGION, required: true, placeholder: '如 eastasia / eastus' },
-      { name: 'endpoint', label: '自定义 Endpoint', type: 'string', help: '留空走 Region 默认' },
+      { name: 'credentials_json', label: 'Service Account JSON', type: 'textarea', required: true, secret: true, help: '直接粘贴 GCP service-account JSON 内容' },
     ],
   },
   {
-    provider: 'whisper',
-    label: 'OpenAI · Whisper（兼容端点）',
-    docs: 'https://platform.openai.com/docs/api-reference/audio',
-    modelsHint: 'whisper-1',
+    provider: 'aws',
+    label: 'AWS Transcribe',
+    docs: 'https://docs.aws.amazon.com/transcribe/',
     fields: [
-      { ...FIELD_API_KEY },
-      { ...FIELD_ENDPOINT_OPTIONAL, placeholder: 'https://api.openai.com/v1' },
-      { name: 'organization', label: 'OpenAI Organization', type: 'string' },
+      { name: 'access_key_id', label: 'Access Key ID', type: 'string', required: true, secret: true },
+      { name: 'secret_access_key', label: 'Secret Access Key', type: 'password', required: true, secret: true },
+      { name: 'region', label: 'Region', type: 'string', required: true, placeholder: 'us-east-1' },
     ],
   },
   {
-    provider: 'volcengine_asr',
+    provider: 'volcengine',
     label: '火山引擎 · 语音识别',
     docs: 'https://www.volcengine.com/docs/6561',
-    modelsHint: 'bigmodel,streaming',
     fields: [
       { name: 'app_id', label: 'AppID', type: 'string', required: true },
       { name: 'access_token', label: 'Access Token', type: 'password', required: true, secret: true },
       { name: 'cluster', label: 'Cluster', type: 'string', placeholder: 'volcengine_streaming_common' },
     ],
   },
+  {
+    provider: 'volcllmasr',
+    label: '火山引擎 · 大模型 ASR',
+    docs: 'https://www.volcengine.com/docs/6561',
+    fields: [
+      { name: 'app_id', label: 'AppID', type: 'string', required: true },
+      { name: 'access_token', label: 'Access Token', type: 'password', required: true, secret: true },
+    ],
+  },
+  {
+    provider: 'funasr',
+    label: 'FunASR（自托管）',
+    docs: 'https://github.com/modelscope/FunASR',
+    fields: [
+      { ...FIELD_ENDPOINT_OPTIONAL, required: true, placeholder: 'ws://127.0.0.1:10095' },
+    ],
+  },
+  {
+    provider: 'funasr_realtime',
+    label: 'FunASR 实时（自托管）',
+    docs: 'https://github.com/modelscope/FunASR',
+    fields: [
+      { ...FIELD_ENDPOINT_OPTIONAL, required: true, placeholder: 'ws://127.0.0.1:10096' },
+    ],
+  },
+  {
+    provider: 'whisper',
+    label: 'OpenAI Whisper（兼容端点）',
+    docs: 'https://platform.openai.com/docs/api-reference/audio',
+    fields: [
+      { ...FIELD_API_KEY },
+      { ...FIELD_ENDPOINT_OPTIONAL, placeholder: 'https://api.openai.com/v1' },
+    ],
+  },
+  {
+    provider: 'deepgram',
+    label: 'Deepgram',
+    docs: 'https://developers.deepgram.com/',
+    fields: [
+      { ...FIELD_API_KEY },
+      { ...FIELD_ENDPOINT_OPTIONAL, placeholder: 'https://api.deepgram.com' },
+    ],
+  },
+  {
+    provider: 'gladia',
+    label: 'Gladia',
+    docs: 'https://docs.gladia.io/',
+    fields: [{ ...FIELD_API_KEY }],
+  },
+  {
+    provider: 'qiniu',
+    label: '七牛云 · 语音识别',
+    docs: 'https://developer.qiniu.com/',
+    fields: [
+      { name: 'api_key', label: 'API Key', type: 'password', required: true, secret: true },
+      { ...FIELD_ENDPOINT_OPTIONAL },
+    ],
+  },
+  {
+    provider: 'voiceapi',
+    label: 'VoiceAPI（自定义 HTTP）',
+    docs: '',
+    fields: [
+      { ...FIELD_ENDPOINT_OPTIONAL, required: true, placeholder: 'http://127.0.0.1:8000' },
+    ],
+  },
+  {
+    provider: 'local',
+    label: '本地 ASR（自部署）',
+    fields: [
+      { ...FIELD_ENDPOINT_OPTIONAL, required: true, placeholder: 'http://127.0.0.1:8000' },
+    ],
+    notes: '完全离线 / 私有部署，无需鉴权时填占位 endpoint 即可。',
+  },
 ]
 
 // ============================================================
-// TTS Providers
+// TTS Providers — 与 pkg/synthesizer/synthesis.go NewSynthesisServiceFromCredential 的 case 一一对应
+// （注：synthesizer 同时接受 "qcloud" 与 "tencent" 两个别名，统一使用 "qcloud"）
 // ============================================================
 export const TTS_PROVIDERS: ProviderSchema[] = [
   {
-    provider: 'tencent_tts',
+    provider: 'qcloud',
     label: '腾讯云 · 语音合成',
     docs: 'https://cloud.tencent.com/document/product/1073',
-    modelsHint: '101001,101002,201001 (VoiceType)',
+    // 音色（voiceType）/ 音频编码（format）/ 地域（region） 均由调用方在请求里指定。
     fields: [
       { name: 'app_id', label: 'AppID', type: 'string', required: true },
       { name: 'secret_id', label: 'SecretId', type: 'string', required: true, secret: true },
       { name: 'secret_key', label: 'SecretKey', type: 'password', required: true, secret: true },
-      { ...FIELD_REGION, default: 'ap-shanghai' },
-      {
-        name: 'codec',
-        label: '音频编码',
-        type: 'select',
-        default: 'mp3',
-        options: [
-          { value: 'mp3', label: 'mp3' },
-          { value: 'pcm', label: 'pcm' },
-          { value: 'wav', label: 'wav' },
-        ],
-      },
     ],
   },
   {
-    provider: 'aliyun_cosyvoice',
-    label: '阿里云 · CosyVoice / 语音合成',
-    docs: 'https://help.aliyun.com/zh/dashscope/developer-reference/cosyvoice-quick-start',
-    modelsHint: 'cosyvoice-v1,longxiaobai,longxiaochun,longwan',
-    fields: [
-      { name: 'api_key', label: 'DashScope API Key', type: 'password', required: true, secret: true },
-      { ...FIELD_ENDPOINT_OPTIONAL, placeholder: 'https://dashscope.aliyuncs.com/api/v1' },
-    ],
-  },
-  {
-    provider: 'xfyun_tts',
-    label: '讯飞 · 在线语音合成',
+    provider: 'xunfei',
+    label: '科大讯飞 · 在线语音合成',
     docs: 'https://www.xfyun.cn/doc/tts/online_tts/API.html',
-    modelsHint: 'xiaoyan,aisjiuxu,aisxping',
     fields: [
       { name: 'app_id', label: 'AppID', type: 'string', required: true },
       { name: 'api_key', label: 'APIKey', type: 'password', required: true, secret: true },
@@ -205,97 +240,114 @@ export const TTS_PROVIDERS: ProviderSchema[] = [
     ],
   },
   {
-    provider: 'baidu_tts',
+    provider: 'qiniu',
+    label: '七牛云 · 语音合成',
+    docs: 'https://developer.qiniu.com/',
+    fields: [
+      { name: 'api_key', label: 'API Key', type: 'password', required: true, secret: true },
+      { ...FIELD_ENDPOINT_OPTIONAL },
+    ],
+  },
+  {
+    provider: 'baidu',
     label: '百度智能云 · 语音合成',
     docs: 'https://ai.baidu.com/ai-doc/SPEECH/3k38y8h9b',
-    modelsHint: '0,1,3,4,5,103,106 (per_id)',
     fields: [
-      { name: 'app_id', label: 'AppID', type: 'string', required: true },
-      { name: 'api_key', label: 'API Key', type: 'password', required: true, secret: true },
-      { name: 'secret_key', label: 'Secret Key', type: 'password', required: true, secret: true },
+      { name: 'token', label: 'Access Token', type: 'password', required: true, secret: true },
+    ],
+  },
+  {
+    provider: 'google',
+    label: 'Google Cloud Text-to-Speech',
+    docs: 'https://cloud.google.com/text-to-speech/docs',
+    fields: [
+      { name: 'credentials_json', label: 'Service Account JSON', type: 'textarea', required: true, secret: true },
+    ],
+  },
+  {
+    provider: 'aws',
+    label: 'AWS Polly',
+    docs: 'https://docs.aws.amazon.com/polly/',
+    fields: [
+      { name: 'access_key_id', label: 'Access Key ID', type: 'string', required: true, secret: true },
+      { name: 'secret_access_key', label: 'Secret Access Key', type: 'password', required: true, secret: true },
+      { name: 'region', label: 'Region', type: 'string', required: true, placeholder: 'us-east-1' },
     ],
   },
   {
     provider: 'azure',
     label: 'Microsoft Azure · Neural TTS',
     docs: 'https://learn.microsoft.com/azure/cognitive-services/speech-service/',
-    modelsHint: 'zh-CN-XiaoxiaoNeural,en-US-AriaNeural',
     fields: [
       { name: 'subscription_key', label: 'Subscription Key', type: 'password', required: true, secret: true },
-      { ...FIELD_REGION, required: true, placeholder: '如 eastasia / eastus' },
-      { name: 'endpoint', label: '自定义 Endpoint', type: 'string', help: '留空走 Region 默认' },
+      { name: 'region', label: 'Region', type: 'string', required: true, placeholder: '如 eastasia / eastus' },
     ],
   },
   {
     provider: 'openai',
-    label: 'OpenAI · TTS（兼容端点）',
+    label: 'OpenAI TTS',
     docs: 'https://platform.openai.com/docs/guides/text-to-speech',
-    modelsHint: 'tts-1,tts-1-hd',
     fields: [
       { ...FIELD_API_KEY },
       { ...FIELD_ENDPOINT_OPTIONAL, placeholder: 'https://api.openai.com/v1' },
-      {
-        name: 'voice',
-        label: '默认音色（voice）',
-        type: 'select',
-        default: 'alloy',
-        options: [
-          { value: 'alloy', label: 'alloy' },
-          { value: 'echo', label: 'echo' },
-          { value: 'fable', label: 'fable' },
-          { value: 'onyx', label: 'onyx' },
-          { value: 'nova', label: 'nova' },
-          { value: 'shimmer', label: 'shimmer' },
-        ],
-      },
-    ],
-  },
-  {
-    provider: 'edge',
-    label: 'Edge TTS（免费 · 无需鉴权）',
-    docs: 'https://github.com/rany2/edge-tts',
-    modelsHint: 'zh-CN-XiaoxiaoNeural,zh-CN-YunxiNeural',
-    fields: [
-      {
-        name: 'proxy',
-        label: '可选代理 URL',
-        type: 'string',
-        placeholder: '形如 http://127.0.0.1:7890',
-        help: '部分网络环境直连受限时填写',
-      },
-    ],
-    notes: 'Edge TTS 调用微软线上 Neural 音色接口，免密钥；仅依赖出网。',
-  },
-  {
-    provider: 'minimax',
-    label: 'MiniMax · TTS',
-    docs: 'https://www.minimaxi.com/document/guides/T2A-model',
-    modelsHint: 'speech-01,speech-02',
-    fields: [
-      { name: 'group_id', label: 'Group ID', type: 'string', required: true },
-      { name: 'api_key', label: 'API Key', type: 'password', required: true, secret: true },
     ],
   },
   {
     provider: 'elevenlabs',
     label: 'ElevenLabs',
     docs: 'https://elevenlabs.io/docs/api-reference/overview',
-    modelsHint: 'eleven_multilingual_v2,eleven_turbo_v2',
     fields: [
-      { name: 'api_key', label: 'API Key', type: 'password', required: true, secret: true },
+      { ...FIELD_API_KEY },
       { ...FIELD_ENDPOINT_OPTIONAL, placeholder: 'https://api.elevenlabs.io' },
     ],
   },
   {
-    provider: 'volcengine_tts',
+    provider: 'minimax',
+    label: 'MiniMax · TTS',
+    docs: 'https://www.minimaxi.com/document/guides/T2A-model',
+    fields: [
+      { name: 'group_id', label: 'Group ID', type: 'string', required: true },
+      { name: 'api_key', label: 'API Key', type: 'password', required: true, secret: true },
+    ],
+  },
+  {
+    provider: 'volcengine',
     label: '火山引擎 · 语音合成',
     docs: 'https://www.volcengine.com/docs/6561',
-    modelsHint: 'BV001_streaming,BV002_streaming',
     fields: [
       { name: 'app_id', label: 'AppID', type: 'string', required: true },
       { name: 'access_token', label: 'Access Token', type: 'password', required: true, secret: true },
       { name: 'cluster', label: 'Cluster', type: 'string', placeholder: 'volcano_tts' },
     ],
+  },
+  {
+    provider: 'fishaudio',
+    label: 'FishAudio',
+    docs: 'https://docs.fish.audio/',
+    fields: [{ ...FIELD_API_KEY }],
+  },
+  {
+    provider: 'fishspeech',
+    label: 'FishSpeech（自托管）',
+    docs: 'https://github.com/fishaudio/fish-speech',
+    fields: [{ ...FIELD_ENDPOINT_OPTIONAL, required: true, placeholder: 'http://127.0.0.1:8080' }],
+  },
+  {
+    provider: 'coqui',
+    label: 'Coqui TTS（自托管）',
+    docs: 'https://github.com/coqui-ai/TTS',
+    fields: [{ ...FIELD_ENDPOINT_OPTIONAL, required: true }],
+  },
+  {
+    provider: 'local',
+    label: '本地 TTS（自部署）',
+    fields: [{ ...FIELD_ENDPOINT_OPTIONAL, required: true }],
+  },
+  {
+    provider: 'local_gospeech',
+    label: '本地 GoSpeech（嵌入式）',
+    fields: [],
+    notes: '嵌入式本地合成，无需额外配置。',
   },
 ]
 

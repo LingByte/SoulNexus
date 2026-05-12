@@ -99,12 +99,6 @@ const Home = () => {
             features: [t('tag.jsInjection'), t('tag.painlessIntegration'), t('tag.quickDeploy'), t('tag.standardApi')]
         },
         {
-            title: t('feature.knowledgeBase'),
-            icon: "BookOpen",
-            description: t('feature.knowledgeBaseDesc'),
-            features: [t('tag.docManagement'), t('tag.smartSearch'), t('tag.aiAnalysis'), t('tag.versionControl')]
-        },
-        {
             title: t('feature.workflow'),
             icon: "Activity",
             description: t('feature.workflowDesc'),
@@ -647,10 +641,6 @@ const Home = () => {
                             {
                                 image: '/images/debug-assistant.png',
                                 alt: 'Debug Assistant'
-                            },
-                            {
-                                image: '/images/knowledge.png',
-                                alt: 'Knowledge Base'
                             },
                             {
                                 image: '/images/js-template.png',

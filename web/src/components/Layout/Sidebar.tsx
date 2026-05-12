@@ -9,7 +9,6 @@ import {
   Bot,
   User as UserIcon,
   LogOut,
-  Library,
   Key, // 新增密钥图标
   Smartphone, // 设备管理图标
   GitBranch, // 工作流图标
@@ -81,7 +80,6 @@ const Sidebar = () => {
     { name: t('nav.sidebar.workflow'), href: '/workflows', icon: GitBranch },
     { name: t('nav.sidebar.pluginMarket'), href: '/node-plugins', icon: Package },
     { name: t('nav.sidebar.jsTemplate'), href: '/js-templates', icon: Component },
-    { name: t('nav.sidebar.knowledgeBase'), href: '/knowledge-base', icon: Library },
     { name: t('nav.sidebar.deviceManagement'), href: '/devices', icon: Smartphone },
   ]
 
@@ -96,13 +94,13 @@ const Sidebar = () => {
     },
     {
       title: '运营与管理',
-      items: navigation.filter((item) => ['/alerts', '/js-templates', '/knowledge-base', '/devices'].includes(item.href)),
+      items: navigation.filter((item) => ['/alerts', '/js-templates', '/devices'].includes(item.href)),
     },
   ].filter((section) => section.items.length > 0)
 
   const publicNavs = [t('nav.docs')]
   // 受保护页面名称
-  const privateNavs = [t('nav.sidebar.smartAssistant'), t('nav.sidebar.voiceTraining'), t('voiceprint.title'), t('nav.sidebar.workflow'), t('nav.sidebar.pluginMarket'), t('nav.sidebar.jsTemplate'), t('nav.sidebar.knowledgeBase'), t('nav.sidebar.deviceManagement')]
+  const privateNavs = [t('nav.sidebar.smartAssistant'), t('nav.sidebar.voiceTraining'), t('voiceprint.title'), t('nav.sidebar.workflow'), t('nav.sidebar.pluginMarket'), t('nav.sidebar.jsTemplate'), t('nav.sidebar.deviceManagement')]
 
   const isActive = (path: string) => location.pathname === path
   const isExternalHref = (href: string) => href.startsWith('http')

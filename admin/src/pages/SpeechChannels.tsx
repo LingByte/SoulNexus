@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: AGPL-3.0
 //
 // 语音渠道管理（ASR / TTS）：Tabs 切换两种类型，复用同一 CRUD 逻辑。
-// 两类渠道字段一致（provider/name/group/sort_order/enabled/config_json/models），后端走独立路由。
+// 两类渠道字段一致（provider/name/group/sort_order/enabled/config_json），后端走独立路由。
+// 模型 / 音色 / 编码 / 地域 等参数由调用方在请求里指定，不在渠道层固化。
 
 import { useEffect, useMemo, useState } from 'react'
 import {
@@ -54,7 +55,6 @@ interface FormShape {
   enabled: boolean
   group: string
   sort_order: number
-  models?: string
   /** 仅当用户显式切到「原始 JSON」模式时才使用 */
   config_json?: string
 }
@@ -149,7 +149,6 @@ const SpeechChannels = () => {
       enabled: row.enabled,
       group: row.group || 'default',
       sort_order: row.sort_order || 0,
-      models: row.models || '',
       config_json: row.config_json || '',
     })
     setCurrentProvider(row.provider)
@@ -219,7 +218,6 @@ const SpeechChannels = () => {
         enabled: v.enabled,
         group: (v.group || 'default').trim(),
         sort_order: v.sort_order ?? 0,
-        models: v.models || '',
         config_json: configJSON,
       }
       if (editing) {
@@ -393,21 +391,8 @@ const SpeechChannels = () => {
               <InputNumber min={0} step={1} />
             </FormItem>
           </div>
-          <FormItem
-            label={kind === 'tts' ? '支持模型 / 音色（逗号分隔）' : '支持模型（逗号分隔）'}
-            field="models"
-            extra={
-              activeSchema?.modelsHint
-                ? `示例：${activeSchema.modelsHint}`
-                : kind === 'tts'
-                  ? '示例：cosyvoice-v1,longxiaobai,longxiaochun'
-                  : '示例：whisper-1,paraformer-v2'
-            }
-          >
-            <Input placeholder="逗号分隔，留空表示不限" />
-          </FormItem>
-
-          {/* 厂商配置：注册到 schema 的厂商使用结构化表单；其余 / 用户切换 → 原始 JSON */}
+          {/* 厂商配置：注册到 schema 的厂商使用结构化表单；其余 / 用户切换 → 原始 JSON。
+              说明：模型/音色、音频编码、地域 等参数全部由调用方在请求里指定，不在渠道层固化。 */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-[var(--color-text-1)]">厂商配置</span>
@@ -462,7 +447,6 @@ const SpeechChannels = () => {
             <Row label="启用" value={detail.enabled ? '是' : '否'} />
             <Row label="Group" value={detail.group || 'default'} />
             <Row label="优先级" value={String(detail.sort_order ?? 0)} />
-            <Row label="模型 / 音色" value={detail.models || '-'} />
             <Row label="config_json" value={<pre className="m-0 break-all whitespace-pre-wrap text-xs">{detail.config_json || '-'}</pre>} />
             <Row label="创建时间" value={detail.created_at} />
             <Row label="更新时间" value={detail.updated_at} />
