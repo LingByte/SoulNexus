@@ -1,27 +1,35 @@
-import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
+// Copyright (c) 2026 LingByte. All rights reserved.
+// SPDX-License-Identifier: AGPL-3.0
+//
+// 系统配置管理：使用 Arco Design 的 Table + Modal + Form，对齐 SpeechChannels / LlmChannels 的交互风格。
+// 字段：key / desc / value / format(json|yaml|int|float|bool|text) / autoload / public
+
+import { useEffect, useMemo, useState } from 'react'
 import {
-  Settings,
-  Plus,
+  Table,
+  Input,
+  Select,
+  Button,
+  Tag,
+  Modal,
+  Form,
+  Switch,
+  Popconfirm,
+  Message,
+  Space,
+} from '@arco-design/web-react'
+import {
   Search,
+  RefreshCw,
+  Plus,
   Edit,
   Trash2,
-  RefreshCw,
-  Save,
-  X,
-  CheckCircle2,
   Eye,
   EyeOff,
+  CheckCircle2,
+  XCircle,
 } from 'lucide-react'
-import Card from '@/components/UI/Card'
-import Button from '@/components/UI/Button'
-import Input from '@/components/UI/Input'
-import Badge from '@/components/UI/Badge'
-import EmptyState from '@/components/UI/EmptyState'
-import Modal from '@/components/UI/Modal'
-import ConfirmDialog from '@/components/UI/ConfirmDialog'
-import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/UI/Select'
-import { showAlert } from '@/utils/notification'
+import PageHeader from '@/components/Layout/PageHeader'
 import {
   listConfigs,
   createConfig,
@@ -30,99 +38,112 @@ import {
   type Config,
   type ListConfigsParams,
 } from '@/services/adminApi'
-import { cn } from '@/utils/cn'
 
-const FORMATS = [
-  { value: 'text', label: 'Text' },
-  { value: 'json', label: 'JSON' },
-  { value: 'yaml', label: 'YAML' },
-  { value: 'int', label: 'Integer' },
-  { value: 'float', label: 'Float' },
-  { value: 'bool', label: 'Boolean' },
+const Option = Select.Option
+const FormItem = Form.Item
+const TextArea = Input.TextArea
+
+const FORMATS: Array<{ value: Config['format']; label: string; color: string }> = [
+  { value: 'text', label: 'Text', color: 'gray' },
+  { value: 'json', label: 'JSON', color: 'arcoblue' },
+  { value: 'yaml', label: 'YAML', color: 'purple' },
+  { value: 'int', label: 'Integer', color: 'green' },
+  { value: 'float', label: 'Float', color: 'lime' },
+  { value: 'bool', label: 'Boolean', color: 'orange' },
 ]
 
 const STORAGE_TYPES = [
   { value: 'qiniu', label: '七牛云' },
-  { value: 'cos', label: '腾讯云COS' },
-  { value: 'oss', label: '阿里云OSS' },
+  { value: 'cos', label: '腾讯云 COS' },
+  { value: 'oss', label: '阿里云 OSS' },
   { value: 'minio', label: 'MinIO' },
   { value: 'local', label: '本地存储' },
 ]
 
+const BOOL_OPTIONS = [
+  { label: '全部', value: '' },
+  { label: '是', value: 'true' },
+  { label: '否', value: 'false' },
+]
+
+interface FormShape {
+  key: string
+  desc?: string
+  value: string
+  format: Config['format']
+  autoload: boolean
+  public: boolean
+}
+
 const Configs = () => {
-  const [configs, setConfigs] = useState<Config[]>([])
+  const [rows, setRows] = useState<Config[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(false)
+
+  // 筛选
   const [search, setSearch] = useState('')
-  const [autoloadFilter, setAutoloadFilter] = useState<string>('')
-  const [publicFilter, setPublicFilter] = useState<string>('')
-  const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize] = useState(20)
-  const [showCreateModal, setShowCreateModal] = useState(false)
-  const [showEditModal, setShowEditModal] = useState(false)
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [selectedConfig, setSelectedConfig] = useState<Config | null>(null)
-  const [editingConfig, setEditingConfig] = useState<Config | null>(null)
-  const [showValue, setShowValue] = useState<{ [key: string]: boolean }>({})
+  const [autoloadFilter, setAutoloadFilter] = useState('')
+  const [publicFilter, setPublicFilter] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
 
-  // Form states
-  const [formData, setFormData] = useState({
-    key: '',
-    desc: '',
-    value: '',
-    format: 'text' as Config['format'],
-    autoload: false,
-    public: false,
-  })
+  // 行内值显示/隐藏
+  const [showValue, setShowValue] = useState<Record<string, boolean>>({})
 
-  // 获取配置列表
-  const fetchConfigs = async () => {
+  // 编辑 Modal
+  const [modalOpen, setModalOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [editing, setEditing] = useState<Config | null>(null)
+  const [form] = Form.useForm<FormShape>()
+
+  const fetchRows = async () => {
+    setLoading(true)
     try {
-      setLoading(true)
-      const params: ListConfigsParams = {
-        page: currentPage,
-        page_size: pageSize,
-      }
-      if (search) params.search = search
+      const params: ListConfigsParams = { page, page_size: pageSize }
+      if (search.trim()) params.search = search.trim()
       if (autoloadFilter === 'true') params.autoload = true
       else if (autoloadFilter === 'false') params.autoload = false
       if (publicFilter === 'true') params.public = true
       else if (publicFilter === 'false') params.public = false
-
-      const response = await listConfigs(params)
-      // Normalize value field (backend may return Value with capital V)
-      const normalizedConfigs = (response.configs || []).map(config => ({
-        ...config,
-        value: config.value || (config as any).Value || '',
+      const res = await listConfigs(params)
+      const normalized = (res.configs || []).map((c) => ({
+        ...c,
+        value: c.value || (c as any).Value || '',
       }))
-      setConfigs(normalizedConfigs)
-      setTotal(response.total || 0)
-    } catch (error: any) {
-      showAlert('获取配置列表失败', 'error', error?.msg || error?.message)
+      setRows(normalized)
+      setTotal(res.total || 0)
+    } catch (e: any) {
+      Message.error(`加载失败：${e?.msg || e?.message || e}`)
     } finally {
       setLoading(false)
     }
   }
 
-  // Reset to first page when filters change
   useEffect(() => {
-    if (currentPage === 1) {
-      fetchConfigs()
-    } else {
-      setCurrentPage(1)
+    fetchRows()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, pageSize, autoloadFilter, publicFilter])
+
+  const handleSearch = () => {
+    if (page !== 1) setPage(1)
+    else fetchRows()
+  }
+
+  const toggleShow = (key: string) =>
+    setShowValue((p) => ({ ...p, [key]: !p[key] }))
+
+  const formatValue = (v: string, fmt: Config['format']) => {
+    if (!v) return ''
+    if (fmt === 'json') {
+      try { return JSON.stringify(JSON.parse(v), null, 2) } catch { return v }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, autoloadFilter, publicFilter])
+    return v
+  }
 
-  // Fetch when page changes
-  useEffect(() => {
-    fetchConfigs()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage])
-
-  // 创建配置
-  const handleCreate = () => {
-    setFormData({
+  const openCreate = () => {
+    setEditing(null)
+    form.resetFields()
+    form.setFieldsValue({
       key: '',
       desc: '',
       value: '',
@@ -130,538 +151,316 @@ const Configs = () => {
       autoload: false,
       public: false,
     })
-    setShowCreateModal(true)
+    setModalOpen(true)
   }
 
-  const handleCreateSubmit = async () => {
-    if (!formData.key.trim()) {
-      showAlert('请输入配置键', 'error')
-      return
-    }
-
-    try {
-      setLoading(true)
-      await createConfig(formData)
-      
-      showAlert('创建配置成功', 'success')
-      setShowCreateModal(false)
-      await fetchConfigs()
-    } catch (error: any) {
-      showAlert('创建配置失败', 'error', error?.msg || error?.message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // 编辑配置
-  const handleEdit = (config: Config) => {
-    setEditingConfig(config)
-    setFormData({
-      key: config.key,
-      desc: config.desc || '',
-      value: config.value || config.Value || '',
-      format: config.format || 'text',
-      autoload: config.autoload || false,
-      public: config.public || false,
+  const openEdit = (row: Config) => {
+    setEditing(row)
+    form.setFieldsValue({
+      key: row.key,
+      desc: row.desc || '',
+      value: row.value || (row as any).Value || '',
+      format: row.format || 'text',
+      autoload: !!row.autoload,
+      public: !!row.public,
     })
-    setShowEditModal(true)
+    setModalOpen(true)
   }
 
-  const handleEditSubmit = async () => {
-    if (!editingConfig) return
-
+  const save = async () => {
     try {
-      setLoading(true)
-      await updateConfig(editingConfig.key, {
-        desc: formData.desc,
-        value: formData.value,
-        format: formData.format,
-        autoload: formData.autoload,
-        public: formData.public,
-      })
-      
-      showAlert('更新配置成功', 'success')
-      setShowEditModal(false)
-      setEditingConfig(null)
-      await fetchConfigs()
-    } catch (error: any) {
-      showAlert('更新配置失败', 'error', error?.msg || error?.message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // 删除配置
-  const handleDelete = (config: Config) => {
-    setSelectedConfig(config)
-    setShowDeleteConfirm(true)
-  }
-
-  const confirmDelete = async () => {
-    if (!selectedConfig) return
-
-    try {
-      setLoading(true)
-      await deleteConfig(selectedConfig.key)
-      
-      showAlert('删除配置成功', 'success')
-      setShowDeleteConfirm(false)
-      setSelectedConfig(null)
-      await fetchConfigs()
-    } catch (error: any) {
-      showAlert('删除配置失败', 'error', error?.msg || error?.message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // 切换显示/隐藏值
-  const toggleShowValue = (key: string) => {
-    setShowValue((prev) => ({ ...prev, [key]: !prev[key] }))
-  }
-
-  // 格式化值显示
-  const formatValue = (value: string, format: string) => {
-    if (!value) return ''
-    if (format === 'json' || format === 'yaml') {
-      try {
-        return JSON.stringify(JSON.parse(value), null, 2)
-      } catch {
-        return value
+      const v = await form.validate()
+      // JSON 格式校验
+      if (v.format === 'json' && v.value && v.value.trim()) {
+        try { JSON.parse(v.value) } catch { Message.error('value 不是合法 JSON'); return }
       }
+      setSaving(true)
+      if (editing) {
+        await updateConfig(editing.key, {
+          desc: v.desc,
+          value: v.value,
+          format: v.format,
+          autoload: v.autoload,
+          public: v.public,
+        })
+        Message.success('已保存')
+      } else {
+        await createConfig({
+          key: v.key.trim(),
+          desc: v.desc,
+          value: v.value,
+          format: v.format,
+          autoload: v.autoload,
+          public: v.public,
+        })
+        Message.success('已创建')
+      }
+      setModalOpen(false)
+      fetchRows()
+    } catch (e: any) {
+      if (e?.errorFields) return // form validation
+      Message.error(`保存失败：${e?.msg || e?.message || e}`)
+    } finally {
+      setSaving(false)
     }
-    return value
   }
 
-  const totalPages = Math.ceil(total / pageSize)
+  const remove = async (row: Config) => {
+    try {
+      await deleteConfig(row.key)
+      Message.success('已删除')
+      fetchRows()
+    } catch (e: any) {
+      Message.error(`删除失败：${e?.msg || e?.message || e}`)
+    }
+  }
+
+  // 当前 Modal 中 key 是否为 STORAGE_KIND，用以切换 value 的输入控件
+  const currentKey = Form.useWatch?.('key', form) as string | undefined
+  const isStorageKindKey = (currentKey || '').toUpperCase() === 'STORAGE_KIND'
+
+  const columns = useMemo(
+    () => [
+      {
+        title: '键',
+        dataIndex: 'key',
+        width: 220,
+        render: (v: string) => (
+          <code className="rounded bg-[var(--color-fill-2)] px-2 py-0.5 text-xs font-mono">
+            {v}
+          </code>
+        ),
+      },
+      {
+        title: '描述',
+        dataIndex: 'desc',
+        width: 200,
+        ellipsis: true,
+        render: (v: string) => v || <span className="text-[var(--color-text-3)]">-</span>,
+      },
+      {
+        title: '值',
+        dataIndex: 'value',
+        ellipsis: true,
+        render: (_: any, r: Config) => {
+          const v = r.value || (r as any).Value || ''
+          if (!r.public) {
+            return <span className="text-[var(--color-text-3)] text-xs">-（非公开）</span>
+          }
+          const shown = !!showValue[r.key]
+          return (
+            <div className="flex items-center gap-2">
+              <code className="flex-1 break-words rounded bg-[var(--color-fill-2)] px-2 py-0.5 text-xs font-mono">
+                {shown ? formatValue(v, r.format) : '••••••••'}
+              </code>
+              <Button
+                size="mini"
+                type="text"
+                onClick={() => toggleShow(r.key)}
+                icon={shown ? <EyeOff size={14} /> : <Eye size={14} />}
+              />
+            </div>
+          )
+        },
+      },
+      {
+        title: '格式',
+        dataIndex: 'format',
+        width: 100,
+        render: (v: Config['format']) => {
+          const f = FORMATS.find((x) => x.value === v)
+          return <Tag color={f?.color || 'gray'}>{f?.label || v || 'text'}</Tag>
+        },
+      },
+      {
+        title: '自动加载',
+        dataIndex: 'autoload',
+        width: 100,
+        align: 'center' as const,
+        render: (v: boolean) =>
+          v ? (
+            <CheckCircle2 size={16} className="mx-auto text-green-500" />
+          ) : (
+            <XCircle size={16} className="mx-auto text-[var(--color-text-3)]" />
+          ),
+      },
+      {
+        title: '公开',
+        dataIndex: 'public',
+        width: 80,
+        align: 'center' as const,
+        render: (v: boolean) =>
+          v ? (
+            <CheckCircle2 size={16} className="mx-auto text-green-500" />
+          ) : (
+            <XCircle size={16} className="mx-auto text-[var(--color-text-3)]" />
+          ),
+      },
+      {
+        title: '操作',
+        key: '__actions__',
+        width: 170,
+        fixed: 'right' as const,
+        render: (_: any, r: Config) => (
+          <Space size={4}>
+            <Button size="mini" type="text" onClick={() => openEdit(r)}>
+              <span className="inline-flex items-center gap-1"><Edit size={14} />编辑</span>
+            </Button>
+            <Popconfirm
+              title={`确认删除配置 ${r.key}？`}
+              onOk={() => remove(r)}
+              okText="删除"
+              cancelText="取消"
+            >
+              <Button size="mini" type="text" status="danger">
+                <span className="inline-flex items-center gap-1"><Trash2 size={14} />删除</span>
+              </Button>
+            </Popconfirm>
+          </Space>
+        ),
+      },
+    ],
+    [showValue],
+  )
 
   return (
-    <>
-      <div className="space-y-6">
-        {/* 搜索和过滤 */}
-        <Card>
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="搜索配置键或描述..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            <Select value={autoloadFilter} onValueChange={setAutoloadFilter}>
-              <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue placeholder="自动加载">
-                  {autoloadFilter === '' ? '自动加载: 全部' : autoloadFilter === 'true' ? '自动加载: 是' : '自动加载: 否'}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">全部</SelectItem>
-                <SelectItem value="true">是</SelectItem>
-                <SelectItem value="false">否</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={publicFilter} onValueChange={setPublicFilter}>
-              <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue placeholder="公开">
-                  {publicFilter === '' ? '公开: 全部' : publicFilter === 'true' ? '公开: 是' : '公开: 否'}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">全部</SelectItem>
-                <SelectItem value="true">是</SelectItem>
-                <SelectItem value="false">否</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button
-              variant="outline"
-              onClick={fetchConfigs}
-              disabled={loading}
-              leftIcon={<RefreshCw className={cn('w-4 h-4', loading && 'animate-spin')} />}
-            >
-              刷新
-            </Button>
-            <Button 
-              onClick={handleCreate}
-              leftIcon={<Plus className="w-4 h-4" />}
-            >
-              新建配置
-            </Button>
-          </div>
-        </Card>
-
-        {/* 配置列表 */}
-        <Card>
-          {loading && configs.length === 0 ? (
-            <div className="flex items-center justify-center py-12">
-              <RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : configs.length === 0 ? (
-            <EmptyState
-              icon={Settings}
-              title="暂无配置"
-              description="点击上方按钮创建第一个配置"
+    <div className="space-y-4">
+      <PageHeader
+        title="系统配置"
+        description="维护键值型系统配置（key/value/format）。自动加载项会在启动时被服务读入；公开项允许通过 /api/configs/:key 公开读取。"
+        actions={
+          <Space>
+            <Input
+              prefix={<Search size={14} />}
+              placeholder="搜索 key 或描述"
+              value={search}
+              onChange={(v) => setSearch(v)}
+              onPressEnter={handleSearch}
+              allowClear
+              style={{ width: 240 }}
             />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="text-left p-4 font-medium text-sm w-[15%]">键</th>
-                    <th className="text-left p-4 font-medium text-sm w-[15%]">描述</th>
-                    <th className="text-left p-4 font-medium text-sm w-[35%]">值</th>
-                    <th className="text-left p-4 font-medium text-sm w-[8%]">格式</th>
-                    <th className="text-center p-4 font-medium text-sm w-[8%]">自动加载</th>
-                    <th className="text-center p-4 font-medium text-sm w-[8%]">公开</th>
-                    <th className="text-right p-4 font-medium text-sm w-[11%]">操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {configs.map((config) => (
-                    <motion.tr
-                      key={config.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="border-b border-border hover:bg-accent/50 transition-colors"
-                    >
-                      <td className="p-4">
-                        <code className="text-sm font-mono bg-muted px-2 py-1 rounded">
-                          {config.key}
-                        </code>
-                      </td>
-                      <td className="p-4 text-sm text-muted-foreground">
-                        {config.public ? (config.desc || '-') : '-'}
-                      </td>
-                      <td className="p-4">
-                        {config.public ? (
-                          <div className="flex items-center gap-2">
-                            <code className="text-xs font-mono bg-muted px-2 py-1 rounded flex-1 min-w-0 break-words">
-                              {showValue[config.key]
-                                ? formatValue(config.value || config.Value || '', config.format)
-                                : '••••••••'}
-                            </code>
-                            <button
-                              onClick={() => toggleShowValue(config.key)}
-                              className="text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
-                            >
-                              {showValue[config.key] ? (
-                                <EyeOff className="w-4 h-4" />
-                              ) : (
-                                <Eye className="w-4 h-4" />
-                              )}
-                            </button>
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground text-sm">-</span>
-                        )}
-                      </td>
-                      <td className="p-4">
-                        <Badge variant="outline">{config.format || 'text'}</Badge>
-                      </td>
-                      <td className="p-4 text-center">
-                        {config.autoload ? (
-                          <CheckCircle2 className="w-5 h-5 text-green-500 mx-auto" />
-                        ) : (
-                          <X className="w-5 h-5 text-muted-foreground mx-auto" />
-                        )}
-                      </td>
-                      <td className="p-4 text-center">
-                        {config.public ? (
-                          <CheckCircle2 className="w-5 h-5 text-green-500 mx-auto" />
-                        ) : (
-                          <X className="w-5 h-5 text-muted-foreground mx-auto" />
-                        )}
-                      </td>
-                      <td className="p-4">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEdit(config)}
-                            leftIcon={<Edit className="w-4 h-4" />}
-                          >
-                            编辑
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDelete(config)}
-                            className="text-destructive hover:text-destructive"
-                            leftIcon={<Trash2 className="w-4 h-4" />}
-                          >
-                            删除
-                          </Button>
-                        </div>
-                      </td>
-                    </motion.tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+            <Select
+              value={autoloadFilter}
+              onChange={(v) => setAutoloadFilter(String(v ?? ''))}
+              placeholder="自动加载"
+              style={{ width: 140 }}
+            >
+              {BOOL_OPTIONS.map((o) => (
+                <Option key={`a-${o.value}`} value={o.value}>{`自动加载：${o.label}`}</Option>
+              ))}
+            </Select>
+            <Select
+              value={publicFilter}
+              onChange={(v) => setPublicFilter(String(v ?? ''))}
+              placeholder="公开"
+              style={{ width: 120 }}
+            >
+              {BOOL_OPTIONS.map((o) => (
+                <Option key={`p-${o.value}`} value={o.value}>{`公开：${o.label}`}</Option>
+              ))}
+            </Select>
+            <Button type="primary" onClick={handleSearch}>搜索</Button>
+            <Button onClick={fetchRows}>
+              <span className="inline-flex items-center gap-1">
+                <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> 刷新
+              </span>
+            </Button>
+            <Button type="primary" status="success" onClick={openCreate}>
+              <span className="inline-flex items-center gap-1"><Plus size={14} />新建配置</span>
+            </Button>
+          </Space>
+        }
+      />
 
-          {/* 分页 */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
-              <div className="text-sm text-muted-foreground">
-                共 {total} 条，第 {currentPage} / {totalPages} 页
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                >
-                  上一页
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                >
-                  下一页
-                </Button>
-              </div>
-            </div>
-          )}
-        </Card>
+      <Table
+        rowKey="key"
+        loading={loading}
+        columns={columns as any}
+        data={rows}
+        scroll={{ x: 1200 }}
+        pagination={{
+          current: page,
+          pageSize,
+          total,
+          showTotal: (t: number) => `共 ${t} 条`,
+          sizeCanChange: true,
+          sizeOptions: [10, 20, 50, 100],
+          onChange: (p: number, ps: number) => { setPage(p); setPageSize(ps) },
+        }}
+      />
 
-        {/* 创建配置模态框 */}
-        <Modal
-          isOpen={showCreateModal}
-          onClose={() => setShowCreateModal(false)}
-          title="创建配置"
-          size="lg"
-        >
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">配置键 *</label>
+      <Modal
+        title={editing ? `编辑配置：${editing.key}` : '新建配置'}
+        visible={modalOpen}
+        onCancel={() => setModalOpen(false)}
+        onOk={save}
+        confirmLoading={saving}
+        okText="保存"
+        cancelText="取消"
+        autoFocus={false}
+        style={{ width: 680 }}
+      >
+        <Form form={form} layout="vertical" autoComplete="off">
+          <div className="grid grid-cols-2 gap-3">
+            <FormItem
+              label="配置键 key"
+              field="key"
+              rules={[{ required: true, message: '请输入配置键（建议大写下划线风格）' }]}
+              disabled={!!editing}
+              extra={editing ? '配置键创建后不可修改' : '建议大写下划线，如 STORAGE_KIND'}
+            >
               <Input
-                value={formData.key}
-                onChange={(e) => setFormData({ ...formData, key: e.target.value.toUpperCase() })}
-                placeholder="例如: KEY_SITE_NAME"
+                placeholder="KEY_SITE_NAME"
+                onChange={(v) => form.setFieldsValue({ key: (v || '').toUpperCase() })}
               />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">描述</label>
-              <Input
-                value={formData.desc}
-                onChange={(e) => setFormData({ ...formData, desc: e.target.value })}
-                placeholder="配置项描述"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">值 *</label>
-              {formData.key === 'STORAGE_KIND' ? (
-                <Select
-                  value={formData.value}
-                  onValueChange={(value) => setFormData({ ...formData, value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="选择存储类型" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {STORAGE_TYPES.map((type) => (
-                      <SelectItem key={type.value} value={type.value}>
-                        {type.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <textarea
-                  value={formData.value}
-                  onChange={(e) => setFormData({ ...formData, value: e.target.value })}
-                  placeholder="配置值"
-                  className="w-full min-h-[100px] px-3 py-2 border border-input rounded-md bg-background text-sm"
-                  rows={4}
-                />
-              )}
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">格式</label>
-              <Select
-                value={formData.format}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, format: value as Config['format'] })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {FORMATS.map((format) => (
-                    <SelectItem key={format.value} value={format.value}>
-                      {format.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
+            </FormItem>
+            <FormItem label="格式 format" field="format" rules={[{ required: true }]}>
+              <Select>
+                {FORMATS.map((f) => (
+                  <Option key={f.value} value={f.value}>{f.label}</Option>
+                ))}
               </Select>
-            </div>
-            <div className="flex items-center gap-4">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={formData.autoload}
-                  onChange={(e) => setFormData({ ...formData, autoload: e.target.checked })}
-                  className="w-4 h-4"
-                />
-                <span className="text-sm">自动加载</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={formData.public}
-                  onChange={(e) => setFormData({ ...formData, public: e.target.checked })}
-                  className="w-4 h-4"
-                />
-                <span className="text-sm">公开</span>
-              </label>
-            </div>
-            <div className="flex justify-end gap-2 pt-4">
-              <Button variant="outline" onClick={() => setShowCreateModal(false)}>
-                取消
-              </Button>
-              <Button 
-                onClick={handleCreateSubmit} 
-                disabled={loading}
-                leftIcon={<Save className="w-4 h-4" />}
-              >
-                创建
-              </Button>
-            </div>
+            </FormItem>
           </div>
-        </Modal>
 
-        {/* 编辑配置模态框 */}
-        <Modal
-          isOpen={showEditModal}
-          onClose={() => {
-            setShowEditModal(false)
-            setEditingConfig(null)
-          }}
-          title="编辑配置"
-          size="lg"
-        >
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">配置键</label>
-              <Input value={formData.key} disabled className="bg-muted" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">描述</label>
-              <Input
-                value={formData.desc}
-                onChange={(e) => setFormData({ ...formData, desc: e.target.value })}
-                placeholder="配置项描述"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">值 *</label>
-              {formData.key === 'STORAGE_KIND' ? (
-                <Select
-                  value={formData.value}
-                  onValueChange={(value) => setFormData({ ...formData, value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="选择存储类型" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {STORAGE_TYPES.map((type) => (
-                      <SelectItem key={type.value} value={type.value}>
-                        {type.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <textarea
-                  value={formData.value}
-                  onChange={(e) => setFormData({ ...formData, value: e.target.value })}
-                  placeholder="配置值"
-                  className="w-full min-h-[100px] px-3 py-2 border border-input rounded-md bg-background text-sm"
-                  rows={4}
-                />
-              )}
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">格式</label>
-              <Select
-                value={formData.format}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, format: value as Config['format'] })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {FORMATS.map((format) => (
-                    <SelectItem key={format.value} value={format.value}>
-                      {format.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
+          <FormItem label="描述 desc" field="desc">
+            <Input placeholder="配置项描述（可空）" />
+          </FormItem>
+
+          <FormItem
+            label="值 value"
+            field="value"
+            extra={
+              isStorageKindKey
+                ? 'STORAGE_KIND 取值仅限以下下拉项'
+                : '格式为 JSON 时会做合法性校验'
+            }
+          >
+            {isStorageKindKey ? (
+              <Select placeholder="选择存储类型">
+                {STORAGE_TYPES.map((t) => (
+                  <Option key={t.value} value={t.value}>{t.label}</Option>
+                ))}
               </Select>
-            </div>
-            <div className="flex items-center gap-4">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={formData.autoload}
-                  onChange={(e) => setFormData({ ...formData, autoload: e.target.checked })}
-                  className="w-4 h-4"
-                />
-                <span className="text-sm">自动加载</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={formData.public}
-                  onChange={(e) => setFormData({ ...formData, public: e.target.checked })}
-                  className="w-4 h-4"
-                />
-                <span className="text-sm">公开</span>
-              </label>
-            </div>
-            <div className="flex justify-end gap-2 pt-4">
-              <Button variant="outline" onClick={() => {
-                setShowEditModal(false)
-                setEditingConfig(null)
-              }}>
-                取消
-              </Button>
-              <Button 
-                onClick={handleEditSubmit} 
-                disabled={loading}
-                leftIcon={<Save className="w-4 h-4" />}
-              >
-                保存
-              </Button>
-            </div>
-          </div>
-        </Modal>
+            ) : (
+              <TextArea
+                rows={6}
+                placeholder="配置值；JSON / YAML 直接粘贴，bool 填 true/false"
+              />
+            )}
+          </FormItem>
 
-        {/* 删除确认对话框 */}
-        <ConfirmDialog
-          isOpen={showDeleteConfirm}
-          onClose={() => {
-            setShowDeleteConfirm(false)
-            setSelectedConfig(null)
-          }}
-          onConfirm={confirmDelete}
-          title="删除配置"
-          message={`确定要删除配置 "${selectedConfig?.key}" 吗？此操作不可恢复。`}
-          confirmText="删除"
-          cancelText="取消"
-          variant="danger"
-          loading={loading}
-        />
-      </div>
-    </>
+          <div className="grid grid-cols-2 gap-3">
+            <FormItem label="自动加载 autoload" field="autoload" triggerPropName="checked" extra="勾选后启动时由服务读入">
+              <Switch />
+            </FormItem>
+            <FormItem label="公开 public" field="public" triggerPropName="checked" extra="勾选后允许公开端点读取此 key 的值">
+              <Switch />
+            </FormItem>
+          </div>
+        </Form>
+      </Modal>
+    </div>
   )
 }
 

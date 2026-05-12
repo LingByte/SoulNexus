@@ -13,7 +13,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/LingByte/SoulNexus"
+	LingEcho "github.com/LingByte/SoulNexus"
 	"github.com/LingByte/SoulNexus/cmd/bootstrap"
 	"github.com/LingByte/SoulNexus/internal/config"
 	handlers "github.com/LingByte/SoulNexus/internal/handler"
@@ -54,7 +54,7 @@ func (app *LingEchoService) RegisterRoutes(r *gin.Engine) {
 
 func main() {
 	// 1. Parse Command Line Parameters
-	// Deprecated: parsed for backward compatibility; bootstrap always runs GORM AutoMigrate when connecting.
+	// 历史 -init 参数保留兼容：当前总是触发 GORM AutoMigrate（与 cmd/auth 保持一致）。
 	init := flag.Bool("init", false, "deprecated: ignored; schema migration always runs at startup")
 	seed := flag.Bool("seed", false, "seed database")
 	mode := flag.String("mode", "", "running environment (development, test, production)")
@@ -247,6 +247,7 @@ func main() {
 
 	// 19. Initialize System Listener
 	listeners.InitLLMListenerWithDB(db)
+	listeners.InitLLMRelayListenerWithDB(db)
 	listeners.InitBillingListenerWithDB(db)
 	listeners.InitSystemListeners()
 

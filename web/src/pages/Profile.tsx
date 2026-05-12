@@ -25,6 +25,7 @@ import { Link, useParams, Navigate } from 'react-router-dom'
 import Billing from '@/pages/Billing.tsx'
 import NotificationCenter from '@/pages/NotificationCenter.tsx'
 import CredentialManager from '@/pages/CredentialManager.tsx'
+import LLMTokenManager from '@/pages/profile/LLMTokenManager.tsx'
 import TeamWorkspacePage from '@/pages/profile/TeamWorkspacePage.tsx'
 import { getUserServiceBaseURL } from '@/config/apiConfig'
 
@@ -36,6 +37,7 @@ const VALID_SECTIONS = new Set([
   'user-devices',
   'integrations',
   'credential',
+  'llm-tokens',
   'notifications',
   'locale',
   'security',
@@ -1683,6 +1685,8 @@ const Profile = () => {
                 {section === 'notifications' && <NotificationCenter />}
 
                 {section === 'credential' && <CredentialManager />}
+
+                {section === 'llm-tokens' && <LLMTokenManager />}
             </FadeIn>
 
       {/* 两步验证设置模态框 */}

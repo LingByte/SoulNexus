@@ -13,7 +13,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/LingByte/SoulNexus"
+	LingEcho "github.com/LingByte/SoulNexus"
 	"github.com/LingByte/SoulNexus/cmd/bootstrap"
 	"github.com/LingByte/SoulNexus/internal/config"
 	handlers "github.com/LingByte/SoulNexus/internal/handler"
@@ -50,7 +50,8 @@ func (app *LingEchoAuthService) registerRoutes(r *gin.Engine) {
 
 func main() {
 	seed := flag.Bool("seed", false, "seed database")
-	init := flag.Bool("init", false, "run GORM AutoMigrate on startup")
+	// 历史 -init 参数兼容保留：当前总是触发 GORM AutoMigrate。
+	_ = flag.Bool("init", false, "deprecated: ignored; schema migration always runs at startup")
 	mode := flag.String("mode", "", "running environment (development, test, production)")
 	initSQL := flag.String("init-sql", "", "path to database init .sql script (optional)")
 	addrFlag := flag.String("addr", "", "HTTP listen address (overrides USER_SERVICE_HTTP_ADDR; default :7074)")
@@ -80,7 +81,7 @@ func main() {
 
 	db, err := bootstrap.SetupDatabase(os.Stdout, &bootstrap.Options{
 		InitSQLPath:   *initSQL,
-		AutoMigrate:   *init,
+		AutoMigrate:   true,
 		SeedNonProd:   *seed,
 		MigrateModels: schema.AuthEntities,
 	})
@@ -97,7 +98,7 @@ func main() {
 		addr = ":7074"
 	}
 
-	logger.Info("user-service listen", zap.String("addr", addr), zap.Bool("init", *init))
+	logger.Info("user-service listen", zap.String("addr", addr), zap.Bool("auto_migrate", true))
 
 	if err := cache.InitGlobalCache(a.Cache); err != nil {
 		logger.Error("failed to initialize cache", zap.Error(err))

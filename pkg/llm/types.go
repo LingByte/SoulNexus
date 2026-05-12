@@ -32,6 +32,7 @@ const (
 )
 
 const (
+	SignalLLMUsage        = constants.SignalLLMUsage
 	SignalLLMRequestStart = constants.SignalLLMRequestStart
 	SignalLLMRequestEnd   = constants.SignalLLMRequestEnd
 	SignalLLMRequestError = constants.SignalLLMRequestError
@@ -281,7 +282,7 @@ type LLMRequestErrorData struct {
 type SessionCreatedData struct {
 	SessionID    string `json:"session_id"`
 	UserID       string `json:"user_id"`
-	AgentID  int64  `json:"agent_id"`
+	AgentID      int64  `json:"agent_id"`
 	Title        string `json:"title"`
 	Provider     string `json:"provider"`
 	Model        string `json:"model"`
@@ -300,4 +301,52 @@ type MessageCreatedData struct {
 	Provider   string `json:"provider"`
 	RequestID  string `json:"request_id"`
 	CreatedAt  int64  `json:"created_at"`
+}
+
+// UsageChannelAttempt 多渠道路由/重试时单次走向（失败后再换渠道成功时形成数组）。
+// 与 internal/models.LLMUsageChannelAttempt 对齐，便于直接 JSON 序列化入库。
+type UsageChannelAttempt struct {
+	Order        int    `json:"order"` // 从 1 递增
+	ChannelID    int    `json:"channel_id"`
+	BaseURL      string `json:"base_url,omitempty"`
+	Success      bool   `json:"success"`
+	StatusCode   int    `json:"status_code,omitempty"`
+	LatencyMs    int64  `json:"latency_ms,omitempty"`
+	TTFTMs       int64  `json:"ttft_ms,omitempty"`
+	ErrorCode    string `json:"error_code,omitempty"`
+	ErrorMessage string `json:"error_message,omitempty"`
+}
+
+// LLMUsageSignalPayload 在 SignalLLMUsage 上由 Relay Gateway 作为 sender 传递；
+// 时间字段为 Unix 毫秒，与 internal/models.LLMUsage 对齐。
+// 注意：内部 in-process 路径（tracking.go）发送的是 map[string]interface{}，listener 需做类型分发。
+type LLMUsageSignalPayload struct {
+	RequestID       string
+	UserID          string
+	Provider        string
+	Model           string
+	BaseURL         string
+	RequestType     string
+	ChannelID       int // 最终成功的 llm_channels.id；全失败时为 0
+	ChannelAttempts []UsageChannelAttempt
+	InputTokens     int
+	OutputTokens    int
+	TotalTokens     int
+	QuotaDelta      int // 凭证侧扣除的额度单位（HTTP 层按模型策略计算）
+	LatencyMs       int64
+	TTFTMs          int64
+	TPS             float64
+	QueueTimeMs     int64
+	RequestContent  string
+	ResponseContent string
+	UserAgent       string
+	IPAddress       string
+	StatusCode      int
+	Success         bool
+	ErrorCode       string
+	ErrorMessage    string
+	RequestedAtMs   int64
+	StartedAtMs     int64
+	FirstTokenAtMs  int64
+	CompletedAtMs   int64
 }
