@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/internal/config"
+	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/graph"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/webrtc/constants"
@@ -65,7 +65,7 @@ func (m *ClientManager) GetClient(sessionID string) (*transports.AIClient, bool)
 }
 
 type ChatRequest struct {
-	AgentID  int64   `json:"agentId" binding:"required"`
+	AgentID      int64   `json:"agentId" binding:"required"`
 	SystemPrompt string  `json:"systemPrompt"`
 	Speaker      string  `json:"speaker"`
 	Language     string  `json:"language"`
@@ -278,14 +278,14 @@ func (h *Handlers) getChatSessionLogsBySession(c *gin.Context) {
 		}
 
 		detail := models.ChatSessionLogDetail{
-			ID:        userMsg.CreatedAt.UnixMilli(),
-			SessionID: sessionID,
-			AgentID:   session.AgentID,
-			AgentName: agentName,
-			ChatType:      models.ChatTypeText,
-			UserMessage:   userMsg.Content,
-			CreatedAt:     userMsg.CreatedAt,
-			UpdatedAt:     userMsg.UpdatedAt,
+			ID:          userMsg.CreatedAt.UnixMilli(),
+			SessionID:   sessionID,
+			AgentID:     session.AgentID,
+			AgentName:   agentName,
+			ChatType:    models.ChatTypeText,
+			UserMessage: userMsg.Content,
+			CreatedAt:   userMsg.CreatedAt,
+			UpdatedAt:   userMsg.UpdatedAt,
 		}
 		if agentMsg != nil {
 			detail.AgentMessage = agentMsg.Content
@@ -377,7 +377,7 @@ func (h *Handlers) getChatSessionLogByAgent(c *gin.Context) {
 		"logs":        logs,
 		"nextCursor":  nextCursor,
 		"hasMoreData": len(logs) == pageSizeInt,
-		"agentId": agentID,
+		"agentId":     agentID,
 	})
 }
 
@@ -529,7 +529,6 @@ func (h *Handlers) handleConnection(c *gin.Context) {
 		conn,
 		transport,
 		sessionID,
-		"",
 		h.db,
 		cred.CreatedBy,
 		cred.ID,

@@ -711,6 +711,35 @@
       };
 
       const $ = (id) => document.getElementById(id);
+
+      // === 密码传输加密：与 web/src/utils/passwordEncrypt.ts 保持一致 ===
+      // 格式：passwordHash:encryptedHash:salt:timestamp(ms)
+      //   passwordHash  = SHA256(原始密码)
+      //   encryptedHash = SHA256(passwordHash + salt + timestamp)
+      // 后端在 models.VerifyEncryptedPassword 中按相同算法校验。
+      const __sha256Hex = async (text) => {
+        const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+        return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+      };
+      const __fetchSalt = async () => {
+        const resp = await fetch('/api/auth/salt', { credentials: 'include' });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || data.code !== 200 || !data.data || !data.data.salt) {
+          throw new Error((data && data.msg) || '获取登录盐失败');
+        }
+        return data.data.salt;
+      };
+      const buildEncryptedPassword = async (rawPassword) => {
+        if (!rawPassword) return '';
+        if (!window.crypto || !crypto.subtle) {
+          throw new Error('当前浏览器不支持安全密码加密，请升级或改用 HTTPS');
+        }
+        const salt = await __fetchSalt();
+        const timestamp = Date.now();
+        const passwordHash = await __sha256Hex(rawPassword);
+        const encryptedHash = await __sha256Hex(passwordHash + salt + timestamp);
+        return passwordHash + ':' + encryptedHash + ':' + salt + ':' + timestamp;
+      };
       const setMessage = (id, text, type) => {
         const el = $(id);
         el.textContent = text || '';
@@ -1096,7 +1125,14 @@
           }
         }
         if (state.mode === 'password') {
-          payload.password = $('password').value;
+          // 安全加固：密码不再以明文传输；走 SHA256 + salt + timestamp 加密格式。
+          try {
+            payload.password = await buildEncryptedPassword($('password').value);
+          } catch (e) {
+            setMessage('login-message', e.message || '密码加密失败', 'error');
+            setBtnLoading('login-submit', false, '登录', '登录中...');
+            return;
+          }
         } else {
           payload.code = $('email-code').value.trim();
         }

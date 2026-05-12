@@ -35,7 +35,6 @@ import VoiceprintManagement from '@/pages/VoiceprintManagement.tsx';
 import Privacy from '@/pages/Privacy.tsx';
 import Terms from '@/pages/Terms.tsx';
 import CookieConsent from '@/components/CookieConsent.tsx';
-import KnowledgeBaseManager from '@/pages/KnowledgeBaseManager.tsx';
 import OIDCCallback from '@/pages/OIDCCallback.tsx';
 import AccountDeletionRequest from '@/pages/AccountDeletionRequest.tsx';
 
@@ -158,13 +157,6 @@ function AppRoutes() {
                             <ProtectedRoute>
                                 <Layout>
                                     <JSTemplateManager />
-                                </Layout>
-                            </ProtectedRoute>
-                        } />
-                        <Route path="/knowledge-base" element={
-                            <ProtectedRoute>
-                                <Layout>
-                                    <KnowledgeBaseManager />
                                 </Layout>
                             </ProtectedRoute>
                         } />

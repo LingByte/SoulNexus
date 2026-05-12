@@ -26,7 +26,6 @@ type HardwareOptions struct {
 	Speaker              string                 // speaker
 	Temperature          float64                // temperature
 	SystemPrompt         string                 // ai system prompt
-	KnowledgeKey         string                 // knowledge key
 	UserID               uint                   // user id
 	DeviceID             *string                // device id
 	MacAddress           string                 // mac address

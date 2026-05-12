@@ -46,7 +46,6 @@ const MailTemplates = lazy(() => import('@/pages/MailTemplates'))
 const MailTemplateEdit = lazy(() => import('@/pages/MailTemplateEdit'))
 const MailLogs = lazy(() => import('@/pages/MailLogs'))
 const SMSLogs = lazy(() => import('@/pages/SMSLogs'))
-const KnowledgeBases = lazy(() => import('@/pages/KnowledgeBases'))
 const Devices = lazy(() => import('@/pages/Devices'))
 const ChatData = lazy(() => import('@/pages/ChatData'))
 
@@ -156,7 +155,6 @@ function App() {
                   <Route path="/mail-templates/:id/edit" element={<MailTemplateEdit />} />
                   <Route path="/mail-logs" element={<MailLogs />} />
                   <Route path="/sms-logs" element={<SMSLogs />} />
-                  <Route path="/knowledge-bases" element={<KnowledgeBases />} />
                   <Route path="/devices" element={<Devices />} />
                   <Route path="/chat-data" element={<ChatData />} />
                 </Route>

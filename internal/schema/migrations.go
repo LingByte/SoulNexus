@@ -30,7 +30,6 @@ func ServerEntities() []any {
 		&models.GroupInvitation{},
 		&models.GroupActivityLog{},
 		&models.Agent{},
-		&models.KnowledgeBase{},
 		&models.ChatSession{},
 		&models.ChatMessage{},
 		&models.LLMUsage{},

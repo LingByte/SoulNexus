@@ -44,7 +44,6 @@ func MigrateGroupTenancyResources(db *gorm.DB) error {
 	steps := []func(*gorm.DB, func(uint) uint) error{
 		migrateDevicesTenancy,
 		migrateAgentsTenancy,
-		migrateKnowledgeBasesTenancy,
 		migrateWorkflowDefinitionsTenancy,
 		migrateJSTemplatesTenancy,
 		migrateVoiceTrainingTenancy,
@@ -94,7 +93,7 @@ func migrateDevicesTenancy(db *gorm.DB, personalOf func(uint) uint) error {
 			continue
 		}
 		if err := db.Model(&Device{}).Where("id = ?", r.ID).Updates(map[string]interface{}{
-			"group_id":    gid,
+			"group_id":   gid,
 			"created_by": r.UserID,
 		}).Error; err != nil {
 			return err
@@ -104,9 +103,9 @@ func migrateDevicesTenancy(db *gorm.DB, personalOf func(uint) uint) error {
 }
 
 type legacyAgentRow struct {
-	ID      int64  `gorm:"column:id"`
-	UserID  uint   `gorm:"column:user_id"`
-	GroupID *uint  `gorm:"column:group_id"`
+	ID      int64 `gorm:"column:id"`
+	UserID  uint  `gorm:"column:user_id"`
+	GroupID *uint `gorm:"column:group_id"`
 }
 
 func (legacyAgentRow) TableName() string { return (&Agent{}).TableName() }
@@ -133,7 +132,7 @@ func migrateAgentsTenancy(db *gorm.DB, personalOf func(uint) uint) error {
 			continue
 		}
 		if err := db.Model(&Agent{}).Where("id = ?", r.ID).Updates(map[string]interface{}{
-			"group_id":    gid,
+			"group_id":   gid,
 			"created_by": r.UserID,
 		}).Error; err != nil {
 			return err
@@ -142,49 +141,10 @@ func migrateAgentsTenancy(db *gorm.DB, personalOf func(uint) uint) error {
 	return db.Migrator().DropColumn(&legacyAgentRow{}, "UserID")
 }
 
-type legacyKBRow struct {
-	ID      uint   `gorm:"column:id"`
-	UserID  uint   `gorm:"column:user_id"`
-	GroupID *uint  `gorm:"column:group_id"`
-}
-
-func (legacyKBRow) TableName() string { return (&KnowledgeBase{}).TableName() }
-
-func migrateKnowledgeBasesTenancy(db *gorm.DB, personalOf func(uint) uint) error {
-	if !db.Migrator().HasTable((&KnowledgeBase{}).TableName()) {
-		return nil
-	}
-	if !db.Migrator().HasColumn(&legacyKBRow{}, "UserID") {
-		return nil
-	}
-	var rows []legacyKBRow
-	if err := db.Find(&rows).Error; err != nil {
-		return err
-	}
-	for _, r := range rows {
-		gid := uint(0)
-		if r.GroupID != nil && *r.GroupID != 0 {
-			gid = *r.GroupID
-		} else {
-			gid = personalOf(r.UserID)
-		}
-		if gid == 0 {
-			continue
-		}
-		if err := db.Model(&KnowledgeBase{}).Where("id = ?", r.ID).Updates(map[string]interface{}{
-			"group_id":    gid,
-			"created_by": r.UserID,
-		}).Error; err != nil {
-			return err
-		}
-	}
-	return db.Migrator().DropColumn(&legacyKBRow{}, "UserID")
-}
-
 type legacyWFRow struct {
-	ID      uint   `gorm:"column:id"`
-	UserID  uint   `gorm:"column:user_id"`
-	GroupID *uint  `gorm:"column:group_id"`
+	ID      uint  `gorm:"column:id"`
+	UserID  uint  `gorm:"column:user_id"`
+	GroupID *uint `gorm:"column:group_id"`
 }
 
 func (legacyWFRow) TableName() string { return "workflow_definitions" }
@@ -211,7 +171,7 @@ func migrateWorkflowDefinitionsTenancy(db *gorm.DB, personalOf func(uint) uint) 
 			continue
 		}
 		if err := db.Model(&WorkflowDefinition{}).Where("id = ?", r.ID).Updates(map[string]interface{}{
-			"group_id":     gid,
+			"group_id":    gid,
 			"creator_uid": r.UserID,
 		}).Error; err != nil {
 			return err
@@ -221,9 +181,9 @@ func migrateWorkflowDefinitionsTenancy(db *gorm.DB, personalOf func(uint) uint) 
 }
 
 type legacyJSRow struct {
-	ID     string `gorm:"column:id"`
-	UserID uint   `gorm:"column:user_id"`
-	GroupID *uint `gorm:"column:group_id"`
+	ID      string `gorm:"column:id"`
+	UserID  uint   `gorm:"column:user_id"`
+	GroupID *uint  `gorm:"column:group_id"`
 }
 
 func (legacyJSRow) TableName() string { return (&JSTemplate{}).TableName() }
@@ -250,7 +210,7 @@ func migrateJSTemplatesTenancy(db *gorm.DB, personalOf func(uint) uint) error {
 			continue
 		}
 		if err := db.Model(&JSTemplate{}).Where("id = ?", r.ID).Updates(map[string]interface{}{
-			"group_id":    gid,
+			"group_id":   gid,
 			"created_by": r.UserID,
 		}).Error; err != nil {
 			return err
@@ -260,9 +220,9 @@ func migrateJSTemplatesTenancy(db *gorm.DB, personalOf func(uint) uint) error {
 }
 
 type legacyVTTaskRow struct {
-	ID      uint   `gorm:"column:id"`
-	UserID  uint   `gorm:"column:user_id"`
-	GroupID *uint  `gorm:"column:group_id"`
+	ID      uint  `gorm:"column:id"`
+	UserID  uint  `gorm:"column:user_id"`
+	GroupID *uint `gorm:"column:group_id"`
 }
 
 func (legacyVTTaskRow) TableName() string { return "voice_training_tasks" }
@@ -289,7 +249,7 @@ func migrateVoiceTrainingTenancy(db *gorm.DB, personalOf func(uint) uint) error 
 			continue
 		}
 		if err := db.Model(&VoiceTrainingTask{}).Where("id = ?", r.ID).Updates(map[string]interface{}{
-			"group_id":    gid,
+			"group_id":   gid,
 			"created_by": r.UserID,
 		}).Error; err != nil {
 			return err
@@ -299,9 +259,9 @@ func migrateVoiceTrainingTenancy(db *gorm.DB, personalOf func(uint) uint) error 
 }
 
 type legacyVCloneRow struct {
-	ID      uint   `gorm:"column:id"`
-	UserID  uint   `gorm:"column:user_id"`
-	GroupID *uint  `gorm:"column:group_id"`
+	ID      uint  `gorm:"column:id"`
+	UserID  uint  `gorm:"column:user_id"`
+	GroupID *uint `gorm:"column:group_id"`
 }
 
 func (legacyVCloneRow) TableName() string { return "voice_clones" }
@@ -328,7 +288,7 @@ func migrateVoiceClonesTenancy(db *gorm.DB, personalOf func(uint) uint) error {
 			continue
 		}
 		if err := db.Model(&VoiceClone{}).Where("id = ?", r.ID).Updates(map[string]interface{}{
-			"group_id":    gid,
+			"group_id":   gid,
 			"created_by": r.UserID,
 		}).Error; err != nil {
 			return err
@@ -361,7 +321,7 @@ func migrateVoiceSynthesesTenancy(db *gorm.DB, personalOf func(uint) uint) error
 			continue
 		}
 		if err := db.Model(&VoiceSynthesis{}).Where("id = ?", r.ID).Updates(map[string]interface{}{
-			"group_id":    gid,
+			"group_id":   gid,
 			"created_by": r.UserID,
 		}).Error; err != nil {
 			return err
@@ -394,7 +354,7 @@ func migrateCallRecordingsTenancy(db *gorm.DB, personalOf func(uint) uint) error
 			continue
 		}
 		if err := db.Model(&CallRecording{}).Where("id = ?", r.ID).Updates(map[string]interface{}{
-			"group_id":    gid,
+			"group_id":   gid,
 			"created_by": r.UserID,
 		}).Error; err != nil {
 			return err
@@ -427,7 +387,7 @@ func migrateUserCredentialsTenancy(db *gorm.DB, personalOf func(uint) uint) erro
 			continue
 		}
 		if err := db.Model(&UserCredential{}).Where("id = ?", r.ID).Updates(map[string]interface{}{
-			"group_id":    gid,
+			"group_id":   gid,
 			"created_by": r.UserID,
 		}).Error; err != nil {
 			return err
@@ -437,9 +397,9 @@ func migrateUserCredentialsTenancy(db *gorm.DB, personalOf func(uint) uint) erro
 }
 
 type legacyWPluginRow struct {
-	ID      uint   `gorm:"column:id"`
-	UserID  uint   `gorm:"column:user_id"`
-	GroupID *uint  `gorm:"column:group_id"`
+	ID      uint  `gorm:"column:id"`
+	UserID  uint  `gorm:"column:user_id"`
+	GroupID *uint `gorm:"column:group_id"`
 }
 
 func (legacyWPluginRow) TableName() string { return "workflow_plugins" }
@@ -466,7 +426,7 @@ func migrateWorkflowPluginsTenancy(db *gorm.DB, personalOf func(uint) uint) erro
 			continue
 		}
 		if err := db.Model(&WorkflowPlugin{}).Where("id = ?", r.ID).Updates(map[string]interface{}{
-			"group_id":    gid,
+			"group_id":   gid,
 			"created_by": r.UserID,
 		}).Error; err != nil {
 			return err
@@ -499,7 +459,7 @@ func migrateWorkflowPluginInstallationsTenancy(db *gorm.DB, personalOf func(uint
 			continue
 		}
 		if err := db.Model(&WorkflowPluginInstallation{}).Where("id = ?", r.ID).Updates(map[string]interface{}{
-			"group_id":    gid,
+			"group_id":   gid,
 			"created_by": r.UserID,
 		}).Error; err != nil {
 			return err

@@ -231,7 +231,6 @@ func (h *Handlers) Register(engine *gin.Engine) {
 	h.registerAgentRoutes(r)
 	h.registerChatRoutes(r)
 	h.registerCredentialsRoutes(r)
-	h.registerKnowledgeBaseRoutes(r)
 	h.registerXunfeiTTSRoutes(r)
 	h.registerVolcengineTTSRoutes(r)
 	h.registerVoiceTrainingRoutes(r)
@@ -551,23 +550,6 @@ func (h *Handlers) registerCredentialsRoutes(r *gin.RouterGroup) {
 		credential.POST("/by-key", h.handleGetCredentialByKey)
 
 		credential.DELETE("/:id", models.AuthRequired, h.handleDeleteCredential)
-	}
-}
-
-// registerKnowledgeBaseRoutes Knowledge Base Module
-func (h *Handlers) registerKnowledgeBaseRoutes(r *gin.RouterGroup) {
-	kb := r.Group("knowledge-base")
-	{
-		kb.GET("", models.AuthRequired, h.ListKnowledgeBases)
-		kb.GET("/supported-document-types", models.AuthRequired, h.ListKnowledgeDocumentFormats)
-		kb.POST("", models.AuthRequired, h.CreateKnowledgeBase)
-		kb.GET("/:id", models.AuthRequired, h.GetKnowledgeBase)
-		kb.PUT("/:id", models.AuthRequired, h.UpdateKnowledgeBase)
-		kb.DELETE("/:id", models.AuthRequired, h.DeleteKnowledgeBase)
-		kb.GET("/:id/documents", models.AuthRequired, h.ListKnowledgeDocuments)
-		kb.POST("/:id/documents/upload", models.AuthRequired, h.UploadKnowledgeDocument)
-		kb.DELETE("/:id/documents", models.AuthRequired, h.DeleteKnowledgeDocument)
-		kb.POST("/:id/recall-test", models.AuthRequired, h.RecallTestKnowledgeBase)
 	}
 }
 
@@ -1014,13 +996,6 @@ func (h *Handlers) registerAdminManagementRoutes(r *gin.RouterGroup) {
 		announcements.POST("/:id/publish", h.handleAdminPublishAnnouncement)
 		announcements.POST("/:id/offline", h.handleAdminOfflineAnnouncement)
 		announcements.DELETE("/:id", h.handleAdminDeleteAnnouncement)
-	}
-
-	knowledgeBase := r.Group("admin/knowledge-bases", adminGuard...)
-	{
-		knowledgeBase.GET("", h.handleAdminListKnowledgeBases)
-		knowledgeBase.GET("/:id", h.handleAdminGetKnowledgeBase)
-		knowledgeBase.DELETE("/:id", h.handleAdminDeleteKnowledgeBase)
 	}
 
 	devices := r.Group("admin/devices", adminGuard...)

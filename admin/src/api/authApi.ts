@@ -1,4 +1,5 @@
 import { authGet, authPost } from '@/api/client'
+import { buildEncryptedPassword } from '@/utils/passwordEncrypt'
 
 export interface CaptchaData {
   id: string
@@ -36,7 +37,9 @@ export const getCaptcha = async (): Promise<CaptchaData> => {
 }
 
 export const loginByPassword = async (payload: LoginPasswordRequest) => {
-  const res = await authPost('/auth/login/password', payload)
+  // 安全加固：永远不向后端发送明文密码，统一在此入口加密。
+  const encrypted = await buildEncryptedPassword(payload.password)
+  const res = await authPost('/auth/login/password', { ...payload, password: encrypted })
   return res
 }
 

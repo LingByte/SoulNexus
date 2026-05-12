@@ -66,12 +66,6 @@ func DefaultOperationLogConfig() *OperationLogConfig {
 				"/api/voice/training/update",
 				"/api/voice/training/delete",
 			},
-			// 知识库重要操作
-			"knowledge": {
-				"/api/knowledge/create",
-				"/api/knowledge/update",
-				"/api/knowledge/delete",
-			},
 			// 群组重要操作
 			"group": {
 				"/api/group/create",
@@ -141,11 +135,6 @@ func DefaultOperationLogConfig() *OperationLogConfig {
 			"/api/voice/training/create": "创建语音训练",
 			"/api/voice/training/update": "更新语音训练",
 			"/api/voice/training/delete": "删除语音训练",
-
-			// 知识库相关操作
-			"/api/knowledge/create": "创建知识库",
-			"/api/knowledge/update": "更新知识库",
-			"/api/knowledge/delete": "删除知识库",
 
 			// 群组相关操作
 			"/api/group/create": "创建群组",
@@ -273,8 +262,6 @@ func (config *OperationLogConfig) GetOperationDescription(method, path string) s
 			return config.getChatOperationDesc(method, path)
 		case "voice":
 			return config.getVoiceOperationDesc(method, path)
-		case "knowledge":
-			return config.getKnowledgeOperationDesc(method, path)
 		case "group":
 			return config.getGroupOperationDesc(method, path)
 		case "workflow":
@@ -412,20 +399,6 @@ func (config *OperationLogConfig) getVoiceOperationDesc(method, path string) str
 		return "删除语音数据"
 	default:
 		return "语音相关操作"
-	}
-}
-
-// getKnowledgeOperationDesc 获取知识库相关操作描述
-func (config *OperationLogConfig) getKnowledgeOperationDesc(method, path string) string {
-	switch method {
-	case "POST":
-		return "创建知识库"
-	case "PUT", "PATCH":
-		return "更新知识库"
-	case "DELETE":
-		return "删除知识库"
-	default:
-		return "知识库相关操作"
 	}
 }
 

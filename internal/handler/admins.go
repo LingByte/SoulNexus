@@ -1751,18 +1751,6 @@ func (h *Handlers) handleAdminDeleteWorkflowPlugin(c *gin.Context) {
 	h.handleAdminDeleteGenericTableItem(c, "workflow_plugins")
 }
 
-func (h *Handlers) handleAdminListKnowledgeBases(c *gin.Context) {
-	h.handleAdminListGenericTable(c, "knowledge_bases", "name", "description", "provider", "index_name")
-}
-
-func (h *Handlers) handleAdminGetKnowledgeBase(c *gin.Context) {
-	h.handleAdminGetGenericTableItem(c, "knowledge_bases")
-}
-
-func (h *Handlers) handleAdminDeleteKnowledgeBase(c *gin.Context) {
-	h.handleAdminDeleteGenericTableItem(c, "knowledge_bases")
-}
-
 func (h *Handlers) handleAdminListInternalNotifications(c *gin.Context) {
 	h.handleAdminListGenericTable(c, "internal_notifications", "title", "content")
 }
