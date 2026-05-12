@@ -2283,14 +2283,14 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 			}
 			if needsEmailVerification {
 				// 需要邮箱验证码，但这里先检查密码是否正确
+				// 密码仅接受加密传输格式：passwordHash:encryptedHash:salt:timestamp。
+				// 明文密码在此路径一律被拒（安全加固：防中间人/日志泄露）。
 				passwordValid := false
-				// 检查是否是加密密码格式（passwordHash:encryptedHash:salt:timestamp）
 				if strings.Contains(form.Password, ":") && len(strings.Split(form.Password, ":")) == 4 {
-					// 加密密码验证
 					passwordValid = models.VerifyEncryptedPassword(form.Password, user.Password)
 				} else {
-					// 明文密码（向后兼容）
-					passwordValid = models.CheckPassword(user, form.Password)
+					logger.Warn("login rejected: plaintext password submission is no longer accepted",
+						zap.String("email", form.Email), zap.Uint("userID", user.ID), zap.String("ip", clientIP))
 				}
 
 				if !passwordValid {
@@ -2333,20 +2333,14 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 			}
 		}
 
-		// 7. 验证密码（支持加密密码和明文密码）
+		// 7. 验证密码：仅接受前端加密传输格式 passwordHash:encryptedHash:salt:timestamp。
+		// 明文密码在这里会被拒；老客户端必须升级。
 		passwordValid := false
-		// 检查是否是加密密码格式（passwordHash:encryptedHash:salt:timestamp）
 		if strings.Contains(form.Password, ":") && len(strings.Split(form.Password, ":")) == 4 {
-			// 加密密码验证
-			logger.Info("Verifying encrypted password",
-				zap.String("email", form.Email))
 			passwordValid = models.VerifyEncryptedPassword(form.Password, user.Password)
-			logger.Info("Encrypted password verification result",
-				zap.String("email", form.Email),
-				zap.Bool("valid", passwordValid))
 		} else {
-			// 明文密码（向后兼容）
-			passwordValid = models.CheckPassword(user, form.Password)
+			logger.Warn("login rejected: plaintext password submission is no longer accepted",
+				zap.String("email", form.Email), zap.Uint("userID", user.ID), zap.String("ip", clientIP))
 		}
 
 		if !passwordValid {

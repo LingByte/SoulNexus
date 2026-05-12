@@ -1,42 +1,32 @@
 // Copyright (c) 2026 LingByte. All rights reserved.
 // SPDX-License-Identifier: AGPL-3.0
 //
-// 会话与用量：Tabs 切换 chat_sessions / chat_messages / llm_usage，每个 tab 独立 Arco Table。
+// 会话明细：Tabs 切换 chat_sessions / chat_messages。
+// 用量统计已迁移到 /llm-usage 页面，本页不再展示 llm_usage。
 import { useEffect, useState } from 'react'
-import { Tabs, Table, Input, Select, Button, Tag, Message, Space, Drawer } from '@arco-design/web-react'
+import { Tabs, Table, Input, Button, Tag, Message, Space, Drawer } from '@arco-design/web-react'
 import { Search, RefreshCw, Eye } from 'lucide-react'
 import PageHeader from '@/components/Layout/PageHeader'
 import {
   listAdminChatMessages,
   listAdminChatSessions,
-  listAdminLLMUsage,
   type AdminChatMessage,
   type AdminChatSession,
-  type AdminLLMUsage,
 } from '@/services/adminApi'
 
 const TabPane = Tabs.TabPane
-const Option = Select.Option
 
-type TabType = 'sessions' | 'messages' | 'usage'
-
-const SUCCESS_OPTIONS = [
-  { label: '全部结果', value: '' },
-  { label: '成功', value: 'true' },
-  { label: '失败', value: 'false' },
-]
+type TabType = 'sessions' | 'messages'
 
 const ChatData = () => {
   const [tab, setTab] = useState<TabType>('sessions')
   const [search, setSearch] = useState('')
   const [sessionId, setSessionId] = useState('')
-  const [success, setSuccess] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
 
   const [sessions, setSessions] = useState<AdminChatSession[]>([])
   const [messages, setMessages] = useState<AdminChatMessage[]>([])
-  const [usage, setUsage] = useState<AdminLLMUsage[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(false)
 
@@ -50,7 +40,7 @@ const ChatData = () => {
         const res = await listAdminChatSessions({ page, pageSize, search: search || undefined })
         setSessions(res.items || [])
         setTotal(res.total || 0)
-      } else if (tab === 'messages') {
+      } else {
         const res = await listAdminChatMessages({
           page,
           pageSize,
@@ -58,16 +48,6 @@ const ChatData = () => {
           session_id: sessionId || undefined,
         })
         setMessages(res.items || [])
-        setTotal(res.total || 0)
-      } else {
-        const res = await listAdminLLMUsage({
-          page,
-          pageSize,
-          search: search || undefined,
-          session_id: sessionId || undefined,
-          success: success || undefined,
-        })
-        setUsage(res.items || [])
         setTotal(res.total || 0)
       }
     } catch (e: any) {
@@ -85,7 +65,7 @@ const ChatData = () => {
   useEffect(() => {
     fetchData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, page, pageSize, sessionId, success])
+  }, [tab, page, pageSize, sessionId])
 
   const handleSearch = () => {
     setPage(1)
@@ -162,69 +142,15 @@ const ChatData = () => {
     },
   ]
 
-  const usageColumns = [
-    { title: 'RequestID', dataIndex: 'request_id', width: 220, ellipsis: true },
-    { title: 'Session', dataIndex: 'session_id', width: 200, ellipsis: true },
-    {
-      title: 'Provider / Model',
-      dataIndex: 'provider',
-      width: 220,
-      ellipsis: true,
-      render: (_: any, r: AdminLLMUsage) => (
-        <span>
-          <Tag color="arcoblue">{r.provider}</Tag>
-          <span className="ml-1 text-xs text-[var(--color-text-3)]">{r.model}</span>
-        </span>
-      ),
-    },
-    { title: 'Tokens', dataIndex: 'total_tokens', width: 100 },
-    {
-      title: 'UA / IP',
-      dataIndex: 'user_agent',
-      ellipsis: true,
-      render: (_: any, r: AdminLLMUsage) => `${r.user_agent || '-'} / ${r.ip_address || '-'}`,
-    },
-    { title: '响应摘要', dataIndex: 'response_content', ellipsis: true },
-    {
-      title: '操作',
-      key: '__actions__',
-      width: 90,
-      fixed: 'right' as const,
-      render: (_: any, r: AdminLLMUsage) => (
-        <Button
-          size="mini"
-          type="text"
-          onClick={() =>
-            setDetail({
-              title: 'LLM 用量详情',
-              rows: [
-                { label: 'RequestID', value: r.request_id },
-                { label: 'Session', value: r.session_id },
-                { label: 'Provider', value: r.provider },
-                { label: 'Model', value: r.model },
-                { label: 'Tokens', value: r.total_tokens },
-                { label: 'UA', value: r.user_agent },
-                { label: 'IP', value: r.ip_address },
-                { label: '响应内容', value: r.response_content },
-              ],
-            })
-          }
-        >
-          <span className="inline-flex items-center gap-1"><Eye size={14} /> 详情</span>
-        </Button>
-      ),
-    },
-  ]
-
-  const data: any[] = tab === 'sessions' ? sessions : tab === 'messages' ? messages : usage
-  const columns: any[] = tab === 'sessions' ? sessionColumns : tab === 'messages' ? messageColumns : usageColumns
+  const data: any[] = tab === 'sessions' ? sessions : messages
+  const columns: any[] = tab === 'sessions' ? sessionColumns : messageColumns
   const rowKey = (r: any) => String(r.id || r.request_id)
 
   return (
     <div className="space-y-4">
       <PageHeader
-        title="会话与用量"
-        description="查看 chat_sessions / chat_messages / llm_usage 三类数据，可按关键字、session、成功状态过滤。"
+        title="会话明细"
+        description="查看 chat_sessions / chat_messages 两类明细数据。Token / 费用统计请到 「LLM 用量」页面查看。"
         actions={
           <Space>
             <Input
@@ -236,7 +162,7 @@ const ChatData = () => {
               allowClear
               style={{ width: 200 }}
             />
-            {(tab === 'messages' || tab === 'usage') && (
+            {tab === 'messages' && (
               <Input
                 placeholder="session_id"
                 value={sessionId}
@@ -245,13 +171,6 @@ const ChatData = () => {
                 allowClear
                 style={{ width: 200 }}
               />
-            )}
-            {tab === 'usage' && (
-              <Select value={success} onChange={(v) => setSuccess(v)} style={{ width: 130 }}>
-                {SUCCESS_OPTIONS.map((o) => (
-                  <Option key={o.value} value={o.value}>{o.label}</Option>
-                ))}
-              </Select>
             )}
             <Button type="primary" onClick={handleSearch}>搜索</Button>
             <Button onClick={fetchData}>
@@ -264,7 +183,6 @@ const ChatData = () => {
       <Tabs activeTab={tab} onChange={(k) => setTab(k as TabType)}>
         <TabPane key="sessions" title="会话" />
         <TabPane key="messages" title="消息" />
-        <TabPane key="usage" title="用量" />
       </Tabs>
 
       <Table

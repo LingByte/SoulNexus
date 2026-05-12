@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react'
 import PageHeader from '@/components/Layout/PageHeader'
-import { Bell, Shield, Globe, Mail, QrCode, Key, RefreshCw } from 'lucide-react'
+import { Shield, Globe, QrCode, Key, RefreshCw } from 'lucide-react'
 import Card from '@/components/UI/Card'
 import Button from '@/components/UI/Button'
 import Input from '@/components/UI/Input'
-import { Switch } from '@/components/UI/Switch'
 import { getConfig, getTwoFactorStatus, setupTwoFactor, enableTwoFactor, disableTwoFactor } from '@/services/adminApi'
 import { showAlert } from '@/utils/notification'
 
@@ -20,16 +19,6 @@ const SITE_LABELS: Record<SiteKey, string> = {
 }
 
 const Settings = () => {
-  const [settings, setSettings] = useState({
-    siteName: 'LingStorage',
-    siteDescription: 'Ling Global File Storage Gateway',
-    emailNotifications: true,
-    pushNotifications: false,
-    twoFactorAuth: false,
-    language: 'zh-CN',
-    timezone: 'Asia/Shanghai',
-  })
-
   // 站点配置
   const [siteConfig, setSiteConfig] = useState<Record<SiteKey, string>>({
     SITE_NAME: '',
@@ -38,21 +27,6 @@ const Settings = () => {
     SITE_LOGO_URL: '',
   })
   const [siteConfigLoading, setSiteConfigLoading] = useState(false)
-  const [mailConfig, setMailConfig] = useState<{
-    host?: string
-    username?: string
-    password?: string
-    port?: string
-    from?: string
-  } | null>(null)
-  const [mailFormData, setMailFormData] = useState({
-    host: '',
-    username: '',
-    password: '',
-    port: '587',
-    from: '',
-  })
-  const [loading, setLoading] = useState(false)
   
   // 2FA states
   const [twoFactorStatus, setTwoFactorStatus] = useState<{
@@ -91,97 +65,12 @@ const Settings = () => {
   }, [])
 
 
-  // 加载邮件配置
-  useEffect(() => {
-    const loadMailConfig = async () => {
-      if (!settings.emailNotifications) {
-        setMailConfig(null)
-        return
-      }
-      try {
-        setLoading(true)
-        const [host, username, password, port, from] = await Promise.all([
-          getConfig('MAIL_HOST').catch(() => null),
-          getConfig('MAIL_USERNAME').catch(() => null),
-          getConfig('MAIL_PASSWORD').catch(() => null),
-          getConfig('MAIL_PORT').catch(() => null),
-          getConfig('MAIL_FROM').catch(() => null),
-        ])
-        
-        const config: any = {}
-        // 检查配置是否存在（即使 value 为空，只要配置对象存在就说明已配置）
-        if (host) {
-          const hostVal = host.value ?? host.Value
-          if (hostVal) {
-            config.host = hostVal
-            setMailFormData(prev => ({ ...prev, host: hostVal }))
-          } else {
-            // 配置存在但值为空（可能是非公开配置），显示占位符
-            config.host = '****'
-            setMailFormData(prev => ({ ...prev, host: '****' }))
-          }
-        }
-        if (username) {
-          const usernameVal = username.value ?? username.Value
-          if (usernameVal) {
-            config.username = usernameVal
-            setMailFormData(prev => ({ ...prev, username: usernameVal }))
-          } else {
-            // 配置存在但值为空（可能是非公开配置），显示占位符
-            config.username = '****'
-            setMailFormData(prev => ({ ...prev, username: '****' }))
-          }
-        }
-        if (password) {
-          // 密码字段始终显示占位符，不显示真实值
-          config.password = '****'
-          setMailFormData(prev => ({ ...prev, password: '****' }))
-        }
-        if (port) {
-          const portVal = port.value ?? port.Value
-          if (portVal) {
-            config.port = portVal
-            setMailFormData(prev => ({ ...prev, port: portVal }))
-          } else {
-            // 配置存在但值为空（可能是非公开配置），显示占位符
-            config.port = '****'
-            setMailFormData(prev => ({ ...prev, port: '****' }))
-          }
-        }
-        if (from) {
-          const fromVal = from.value ?? from.Value
-          if (fromVal) {
-            config.from = fromVal
-            setMailFormData(prev => ({ ...prev, from: fromVal }))
-          } else {
-            // 配置存在但值为空（可能是非公开配置），显示占位符
-            config.from = '****'
-            setMailFormData(prev => ({ ...prev, from: '****' }))
-          }
-        }
-        
-        if (Object.keys(config).length > 0) {
-          setMailConfig(config)
-        } else {
-          setMailConfig(null)
-        }
-      } catch (error) {
-        console.error('加载邮件配置失败:', error)
-        setMailConfig(null)
-      } finally {
-        setLoading(false)
-      }
-    }
-    loadMailConfig()
-  }, [settings.emailNotifications])
-
   // 加载2FA状态
   useEffect(() => {
     const load2FAStatus = async () => {
       try {
         const status = await getTwoFactorStatus()
         setTwoFactorStatus(status)
-        setSettings(prev => ({ ...prev, twoFactorAuth: status.enabled }))
       } catch (error) {
         console.error('加载2FA状态失败:', error)
       }
@@ -215,7 +104,6 @@ const Settings = () => {
       await enableTwoFactor(twoFactorCode)
       showAlert('2FA已启用', 'success')
       setTwoFactorStatus(prev => prev ? { ...prev, enabled: true } : { enabled: true, hasSecret: true })
-      setSettings(prev => ({ ...prev, twoFactorAuth: true }))
       setTwoFactorSetup(null)
       setTwoFactorCode('')
     } catch (error: any) {
@@ -236,7 +124,6 @@ const Settings = () => {
       await disableTwoFactor(twoFactorCode)
       showAlert('2FA已禁用', 'success')
       setTwoFactorStatus(prev => prev ? { ...prev, enabled: false, hasSecret: false } : { enabled: false, hasSecret: false })
-      setSettings(prev => ({ ...prev, twoFactorAuth: false }))
       setTwoFactorSetup(null)
       setTwoFactorCode('')
     } catch (error: any) {
@@ -289,99 +176,7 @@ const Settings = () => {
           </div>
         </Card>
 
-        {/* 通知设置 */}
-        <Card className="p-6">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 rounded-lg bg-green-100 dark:bg-green-900/20 flex items-center justify-center">
-              <Bell className="w-5 h-5 text-green-600 dark:text-green-400" />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-                通知设置
-              </h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                管理通知偏好
-              </p>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-slate-900 dark:text-white">
-                  邮件通知
-                </p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  接收重要事件的邮件通知
-                </p>
-              </div>
-              <Switch
-                checked={settings.emailNotifications}
-                onCheckedChange={() => {}}
-                disabled
-              />
-            </div>
-            
-            {settings.emailNotifications && loading && (
-              <div className="mt-4 text-xs text-slate-500 dark:text-slate-400">
-                加载邮件配置中...
-              </div>
-            )}
-            {/* 邮件配置表单（始终显示，可编辑） */}
-            {settings.emailNotifications && !loading && (
-              <div className="mt-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
-                <div className="flex items-center gap-2 mb-4">
-                  <Mail className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-                  <p className="text-sm font-medium text-slate-900 dark:text-white">
-                    {mailConfig ? '邮件服务器配置' : '配置邮件服务器'}
-                  </p>
-                </div>
-                <div className="space-y-3">
-                  <Input
-                    label="SMTP 服务器 *"
-                    value={mailFormData.host}
-                      disabled
-                    placeholder="smtp.example.com"
-                    required
-                  />
-                  <div className="grid grid-cols-2 gap-3">
-                    <Input
-                      label="端口 *"
-                      value={mailFormData.port}
-                      disabled
-                      placeholder="587"
-                      type="number"
-                      required
-                    />
-                    <Input
-                      label="用户名 *"
-                      value={mailFormData.username}
-                      disabled
-                      placeholder="user@example.com"
-                      required
-                    />
-                  </div>
-                  <Input
-                    label="密码 *"
-                    value={mailFormData.password}
-                      disabled
-                      type="password"
-                      placeholder="已加密保存"
-                      required={false}
-                  />
-                  <Input
-                    label="发件人邮箱 *"
-                    value={mailFormData.from}
-                    disabled
-                    placeholder="noreply@example.com"
-                    type="email"
-                    required
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-        </Card>
+        {/* 通知设置已迁移到「通知中心 → 渠道供应商 / 邮件模板 / 邮件日志」，此处不再重复展示。 */}
 
         {/* 安全设置 */}
         <Card className="p-6">

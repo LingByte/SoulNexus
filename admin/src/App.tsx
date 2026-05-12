@@ -16,6 +16,13 @@ const Settings = lazy(() => import('@/pages/Settings'))
 const Profile = lazy(() => import('@/pages/Profile'))
 const Notifications = lazy(() => import('@/pages/Notifications'))
 const Configs = lazy(() => import('@/pages/Configs'))
+const LlmChannels = lazy(() => import('@/pages/LlmChannels'))
+const LlmAbilities = lazy(() => import('@/pages/LlmAbilities'))
+const LlmModelMetas = lazy(() => import('@/pages/LlmModelMetas'))
+const LlmUsage = lazy(() => import('@/pages/LlmUsage'))
+const LlmTokens = lazy(() => import('@/pages/LlmTokens'))
+const SpeechChannels = lazy(() => import('@/pages/SpeechChannels'))
+const SpeechUsage = lazy(() => import('@/pages/SpeechUsage'))
 const OAuthClients = lazy(() => import('@/pages/OAuthClients'))
 const Users = lazy(() => import('@/pages/Users'))
 const Permissions = lazy(() => import('@/pages/Permissions'))
@@ -42,7 +49,6 @@ const SMSLogs = lazy(() => import('@/pages/SMSLogs'))
 const KnowledgeBases = lazy(() => import('@/pages/KnowledgeBases'))
 const Devices = lazy(() => import('@/pages/Devices'))
 const ChatData = lazy(() => import('@/pages/ChatData'))
-const ServiceHealth = lazy(() => import('@/pages/ServiceHealth'))
 
 function App() {
   const { refreshUserInfo, isAuthenticated } = useAuthStore()
@@ -118,6 +124,13 @@ function App() {
                   <Route path="/profile" element={<Profile />} />
                   <Route path="/notifications" element={<Notifications />} />
                   <Route path="/configs" element={<Configs />} />
+                  <Route path="/llm-channels" element={<LlmChannels />} />
+                  <Route path="/llm-abilities" element={<LlmAbilities />} />
+                  <Route path="/llm-model-metas" element={<LlmModelMetas />} />
+                  <Route path="/llm-usage" element={<LlmUsage />} />
+                  <Route path="/llm-tokens" element={<LlmTokens />} />
+                  <Route path="/speech-channels" element={<SpeechChannels />} />
+                  <Route path="/speech-usage" element={<SpeechUsage />} />
                   <Route path="/oauth-clients" element={<OAuthClients />} />
                   <Route path="/users" element={<Users />} />
                   <Route path="/permissions" element={<Permissions />} />
@@ -146,7 +159,6 @@ function App() {
                   <Route path="/knowledge-bases" element={<KnowledgeBases />} />
                   <Route path="/devices" element={<Devices />} />
                   <Route path="/chat-data" element={<ChatData />} />
-                  <Route path="/service-health" element={<ServiceHealth />} />
                 </Route>
 
               <Route path="/" element={<Navigate to="/users" replace />} />

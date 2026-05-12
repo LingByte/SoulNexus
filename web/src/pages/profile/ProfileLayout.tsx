@@ -24,6 +24,7 @@ const nav = [
   { to: '/profile/user-devices', label: '用户设备', icon: Smartphone },
   { to: '/profile/integrations', label: '第三方账号', icon: Settings },
   { to: '/profile/credential', label: 'API 密钥', icon: Key },
+  { to: '/profile/llm-tokens', label: 'LLM Token', icon: Key },
   { to: '/profile/notifications', label: '通知', icon: Bell },
   { to: '/profile/locale', label: '语言与时区', icon: Globe2 },
   { to: '/profile/security', label: '账户与安全', icon: Shield },

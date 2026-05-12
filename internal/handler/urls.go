@@ -224,7 +224,6 @@ func (h *Handlers) Register(engine *gin.Engine) {
 	// Register Device routes
 	h.registerDeviceRoutes(r)
 	h.registerNotificationRoutes(r)
-	h.registerEmailLogRoutes(r)
 	h.registerSendCloudWebhookRoutes(r)
 	h.registerGroupRoutes(r)
 	h.registerAnnouncementRoutes(r)
@@ -244,7 +243,31 @@ func (h *Handlers) Register(engine *gin.Engine) {
 	h.registerWorkflowPluginRoutes(r) // Add workflow plugin routes
 	h.registerNodePluginRoutes(r)     // Add node plugin routes
 	h.registerOpenAPIRoutes(r)        // Open API (apiKey + apiSecret auth)
+	h.registerLLMRelayRoutes(engine)  // OpenAI/Anthropic 兼容对外网关 /v1/*
 	h.RegisterPublicWorkflowRoutes(r)
+}
+
+// registerLLMRelayRoutes 注册对外 OpenAI/Anthropic 兼容 API 网关。
+// 鉴权走 UserCredential.APIKey；不在 /api 前缀下，直接 /v1/* 与官方 SDK 对齐。
+func (h *Handlers) registerLLMRelayRoutes(engine *gin.Engine) {
+	v1 := engine.Group("/v1")
+	v1.Use(middleware.InjectDB(h.db))
+	{
+		// LLM
+		v1.GET("/models", h.handleRelayOpenAIModelsList)
+		v1.POST("/chat/completions", h.handleRelayOpenAIChat)
+		v1.POST("/messages", h.handleRelayAnthropicMessages)
+
+		// Speech (OpenAI 兼容)
+		v1.POST("/audio/transcriptions", h.handleRelayOpenAIAudioTranscriptions)
+		v1.POST("/audio/speech", h.handleRelayOpenAIAudioSpeech)
+
+		// Speech (LingVoice 兼容 + 流式)
+		v1.POST("/speech/asr/transcribe", h.handleRelaySpeechASRTranscribe)
+		v1.POST("/speech/tts/synthesize", h.handleRelaySpeechTTSSynthesize)
+		v1.GET("/speech/asr/stream", h.handleRelaySpeechASRStream)
+		v1.GET("/speech/tts/stream", h.handleRelaySpeechTTSStream)
+	}
 }
 
 func (h *Handlers) registerAnnouncementRoutes(r *gin.RouterGroup) {
@@ -651,27 +674,6 @@ func (h *Handlers) registerDeviceRoutes(r *gin.RouterGroup) {
 	}
 }
 
-// registerEmailLogRoutes Email/SMS Log Module（legacy 路径保留以兼容老前端，全部走新 mail.MailLog 表）
-func (h *Handlers) registerEmailLogRoutes(r *gin.RouterGroup) {
-	emailLog := r.Group("email-logs")
-	{
-		emailLog.GET("", models.AuthRequired, h.handleListMailLogs)
-		emailLog.GET("/:id", models.AuthRequired, h.handleGetMailLogDetail)
-		emailLog.GET("/stats/summary", models.AuthRequired, h.handleGetMailLogStats)
-	}
-	mailLog := r.Group("mail-logs")
-	{
-		mailLog.GET("", models.AuthRequired, h.handleListMailLogs)
-		mailLog.GET("/:id", models.AuthRequired, h.handleGetMailLogDetail)
-		mailLog.GET("/stats/summary", models.AuthRequired, h.handleGetMailLogStats)
-	}
-	smsLog := r.Group("sms-logs")
-	{
-		smsLog.GET("", models.AuthRequired, h.handleListSMSLogs)
-		smsLog.GET("/:id", models.AuthRequired, h.handleGetSMSLogDetail)
-	}
-}
-
 // registerSendCloudWebhookRoutes SendCloud Webhook Module
 func (h *Handlers) registerSendCloudWebhookRoutes(r *gin.RouterGroup) {
 	webhook := r.Group("webhooks/sendcloud")
@@ -759,6 +761,10 @@ func (h *Handlers) registerAuthRoutes(r *gin.RouterGroup) {
 		auth.POST("/two-factor/disable", models.AuthRequired, h.handleTwoFactorDisable)
 		auth.GET("/two-factor/status", models.AuthRequired, h.handleTwoFactorStatus)
 
+		// 无密码 / Passkey 登录：discoverable，浏览器经 navigator.credentials.get 完成。
+		auth.POST("/passkey/begin", h.handleAuthPasskeyBegin)
+		auth.POST("/passkey/finish", h.handleAuthPasskeyFinish)
+
 		auth.GET("/activity", models.AuthRequired, h.handleGetUserActivity)
 
 		auth.POST("/account-deletion/send-cancel-code", h.handleAccountDeletionSendCancelCode)
@@ -827,6 +833,101 @@ func (h *Handlers) registerAdminManagementRoutes(r *gin.RouterGroup) {
 	llmUsage := r.Group("admin/llm-usage", adminGuard...)
 	{
 		llmUsage.GET("", h.handleAdminListLLMUsage)
+	}
+
+	llmChannels := r.Group("admin/llm-channels", adminGuard...)
+	{
+		llmChannels.GET("", h.handleAdminListLLMChannels)
+		llmChannels.GET("/:id", h.handleAdminGetLLMChannel)
+		llmChannels.POST("", h.handleAdminCreateLLMChannel)
+		llmChannels.PUT("/:id", h.handleAdminUpdateLLMChannel)
+		llmChannels.DELETE("/:id", h.handleAdminDeleteLLMChannel)
+		llmChannels.POST("/:id/sync-abilities", h.handleAdminSyncLLMChannelAbilities)
+	}
+
+	llmAbilities := r.Group("admin/llm-abilities", adminGuard...)
+	{
+		llmAbilities.GET("", h.handleAdminListLLMAbilities)
+	}
+
+	llmModelMetas := r.Group("admin/llm-model-metas", adminGuard...)
+	{
+		llmModelMetas.GET("", h.handleAdminListLLMModelMetas)
+		llmModelMetas.POST("", h.handleAdminUpsertLLMModelMeta)
+		llmModelMetas.PUT("/:id", h.handleAdminUpsertLLMModelMeta)
+		llmModelMetas.DELETE("/:id", h.handleAdminDeleteLLMModelMeta)
+	}
+
+	asrChannels := r.Group("admin/asr-channels", adminGuard...)
+	{
+		asrChannels.GET("", h.handleAdminListASRChannels)
+		asrChannels.GET("/:id", h.handleAdminGetASRChannel)
+		asrChannels.POST("", h.handleAdminCreateASRChannel)
+		asrChannels.PUT("/:id", h.handleAdminUpdateASRChannel)
+		asrChannels.DELETE("/:id", h.handleAdminDeleteASRChannel)
+	}
+
+	ttsChannels := r.Group("admin/tts-channels", adminGuard...)
+	{
+		ttsChannels.GET("", h.handleAdminListTTSChannels)
+		ttsChannels.GET("/:id", h.handleAdminGetTTSChannel)
+		ttsChannels.POST("", h.handleAdminCreateTTSChannel)
+		ttsChannels.PUT("/:id", h.handleAdminUpdateTTSChannel)
+		ttsChannels.DELETE("/:id", h.handleAdminDeleteTTSChannel)
+	}
+
+	speechUsage := r.Group("admin/speech-usage", adminGuard...)
+	{
+		speechUsage.GET("", h.handleAdminListSpeechUsage)
+		speechUsage.GET("/stats", h.handleAdminSpeechUsageStats)
+		speechUsage.GET("/:id", h.handleAdminGetSpeechUsage)
+	}
+
+	meOrgs := r.Group("me/orgs", models.AuthRequired)
+	{
+		meOrgs.GET("", h.handleMeListOrgs)
+	}
+
+	meSpeechUsage := r.Group("me/speech-usage")
+	{
+		meSpeechUsage.GET("", models.AuthRequired, h.handleMeListSpeechUsage)
+	}
+
+	mePasskeys := r.Group("me/passkeys", models.AuthRequired)
+	{
+		mePasskeys.GET("", h.handleMeListPasskeys)
+		mePasskeys.POST("/registration/begin", h.handleMePasskeyRegistrationBegin)
+		mePasskeys.POST("/registration/finish", h.handleMePasskeyRegistrationFinish)
+		mePasskeys.PUT("/:id", h.handleMeUpdatePasskey)
+		mePasskeys.DELETE("/:id", h.handleMeDeletePasskey)
+	}
+
+	meTwoFA := r.Group("me/twofa", models.AuthRequired)
+	{
+		meTwoFA.GET("/status", h.handleMeTwoFAStatus)
+		meTwoFA.POST("/backup-codes/regenerate", h.handleMeTwoFABackupCodesRegenerate)
+		meTwoFA.POST("/backup-codes/use", h.handleMeTwoFABackupCodeUse)
+		meTwoFA.POST("/reset", h.handleMeTwoFAReset)
+	}
+
+	meLLMTokens := r.Group("me/llm-tokens", models.AuthRequired, h.OrgScopeMiddleware())
+	{
+		meLLMTokens.GET("", h.handleMeListLLMTokens)
+		meLLMTokens.POST("", h.handleMeCreateLLMToken)
+		meLLMTokens.PUT("/:id", h.handleMeUpdateLLMToken)
+		meLLMTokens.POST("/:id/regenerate", h.handleMeRegenerateLLMToken)
+		meLLMTokens.DELETE("/:id", h.handleMeDeleteLLMToken)
+	}
+
+	llmTokens := r.Group("admin/llm-tokens", adminGuard...)
+	{
+		llmTokens.GET("", h.handleAdminListLLMTokens)
+		llmTokens.GET("/:id", h.handleAdminGetLLMToken)
+		llmTokens.POST("", h.handleAdminCreateLLMToken)
+		llmTokens.PUT("/:id", h.handleAdminUpdateLLMToken)
+		llmTokens.POST("/:id/regenerate", h.handleAdminRegenerateLLMToken)
+		llmTokens.POST("/:id/reset-usage", h.handleAdminResetLLMTokenUsage)
+		llmTokens.DELETE("/:id", h.handleAdminDeleteLLMToken)
 	}
 
 	security := r.Group("security", adminGuard...)

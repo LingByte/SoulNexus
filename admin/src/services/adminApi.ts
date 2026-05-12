@@ -1454,6 +1454,7 @@ export interface AdminLLMUsage {
   output_tokens: number
   total_tokens: number
   latency_ms: number
+  request_content: string
   response_content: string
   user_agent: string
   ip_address: string
@@ -1475,4 +1476,335 @@ export const listAdminChatMessages = async (params?: { page?: number; pageSize?:
 export const listAdminLLMUsage = async (params?: { page?: number; pageSize?: number; search?: string; session_id?: string; success?: string }) => {
   const res = await get<{ items: AdminLLMUsage[]; total: number; page: number; pageSize: number }>(`${BACKEND_BASE}/admin/llm-usage`, { params })
   return res.data
+}
+
+// ==================== Speech Usage (ASR/TTS) ====================
+export interface AdminSpeechUsage {
+  id: string
+  request_id: string
+  kind: 'asr' | 'tts' | string
+  user_id: number
+  token_id: number
+  group_id: number
+  group_key: string
+  channel_id: number
+  provider: string
+  model: string
+  status: number
+  success: boolean
+  error_msg?: string
+  audio_bytes: number
+  text_chars: number
+  duration_ms: number
+  client_ip: string
+  user_agent?: string
+  req_snap?: string
+  resp_snap?: string
+  created_at: string
+}
+
+export interface AdminSpeechUsageStatsRow {
+  kind: string
+  provider: string
+  total: number
+  success: number
+  failed: number
+}
+
+export const listAdminSpeechUsage = async (params?: {
+  page?: number
+  pageSize?: number
+  search?: string
+  kind?: 'asr' | 'tts' | ''
+  user_id?: number
+  token_id?: number
+  group?: string
+  channel_id?: number
+  provider?: string
+  status?: number
+  success?: string
+  from?: string
+  to?: string
+}) => {
+  const res = await get<{ items: AdminSpeechUsage[]; total: number; page: number; pageSize: number }>(
+    `${BACKEND_BASE}/admin/speech-usage`,
+    { params },
+  )
+  return res.data
+}
+
+export const getAdminSpeechUsage = async (id: string) =>
+  (await get<{ item: AdminSpeechUsage }>(`${BACKEND_BASE}/admin/speech-usage/${encodeURIComponent(id)}`)).data
+
+export const listAdminSpeechUsageStats = async () =>
+  (await get<{ items: AdminSpeechUsageStatsRow[] }>(`${BACKEND_BASE}/admin/speech-usage/stats`)).data
+
+// ==================== LLM Channels API ====================
+export interface LLMChannelInfo {
+  is_multi_key?: boolean
+  multi_key_size?: number
+  multi_key_status_list?: Record<number, number>
+  multi_key_disabled_reason?: Record<number, string>
+  multi_key_disabled_time?: Record<number, number>
+  multi_key_polling_index?: number
+  multi_key_mode?: 'random' | 'polling'
+}
+
+export interface LLMChannel {
+  id: number
+  protocol: string
+  type: number
+  key: string
+  openai_organization?: string | null
+  test_model?: string | null
+  status: number
+  name: string
+  weight?: number | null
+  created_time?: number
+  test_time?: number
+  response_time?: number
+  base_url?: string | null
+  balance?: number
+  balance_updated_time?: number
+  models: string
+  group: string
+  used_quota?: number
+  model_mapping?: string | null
+  status_code_mapping?: string | null
+  priority?: number | null
+  auto_ban?: number | null
+  tag?: string | null
+  channel_info?: LLMChannelInfo
+}
+
+export interface ListLLMChannelsParams {
+  page?: number
+  pageSize?: number
+  search?: string
+  group?: string
+  protocol?: string
+  status?: string
+  mask_key?: string
+}
+
+export const listLLMChannels = async (params?: ListLLMChannelsParams) => {
+  const res = await get<{ channels: LLMChannel[]; total: number; page: number; pageSize: number }>(`${BACKEND_BASE}/admin/llm-channels`, { params })
+  return res.data
+}
+
+export const getLLMChannel = async (id: number) => {
+  const res = await get<{ channel: LLMChannel }>(`${BACKEND_BASE}/admin/llm-channels/${id}`)
+  return res.data.channel
+}
+
+export const createLLMChannel = async (body: Partial<LLMChannel>) => {
+  const res = await post<{ channel: LLMChannel }>(`${BACKEND_BASE}/admin/llm-channels`, body)
+  return res.data.channel
+}
+
+export const updateLLMChannel = async (id: number, body: Partial<LLMChannel>) => {
+  const res = await put<{ channel: LLMChannel }>(`${BACKEND_BASE}/admin/llm-channels/${id}`, body)
+  return res.data.channel
+}
+
+export const deleteLLMChannel = async (id: number) => {
+  await del(`${BACKEND_BASE}/admin/llm-channels/${id}`)
+}
+
+export const syncLLMChannelAbilities = async (id: number) => {
+  await post(`${BACKEND_BASE}/admin/llm-channels/${id}/sync-abilities`, {})
+}
+
+// ==================== LLM Abilities API ====================
+export interface LLMAbility {
+  group: string
+  model: string
+  channel_id: number
+  model_meta_id?: number | null
+  enabled: boolean
+  priority: number
+  weight: number
+  tag?: string | null
+}
+
+export const listLLMAbilities = async (params?: { page?: number; pageSize?: number; group?: string; model?: string; channel_id?: number; enabled?: string }) => {
+  const res = await get<{ abilities: LLMAbility[]; total: number; page: number; pageSize: number }>(`${BACKEND_BASE}/admin/llm-abilities`, { params })
+  return res.data
+}
+
+// ==================== LLM Model Metas API ====================
+export interface LLMModelMeta {
+  id: number
+  model_name: string
+  description?: string
+  tags?: string
+  status: number
+  icon_url?: string
+  vendor?: string
+  sort_order: number
+  context_length?: number | null
+  max_output_tokens?: number | null
+  quota_billing_mode?: string
+  quota_model_ratio: number
+  quota_prompt_ratio: number
+  quota_completion_ratio: number
+  quota_cache_read_ratio: number
+  created_time?: number
+  updated_time?: number
+}
+
+export const listLLMModelMetas = async (params?: { page?: number; pageSize?: number; search?: string; vendor?: string; status?: string }) => {
+  const res = await get<{ items: LLMModelMeta[]; total: number; page: number; pageSize: number }>(`${BACKEND_BASE}/admin/llm-model-metas`, { params })
+  return res.data
+}
+
+export const upsertLLMModelMeta = async (body: Partial<LLMModelMeta>) => {
+  if (body.id) {
+    const res = await put<{ meta: LLMModelMeta }>(`${BACKEND_BASE}/admin/llm-model-metas/${body.id}`, body)
+    return res.data.meta
+  }
+  const res = await post<{ meta: LLMModelMeta }>(`${BACKEND_BASE}/admin/llm-model-metas`, body)
+  return res.data.meta
+}
+
+export const deleteLLMModelMeta = async (id: number) => {
+  await del(`${BACKEND_BASE}/admin/llm-model-metas/${id}`)
+}
+
+// ==================== LLM Tokens API ====================
+export interface LLMToken {
+  id: number
+  user_id: number
+  name: string
+  api_key: string
+  type: 'llm' | 'asr' | 'tts'
+  status: 'active' | 'disabled' | 'expired'
+  group: string
+  model_whitelist: string
+  unlimited_quota: boolean
+  token_quota: number
+  token_used: number
+  quota_used: number
+  request_quota: number
+  request_used: number
+  expires_at?: string | null
+  last_used_at?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ListLLMTokensParams {
+  page?: number
+  pageSize?: number
+  search?: string
+  user_id?: number
+  group?: string
+  status?: string
+  show_key?: string
+}
+
+export interface LLMTokenWriteReq {
+  user_id?: number
+  name?: string
+  type?: 'llm' | 'asr' | 'tts'
+  status?: string
+  group?: string
+  model_whitelist?: string
+  unlimited_quota?: boolean
+  token_quota?: number
+  request_quota?: number
+  expires_at?: string | null
+}
+
+// ==================== Speech Channels (ASR / TTS) ====================
+export interface SpeechChannel {
+  id: number
+  provider: string
+  name: string
+  enabled: boolean
+  group: string
+  sort_order: number
+  models: string
+  config_json?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface SpeechChannelWriteReq {
+  provider: string
+  name: string
+  enabled?: boolean
+  group?: string
+  sort_order?: number
+  models?: string
+  config_json?: string
+}
+
+export interface ListSpeechChannelsParams {
+  page?: number
+  pageSize?: number
+  search?: string
+  group?: string
+  provider?: string
+}
+
+const speechCRUD = (kind: 'asr' | 'tts') => {
+  const base = `${BACKEND_BASE}/admin/${kind}-channels`
+  return {
+    list: async (params?: ListSpeechChannelsParams) => {
+      const res = await get<{ channels: SpeechChannel[]; total: number; page: number; pageSize: number }>(base, { params })
+      return res.data
+    },
+    get: async (id: number) => {
+      const res = await get<{ channel: SpeechChannel }>(`${base}/${id}`)
+      return res.data.channel
+    },
+    create: async (body: SpeechChannelWriteReq) => {
+      const res = await post<{ channel: SpeechChannel }>(base, body)
+      return res.data.channel
+    },
+    update: async (id: number, body: SpeechChannelWriteReq) => {
+      const res = await put<{ channel: SpeechChannel }>(`${base}/${id}`, body)
+      return res.data.channel
+    },
+    remove: async (id: number) => {
+      await del(`${base}/${id}`)
+    },
+  }
+}
+
+export const asrChannelsApi = speechCRUD('asr')
+export const ttsChannelsApi = speechCRUD('tts')
+
+export const listLLMTokens = async (params?: ListLLMTokensParams) => {
+  const res = await get<{ tokens: LLMToken[]; total: number; page: number; pageSize: number }>(`${BACKEND_BASE}/admin/llm-tokens`, { params })
+  return res.data
+}
+
+export const getLLMToken = async (id: number) => {
+  const res = await get<{ token: LLMToken }>(`${BACKEND_BASE}/admin/llm-tokens/${id}`)
+  return res.data.token
+}
+
+export const createLLMToken = async (body: LLMTokenWriteReq) => {
+  const res = await post<{ token: LLMToken; raw_api_key: string }>(`${BACKEND_BASE}/admin/llm-tokens`, body)
+  return res.data
+}
+
+export const updateLLMToken = async (id: number, body: LLMTokenWriteReq) => {
+  const res = await put<{ token: LLMToken }>(`${BACKEND_BASE}/admin/llm-tokens/${id}`, body)
+  return res.data.token
+}
+
+export const regenerateLLMToken = async (id: number) => {
+  const res = await post<{ token: LLMToken; raw_api_key: string }>(`${BACKEND_BASE}/admin/llm-tokens/${id}/regenerate`, {})
+  return res.data
+}
+
+export const resetLLMTokenUsage = async (id: number) => {
+  await post(`${BACKEND_BASE}/admin/llm-tokens/${id}/reset-usage`, {})
+}
+
+export const deleteLLMToken = async (id: number) => {
+  await del(`${BACKEND_BASE}/admin/llm-tokens/${id}`)
 }

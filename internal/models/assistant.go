@@ -44,34 +44,38 @@ type ChatMessage struct {
 
 // LLMUsage LLM用量统计表
 type LLMUsage struct {
-	ID              string    `json:"id" gorm:"primaryKey;type:varchar(64)"`
-	RequestID       string    `json:"request_id" gorm:"type:varchar(64);uniqueIndex;not null"`
-	SessionID       string    `json:"session_id" gorm:"type:varchar(64);index"`
-	Provider        string    `json:"provider" gorm:"type:varchar(50);not null;index"`
-	Model           string    `json:"model" gorm:"type:varchar(100);not null;index"`
-	BaseURL         string    `json:"base_url" gorm:"type:varchar(255)"`
-	RequestType     string    `json:"request_type" gorm:"type:varchar(20);not null"`
-	InputTokens     int       `json:"input_tokens" gorm:"default:0"`
-	OutputTokens    int       `json:"output_tokens" gorm:"default:0"`
-	TotalTokens     int       `json:"total_tokens" gorm:"default:0"`
-	LatencyMs       int64     `json:"latency_ms" gorm:"default:0"`
-	TTFTMs          int64     `json:"ttft_ms" gorm:"default:0"`
-	TPS             float64   `json:"tps" gorm:"default:0"`
-	QueueTimeMs     int64     `json:"queue_time_ms" gorm:"default:0"`
-	RequestContent  string    `json:"request_content" gorm:"type:text"`
-	ResponseContent string    `json:"response_content" gorm:"type:text"`
-	UserAgent       string    `json:"user_agent" gorm:"type:varchar(500)"`
-	IPAddress       string    `json:"ip_address" gorm:"type:varchar(45)"`
-	StatusCode      int       `json:"status_code" gorm:"default:200"`
-	Success         bool      `json:"success" gorm:"default:true"`
-	ErrorCode       string    `json:"error_code" gorm:"type:varchar(50)"`
-	ErrorMessage    string    `json:"error_message" gorm:"type:text"`
-	RequestedAt     time.Time `json:"requested_at" gorm:"not null;index"`
-	StartedAt       time.Time `json:"started_at" gorm:"index"`
-	FirstTokenAt    time.Time `json:"first_token_at" gorm:"index"`
-	CompletedAt     time.Time `json:"completed_at"`
-	CreatedAt       time.Time `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt       time.Time `json:"updated_at" gorm:"autoUpdateTime"`
+	ID              string                  `json:"id" gorm:"primaryKey;type:varchar(64)"`
+	RequestID       string                  `json:"request_id" gorm:"type:varchar(64);uniqueIndex;not null"`
+	SessionID       string                  `json:"session_id" gorm:"type:varchar(64);index"`
+	UserID          string                  `json:"user_id" gorm:"type:varchar(64);index"`
+	Provider        string                  `json:"provider" gorm:"type:varchar(50);not null;index"`
+	Model           string                  `json:"model" gorm:"type:varchar(100);not null;index"`
+	BaseURL         string                  `json:"base_url" gorm:"type:varchar(255)"`
+	RequestType     string                  `json:"request_type" gorm:"type:varchar(256);not null"`
+	InputTokens     int                     `json:"input_tokens" gorm:"default:0"`
+	OutputTokens    int                     `json:"output_tokens" gorm:"default:0"`
+	TotalTokens     int                     `json:"total_tokens" gorm:"default:0"`
+	QuotaDelta      int                     `json:"quota_delta" gorm:"default:0"`
+	LatencyMs       int64                   `json:"latency_ms" gorm:"default:0"`
+	TTFTMs          int64                   `json:"ttft_ms" gorm:"default:0"`
+	TPS             float64                 `json:"tps" gorm:"default:0"`
+	QueueTimeMs     int64                   `json:"queue_time_ms" gorm:"default:0"`
+	RequestContent  string                  `json:"request_content" gorm:"type:text"`
+	ResponseContent string                  `json:"response_content" gorm:"type:text"`
+	UserAgent       string                  `json:"user_agent" gorm:"type:varchar(500)"`
+	IPAddress       string                  `json:"ip_address" gorm:"type:varchar(45)"`
+	StatusCode      int                     `json:"status_code" gorm:"default:200"`
+	Success         bool                    `json:"success" gorm:"default:true"`
+	ErrorCode       string                  `json:"error_code" gorm:"type:varchar(50)"`
+	ErrorMessage    string                  `json:"error_message" gorm:"type:text"`
+	ChannelID       int                     `json:"channel_id" gorm:"index;default:0"`
+	ChannelAttempts LLMUsageChannelAttempts `json:"channel_attempts" gorm:"column:channel_attempts;type:json"`
+	RequestedAt     time.Time               `json:"requested_at" gorm:"not null;index"`
+	StartedAt       time.Time               `json:"started_at" gorm:"index"`
+	FirstTokenAt    time.Time               `json:"first_token_at" gorm:"index"`
+	CompletedAt     time.Time               `json:"completed_at"`
+	CreatedAt       time.Time               `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt       time.Time               `json:"updated_at" gorm:"autoUpdateTime"`
 }
 
 // ChatSessionLog 兼容旧接口返回结构（非持久化表）
@@ -121,13 +125,13 @@ func CreateChatSessionLogWithUsage(db *gorm.DB, userID uint, agentID int64, chat
 	}
 
 	session := ChatSession{
-		ID:      sessionID,
-		UserID:  fmt.Sprintf("%d", userID),
-		AgentID: agentID,
-		Title:   fmt.Sprintf("agent_%d", agentID),
-		Provider:    provider,
-		Model:       model,
-		Status:      "active",
+		ID:       sessionID,
+		UserID:   fmt.Sprintf("%d", userID),
+		AgentID:  agentID,
+		Title:    fmt.Sprintf("agent_%d", agentID),
+		Provider: provider,
+		Model:    model,
+		Status:   "active",
 	}
 	if err := db.Where("id = ?", sessionID).Assign(session).FirstOrCreate(&session).Error; err != nil {
 		return nil, err
@@ -244,14 +248,14 @@ func GetChatSessionLogs(db *gorm.DB, userID uint, pageSize int, cursor int64) ([
 			preview = preview[:50]
 		}
 		logs = append(logs, ChatSessionLogSummary{
-			ID:        s.UpdatedAt.UnixMilli(),
-			SessionID: s.ID,
-			AgentID:   s.AgentID,
-			AgentName: agentName,
-			ChatType:      ChatTypeText,
-			Preview:       preview,
-			CreatedAt:     s.CreatedAt,
-			MessageCount:  int(msgCount),
+			ID:           s.UpdatedAt.UnixMilli(),
+			SessionID:    s.ID,
+			AgentID:      s.AgentID,
+			AgentName:    agentName,
+			ChatType:     ChatTypeText,
+			Preview:      preview,
+			CreatedAt:    s.CreatedAt,
+			MessageCount: int(msgCount),
 		})
 	}
 	return logs, nil
@@ -281,15 +285,15 @@ func GetChatSessionLogDetail(db *gorm.DB, logID int64, userID uint) (*ChatSessio
 
 	last := logs[len(logs)-1]
 	detail := ChatSessionLogDetail{
-		ID:        target.ID,
-		SessionID: target.SessionID,
-		AgentID:   target.AgentID,
-		AgentName: target.AgentName,
-		ChatType:      ChatTypeText,
-		UserMessage:   last.UserMessage,
-		AgentMessage:  last.AgentMessage,
-		CreatedAt:     last.CreatedAt,
-		UpdatedAt:     last.UpdatedAt,
+		ID:           target.ID,
+		SessionID:    target.SessionID,
+		AgentID:      target.AgentID,
+		AgentName:    target.AgentName,
+		ChatType:     ChatTypeText,
+		UserMessage:  last.UserMessage,
+		AgentMessage: last.AgentMessage,
+		CreatedAt:    last.CreatedAt,
+		UpdatedAt:    last.UpdatedAt,
 	}
 
 	var usage LLMUsage
@@ -326,10 +330,10 @@ func GetChatSessionLogsBySession(db *gorm.DB, sessionID string, userID uint) ([]
 		}
 
 		log := ChatSessionLog{
-			ID:        userMsg.CreatedAt.UnixMilli(),
-			SessionID: sessionID,
-			UserID:    userID,
-			AgentID:   session.AgentID,
+			ID:           userMsg.CreatedAt.UnixMilli(),
+			SessionID:    sessionID,
+			UserID:       userID,
+			AgentID:      session.AgentID,
 			ChatType:     ChatTypeText,
 			UserMessage:  userMsg.Content,
 			AgentMessage: "",
@@ -347,30 +351,30 @@ func GetChatSessionLogsBySession(db *gorm.DB, sessionID string, userID uint) ([]
 
 // ChatSessionLogSummary 聊天记录摘要（用于列表显示）
 type ChatSessionLogSummary struct {
-	ID        int64     `json:"id"`
-	SessionID string    `json:"sessionId"`
-	AgentID   int64     `json:"agentId"`
-	AgentName string    `json:"agentName"`
-	ChatType      string    `json:"chatType"`
-	Preview       string    `json:"preview"` // 预览文本（用户消息或AI回复的前50个字符）
-	CreatedAt     time.Time `json:"createdAt"`
-	MessageCount  int       `json:"messageCount"` // 该 session 下的消息数量
+	ID           int64     `json:"id"`
+	SessionID    string    `json:"sessionId"`
+	AgentID      int64     `json:"agentId"`
+	AgentName    string    `json:"agentName"`
+	ChatType     string    `json:"chatType"`
+	Preview      string    `json:"preview"` // 预览文本（用户消息或AI回复的前50个字符）
+	CreatedAt    time.Time `json:"createdAt"`
+	MessageCount int       `json:"messageCount"` // 该 session 下的消息数量
 }
 
 // ChatSessionLogDetail 聊天记录详情（用于详情页面）
 type ChatSessionLogDetail struct {
-	ID        int64     `json:"id"`
-	SessionID string    `json:"sessionId"`
-	AgentID   int64     `json:"agentId"`
-	AgentName string    `json:"agentName"`
-	ChatType      string    `json:"chatType"`
-	UserMessage   string    `json:"userMessage"`
-	AgentMessage  string    `json:"agentMessage"`
-	AudioURL      string    `json:"audioUrl,omitempty"`
-	Duration      int       `json:"duration,omitempty"`
-	LLMUsage      *LLMUsage `json:"llmUsage,omitempty"` // LLM使用信息
-	CreatedAt     time.Time `json:"createdAt"`
-	UpdatedAt     time.Time `json:"updatedAt"`
+	ID           int64     `json:"id"`
+	SessionID    string    `json:"sessionId"`
+	AgentID      int64     `json:"agentId"`
+	AgentName    string    `json:"agentName"`
+	ChatType     string    `json:"chatType"`
+	UserMessage  string    `json:"userMessage"`
+	AgentMessage string    `json:"agentMessage"`
+	AudioURL     string    `json:"audioUrl,omitempty"`
+	Duration     int       `json:"duration,omitempty"`
+	LLMUsage     *LLMUsage `json:"llmUsage,omitempty"` // LLM使用信息
+	CreatedAt    time.Time `json:"createdAt"`
+	UpdatedAt    time.Time `json:"updatedAt"`
 }
 
 func (ChatSession) TableName() string { return "chat_sessions" }
@@ -386,13 +390,13 @@ type JSTemplate struct {
 	Usage                 string    `json:"usage"`                                                            // usage description
 	GroupID               uint      `json:"group_id" gorm:"index"`
 	CreatedBy             uint      `json:"created_by" gorm:"index"`
-	Version               uint      `json:"version" gorm:"default:1"`                                         // 当前版本号
-	Status                string    `json:"status" gorm:"size:32;default:'active'"`                           // 状态: active, draft, archived
-	WebhookSecret         string    `json:"webhook_secret,omitempty" gorm:"size:128"`                         // Webhook签名密钥
-	WebhookEnabled        bool      `json:"webhook_enabled" gorm:"default:false"`                             // 是否启用Webhook
-	QuotaMaxExecutionTime int       `json:"quota_max_execution_time" gorm:"default:30000"`                    // 最大执行时间(ms)
-	QuotaMaxMemoryMB      int       `json:"quota_max_memory_mb" gorm:"default:100"`                           // 最大内存(MB)
-	QuotaMaxAPICalls      int       `json:"quota_max_api_calls" gorm:"default:1000"`                          // 最大API调用次数
+	Version               uint      `json:"version" gorm:"default:1"`                      // 当前版本号
+	Status                string    `json:"status" gorm:"size:32;default:'active'"`        // 状态: active, draft, archived
+	WebhookSecret         string    `json:"webhook_secret,omitempty" gorm:"size:128"`      // Webhook签名密钥
+	WebhookEnabled        bool      `json:"webhook_enabled" gorm:"default:false"`          // 是否启用Webhook
+	QuotaMaxExecutionTime int       `json:"quota_max_execution_time" gorm:"default:30000"` // 最大执行时间(ms)
+	QuotaMaxMemoryMB      int       `json:"quota_max_memory_mb" gorm:"default:100"`        // 最大内存(MB)
+	QuotaMaxAPICalls      int       `json:"quota_max_api_calls" gorm:"default:1000"`       // 最大API调用次数
 	CreatedAt             time.Time `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt             time.Time `json:"updated_at" gorm:"autoUpdateTime"`
 }
@@ -744,4 +748,3 @@ type TemplateManager struct {
 	defaultTemplates map[string]string
 	customTemplates  map[string]*JSTemplate
 }
-

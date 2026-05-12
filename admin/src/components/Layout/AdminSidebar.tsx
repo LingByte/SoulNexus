@@ -89,6 +89,20 @@ const NAVIGATION: NavItem[] = [
   { key: '/knowledge-bases', name: '知识库', icon: BookOpen },
   { key: '/devices', name: '设备管理', icon: Smartphone },
   { key: '/chat-data', name: '会话与用量', icon: MessageSquare },
+  {
+    key: 'llm',
+    name: 'LLM 网关',
+    icon: Bot,
+    children: [
+      { key: '/llm-channels', name: '渠道管理', icon: Boxes },
+      { key: '/speech-channels', name: '语音渠道 ASR/TTS', icon: Mic },
+      { key: '/llm-tokens', name: 'API Token', icon: Key },
+      { key: '/llm-abilities', name: '模型路由', icon: Puzzle },
+      { key: '/llm-model-metas', name: '模型元数据', icon: FileText },
+      { key: '/llm-usage', name: '用量统计', icon: Activity },
+      { key: '/speech-usage', name: '语音用量', icon: Activity },
+    ],
+  },
   { key: '/configs', name: '配置管理', icon: Sliders },
   {
     key: 'security',
@@ -105,7 +119,6 @@ const NAVIGATION: NavItem[] = [
     icon: Settings,
     children: [
       { key: '/settings', name: '常规设置', icon: Settings },
-      { key: '/service-health', name: '服务存活', icon: Activity },
     ],
   },
 ]

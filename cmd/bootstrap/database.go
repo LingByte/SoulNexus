@@ -64,6 +64,9 @@ func SetupDatabase(logWriter io.Writer, opts *Options) (*gorm.DB, error) {
 		if err := models.MigrateGroupTenancyResources(db); err != nil {
 			logger.Warn("group tenancy data migrate", zap.Error(err))
 		}
+		if err := models.MigrateTextCharset(db); err != nil {
+			logger.Warn("text charset migrate", zap.Error(err))
+		}
 		logger.Info("migration success",
 			zap.String("database", config.GlobalConfig.Database.Driver),
 			zap.String("dsn", config.GlobalConfig.Database.DSN),

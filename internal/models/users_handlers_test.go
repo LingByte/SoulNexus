@@ -247,11 +247,11 @@ func TestAuthApiRequired_WithAPIKey(t *testing.T) {
 	gid := ensureTestTeamGroup(t, db, user.ID)
 
 	credential := &UserCredential{
-		GroupID:    gid,
-		CreatedBy:  user.ID,
-		APIKey:     "test-api-key",
-		APISecret:  "test-api-secret",
-		Name:       "Test App",
+		GroupID:   gid,
+		CreatedBy: user.ID,
+		APIKey:    "test-api-key",
+		APISecret: "test-api-secret",
+		Name:      "Test App",
 	}
 	err = db.Create(credential).Error
 	require.NoError(t, err)
@@ -281,11 +281,11 @@ func TestAuthApiRequired_WithQueryParams(t *testing.T) {
 	gid := ensureTestTeamGroup(t, db, user.ID)
 
 	credential := &UserCredential{
-		GroupID:    gid,
-		CreatedBy:  user.ID,
-		APIKey:     "test-api-key",
-		APISecret:  "test-api-secret",
-		Name:       "Test App",
+		GroupID:   gid,
+		CreatedBy: user.ID,
+		APIKey:    "test-api-key",
+		APISecret: "test-api-secret",
+		Name:      "Test App",
 	}
 	err = db.Create(credential).Error
 	require.NoError(t, err)
@@ -302,10 +302,6 @@ func TestAuthApiRequired_WithQueryParams(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-}
-
-func TestAuthApiRequired_WithToken(t *testing.T) {
-	t.Skip("legacy EncodeHashToken auth path no longer present in codebase")
 }
 
 func TestAuthApiRequired_Unauthorized(t *testing.T) {
