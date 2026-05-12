@@ -19,10 +19,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/internal/config"
+	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/constants"
-	"github.com/LingByte/SoulNexus/pkg/graph"
 	"github.com/LingByte/SoulNexus/pkg/llm"
 	parser2 "github.com/LingByte/SoulNexus/pkg/parser"
 	"github.com/LingByte/SoulNexus/pkg/response"
@@ -329,15 +328,15 @@ func (h *Handlers) CreateTrainingTask(c *gin.Context) {
 
 	// 3) 保存到数据库
 	task := &models.VoiceTrainingTask{
-		GroupID:  pg.ID,
+		GroupID:   pg.ID,
 		CreatedBy: user.ID,
-		TaskID:   taskID,
-		TaskName: req.TaskName,
-		Sex:      req.Sex,
-		AgeGroup: req.AgeGroup,
-		Language: req.Language,
-		Status:   models.TrainingStatusQueued,
-		TextID:   5001,
+		TaskID:    taskID,
+		TaskName:  req.TaskName,
+		Sex:       req.Sex,
+		AgeGroup:  req.AgeGroup,
+		Language:  req.Language,
+		Status:    models.TrainingStatusQueued,
+		TextID:    5001,
 	}
 	if err := h.db.Create(task).Error; err != nil {
 		response.Fail(c, "保存训练任务失败", err.Error())
@@ -1630,20 +1629,6 @@ func (h *Handlers) OneShotText(c *gin.Context) {
 			}
 		}
 
-		// 如果开启了图记忆功能，则尝试从 Neo4j 中获取该用户的长期偏好主题，并拼接到系统提示词中
-		if config.GlobalConfig.Services.GraphMemory.Neo4j.Enabled && assistant.EnableGraphMemory {
-			if store := graph.GetDefaultStore(); store != nil {
-				ctx := c.Request.Context()
-				if userCtx, err := store.GetUserContext(ctx, user.ID, int64(req.AgentID)); err == nil {
-					if len(userCtx.Topics) > 0 {
-						preferenceText := fmt.Sprintf("该用户在历史对话中经常讨论这些主题：%s。请在回答时优先从这些兴趣和习惯的角度来组织内容，让风格尽量贴近他的偏好。",
-							strings.Join(userCtx.Topics, "、"))
-						systemPrompt = systemPrompt + "\n\n" + preferenceText
-					}
-				}
-			}
-		}
-
 		// 如果设置了 maxTokens，在系统提示词中添加回复长度指导
 		// 让 AI 知道要在限制内完整回答，避免被截断
 		if maxTokens != nil && *maxTokens > 0 {
@@ -1822,20 +1807,6 @@ func (h *Handlers) SimpleTextChat(c *gin.Context) {
 		llmModel = "deepseek-v3.1"
 	}
 
-	// 8. 如果开启了图记忆功能，添加用户偏好
-	if config.GlobalConfig.Services.GraphMemory.Neo4j.Enabled && assistant.EnableGraphMemory {
-		if store := graph.GetDefaultStore(); store != nil {
-			ctx := c.Request.Context()
-			if userCtx, err := store.GetUserContext(ctx, user.ID, int64(req.AgentID)); err == nil {
-				if len(userCtx.Topics) > 0 {
-					preferenceText := fmt.Sprintf("该用户在历史对话中经常讨论这些主题：%s。请在回答时优先从这些兴趣和习惯的角度来组织内容，让风格尽量贴近他的偏好。",
-						strings.Join(userCtx.Topics, "、"))
-					systemPrompt = systemPrompt + "\n\n" + preferenceText
-				}
-			}
-		}
-	}
-
 	// 9. 添加长度限制提示
 	if maxTokens != nil && *maxTokens > 0 {
 		estimatedChars := *maxTokens * 3 / 2
@@ -1950,20 +1921,6 @@ func (h *Handlers) PlainText(c *gin.Context) {
 			systemPrompt = assistant.SystemPrompt
 			if systemPrompt == "" {
 				systemPrompt = "请用中文回复用户。"
-			}
-		}
-
-		// 如果开启了图记忆功能，则尝试从 Neo4j 中获取该用户的长期偏好主题，并拼接到系统提示词中
-		if config.GlobalConfig.Services.GraphMemory.Neo4j.Enabled && assistant.EnableGraphMemory {
-			if store := graph.GetDefaultStore(); store != nil {
-				ctx := c.Request.Context()
-				if userCtx, err := store.GetUserContext(ctx, user.ID, int64(req.AgentID)); err == nil {
-					if len(userCtx.Topics) > 0 {
-						preferenceText := fmt.Sprintf("该用户在历史对话中经常讨论这些主题：%s。请在回答时优先从这些兴趣和习惯的角度来组织内容，让风格尽量贴近他的偏好。",
-							strings.Join(userCtx.Topics, "、"))
-						systemPrompt = systemPrompt + "\n\n" + preferenceText
-					}
-				}
 			}
 		}
 

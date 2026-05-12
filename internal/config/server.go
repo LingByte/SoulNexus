@@ -65,10 +65,9 @@ type DatabaseConfig struct {
 
 // ServicesConfig services configuration
 type ServicesConfig struct {
-	LLM         LLMConfig         `mapstructure:"llm"`
-	GraphMemory GraphMemoryConfig `mapstructure:"graph_memory"`
-	Voice       VoiceConfig       `mapstructure:"voice"`
-	Storage     StorageConfig     `mapstructure:"storage"`
+	LLM     LLMConfig     `mapstructure:"llm"`
+	Voice   VoiceConfig   `mapstructure:"voice"`
+	Storage StorageConfig `mapstructure:"storage"`
 }
 
 // LLMConfig LLM service configuration
@@ -78,20 +77,6 @@ type LLMConfig struct {
 	Model                   string `env:"LLM_MODEL"`
 	MemoryCompressThreshold int    `env:"LLM_MEMORY_COMPRESS_THRESHOLD"`
 	ShortTermMessageLimit   int    `env:"LLM_SHORT_TERM_MESSAGE_LIMIT"`
-}
-
-// GraphMemoryConfig graph memory configuration
-type GraphMemoryConfig struct {
-	Neo4j Neo4jConfig `mapstructure:"neo4j"`
-}
-
-// Neo4jConfig Neo4j configuration
-type Neo4jConfig struct {
-	Enabled  bool   `env:"NEO4J_ENABLED"`
-	URI      string `env:"NEO4J_URI"`
-	Username string `env:"NEO4J_USERNAME"`
-	Password string `env:"NEO4J_PASSWORD"`
-	Database string `env:"NEO4J_DATABASE"`
 }
 
 // VoiceConfig voice service configuration
@@ -222,15 +207,6 @@ func buildGlobalConfig() error {
 				MemoryCompressThreshold: getIntOrDefault("LLM_MEMORY_COMPRESS_THRESHOLD", 20),
 				ShortTermMessageLimit:   getIntOrDefault("LLM_SHORT_TERM_MESSAGE_LIMIT", 20),
 			},
-			GraphMemory: GraphMemoryConfig{
-				Neo4j: Neo4jConfig{
-					Enabled:  getBoolOrDefault("NEO4J_ENABLED", false),
-					URI:      getStringOrDefault("NEO4J_URI", "bolt://localhost:7687"),
-					Username: getStringOrDefault("NEO4J_USERNAME", "neo4j"),
-					Password: getStringOrDefault("NEO4J_PASSWORD", ""),
-					Database: getStringOrDefault("NEO4J_DATABASE", "neo4j"),
-				},
-			},
 			Voice: VoiceConfig{
 				Qiniu: QiniuVoiceConfig{
 					ASRAPIKey:  getStringOrDefault("QINIU_ASR_API_KEY", ""),
@@ -302,13 +278,6 @@ func (c *Config) Validate() error {
 	// Validate server configuration
 	if c.Server.Addr == "" {
 		return errors.New("server address is required")
-	}
-
-	// Validate Neo4j configuration
-	if c.Services.GraphMemory.Neo4j.Enabled {
-		if c.Services.GraphMemory.Neo4j.URI == "" {
-			return errors.New("neo4j URI is required when enabled")
-		}
 	}
 
 	return nil

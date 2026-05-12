@@ -32,10 +32,59 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/recognizer"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/synthesizer"
+	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/LingByte/SoulNexus/pkg/utils/ssrf"
 	"github.com/LingByte/lingstorage-sdk-go"
 	"github.com/gin-gonic/gin"
 )
+
+// uploadTTSAudio 把合成出来的音频字节上传到 LingStorage，返回 URL。
+// 上传失败返回 error；调用方负责把错误写回 HTTP 响应并记录用量。
+//
+// 该函数把 /v1/audio/speech 与 /v1/speech/tts/synthesize 的上传逻辑合并：
+//   - bucketOverride / keyOverride / filenameOverride 留空走默认（关 audio/{ts}.{ext}）
+//   - 文件名按 audioFormat 推导后缀，确保浏览器能直接播放
+func uploadTTSAudio(audio []byte, ch *models.TTSChannel, audioFormat, bucketOverride, keyOverride, filenameOverride string) (*lingstorage.UploadResult, error) {
+	if config.GlobalStore == nil {
+		return nil, errors.New("对象存储未初始化（LINGSTORAGE_*）")
+	}
+	bucket := strings.TrimSpace(bucketOverride)
+	if bucket == "" && config.GlobalConfig != nil {
+		bucket = config.GlobalConfig.Services.Storage.Bucket
+	}
+	if bucket == "" {
+		return nil, errors.New("未配置存储 bucket")
+	}
+	ext := strings.TrimSpace(strings.ToLower(audioFormat))
+	if ext == "" {
+		ext = "mp3"
+	}
+	fname := strings.TrimSpace(filenameOverride)
+	if fname == "" {
+		fname = fmt.Sprintf("tts-%d.%s", time.Now().UnixNano(), ext)
+	}
+	fname = filepath.Base(fname)
+	if fname == "." || fname == "" {
+		fname = fmt.Sprintf("tts-%d.%s", time.Now().UnixNano(), ext)
+	}
+	key := strings.TrimSpace(keyOverride)
+	if key == "" {
+		group := "default"
+		if ch != nil {
+			group = strings.TrimPrefix(ch.Group, "/")
+			if group == "" {
+				group = "default"
+			}
+		}
+		key = fmt.Sprintf("relay/tts/%s/%d-%s", group, time.Now().UnixNano(), fname)
+	}
+	return config.GlobalStore.UploadBytes(&lingstorage.UploadBytesRequest{
+		Data:     audio,
+		Filename: fname,
+		Bucket:   bucket,
+		Key:      key,
+	})
+}
 
 const (
 	relaySpeechMaxAudioBytes = models.MaxRelayAudioFetchBytes
@@ -698,42 +747,7 @@ func (h *Handlers) handleRelaySpeechTTSSynthesize(c *gin.Context) {
 	}
 
 	if outMode == "url" {
-		if config.GlobalStore == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"error": gin.H{
-				"type":    "storage_unavailable",
-				"message": "对象存储未初始化（LINGSTORAGE_*）",
-			}})
-			return
-		}
-		bucket := strings.TrimSpace(body.UploadBucket)
-		if bucket == "" && config.GlobalConfig != nil {
-			bucket = config.GlobalConfig.Services.Storage.Bucket
-		}
-		if bucket == "" {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"error": gin.H{
-				"type":    "storage_unavailable",
-				"message": "未配置存储 bucket",
-			}})
-			return
-		}
-		fname := strings.TrimSpace(body.UploadFilename)
-		if fname == "" {
-			fname = fmt.Sprintf("tts-%d.bin", time.Now().UnixNano())
-		}
-		fname = filepath.Base(fname)
-		if fname == "." || fname == "" {
-			fname = fmt.Sprintf("tts-%d.bin", time.Now().UnixNano())
-		}
-		key := strings.TrimSpace(body.UploadKey)
-		if key == "" {
-			key = fmt.Sprintf("relay/tts/%s/%d-%s", strings.TrimPrefix(ch.Group, "/"), time.Now().UnixNano(), fname)
-		}
-		up, upErr := config.GlobalStore.UploadBytes(&lingstorage.UploadBytesRequest{
-			Data:     audio,
-			Filename: fname,
-			Bucket:   bucket,
-			Key:      key,
-		})
+		up, upErr := uploadTTSAudio(audio, ch, body.AudioFormat, body.UploadBucket, body.UploadKey, body.UploadFilename)
 		if upErr != nil {
 			u.status, u.errMsg = http.StatusBadGateway, upErr.Error()
 			c.JSON(http.StatusBadGateway, gin.H{"error": gin.H{"type": "storage_upload_failed", "message": upErr.Error()}})
@@ -760,7 +774,18 @@ func (h *Handlers) handleRelaySpeechTTSSynthesize(c *gin.Context) {
 
 // handleRelayOpenAIAudioSpeech POST /v1/audio/speech
 //
-// OpenAI 兼容：JSON 入参 { model, input, voice, response_format }，直接返回二进制音频字节。
+// 返回腾讯云风格的 JSON：
+//
+//	{
+//	  "Audio":     "<base64 / url>",   // 由 output 决定
+//	  "Subtitles": [],                  // 占位（暂未做时间戳）
+//	  "RequestId": "<server-generated>"
+//	}
+//
+// 入参兼容 OpenAI：{ model, input, voice, response_format } + 业务扩展
+//   - output: "base64"（默认） | "url"
+//   - upload_bucket / upload_key / upload_filename: 仅在 output=url 时生效，可空
+//   - speed / group: 透传到下游
 type relayOpenAIAudioSpeechReq struct {
 	Model          string   `json:"model"`
 	Input          string   `json:"input"`
@@ -768,6 +793,12 @@ type relayOpenAIAudioSpeechReq struct {
 	ResponseFormat string   `json:"response_format"`
 	Speed          *float64 `json:"speed"`
 	Group          string   `json:"group"`
+
+	// 业务扩展：返回 base64 或 上传后的 URL
+	Output         string `json:"output"`
+	UploadBucket   string `json:"upload_bucket"`
+	UploadKey      string `json:"upload_key"`
+	UploadFilename string `json:"upload_filename"`
 }
 
 func (h *Handlers) handleRelayOpenAIAudioSpeech(c *gin.Context) {
@@ -808,6 +839,10 @@ func (h *Handlers) handleRelayOpenAIAudioSpeech(c *gin.Context) {
 	if req.Speed != nil {
 		body.TTSOptions = map[string]interface{}{"speed": *req.Speed, "speedRatio": *req.Speed}
 	}
+	// 归一化输出模式：base64 默认，可显式指定 url。
+	outMode := models.NormalizeRelayTTSResponseType("", req.Output)
+	requestID := utils.SnowflakeUtil.GenID()
+
 	ch, perr := models.PickTTSChannelForToken(h.db, tok, body.Group)
 	if perr != nil {
 		u.status, u.errMsg = http.StatusServiceUnavailable, perr.Error()
@@ -845,30 +880,32 @@ func (h *Handlers) handleRelayOpenAIAudioSpeech(c *gin.Context) {
 		c.JSON(http.StatusBadGateway, gin.H{"error": gin.H{"type": "tts_failed", "message": "未收到音频数据"}})
 		return
 	}
-	mime := guessAudioMime(req.ResponseFormat)
+
 	c.Header("X-Provider", ch.Provider)
 	c.Header("X-Channel-ID", fmt.Sprintf("%d", ch.ID))
 	c.Header("X-Group", ch.Group)
-	u.status, u.success = http.StatusOK, true
-	u.respSnap = gin.H{"format": req.ResponseFormat, "audio_bytes": len(audio)}
-	c.Data(http.StatusOK, mime, audio)
-}
+	c.Header("X-Request-Id", requestID)
 
-func guessAudioMime(format string) string {
-	switch strings.ToLower(strings.TrimSpace(format)) {
-	case "mp3":
-		return "audio/mpeg"
-	case "wav":
-		return "audio/wav"
-	case "opus":
-		return "audio/opus"
-	case "aac":
-		return "audio/aac"
-	case "flac":
-		return "audio/flac"
-	case "pcm":
-		return "audio/pcm"
-	default:
-		return "application/octet-stream"
+	var audioField string
+	if outMode == "url" {
+		up, upErr := uploadTTSAudio(audio, ch, req.ResponseFormat, req.UploadBucket, req.UploadKey, req.UploadFilename)
+		if upErr != nil {
+			u.status, u.errMsg = http.StatusBadGateway, upErr.Error()
+			c.JSON(http.StatusBadGateway, gin.H{"error": gin.H{"type": "storage_upload_failed", "message": upErr.Error()}})
+			return
+		}
+		audioField = up.URL
+		u.respSnap = gin.H{"output": outMode, "size": up.Size, "key": up.Key, "request_id": requestID}
+	} else {
+		audioField = base64.StdEncoding.EncodeToString(audio)
+		u.respSnap = gin.H{"output": outMode, "audio_bytes": len(audio), "request_id": requestID}
 	}
+	u.status, u.success = http.StatusOK, true
+
+	// 腾讯云风格：固定字段名首字母大写。
+	c.JSON(http.StatusOK, gin.H{
+		"Audio":     audioField,
+		"Subtitles": []any{},
+		"RequestId": requestID,
+	})
 }

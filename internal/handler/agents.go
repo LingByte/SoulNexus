@@ -14,11 +14,10 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/LingByte/SoulNexus"
+	LingEcho "github.com/LingByte/SoulNexus"
 	"github.com/LingByte/SoulNexus/internal/config"
 	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/constants"
-	"github.com/LingByte/SoulNexus/pkg/graph"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/utils"
@@ -74,11 +73,16 @@ func (h *Handlers) CreateAgent(c *gin.Context) {
 	}
 
 	agent := models.Agent{
-		GroupID:      gid,
-		CreatedBy:    user.ID,
-		Name:         input.Name,
-		Description:  input.Description,
-		Icon:         input.Icon,
+		GroupID:     gid,
+		CreatedBy:   user.ID,
+		Name:        input.Name,
+		Description: input.Description,
+		Icon: func() string {
+			if input.Icon == "" {
+				return "Bot" // 默认图标 key，前端会回落到内置 Bot 图标
+			}
+			return input.Icon
+		}(),
 		SystemPrompt: "empty system prompt",
 		PersonaTag:   "mentor",
 		Temperature:  0.6,
@@ -176,8 +180,7 @@ func (h *Handlers) UpdateAgent(c *gin.Context) {
 		TtsProvider          string   `json:"ttsProvider"`
 		ApiKey               string   `json:"apiKey"`
 		ApiSecret            string   `json:"apiSecret"`
-		LLMModel             string   `json:"llmModel"` // LLM model name
-		EnableGraphMemory    *bool    `json:"enableGraphMemory"`
+		LLMModel             string   `json:"llmModel"`             // LLM model name
 		EnableVAD            *bool    `json:"enableVAD"`            // 是否启用VAD
 		VADThreshold         *float64 `json:"vadThreshold"`         // VAD阈值
 		VADConsecutiveFrames *int     `json:"vadConsecutiveFrames"` // VAD连续帧数
@@ -249,9 +252,6 @@ func (h *Handlers) UpdateAgent(c *gin.Context) {
 	if input.LLMModel != "" {
 		updateData["llm_model"] = input.LLMModel
 	}
-	if input.EnableGraphMemory != nil {
-		updateData["enable_graph_memory"] = *input.EnableGraphMemory
-	}
 	if input.EnableVAD != nil {
 		updateData["enable_vad"] = *input.EnableVAD
 	}
@@ -287,56 +287,6 @@ func (h *Handlers) UpdateAgent(c *gin.Context) {
 	}
 
 	response.Success(c, "Update successful", assistant)
-}
-
-// GetAgentGraphData returns Neo4j graph data for an agent
-func (h *Handlers) GetAgentGraphData(c *gin.Context) {
-	user := models.CurrentUser(c)
-	if user == nil {
-		response.Fail(c, "unauthorized", "User not logged in")
-		return
-	}
-
-	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
-	var assistant models.Agent
-	if err := h.db.First(&assistant, id).Error; err != nil {
-		response.Fail(c, "not found", "Assistant does not exist")
-		return
-	}
-
-	if !models.UserIsGroupMember(h.db, user.ID, assistant.GroupID) {
-		response.Fail(c, "forbidden", "No permission to access this assistant")
-		return
-	}
-
-	// 检查是否启用了 Neo4j
-	if !config.GlobalConfig.Services.GraphMemory.Neo4j.Enabled {
-		response.Fail(c, "Neo4j not enabled", "Neo4j is not enabled in the system")
-		return
-	}
-
-	// 检查助手是否启用了图记忆
-	if !assistant.EnableGraphMemory {
-		response.Fail(c, "Graph memory not enabled", "Graph memory is not enabled for this assistant")
-		return
-	}
-
-	// 获取图数据
-	store := graph.GetDefaultStore()
-	if store == nil {
-		response.Fail(c, "Graph store not available", "Graph store is not initialized")
-		return
-	}
-
-	ctx := c.Request.Context()
-	graphData, err := store.GetAgentGraphData(ctx, id)
-	if err != nil {
-		logger.Error("Failed to get agent graph data", zap.Error(err), zap.Int64("agentID", id))
-		response.Fail(c, "Failed to get graph data", err.Error())
-		return
-	}
-
-	response.Success(c, "Graph data retrieved successfully", graphData)
 }
 
 // DeleteAgent deletes an agent

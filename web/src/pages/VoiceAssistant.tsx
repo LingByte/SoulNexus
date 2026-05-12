@@ -160,7 +160,6 @@ const VoiceAssistant = () => {
     const [assistantName, setAssistantName] = useState('')
     const [assistantDescription, setAssistantDescription] = useState('')
     const [assistantIcon, setAssistantIcon] = useState('Bot')
-    const [enableGraphMemory, setEnableGraphMemory] = useState(false)
     // VAD 配置
     const [enableVAD, setEnableVAD] = useState(true)
     const [vadThreshold, setVadThreshold] = useState(500)
@@ -197,7 +196,6 @@ const VoiceAssistant = () => {
                 setAssistantName(currentAssistant.name || '')
                 setAssistantDescription(currentAssistant.description || '')
                 setAssistantIcon(currentAssistant.icon || 'Bot')
-                setEnableGraphMemory(!!(currentAssistant as any).enableGraphMemory)
                 // 同步 VAD 配置
                 if ((currentAssistant as any).enableVAD !== undefined) {
                     setEnableVAD((currentAssistant as any).enableVAD)
@@ -1971,7 +1969,6 @@ const VoiceAssistant = () => {
                     apiKey,
                     apiSecret,
                     llmModel,
-                    enableGraphMemory,
                     enableVAD,
                     vadThreshold,
                     vadConsecutiveFrames,
@@ -2259,11 +2256,9 @@ const VoiceAssistant = () => {
                                 assistantName={assistantName}
                                 assistantDescription={assistantDescription}
                                 assistantIcon={assistantIcon}
-                                enableGraphMemory={enableGraphMemory}
                                 onAssistantNameChange={setAssistantName}
                                 onAssistantDescriptionChange={setAssistantDescription}
                                 onAssistantIconChange={setAssistantIcon}
-                                onEnableGraphMemoryChange={setEnableGraphMemory}
                                 enableVAD={enableVAD}
                                 vadThreshold={vadThreshold}
                                 vadConsecutiveFrames={vadConsecutiveFrames}

@@ -24,7 +24,6 @@ export interface UpdateAssistantForm {
   apiKey?: string
   apiSecret?: string
   llmModel?: string // LLM模型名称
-  enableGraphMemory?: boolean
   enableVAD?: boolean // 是否启用VAD
   vadThreshold?: number // VAD阈值
   vadConsecutiveFrames?: number // VAD连续帧数
@@ -51,7 +50,6 @@ export interface Assistant {
   apiKey?: string
   apiSecret?: string
   llmModel?: string // LLM模型名称
-  enableGraphMemory?: boolean // 是否启用基于图数据库的长期记忆
   enableVAD?: boolean // 是否启用VAD
   vadThreshold?: number // VAD阈值
   vadConsecutiveFrames?: number // VAD连续帧数
@@ -99,6 +97,13 @@ export const updateAssistant = async (id: number, data: UpdateAssistantForm): Pr
 // 删除助手
 export const deleteAssistant = async (id: number): Promise<ApiResponse<null>> => {
   return del(`/agents/${id}`)
+}
+
+// 上传 Agent 图标，返回可直接落到 agent.icon 字段的 URL。
+export const uploadAssistantIcon = async (file: File): Promise<ApiResponse<{ url: string; key: string }>> => {
+  const fd = new FormData()
+  fd.append('icon', file)
+  return post('/agents/icon/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } } as any)
 }
 
 // 语音相关接口
@@ -299,48 +304,3 @@ export const getFishSpeechVoices = async (): Promise<ApiResponse<FishSpeechVoice
   return get('/voice/voice-options', { params: { provider: 'fishspeech' } })
 }
 
-// ========== Assistant Tools 相关接口 ==========
-
-
-// ========== Assistant Graph Data 相关接口 ==========
-
-// 图节点
-export interface GraphNode {
-  id: string
-  label: string
-  type: string // Assistant, User, Conversation, Topic, Intent, Knowledge等
-  props: Record<string, any>
-}
-
-// 图边（关系）
-export interface GraphEdge {
-  id: string
-  source: string
-  target: string
-  type: string // HAS_CONVERSATION, WITH_ASSISTANT, DISCUSSES等
-  props: Record<string, any>
-}
-
-// 图统计信息
-export interface GraphStats {
-  totalNodes: number
-  totalEdges: number
-  usersCount: number
-  conversationsCount: number
-  topicsCount: number
-  intentsCount: number
-  knowledgeCount: number
-}
-
-// 助手图数据
-export interface AssistantGraphData {
-  agentId: number
-  nodes: GraphNode[]
-  edges: GraphEdge[]
-  stats: GraphStats
-}
-
-// 获取助手图数据
-export const getAssistantGraphData = async (agentId: number): Promise<ApiResponse<AssistantGraphData>> => {
-  return get(`/agents/${agentId}/graph`)
-}

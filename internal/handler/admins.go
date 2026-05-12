@@ -71,16 +71,15 @@ type adminCredentialStatusReq struct {
 }
 
 type adminAgentUpdateReq struct {
-	Name              string   `json:"name"`
-	Description       string   `json:"description"`
-	SystemPrompt      string   `json:"systemPrompt"`
-	Temperature       *float32 `json:"temperature"`
-	MaxTokens         *int     `json:"maxTokens"`
-	Speaker           string   `json:"speaker"`
-	TtsProvider       string   `json:"ttsProvider"`
-	LLMModel          string   `json:"llmModel"`
-	EnableGraphMemory *bool    `json:"enableGraphMemory"`
-	EnableJSONOutput  *bool    `json:"enableJSONOutput"`
+	Name             string   `json:"name"`
+	Description      string   `json:"description"`
+	SystemPrompt     string   `json:"systemPrompt"`
+	Temperature      *float32 `json:"temperature"`
+	MaxTokens        *int     `json:"maxTokens"`
+	Speaker          string   `json:"speaker"`
+	TtsProvider      string   `json:"ttsProvider"`
+	LLMModel         string   `json:"llmModel"`
+	EnableJSONOutput *bool    `json:"enableJSONOutput"`
 }
 
 func normalizeOAuthRedirectURI(raw string) string {
@@ -1510,9 +1509,6 @@ func (h *Handlers) handleAdminUpdateAgent(c *gin.Context) {
 	}
 	if req.LLMModel != "" {
 		updateVals["llm_model"] = strings.TrimSpace(req.LLMModel)
-	}
-	if req.EnableGraphMemory != nil {
-		updateVals["enable_graph_memory"] = *req.EnableGraphMemory
 	}
 	if req.EnableJSONOutput != nil {
 		updateVals["enable_json_output"] = *req.EnableJSONOutput
