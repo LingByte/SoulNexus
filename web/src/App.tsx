@@ -21,7 +21,6 @@ import CredentialManager from "@/pages/CredentialManager.tsx";
 import ProtectedRoute from "@/components/Auth/ProtectedRoute.tsx";
 import JSTemplateManager from "@/pages/JSTemplateManager.tsx";
 import Assistants from '@/pages/Assistants.tsx';
-import AssistantGraph from '@/pages/AssistantGraph.tsx';
 import GroupMembers from '@/pages/GroupMembers.tsx';
 import GroupSettings from '@/pages/GroupSettings.tsx';
 import GroupActivityLogs from '@/pages/GroupActivityLogs.tsx';
@@ -95,13 +94,6 @@ function AppRoutes() {
                             <ProtectedRoute>
                                 <Layout>
                                     <Assistants />
-                                </Layout>
-                            </ProtectedRoute>
-                        } />
-                                                <Route path="/assistants/:id/graph" element={
-                            <ProtectedRoute>
-                                <Layout>
-                                    <AssistantGraph />
                                 </Layout>
                             </ProtectedRoute>
                         } />

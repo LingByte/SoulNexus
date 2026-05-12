@@ -23,7 +23,6 @@ import (
 	"github.com/LingByte/SoulNexus/internal/task"
 	workflowdef "github.com/LingByte/SoulNexus/internal/workflow"
 	"github.com/LingByte/SoulNexus/pkg/constants"
-	"github.com/LingByte/SoulNexus/pkg/graph"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/middleware"
 	"github.com/LingByte/SoulNexus/pkg/utils"
@@ -158,37 +157,7 @@ func main() {
 		zap.Bool("circuitBreaker", config.GlobalConfig.Middleware.EnableCircuitBreaker),
 		zap.Bool("operationLog", config.GlobalConfig.Middleware.EnableOperationLog))
 
-	// 14. Initialize Neo4j Graph Database (if enabled)
-	if config.GlobalConfig.Services.GraphMemory.Neo4j.Enabled {
-		graphStore, err := graph.NewNeo4jStore(
-			config.GlobalConfig.Services.GraphMemory.Neo4j.URI,
-			config.GlobalConfig.Services.GraphMemory.Neo4j.Username,
-			config.GlobalConfig.Services.GraphMemory.Neo4j.Password,
-			config.GlobalConfig.Services.GraphMemory.Neo4j.Database,
-		)
-		if err != nil {
-			logger.Error("Failed to initialize Neo4j", zap.Error(err))
-			logger.Warn("Graph processing will be disabled")
-			task.InitGraphProcessor(nil, false)
-			graph.SetDefaultStore(nil)
-		} else {
-			logger.Info("Neo4j graph database initialized successfully")
-			task.InitGraphProcessor(graphStore, true)
-			// Set global default graph storage instance for real-time assistants and other components to read user profiles
-			graph.SetDefaultStore(graphStore)
-			defer func() {
-				if err := graphStore.Close(); err != nil {
-					logger.Error("Failed to close Neo4j connection", zap.Error(err))
-				}
-			}()
-		}
-	} else {
-		logger.Info("Neo4j is disabled, graph processing will be skipped")
-		task.InitGraphProcessor(nil, false)
-		graph.SetDefaultStore(nil)
-	}
-
-	// 15. Start Timed task
+	// 14. Start Timed task
 	task.StartEmailCleaner(db)
 	if config.GlobalConfig.Features.BackupEnabled {
 		backup.StartBackupScheduler(db)

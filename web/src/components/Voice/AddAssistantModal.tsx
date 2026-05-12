@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Bot, MessageCircle, Users, Zap, Circle, Building2, AlertCircle } from 'lucide-react'
+import { Bot, MessageCircle, Users, Zap, Circle, Building2, AlertCircle, Upload, X, Loader2 } from 'lucide-react'
 import { cn } from '@/utils/cn'
 import { getGroupList, type Group } from '@/api/group'
+import { uploadAssistantIcon } from '@/api/assistant'
 import { useAuthStore } from '@/stores/authStore'
 import { useI18nStore } from '@/stores/i18nStore'
 import Button from '@/components/UI/Button'
+import { showAlert } from '@/utils/notification'
 
 interface AddAssistantModalProps {
   isOpen: boolean
@@ -31,6 +33,10 @@ const AddAssistantModal: React.FC<AddAssistantModalProps> = ({
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [selectedIcon, setSelectedIcon] = useState('Bot')
+  // 上传后如果获到了 URL，优先使用 URL。
+  const [iconURL, setIconURL] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [groups, setGroups] = useState<Group[]>([])
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null)
   const [shareToGroup, setShareToGroup] = useState(false)
@@ -79,7 +85,7 @@ const AddAssistantModal: React.FC<AddAssistantModalProps> = ({
     onAdd({
       name,
       description,
-      icon: selectedIcon,
+      icon: iconURL || selectedIcon,
       groupId: shareToGroup && selectedGroupId ? selectedGroupId : null
     })
     
@@ -87,10 +93,37 @@ const AddAssistantModal: React.FC<AddAssistantModalProps> = ({
     setName('')
     setDescription('')
     setSelectedIcon('Bot')
+    setIconURL(null)
     setShareToGroup(false)
     setSelectedGroupId(null)
     setErrors({})
     onClose()
+  }
+
+  const handlePickFile = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleUploadIcon = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = '' // 允许重复选择同一个文件
+    if (!file) return
+    if (file.size > 5 * 1024 * 1024) {
+      showAlert('图标不得超过 5MB', 'error')
+      return
+    }
+    setUploading(true)
+    try {
+      const res = await uploadAssistantIcon(file)
+      if (res.code !== 200 || !res.data?.url) {
+        throw new Error(res.msg || '上传失败')
+      }
+      setIconURL(res.data.url)
+    } catch (err: any) {
+      showAlert(err?.message || '上传失败', 'error')
+    } finally {
+      setUploading(false)
+    }
   }
 
   return (
@@ -167,29 +200,70 @@ const AddAssistantModal: React.FC<AddAssistantModalProps> = ({
                 )}
               </div>
               
-              {/* 选择图标 */}
+              {/* 选择图标：上传自定义 / 从预设选 */}
               <div>
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-2">
-                  {t('assistants.selectIcon') || '选择图标'}
+                  {t('assistants.selectIcon') || '图标'}
                 </label>
-                <div className="grid grid-cols-5 gap-2">
-                  {Object.keys(ICON_MAP).map(iconName => (
-                    <motion.button
-                      key={iconName}
-                      onClick={() => setSelectedIcon(iconName)}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      className={cn(
-                        'p-2 rounded-lg transition-all duration-200 flex items-center justify-center',
-                        selectedIcon === iconName
-                          ? 'bg-purple-500 text-white shadow-md' 
-                          : 'bg-gray-100 dark:bg-neutral-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-neutral-600'
-                      )}
-                    >
-                      {ICON_MAP[iconName as keyof typeof ICON_MAP]}
-                    </motion.button>
-                  ))}
+                <div className="flex items-center gap-3">
+                  {/* 当前预览 */}
+                  <div className="relative w-14 h-14 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-md overflow-hidden">
+                    {iconURL ? (
+                      <img src={iconURL} alt="icon" className="w-full h-full object-cover" />
+                    ) : (
+                      ICON_MAP[selectedIcon as keyof typeof ICON_MAP] ?? ICON_MAP.Bot
+                    )}
+                    {iconURL && (
+                      <button
+                        type="button"
+                        onClick={() => setIconURL(null)}
+                        className="absolute -top-1 -right-1 bg-white dark:bg-neutral-800 rounded-full p-0.5 shadow ring-1 ring-gray-200 dark:ring-neutral-700"
+                        title="移除上传的图标"
+                      >
+                        <X className="w-3 h-3 text-gray-600 dark:text-gray-300" />
+                      </button>
+                    )}
+                  </div>
+                  {/* 上传按钮 */}
+                  <button
+                    type="button"
+                    onClick={handlePickFile}
+                    disabled={uploading}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-gray-100 dark:bg-neutral-700 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-neutral-600 disabled:opacity-60"
+                  >
+                    {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                    {uploading ? '上传中…' : '上传图标'}
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml"
+                    className="hidden"
+                    onChange={handleUploadIcon}
+                  />
                 </div>
+                {/* 预设图标快选（不上传时使用） */}
+                {!iconURL && (
+                  <div className="grid grid-cols-5 gap-2 mt-2">
+                    {Object.keys(ICON_MAP).map(iconName => (
+                      <motion.button
+                        key={iconName}
+                        type="button"
+                        onClick={() => setSelectedIcon(iconName)}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        className={cn(
+                          'p-2 rounded-lg transition-all duration-200 flex items-center justify-center',
+                          selectedIcon === iconName
+                            ? 'bg-purple-500 text-white shadow-md'
+                            : 'bg-gray-100 dark:bg-neutral-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-neutral-600'
+                        )}
+                      >
+                        {ICON_MAP[iconName as keyof typeof ICON_MAP]}
+                      </motion.button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* 共享到组织 */}

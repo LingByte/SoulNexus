@@ -28,7 +28,6 @@ type Agent struct {
 	ApiKey               string    `json:"apiKey" gorm:"column:api_key"`
 	ApiSecret            string    `json:"apiSecret" gorm:"column:api_secret"`
 	LLMModel             string    `json:"llmModel" gorm:"column:llm_model"`
-	EnableGraphMemory    bool      `json:"enableGraphMemory" gorm:"column:enable_graph_memory;default:false"`
 	EnableVAD            bool      `json:"enableVAD" gorm:"column:enable_vad;default:true"`
 	VADThreshold         float64   `json:"vadThreshold" gorm:"column:vad_threshold;default:500"`
 	VADConsecutiveFrames int       `json:"vadConsecutiveFrames" gorm:"column:vad_consecutive_frames;default:2"`

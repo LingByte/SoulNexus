@@ -1,40 +1,62 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getAssistantList, createAssistant, AssistantListItem } from '@/api/assistant';
 import AddAssistantModal from '@/components/Voice/AddAssistantModal';
 import { showAlert } from '@/utils/notification';
 import { useI18nStore } from '@/stores/i18nStore';
-import { Bot, MessageCircle, Users, Zap, Circle, Settings, Building2, Plus, Sparkles, TrendingUp, Rocket, Wand2, Network } from 'lucide-react';
+import { Bot, MessageCircle, Users, Zap, Circle, Settings, Plus, Sparkles, Rocket, Wand2, Search } from 'lucide-react';
 import Button from '@/components/UI/Button';
 import { motion } from 'framer-motion';
-import CollapsibleSectionHeader from '@/components/UI/CollapsibleSectionHeader';
 
-const ICON_MAP = {
-  Bot: <Bot className="w-8 h-8" />,
-  MessageCircle: <MessageCircle className="w-8 h-8" />,
-  Users: <Users className="w-8 h-8" />,
-  Zap: <Zap className="w-8 h-8" />,
-  Circle: <Circle className="w-8 h-8" />,
+const ICON_MAP: Record<string, React.ReactNode> = {
+  Bot: <Bot className="w-6 h-6" />,
+  MessageCircle: <MessageCircle className="w-6 h-6" />,
+  Users: <Users className="w-6 h-6" />,
+  Zap: <Zap className="w-6 h-6" />,
+  Circle: <Circle className="w-6 h-6" />,
 };
 
-const ICON_GRADIENTS = {
-  Bot: 'from-purple-500 to-pink-500',
-  MessageCircle: 'from-blue-500 to-cyan-500',
-  Users: 'from-green-500 to-emerald-500',
-  Zap: 'from-yellow-500 to-orange-500',
-  Circle: 'from-gray-400 to-gray-500',
-};
+// 根据 id 稳定生成渐变色，避免每次渲染跳色。
+const GRADIENT_POOL = [
+  'from-purple-500 to-pink-500',
+  'from-blue-500 to-cyan-500',
+  'from-emerald-500 to-teal-500',
+  'from-amber-500 to-orange-500',
+  'from-rose-500 to-red-500',
+  'from-indigo-500 to-violet-500',
+  'from-sky-500 to-blue-600',
+  'from-fuchsia-500 to-purple-600',
+];
 
-const truncate = (value?: string, max = 16) => {
-  if (!value) return '';
-  return value.length > max ? value.slice(0, max) + '…' : value;
+const pickGradient = (id: number) => GRADIENT_POOL[Math.abs(id) % GRADIENT_POOL.length];
+
+const isURL = (s?: string) => !!s && (s.startsWith('http://') || s.startsWith('https://') || s.startsWith('/'));
+
+// 默认图标：空 / 未识别 / 旧脏数据都回落到 Bot，确保 UI 始终有图标展示。
+const DEFAULT_ICON_KEY = 'Bot';
+const renderAssistantIcon = (icon: string | undefined, name: string) => {
+  const s = (icon || '').trim();
+  if (isURL(s)) {
+    return <img src={s} alt={name} className="w-full h-full object-cover" />;
+  }
+  return ICON_MAP[s] ?? ICON_MAP[DEFAULT_ICON_KEY];
 };
 
 const Assistants: React.FC = () => {
   const { t } = useI18nStore();
   const [assistants, setAssistants] = useState<AssistantListItem[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [keyword, setKeyword] = useState('');
   const navigate = useNavigate();
+
+  const filtered = useMemo(() => {
+    const k = keyword.trim().toLowerCase();
+    if (!k) return assistants;
+    return assistants.filter(a =>
+      (a.name || '').toLowerCase().includes(k) ||
+      (a.description || '').toLowerCase().includes(k),
+    );
+  }, [assistants, keyword]);
 
   const fetchAssistants = async () => {
     try {
@@ -65,31 +87,34 @@ const Assistants: React.FC = () => {
 
   return (
     <div className="min-h-screen dark:bg-neutral-900 flex flex-col">
-      <div className="max-w-6xl w-full mx-auto pt-8 pb-6 flex flex-col">
-        <CollapsibleSectionHeader
-          title={t('assistants.title')}
-          icon={<Users className="w-4 h-4 text-purple-500" />}
-          expanded={true}
-          onToggle={() => {}}
-          showChevron={false}
-          clickable={false}
-          compact
-          titleSize="lg"
-          withDivider
-          className="mb-5"
-          rightContent={(
+      <div className="max-w-6xl w-full mx-auto px-4 pt-8 pb-10 flex flex-col">
+        {/* 页面顶部：标题 + 搜索 + 新建 */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+          <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100 tracking-tight">
+            {t('assistants.title')}
+          </h1>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="relative flex-1 sm:flex-none sm:w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value)}
+                placeholder={t('assistants.searchPlaceholder') || '搜索智能体'}
+                className="w-full pl-9 pr-3 py-2 text-sm bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/60 transition-colors"
+              />
+            </div>
             <Button
               onClick={() => setShowAddModal(true)}
               variant="primary"
               size="sm"
-              leftIcon={<Plus className="w-3.5 h-3.5" />}
+              leftIcon={<Plus className="w-4 h-4" />}
             >
               {t('assistants.add')}
             </Button>
-          )}
-        />
+          </div>
+        </div>
         <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {(assistants?.length === 0) && (
+          {(filtered?.length === 0) && (assistants.length === 0) && (
             <motion.div 
               className="col-span-full"
               initial={{ opacity: 0, y: 20 }}
@@ -205,138 +230,86 @@ const Assistants: React.FC = () => {
               </div>
             </motion.div>
           )}
-          {(assistants || []).map((assistant, index) => {
-            const iconKey = assistant.icon as keyof typeof ICON_MAP;
-            const gradient = ICON_GRADIENTS[iconKey] || ICON_GRADIENTS.Circle;
-            
+          {filtered.map((assistant, index) => {
+            const gradient = pickGradient(assistant.id);
+            const iconNode = renderAssistantIcon(assistant.icon, assistant.name);
             return (
               <motion.div
                 key={assistant.id}
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.04, duration: 0.24 }}
-                whileHover={{ y: -2 }}
-                className="group relative bg-white dark:bg-neutral-800 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 border border-gray-200/70 dark:border-neutral-700/70 hover:border-primary/40 cursor-pointer"
+                transition={{ delay: index * 0.03, duration: 0.2 }}
+                whileHover={{ y: -3 }}
+                className="group relative bg-white dark:bg-neutral-800/80 rounded-2xl overflow-hidden border border-gray-200/70 dark:border-neutral-700/60 hover:border-primary/40 dark:hover:border-primary/40 shadow-[0_1px_2px_rgba(0,0,0,0.03)] hover:shadow-lg hover:shadow-primary/5 transition-all duration-200 cursor-pointer"
                 onClick={() => navigate(`/voice-assistant/${assistant.id}`)}
               >
-                <div className={`h-[3px] bg-gradient-to-r ${gradient} opacity-80`} />
-
-                <div className="relative p-4">
-                  {/* 头部区域 - 图标和操作按钮 */}
-                  <div className="flex items-start justify-between mb-3">
-                    <motion.div 
-                      className="relative"
-                      whileHover={{ scale: 1.03 }}
-                      transition={{ type: "spring", stiffness: 300 }}
-                    >
-                      <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center shadow-sm transition-all duration-200 ring-1 ring-white/20`}>
-                        {ICON_MAP[iconKey] ?? ICON_MAP.Circle}
+                <div className="p-5">
+                  <div className="flex items-start gap-3">
+                    <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${gradient} text-white flex items-center justify-center shadow-sm overflow-hidden flex-shrink-0`}>
+                      {iconNode}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-[15px] text-gray-900 dark:text-gray-100 truncate group-hover:text-primary transition-colors">
+                          {assistant.name}
+                        </h3>
                       </div>
-                    </motion.div>
-                    
-                    {/* 操作按钮组 */}
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                      <motion.button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/assistants/${assistant.id}/graph`);
-                        }}
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
-                        className="p-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-all duration-200"
-                        title="知识图谱"
-                      >
-                        <Network className="w-4 h-4" />
-                      </motion.button>
-                      <motion.button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/assistants/${assistant.id}/tools`);
-                        }}
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
-                        className="p-1.5 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/20 text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-all duration-200"
+                      <div className="mt-0.5 text-[11px] text-gray-400 dark:text-gray-500 font-mono">
+                        #{assistant.id}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); navigate(`/assistants/${assistant.id}/tools`); }}
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20"
                         title={t('assistants.manageTools')}
                       >
                         <Settings className="w-4 h-4" />
-                      </motion.button>
+                      </button>
                     </div>
                   </div>
 
-                  {/* 标题和ID */}
-                  <div className="mb-2">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-semibold text-base text-gray-900 dark:text-gray-100 truncate group-hover:text-primary transition-colors duration-200">
-                        {assistant.name}
-                      </h3>
-                      <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 dark:bg-neutral-700 text-gray-500 dark:text-gray-400 rounded-md flex-shrink-0">
-                        #{assistant.id}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* 描述 */}
-                  <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed mb-3 line-clamp-2 min-h-[2.5rem]">
+                  <p className="mt-3 text-[13px] text-gray-600 dark:text-gray-400 leading-relaxed line-clamp-2 min-h-[2.5rem]">
                     {assistant.description || t('assistants.noDescription')}
                   </p>
 
-                  {/* 核心标签 - 简化布局 */}
-                  <div className="space-y-2 mb-3">
-                    {/* 主要标签 */}
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {assistant.groupId && (
-                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-xs font-medium">
-                          <Building2 className="w-3 h-3" />
-                          {t('assistants.groupShared')}
-                        </span>
-                      )}
+                  {(assistant.personaTag || typeof assistant.temperature === 'number' || typeof assistant.maxTokens === 'number') && (
+                    <div className="mt-3 flex items-center gap-1.5 flex-wrap">
                       {assistant.personaTag && (
-                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 text-xs font-medium">
-                          <TrendingUp className="w-3 h-3" />
-                          {truncate(assistant.personaTag, 12)}
+                        <span className="px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-300 text-[11px] font-medium">
+                          {assistant.personaTag.length > 14 ? assistant.personaTag.slice(0, 14) + '…' : assistant.personaTag}
+                        </span>
+                      )}
+                      {typeof assistant.temperature === 'number' && (
+                        <span className="px-2 py-0.5 rounded-md bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-300 text-[11px] font-medium">
+                          T {assistant.temperature}
+                        </span>
+                      )}
+                      {typeof assistant.maxTokens === 'number' && (
+                        <span className="px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-300 text-[11px] font-medium">
+                          {assistant.maxTokens > 1000 ? `${Math.round(assistant.maxTokens / 1000)}k` : assistant.maxTokens} tok
                         </span>
                       )}
                     </div>
-                    
-                    {/* 技术参数 */}
-                    {(typeof assistant.temperature === 'number' || typeof assistant.maxTokens === 'number' || assistant.jsSourceId) && (
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {assistant.jsSourceId && (
-                          <span className="inline-flex items-center px-2 py-1 rounded-md bg-gray-50 dark:bg-neutral-700 text-gray-600 dark:text-gray-400 text-xs font-medium">
-                            JS: {truncate(assistant.jsSourceId, 8)}
-                          </span>
-                        )}
-                        {typeof assistant.temperature === 'number' && (
-                          <span className="inline-flex items-center px-2 py-1 rounded-md bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 text-xs font-medium">
-                            T: {assistant.temperature}
-                          </span>
-                        )}
-                        {typeof assistant.maxTokens === 'number' && (
-                          <span className="inline-flex items-center px-2 py-1 rounded-md bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 text-xs font-medium">
-                            {assistant.maxTokens > 1000 ? `${Math.round(assistant.maxTokens/1000)}k` : assistant.maxTokens}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                  )}
 
-                  {/* 底部信息栏 */}
-                  <div className="flex items-center justify-between pt-2.5 border-t border-gray-100 dark:border-neutral-700">
-                    <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                      {assistant.createdAt && (
-                        <span className="flex items-center gap-1.5">
-                          <div className="w-1 h-1 bg-gray-400 rounded-full" />
-                          {fmtDate(assistant.createdAt)}
-                        </span>
-                      )}
+                  {assistant.createdAt && (
+                    <div className="mt-4 pt-3 border-t border-gray-100 dark:border-neutral-700/60 text-[11px] text-gray-400 dark:text-gray-500">
+                      {fmtDate(assistant.createdAt)}
                     </div>
-                  </div>
+                  )}
                 </div>
-
-                <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.02] via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none" />
               </motion.div>
             );
           })}
+
+          {/* 搜索无结果（但列表非空） */}
+          {assistants.length > 0 && filtered.length === 0 && (
+            <div className="col-span-full text-center py-16 text-sm text-gray-500 dark:text-gray-400">
+              {t('assistants.noMatch') || '没有匹配的智能体'}
+            </div>
+          )}
         </div>
       </div>
       <AddAssistantModal isOpen={showAddModal} onClose={() => setShowAddModal(false)} onAdd={handleAddAssistant} />

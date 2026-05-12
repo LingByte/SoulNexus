@@ -478,12 +478,11 @@ func (h *Handlers) registerAgentRoutes(r *gin.RouterGroup) {
 	agents := r.Group("agents")
 	{
 		agents.POST("add", models.AuthRequired, h.CreateAgent)
+		agents.POST("icon/upload", models.AuthRequired, h.UploadAgentIcon)
 
 		agents.GET("", models.AuthRequired, h.ListAgents)
 
 		agents.GET("/:id", models.AuthRequired, h.GetAgent)
-
-		agents.GET("/:id/graph", models.AuthRequired, h.GetAgentGraphData)
 
 		agents.PUT("/:id", models.AuthRequired, h.UpdateAgent)
 

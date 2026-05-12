@@ -42,11 +42,9 @@ interface ControlPanelProps {
     assistantName: string
     assistantDescription: string
     assistantIcon: string
-    enableGraphMemory?: boolean
     onAssistantNameChange: (value: string) => void
     onAssistantDescriptionChange: (value: string) => void
     onAssistantIconChange: (value: string) => void
-    onEnableGraphMemoryChange?: (value: boolean) => void
     // VAD 配置
     enableVAD?: boolean
     vadThreshold?: number
@@ -105,11 +103,9 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                                        assistantName,
                                                        assistantDescription,
                                                        assistantIcon,
-                                                       enableGraphMemory = false,
                                                        onAssistantNameChange,
                                                        onAssistantDescriptionChange,
                                                        onAssistantIconChange,
-                                                       onEnableGraphMemoryChange,
                                                        enableVAD = true,
                                                        vadThreshold = 500,
                                                        vadConsecutiveFrames = 2,
@@ -452,32 +448,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                                         }}
                                                     />
                                                 )}
-                                            </div>
-                                        </div>
-
-                                        {/* 图数据库长期记忆开关 */}
-                                        <div className="space-y-2">
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex-1">
-                                                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          {t('controlPanel.assistant.graphMemoryTitle') || 'Neo4j 长期记忆'}
-                                            </label>
-                                                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                                                        {t('controlPanel.assistant.graphMemoryDesc') || '开启后，将把该智能体的对话写入 Neo4j，用于个性化记忆和知识图谱。'}
-                                                    </p>
-                                                </div>
-                                                <div className="ml-4 flex-shrink-0">
-                                                    <Switch
-                                                        checked={enableGraphMemory || false}
-                                                        onCheckedChange={(checked) => {
-                                                    if (onEnableGraphMemoryChange) {
-                                                                onEnableGraphMemoryChange(checked);
-                                                    }
-                                                }}
-                                                        size="md"
-                                                        className="flex-shrink-0"
-                        />
-                                                </div>
                                             </div>
                                         </div>
 

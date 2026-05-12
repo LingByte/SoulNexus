@@ -1176,7 +1176,6 @@ export interface AdminAssistant {
   speaker?: string
   ttsProvider?: string
   llmModel?: string
-  enableGraphMemory?: boolean
   enableJSONOutput?: boolean
   createdAt: string
   updatedAt?: string
