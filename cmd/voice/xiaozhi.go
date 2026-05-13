@@ -22,8 +22,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/LingByte/SoulNexus/pkg/voiceserver/recognizer"
-	"github.com/LingByte/SoulNexus/pkg/voiceserver/synthesizer"
+	"github.com/LingByte/SoulNexus/pkg/recognizer"
+	"github.com/LingByte/SoulNexus/pkg/synthesizer"
 	voicetts "github.com/LingByte/SoulNexus/pkg/voiceserver/voice/tts"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/xiaozhi"
 	"gorm.io/gorm"

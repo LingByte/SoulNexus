@@ -28,7 +28,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LingByte/SoulNexus/pkg/voiceserver/recognizer"
+	"github.com/LingByte/SoulNexus/pkg/recognizer"
 	voicetts "github.com/LingByte/SoulNexus/pkg/voiceserver/voice/tts"
 
 	pionwebrtc "github.com/pion/webrtc/v4"

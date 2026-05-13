@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/LingByte/SoulNexus/pkg/voiceserver/media"
+	"github.com/LingByte/SoulNexus/pkg/media"
 )
 
 // ---------- StripEmoji ------------------------------------------------------

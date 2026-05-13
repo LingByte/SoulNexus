@@ -7,7 +7,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/LingByte/SoulNexus/pkg/voiceserver/synthesizer"
+	"github.com/LingByte/SoulNexus/pkg/synthesizer"
 )
 
 // Service is the minimal streaming TTS contract the Pipeline consumes.
