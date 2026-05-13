@@ -21,8 +21,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/LingByte/SoulNexus/pkg/voiceserver/recognizer"
-	"github.com/LingByte/SoulNexus/pkg/voiceserver/synthesizer"
+	"github.com/LingByte/SoulNexus/pkg/recognizer"
+	"github.com/LingByte/SoulNexus/pkg/synthesizer"
 	voicetts "github.com/LingByte/SoulNexus/pkg/voiceserver/voice/tts"
 	voicertc "github.com/LingByte/SoulNexus/pkg/voiceserver/voice/webrtc"
 	pionwebrtc "github.com/pion/webrtc/v4"

@@ -66,7 +66,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/LingByte/SoulNexus/pkg/voiceserver/synthesizer"
+	"github.com/LingByte/SoulNexus/pkg/synthesizer"
 	"github.com/gorilla/websocket"
 	"github.com/joho/godotenv"
 )

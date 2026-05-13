@@ -10,7 +10,7 @@ import (
 	siprtp "github.com/LingByte/SoulNexus/pkg/voiceserver/sip/rtp"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/sip/sdp"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/sip/session"
-	"github.com/LingByte/SoulNexus/pkg/voiceserver/recognizer"
+	"github.com/LingByte/SoulNexus/pkg/recognizer"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/tts"
 )
 

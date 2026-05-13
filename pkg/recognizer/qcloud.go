@@ -150,7 +150,16 @@ func (asq *QCloudASR) OnRecognitionResultChange(response *asr.SpeechRecognitionR
 	}
 }
 
-// OnSentenceEnd implementation of SpeechRecognitionListener
+// OnSentenceEnd implementation of SpeechRecognitionListener.
+//
+// A QCloud "sentence end" event IS the natural utterance boundary in streaming
+// ASR (cf. SpeechRecognitionResponse.Result.SliceType == 2). We therefore emit
+// it as isFinal=true so downstream dialog logic (LLM trigger, TTS reply, etc.)
+// fires per sentence instead of waiting for OnRecognitionComplete (which only
+// fires after SendEnd closes the whole session).
+//
+// Each sentence is independent: we overwrite (not accumulate) asq.sentence so
+// the next sentence's cumulative partials aren't prefixed by prior finals.
 func (asq *QCloudASR) OnSentenceEnd(response *asr.SpeechRecognitionResponse) {
 	logFields := logrus.Fields{
 		"voiceTextStr": response.Result.VoiceTextStr,
@@ -160,12 +169,16 @@ func (asq *QCloudASR) OnSentenceEnd(response *asr.SpeechRecognitionResponse) {
 	}
 	logrus.WithFields(logFields).Info("qcloud: on sentence end")
 
-	asq.sentence += response.Result.VoiceTextStr
+	sentence := response.Result.VoiceTextStr
+	asq.sentence = sentence
 	asq.sliceType = response.Result.SliceType
 	asq.startTime = response.Result.StartTime
 	asq.endTime = response.Result.EndTime
 	if asq.transcribeResult != nil {
-		asq.transcribeResult(asq.sentence, false, time.Since(*asq.sendReqTime), asq.dialogID)
+		asq.transcribeResult(sentence, true, time.Since(*asq.sendReqTime), asq.dialogID)
+		// Reset so OnRecognitionComplete (session close) doesn't re-fire the
+		// same text as another "final".
+		asq.sentence = ""
 		return
 	}
 }

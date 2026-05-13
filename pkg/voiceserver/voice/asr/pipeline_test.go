@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/LingByte/SoulNexus/pkg/voiceserver/recognizer"
+	"github.com/LingByte/SoulNexus/pkg/recognizer"
 )
 
 // fakeASR implements recognizer.TranscribeService.
