@@ -15,9 +15,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/LingByte/SoulNexus/pkg/recognizer"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/media"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/media/encoder"
-	"github.com/LingByte/SoulNexus/pkg/recognizer"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/asr"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/gateway"
@@ -518,7 +518,7 @@ func (s *session) handleHello(ctx context.Context, raw []byte) {
 		}
 	}
 	log.Printf("[xiaozhi] call=%s device=%s connected: in=%s/%dHz out=%s/%dHz dialog=%s",
-		s.callID, s.deviceID, s.inFormat, s.inSR, s.outFormat, s.outSR, s.cfg.DialogWSURL)
+		s.callID, s.deviceID, s.inFormat, s.inSR, s.outFormat, s.outSR, gateway.RedactDialogDialURL(s.cfg.DialogWSURL))
 }
 
 // handleListen flips the input gate: while !listening the inbound audio

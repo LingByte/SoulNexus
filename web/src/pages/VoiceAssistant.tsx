@@ -40,6 +40,12 @@ import { useVoiceAssistant } from '@/hooks/useVoiceAssistant'
 // 导入配置
 import { getUploadsBaseURL, buildWebSocketURL } from '@/config/apiConfig'
 
+/** cmd/voice `-http` 根地址（与 VITE_CMD_VOICE_BASE 一致，无 /api 后缀） */
+function getCmdVoiceBase(): string {
+    const raw = (import.meta.env.VITE_CMD_VOICE_BASE as string | undefined) || 'http://127.0.0.1:7080'
+    return raw.endsWith('/') ? raw.slice(0, -1) : raw
+}
+
 const VoiceAssistant = () => {
     const WS_AUDIO_DEBUG = false
     const { t } = useI18nStore()
@@ -84,11 +90,15 @@ const VoiceAssistant = () => {
     const [localStream, setLocalStream] = useState<MediaStream | null>(null)
     const [callDuration, setCallDuration] = useState(0)
     const [callTimer, setCallTimer] = useState<NodeJS.Timeout | null>(null)
-    const [pendingCandidates, setPendingCandidates] = useState<any[]>([])
 
     // 线路选择：WebRTC / ASR+TTS
     const [lineMode, setLineMode] = useState<LineMode>('webrtc')
     const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+    /** cmd/voice WebRTC：与 React state 同步，便于卸载/挂断时可靠清理 */
+    const webrtcCallIdRef = useRef<string | null>(null)
+    const webrtcPcRef = useRef<RTCPeerConnection | null>(null)
+    const webrtcLocalStreamRef = useRef<MediaStream | null>(null)
+    const webrtcRemoteAudioRef = useRef<HTMLAudioElement | null>(null)
     // 训练音色
     const [voiceClones, setVoiceClones] = useState<VoiceClone[]>([])
     const [selectedVoiceCloneId, setSelectedVoiceCloneId] = useState<number | null>(null)
@@ -1098,411 +1108,192 @@ const VoiceAssistant = () => {
         })
     }
 
-    // 连接WebSocket
-    const connectWebSocket = () => {
-        // 先关闭现有连接
-        if (socket && socket.readyState !== WebSocket.CLOSED) {
-            socket.close()
+    /** 线路「WebRTC」：在页面内直连 cmd/voice 的 HTTP 信令（与 webrtc_demo.html 同协议） */
+    const connectCmdVoiceWebRTC = async () => {
+        const base = getCmdVoiceBase()
+        const offerUrl = `${base}/webrtc/v1/offer`
+
+        if (!navigator.mediaDevices?.getUserMedia) {
+            showAlert(
+                '当前环境无法使用麦克风（需 https 或 http://localhost）。请用本机地址打开主站，或为 cmd/voice 配置 HTTPS。',
+                'warning'
+            )
+            setIsConnecting(false)
+            return
         }
 
-        // 将认证信息作为查询参数添加到URL中（使用表单配置的API密钥）
-        const currentApiKey = apiKey
-        const currentApiSecret = apiSecret
-        // 添加 agentId 参数（必需）
-        const wsUrl = `${buildWebSocketURL('/api/chat/call')}?apiKey=${currentApiKey}&apiSecret=${currentApiSecret}&agentId=${agentId}`
-        const newSocket = new WebSocket(wsUrl)
+        let stream: MediaStream | null = null
 
-        // 用于存储会话信息和 ICE candidates
-        let sessionId = ''
-        let localPeerConnection: RTCPeerConnection | null = null
-        const collectedCandidates: string[] = []
-        let offerSent = false
-
-        // 初始化 WebRTC 连接的函数
-        const initWebRTC = async () => {
-            try {
-                // 1. 创建 RTCPeerConnection
-                const newPeerConnection = new RTCPeerConnection({
-                    iceServers: [
-                        { urls: 'stun:stun.l.google.com:19302' }
-                    ]
-                })
-                localPeerConnection = newPeerConnection
-
-                // 2. 获取麦克风音频
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    audio: {
-                        echoCancellation: true,
-                        noiseSuppression: true,
-                        sampleRate: 16000, // 请求 16kHz 采样率以匹配后端 ASR
-                    }
-                })
-                setLocalStream(stream) // 保存到状态中，以便 stopCall 使用
-
-                stream.getTracks().forEach(track => {
-                    newPeerConnection.addTrack(track, stream)
-                })
-
-                // 3. 收集 ICE 候选（Trickle ICE：先发 offer，候选增量发送）
-                newPeerConnection.onicecandidate = (event) => {
-                    if (event.candidate) {
-                        // 收集 candidate 字符串
-                        collectedCandidates.push(event.candidate.candidate)
-                        console.log('[WebRTC] 收集 ICE 候选:', event.candidate.candidate)
-
-                        // offer 已发送后，增量推送 candidate，减少建连等待
-                        if (offerSent && newSocket.readyState === WebSocket.OPEN) {
-                            newSocket.send(JSON.stringify({
-                                type: 'ice-candidate',
-                                session_id: sessionId,
-                                data: {
-                                    candidate: event.candidate.candidate,
-                                }
-                            }))
-                        }
-                    } else {
-                        // ICE 收集完成（event.candidate 为 null）
-                        console.log('[WebRTC] ICE 候选收集完成，共收集:', collectedCandidates.length)
-                    }
+        const cleanupLocal = () => {
+            webrtcCallIdRef.current = null
+            const c = webrtcPcRef.current
+            if (c) {
+                try {
+                    c.close()
+                } catch {
+                    /* ignore */
                 }
+            }
+            webrtcPcRef.current = null
+            const s = webrtcLocalStreamRef.current
+            if (s) {
+                s.getTracks().forEach(t => t.stop())
+            }
+            webrtcLocalStreamRef.current = null
+            if (webrtcRemoteAudioRef.current) {
+                webrtcRemoteAudioRef.current.srcObject = null
+            }
+            setPeerConnection(null)
+            setLocalStream(null)
+        }
 
-                // 处理远端音频轨道
-                newPeerConnection.ontrack = (event) => {
-                    console.log('[WebRTC] 收到远端音轨')
-                    const remoteAudio = new Audio()
-                    remoteAudio.srcObject = event.streams[0]
-                    remoteAudio.play().catch(err => {
-                        console.error('[WebRTC] 播放远端音频失败:', err)
-                    })
-                }
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true,
+                    sampleRate: { ideal: 48000 },
+                },
+                video: false,
+            })
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err)
+            console.error('[WebRTC] getUserMedia:', err)
+            showAlert(`无法访问麦克风：${msg}`, 'error')
+            cleanupLocal()
+            setIsConnecting(false)
+            return
+        }
 
-                // 连接状态变化处理
-                newPeerConnection.onconnectionstatechange = () => {
-                    console.log('[WebRTC] 连接状态:', newPeerConnection.connectionState)
-                    switch (newPeerConnection.connectionState) {
-                        case 'connected':
-                            console.log('[WebRTC] 已连接')
-                            setIsConnecting(false)
-                            setIsCalling(true)
-                            // 发送 connected 确认消息
-                            if (newSocket.readyState === WebSocket.OPEN) {
-                                newSocket.send(JSON.stringify({
-                                    type: 'connected',
-                                    session_id: sessionId,
-                                    data: {}
-                                }))
-                                console.log('[WebRTC] 已发送 connected 确认消息')
-                            }
-                            break
-                        case 'disconnected':
-                        case 'failed':
-                        case 'closed':
-                            console.log('[WebRTC] 连接关闭/失败')
-                            setIsCalling(false)
-                            setIsConnecting(false)
-                            break
-                    }
-                }
+        webrtcLocalStreamRef.current = stream
+        setLocalStream(stream)
 
-                // 4. 创建 offer
-                const offer = await newPeerConnection.createOffer()
-                await newPeerConnection.setLocalDescription(offer)
-                console.log('[WebRTC] 已创建并设置本地 SDP offer')
+        const conn = new RTCPeerConnection({
+            iceServers: [{ urls: ['stun:stun.l.google.com:19302'] }],
+            bundlePolicy: 'max-bundle',
+            rtcpMuxPolicy: 'require',
+        })
+        webrtcPcRef.current = conn
+        setPeerConnection(conn)
 
-                setPeerConnection(newPeerConnection)
-                setLocalStream(stream)
+        conn.ontrack = (evt) => {
+            const el = webrtcRemoteAudioRef.current
+            if (el && evt.streams[0]) {
+                el.srcObject = evt.streams[0]
+            }
+        }
 
-                // Trickle ICE：localDescription 就绪后立即发送 offer，不等待 ICE 收集完成
-                sendOfferWithCandidates(newPeerConnection)
-
-            } catch (error) {
-                console.error('[WebRTC] 初始化失败:', error)
-                showAlert('音频设备初始化失败', 'error')
+        conn.onconnectionstatechange = () => {
+            if (webrtcPcRef.current !== conn) {
+                return
+            }
+            const state = conn.connectionState
+            if (state === 'failed') {
+                console.error('[WebRTC] PeerConnection failed')
+                showAlert('WebRTC 连接失败', 'error')
+                cleanupLocal()
                 setIsCalling(false)
                 setIsConnecting(false)
             }
         }
 
-        // 发送包含 candidates 的 offer
-        const sendOfferWithCandidates = (pc: RTCPeerConnection) => {
-            if (!pc.localDescription || newSocket.readyState !== WebSocket.OPEN) {
-                console.error('[WebRTC] 无法发送 offer: localDescription 或 WebSocket 未就绪')
-                return
-            }
-
-            // 按照后端期望的格式发送 offer
-            const offerMsg = {
-                type: 'offer',
-                session_id: sessionId,
-                data: {
-                    sdp: pc.localDescription.sdp,
-                    candidates: collectedCandidates,
-                }
-            }
-
-            console.log('[WebRTC] 发送 offer，包含', collectedCandidates.length, '个 ICE 候选')
-            newSocket.send(JSON.stringify(offerMsg))
-            offerSent = true
+        for (const t of stream.getAudioTracks()) {
+            conn.addTrack(t, stream)
         }
 
-        // 处理 answer 消息
-        const handleAnswer = async (data: any) => {
-            if (!localPeerConnection) {
-                console.error('[WebRTC] peerConnection 不存在')
-                return
-            }
-
-            // 从 data.data 中获取 sdp 和 candidates（后端返回格式）
-            const answerData = data.data || data
-            let sdp = answerData.sdp || data.sdp
-            const candidates = answerData.candidates || []
-
-            console.log('[WebRTC] 收到 answer:')
-            console.log('- data:', data)
-            console.log('- answerData:', answerData)
-            console.log('- SDP 类型:', typeof sdp)
-            console.log('- SDP 存在:', !!sdp)
-            console.log('- 服务器 ICE 候选数量:', candidates.length)
-
-            if (!sdp) {
-                console.error('[WebRTC] answer 中没有 SDP')
-                return
-            }
-
-            // 如果 sdp 是对象（可能是 JSON 字符串被解析了），尝试提取 sdp 字段
-            if (typeof sdp === 'object' && sdp !== null) {
-                console.log('[WebRTC] SDP 是对象，尝试提取 sdp 字段')
-                if (sdp.sdp) {
-                    sdp = sdp.sdp
-                } else {
-                    console.error('[WebRTC] SDP 对象中没有 sdp 字段')
-                    return
-                }
-            }
-
-            // 如果 sdp 是字符串，但可能是 JSON 字符串（后端返回的是 SessionDescription 的 JSON）
-            if (typeof sdp === 'string') {
-                // 检查是否是 JSON 格式的字符串（以 { 开头）
-                const trimmed = sdp.trim()
-                if (trimmed.startsWith('{')) {
-                    try {
-                        const parsed = JSON.parse(sdp)
-                        // 后端返回的格式是 {"type":"answer","sdp":"v=0\r\n..."}
-                        if (parsed.sdp && typeof parsed.sdp === 'string') {
-                            sdp = parsed.sdp
-                            console.log('[WebRTC] 从 SessionDescription JSON 中提取 SDP')
-                        } else if (parsed.type === 'answer' && parsed.sdp) {
-                            sdp = parsed.sdp
-                            console.log('[WebRTC] 从嵌套的 SessionDescription JSON 中提取 SDP')
-                        } else {
-                            console.warn('[WebRTC] JSON 解析成功但未找到 sdp 字段:', parsed)
-                        }
-                    } catch (e) {
-                        console.warn('[WebRTC] SDP 字符串解析 JSON 失败，当作纯 SDP 处理:', e)
-                        // 如果解析失败，继续使用原始字符串
-                    }
-                }
-            }
-
-            // 调试：打印 SDP 的前100个字符和换行符情况
-            console.log('[WebRTC] 处理后的 SDP 类型:', typeof sdp)
-            console.log('[WebRTC] SDP 前100字符:', typeof sdp === 'string' ? sdp.substring(0, 100) : 'N/A')
-            if (typeof sdp === 'string') {
-                console.log('[WebRTC] SDP 包含 \\r\\n:', sdp.includes('\r\n'))
-                console.log('[WebRTC] SDP 包含 \\n:', sdp.includes('\n'))
-            }
-
-            // 确保 sdp 是字符串
-            if (typeof sdp !== 'string') {
-                console.error('[WebRTC] SDP 不是字符串类型:', typeof sdp, sdp)
-                return
-            }
-
-            // 标准化 SDP 换行符为 CRLF（WebRTC SDP 规范要求）
-            // 先统一为 LF，再转换为 CRLF
-            sdp = sdp.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/\n/g, '\r\n')
-
-            // 确保 SDP 以 CRLF 结尾
-            if (!sdp.endsWith('\r\n')) {
-                sdp += '\r\n'
-            }
-
-            console.log('[WebRTC] 标准化后 SDP 前100字符:', sdp.substring(0, 100))
-
-            try {
-                // 设置远端 SDP（直接使用对象，不需要 new RTCSessionDescription）
-                await localPeerConnection.setRemoteDescription({ type: 'answer', sdp: sdp })
-                console.log('[WebRTC] 已设置远端 SDP answer')
-
-                // 添加服务器的 ICE 候选
-                // 注意：必须在 setRemoteDescription 之后添加 candidates
-                if (candidates && candidates.length > 0) {
-                    for (const candidateStr of candidates) {
-                        // 验证 candidate 字符串
-                        if (!candidateStr || typeof candidateStr !== 'string' || candidateStr.trim() === '') {
-                            console.warn('[WebRTC] 跳过无效的 ICE 候选:', candidateStr)
-                            continue
-                        }
-
-                        try {
-                            // 尝试解析 candidate 字符串
-                            // candidate 格式通常是: "candidate:1 1 UDP 2130706431 192.168.1.1 54321 typ host"
-                            // 如果包含 "a=" 前缀，需要去掉
-                            let cleanCandidate = candidateStr.trim()
-                            if (cleanCandidate.startsWith('a=')) {
-                                cleanCandidate = cleanCandidate.substring(2)
-                            }
-
-                            // 创建 RTCIceCandidate 对象
-                            // 不指定 sdpMid，让浏览器自动匹配
-                            const candidate = new RTCIceCandidate({
-                                candidate: cleanCandidate,
-                                sdpMLineIndex: 0,
-                            })
-
-                            // 检查连接状态，避免在已关闭的连接上添加
-                            if (localPeerConnection.connectionState === 'closed' ||
-                                localPeerConnection.connectionState === 'failed') {
-                                console.warn('[WebRTC] 连接已关闭或失败，跳过添加 ICE 候选')
-                                break
-                            }
-
-                            await localPeerConnection.addIceCandidate(candidate)
-                            console.log('[WebRTC] 添加服务器 ICE 候选成功:', cleanCandidate.substring(0, 50))
-                        } catch (err: any) {
-                            // 某些错误是可以忽略的（如 candidate 已过期、重复等）
-                            if (err?.message?.includes('already been added') ||
-                                err?.message?.includes('InvalidStateError') ||
-                                err?.message?.includes('candidate')) {
-                                console.warn('[WebRTC] ICE 候选添加失败（可忽略）:', err.message)
-                            } else {
-                                console.error('[WebRTC] 添加服务器 ICE 候选失败:', err, 'candidate:', candidateStr)
-                            }
-                        }
-                    }
-                }
-
-                // 处理之前缓存的 ICE 候选（如果有）
-                if (pendingCandidates && pendingCandidates.length > 0) {
-                    for (const candidate of pendingCandidates) {
-                        try {
-                            // 检查连接状态
-                            if (localPeerConnection.connectionState === 'closed' ||
-                                localPeerConnection.connectionState === 'failed') {
-                                break
-                            }
-
-                            await localPeerConnection.addIceCandidate(new RTCIceCandidate(candidate))
-                            console.log('[WebRTC] 添加缓存 ICE 候选成功')
-                        } catch (err: any) {
-                            if (err?.message?.includes('already been added') ||
-                                err?.message?.includes('InvalidStateError')) {
-                                console.warn('[WebRTC] 缓存 ICE 候选添加失败（可忽略）:', err.message)
-                            } else {
-                                console.error('[WebRTC] 添加缓存 ICE 候选失败:', err)
-                            }
-                        }
-                    }
-                    setPendingCandidates([])
-                }
-            } catch (err) {
-                console.error('[WebRTC] 处理 answer 失败:', err)
-            }
-        }
-
-        // WebSocket 消息处理
-        newSocket.onmessage = async (event) => {
-            console.log('[WebSocket] 收到消息:', event.data)
-            const data = JSON.parse(event.data)
-            console.log('[WebSocket] 解析后的数据:', data)
-
-            switch (data.type) {
-                case 'init':
-                    // 收到 init 消息，获取 sessionId，然后初始化 WebRTC
-                    sessionId = data.session_id || ''
-                    console.log('[WebSocket] 收到 init 消息，sessionId:', sessionId)
-                    // 开始初始化 WebRTC
-                    await initWebRTC()
-                    break
-
-                case 'answer':
-                    await handleAnswer(data)
-                    break
-
-                case 'asrFinal':
-                    {
-                        const asrText = data?.data?.text || data?.text
-                        if (asrText) {
-                            console.log('[WebSocket] 收到 ASR 结果:', asrText)
-                            addUserMessage(asrText)
-                        }
-                    }
-                    break
-
-                case 'llm_response':
-                    {
-                        const llmText = data?.data?.text || data?.text
-                        if (llmText) {
-                            console.log('[WebSocket] 收到 LLM 回复:', llmText)
-                            addAIMessage(llmText)
-                        }
-                    }
-                    break
-
-                case 'ice-candidate':
-                    // 服务器可能单独发送 ICE 候选（虽然当前后端使用 bundling 模式）
-                    if (localPeerConnection && data.candidate) {
-                        // 检查连接状态
-                        if (localPeerConnection.connectionState === 'closed' ||
-                            localPeerConnection.connectionState === 'failed') {
-                            console.warn('[WebRTC] 连接已关闭或失败，跳过 ICE 候选')
-                            break
-                        }
-
-                        try {
-                            const candidate = new RTCIceCandidate(data.candidate)
-                            if (localPeerConnection.remoteDescription && localPeerConnection.remoteDescription.type) {
-                                await localPeerConnection.addIceCandidate(candidate)
-                                console.log('[WebRTC] 添加 ICE 候选成功')
-                            } else {
-                                setPendingCandidates(prev => [...prev, data.candidate])
-                                console.log('[WebRTC] 缓存 ICE 候选，等待 remoteDescription 设置')
-                            }
-                        } catch (err: any) {
-                            if (err?.message?.includes('already been added') ||
-                                err?.message?.includes('InvalidStateError')) {
-                                console.warn('[WebRTC] ICE 候选添加失败（可忽略）:', err.message)
-                            } else {
-                                console.error('[WebRTC] 添加 ICE 候选失败:', err)
-                            }
-                        }
-                    }
-                    break
-
-                default:
-                    console.log('[WebSocket] 未知消息类型:', data.type)
-            }
-        }
-
-        newSocket.onopen = () => {
-            console.log('[WebSocket] 已连接，等待服务器 init 消息...')
-            // 不再在 onopen 中立即初始化 WebRTC，而是等待 init 消息
-        }
-
-        newSocket.onerror = (error) => {
-            console.error('[WebSocket] 连接出错:', error)
-            showAlert('WebSocket连接出错', 'error')
-            setIsCalling(false)
+        let offer: RTCSessionDescriptionInit
+        try {
+            offer = await conn.createOffer({ offerToReceiveAudio: true })
+            await conn.setLocalDescription(offer)
+        } catch (err: unknown) {
+            console.error('[WebRTC] createOffer:', err)
+            showAlert('创建 WebRTC 本地描述失败', 'error')
+            cleanupLocal()
             setIsConnecting(false)
+            return
         }
 
-        newSocket.onclose = () => {
-            console.log('[WebSocket] 连接关闭')
-            setIsCalling(false)
+        await new Promise<void>((resolve) => {
+            if (conn.iceGatheringState === 'complete') {
+                resolve()
+                return
+            }
+            const onGather = () => {
+                if (conn.iceGatheringState === 'complete') {
+                    conn.removeEventListener('icegatheringstatechange', onGather)
+                    resolve()
+                }
+            }
+            conn.addEventListener('icegatheringstatechange', onGather)
+            window.setTimeout(resolve, 4000)
+        })
+
+        let resp: Response
+        try {
+            resp = await fetch(offerUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type: 'offer',
+                    sdp: conn.localDescription?.sdp ?? '',
+                    payload: {
+                        apiKey,
+                        apiSecret,
+                        agentId: String(agentId),
+                    },
+                }),
+            })
+        } catch (err: unknown) {
+            console.error('[WebRTC] fetch offer:', err)
+            showAlert('无法连接 cmd/voice（检查是否已启动 -http 与 VITE_CMD_VOICE_BASE）', 'error')
+            cleanupLocal()
             setIsConnecting(false)
+            return
         }
 
-        setSocket(newSocket)
+        if (!resp.ok) {
+            const text = await resp.text().catch(() => '')
+            console.error('[WebRTC] offer rejected:', resp.status, text)
+            showAlert(`语音服务拒绝协商（${resp.status}）${text ? `：${text.slice(0, 200)}` : ''}`, 'error')
+            cleanupLocal()
+            setIsConnecting(false)
+            return
+        }
+
+        let answer: { sdp?: string; type?: string; call_id?: string; callId?: string }
+        try {
+            answer = await resp.json()
+        } catch (err: unknown) {
+            console.error('[WebRTC] parse answer JSON:', err)
+            showAlert('语音服务返回非 JSON', 'error')
+            cleanupLocal()
+            setIsConnecting(false)
+            return
+        }
+
+        const callId = (answer.call_id || answer.callId || '').trim()
+        if (!answer.sdp) {
+            showAlert('语音服务未返回 SDP', 'error')
+            cleanupLocal()
+            setIsConnecting(false)
+            return
+        }
+
+        webrtcCallIdRef.current = callId || null
+
+        try {
+            await conn.setRemoteDescription({ type: 'answer', sdp: answer.sdp })
+        } catch (err: unknown) {
+            console.error('[WebRTC] setRemoteDescription:', err)
+            showAlert('应用远端 SDP 失败', 'error')
+            cleanupLocal()
+            setIsConnecting(false)
+            return
+        }
+
+        setIsConnecting(false)
+        setIsCalling(true)
     }
 
     // 使用 ref 防止 StrictMode 导致的重复请求
@@ -1657,12 +1448,32 @@ const VoiceAssistant = () => {
     useEffect(() => {
         return () => {
             console.log('[Cleanup] 组件卸载，清理资源')
-            // 组件卸载时清理所有连接
             if (callTimer) {
                 clearInterval(callTimer)
             }
             if (socket && socket.readyState !== WebSocket.CLOSED) {
                 socket.close()
+            }
+            const hangId = webrtcCallIdRef.current
+            if (hangId) {
+                const hangUrl = `${getCmdVoiceBase()}/webrtc/v1/hangup?call_id=${encodeURIComponent(hangId)}`
+                fetch(hangUrl, { method: 'POST', keepalive: true }).catch(() => {})
+                webrtcCallIdRef.current = null
+            }
+            if (webrtcPcRef.current) {
+                try {
+                    webrtcPcRef.current.close()
+                } catch {
+                    /* ignore */
+                }
+                webrtcPcRef.current = null
+            }
+            if (webrtcLocalStreamRef.current) {
+                webrtcLocalStreamRef.current.getTracks().forEach(track => track.stop())
+                webrtcLocalStreamRef.current = null
+            }
+            if (webrtcRemoteAudioRef.current) {
+                webrtcRemoteAudioRef.current.srcObject = null
             }
             if (peerConnection && peerConnection.connectionState !== 'closed') {
                 peerConnection.close()
@@ -1703,8 +1514,7 @@ const VoiceAssistant = () => {
 
             // 根据线路选择连接方式
             if (lineMode === 'webrtc') {
-                // 线路1：WebRTC实时通信
-                connectWebSocket()
+                void connectCmdVoiceWebRTC()
             } else if (lineMode === 'websocket') {
                 // 线路2：通用WebSocket语音服务
                 connectQiniuVoice()
@@ -1739,10 +1549,34 @@ const VoiceAssistant = () => {
 
             // 根据线路类型停止相应的连接
             if (lineMode === 'webrtc') {
-                // 停止WebRTC连接
-                if (peerConnection && peerConnection.connectionState !== 'closed') {
-                    peerConnection.close()
-                    setPeerConnection(null)
+                const id = webrtcCallIdRef.current
+                webrtcCallIdRef.current = null
+                if (id) {
+                    try {
+                        await fetch(
+                            `${getCmdVoiceBase()}/webrtc/v1/hangup?call_id=${encodeURIComponent(id)}`,
+                            { method: 'POST' }
+                        )
+                    } catch (e) {
+                        console.warn('[WebRTC] hangup:', e)
+                    }
+                }
+                if (webrtcPcRef.current) {
+                    try {
+                        webrtcPcRef.current.close()
+                    } catch {
+                        /* ignore */
+                    }
+                    webrtcPcRef.current = null
+                }
+                setPeerConnection(null)
+                if (webrtcLocalStreamRef.current) {
+                    webrtcLocalStreamRef.current.getTracks().forEach(t => t.stop())
+                    webrtcLocalStreamRef.current = null
+                }
+                setLocalStream(null)
+                if (webrtcRemoteAudioRef.current) {
+                    webrtcRemoteAudioRef.current.srcObject = null
                 }
             } else if (lineMode === 'websocket') {
                 // 停止WebSocket录音
@@ -1784,7 +1618,6 @@ const VoiceAssistant = () => {
             setIsCalling(false)
             setIsConnecting(false)
             setCallDuration(0)
-            setPendingCandidates([])
 
             console.log('[StopCall] 通话已结束')
             showAlert('通话已结束', 'success')
@@ -2042,6 +1875,7 @@ const VoiceAssistant = () => {
 
     return (
         <div className="h-[100vh] overflow-hidden flex flex-col bg-gradient-to-br from-blue-50 to-purple-50 dark:from-neutral-900 dark:to-neutral-800">
+            <audio ref={webrtcRemoteAudioRef} className="hidden" autoPlay playsInline />
             <div className="flex flex-1 overflow-hidden">
                 {/* 左侧边栏（语音球+历史会话） */}
                 <div

@@ -24,6 +24,7 @@ import (
 
 	"github.com/LingByte/SoulNexus/pkg/recognizer"
 	"github.com/LingByte/SoulNexus/pkg/synthesizer"
+	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/gateway"
 	voicetts "github.com/LingByte/SoulNexus/pkg/voiceserver/voice/tts"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/xiaozhi"
 	"gorm.io/gorm"
@@ -84,7 +85,7 @@ func mountXiaozhiHandlers(mux *http.ServeMux, path, dialogWS string, db *gorm.DB
 		w.Header().Set("Cache-Control", "no-cache")
 		_, _ = w.Write(xiaozhiDemoHTML)
 	})
-	log.Printf("[xiaozhi] mounted: ws://<http>%s demo=/xiaozhi/demo -> dialog=%s (esp32+web)", path, dialogWS)
+	log.Printf("[xiaozhi] mounted: ws://<http>%s demo=/xiaozhi/demo -> dialog=%s (esp32+web)", path, gateway.RedactDialogDialURL(dialogWS))
 	return true
 }
 

@@ -103,7 +103,7 @@ func TestServer_OfferAnswer_ProducesNegotiableSDP(t *testing.T) {
 	httpSrv := httptest.NewServer(http.HandlerFunc(srv.HandleOffer))
 	defer httpSrv.Close()
 
-	body, _ := json.Marshal(SDPMessage{SDP: finalOffer.SDP, Type: "offer"})
+	body, _ := json.Marshal(OfferRequest{SDP: finalOffer.SDP, Type: "offer"})
 	req, _ := http.NewRequest(http.MethodPost, httpSrv.URL, bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := http.DefaultClient.Do(req)

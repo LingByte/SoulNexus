@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -191,5 +192,40 @@ func TestClient_RejectsBadConfig(t *testing.T) {
 	}
 	if _, err := NewClient(ClientConfig{URL: "ws://x"}); err == nil {
 		t.Fatal("expected error nil-attached")
+	}
+}
+
+func TestMergeDialogQueryParams(t *testing.T) {
+	out, err := MergeDialogQueryParams("ws://127.0.0.1:7/ws/call", "k1", "s1", "9")
+	if err != nil {
+		t.Fatal(err)
+	}
+	u, err := url.Parse(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	q := u.Query()
+	if q.Get("apiKey") != "k1" || q.Get("apiSecret") != "s1" || q.Get("agentId") != "9" {
+		t.Fatalf("query: %+v", q)
+	}
+	out2, err := MergeDialogQueryParams("ws://h/p?apiKey=old&foo=bar", "newk", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	u2, _ := url.Parse(out2)
+	q2 := u2.Query()
+	if q2.Get("apiKey") != "newk" || q2.Get("foo") != "bar" {
+		t.Fatalf("preserve+override: %q", out2)
+	}
+	out3, err := MergeDialogPayloadQuery("ws://h/ws/call", []byte(`{"apiKey":"x","n":1}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	u3, _ := url.Parse(out3)
+	if u3.Query().Get("payload") == "" {
+		t.Fatalf("missing payload param: %q", out3)
+	}
+	if _, err := MergeDialogPayloadQuery("ws://x", nil); err == nil {
+		t.Fatal("expected error on empty payload bytes")
 	}
 }
