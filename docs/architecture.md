@@ -3,7 +3,7 @@
 ## 🏗️ Technical Architecture
 
 <div align="center">
-  <img src="core.png" alt="LingEcho Core Architecture" width="800">
+  <img src="core.png" alt="SoulNexus Core Architecture" width="800">
 </div>
 
 ## Core WebRTC Call Flow

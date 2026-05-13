@@ -14,7 +14,6 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/voice"
-	"github.com/LingByte/SoulNexus/pkg/voice/constants"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
@@ -28,7 +27,9 @@ var voiceUpgrader = websocket.Upgrader{
 	},
 }
 
-// HandleWebSocketVoice 处理通用WebSocket语音连接
+// HandleWebSocketVoice 处理浏览器直连 SoulNexus 的旧版 WebSocket 语音（ASR/TTS/LLM 在 API 进程内）。
+// 推荐架构：浏览器连接 cmd/voice 的 xiaozhi WebSocket（与 WebRTC 同源），鉴权经 ?payload= 透传到 /ws/call，
+// SoulNexus 仅作对话面；本入口保留兼容或内网工具调用。
 func (h *Handlers) HandleWebSocketVoice(c *gin.Context) {
 	// 获取参数
 	apiKey := c.Query("apiKey")
@@ -128,97 +129,25 @@ func (h *Handlers) HandleHardwareWebSocketVoice(c *gin.Context) {
 		zap.String("remoteAddr", c.Request.RemoteAddr),
 		zap.String("userAgent", c.Request.UserAgent()))
 
-	if deviceID == "" {
-		// WebSocket升级前返回错误
-		logger.Warn("硬件WebSocket连接缺少Device-Id参数",
-			zap.String("path", c.Request.URL.Path),
-			zap.String("headers", fmt.Sprintf("%v", c.Request.Header)))
-		c.JSON(http.StatusBadRequest, gin.H{
+	sess, status, msg := h.resolveSoulnexusHardwareSession(deviceID)
+	if sess == nil {
+		if deviceID == "" {
+			logger.Warn("硬件WebSocket连接缺少Device-Id参数",
+				zap.String("path", c.Request.URL.Path),
+				zap.String("headers", fmt.Sprintf("%v", c.Request.Header)))
+		}
+		c.JSON(status, gin.H{
 			"code": 500,
-			"msg":  "缺少Device-Id参数",
+			"msg":  msg,
 			"data": nil,
 		})
 		c.Abort()
 		return
 	}
-
-	// 根据Device-Id查询设备
-	device, err := models.GetDeviceByMacAddress(h.db, deviceID)
-	if err != nil || device == nil {
-		// 设备不存在或未激活
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code": 500,
-			"msg":  "设备未激活，请先激活设备",
-			"data": nil,
-		})
-		c.Abort()
-		return
-	}
-
-	// 检查设备是否绑定了助手
-	if device.AgentID == nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code": 500,
-			"msg":  "设备未绑定助手",
-			"data": nil,
-		})
-		c.Abort()
-		return
-	}
-
-	assistantID := *device.AgentID
-
-	// 获取助手配置
-	var assistant models.Agent
-	if err := h.db.Where("id = ?", assistantID).First(&assistant).Error; err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code": 500,
-			"msg":  "获取助手配置失败: " + err.Error(),
-			"data": nil,
-		})
-		c.Abort()
-		return
-	}
-	if assistant.ID == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code": 500,
-			"msg":  "助手不存在",
-			"data": nil,
-		})
-		c.Abort()
-		return
-	}
-
-	// 使用 Assistant 的 ApiKey 和 ApiSecret 获取用户凭证
-	if assistant.ApiKey == "" || assistant.ApiSecret == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code": 500,
-			"msg":  "助手未配置API凭证",
-			"data": nil,
-		})
-		c.Abort()
-		return
-	}
-
-	cred, err := models.GetUserCredentialByApiSecretAndApiKey(h.db, assistant.ApiKey, assistant.ApiSecret)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code": 500,
-			"msg":  "获取凭证失败: " + err.Error(),
-			"data": nil,
-		})
-		c.Abort()
-		return
-	}
-	if cred == nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code": 500,
-			"msg":  "无效的API凭证",
-			"data": nil,
-		})
-		c.Abort()
-		return
-	}
+	device := sess.Device
+	assistant := sess.Assistant
+	cred := sess.Credential
+	assistantID := sess.AssistantID
 
 	// 升级为WebSocket连接
 	logger.Info("准备升级WebSocket连接",
@@ -235,46 +164,26 @@ func (h *Handlers) HandleHardwareWebSocketVoice(c *gin.Context) {
 		zap.String("deviceID", deviceID),
 		zap.Int64("assistantID", int64(assistantID)))
 
-	// 使用助手配置中的参数
-	language := "zh-cn"
-	speaker := assistant.Speaker
-	if speaker == "" {
-		speaker = "502007"
-	}
-	systemPrompt := assistant.SystemPrompt
-	temperature := assistant.Temperature
-
-	// Get LLM model from assistant, fallback to default
-	llmModel := assistant.LLMModel
-	if llmModel == "" {
-		llmModel = "deepseek-v3.1" // Default model
-	}
-
 	// 创建WebSocket处理器
 	handler := voice.NewHardwareHandler(h.db, logger.Lg)
 
 	ctx := context.Background()
 
-	// 使用常量中的VAD配置（覆盖数据库值）
-	// 数据库中的值太低，导致Barge-in过于敏感
-	vadThreshold := constants.DefaultVADThreshold
-	vadConsecutiveFrames := constants.DefaultVADConsecutiveFrames
-
 	handler.HandlerHardwareWebsocket(ctx, &voice.HardwareOptions{
 		Conn:                 conn,
 		AgentID:              assistantID,
 		DeviceID:             &device.ID,
-		Language:             language,
-		Speaker:              speaker,
-		Temperature:          float64(temperature),
-		SystemPrompt:         systemPrompt,
+		Language:             sess.Language,
+		Speaker:              sess.Speaker,
+		Temperature:          sess.Temperature,
+		SystemPrompt:         sess.SystemPrompt,
 		UserID:               device.CreatedBy,
 		MacAddress:           device.MacAddress,
-		LLMModel:             llmModel,
+		LLMModel:             sess.LLMModel,
 		Credential:           cred,
-		EnableVAD:            assistant.EnableVAD,
-		VADThreshold:         vadThreshold,
-		VADConsecutiveFrames: vadConsecutiveFrames,
+		EnableVAD:            sess.EnableVAD,
+		VADThreshold:         sess.VADThreshold,
+		VADConsecutiveFrames: sess.VADConsecutiveFrames,
 		VoiceCloneID:         assistant.VoiceCloneID,
 	})
 }

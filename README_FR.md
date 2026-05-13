@@ -2,7 +2,7 @@
 
 <div align="center">
 <div align="center">
-  <img src="docs/logo.png" alt="LingEcho Logo" width="100" height="110">
+  <img src="docs/logo.png" alt="SoulNexus Logo" width="100" height="110">
 </div>
 
 **Donner une vraie voix a l'IA**
@@ -18,7 +18,7 @@
 
 ### 🌐 Demo en ligne
 
-**Essayez LingEcho** : [https://lingecho.com](https://lingecho.com)
+**Essayez SoulNexus** : [https://lingecho.com](https://lingecho.com)
 
 </div>
 
@@ -53,7 +53,7 @@ SoulNexus est une plateforme d'interaction vocale de niveau entreprise basee sur
 
 ```bash
 git clone https://github.com/LingByte/SoulNexus-App.git
-cd LingEcho-App
+cd SoulNexus-App
 cp server/env.example .env
 docker-compose up -d
 ```

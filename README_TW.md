@@ -2,7 +2,7 @@
 
 <div align="center">
 <div align="center">
-  <img src="docs/logo.png" alt="LingEcho Logo" width="100" height="110">
+  <img src="docs/logo.png" alt="SoulNexus Logo" width="100" height="110">
 </div>
 
 **智慧語音互動平台 - 讓 AI 擁有真實聲音**
@@ -18,7 +18,7 @@
 
 ### 🌐 線上示範
 
-**立即體驗 LingEcho**: [https://lingecho.com](https://lingecho.com)
+**立即體驗 SoulNexus**: [https://lingecho.com](https://lingecho.com)
 
 </div>
 
@@ -53,7 +53,7 @@ SoulNexus 靈樞是一個基於 Go + React 的企業級智慧語音互動平台�
 
 ```bash
 git clone https://github.com/LingByte/SoulNexus-App.git
-cd LingEcho-App
+cd SoulNexus-App
 cp server/env.example .env
 docker-compose up -d
 ```

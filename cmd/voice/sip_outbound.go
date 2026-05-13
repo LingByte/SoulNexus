@@ -1,8 +1,8 @@
-// Copyright (c) 2026 LinByte. All rights reserved.
+// Copyright (c) 2026 LingByte. All rights reserved.
 // SPDX-License-Identifier: AGPL-3.0
-
+ 
 package main
-
+ 
 import (
 	"context"
 	"crypto/rand"
@@ -13,7 +13,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
 	siprtp "github.com/LingByte/SoulNexus/pkg/voiceserver/sip/rtp"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/sip/sdp"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/sip/session"
@@ -21,7 +20,6 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/sip/transaction"
 )
 
-// outboundConfig configures a one-shot UAC call from the CLI.
 type outboundConfig struct {
 	TargetURI  string        // e.g. sip:bob@192.168.1.20:5060
 	LocalIP    string        // IP advertised in Contact / SDP c=
@@ -84,16 +82,16 @@ func runOutbound(ctx context.Context, cfg outboundConfig) error {
 	branch := "z9hG4bK-" + newTag()
 
 	invite := buildOutboundInvite(buildInviteArgs{
-		RequestURI:  target.uri,
-		Branch:      branch,
-		LocalIP:     cfg.LocalIP,
+		RequestURI:   target.uri,
+		Branch:       branch,
+		LocalIP:      cfg.LocalIP,
 		LocalSigPort: localSigPort,
-		FromURI:     fmt.Sprintf("sip:voiceserver@%s", cfg.LocalIP),
-		FromTag:     fromTag,
-		ToURI:       target.uri,
-		CallID:      callID,
-		CSeq:        1,
-		Body:        offerBody,
+		FromURI:      fmt.Sprintf("sip:voiceserver@%s", cfg.LocalIP),
+		FromTag:      fromTag,
+		ToURI:        target.uri,
+		CallID:       callID,
+		CSeq:         1,
+		Body:         offerBody,
 	})
 
 	log.Printf("[out] INVITE → %s (call-id=%s)", target.addr, callID)
@@ -179,15 +177,15 @@ func runOutbound(ctx context.Context, cfg outboundConfig) error {
 	}
 
 	bye := buildOutboundBye(buildByeArgs{
-		RequestURI: ackURI,
-		Branch:     "z9hG4bK-" + newTag(),
-		LocalIP:    cfg.LocalIP,
+		RequestURI:   ackURI,
+		Branch:       "z9hG4bK-" + newTag(),
+		LocalIP:      cfg.LocalIP,
 		LocalSigPort: localSigPort,
-		FromURI:    fmt.Sprintf("sip:voiceserver@%s", cfg.LocalIP),
-		FromTag:    fromTag,
-		ToRaw:      final.GetHeader("To"),
-		CallID:     callID,
-		CSeq:       2,
+		FromURI:      fmt.Sprintf("sip:voiceserver@%s", cfg.LocalIP),
+		FromTag:      fromTag,
+		ToRaw:        final.GetHeader("To"),
+		CallID:       callID,
+		CSeq:         2,
 	})
 	log.Printf("[out] BYE → %s", result.Remote)
 	byeCtx, cancelBye := context.WithTimeout(context.Background(), 8*time.Second)
@@ -208,7 +206,7 @@ func runOutbound(ctx context.Context, cfg outboundConfig) error {
 // ---------- helpers --------------------------------------------------------
 
 type sipTarget struct {
-	uri  string      // canonicalised "sip:user@host:port"
+	uri  string // canonicalised "sip:user@host:port"
 	addr *net.UDPAddr
 }
 
@@ -345,3 +343,47 @@ func newCallID() string {
 	_, _ = rand.Read(b[:])
 	return hex.EncodeToString(b[:]) + "@voiceserver"
 }
+
+// Per-call persistence glue between the SIP/voice control plane and the
+// `pkg/persist` package. One callPersister is created at INVITE time, lives
+// for the life of a SIP dialog, and is closed (final UPDATE) on teardown.
+//
+// It is intentionally chatty about errors but never fatal: persistence is a
+// side-effect — the call must continue working even if the DB is read-only,
+// the disk is full, or `voiceserver.db` was deleted out from under us.
+
+// SFU mount glue. The SFU itself lives in pkg/voice/sfu — this file is
+// just the cmd-side wiring: turn env/config into a sfu.Config, spin
+// up a sfu.Manager, and attach its WS handler to the Gin HTTP listener.
+//
+// Independent from the 1v1 WebRTC handler (cmd/voiceserver/webrtc.go)
+// because the SFU does not bridge to a dialog plane — it only forwards
+// media between human peers. They share STUN/TURN env (WEBRTC_*) so
+// operators don't need a parallel set of variables.
+
+// WebRTC HTTP signaling listener bootstrap. The endpoint terminates 1v1
+// browser-to-AI WebRTC calls — pion handles ICE/STUN/TURN, DTLS-SRTP, NACK,
+// TWCC; pkg/voice/webrtc translates Opus ↔ PCM, runs ASR + TTS, and bridges
+// to the dialog plane (VOICE_DIALOG_WS) so the same dialog application serves
+// SIP, xiaozhi, and WebRTC clients without any code change.
+//
+// Lives in cmd so the env-var sourcing logic matches the SIP / xiaozhi
+// paths (ASR_*/TTS_*/STUN/TURN read once at startup).
+
+// ----- helpers -----
+
+// xiaozhi WebSocket adapter mount. Registers a handler on the shared
+// Gin HTTP listener owned by startHTTPListener. ESP32 hardware
+// (audio_params.format=opus) and browser web clients (format=pcm) both
+// land on this single URL; the handshake distinguishes them.
+//
+// Lives in the voiceserver command rather than the library so the
+// env-var sourcing logic matches the SIP path (ASR_*/TTS_* read once at
+// startup) — pkg/voice/xiaozhi stays free of process-wide config.
+
+// startVoiceHTTPListener owns the single Gin HTTP listener that hosts the
+// voice transport routes registered by internal/handler/voice. One TCP
+// port, one TLS surface (when fronted by a reverse proxy), one auth
+// boundary. Each transport mounts on its own path so they can be
+// enabled/disabled independently via internal/config/voice.go. SIP keeps
+// running even when the HTTP listener is disabled (VOICE_HTTP_ADDR="").

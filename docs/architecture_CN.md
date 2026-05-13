@@ -3,7 +3,7 @@
 ## 🏗️ 技术架构
 
 <div align="center">
-  <img src="core.png" alt="LingEcho 核心架构" width="800">
+  <img src="core.png" alt="SoulNexus 核心架构" width="800">
 </div>
 
 ## 核心WebRTC通话流程

@@ -15,7 +15,10 @@ import (
 
 const (
 	// DefaultTOTPIssuer authenticator apps 显示的发行方名称（otpauth URL）。
-	DefaultTOTPIssuer = "LingEcho"
+	// DefaultTOTPIssuer: shown by authenticator apps. Changing this affects new
+	// enrollments only — existing TOTP entries on user devices keep their old
+	// label until the user re-enrolls.
+	DefaultTOTPIssuer = "SoulNexus"
 	// DefaultTOTPSecretSize TOTP 密钥字节长度。
 	DefaultTOTPSecretSize = 32
 	// DefaultTOTPQRPNGSize 二维码 PNG 边长（像素）。

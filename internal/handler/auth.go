@@ -29,7 +29,7 @@ import (
 	"sync"
 	"time"
 
-	LingEcho "github.com/LingByte/SoulNexus"
+	SoulNexus "github.com/LingByte/SoulNexus"
 	"github.com/LingByte/SoulNexus/internal/config"
 	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/constants"
@@ -210,7 +210,7 @@ type githubEmailResp struct {
 
 // handleUserSignupPage handle user signup page
 func (h *Handlers) handleUserSignupPage(c *gin.Context) {
-	ctx := LingEcho.GetRenderPageContext(c)
+	ctx := SoulNexus.GetRenderPageContext(c)
 	ctx["SignupText"] = "Sign Up Now"
 	ctx["Site.SignupApi"] = utils.GetValue(h.db, constants.KEY_SITE_SIGNUP_API)
 	c.HTML(http.StatusOK, "signup.html", ctx)
@@ -218,12 +218,12 @@ func (h *Handlers) handleUserSignupPage(c *gin.Context) {
 
 // handleUserResetPasswordPage handle user reset password page
 func (h *Handlers) handleUserResetPasswordPage(c *gin.Context) {
-	c.HTML(http.StatusOK, "reset_password.html", LingEcho.GetRenderPageContext(c))
+	c.HTML(http.StatusOK, "reset_password.html", SoulNexus.GetRenderPageContext(c))
 }
 
 // handleUserSigninPage handle user signin page
 func (h *Handlers) handleUserSigninPage(c *gin.Context) {
-	ctx := LingEcho.GetRenderPageContext(c)
+	ctx := SoulNexus.GetRenderPageContext(c)
 	ctx["SignupText"] = "Sign Up Now"
 	if redirectURL := strings.TrimSpace(c.Query("redirecturl")); redirectURL != "" {
 		ctx["LoginNext"] = redirectURL
@@ -259,7 +259,7 @@ func revokeAccountDeletionBrowserURL(c *gin.Context, email string) string {
 
 // RenderAccountDeletionRevokePage 用户服务 / SSO 同源页面：冷静期内撤销注销（无需已登录 Web）。
 func (h *Handlers) RenderAccountDeletionRevokePage(c *gin.Context) {
-	ctx := LingEcho.GetRenderPageContext(c)
+	ctx := SoulNexus.GetRenderPageContext(c)
 	apiP := config.GlobalConfig.Server.APIPrefix
 	if apiP == "" {
 		apiP = "/api"

@@ -1,6 +1,13 @@
-// Package voicedialog implements the dialog-plane WebSocket protocol consumed by
-// cmd/voice (-dialog-ws). Logic mirrors cmd/dialog-example: gateway JSON events
-// in, tts.speak / tts.interrupt commands out, LLM streaming + utterance segmentation.
+// Copyright (c) 2026 LinByte. All rights reserved.
+// SPDX-License-Identifier: AGPL-3.0
+
+// Package voicedialog implements the dialog-plane WebSocket server consumed by
+// cmd/voice when it dials SoulNexus (or compatible) /ws/call. It speaks the
+// pkg/voiceserver/voice/gateway event protocol: ASR/DTMF events in,
+// tts.speak / tts.interrupt commands out, with LLM streaming and utterance
+// segmentation mirroring cmd/dialog-example.
+//
+// It lives under pkg/ so HTTP handlers import a stable path without Gin types.
 package voicedialog
 
 import (

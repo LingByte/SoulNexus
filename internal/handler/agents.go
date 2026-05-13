@@ -14,7 +14,7 @@ import (
 	"text/template"
 	"time"
 
-	LingEcho "github.com/LingByte/SoulNexus"
+	"github.com/LingByte/SoulNexus"
 	"github.com/LingByte/SoulNexus/internal/config"
 	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/constants"
@@ -72,10 +72,10 @@ func (h *Handlers) CreateAgent(c *gin.Context) {
 	}
 
 	agent := models.Agent{
-		GroupID:     gid,
-		CreatedBy:   user.ID,
-		Name:        input.Name,
-		Description: input.Description,
+		GroupID:      gid,
+		CreatedBy:    user.ID,
+		Name:         input.Name,
+		Description:  input.Description,
 		SystemPrompt: "empty system prompt",
 		PersonaTag:   "mentor",
 		Temperature:  0.6,
@@ -354,14 +354,14 @@ func (h *Handlers) ServeVoiceSculptorLoaderJS(c *gin.Context) {
 
 	// If there is no bound JS template, use the default client.js
 	if templateContent == "" {
-		templateContent = LingEcho.AssistantJsModule
+		templateContent = SoulNexus.AssistantJsModule
 	}
 
 	// Inject SDK at the beginning of the template content (if not already loaded)
 	// 使用固定的CDN地址而不是本地地址
 	sdkPath := "https://store.lingecho.com/uploads/buckets/default/lingecho-sdk.js"
 	sdkInjection := fmt.Sprintf(`
-// LingEcho SDK - auto load
+// SoulNexus SDK auto-loader (LingEchoSDK JS class is preserved as the public JS API surface)
 (function() {
     // If SDK is already loaded, return
     if (typeof LingEchoSDK !== 'undefined' && window.lingEcho) {
