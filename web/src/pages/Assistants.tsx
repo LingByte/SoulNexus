@@ -4,17 +4,9 @@ import { getAssistantList, createAssistant, AssistantListItem } from '@/api/assi
 import AddAssistantModal from '@/components/Voice/AddAssistantModal';
 import { showAlert } from '@/utils/notification';
 import { useI18nStore } from '@/stores/i18nStore';
-import { Bot, MessageCircle, Users, Zap, Circle, Settings, Plus, Sparkles, Rocket, Wand2, Search } from 'lucide-react';
+import { Bot, Users, Zap, Plus, Sparkles, Rocket, Wand2, Search } from 'lucide-react';
 import Button from '@/components/UI/Button';
 import { motion } from 'framer-motion';
-
-const ICON_MAP: Record<string, React.ReactNode> = {
-  Bot: <Bot className="w-6 h-6" />,
-  MessageCircle: <MessageCircle className="w-6 h-6" />,
-  Users: <Users className="w-6 h-6" />,
-  Zap: <Zap className="w-6 h-6" />,
-  Circle: <Circle className="w-6 h-6" />,
-};
 
 // 根据 id 稳定生成渐变色，避免每次渲染跳色。
 const GRADIENT_POOL = [
@@ -29,19 +21,6 @@ const GRADIENT_POOL = [
 ];
 
 const pickGradient = (id: number) => GRADIENT_POOL[Math.abs(id) % GRADIENT_POOL.length];
-
-const isURL = (s?: string) => !!s && (s.startsWith('http://') || s.startsWith('https://') || s.startsWith('/'));
-
-// 默认图标：空 / 未识别 / 旧脏数据都回落到 Bot，确保 UI 始终有图标展示。
-const DEFAULT_ICON_KEY = 'Bot';
-const renderAssistantIcon = (icon: string | undefined, name: string) => {
-  const s = (icon || '').trim();
-  if (isURL(s)) {
-    return <img src={s} alt={name} className="w-full h-full object-cover" />;
-  }
-  return ICON_MAP[s] ?? ICON_MAP[DEFAULT_ICON_KEY];
-};
-
 const Assistants: React.FC = () => {
   const { t } = useI18nStore();
   const [assistants, setAssistants] = useState<AssistantListItem[]>([]);
@@ -72,7 +51,7 @@ const Assistants: React.FC = () => {
     fetchAssistants();
   }, []);
 
-  const handleAddAssistant = async (assistant: { name: string; description: string; icon: string; groupId?: number | null }) => {
+  const handleAddAssistant = async (assistant: { name: string; description: string; groupId?: number | null }) => {
     try {
       await createAssistant(assistant);
       await fetchAssistants();
@@ -100,7 +79,7 @@ const Assistants: React.FC = () => {
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
                 placeholder={t('assistants.searchPlaceholder') || '搜索智能体'}
-                className="w-full pl-9 pr-3 py-2 text-sm bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/60 transition-colors"
+                className="w-full pl-9 pr-3 py-2 text-sm dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/60 transition-colors"
               />
             </div>
             <Button
@@ -232,7 +211,6 @@ const Assistants: React.FC = () => {
           )}
           {filtered.map((assistant, index) => {
             const gradient = pickGradient(assistant.id);
-            const iconNode = renderAssistantIcon(assistant.icon, assistant.name);
             return (
               <motion.div
                 key={assistant.id}
@@ -245,8 +223,10 @@ const Assistants: React.FC = () => {
               >
                 <div className="p-5">
                   <div className="flex items-start gap-3">
-                    <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${gradient} text-white flex items-center justify-center shadow-sm overflow-hidden flex-shrink-0`}>
-                      {iconNode}
+                    <div
+                      className={`w-12 h-12 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center shadow-sm overflow-hidden flex-shrink-0`}
+                    >
+                      <Bot className="h-6 w-6" />
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
@@ -257,16 +237,6 @@ const Assistants: React.FC = () => {
                       <div className="mt-0.5 text-[11px] text-gray-400 dark:text-gray-500 font-mono">
                         #{assistant.id}
                       </div>
-                    </div>
-                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); navigate(`/assistants/${assistant.id}/tools`); }}
-                        className="p-1.5 rounded-lg text-gray-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20"
-                        title={t('assistants.manageTools')}
-                      >
-                        <Settings className="w-4 h-4" />
-                      </button>
                     </div>
                   </div>
 

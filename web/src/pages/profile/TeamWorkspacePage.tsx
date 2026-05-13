@@ -35,6 +35,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { useI18nStore } from '@/stores/i18nStore'
 import Button from '@/components/UI/Button'
 import LoadingAnimation from '@/components/Animations/LoadingAnimation'
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/UI/Select'
 import { prefetch } from '@/utils/prefetch'
 import { cn } from '@/utils/cn'
 
@@ -479,9 +480,14 @@ const TeamWorkspacePage: React.FC = () => {
       <div className="space-y-4 mt-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap items-center gap-2">
-              <select className="rounded-lg border border-gray-200 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2 text-sm">
-                <option value="joined">已加入</option>
-              </select>
+              <Select value="joined" onValueChange={() => {}} disabled>
+                <SelectTrigger className="w-[120px] sm:w-[140px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="joined">已加入</SelectItem>
+                </SelectContent>
+              </Select>
               <div className="relative flex-1 min-w-[200px] max-w-md">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input

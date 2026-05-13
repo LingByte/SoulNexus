@@ -14,14 +14,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/LingByte/SoulNexus/internal/config"
 	"github.com/LingByte/SoulNexus/internal/models"
+	"github.com/LingByte/SoulNexus/pkg/stores"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/notification"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/utils"
-	"github.com/LingByte/lingstorage-sdk-go"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -1067,15 +1066,14 @@ func (h *Handlers) UploadGroupAvatar(c *gin.Context) {
 	//	response.Fail(c, "上传头像失败", err.Error())
 	//	return
 	//}
-	reader, err := config.GlobalStore.UploadFromReader(&lingstorage.UploadFromReaderRequest{
-		Reader:   file,
-		Bucket:   config.GlobalConfig.Services.Storage.Bucket,
-		Filename: fileName,
-		Key:      fileName,
-	})
+	st := stores.Default()
+	if err := st.Write(fileName, file); err != nil {
+		response.Fail(c, "上传头像失败", err.Error())
+		return
+	}
 
 	// 获取头像URL
-	avatarURL := reader.URL
+	avatarURL := strings.TrimSpace(st.PublicURL(fileName))
 
 	// 保存相对路径用于返回
 	avatarRelativePath := avatarURL

@@ -82,6 +82,8 @@ func ServerEntities() []any {
 		&models.DeviceErrorLog{},
 		&models.CallRecording{},
 		&models.OAuthClient{},
+		&models.KnowledgeNamespace{},
+		&models.KnowledgeDocument{},
 	}
 }
 

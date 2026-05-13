@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AlertTriangle, CheckCircle2, AlertCircle, Info, X, Filter, RefreshCw } from 'lucide-react';
 import Badge from '@/components/UI/Badge';
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/UI/Select';
 import { resolveDeviceError } from '@/api/device';
 import { showAlert } from '@/utils/notification';
 
@@ -127,27 +128,41 @@ const ErrorLogsPanel: React.FC<ErrorLogsPanelProps> = ({ errorLogs, onRefresh, i
             <div className="flex flex-wrap gap-2 items-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
                 <Filter className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                 
-                <select
+                <Select
                     value={selectedErrorType}
-                    onChange={(e) => setSelectedErrorType(e.target.value)}
-                    className="px-3 py-1 text-sm border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
+                    onValueChange={setSelectedErrorType}
+                    className="min-w-[8.5rem] shrink-0"
                 >
-                    <option value="">所有类型</option>
-                    {errorTypes.map(type => (
-                        <option key={type} value={type}>{type}</option>
-                    ))}
-                </select>
+                    <SelectTrigger className="h-9 border-gray-300 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100">
+                        <SelectValue placeholder="所有类型" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="">所有类型</SelectItem>
+                        {errorTypes.map((type) => (
+                            <SelectItem key={type} value={type}>
+                                {type}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
 
-                <select
+                <Select
                     value={selectedErrorLevel}
-                    onChange={(e) => setSelectedErrorLevel(e.target.value)}
-                    className="px-3 py-1 text-sm border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
+                    onValueChange={setSelectedErrorLevel}
+                    className="min-w-[8.5rem] shrink-0"
                 >
-                    <option value="">所有级别</option>
-                    {errorLevels.map(level => (
-                        <option key={level} value={level}>{level}</option>
-                    ))}
-                </select>
+                    <SelectTrigger className="h-9 border-gray-300 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100">
+                        <SelectValue placeholder="所有级别" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="">所有级别</SelectItem>
+                        {errorLevels.map((level) => (
+                            <SelectItem key={level} value={level}>
+                                {level}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
 
                 <label className="flex items-center gap-2 text-sm cursor-pointer">
                     <input

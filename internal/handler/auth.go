@@ -37,10 +37,10 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/middleware"
 	"github.com/LingByte/SoulNexus/pkg/notification"
 	"github.com/LingByte/SoulNexus/pkg/response"
+	"github.com/LingByte/SoulNexus/pkg/stores"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/LingByte/SoulNexus/pkg/utils/cache"
 	utilscaptcha "github.com/LingByte/SoulNexus/pkg/utils/captcha"
-	"github.com/LingByte/lingstorage-sdk-go"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -3842,18 +3842,13 @@ func (h *Handlers) handleUploadAvatar(c *gin.Context) {
 	fileExt := getFileExtension(header.Filename)
 	fileName := fmt.Sprintf("avatars/%d_%d%s", user.ID, time.Now().Unix(), fileExt)
 
-	reader, err := config.GlobalStore.UploadFromReader(&lingstorage.UploadFromReaderRequest{
-		Reader:   file,
-		Bucket:   config.GlobalConfig.Services.Storage.Bucket,
-		Filename: fileName,
-		Key:      fileName,
-	})
-	if err != nil {
+	st := stores.Default()
+	if err := st.Write(fileName, file); err != nil {
 		response.Fail(c, "Failed to upload avatar", err)
 		return
 	}
 	// 更新用户头像URL
-	avatarURL := reader.URL
+	avatarURL := strings.TrimSpace(st.PublicURL(fileName))
 
 	// 保存相对路径用于返回
 	avatarRelativePath := avatarURL
@@ -4160,73 +4155,78 @@ func (h *Handlers) handleVerifyCaptcha(c *gin.Context) {
 	}
 }
 
-// handleGetUserActivity 获取用户活动记录
+// handleGetUserActivity 获取用户活动记录（审计日志，支持筛选与 180 天保留窗口）
 func (h *Handlers) handleGetUserActivity(c *gin.Context) {
 	user, exists := c.Get(constants.UserField)
 	if !exists {
 		response.Fail(c, "User not found", errors.New("user not found"))
 		return
 	}
+	u := user.(*models.User)
 
-	// 获取查询参数
-	page := c.DefaultQuery("page", "1")
-	limit := c.DefaultQuery("limit", "20")
-	action := c.Query("action") // 可选：按操作类型筛选
+	if op := strings.TrimSpace(c.Query("operatorId")); op != "" {
+		opID, err := strconv.ParseUint(op, 10, 64)
+		if err != nil || uint(opID) != u.ID {
+			response.Success(c, "Activities retrieved", gin.H{
+				"activities": []gin.H{},
+				"pagination": gin.H{"page": 1, "limit": 20, "total": int64(0), "totalPages": int64(0)},
+			})
+			return
+		}
+	}
 
-	// 转换分页参数
-	pageInt, err := strconv.Atoi(page)
+	pageInt, err := strconv.Atoi(c.DefaultQuery("page", "1"))
 	if err != nil || pageInt < 1 {
 		pageInt = 1
 	}
-	limitInt, err := strconv.Atoi(limit)
+	limitInt, err := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	if err != nil || limitInt < 1 || limitInt > 100 {
 		limitInt = 20
 	}
-
-	// 计算偏移量
 	offset := (pageInt - 1) * limitInt
 
-	// 构建查询
-	query := h.db.Model(&middleware.OperationLog{}).Where("user_id = ?", user.(*models.User).ID)
+	base := h.db.Model(&middleware.OperationLog{})
+	query := applyUserActivityFilters(c, base, u.ID)
 
-	// 按操作类型筛选
-	if action != "" {
-		query = query.Where("action = ?", action)
-	}
-
-	// 获取总数
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
 		response.Fail(c, "Failed to count activities", err)
 		return
 	}
 
-	// 获取活动记录
 	var activities []middleware.OperationLog
 	if err := query.Order("created_at DESC").Limit(limitInt).Offset(offset).Find(&activities).Error; err != nil {
 		response.Fail(c, "Failed to get activities", err)
 		return
 	}
 
-	// 格式化响应数据
-	activityList := make([]gin.H, 0) // 初始化为空切片，确保JSON序列化为[]
-	if len(activities) > 0 {
-		activityList = make([]gin.H, 0, len(activities)) // 预分配容量
-		for _, activity := range activities {
-			activityList = append(activityList, gin.H{
-				"id":        activity.ID,
-				"action":    activity.Action,
-				"target":    activity.Target,
-				"details":   activity.Details,
-				"ipAddress": activity.IPAddress,
-				"userAgent": activity.UserAgent,
-				"device":    activity.Device,
-				"browser":   activity.Browser,
-				"os":        activity.OperatingSystem,
-				"location":  activity.Location,
-				"createdAt": activity.CreatedAt,
-			})
-		}
+	activityList := make([]gin.H, 0, len(activities))
+	for _, activity := range activities {
+		activityList = append(activityList, gin.H{
+			"id":              activity.ID,
+			"userId":          activity.UserID,
+			"username":        activity.Username,
+			"action":          activity.Action,
+			"target":          activity.Target,
+			"details":         activity.Details,
+			"ipAddress":       activity.IPAddress,
+			"userAgent":       activity.UserAgent,
+			"referer":         activity.Referer,
+			"requestMethod":   activity.RequestMethod,
+			"device":          activity.Device,
+			"browser":         activity.Browser,
+			"os":              activity.OperatingSystem,
+			"location":        activity.Location,
+			"createdAt":       activity.CreatedAt,
+			"serviceName":     inferAuditServiceName(activity.Target),
+			"eventCode":       inferAuditEventCode(activity.Action, activity.Target),
+			"resourceSummary": auditResourceHint(activity.Target, activity.Details),
+		})
+	}
+
+	totalPages := int64(0)
+	if limitInt > 0 {
+		totalPages = (total + int64(limitInt) - 1) / int64(limitInt)
 	}
 
 	response.Success(c, "Activities retrieved", gin.H{
@@ -4235,7 +4235,8 @@ func (h *Handlers) handleGetUserActivity(c *gin.Context) {
 			"page":       pageInt,
 			"limit":      limitInt,
 			"total":      total,
-			"totalPages": (total + int64(limitInt) - 1) / int64(limitInt),
+			"totalPages": totalPages,
 		},
+		"retentionDays": userActivityRetentionDays,
 	})
 }

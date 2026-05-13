@@ -17,7 +17,6 @@ import ProfileLayout from '@/pages/profile/ProfileLayout.tsx';
 import AnimationShowcase from "@/pages/AnimationShowcase.tsx";
 import Layout from "@/components/Layout/Layout.tsx";
 import ResetPassword from "@/pages/ResetPassword.tsx";
-import CredentialManager from "@/pages/CredentialManager.tsx";
 import ProtectedRoute from "@/components/Auth/ProtectedRoute.tsx";
 import JSTemplateManager from "@/pages/JSTemplateManager.tsx";
 import Assistants from '@/pages/Assistants.tsx';
@@ -28,6 +27,9 @@ import DeviceManagement from '@/pages/DeviceManagement.tsx';
 import DeviceDetail from '@/pages/DeviceDetail.tsx';
 import RedirectToDevices from '@/components/RedirectToDevices.tsx';
 import WorkflowManager from '@/pages/WorkflowManager.tsx';
+import KnowledgeListPage from '@/pages/knowledge/KnowledgeListPage.tsx';
+import KnowledgeSpaceDetailPage from '@/pages/knowledge/KnowledgeSpaceDetailPage.tsx';
+import KnowledgeDocumentDetailPage from '@/pages/knowledge/KnowledgeDocumentDetailPage.tsx';
 import CallRecordingAnalytics from '@/pages/CallRecordingAnalytics.tsx';
 import NodePluginMarket from '@/pages/NodePluginMarket.tsx';
 import VoiceprintManagement from '@/pages/VoiceprintManagement.tsx';
@@ -63,11 +65,10 @@ function AppRoutes() {
                         } />
                         
                         {/* 需要登录的页面 */}
+                        {/* 个人中心：独立全屏布局，不含主导航 Sidebar（自有侧栏见 ProfileLayout） */}
                         <Route path="/profile" element={
                             <ProtectedRoute>
-                                <Layout>
-                                    <ProfileLayout />
-                                </Layout>
+                                <ProfileLayout />
                             </ProtectedRoute>
                         }>
                             <Route index element={<Navigate to="personal" replace />} />
@@ -138,13 +139,7 @@ function AppRoutes() {
                                 <Navigate to="/profile/notifications" replace />
                             </ProtectedRoute>
                         } />
-                        <Route path="/credential" element={
-                            <ProtectedRoute>
-                                <Layout>
-                                    <CredentialManager />
-                                </Layout>
-                            </ProtectedRoute>
-                        } />
+                        <Route path="/credential" element={<Navigate to="/profile/credential" replace />} />
                         <Route path="/js-templates" element={
                             <ProtectedRoute>
                                 <Layout>
@@ -180,6 +175,27 @@ function AppRoutes() {
                             <ProtectedRoute>
                                 <Layout>
                                     <GroupActivityLogs />
+                                </Layout>
+                            </ProtectedRoute>
+                        } />
+                        <Route path="/knowledge" element={
+                            <ProtectedRoute>
+                                <Layout>
+                                    <KnowledgeListPage />
+                                </Layout>
+                            </ProtectedRoute>
+                        } />
+                        <Route path="/knowledge/ns/:id" element={
+                            <ProtectedRoute>
+                                <Layout>
+                                    <KnowledgeSpaceDetailPage />
+                                </Layout>
+                            </ProtectedRoute>
+                        } />
+                        <Route path="/knowledge/documents/:docId" element={
+                            <ProtectedRoute>
+                                <Layout>
+                                    <KnowledgeDocumentDetailPage />
                                 </Layout>
                             </ProtectedRoute>
                         } />

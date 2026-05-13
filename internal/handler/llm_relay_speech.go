@@ -14,6 +14,7 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -27,47 +28,37 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/LingByte/SoulNexus/internal/config"
 	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/recognizer"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/synthesizer"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/LingByte/SoulNexus/pkg/utils/ssrf"
-	"github.com/LingByte/lingstorage-sdk-go"
+	"github.com/LingByte/SoulNexus/pkg/stores"
 	"github.com/gin-gonic/gin"
 )
 
-// uploadTTSAudio 把合成出来的音频字节上传到 LingStorage，返回 URL。
+// uploadTTSAudio 把合成出来的音频字节上传到对象存储，返回 URL。
 // 上传失败返回 error；调用方负责把错误写回 HTTP 响应并记录用量。
 //
 // 该函数把 /v1/audio/speech 与 /v1/speech/tts/synthesize 的上传逻辑合并：
-//   - bucketOverride / keyOverride / filenameOverride 留空走默认（关 audio/{ts}.{ext}）
+//   - keyOverride / filenameOverride 留空走默认（关 audio/{ts}.{ext}）
 //   - 文件名按 audioFormat 推导后缀，确保浏览器能直接播放
-func uploadTTSAudio(audio []byte, ch *models.TTSChannel, audioFormat, bucketOverride, keyOverride, filenameOverride string) (*lingstorage.UploadResult, error) {
-	if config.GlobalStore == nil {
-		return nil, errors.New("对象存储未初始化（LINGSTORAGE_*）")
-	}
-	bucket := strings.TrimSpace(bucketOverride)
-	if bucket == "" && config.GlobalConfig != nil {
-		bucket = config.GlobalConfig.Services.Storage.Bucket
-	}
-	if bucket == "" {
-		return nil, errors.New("未配置存储 bucket")
-	}
+func uploadTTSAudio(audio []byte, ch *models.TTSChannel, audioFormat, keyOverride, filenameOverride string) (publicURL, key, fname string, size int64, err error) {
+	size = int64(len(audio))
 	ext := strings.TrimSpace(strings.ToLower(audioFormat))
 	if ext == "" {
 		ext = "mp3"
 	}
-	fname := strings.TrimSpace(filenameOverride)
-	if fname == "" {
-		fname = fmt.Sprintf("tts-%d.%s", time.Now().UnixNano(), ext)
+	fnameArg := strings.TrimSpace(filenameOverride)
+	if fnameArg == "" {
+		fnameArg = fmt.Sprintf("tts-%d.%s", time.Now().UnixNano(), ext)
 	}
-	fname = filepath.Base(fname)
-	if fname == "." || fname == "" {
-		fname = fmt.Sprintf("tts-%d.%s", time.Now().UnixNano(), ext)
+	fnameArg = filepath.Base(fnameArg)
+	if fnameArg == "." || fnameArg == "" {
+		fnameArg = fmt.Sprintf("tts-%d.%s", time.Now().UnixNano(), ext)
 	}
-	key := strings.TrimSpace(keyOverride)
+	key = strings.TrimSpace(keyOverride)
 	if key == "" {
 		group := "default"
 		if ch != nil {
@@ -76,14 +67,18 @@ func uploadTTSAudio(audio []byte, ch *models.TTSChannel, audioFormat, bucketOver
 				group = "default"
 			}
 		}
-		key = fmt.Sprintf("relay/tts/%s/%d-%s", group, time.Now().UnixNano(), fname)
+		key = fmt.Sprintf("relay/tts/%s/%d-%s", group, time.Now().UnixNano(), fnameArg)
 	}
-	return config.GlobalStore.UploadBytes(&lingstorage.UploadBytesRequest{
-		Data:     audio,
-		Filename: fname,
-		Bucket:   bucket,
-		Key:      key,
-	})
+	fname = filepath.Base(key)
+	if fname == "" || fname == "." {
+		fname = fnameArg
+	}
+	st := stores.Default()
+	if err = st.Write(key, bytes.NewReader(audio)); err != nil {
+		return "", "", "", 0, err
+	}
+	publicURL = strings.TrimSpace(st.PublicURL(key))
+	return publicURL, key, fname, size, nil
 }
 
 const (
@@ -747,19 +742,18 @@ func (h *Handlers) handleRelaySpeechTTSSynthesize(c *gin.Context) {
 	}
 
 	if outMode == "url" {
-		up, upErr := uploadTTSAudio(audio, ch, body.AudioFormat, body.UploadBucket, body.UploadKey, body.UploadFilename)
+		pubURL, objKey, fnm, sz, upErr := uploadTTSAudio(audio, ch, body.AudioFormat, body.UploadKey, body.UploadFilename)
 		if upErr != nil {
 			u.status, u.errMsg = http.StatusBadGateway, upErr.Error()
 			c.JSON(http.StatusBadGateway, gin.H{"error": gin.H{"type": "storage_upload_failed", "message": upErr.Error()}})
 			return
 		}
-		out["url"] = up.URL
-		out["key"] = up.Key
-		out["bucket"] = up.Bucket
-		out["filename"] = up.Filename
-		out["size"] = up.Size
+		out["url"] = pubURL
+		out["key"] = objKey
+		out["filename"] = fnm
+		out["size"] = sz
 		u.status, u.success = http.StatusOK, true
-		u.respSnap = gin.H{"response_type": outMode, "size": up.Size, "key": up.Key}
+		u.respSnap = gin.H{"response_type": outMode, "size": sz, "key": objKey}
 		response.Success(c, "synthesized", out)
 		return
 	}
@@ -784,7 +778,7 @@ func (h *Handlers) handleRelaySpeechTTSSynthesize(c *gin.Context) {
 //
 // 入参兼容 OpenAI：{ model, input, voice, response_format } + 业务扩展
 //   - output: "base64"（默认） | "url"
-//   - upload_bucket / upload_key / upload_filename: 仅在 output=url 时生效，可空
+//   - upload_key / upload_filename: 仅在 output=url 时生效，可空
 //   - speed / group: 透传到下游
 type relayOpenAIAudioSpeechReq struct {
 	Model          string   `json:"model"`
@@ -794,9 +788,9 @@ type relayOpenAIAudioSpeechReq struct {
 	Speed          *float64 `json:"speed"`
 	Group          string   `json:"group"`
 
-	// 业务扩展：返回 base64 或 上传后的 URL
+	// 业务扩展：返回 base64 或 上传后的 URL（upload_bucket 已废弃，忽略）
 	Output         string `json:"output"`
-	UploadBucket   string `json:"upload_bucket"`
+	UploadBucket   string `json:"upload_bucket"` // deprecated: ignored
 	UploadKey      string `json:"upload_key"`
 	UploadFilename string `json:"upload_filename"`
 }
@@ -888,14 +882,14 @@ func (h *Handlers) handleRelayOpenAIAudioSpeech(c *gin.Context) {
 
 	var audioField string
 	if outMode == "url" {
-		up, upErr := uploadTTSAudio(audio, ch, req.ResponseFormat, req.UploadBucket, req.UploadKey, req.UploadFilename)
+		pubURL, objKey, _, sz, upErr := uploadTTSAudio(audio, ch, req.ResponseFormat, req.UploadKey, req.UploadFilename)
 		if upErr != nil {
 			u.status, u.errMsg = http.StatusBadGateway, upErr.Error()
 			c.JSON(http.StatusBadGateway, gin.H{"error": gin.H{"type": "storage_upload_failed", "message": upErr.Error()}})
 			return
 		}
-		audioField = up.URL
-		u.respSnap = gin.H{"output": outMode, "size": up.Size, "key": up.Key, "request_id": requestID}
+		audioField = pubURL
+		u.respSnap = gin.H{"output": outMode, "size": sz, "key": objKey, "request_id": requestID}
 	} else {
 		audioField = base64.StdEncoding.EncodeToString(audio)
 		u.respSnap = gin.H{"output": outMode, "audio_bytes": len(audio), "request_id": requestID}

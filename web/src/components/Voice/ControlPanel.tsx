@@ -1,6 +1,6 @@
 import React, {useEffect, useState} from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Key, Settings, AppWindow, RefreshCw, ArrowRight, Bot, MessageCircle, Users, Zap, Circle, Mic } from 'lucide-react';
+import { Key, Settings, AppWindow, RefreshCw, ArrowRight, Mic } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/UI/Select';
 import Button from '@/components/UI/Button';
@@ -41,10 +41,8 @@ interface ControlPanelProps {
     // 助手设置
     assistantName: string
     assistantDescription: string
-    assistantIcon: string
     onAssistantNameChange: (value: string) => void
     onAssistantDescriptionChange: (value: string) => void
-    onAssistantIconChange: (value: string) => void
     // VAD 配置
     enableVAD?: boolean
     vadThreshold?: number
@@ -74,14 +72,6 @@ interface ControlPanelProps {
 
     className?: string
 }
-const ICON_MAP = {
-    Bot: <Bot className="w-5 h-5" />,
-    MessageCircle: <MessageCircle className="w-5 h-5" />,
-    Users: <Users className="w-5 h-5" />,
-    Zap: <Zap className="w-5 h-5" />,
-    Circle: <Circle className="w-5 h-5" />
-}
-
 const ControlPanel: React.FC<ControlPanelProps> = ({
                                                        apiKey,
                                                        apiSecret,
@@ -102,10 +92,8 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                                        onJsSourceIdChange,
                                                        assistantName,
                                                        assistantDescription,
-                                                       assistantIcon,
                                                        onAssistantNameChange,
                                                        onAssistantDescriptionChange,
-                                                       onAssistantIconChange,
                                                        enableVAD = true,
                                                        vadThreshold = 500,
                                                        vadConsecutiveFrames = 2,
@@ -469,26 +457,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                                         }}
                                                     />
                                                 )}
-                                            </div>
-                                        </div>
-
-                                        <div className="space-y-2">
-                                            <label className="text-xs text-gray-500 dark:text-gray-400">{t('controlPanel.assistant.icon')}</label>
-                                            <div className="grid grid-cols-5 gap-2">
-                                                {Object.keys(ICON_MAP).map(iconName => (
-                                                    <button
-                                                        key={iconName}
-                                                        onClick={() => onAssistantIconChange(iconName)}
-                                                        className={cn(
-                                                            'p-2 rounded-lg transition-colors border-2',
-                                                            assistantIcon === iconName
-                                                                ? 'bg-purple-100 dark:bg-purple-900/30 border-purple-500'
-                                                                : 'hover:bg-gray-100 dark:hover:bg-neutral-600 border-transparent'
-                                                        )}
-                                                    >
-                                                        {ICON_MAP[iconName as keyof typeof ICON_MAP]}
-                                                    </button>
-                                                ))}
                                             </div>
                                         </div>
 

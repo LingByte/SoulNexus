@@ -27,6 +27,7 @@ import {
   Shield,
   UserCog,
   Settings,
+  Library,
 } from 'lucide-react'
 import faviconUrl from '/favicon.png'
 import { useSiteConfig } from '@/contexts/SiteConfigContext'
@@ -58,6 +59,7 @@ const NAVIGATION: NavItem[] = [
   },
   { key: '/assistants', name: '智能体管理', icon: Bot },
   { key: '/groups', name: '企业管理', icon: Building2 },
+  { key: '/knowledge-bases', name: '知识库', icon: Library },
   { key: '/credentials', name: '密钥管理', icon: Key },
   { key: '/oauth-clients', name: 'OAuth 客户端', icon: KeyRound },
   { key: '/js-templates', name: 'JS 模版', icon: Code2 },

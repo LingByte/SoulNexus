@@ -28,7 +28,7 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/synthesizer"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/LingByte/SoulNexus/pkg/voiceclone"
-	"github.com/LingByte/lingstorage-sdk-go"
+	"github.com/LingByte/SoulNexus/pkg/stores"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
@@ -2188,13 +2188,8 @@ func (h *Handlers) processAudioAsyncV2(ctx context.Context, credential *models.U
 					}
 
 					ttsKey := fmt.Sprintf("oneshot/v2_voiceclone_%d_%d.wav", userID, time.Now().Unix())
-					reader, err := config.GlobalStore.UploadBytes(&lingstorage.UploadBytesRequest{
-						Bucket:   config.GlobalConfig.Services.Storage.Bucket,
-						Data:     wavData,
-						Filename: ttsKey,
-						Key:      ttsKey,
-					})
-					if err != nil {
+					st := stores.Default()
+					if err := st.Write(ttsKey, bytes.NewReader(wavData)); err != nil {
 						fmt.Printf("[V2] 保存音频失败: %v\n", err)
 						audioCacheMutex.Lock()
 						audioProcessingCache[requestID] = AudioProcessResult{
@@ -2207,7 +2202,7 @@ func (h *Handlers) processAudioAsyncV2(ctx context.Context, credential *models.U
 					}
 
 					// 获取音频URL
-					ttsAudioURL := reader.URL
+					ttsAudioURL := strings.TrimSpace(st.PublicURL(ttsKey))
 
 					// 更新音色使用统计
 					clone.UsageCount++
@@ -2391,13 +2386,8 @@ func (h *Handlers) processAudioAsyncV2(ctx context.Context, credential *models.U
 	}
 
 	ttsKey := fmt.Sprintf("oneshot/v2_tts_%d_%d.wav", userID, time.Now().Unix())
-	reader, err := config.GlobalStore.UploadBytes(&lingstorage.UploadBytesRequest{
-		Bucket:   config.GlobalConfig.Services.Storage.Bucket,
-		Data:     wavData,
-		Filename: ttsKey,
-		Key:      ttsKey,
-	})
-	if err != nil {
+	st := stores.Default()
+	if err := st.Write(ttsKey, bytes.NewReader(wavData)); err != nil {
 		fmt.Printf("[V2] 保存音频失败: %v\n", err)
 		audioCacheMutex.Lock()
 		audioProcessingCache[requestID] = AudioProcessResult{
@@ -2410,7 +2400,7 @@ func (h *Handlers) processAudioAsyncV2(ctx context.Context, credential *models.U
 	}
 
 	// 获取音频URL
-	ttsAudioURL := reader.URL
+	ttsAudioURL := strings.TrimSpace(st.PublicURL(ttsKey))
 
 	// 将音频URL存储到缓存中
 	audioCacheMutex.Lock()

@@ -51,7 +51,7 @@ func (app *LingEchoAuthService) registerRoutes(r *gin.Engine) {
 func main() {
 	seed := flag.Bool("seed", false, "seed database")
 	// 历史 -init 参数兼容保留：当前总是触发 GORM AutoMigrate。
-	_ = flag.Bool("init", false, "deprecated: ignored; schema migration always runs at startup")
+	init := flag.Bool("init", false, "deprecated: ignored; schema migration always runs at startup")
 	mode := flag.String("mode", "", "running environment (development, test, production)")
 	initSQL := flag.String("init-sql", "", "path to database init .sql script (optional)")
 	addrFlag := flag.String("addr", "", "HTTP listen address (overrides USER_SERVICE_HTTP_ADDR; default :7074)")
@@ -81,7 +81,7 @@ func main() {
 
 	db, err := bootstrap.SetupDatabase(os.Stdout, &bootstrap.Options{
 		InitSQLPath:   *initSQL,
-		AutoMigrate:   true,
+		AutoMigrate:   *init,
 		SeedNonProd:   *seed,
 		MigrateModels: schema.AuthEntities,
 	})

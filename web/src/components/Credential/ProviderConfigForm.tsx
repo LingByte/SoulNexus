@@ -1,5 +1,6 @@
 import React from 'react'
 import Input from '../UI/Input'
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '../UI/Select'
 import { ProviderConfig, ProviderField } from '../../config/providerConfig'
 import { Info } from 'lucide-react'
 
@@ -46,19 +47,19 @@ const ProviderConfigForm: React.FC<ProviderConfigFormProps> = ({
               {field.label}
               {field.required && <span className="text-red-500 ml-1">*</span>}
             </label>
-            <select
-              value={value}
-              onChange={(e) => onChange(fieldKey, e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent"
-              required={field.required}
-            >
-              <option value="">请选择</option>
-              {field.options?.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+            <Select value={String(value)} onValueChange={(v) => onChange(fieldKey, v)}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="请选择" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">请选择</SelectItem>
+                {field.options?.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             {field.description && (
               <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 mt-1">
                 <Info className="w-3 h-3" />

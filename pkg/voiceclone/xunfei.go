@@ -23,8 +23,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LingByte/SoulNexus/internal/config"
-	"github.com/LingByte/lingstorage-sdk-go"
+	"github.com/LingByte/SoulNexus/pkg/stores"
 	"github.com/gorilla/websocket"
 )
 
@@ -728,15 +727,13 @@ func (s *XunfeiCloneService) SynthesizeToStorage(ctx context.Context, req *Synth
 	}
 
 	// 测试上传
-	result, err := config.GlobalStore.UploadBytes(&lingstorage.UploadBytesRequest{
-		Data:     mp3Data,
-		Filename: storageKey,
-		Bucket:   config.GlobalConfig.Services.Storage.Bucket,
-		Key:      storageKey,
-	})
+	st := stores.Default()
+	if err := st.Write(storageKey, bytes.NewReader(mp3Data)); err != nil {
+		return "", err
+	}
 
 	// 获取URL
-	return result.URL, nil
+	return strings.TrimSpace(st.PublicURL(storageKey)), nil
 }
 
 // convertPCMToWAV 将 PCM 音频数据转换为 WAV 格式（添加 WAV 文件头）

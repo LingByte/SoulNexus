@@ -368,35 +368,35 @@ const Home = () => {
             >
                 {hoveredContactPanel && (
                     <div
-                        className="absolute right-[4.8rem] top-1/2 -translate-y-1/2 w-[21rem] rounded-2xl border border-white/20 bg-white/90 dark:bg-gray-900/85 backdrop-blur-md shadow-2xl p-5"
+                        className="absolute right-[4.8rem] top-1/2 -translate-y-1/2 w-[21rem] rounded-2xl border border-border bg-card/95 text-card-foreground shadow-2xl backdrop-blur-md p-5"
                         onMouseEnter={() => setHoveredContactPanel(hoveredContactPanel)}
                     >
                         {hoveredContactPanel === 'company' ? (
-                            <div className="space-y-4 text-sm text-gray-700 dark:text-gray-200">
+                            <div className="space-y-4 text-sm">
                                 <div className="flex items-start gap-2">
-                                    <Building2 className="w-4 h-4 mt-0.5 text-indigo-500 shrink-0" />
+                                    <Building2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                                     <div>
                                         <p className="text-xs text-muted-foreground">公司</p>
-                                        <p>成都解忧造物科技有限责任公司</p>
+                                        <p className="text-foreground">成都解忧造物科技有限责任公司</p>
                                     </div>
                                 </div>
                                 <div className="flex items-start gap-2">
-                                    <MapPin className="w-4 h-4 mt-0.5 text-indigo-500 shrink-0" />
+                                    <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                                     <div>
                                         <p className="text-xs text-muted-foreground">地址</p>
-                                        <p>四川省成都市成华区一环路东一段159号1栋1层1号附17号</p>
+                                        <p className="text-foreground">四川省成都市成华区一环路东一段159号1栋1层1号附17号</p>
                                     </div>
                                 </div>
                             </div>
                         ) : (
-                            <div className="space-y-4 text-sm text-gray-700 dark:text-gray-200">
+                            <div className="space-y-4 text-sm">
                                 <div className="flex items-start gap-2">
-                                    <Mail className="w-4 h-4 mt-0.5 text-indigo-500 shrink-0" />
+                                    <Mail className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                                     <div>
                                         <p className="text-xs text-muted-foreground">联系</p>
                                         <a
                                             href="mailto:19511899044@163.com"
-                                            className="text-indigo-600 hover:text-indigo-700 dark:text-indigo-300 dark:hover:text-indigo-200"
+                                            className="text-primary underline-offset-4 hover:underline"
                                         >
                                             19511899044@163.com
                                         </a>
@@ -407,7 +407,7 @@ const Home = () => {
                                         href="https://github.com/LingByte/SoulNexus"
                                         target="_blank"
                                         rel="noreferrer"
-                                        className="text-indigo-600 hover:text-indigo-700 dark:text-indigo-300 dark:hover:text-indigo-200"
+                                        className="text-primary underline-offset-4 hover:underline"
                                     >
                                         社区开源项目: https://github.com/LingByte/SoulNexus
                                     </a>
@@ -416,31 +416,31 @@ const Home = () => {
                         )}
                     </div>
                 )}
-                <div className="ml-auto w-16 rounded-[32px] bg-white/95 dark:bg-gray-100 shadow-xl py-4 px-1.5 flex flex-col items-center gap-4 border border-black/5">
+                <div className="ml-auto flex w-16 flex-col items-center gap-4 rounded-[32px] border border-border bg-background/95 py-4 px-1.5 text-foreground shadow-xl backdrop-blur-md">
                     <button
                         type="button"
                         onMouseEnter={() => setHoveredContactPanel('company')}
-                        className="w-full flex flex-col items-center text-gray-700 hover:text-indigo-600 transition-colors"
+                        className="flex w-full flex-col items-center text-muted-foreground transition-colors hover:text-primary"
                         aria-label="公司信息"
                         title="公司信息"
                     >
-                        <Building2 className="w-6 h-6 mb-1" />
-                        <span className="text-[12px] leading-4 tracking-wide text-center">
+                        <Building2 className="mb-1 h-6 w-6" />
+                        <span className="text-center text-[12px] leading-4 tracking-wide">
                             公司
                             <br />
                             信息
                         </span>
                     </button>
-                    <div className="w-8 h-px bg-gray-300" />
+                    <div className="h-px w-8 bg-border" />
                     <button
                         type="button"
                         onMouseEnter={() => setHoveredContactPanel('contact')}
-                        className="w-full flex flex-col items-center text-gray-700 hover:text-indigo-600 transition-colors"
+                        className="flex w-full flex-col items-center text-muted-foreground transition-colors hover:text-primary"
                         aria-label="联系方式"
                         title="联系方式"
                     >
-                        <Mail className="w-6 h-6 mb-1" />
-                        <span className="text-[12px] leading-4 tracking-wide text-center">
+                        <Mail className="mb-1 h-6 w-6" />
+                        <span className="text-center text-[12px] leading-4 tracking-wide">
                             联系
                             <br />
                             方式

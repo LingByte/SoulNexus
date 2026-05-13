@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react'
 import { motion } from 'framer-motion'
-import { Users, Plus, ChevronRight, Bot, MessageCircle, Circle, Zap, Search, X, Settings } from 'lucide-react'
+import { Users, Plus, ChevronRight, Bot, Search, X, Settings } from 'lucide-react'
 import { cn } from '@/utils/cn'
 import CollapsibleSectionHeader from '@/components/UI/CollapsibleSectionHeader'
 
@@ -8,7 +8,6 @@ interface Assistant {
   id: number
   name: string
   description: string
-  icon: string
   active?: boolean
 }
 
@@ -21,13 +20,14 @@ interface AssistantListProps {
   className?: string
 }
 
-const ICON_MAP = {
-  Bot: <Bot className="w-5 h-5" />,
-  MessageCircle: <MessageCircle className="w-5 h-5" />,
-  Users: <Users className="w-5 h-5" />,
-  Zap: <Zap className="w-5 h-5" />,
-  Circle: <Circle className="w-5 h-5" />
-}
+const GRADIENTS = [
+  'from-purple-500 to-pink-500',
+  'from-blue-500 to-cyan-500',
+  'from-emerald-500 to-teal-500',
+  'from-amber-500 to-orange-500',
+]
+
+const pickGradient = (id: number) => GRADIENTS[Math.abs(id) % GRADIENTS.length]
 
 const AssistantList: React.FC<AssistantListProps> = ({
   assistants,
@@ -127,13 +127,14 @@ const AssistantList: React.FC<AssistantListProps> = ({
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center">
-                  <div className={cn(
-                    'p-2 rounded-md transition-colors',
-                    selectedAssistant === assistant.id
-                      ? 'bg-purple-100 dark:bg-neutral-600'
-                      : 'bg-gray-100 dark:bg-neutral-700'
-                  )}>
-                    {ICON_MAP[assistant.icon as keyof typeof ICON_MAP] || <Circle className="w-5 h-5" />}
+                  <div
+                    className={cn(
+                      'flex min-h-[36px] min-w-[36px] items-center justify-center overflow-hidden rounded-md bg-gradient-to-br text-white transition-colors',
+                      pickGradient(assistant.id),
+                      selectedAssistant === assistant.id ? 'ring-2 ring-purple-400 ring-offset-1 dark:ring-offset-neutral-800' : '',
+                    )}
+                  >
+                    <Bot className="h-4 w-4" />
                   </div>
                   <div className="ml-3 flex-1 min-w-0">
                     <div className="text-xs font-medium truncate" title={assistant.name}>

@@ -144,7 +144,6 @@ func IndexUserData(db *gorm.DB, engine search2.Engine) error {
 					"description": assistant.Description,
 					"content":     assistant.SystemPrompt,
 					"type":        "assistant",
-					"icon":        assistant.Icon,
 					"url":         fmt.Sprintf("/voice-assistant/%d", assistant.ID),
 					"category":    "assistant",
 				},

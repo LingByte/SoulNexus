@@ -2,8 +2,8 @@ export interface Assistant {
   id: number
   name: string
   description: string
-  icon: string
   jsSourceId: string
+  language?: string
   active?: boolean
 }
 

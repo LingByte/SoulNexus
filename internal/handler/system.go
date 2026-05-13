@@ -16,10 +16,10 @@ import (
 	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/response"
+	"github.com/LingByte/SoulNexus/pkg/stores"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/LingByte/SoulNexus/pkg/utils/cache"
 	"github.com/LingByte/SoulNexus/pkg/voiceprint"
-	"github.com/LingByte/lingstorage-sdk-go"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -363,11 +363,10 @@ func (h *Handlers) SystemStatus(c *gin.Context) {
 	// 检查API服务（通过检查当前请求是否正常处理来判断）
 	status["api"] = true
 
-	// 检查存储服务
-	storageStatus := false
-	err = config.GlobalStore.Ping()
-	storageStatus = err == nil
-	status["storage"] = storageStatus
+	// 检查对象存储
+	st := stores.Default()
+	_, storageErr := st.Exists("__store_health_probe__")
+	status["storage"] = storageErr == nil
 
 	response.Success(c, "系统状态检查完成", status)
 }
@@ -481,16 +480,12 @@ func (h *Handlers) UploadAudio(c *gin.Context) {
 	randomStr := utils.RandString(8)
 	fileName := fmt.Sprintf("audio_%d_%s.webm", timestamp, randomStr)
 	storageKey := fmt.Sprintf("audio/%s", fileName)
-	reader, err := config.GlobalStore.UploadFromReader(&lingstorage.UploadFromReaderRequest{
-		Reader:   file,
-		Bucket:   config.GlobalConfig.Services.Storage.Bucket,
-		Filename: storageKey,
-		Key:      storageKey,
-	})
-	if err != nil {
+	st := stores.Default()
+	if err := st.Write(storageKey, file); err != nil {
 		response.Fail(c, "Failed to upload file: "+err.Error(), nil)
 		return
 	}
+	audioURL := strings.TrimSpace(st.PublicURL(storageKey))
 
 	// Record storage usage
 	user := models.CurrentUser(c)
@@ -520,9 +515,9 @@ func (h *Handlers) UploadAudio(c *gin.Context) {
 	// Return success response
 	response.Success(c, "音频文件上传成功", map[string]interface{}{
 		"fileName":   fileName,
-		"filePath":   reader.URL,
-		"fileSize":   reader.Size,
+		"filePath":   audioURL,
+		"fileSize":   header.Size,
 		"uploadTime": time.Now().Format(time.RFC3339),
-		"url":        reader.URL,
+		"url":        audioURL,
 	})
 }

@@ -9,11 +9,11 @@ import {
   Bot,
   User as UserIcon,
   LogOut,
-  Key, // 新增密钥图标
   Smartphone, // 设备管理图标
   GitBranch, // 工作流图标
   Package, // 插件市场图标
   Mic, // 声纹识别图标
+  BookOpen,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import { useI18nStore } from '@/stores/i18nStore'
@@ -76,6 +76,7 @@ const Sidebar = () => {
   const navigation = [
     { name: t('nav.sidebar.smartAssistant'), href: '/voice-assistant', icon: Bot },
     { name: t('nav.sidebar.voiceTraining'), href: '/voice-training', icon: Settings },
+    { name: t('nav.sidebar.knowledgeBase'), href: '/knowledge', icon: BookOpen },
     ...(systemInfo?.features?.voiceprintEnabled ? [{ name: t('voiceprint.title'), href: '/voiceprint-management', icon: Mic }] : []),
     { name: t('nav.sidebar.workflow'), href: '/workflows', icon: GitBranch },
     { name: t('nav.sidebar.pluginMarket'), href: '/node-plugins', icon: Package },
@@ -86,7 +87,7 @@ const Sidebar = () => {
   const navigationSections = [
     {
       title: '核心功能',
-      items: navigation.filter((item) => ['/voice-assistant', '/voice-training', '/voiceprint-management'].includes(item.href)),
+      items: navigation.filter((item) => ['/voice-assistant', '/voice-training', '/voiceprint-management', '/knowledge'].includes(item.href)),
     },
     {
       title: '工作流',
@@ -100,7 +101,7 @@ const Sidebar = () => {
 
   const publicNavs = [t('nav.docs')]
   // 受保护页面名称
-  const privateNavs = [t('nav.sidebar.smartAssistant'), t('nav.sidebar.voiceTraining'), t('voiceprint.title'), t('nav.sidebar.workflow'), t('nav.sidebar.pluginMarket'), t('nav.sidebar.jsTemplate'), t('nav.sidebar.deviceManagement')]
+  const privateNavs = [t('nav.sidebar.smartAssistant'), t('nav.sidebar.voiceTraining'), t('nav.sidebar.knowledgeBase'), t('voiceprint.title'), t('nav.sidebar.workflow'), t('nav.sidebar.pluginMarket'), t('nav.sidebar.jsTemplate'), t('nav.sidebar.deviceManagement')]
 
   const isActive = (path: string) => location.pathname === path
   const isExternalHref = (href: string) => href.startsWith('http')
@@ -347,15 +348,6 @@ const Sidebar = () => {
                       variant="ghost"
                       size="sm"
                       className="flex items-center gap-2 w-full justify-start text-sm px-3 py-2"
-                      onClick={() => { setShowDropdown(false); navigate('/credential') }}
-                      leftIcon={<Key className="w-4 h-4" />}
-                    >
-                      {t('nav.sidebar.credential')}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="flex items-center gap-2 w-full justify-start text-sm px-3 py-2"
                       onClick={handleSidebarLogout}
                       leftIcon={<LogOut className="w-4 h-4" />}
                     >
@@ -440,15 +432,6 @@ const Sidebar = () => {
                         leftIcon={<UserIcon className="w-4 h-4" />}
                       >
                         {t('nav.sidebar.profile')}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="flex items-center gap-2 w-full justify-start text-sm px-3 py-2"
-                        onClick={() => { setShowDropdown(false); navigate('/credential') }}
-                        leftIcon={<Key className="w-4 h-4" />}
-                      >
-                        {t('nav.sidebar.credential')}
                       </Button>
                       <Button
                         variant="ghost"

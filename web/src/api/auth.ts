@@ -175,7 +175,6 @@ export interface User {
   preferredTimezone?: string
   timezone: string
   themeMode?: string
-  themeColor?: string
   avatar?: string
   role?: 'user' | 'admin'
   createdAt: string
@@ -190,6 +189,8 @@ export interface User {
   twoFactorEnabled?: boolean
   emailVerified?: boolean
   wechatOpenId?: string
+  /** 微信开放平台 UnionID，存在即表示已完成开放平台侧身份关联 */
+  wechatUnionId?: string
   githubId?: string
   githubLogin?: string
   /** 账号状态：active | pending_verification | suspended | banned */

@@ -1,6 +1,7 @@
 import React from 'react'
 import Input from '@/components/UI/Input'
 import Button from '@/components/UI/Button'
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/UI/Select'
 import { Paperclip, X } from 'lucide-react'
 
 export type TextMode = 'voice' | 'text'
@@ -71,15 +72,20 @@ const TextInputBox: React.FC<TextInputBoxProps> = ({
           )}
           {/* 文本模式选择框 */}
           {onTextModeChange && (
-            <select
+            <Select
               value={textMode}
-              onChange={(e) => onTextModeChange(e.target.value as TextMode)}
+              onValueChange={(v) => onTextModeChange(v as TextMode)}
               disabled={isWaitingForResponse}
-              className="w-32 px-3 py-2 text-sm rounded-lg border border-purple-200 dark:border-purple-800 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-lg focus:outline-none focus:ring-2 focus:ring-purple-300 dark:focus:ring-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-36 shrink-0"
             >
-              <option value="voice">语音输出</option>
-              <option value="text">文本对话</option>
-            </select>
+              <SelectTrigger className="h-10 w-full border-purple-200 bg-white text-sm shadow-lg dark:border-purple-800 dark:bg-gray-800">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="voice">语音输出</SelectItem>
+                <SelectItem value="text">文本对话</SelectItem>
+              </SelectContent>
+            </Select>
           )}
           <Input
             ref={inputRef}

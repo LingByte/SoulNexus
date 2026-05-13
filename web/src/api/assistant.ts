@@ -5,7 +5,6 @@ import { getApiBaseURL } from '@/config/apiConfig'
 export interface CreateAssistantForm {
   name: string
   description?: string
-  icon?: string
   groupId?: number | null // 组织ID，如果设置则创建为组织共享的助手
 }
 
@@ -13,11 +12,11 @@ export interface CreateAssistantForm {
 export interface UpdateAssistantForm {
   name?: string
   description?: string
-  icon?: string
   systemPrompt?: string
   persona_tag?: string
   temperature?: number
   maxTokens?: number
+  language?: string
   speaker?: string
   voiceCloneId?: number | null
   ttsProvider?: string
@@ -28,7 +27,7 @@ export interface UpdateAssistantForm {
   vadThreshold?: number // VAD阈值
   vadConsecutiveFrames?: number // VAD连续帧数
   jsSourceId?: string // JS模板ID
-    enableJSONOutput?: boolean
+  enableJSONOutput?: boolean
 }
 
 // 助手信息 - 对应后端Assistant模型的完整字段
@@ -38,11 +37,11 @@ export interface Assistant {
   groupId?: number | null // 组织ID，如果设置则表示这是组织共享的助手
   name: string
   description: string
-  icon: string
   systemPrompt: string
   personaTag: string
   temperature: number
   maxTokens: number
+  language?: string
   jsSourceId: string
   speaker?: string
   voiceCloneId?: number | null
@@ -64,7 +63,6 @@ export interface AssistantListItem {
   userId?: number
   groupId?: number | null
   name: string
-  icon: string
   description: string
   jsSourceId?: string
   personaTag?: string
@@ -97,13 +95,6 @@ export const updateAssistant = async (id: number, data: UpdateAssistantForm): Pr
 // 删除助手
 export const deleteAssistant = async (id: number): Promise<ApiResponse<null>> => {
   return del(`/agents/${id}`)
-}
-
-// 上传 Agent 图标，返回可直接落到 agent.icon 字段的 URL。
-export const uploadAssistantIcon = async (file: File): Promise<ApiResponse<{ url: string; key: string }>> => {
-  const fd = new FormData()
-  fd.append('icon', file)
-  return post('/agents/icon/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } } as any)
 }
 
 // 语音相关接口
