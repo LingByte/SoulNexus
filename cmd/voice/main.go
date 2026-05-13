@@ -38,13 +38,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/LingByte/SoulNexus/pkg/recognizer"
+	"github.com/LingByte/SoulNexus/pkg/synthesizer"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/audio/rnnoise"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/media"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/persist"
-	"github.com/LingByte/SoulNexus/pkg/recognizer"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/sip/server"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/sip/session"
-	"github.com/LingByte/SoulNexus/pkg/synthesizer"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/asr"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/gateway"
@@ -70,7 +70,7 @@ func main() {
 	recordChunk := flag.Duration("record-chunk", 30*time.Second, "Roll a partial recording up to the Store every interval as a crash-safety net. Each chunk is a self-contained stereo WAV named <callid>-part-<seq>-<ts>.wav and contains only the frames captured since the previous chunk; the final <callid>-<ts>.wav at hangup still has the complete call. 0 = disable rolling chunks (single final WAV only).")
 	asrEcho := flag.Bool("asr-echo", false, "Enable real ASR+TTS echo: on every final transcript reply with -reply-text via QCloud TTS. Requires ASR_*/TTS_* env vars.")
 	replyText := flag.String("reply-text", "您好，已收到", "Fixed reply played via TTS on every final ASR transcript when -asr-echo is set")
-	dialogWS := flag.String("dialog-ws", "", "Dialog-plane WebSocket URL (ws:// or wss://). When set, each inbound call dials out to this URL; ASR events flow up, tts.speak/hangup commands flow down. Requires ASR_*/TTS_* env vars.")
+	dialogWS := flag.String("dialog-ws", "", "Dialog-plane WebSocket base URL (ws:// or wss://). Per-call call_id is appended by the gateway. SoulNexus /ws/call also needs apiKey, apiSecret, agentId: WebRTC browsers send them in POST /webrtc/v1/offer JSON; SIP/xiaozhi can set DIALOG_API_KEY, DIALOG_API_SECRET, DIALOG_AGENT_ID or add query params here. Requires ASR_*/TTS_* env vars.")
 	httpAddr := flag.String("http", "", "If set, run a single HTTP listener on this address (e.g. 0.0.0.0:7080) hosting BOTH xiaozhi WS (ESP32 + browser web client) AND WebRTC signaling+demo. Each protocol mounts on its own path so they share one listener / one TLS cert / one auth surface. Requires -dialog-ws and ASR_*/TTS_* env vars. Optional env for WebRTC: WEBRTC_ICE_SERVERS (CSV stun:/turn:), WEBRTC_PUBLIC_IPS (NAT 1:1), WEBRTC_UDP_PORT (single-port ICE), WEBRTC_ALLOWED_ORIGINS (CORS).")
 	xiaozhiPath := flag.String("xiaozhi-ws-path", "/xiaozhi/v1/", "Path the xiaozhi WS handler mounts on (relative to -http)")
 	webrtcOfferPath := flag.String("webrtc-http-path", "/webrtc/v1/offer", "Path the WebRTC offer endpoint mounts on (relative to -http; companion /hangup and /demo are mounted alongside)")
@@ -116,6 +116,12 @@ func main() {
 	dialogReconnectBackoffFlag = *dialogReconnectBackoff
 	recordChunkFlag = *recordChunk
 	loadHoldMessages(*holdMessages)
+
+	dialogWSEffective, err := mergeDialogAuthQuery(*dialogWS)
+	if err != nil {
+		log.Fatalf("invalid -dialog-ws: %v", err)
+	}
+	warnDialogAuthIfNeeded(dialogWSEffective)
 
 	host, port, err := splitHostPort(*sipAddr)
 	if err != nil {
@@ -168,7 +174,7 @@ func main() {
 		gateways:     newGatewayRegistry(),
 		asrEcho:      *asrEcho,
 		replyText:    *replyText,
-		dialogWS:     *dialogWS,
+		dialogWS:     dialogWSEffective,
 		srv:          srv,
 	}
 	// --- Persistence (voiceserver.db SQLite by default; VOICESERVER_DB=off disables) ---
@@ -213,12 +219,12 @@ func main() {
 	// transports (SIP / xiaozhi / WebRTC) so call_recording rows and
 	// stereo WAVs look identical regardless of how the call came in.
 	startHTTPListener(ctx, httpListenerConfig{
-		Addr:            *httpAddr,
-		DialogWS:        *dialogWS,
-		EnableXiaozhi:   *enableXiaozhi,
-		XiaozhiPath:     *xiaozhiPath,
-		EnableWebRTC:    *enableWebRTC,
-		WebRTCOfferPath: *webrtcOfferPath,
+		Addr:                *httpAddr,
+		DialogWS:            dialogWSEffective,
+		EnableXiaozhi:       *enableXiaozhi,
+		XiaozhiPath:         *xiaozhiPath,
+		EnableWebRTC:        *enableWebRTC,
+		WebRTCOfferPath:     *webrtcOfferPath,
 		EnableSFU:           *enableSFU,
 		SFUPath:             *sfuPath,
 		SFUSecret:           *sfuSecret,
@@ -230,9 +236,9 @@ func main() {
 		SFURecord:           *sfuRecord,
 		SFURecordBucket:     *sfuRecordBucket,
 		SFUWebhookURL:       *sfuWebhookURL,
-		DB:              db,
-		Record:          *record,
-		RecordBucket:    *recordBucket,
+		DB:                  db,
+		Record:              *record,
+		RecordBucket:        *recordBucket,
 	})
 
 	<-ctx.Done()
@@ -660,7 +666,7 @@ func attachVoiceGateway(ctx context.Context, leg *session.MediaLeg, inv *server.
 		att.Close()
 		return nil, nil, fmt.Errorf("dial dialog ws: %w", err)
 	}
-	log.Printf("[call#%d][gw] dialog ws connected: %s", callN, dialogURL)
+	log.Printf("[call#%d][gw] dialog ws connected: %s", callN, gateway.RedactDialogDialURL(dialogURL))
 	return att, cli, nil
 }
 

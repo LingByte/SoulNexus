@@ -25,7 +25,9 @@ import (
 // ClientConfig configures a per-call dialog-plane WebSocket client.
 type ClientConfig struct {
 	// URL is the dialog-side WebSocket endpoint (ws:// or wss://). Required.
-	// The call_id is appended as a query parameter automatically.
+	// The call_id is appended as a query parameter automatically. Optional
+	// auth keys (apiKey, apiSecret, agentId) are often supplied out-of-band
+	// (e.g. cmd/voice merges DIALOG_* env vars before dial).
 	URL string
 
 	// Attached is a live voice.Attached produced by voice.Attach. Required.
@@ -98,9 +100,9 @@ type ClientConfig struct {
 	// HoldTextGiveUp once when all attempts have failed (right before
 	// the final hangup). Empty strings skip that prompt — useful when
 	// the dialog plane is local and reconnects are sub-second.
-	HoldTextFirst   string
-	HoldTextRetry   string
-	HoldTextGiveUp  string
+	HoldTextFirst  string
+	HoldTextRetry  string
+	HoldTextGiveUp string
 
 	// ASRSentenceFilter, when non-nil, intercepts every recogniser
 	// callback before it becomes an asr.partial / asr.final event.
@@ -267,7 +269,7 @@ func (c *Client) Start(ctx context.Context, meta StartMeta) error {
 		if resp != nil {
 			code = resp.StatusCode
 		}
-		return fmt.Errorf("dial dialog ws %s (http=%d): %w", dialURL, code, err)
+		return fmt.Errorf("dial dialog ws %s (http=%d): %w", RedactDialogDialURL(dialURL), code, err)
 	}
 	c.conn = conn
 
@@ -383,7 +385,7 @@ func (c *Client) Start(ctx context.Context, meta StartMeta) error {
 
 	go c.readLoop()
 	c.log.Info("voice/gateway connected",
-		zap.String("url", dialURL), zap.String("call_id", c.cfg.CallID))
+		zap.String("url", RedactDialogDialURL(dialURL)), zap.String("call_id", c.cfg.CallID))
 	return nil
 }
 
@@ -633,7 +635,7 @@ func (c *Client) dialAndSwap() error {
 		if resp != nil {
 			code = resp.StatusCode
 		}
-		return fmt.Errorf("dial dialog ws %s (http=%d): %w", dialURL, code, err)
+		return fmt.Errorf("dial dialog ws %s (http=%d): %w", RedactDialogDialURL(dialURL), code, err)
 	}
 	c.writeM.Lock()
 	old := c.conn
@@ -815,6 +817,55 @@ func ellipsize(s string, max int) string {
 	return string(r[:max]) + "…"
 }
 
+// MergeDialogPayloadQuery parses raw and sets query key "payload" to the
+// given JSON bytes (typically a JSON object from the WebRTC offer body).
+// The dialog plane parses it (e.g. SoulNexus /ws/call overlays apiKey etc.).
+func MergeDialogPayloadQuery(raw string, payload []byte) (string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", fmt.Errorf("empty dialog URL")
+	}
+	ps := strings.TrimSpace(string(payload))
+	if len(payload) == 0 || ps == "" || ps == "null" {
+		return "", fmt.Errorf("empty payload")
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return "", fmt.Errorf("parse URL: %w", err)
+	}
+	q := u.Query()
+	q.Set("payload", string(payload))
+	u.RawQuery = q.Encode()
+	return u.String(), nil
+}
+
+// MergeDialogQueryParams parses raw and sets query keys apiKey, apiSecret,
+// and agentId when the corresponding arguments are non-empty after TrimSpace.
+// Existing query parameters are preserved; empty arguments do not remove
+// keys already present (e.g. values merged from env at process startup).
+func MergeDialogQueryParams(raw, apiKey, apiSecret, agentID string) (string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", fmt.Errorf("empty dialog URL")
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return "", fmt.Errorf("parse URL: %w", err)
+	}
+	q := u.Query()
+	if v := strings.TrimSpace(apiKey); v != "" {
+		q.Set("apiKey", v)
+	}
+	if v := strings.TrimSpace(apiSecret); v != "" {
+		q.Set("apiSecret", v)
+	}
+	if v := strings.TrimSpace(agentID); v != "" {
+		q.Set("agentId", v)
+	}
+	u.RawQuery = q.Encode()
+	return u.String(), nil
+}
+
 func appendCallIDQuery(raw, callID string) (string, error) {
 	u, err := url.Parse(raw)
 	if err != nil {
@@ -824,4 +875,25 @@ func appendCallIDQuery(raw, callID string) (string, error) {
 	q.Set("call_id", callID)
 	u.RawQuery = q.Encode()
 	return u.String(), nil
+}
+
+// RedactDialogDialURL returns u with sensitive query parameters replaced so
+// logs and wrapped errors do not echo api credentials.
+func RedactDialogDialURL(u string) string {
+	parsed, err := url.Parse(u)
+	if err != nil {
+		return "<invalid-dialog-url>"
+	}
+	q := parsed.Query()
+	if q.Get("apiKey") != "" {
+		q.Set("apiKey", "***")
+	}
+	if q.Get("apiSecret") != "" {
+		q.Set("apiSecret", "***")
+	}
+	if q.Get("payload") != "" {
+		q.Set("payload", "***")
+	}
+	parsed.RawQuery = q.Encode()
+	return parsed.String()
 }

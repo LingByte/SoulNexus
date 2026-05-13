@@ -27,13 +27,14 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/LingByte/SoulNexus/pkg/recognizer"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/media"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/media/encoder"
-	"github.com/LingByte/SoulNexus/pkg/recognizer"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/asr"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/gateway"
@@ -62,6 +63,10 @@ type session struct {
 	callID     string
 	clientMeta string
 	log        *zap.Logger
+
+	// dialogDialURL is cfg.DialogWSURL with per-offer apiKey/apiSecret/agentId
+	// merged into the query (SoulNexus /ws/call). gateway.Start still appends call_id.
+	dialogDialURL string
 
 	// Local track we publish TTS audio onto. pion handles RTP timestamps,
 	// SRTP, NACK responses; we just call WriteSample at realtime pace.
@@ -139,12 +144,24 @@ type session struct {
 // completes SDP negotiation against the supplied offer. The returned
 // session is fully connected (or returning a non-nil error). Audio bridging
 // starts asynchronously — OnTrack fires on the first inbound RTP packet.
-func newSession(ctx context.Context, cfg ServerConfig, api *pionwebrtc.API, offer SDPMessage) (*session, SDPMessage, error) {
+func newSession(ctx context.Context, cfg ServerConfig, api *pionwebrtc.API, offer OfferRequest) (*session, SDPMessage, error) {
 	logger := cfg.Logger
 	if logger == nil {
 		logger = zap.NewNop()
 	}
 	callID := fmt.Sprintf("%s-%d", cfg.CallIDPrefix, time.Now().UnixNano())
+
+	ps := strings.TrimSpace(string(offer.Payload))
+	var merged string
+	var err error
+	if len(offer.Payload) > 0 && ps != "" && ps != "null" {
+		merged, err = gateway.MergeDialogPayloadQuery(cfg.DialogWSURL, offer.Payload)
+	} else {
+		merged, err = gateway.MergeDialogQueryParams(cfg.DialogWSURL, offer.ApiKey, offer.ApiSecret, offer.AgentId)
+	}
+	if err != nil {
+		return nil, SDPMessage{}, fmt.Errorf("webrtc: merge dialog URL: %w", err)
+	}
 
 	pc, err := api.NewPeerConnection(pionwebrtc.Configuration{
 		ICEServers: cfg.ICEServers,
@@ -195,15 +212,16 @@ func newSession(ctx context.Context, cfg ServerConfig, api *pionwebrtc.API, offe
 
 	sessCtx, sessCancel := context.WithCancel(context.Background())
 	s := &session{
-		cfg:        cfg,
-		pc:         pc,
-		callID:     callID,
-		log:        logger.With(zap.String("call_id", callID)),
-		localTrack: localTrack,
-		bridgeSR:   16000, // ASR-friendly, downstream-shared rate
-		done:       make(chan struct{}),
-		sessCtx:    sessCtx,
-		sessCancel: sessCancel,
+		cfg:           cfg,
+		pc:            pc,
+		callID:        callID,
+		dialogDialURL: merged,
+		log:           logger.With(zap.String("call_id", callID)),
+		localTrack:    localTrack,
+		bridgeSR:      16000, // ASR-friendly, downstream-shared rate
+		done:          make(chan struct{}),
+		sessCtx:       sessCtx,
+		sessCancel:    sessCancel,
 	}
 
 	// Wire ICE / connection-state observers BEFORE we set the remote
@@ -333,11 +351,11 @@ func (s *session) handleRemoteTrack(ctx context.Context, track *pionwebrtc.Track
 
 	dec, err := encoder.CreateDecode(
 		media.CodecConfig{
-			Codec:                    "opus",
-			SampleRate:               srcSR,
-			Channels:                 srcCh,
-			FrameDuration:            "20ms",
-			OpusDecodeChannels:       srcCh,
+			Codec:                     "opus",
+			SampleRate:                srcSR,
+			Channels:                  srcCh,
+			FrameDuration:             "20ms",
+			OpusDecodeChannels:        srcCh,
 			OpusPCMBridgeDecodeStereo: srcCh >= 2,
 		},
 		media.CodecConfig{Codec: "pcm", SampleRate: s.bridgeSR, Channels: 1},
@@ -484,7 +502,7 @@ func (s *session) startPipelines(ctx context.Context) error {
 	s.att = &voice.Attached{ASR: asrPipe, TTS: ttsPipe}
 
 	gwCfg := gateway.ClientConfig{
-		URL:      s.cfg.DialogWSURL,
+		URL:      s.dialogDialURL,
 		Attached: s.att,
 		CallID:   s.callID,
 		BargeIn:  bargeInFromFactory(s.cfg.BargeInFactory),
@@ -551,7 +569,7 @@ func (s *session) startPipelines(ctx context.Context) error {
 		}
 	}
 	log.Printf("[webrtc] call=%s connected: bridge=%dHz asr=%dHz tts=%dHz dialog=%s",
-		s.callID, s.bridgeSR, asrSR, ttsSR, s.cfg.DialogWSURL)
+		s.callID, s.bridgeSR, asrSR, ttsSR, gateway.RedactDialogDialURL(s.dialogDialURL))
 	return nil
 }
 

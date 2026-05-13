@@ -52,6 +52,15 @@
 <div class="sub">Browser ↔ AI 1v1 通话测试。需要 -webrtc-http 监听已开启，且 -dialog-ws 指向运行中的 dialog 应用。</div>
 
 <div class="card">
+  <label>SoulNexus 鉴权（可选；填入后随 POST /offer 一并提交，voiceserver 会写入对话 WS 查询串）</label>
+  <div class="row" style="margin-top:8px; gap:8px;">
+    <input id="ak" placeholder="apiKey" style="flex:1" />
+    <input id="as" placeholder="apiSecret" type="password" style="flex:1" />
+    <input id="aid" placeholder="agentId" style="width:100px" />
+  </div>
+</div>
+
+<div class="card">
   <label>Offer endpoint</label>
   <input id="endpoint" value="/webrtc/v1/offer" />
   <div class="row" style="margin-top: 12px;">
@@ -190,10 +199,20 @@ async function start() {
 
   let resp;
   try {
+    const auth = {};
+    const ak = $('ak').value.trim();
+    const asec = $('as').value.trim();
+    const aid = $('aid').value.trim();
+    if (ak || asec || aid) {
+      auth.payload = {};
+      if (ak) auth.payload.apiKey = ak;
+      if (asec) auth.payload.apiSecret = asec;
+      if (aid) auth.payload.agentId = aid;
+    }
     resp = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'offer', sdp: pc.localDescription.sdp }),
+      body: JSON.stringify(Object.assign({ type: 'offer', sdp: pc.localDescription.sdp }, auth)),
     });
   } catch (err) {
     log('err', 'fetch offer: ' + err.message);

@@ -180,7 +180,7 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 //
 //	POST /webrtc/v1/offer
 //	  Content-Type: application/json
-//	  Body: {"sdp":"...", "type":"offer"}
+//	  Body: {"sdp":"...", "type":"offer", "payload":{...}} or legacy flat apiKey/apiSecret/agentId
 //
 //	200 OK
 //	  Content-Type: application/json
@@ -200,7 +200,7 @@ func (s *Server) HandleOffer(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "read body: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-	var offer SDPMessage
+	var offer OfferRequest
 	if err := json.Unmarshal(body, &offer); err != nil {
 		http.Error(w, "json: "+err.Error(), http.StatusBadRequest)
 		return

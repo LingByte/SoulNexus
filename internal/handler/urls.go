@@ -165,6 +165,12 @@ func (h *Handlers) Register(engine *gin.Engine) {
 	// Apply global middlewares (rate limiting, timeout, circuit breaker, operation log)
 	middleware.ApplyGlobalMiddlewares(r)
 
+	// cmd/voice -dialog-ws：兼容 dialog-example 的 ws://host:port/ws/call（无 /api 前缀）
+	wsCall := engine.Group("")
+	wsCall.Use(middleware.InjectDB(h.db))
+	wsCall.Use(middleware.MutatingRequestTrustedOrigin())
+	wsCall.GET("/ws/call", h.handleConnection)
+
 	// Register routes regardless of whether search is enabled, check in handler methods
 	// If handler is nil, try to initialize
 	if h.searchHandler == nil {

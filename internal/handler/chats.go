@@ -4,63 +4,20 @@ package handlers
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"strconv"
 	"strings"
-	"sync"
-	"time"
 
 	"github.com/LingByte/SoulNexus/internal/models"
+	"github.com/LingByte/SoulNexus/internal/voicedialog"
 	"github.com/LingByte/SoulNexus/pkg/response"
-	"github.com/LingByte/SoulNexus/pkg/webrtc/constants"
-	"github.com/LingByte/SoulNexus/pkg/webrtc/rtcmedia"
-	transports "github.com/LingByte/SoulNexus/pkg/webrtc/transport"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
-	"github.com/pion/webrtc/v3"
 )
-
-// Constants
-const (
-	// Connection configuration
-	maxConnectionRetries       = 50
-	connectionRetryDelay       = 100 * time.Millisecond
-	connectionStateLogInterval = 10
-	connectionReadyDelay       = 200 * time.Millisecond
-)
-
-// ClientManager manages WebRTC client connections
-type ClientManager struct {
-	clients map[string]*transports.AIClient
-	mutex   sync.RWMutex
-}
-
-func NewClientManager() *ClientManager {
-	return &ClientManager{
-		clients: make(map[string]*transports.AIClient),
-	}
-}
-
-func (m *ClientManager) AddClient(sessionID string, client *transports.AIClient) {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-	m.clients[sessionID] = client
-}
-
-func (m *ClientManager) RemoveClient(sessionID string) {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-	delete(m.clients, sessionID)
-}
-
-func (m *ClientManager) GetClient(sessionID string) (*transports.AIClient, bool) {
-	m.mutex.RLock()
-	defer m.mutex.RUnlock()
-	client, exists := m.clients[sessionID]
-	return client, exists
-}
 
 type ChatRequest struct {
 	AgentID      int64   `json:"agentId" binding:"required"`
@@ -385,22 +342,54 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-var manager = NewClientManager()
+// overlayAuthFromPayloadQuery fills apiKey / apiSecret / agentId from the
+// URL query "payload" when those top-level query keys are empty. Payload
+// must be a JSON object (e.g. from cmd/voice WebRTC offer passthrough).
+func overlayAuthFromPayloadQuery(apiKey, apiSecret, agentIDStr *string, payloadQuery string) error {
+	payloadQuery = strings.TrimSpace(payloadQuery)
+	if payloadQuery == "" {
+		return nil
+	}
+	var m map[string]any
+	if err := json.Unmarshal([]byte(payloadQuery), &m); err != nil {
+		return err
+	}
+	if *apiKey == "" {
+		*apiKey = dialogPayloadString(m["apiKey"])
+	}
+	if *apiSecret == "" {
+		*apiSecret = dialogPayloadString(m["apiSecret"])
+	}
+	if *agentIDStr == "" {
+		*agentIDStr = dialogPayloadString(m["agentId"])
+	}
+	return nil
+}
 
-// SignalMessage represents a WebSocket signaling message
-type SignalMessage struct {
-	Type      string      `json:"type"`
-	SessionID string      `json:"session_id,omitempty"`
-	Data      interface{} `json:"data,omitempty"`
+func dialogPayloadString(v any) string {
+	if v == nil {
+		return ""
+	}
+	switch t := v.(type) {
+	case string:
+		return strings.TrimSpace(t)
+	case float64:
+		return strconv.FormatInt(int64(t), 10)
+	default:
+		return strings.TrimSpace(fmt.Sprint(t))
+	}
 }
 
 func (h *Handlers) handleConnection(c *gin.Context) {
-	// 从 URL 参数中获取认证信息
 	apiKey := c.Query("apiKey")
 	apiSecret := c.Query("apiSecret")
 	agentIDStr := c.Query("agentId")
 
-	// 验证必需参数 - 在 WebSocket 升级之前验证，失败时直接返回 HTTP 错误
+	if err := overlayAuthFromPayloadQuery(&apiKey, &apiSecret, &agentIDStr, c.Query("payload")); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload query JSON: " + err.Error()})
+		c.Abort()
+		return
+	}
 	if apiKey == "" || apiSecret == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing required parameters: apiKey and apiSecret are required"})
 		c.Abort()
@@ -412,7 +401,6 @@ func (h *Handlers) handleConnection(c *gin.Context) {
 		return
 	}
 
-	// 立即验证认证信息
 	cred, err := models.GetUserCredentialByApiSecretAndApiKey(h.db, apiKey, apiSecret)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error: " + err.Error()})
@@ -445,349 +433,54 @@ func (h *Handlers) handleConnection(c *gin.Context) {
 		return
 	}
 
+	callID := strings.TrimSpace(c.Query("call_id"))
+	if callID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "缺少 call_id。本 URL 仅供 cmd/voice 作为对话面拨入；请在拨号 URL 上携带 call_id（gateway 会自动追加）。浏览器实时语音请在 VoiceAssistant 内建 WebRTC 或 /webrtc/v1/demo 发起；鉴权参数放在 POST body 的 payload JSON 内或 query 的 apiKey/apiSecret/agentId。",
+		})
+		c.Abort()
+		return
+	}
+
+	if strings.TrimSpace(cred.LLMProvider) == "" || strings.TrimSpace(cred.LLMApiKey) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Credential is missing LLM configuration (llmProvider, llmApiKey). Configure the API credential for this key pair."})
+		c.Abort()
+		return
+	}
+
 	systemPrompt := agent.SystemPrompt
 	if systemPrompt == "" {
 		systemPrompt = "你是一个友好的AI助手，请用简洁明了的语言回答问题。"
 	}
 
 	maxTokens := agent.MaxTokens
-	if maxTokens == 0 {
-		maxTokens = 0 // 0 表示不限制
-	}
-
 	temperature := agent.Temperature
 	if temperature == 0 {
-		temperature = 0.7 // 默认值
+		temperature = 0.7
 	}
 
-	language := "zh" // 默认中文
+	model := strings.TrimSpace(agent.LLMModel)
+	if model == "" {
+		model = voicedialog.DefaultModelForProvider(cred.LLMProvider)
+	}
 
-	speaker := agent.Speaker
-	llmModel := agent.LLMModel
+	fallback := "您好，我现在没法回答这个问题，请稍后再试。"
 
-	aid := uint(agentID)
-
-	// 升级 HTTP 请求为 WebSocket 连接
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
-		log.Println("Error upgrading connection:", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to upgrade connection"})
+		log.Printf("[chat/call] WebSocket upgrade failed: %v", err)
 		return
 	}
 	defer conn.Close()
-	sessionID := fmt.Sprintf("session_%d", time.Now().UnixNano())
 
-	// Create WebRTC transport
-	transport := rtcmedia.NewWebRTCTransport(rtcmedia.WebRTCOption{
-		Codec: constants.CodecPCMA,
-		ICEServers: []webrtc.ICEServer{
-			{URLs: []string{
-				"stun:stun.l.google.com:19302",
-				"stun:stun1.l.google.com:19302",
-				"stun:stun2.l.google.com:19302",
-				"stun:stun3.l.google.com:19302",
-				"stun:stun4.l.google.com:19302",
-				"stun:stun.cloudflare.com:3478",
-				"stun:stun.voipbuster.com:3478",
-				"stun:stun.voipstunt.com:3478",
-				"stun:stun.sipgate.net:3478",
-				"stun:stun.miwifi.com:3478",
-			}},
-		},
-		StreamID:   "lingecho_ai_server",
-		ICETimeout: constants.DefaultICETimeout,
-	})
-	if err := transport.NewPeerConnection(); err != nil {
-		log.Printf("webrtc: NewPeerConnection: %v", err)
-		_ = conn.WriteMessage(websocket.TextMessage, []byte(`{"error":"webrtc init failed"}`))
-		return
+	cfg := voicedialog.Config{
+		Provider:     cred.LLMProvider,
+		APIKey:       cred.LLMApiKey,
+		APIURL:       cred.LLMApiURL,
+		Model:        model,
+		SystemPrompt: systemPrompt,
+		MaxTokens:    maxTokens,
+		Temperature:  temperature,
 	}
-
-	// Use credential and assistant configuration to initialize services
-	aiClient, err := transports.NewAIClientWithCredential(
-		conn,
-		transport,
-		sessionID,
-		h.db,
-		cred.CreatedBy,
-		cred.ID,
-		&aid,
-		cred,
-		systemPrompt,
-		maxTokens,
-		temperature,
-		language,
-		speaker,
-		llmModel,
-	)
-	if err != nil {
-		log.Printf("[Server] Failed to create AI client: %v", err)
-		return
-	}
-
-	// Set up OnTrack callback BEFORE handling any signaling messages
-	// This is critical - OnTrack must be set up early to catch the track when it arrives
-	var wsWriteMu sync.Mutex
-	sendSignal := func(msg SignalMessage) {
-		wsWriteMu.Lock()
-		defer wsWriteMu.Unlock()
-		if err := conn.WriteJSON(msg); err != nil {
-			log.Printf("[Server] Failed to push signal message %s: %v", msg.Type, err)
-		}
-	}
-
-	aiClient.SetEventCallbacks(
-		func(text string, isFinal bool) {
-			sendSignal(SignalMessage{
-				Type:      "asrFinal",
-				SessionID: sessionID,
-				Data: map[string]interface{}{
-					"text":    text,
-					"isFinal": isFinal,
-				},
-			})
-		},
-		func(text string) {
-			sendSignal(SignalMessage{
-				Type:      "llm_response",
-				SessionID: sessionID,
-				Data: map[string]interface{}{
-					"text": text,
-				},
-			})
-		},
-	)
-
-	transport.OnTrack(func(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
-		aiClient.Mu.Lock()
-		if !aiClient.AudioReceived {
-			aiClient.AudioReceived = true
-			aiClient.Mu.Unlock()
-			fmt.Printf("[Server] ===== OnTrack callback FIRED! =====\n")
-			fmt.Printf("[Server] Track codec: %s, SSRC: %d, ID: %s\n",
-				track.Codec().MimeType, track.SSRC(), track.ID())
-
-			// Start audio receiver in a separate goroutine
-			go func() {
-				defer func() {
-					if r := recover(); r != nil {
-						log.Printf("[Server] Recovered from panic in audio receiver: %v", r)
-					}
-				}()
-				if err := aiClient.StartAudioReceiverFromTrack(track); err != nil {
-					log.Printf("[Server] Error in audio receiver: %v", err)
-				}
-			}()
-		} else {
-			aiClient.Mu.Unlock()
-		}
-	})
-	fmt.Printf("[Server] OnTrack callback registered for client %s\n", sessionID)
-
-	manager.AddClient(sessionID, aiClient)
-	defer manager.RemoveClient(sessionID)
-	defer aiClient.Close()
-
-	// Send session ID to client
-	initMsg := SignalMessage{
-		Type:      "init",
-		SessionID: sessionID,
-	}
-	if err := conn.WriteJSON(initMsg); err != nil {
-		log.Printf("[Server] Failed to send init message: %v", err)
-		return
-	}
-
-	// Handle incoming messages
-	for {
-		var msg SignalMessage
-		if err := conn.ReadJSON(&msg); err != nil {
-			// WebSocket 连接关闭或出错
-			log.Printf("[Server] WebSocket connection closed or error: %v", err)
-			// 确保清理资源
-			if aiClient != nil {
-				aiClient.Close()
-			}
-			break
-		}
-
-		// 处理关闭消息
-		if msg.Type == "close" || msg.Type == "disconnect" {
-			log.Printf("[Server] Received close/disconnect message from client")
-			if aiClient != nil {
-				aiClient.Close()
-			}
-			break
-		}
-
-		handleSignalMessage(aiClient, msg)
-	}
-}
-
-// handleSignalMessage routes signaling messages
-func handleSignalMessage(client *transports.AIClient, msg SignalMessage) {
-	switch msg.Type {
-	case "offer":
-		handleOffer(client, msg)
-	case "ice-candidate":
-		handleICECandidate(client, msg)
-	case "connected":
-		handleConnection(client, msg)
-	default:
-		log.Printf("[Server] Unknown message type: %s", msg.Type)
-	}
-}
-
-// handleICECandidate handles trickle ICE candidates from client
-func handleICECandidate(client *transports.AIClient, msg SignalMessage) {
-	data, ok := msg.Data.(map[string]interface{})
-	if !ok {
-		log.Println("[Server] Invalid ice-candidate data")
-		return
-	}
-	candidate, _ := data["candidate"].(string)
-	if candidate == "" {
-		return
-	}
-	if err := client.Transport.AddICECandidate(candidate); err != nil {
-		log.Printf("[Server] Failed to add ICE candidate: %v", err)
-	}
-}
-
-// handleOffer handles the WebRTC offer
-func handleOffer(client *transports.AIClient, msg SignalMessage) {
-	offerData, ok := msg.Data.(map[string]interface{})
-	if !ok {
-		log.Println("[Server] Invalid offer data")
-		return
-	}
-
-	offerStr, ok := offerData["sdp"].(string)
-	if !ok {
-		log.Println("[Server] Invalid offer SDP")
-		return
-	}
-
-	// Debug: Check if offer SDP contains audio media
-	if strings.Contains(offerStr, "m=audio") {
-		fmt.Printf("[Server] Offer SDP contains audio media description\n")
-	} else {
-		fmt.Printf("[Server] WARNING: Offer SDP does NOT contain audio media description!\n")
-		previewLen := 200
-		if len(offerStr) < previewLen {
-			previewLen = len(offerStr)
-		}
-		fmt.Printf("[Server] Offer SDP preview: %s...\n", offerStr[:previewLen])
-	}
-
-	if err := client.Transport.SetRemoteDescription(offerStr); err != nil {
-		log.Printf("[Server] Error setting remote description: %v", err)
-		return
-	}
-	fmt.Printf("[Server] Remote description set successfully\n")
-
-	candidates, ok := offerData["candidates"].([]interface{})
-	if !ok {
-		log.Println("[Server] Invalid candidates data")
-		return
-	}
-
-	candidateStrs := extractCandidates(candidates)
-	answer, serverCandidates, err := client.Transport.CreateAnswer(candidateStrs)
-	if err != nil {
-		log.Printf("[Server] Error creating answer: %v", err)
-		return
-	}
-
-	// Debug: Check if answer SDP contains audio media
-	if strings.Contains(answer, "m=audio") {
-		fmt.Printf("[Server] Answer SDP contains audio media description\n")
-	} else {
-		fmt.Printf("[Server] WARNING: Answer SDP does NOT contain audio media description!\n")
-	}
-
-	answerMsg := SignalMessage{
-		Type:      "answer",
-		SessionID: client.SessionID,
-		Data: map[string]interface{}{
-			"sdp":        answer,
-			"candidates": serverCandidates,
-		},
-	}
-
-	if err := client.Conn.WriteJSON(answerMsg); err != nil {
-		log.Printf("[Server] Error sending answer: %v", err)
-		return
-	}
-
-	fmt.Printf("[Server] Sent answer to client %s\n", client.SessionID)
-
-	// Note: Audio receiving is now handled by the OnTrack callback
-	// which is set up in websocketHandler before any signaling messages are processed
-	// No need to wait here - OnTrack will fire automatically when the track arrives
-	fmt.Println("[Server] Answer sent, waiting for OnTrack callback to fire when client sends audio...")
-}
-
-// extractCandidates extracts candidate strings
-func extractCandidates(candidates []interface{}) []string {
-	var candidateStrs []string
-	for _, c := range candidates {
-		if candidateStr, ok := c.(string); ok {
-			candidateStrs = append(candidateStrs, candidateStr)
-		}
-	}
-	return candidateStrs
-}
-
-// handleConnection handles connection established message (client confirmation)
-func handleConnection(client *transports.AIClient, msg SignalMessage) {
-	fmt.Printf("[Server] Client confirmed connection for session %s\n", client.SessionID)
-
-	// Wait for connection to be established, then send greeting
-	go func() {
-		if err := waitForConnection(client.Transport); err != nil {
-			log.Printf("[Server] Connection not established: %v", err)
-			return
-		}
-
-		// Wait for txTrack to be ready
-		maxWait := 50
-		for i := 0; i < maxWait; i++ {
-			txTrack := client.Transport.GetTxTrack()
-			if txTrack != nil {
-				fmt.Printf("[Server] txTrack is ready after %d attempts\n", i+1)
-				break
-			}
-			if i == 0 {
-				fmt.Printf("[Server] Waiting for txTrack to be ready...\n")
-			}
-			time.Sleep(50 * time.Millisecond)
-		}
-
-		// Keep this short to reduce first-response latency after connected.
-		time.Sleep(80 * time.Millisecond)
-
-		// Send greeting to start the conversation
-		greeting := "你好，我是AI助手，很高兴和你对话。"
-		fmt.Printf("[Server] Sending greeting: %s\n", greeting)
-		client.GenerateTTS(greeting)
-	}()
-}
-
-// waitForConnection waits for WebRTC connection
-func waitForConnection(transport *rtcmedia.WebRTCTransport) error {
-	for i := 0; i < maxConnectionRetries; i++ {
-		state := transport.GetConnectionState()
-		if state == webrtc.PeerConnectionStateConnected {
-			return nil
-		}
-
-		if i%connectionStateLogInterval == 0 {
-			fmt.Printf("[Server] Waiting for connection... (state: %s)\n", state.String())
-		}
-
-		time.Sleep(connectionRetryDelay)
-	}
-
-	return fmt.Errorf("connection timeout")
+	voicedialog.Serve(context.Background(), conn, callID, cfg, fallback)
 }

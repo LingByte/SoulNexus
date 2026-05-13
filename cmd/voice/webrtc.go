@@ -23,6 +23,7 @@ import (
 
 	"github.com/LingByte/SoulNexus/pkg/recognizer"
 	"github.com/LingByte/SoulNexus/pkg/synthesizer"
+	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/gateway"
 	voicetts "github.com/LingByte/SoulNexus/pkg/voiceserver/voice/tts"
 	voicertc "github.com/LingByte/SoulNexus/pkg/voiceserver/voice/webrtc"
 	pionwebrtc "github.com/pion/webrtc/v4"
@@ -99,7 +100,7 @@ func mountWebRTCHandlers(mux *http.ServeMux, offerPath, dialogWS string, db *gor
 		_, _ = w.Write(webrtcDemoHTML)
 	})
 	log.Printf("[webrtc] mounted: offer=%s hangup=%s demo=%s (ice=%d public=%v) -> dialog=%s",
-		offerPath, rootPath+"/hangup", demoPath, len(iceServers), publicIPs, dialogWS)
+		offerPath, rootPath+"/hangup", demoPath, len(iceServers), publicIPs, gateway.RedactDialogDialURL(dialogWS))
 	return true
 }
 
