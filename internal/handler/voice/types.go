@@ -22,10 +22,9 @@ import (
 //   - DB nil → persistence is disabled across all transports.
 type Config struct {
 	// Shared
-	DialogWS     string   // VOICE_DIALOG_WS, with DIALOG_* env merged in
-	DB           *gorm.DB // optional; nil disables call_recording / call_events
-	Record       bool     // VOICE_RECORD
-	RecordBucket string   // VOICE_RECORD_BUCKET
+	DialogWS string   // VOICE_DIALOG_WS, with DIALOG_* env merged in
+	DB       *gorm.DB // optional; nil disables call_recording / call_events
+	Record   bool     // VOICE_RECORD
 
 	// WebSocket-Hardware (xiaozhi protocol + optional SoulNexus binding wrapper)
 	EnableXiaozhi                  bool
@@ -48,7 +47,6 @@ type Config struct {
 	SFUAllowedOrigins   string // CSV; "*" allows any
 	SFUTokenAdminSecret string // required to call /token outside anon mode
 	SFURecord           bool
-	SFURecordBucket     string
 	SFUWebhookURL       string
 }
 

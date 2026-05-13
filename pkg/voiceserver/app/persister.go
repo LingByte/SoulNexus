@@ -302,7 +302,6 @@ func (p *CallPersister) AppendRecording(ctx context.Context, r gateway.Recording
 	row := &persist.CallRecording{
 		CallID:     p.callID,
 		Transport:  p.transport,
-		Bucket:     r.Bucket,
 		Key:        r.Key,
 		URL:        r.URL,
 		Format:     r.Format,

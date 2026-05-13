@@ -14,17 +14,13 @@ import (
 // pointing at the supplied bucket; the per-transport session pushes PCM
 // into it through the call lifetime and flushes (uploads stereo WAV +
 // writes call_recording row) at teardown.
-func MakeRecorderFactory(record bool, bucket, transport string) func(callID, codec string, sampleRate int) *recorder.Recorder {
+func MakeRecorderFactory(record bool, transport string) func(callID, codec string, sampleRate int) *recorder.Recorder {
 	if !record {
 		return nil
-	}
-	if bucket == "" {
-		bucket = "voiceserver-recordings"
 	}
 	return func(callID, codec string, sampleRate int) *recorder.Recorder {
 		return recorder.New(recorder.Config{
 			CallID:        callID,
-			Bucket:        bucket,
 			SampleRate:    sampleRate,
 			Transport:     transport,
 			Codec:         codec,

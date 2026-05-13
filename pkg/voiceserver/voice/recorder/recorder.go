@@ -6,12 +6,12 @@
 // identical across transports so dashboards and offline review tools
 // can treat every recording the same:
 //
-//	• PCM16 LE
-//	• 2 channels, L = caller / device / browser, R = AI / TTS
-//	• Sample rate = the call's PCM bridge rate (typically 16 kHz)
-//	• Wall-clock-aligned: L and R share one absolute time axis so a
-//	  listener hears events in the order they actually happened, even
-//	  when frames arrive in bursts due to scheduler / network latency.
+//   - PCM16 LE
+//   - 2 channels, L = caller / device / browser, R = AI / TTS
+//   - Sample rate = the call's PCM bridge rate (typically 16 kHz)
+//   - Wall-clock-aligned: L and R share one absolute time axis so a
+//     listener hears events in the order they actually happened, even
+//     when frames arrive in bursts due to scheduler / network latency.
 //
 // Wall-clock alignment is the trick borrowed from LingEchoX's
 // `placeWallPCMTrack`: each frame is captured with `time.Now().UnixNano()`
@@ -36,7 +36,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/LingByte/SoulNexus/pkg/voiceserver/stores"
+	"github.com/LingByte/SoulNexus/pkg/stores"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/gateway"
 	"go.uber.org/zap"
 )
@@ -52,7 +52,6 @@ import (
 // the bytes without touching disk or hitting the network.
 type Config struct {
 	CallID     string // unique call identifier; embedded in the storage key
-	Bucket     string // storage bucket name (uses pkg/stores.Default())
 	SampleRate int    // PCM bridge rate; e.g. 8000 / 16000 / 48000
 	Transport  string // free-form label for log lines: "sip" / "xiaozhi" / "webrtc"
 	Codec      string // wire codec (informational, used in flush log line)
@@ -77,18 +76,18 @@ type Recorder struct {
 	cfg Config
 	log *zap.Logger
 
-	mu       sync.Mutex
-	inSegs   []frame // L = caller / device / browser
-	outSegs  []frame // R = AI / TTS
-	flushed  bool
+	mu      sync.Mutex
+	inSegs  []frame // L = caller / device / browser
+	outSegs []frame // R = AI / TTS
+	flushed bool
 
 	// Rolling chunk state. inHead / outHead point at the index up to
 	// which the chunker has already uploaded; the final Flush still
 	// uploads the FULL frame slices, so chunks are a safety net only.
-	inHead   int
-	outHead  int
-	partSeq  int
-	chunkCh  chan struct{} // closed by Flush to stop the chunker goroutine
+	inHead  int
+	outHead int
+	partSeq int
+	chunkCh chan struct{} // closed by Flush to stop the chunker goroutine
 
 	// chunkKeys remembers every part-*.wav we successfully uploaded so
 	// Flush can delete them after the canonical full WAV write
@@ -112,9 +111,6 @@ type frame struct {
 func New(cfg Config) *Recorder {
 	if strings.TrimSpace(cfg.CallID) == "" || cfg.SampleRate <= 0 {
 		return nil
-	}
-	if cfg.Bucket == "" {
-		cfg.Bucket = "voiceserver-recordings"
 	}
 	if cfg.Logger == nil {
 		cfg.Logger = zap.NewNop()
@@ -191,7 +187,7 @@ func (r *Recorder) uploadNextChunk() {
 	}
 	ts := time.Now().Unix()
 	key := fmt.Sprintf("%s-part-%d-%d.wav", sanitizeFilename(r.cfg.CallID), seq, ts)
-	if err := store.Write(r.cfg.Bucket, key, bytes.NewReader(wav)); err != nil {
+	if err := store.Write(key, bytes.NewReader(wav)); err != nil {
 		r.log.Warn("recorder: chunk upload failed",
 			zap.String("call_id", r.cfg.CallID),
 			zap.Int("seq", seq),
@@ -338,7 +334,7 @@ func (r *Recorder) Flush(ctx context.Context) (gateway.RecordingInfo, bool) {
 			zap.String("call_id", r.cfg.CallID))
 		return gateway.RecordingInfo{}, false
 	}
-	if err := store.Write(r.cfg.Bucket, key, bytes.NewReader(wav)); err != nil {
+	if err := store.Write(key, bytes.NewReader(wav)); err != nil {
 		r.log.Warn("recorder: store write failed",
 			zap.String("call_id", r.cfg.CallID),
 			zap.Error(err))
@@ -357,7 +353,7 @@ func (r *Recorder) Flush(ctx context.Context) (gateway.RecordingInfo, bool) {
 	if len(parts) > 0 {
 		var failed int
 		for _, k := range parts {
-			if err := store.Delete(r.cfg.Bucket, k); err != nil {
+			if err := store.Delete(k); err != nil {
 				failed++
 				r.log.Warn("recorder: chunk delete failed",
 					zap.String("call_id", r.cfg.CallID),
@@ -384,13 +380,11 @@ func (r *Recorder) Flush(ctx context.Context) (gateway.RecordingInfo, bool) {
 		zap.Int("bytes", len(wav)),
 		zap.Int("in_frames", len(inSegs)),
 		zap.Int("out_frames", len(outSegs)),
-		zap.String("bucket", r.cfg.Bucket),
 		zap.String("key", key))
 
 	return gateway.RecordingInfo{
-		Bucket:     r.cfg.Bucket,
 		Key:        key,
-		URL:        r.cfg.Bucket + "/" + key,
+		URL:        store.PublicURL(key),
 		Format:     "wav",
 		Layout:     "stereo-l-r", // matches persist.RecordingLayoutStereoLR
 		SampleRate: rate,

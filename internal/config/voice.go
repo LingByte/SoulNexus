@@ -35,9 +35,8 @@ type VoiceServerConfig struct {
 	SoulnexusHardwareBindingURL    string
 	SoulnexusHardwareBindingSecret string
 
-	Record       bool
-	RecordBucket string
-	RecordChunk  time.Duration
+	Record      bool
+	RecordChunk time.Duration
 
 	ASREcho   bool
 	ReplyText string
@@ -63,7 +62,6 @@ type VoiceServerConfig struct {
 	SFUAllowedOrigins   string
 	SFUTokenAdminSecret string
 	SFURecord           bool
-	SFURecordBucket     string
 	SFUWebhookURL       string
 }
 
@@ -111,9 +109,8 @@ func buildVoiceConfig() *VoiceServerConfig {
 		SoulnexusHardwareBindingURL:    voiceString("VOICE_SOULNEXUS_HW_BINDING_URL", "http://localhost:7072/api/voice/lingecho/binding"),
 		SoulnexusHardwareBindingSecret: voiceString("VOICE_SOULNEXUS_HW_BINDING_SECRET", voiceString("LINGECHO_HARDWARE_BINDING_SECRET", "")),
 
-		Record:       voiceBool("VOICE_RECORD", false),
-		RecordBucket: voiceString("VOICE_RECORD_BUCKET", "voiceserver-recordings"),
-		RecordChunk:  voiceDuration("VOICE_RECORD_CHUNK", 30*time.Second),
+		Record:      voiceBool("VOICE_RECORD", false),
+		RecordChunk: voiceDuration("VOICE_RECORD_CHUNK", 30*time.Second),
 
 		ASREcho:   voiceBool("VOICE_ASR_ECHO", false),
 		ReplyText: voiceString("VOICE_REPLY_TEXT", "您好，已收到"),
@@ -139,7 +136,6 @@ func buildVoiceConfig() *VoiceServerConfig {
 		SFUAllowedOrigins:   voiceString("VOICE_SFU_ALLOWED_ORIGINS", ""),
 		SFUTokenAdminSecret: voiceString("VOICE_SFU_TOKEN_ADMIN_SECRET", ""),
 		SFURecord:           voiceBool("VOICE_SFU_RECORD", false),
-		SFURecordBucket:     voiceString("VOICE_SFU_RECORD_BUCKET", "sfu-recordings"),
 		SFUWebhookURL:       voiceString("VOICE_SFU_WEBHOOK_URL", ""),
 	}
 }
@@ -194,10 +190,6 @@ func (c *VoiceServerConfig) Validate() error {
 		return errors.New("VOICE_SOULNEXUS_HW_BINDING_URL is required when VOICE_SOULNEXUS_HW_WS_PATH is set")
 	}
 
-	// --- Recording consistency ---
-	if c.Record && c.RecordBucket == "" {
-		return errors.New("VOICE_RECORD_BUCKET must be non-empty when VOICE_RECORD=true")
-	}
 	if c.RecordChunk < 0 {
 		return errors.New("VOICE_RECORD_CHUNK must be >= 0 (use 0 to disable rolling uploads)")
 	}

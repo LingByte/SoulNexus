@@ -56,6 +56,17 @@ func GetEnv(key string) string {
 	return v
 }
 
+// GetStringOrDefault returns the env var when non-empty, otherwise defaultValue.
+// Useful for the common "load with sensible fallback" pattern; the bool-returning
+// LookupEnv is reserved for callers that need to distinguish "unset" from "empty".
+func GetStringOrDefault(key, defaultValue string) string {
+	v := GetEnv(key)
+	if v == "" {
+		return defaultValue
+	}
+	return v
+}
+
 func GetBoolEnv(key string) bool {
 	v, _ := strconv.ParseBool(GetEnv(key))
 	return v
@@ -294,8 +305,9 @@ func LoadEnv(env string) error {
 }
 
 // LoadModuleEnvs loads layered env files for one deployable binary (auth, server, sip, …):
-//   1) .env-{module}
-//   2) .env-{module}.{appEnv} when appEnv is non-empty (overrides earlier keys).
+//  1. .env-{module}
+//  2. .env-{module}.{appEnv} when appEnv is non-empty (overrides earlier keys).
+//
 // Missing files are skipped with a log line only (same spirit as partial .env loading).
 func LoadModuleEnvs(module string, appEnv string) error {
 	module = strings.TrimSpace(module)

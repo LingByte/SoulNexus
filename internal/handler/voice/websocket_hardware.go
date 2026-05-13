@@ -59,7 +59,7 @@ func (h *Handlers) mountXiaozhi(r gin.IRoutes) bool {
 		ConfigureClient:  app.ApplyDialogReconnect,
 		Logger:           app.VoiceLogger("xiaozhi"),
 		PersisterFactory: app.MakePersisterFactory(h.cfg.DB, "xiaozhi", "inbound"),
-		RecorderFactory:  app.MakeRecorderFactory(h.cfg.Record, h.cfg.RecordBucket, "xiaozhi"),
+		RecorderFactory:  app.MakeRecorderFactory(h.cfg.Record, "xiaozhi"),
 		OnSessionStart: func(_ context.Context, callID, deviceID string) {
 			log.Printf("[xiaozhi] session start call=%s device=%s", callID, deviceID)
 		},

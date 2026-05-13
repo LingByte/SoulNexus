@@ -58,7 +58,7 @@ func (h *Handlers) mountWebRTC(r gin.IRoutes) bool {
 		ConfigureClient:  app.ApplyDialogReconnect,
 		Logger:           app.VoiceLogger("webrtc"),
 		PersisterFactory: app.MakePersisterFactory(h.cfg.DB, "webrtc", "inbound"),
-		RecorderFactory:  app.MakeRecorderFactory(h.cfg.Record, h.cfg.RecordBucket, "webrtc"),
+		RecorderFactory:  app.MakeRecorderFactory(h.cfg.Record, "webrtc"),
 		OnSessionStart: func(_ context.Context, callID, peer string) {
 			log.Printf("[webrtc] session start call=%s peer=%s", callID, peer)
 		},

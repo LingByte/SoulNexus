@@ -363,11 +363,6 @@ func (h *Handlers) SystemStatus(c *gin.Context) {
 	// 检查API服务（通过检查当前请求是否正常处理来判断）
 	status["api"] = true
 
-	// 检查对象存储
-	st := stores.Default()
-	_, storageErr := st.Exists("__store_health_probe__")
-	status["storage"] = storageErr == nil
-
 	response.Success(c, "系统状态检查完成", status)
 }
 

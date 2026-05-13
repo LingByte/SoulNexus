@@ -56,7 +56,7 @@ func main() {
 	if strings.TrimSpace(cfg.OutboundURI) != "" {
 		var rec *pcmRecorder
 		if cfg.Record {
-			rec = newRTPRecorder("outbound-"+newTag(), cfg.RecordBucket)
+			rec = newRTPRecorder("outbound-" + newTag())
 		}
 		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 		defer stop()
@@ -85,14 +85,13 @@ func main() {
 
 	var callCount int64
 	invite := &echoInviteHandler{
-		serial:       &callCount,
-		record:       cfg.Record,
-		recordBucket: cfg.RecordBucket,
-		gateways:     newGatewayRegistry(),
-		asrEcho:      cfg.ASREcho,
-		replyText:    cfg.ReplyText,
-		dialogWS:     dialogWSEffective,
-		srv:          srv,
+		serial:    &callCount,
+		record:    cfg.Record,
+		gateways:  newGatewayRegistry(),
+		asrEcho:   cfg.ASREcho,
+		replyText: cfg.ReplyText,
+		dialogWS:  dialogWSEffective,
+		srv:       srv,
 	}
 	// --- Persistence (voiceserver.db SQLite by default; VOICESERVER_DB=off disables) ---
 	db, err := app.OpenVoiceServerDB()
@@ -139,7 +138,6 @@ func main() {
 		DialogWS:                       dialogWSEffective,
 		DB:                             db,
 		Record:                         cfg.Record,
-		RecordBucket:                   cfg.RecordBucket,
 		EnableXiaozhi:                  cfg.EnableXiaozhi,
 		XiaozhiPath:                    cfg.XiaozhiPath,
 		SoulnexusHardwarePath:          cfg.SoulnexusHardwarePath,
@@ -156,7 +154,6 @@ func main() {
 		SFUAllowedOrigins:              cfg.SFUAllowedOrigins,
 		SFUTokenAdminSecret:            cfg.SFUTokenAdminSecret,
 		SFURecord:                      cfg.SFURecord,
-		SFURecordBucket:                cfg.SFURecordBucket,
 		SFUWebhookURL:                  cfg.SFUWebhookURL,
 	}))
 

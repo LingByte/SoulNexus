@@ -39,23 +39,24 @@ func (m *MinioStore) client() (*minio.Client, error) {
 	})
 }
 
-func (m *MinioStore) ensureBucket(ctx context.Context, cli *minio.Client) error {
-	exists, err := cli.BucketExists(ctx, m.Bucket)
+func (m *MinioStore) ensureBucket(bucketName string, ctx context.Context, cli *minio.Client) error {
+	exists, err := cli.BucketExists(ctx, bucketName)
 	if err != nil {
 		return err
 	}
 	if !exists {
-		return cli.MakeBucket(ctx, m.Bucket, minio.MakeBucketOptions{})
+		return cli.MakeBucket(ctx, bucketName, minio.MakeBucketOptions{})
 	}
 	return nil
 }
 
 func (m *MinioStore) Read(key string) (io.ReadCloser, int64, error) {
+	bucketName := m.Bucket
 	cli, err := m.client()
 	if err != nil {
 		return nil, 0, err
 	}
-	obj, err := cli.GetObject(context.Background(), m.Bucket, key, minio.GetObjectOptions{})
+	obj, err := cli.GetObject(context.Background(), bucketName, key, minio.GetObjectOptions{})
 	if err != nil {
 		return nil, 0, err
 	}
@@ -67,11 +68,12 @@ func (m *MinioStore) Read(key string) (io.ReadCloser, int64, error) {
 }
 
 func (m *MinioStore) Write(key string, r io.Reader) error {
+	bucketName := m.Bucket
 	cli, err := m.client()
 	if err != nil {
 		return err
 	}
-	if err := m.ensureBucket(context.Background(), cli); err != nil {
+	if err := m.ensureBucket(bucketName, context.Background(), cli); err != nil {
 		return err
 	}
 	_, err = cli.PutObject(context.Background(), m.Bucket, key, r, -1, minio.PutObjectOptions{ContentType: http.DetectContentType([]byte{})})
@@ -79,19 +81,21 @@ func (m *MinioStore) Write(key string, r io.Reader) error {
 }
 
 func (m *MinioStore) Delete(key string) error {
+	bucketName := m.Bucket
 	cli, err := m.client()
 	if err != nil {
 		return err
 	}
-	return cli.RemoveObject(context.Background(), m.Bucket, key, minio.RemoveObjectOptions{})
+	return cli.RemoveObject(context.Background(), bucketName, key, minio.RemoveObjectOptions{})
 }
 
 func (m *MinioStore) Exists(key string) (bool, error) {
+	bucketName := m.Bucket
 	cli, err := m.client()
 	if err != nil {
 		return false, err
 	}
-	_, err = cli.StatObject(context.Background(), m.Bucket, key, minio.StatObjectOptions{})
+	_, err = cli.StatObject(context.Background(), bucketName, key, minio.StatObjectOptions{})
 	if err != nil {
 		if minio.ToErrorResponse(err).Code == "NoSuchKey" {
 			return false, nil
@@ -102,9 +106,11 @@ func (m *MinioStore) Exists(key string) (bool, error) {
 }
 
 func (m *MinioStore) PublicURL(key string) string {
+	bucketName := m.Bucket
+
 	// 如果设置了自定义域名，使用自定义域名
 	if m.BaseURL != "" {
-		return strings.TrimRight(m.BaseURL, "/") + "/" + m.Bucket + "/" + key
+		return strings.TrimRight(m.BaseURL, "/") + "/" + bucketName + "/" + key
 	}
 
 	// 使用默认的MinIO域名格式
@@ -112,7 +118,7 @@ func (m *MinioStore) PublicURL(key string) string {
 	if m.UseSSL {
 		scheme = "https://"
 	}
-	return scheme + m.Endpoint + "/" + m.Bucket + "/" + key
+	return scheme + m.Endpoint + "/" + bucketName + "/" + key
 }
 
 func (m *MinioStore) SetBaseURL(baseURL string) {

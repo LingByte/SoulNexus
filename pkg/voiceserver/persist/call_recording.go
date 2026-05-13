@@ -41,13 +41,8 @@ type CallRecording struct {
 
 	CallID    string `json:"callId" gorm:"size:128;index;not null"`
 	Transport string `json:"transport" gorm:"size:32;index"` // sip/xiaozhi/webrtc
-
-	// Storage location. Bucket is the Store bucket name; Key is the path
-	// within the bucket. URL is a convenience denormalisation when the
-	// Store can produce a public link.
-	Bucket string `json:"bucket" gorm:"size:128;index"`
-	Key    string `json:"key" gorm:"size:512"`
-	URL    string `json:"url" gorm:"size:1024"`
+	Key       string `json:"key" gorm:"size:512"`
+	URL       string `json:"url" gorm:"size:1024"`
 
 	// Format and layout (e.g. wav / mono / 16 kHz, or wav / stereo-l-r / 16 kHz).
 	Format     string `json:"format" gorm:"size:16"`

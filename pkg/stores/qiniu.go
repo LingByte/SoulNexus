@@ -43,9 +43,6 @@ func (q *QiNiuStore) getMac() *qbox.Mac {
 }
 
 func (q *QiNiuStore) makeConfig(bucketName string) storage.Config {
-	if bucketName == "" {
-		bucketName = q.BucketName
-	}
 	useHTTPS := strings.HasPrefix(strings.ToLower(q.Domain), "https://")
 	cfg := storage.Config{
 		UseHTTPS: useHTTPS,
@@ -57,9 +54,6 @@ func (q *QiNiuStore) makeConfig(bucketName string) storage.Config {
 }
 
 func (q *QiNiuStore) uploadToken(bucketName string) string {
-	if bucketName == "" {
-		bucketName = q.BucketName
-	}
 	p := storage.PutPolicy{
 		Scope:   bucketName,
 		Expires: 3600, // 1小时
@@ -69,25 +63,26 @@ func (q *QiNiuStore) uploadToken(bucketName string) string {
 
 // Write: 使用表单上传（将 r 读入内存以得到内容长度，适合中小文件；大文件建议换分片上传）
 func (q *QiNiuStore) Write(key string, r io.Reader) error {
+	bucketName := q.BucketName
 	data, err := io.ReadAll(r)
 	if err != nil {
 		return err
 	}
-	cfg := q.makeConfig(q.BucketName)
+	cfg := q.makeConfig(bucketName)
 	uploader := storage.NewFormUploader(&cfg)
 	ret := storage.PutRet{}
 	extra := storage.PutExtra{}
-	token := q.uploadToken(q.BucketName)
+	token := q.uploadToken(bucketName)
 	ctx := context.Background()
 	return uploader.Put(ctx, &ret, token, key, bytes.NewReader(data), int64(len(data)), &extra)
 }
 
 // Exists: 通过 Stat 判断（612 表示不存在）
 func (q *QiNiuStore) Exists(key string) (bool, error) {
-
-	cfg := q.makeConfig(q.BucketName)
+	bucketName := q.BucketName
+	cfg := q.makeConfig(bucketName)
 	bm := storage.NewBucketManager(q.getMac(), &cfg)
-	_, err := bm.Stat(q.BucketName, key)
+	_, err := bm.Stat(bucketName, key)
 	if err == nil {
 		return true, nil
 	}
@@ -99,9 +94,10 @@ func (q *QiNiuStore) Exists(key string) (bool, error) {
 
 // Delete: 直接删除
 func (q *QiNiuStore) Delete(key string) error {
-	cfg := q.makeConfig(q.BucketName)
+	bucketName := q.BucketName
+	cfg := q.makeConfig(bucketName)
 	bm := storage.NewBucketManager(q.getMac(), &cfg)
-	return bm.Delete(q.BucketName, key)
+	return bm.Delete(bucketName, key)
 }
 
 // Read: 通过 PublicURL（公有或带签名的私有）发起 HTTP GET

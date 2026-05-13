@@ -17,7 +17,7 @@ import (
 
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/persist"
-	vsutils "github.com/LingByte/SoulNexus/pkg/voiceserver/utils"
+	vsutils "github.com/LingByte/SoulNexus/pkg/utils"
 	"gorm.io/gorm"
 )
 
