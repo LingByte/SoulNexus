@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { oneShotText, plainText, parseAttachment } from '@/api/assistant'
 import { showAlert } from '@/utils/notification'
 
@@ -23,6 +23,8 @@ interface UseVoiceAssistantOptions {
   updateAIMessage?: (messageId: string, newText: string) => void
   temperature?: number // 生成多样性
   maxTokens?: number   // 最大回复长度
+  /** 文本对话成功落库后刷新侧栏会话列表等 */
+  onAfterTextExchangeSuccess?: () => void
 }
 
 export const useVoiceAssistant = (options: UseVoiceAssistantOptions) => {
@@ -45,7 +47,13 @@ export const useVoiceAssistant = (options: UseVoiceAssistantOptions) => {
     updateAIMessage: _updateAIMessage,
     temperature,
     maxTokens,
+    onAfterTextExchangeSuccess,
   } = options
+
+  const onAfterSuccessRef = useRef(onAfterTextExchangeSuccess)
+  useEffect(() => {
+    onAfterSuccessRef.current = onAfterTextExchangeSuccess
+  }, [onAfterTextExchangeSuccess])
 
   const [inputValue, setInputValue] = useState('')
   const [isWaitingForResponse, setIsWaitingForResponse] = useState(false)
@@ -156,6 +164,7 @@ export const useVoiceAssistant = (options: UseVoiceAssistantOptions) => {
             console.log('响应中没有有效text字段')
             addAIMessage('抱歉，未能获取到有效回复')
           }
+          onAfterSuccessRef.current?.()
           setIsWaitingForResponse(false)
         } catch (err: any) {
           console.error('文本发送失败:', err)
@@ -208,6 +217,7 @@ export const useVoiceAssistant = (options: UseVoiceAssistantOptions) => {
           console.log('响应中没有有效text字段，可能是function tools调用')
           // 对于function tools调用，暂时不显示消息，等待后续轮询结果
         }
+        onAfterSuccessRef.current?.()
       }
     } catch (err: any) {
       console.error('文本发送失败:', err)

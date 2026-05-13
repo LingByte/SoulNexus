@@ -520,7 +520,7 @@ const JSTemplateManager = () => {
                     <div className="w-full">
                         {isLoading ? (
                             <div className="flex flex-col items-center justify-center py-12">
-                                <LoadingAnimation type="progress" size="lg" className="mb-4" />
+                                <LoadingAnimation type="spinner" size="lg" className="mb-4" />
                                 <p className="mt-4 font-medium">{t('jsTemplate.loading')}</p>
                             </div>
                         ) : (
@@ -791,7 +791,7 @@ const JSTemplateManager = () => {
                                                     <Suspense fallback={
                                                         <div className="h-[300px] flex items-center justify-center bg-slate-50 dark:bg-slate-800">
                                                             <div className="text-center">
-                                                                <LoadingAnimation type="progress" size="md" />
+                                                                <LoadingAnimation type="spinner" size="md" />
                                                                 <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">{t('jsTemplate.preview.loading')}</p>
                                                             </div>
                                                         </div>

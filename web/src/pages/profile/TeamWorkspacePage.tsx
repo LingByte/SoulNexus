@@ -324,7 +324,7 @@ const TeamWorkspacePage: React.FC = () => {
   if (loadingList) {
     return (
       <div className="flex flex-col items-center justify-center py-24">
-        <LoadingAnimation type="progress" size="lg" className="mb-4" />
+        <LoadingAnimation type="spinner" size="lg" className="mb-4" />
         <p className="text-sm text-gray-500 dark:text-gray-400">{t('groups.loading')}</p>
       </div>
     )
@@ -560,7 +560,7 @@ const TeamWorkspacePage: React.FC = () => {
           <div className="rounded-xl border border-gray-200 dark:border-neutral-700 overflow-hidden bg-white dark:bg-neutral-900">
             {loadingDetail ? (
               <div className="flex justify-center py-16">
-                <LoadingAnimation type="progress" size="md" />
+                <LoadingAnimation type="spinner" size="md" />
               </div>
             ) : (
               <div className="overflow-x-auto">

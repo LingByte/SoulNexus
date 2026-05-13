@@ -196,7 +196,7 @@ const ProfileAuditLogPanel = ({ userId }: ProfileAuditLogPanelProps) => {
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-neutral-800 dark:bg-neutral-950">
         {loading ? (
           <div className="flex items-center justify-center gap-2 py-20">
-            <LoadingAnimation type="progress" size="md" />
+            <LoadingAnimation type="spinner" size="md" />
             <span className="text-sm text-slate-600 dark:text-gray-400">加载中…</span>
           </div>
         ) : rows.length === 0 ? (

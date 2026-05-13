@@ -192,7 +192,7 @@ const GroupMembers: React.FC = () => {
   if (loading) {
     return (
       <div className="min-h-screen dark:bg-neutral-900 flex items-center justify-center">
-        <LoadingAnimation type="progress" size="lg" />
+        <LoadingAnimation type="spinner" size="lg" />
       </div>
     );
   }

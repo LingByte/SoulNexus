@@ -152,13 +152,13 @@ const LLMTokenManager = () => {
   }, [tokens])
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       <Card>
-        <div className="p-5 md:p-6">
-          <div className="flex items-center justify-between mb-4">
+        <div className="p-3 md:p-4">
+          <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <Key className="w-4 h-4 text-sky-600" />
-              <h3 className="text-base font-semibold text-gray-900 dark:text-white">LLM API Token</h3>
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">LLM API Token</h3>
               <Badge variant="primary" className="text-[10px]">/v1/* 网关</Badge>
             </div>
             <div className="flex items-center gap-2">
@@ -174,7 +174,7 @@ const LLMTokenManager = () => {
             用于调用统一的 OpenAI / Anthropic 兼容 API（<code className="font-mono">/v1/chat/completions</code> 等）。
             按模型计费倍率自动扣减额度，与传统密钥（Credential）相互独立。
           </p>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-5">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mt-3">
             <StatCell label="Token 数量" value={`#${stats.total}`} />
             <StatCell label="启用中" value={String(stats.active)} />
             <StatCell label="累计 Token 用量" value={stats.used.toLocaleString()} />
@@ -184,24 +184,24 @@ const LLMTokenManager = () => {
       </Card>
 
       <Card>
-        <div className="p-5 md:p-6">
+        <div className="p-3 md:p-4">
           {tokens.length === 0 ? (
-            <div className="text-center py-12">
-              <Key className="w-10 h-10 text-gray-400 mx-auto mb-3" />
-              <h4 className="text-base font-medium text-gray-900 dark:text-white mb-1">还没有 API Token</h4>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">创建一个 Token 即可调用统一 LLM 网关。</p>
+            <div className="text-center py-8">
+              <Key className="w-9 h-9 text-gray-400 mx-auto mb-2" />
+              <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-1">还没有 API Token</h4>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">创建一个 Token 即可调用统一 LLM 网关。</p>
               <Button variant="primary" size="sm" leftIcon={<Plus className="w-3.5 h-3.5" />} onClick={openCreate}>
                 创建第一个 Token
               </Button>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {tokens.map((t) => {
                 const ratio = t.unlimited_quota || t.token_quota <= 0 ? 0 : Math.min(100, Math.round((t.token_used / t.token_quota) * 100))
                 return (
                   <div
                     key={t.id}
-                    className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-800/40 px-4 py-3"
+                    className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-800/40 px-3 py-2.5"
                   >
                     <div className="flex items-start justify-between gap-3 flex-wrap">
                       <div className="flex-1 min-w-0">
@@ -257,7 +257,7 @@ const LLMTokenManager = () => {
       </Card>
 
       <Modal isOpen={createOpen} onClose={() => setCreateOpen(false)} title={editing ? '编辑 Token' : '新建 Token'} size="md">
-        <div className="p-6 space-y-4">
+        <div className="p-4 space-y-3">
           <div>
             <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">名称</label>
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="便于识别用途" />
@@ -312,7 +312,7 @@ const LLMTokenManager = () => {
       </Modal>
 
       <Modal isOpen={!!revealKey} onClose={() => setRevealKey(null)} title="API Key 已生成" size="md">
-        <div className="p-6 space-y-3">
+        <div className="p-4 space-y-3">
           <p className="text-sm text-amber-600 dark:text-amber-400">
             完整 Key 仅展示一次，请立即复制保存。离开后将无法再次查看明文。
           </p>
@@ -355,9 +355,9 @@ const Stat = ({ label, value }: { label: string; value: string }) => (
 )
 
 const StatCell = ({ label, value }: { label: string; value: string }) => (
-  <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/40 px-4 py-3">
+  <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/40 px-3 py-2">
     <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">{label}</div>
-    <div className="text-2xl font-semibold tabular-nums text-gray-900 dark:text-white mt-1 font-mono">{value}</div>
+    <div className="text-xl font-semibold tabular-nums text-gray-900 dark:text-white mt-0.5 font-mono">{value}</div>
   </div>
 )
 

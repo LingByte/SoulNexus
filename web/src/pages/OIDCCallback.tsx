@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import LoadingAnimation from '@/components/Animations/LoadingAnimation'
 import { useAuthStore } from '@/stores/authStore'
 import { showAlert } from '@/utils/notification'
 import { exchangeOIDCCode, resolveNextPathFromState } from '@/utils/sso'
@@ -52,11 +53,9 @@ const OIDCCallback = () => {
   }, [login, searchParams])
 
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-        <p className="text-sm text-gray-600 dark:text-gray-400">SSO 登录处理中...</p>
-      </div>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center px-4">
+      <LoadingAnimation type="spinner" size="lg" className="mb-4" />
+      <p className="text-sm text-gray-500 dark:text-gray-400 text-center">SSO 登录处理中…</p>
     </div>
   )
 }

@@ -1,7 +1,7 @@
 // Copyright (c) 2026 LingByte. All rights reserved.
 // SPDX-License-Identifier: AGPL-3.0
 //
-// 企业管理（组织/企业列表）：Arco Table + 归档切换 + 删除。
+// 组织管理（组织列表）：Arco Table + 归档切换 + 删除。
 import { useEffect, useState } from 'react'
 import { Table, Input, Button, Tag, Popconfirm, Message, Space } from '@arco-design/web-react'
 import { Search, RefreshCw, Archive, ArchiveRestore, Trash2 } from 'lucide-react'
@@ -29,7 +29,7 @@ const Groups = () => {
       setGroups(res.groups || [])
       setTotal(res.total || 0)
     } catch (e: any) {
-      Message.error(`加载企业列表失败：${e?.msg || e?.message || e}`)
+      Message.error(`加载组织列表失败：${e?.msg || e?.message || e}`)
     } finally {
       setLoading(false)
     }
@@ -84,7 +84,7 @@ const Groups = () => {
               {g.isArchived ? '取消归档' : '归档'}
             </span>
           </Button>
-          <Popconfirm title={`确认删除企业 ${g.name}？`} okText="删除" cancelText="取消" onOk={() => onDelete(g)}>
+          <Popconfirm title={`确认删除组织 ${g.name}？`} okText="删除" cancelText="取消" onOk={() => onDelete(g)}>
             <Button size="mini" type="text" status="danger">
               <span className="inline-flex items-center gap-1"><Trash2 size={14} /> 删除</span>
             </Button>
@@ -97,8 +97,8 @@ const Groups = () => {
   return (
     <div className="space-y-4">
       <PageHeader
-        title="企业管理"
-        description="管理组织与企业信息；归档后该组织成员仍可访问只读资源，但不能再创建新内容。"
+        title="组织管理"
+        description="管理组织信息；归档后该组织成员仍可访问只读资源，但不能再创建新内容。"
         actions={
           <Space>
             <Input

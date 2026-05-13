@@ -354,14 +354,12 @@ const CredentialManager = () => {
     )
   }
 
-  // @ts-ignore
     return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* 头部操作栏 */}
-        <div className="mb-6">
+    <div className="w-full">
+      <div className="max-w-4xl mx-auto w-full py-2 sm:py-3">
+        <div className="mb-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-3">
               <Key className="w-3 h-3 mr-1" />
               <Badge variant="primary" className="text-xs">
                 {t('credential.title')}
@@ -384,38 +382,38 @@ const CredentialManager = () => {
         </div>
 
         {/* 顶部：密钥统计（仅数字卡片，无标题区） */}
-        <Card className="mb-6">
-          <div className="p-5 md:p-6">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/40 px-4 py-3">
+        <Card className="mb-3">
+          <div className="p-3 md:p-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+                <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/40 px-3 py-2">
                   <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                     {t('credential.totalKeys')}
                   </div>
-                  <div className="text-2xl font-semibold font-mono tabular-nums text-gray-900 dark:text-white mt-1">
+                  <div className="text-xl font-semibold font-mono tabular-nums text-gray-900 dark:text-white mt-0.5">
                     #{credentialStats.total}
                   </div>
                 </div>
-                <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/40 px-4 py-3">
+                <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/40 px-3 py-2">
                   <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                     {t('credential.llmKeys')}
                   </div>
-                  <div className="text-2xl font-semibold tabular-nums text-gray-900 dark:text-white mt-1">
+                  <div className="text-xl font-semibold tabular-nums text-gray-900 dark:text-white mt-0.5">
                     {credentialStats.llm}
                   </div>
                 </div>
-                <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/40 px-4 py-3">
+                <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/40 px-3 py-2">
                   <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                     {t('credential.asrKeys')}
                   </div>
-                  <div className="text-2xl font-semibold tabular-nums text-gray-900 dark:text-white mt-1">
+                  <div className="text-xl font-semibold tabular-nums text-gray-900 dark:text-white mt-0.5">
                     {credentialStats.asr}
                   </div>
                 </div>
-                <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/40 px-4 py-3">
+                <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/40 px-3 py-2">
                   <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                     {t('credential.ttsKeys')}
                   </div>
-                  <div className="text-2xl font-semibold tabular-nums text-gray-900 dark:text-white mt-1">
+                  <div className="text-xl font-semibold tabular-nums text-gray-900 dark:text-white mt-0.5">
                     {credentialStats.tts}
                   </div>
                 </div>
@@ -426,21 +424,21 @@ const CredentialManager = () => {
         {/* 列表 / 创建 */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-0">
                 <TabsList className="grid w-full grid-cols-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-1">
-                  <TabsTrigger value="list" className="flex items-center space-x-2 text-sm py-2">
+                  <TabsTrigger value="list" className="flex items-center space-x-2 text-sm py-1.5">
                     <Key className="w-4 h-4" />
                     <span>{t('credential.list')}</span>
                   </TabsTrigger>
-                  <TabsTrigger value="create" className="flex items-center space-x-2 text-sm py-2">
+                  <TabsTrigger value="create" className="flex items-center space-x-2 text-sm py-1.5">
                     <Plus className="w-4 h-4" />
                     <span>{t('credential.createTab')}</span>
                   </TabsTrigger>
                 </TabsList>
 
                 {/* 密钥列表标签页 */}
-                <TabsContent value="list" className="mt-6">
+                <TabsContent value="list" className="mt-3">
                   <Card>
-                    <div className="p-6">
-                      <div className="flex items-center justify-between mb-4">
+                    <div className="p-4">
+                      <div className="flex items-center justify-between mb-3">
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t('credential.myKeys')}</h3>
                         <Button
                           variant="outline"
@@ -453,10 +451,10 @@ const CredentialManager = () => {
                       </div>
                       
                       {credentials.length === 0 ? (
-                        <div className="text-center py-12">
-                          <Key className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                          <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-2">{t('credential.empty')}</h4>
-                          <p className="text-gray-600 dark:text-gray-400 mb-4">{t('credential.emptyDesc')}</p>
+                        <div className="text-center py-8">
+                          <Key className="w-10 h-10 text-gray-400 mx-auto mb-3" />
+                          <h4 className="text-base font-medium text-gray-900 dark:text-white mb-1.5">{t('credential.empty')}</h4>
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">{t('credential.emptyDesc')}</p>
                           <Button
                             variant="primary"
                             leftIcon={<Plus className="w-4 h-4" />}
@@ -466,18 +464,18 @@ const CredentialManager = () => {
                           </Button>
                         </div>
                       ) : (
-                        <div className="space-y-4">
+                        <div className="space-y-3">
                           {credentials.map((cred) => (
-                            <div key={cred.id} className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                            <div key={cred.id} className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
                               <div className="flex items-center justify-between">
                                 <div className="flex-1 min-w-0">
-                                  <div className="flex items-center space-x-3 mb-2">
+                                  <div className="flex items-center space-x-2 mb-1.5">
                                     <h4 className="font-medium text-gray-900 dark:text-white truncate">{cred.name}</h4>
                                     <Badge variant="secondary" className="text-xs">
                                       {cred.llmProvider || '未配置'}
                                     </Badge>
                                   </div>
-                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                                     <div>
                                       <span className="text-gray-600 dark:text-gray-400">{t('credential.createdAt')}:</span>
                                       <div className="text-gray-900 dark:text-white">
@@ -559,10 +557,10 @@ const CredentialManager = () => {
                 </TabsContent>
 
                 {/* 创建密钥标签页 */}
-                <TabsContent value="create" className="mt-6">
+                <TabsContent value="create" className="mt-3">
                   <Card>
-                    <div className="p-6">
-                      <div className="flex items-center justify-between mb-4">
+                    <div className="p-4">
+                      <div className="flex items-center justify-between mb-3">
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t('credential.createNew')}</h3>
                         <Button
                           variant="outline"
@@ -573,10 +571,10 @@ const CredentialManager = () => {
                         </Button>
                       </div>
                       
-                      <div className="space-y-6">
+                      <div className="space-y-4">
                         {/* 通用设置 */}
-                        <div className="space-y-4">
-                          <h4 className="text-md font-semibold text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700 pb-2">
+                        <div className="space-y-3">
+                          <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700 pb-1.5">
                             {t('credential.generalSettings')}
                           </h4>
                           <Input

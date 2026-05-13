@@ -1,11 +1,12 @@
-import React, { useState } from 'react'
-import { Copy, Check, Download, Lightbulb } from 'lucide-react'
-import Modal, { ModalContent, ModalFooter } from '@/components/UI/Modal'
+import React, { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Copy, Check, Download, Lightbulb, X } from 'lucide-react'
 import Button from '@/components/UI/Button'
 import Card from '@/components/UI/Card'
 import { cn } from '@/utils/cn'
 
-interface IntegrationModalProps {
+interface IntegrationDrawerProps {
   isOpen: boolean
   onClose: () => void
   selectedMethod: string | null
@@ -13,7 +14,7 @@ interface IntegrationModalProps {
   jsSourceId: string
 }
 
-const IntegrationModal: React.FC<IntegrationModalProps> = ({
+const IntegrationDrawer: React.FC<IntegrationDrawerProps> = ({
   isOpen,
   onClose,
   selectedMethod,
@@ -21,6 +22,29 @@ const IntegrationModal: React.FC<IntegrationModalProps> = ({
   jsSourceId
 }) => {
   const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    if (!isOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prev
+    }
+  }, [isOpen, onClose])
+
+  const drawerTitle =
+    selectedMethod === 'web'
+      ? 'Web 应用嵌入'
+      : selectedMethod === 'flutter'
+        ? 'Flutter 应用集成'
+        : selectedMethod === 'wechat'
+          ? '微信接入'
+          : '接入方法'
 
   const codeExamples = {
     wechat: `
@@ -292,31 +316,59 @@ class _VoiceAssistantPageState extends State<VoiceAssistantPage> {
     }
   }
 
-  return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title="接入方法"
-      size="xl"
-      closeOnOverlayClick={true}
-      closeOnEscape={true}
-      showCloseButton={true}
-    >
-      <ModalContent>
-        <div className="max-h-[70vh] overflow-y-auto">
-          {renderMethodDetails()}
-        </div>
-      </ModalContent>
-      <ModalFooter>
-        <Button
-          variant="primary"
-          onClick={onClose}
-        >
-          关闭
-        </Button>
-      </ModalFooter>
-    </Modal>
+  if (typeof document === 'undefined') return null
+
+  return createPortal(
+    <AnimatePresence>
+      {isOpen && (
+        <>
+          <motion.button
+            type="button"
+            key="integration-drawer-backdrop"
+            aria-label="关闭"
+            className="fixed inset-0 z-[100] bg-black/45 backdrop-blur-[1px]"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={onClose}
+          />
+          <motion.aside
+            key="integration-drawer-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="integration-drawer-title"
+            className="fixed inset-y-0 right-0 z-[101] flex w-[min(100%,28rem)] flex-col border-l border-gray-200 bg-white shadow-2xl dark:border-neutral-700 dark:bg-neutral-900"
+            initial={{ x: '100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '100%' }}
+            transition={{ type: 'tween', duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
+          >
+            <header className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-4 py-3 dark:border-neutral-700">
+              <h2 id="integration-drawer-title" className="truncate text-base font-semibold text-gray-900 dark:text-gray-100">
+                {drawerTitle}
+              </h2>
+              <button
+                type="button"
+                onClick={onClose}
+                className="shrink-0 rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-100 dark:hover:bg-neutral-800"
+                aria-label="关闭"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </header>
+            <div className="min-h-0 flex-1 overflow-y-auto p-4 custom-scrollbar">{renderMethodDetails()}</div>
+            <footer className="flex shrink-0 justify-end gap-2 border-t border-gray-200 px-4 py-3 dark:border-neutral-700">
+              <Button variant="primary" size="sm" onClick={onClose}>
+                关闭
+              </Button>
+            </footer>
+          </motion.aside>
+        </>
+      )}
+    </AnimatePresence>,
+    document.body
   )
 }
 
-export default IntegrationModal
+export default IntegrationDrawer

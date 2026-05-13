@@ -342,7 +342,7 @@ const Groups: React.FC = () => {
         {/* 组织列表 - 大卡片展示 */}
         {loading ? (
           <div className="text-center py-16">
-            <LoadingAnimation type="progress" size="lg" className="mb-4" />
+            <LoadingAnimation type="spinner" size="lg" className="mb-4" />
             <div className="text-gray-400">{t('groups.loading')}</div>
           </div>
         ) : groups.length === 0 ? (

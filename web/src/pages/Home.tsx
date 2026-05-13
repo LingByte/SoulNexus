@@ -28,7 +28,8 @@ import { useI18nStore } from "@/stores/i18nStore";
 import Footer from "@/components/Layout/Footer.tsx";
 import PageSEO from "@/components/SEO/PageSEO.tsx";
 import ContentCarousel from "@/components/Home/ContentCarousel.tsx";
-import { beginSSOLogin } from '@/utils/sso';
+import { beginSSOLogin } from '@/utils/sso'
+import ConfirmDialog from '@/components/UI/ConfirmDialog';
 
 const iconMap: Record<string, any> = {
     Zap,
@@ -46,6 +47,7 @@ const iconMap: Record<string, any> = {
 const Home = () => {
     const [showMobileMenu, setShowMobileMenu] = useState(false)
     const [showUserDropdown, setShowUserDropdown] = useState(false)
+    const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
     const [hoveredContactPanel, setHoveredContactPanel] = useState<'company' | 'contact' | null>(null)
     const { user, isAuthenticated, logout } = useAuthStore()
     const { t } = useI18nStore()
@@ -247,9 +249,9 @@ const Home = () => {
                                                     variant="ghost"
                                                     size="sm"
                                                     className="flex items-center gap-2 w-full justify-start text-sm px-3 py-2"
-                                                    onClick={async () => { 
+                                                    onClick={() => { 
                                                         setShowUserDropdown(false)
-                                                        await logout()
+                                                        setShowLogoutConfirm(true)
                                                     }}
                                                     leftIcon={<LogOut className="w-4 h-4" />}
                                                 >
@@ -333,9 +335,9 @@ const Home = () => {
                                             variant="ghost"
                                             size="sm"
                                             className="flex items-center gap-2 w-full justify-start text-sm px-3 py-2"
-                                            onClick={async () => { 
-                                                await logout()
+                                            onClick={() => { 
                                                 setShowMobileMenu(false)
+                                                setShowLogoutConfirm(true)
                                             }}
                                             leftIcon={<LogOut className="w-4 h-4" />}
                                         >
@@ -1061,6 +1063,18 @@ const Home = () => {
             </section>
             </div>
             <Footer />
+            <ConfirmDialog
+                isOpen={showLogoutConfirm}
+                onClose={() => setShowLogoutConfirm(false)}
+                onConfirm={async () => {
+                    await logout()
+                }}
+                title={t('nav.logoutConfirmTitle')}
+                message={t('nav.logoutConfirmMessage')}
+                confirmText={t('nav.logout')}
+                cancelText={t('profile.cancel')}
+                type="warning"
+            />
         </div>
     )
 }

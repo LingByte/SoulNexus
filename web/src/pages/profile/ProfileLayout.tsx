@@ -4,7 +4,6 @@ import {
   Users,
   Clock,
   Receipt,
-  Settings,
   Globe2,
   Shield,
   Key,
@@ -19,7 +18,8 @@ import { useAuthStore } from '@/stores/authStore'
 import { useI18nStore } from '@/stores/i18nStore'
 import { cn } from '@/utils/cn'
 import packageJson from '../../../package.json'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
+import ConfirmDialog from '@/components/UI/ConfirmDialog'
 
 const nav = [
   { to: '/profile/personal', label: '个人信息', icon: User },
@@ -38,6 +38,7 @@ const ProfileLayout = () => {
   const { logout } = useAuthStore()
   const { t } = useI18nStore()
   const location = useLocation()
+  const [confirmLogoutOpen, setConfirmLogoutOpen] = useState(false)
 
   const currentNavLabel = useMemo(() => {
     const path = location.pathname
@@ -52,7 +53,9 @@ const ProfileLayout = () => {
       ? 'mb-2 shrink-0'
       : location.pathname === '/profile/personal'
         ? 'mb-1.5 shrink-0'
-        : 'mb-5'
+        : location.pathname === '/profile/credential' || location.pathname === '/profile/llm-tokens'
+          ? 'mb-2 shrink-0'
+          : 'mb-5'
 
   return (
     <div className="min-h-screen md:h-[calc(100dvh)] md:min-h-0 bg-slate-50 dark:bg-gray-950 flex flex-col">
@@ -94,7 +97,7 @@ const ProfileLayout = () => {
           <div className="hidden flex-col gap-2 border-t border-slate-200 p-3 dark:border-gray-800 md:flex shrink-0">
             <button
               type="button"
-              onClick={() => void logout()}
+              onClick={() => setConfirmLogoutOpen(true)}
               className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30"
             >
               <LogOut className="h-4 w-4 shrink-0" />
@@ -114,7 +117,7 @@ const ProfileLayout = () => {
             </div>
             <button
               type="button"
-              onClick={() => void logout()}
+              onClick={() => setConfirmLogoutOpen(true)}
               className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30"
             >
               <LogOut className="h-3.5 w-3.5 shrink-0" />
@@ -136,6 +139,8 @@ const ProfileLayout = () => {
                 location.pathname === '/profile/personal' &&
                   'flex min-h-0 flex-1 flex-col px-4 py-2 sm:px-5 md:py-3 lg:px-6',
                 location.pathname === '/profile/user-devices' && 'py-3 md:py-4',
+                (location.pathname === '/profile/credential' || location.pathname === '/profile/llm-tokens') &&
+                  'px-3 py-2 sm:px-4 md:py-3 lg:px-5',
               )}
             >
               <nav
@@ -168,6 +173,19 @@ const ProfileLayout = () => {
           </main>
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={confirmLogoutOpen}
+        onClose={() => setConfirmLogoutOpen(false)}
+        onConfirm={async () => {
+          await logout()
+        }}
+        title={t('nav.logoutConfirmTitle')}
+        message={t('nav.logoutConfirmMessage')}
+        confirmText={t('nav.logout')}
+        cancelText={t('profile.cancel')}
+        type="warning"
+      />
     </div>
   )
 }

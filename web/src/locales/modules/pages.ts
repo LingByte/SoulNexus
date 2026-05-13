@@ -27,6 +27,8 @@ export const pages: Record<Language, Record<string, string>> = {
     'nav.login': '登录',
     'nav.logout': '退出登录',
     'nav.enterSystem': '进入系统',
+    'nav.logoutConfirmTitle': '确认退出登录',
+    'nav.logoutConfirmMessage': '退出后需要重新登录才能访问账号相关功能。确定要退出吗？',
 
     // Language and theme
     'lang.select': '语言',
@@ -400,6 +402,8 @@ export const pages: Record<Language, Record<string, string>> = {
     'nav.login': 'Login',
     'nav.logout': 'Logout',
     'nav.enterSystem': 'Enter System',
+    'nav.logoutConfirmTitle': 'Sign out?',
+    'nav.logoutConfirmMessage': 'You will need to sign in again to access your account. Continue?',
 
     // Language and theme
     'lang.select': 'Language',
@@ -773,6 +777,8 @@ export const pages: Record<Language, Record<string, string>> = {
     'nav.login': 'ログイン',
     'nav.logout': 'ログアウト',
     'nav.enterSystem': 'システムに入る',
+    'nav.logoutConfirmTitle': 'ログアウトしますか？',
+    'nav.logoutConfirmMessage': '再度ログインしないとアカウント機能にアクセスできません。続行しますか？',
 
     // Language and theme
     'lang.select': '言語',
