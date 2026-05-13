@@ -4,6 +4,7 @@ package handlers
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"encoding/json"
@@ -19,11 +20,10 @@ import (
 	"time"
 
 	"github.com/LingByte/SoulNexus/internal/models"
-	"github.com/LingByte/SoulNexus/internal/config"
+	"github.com/LingByte/SoulNexus/pkg/stores"
 	"github.com/LingByte/SoulNexus/pkg/recognizer"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/synthesizer"
-	"github.com/LingByte/lingstorage-sdk-go"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	gonanoid "github.com/matoous/go-nanoid"
@@ -301,16 +301,12 @@ func (h *Handlers) openTTS(c *gin.Context) {
 	wavData := buildWAV(buf.Data, format.SampleRate, format.Channels, format.BitDepth)
 
 	key := fmt.Sprintf("open/tts/%d_%d.wav", cred.ID, time.Now().UnixMilli())
-	result, err := config.GlobalStore.UploadBytes(&lingstorage.UploadBytesRequest{
-		Bucket:   config.GlobalConfig.Services.Storage.Bucket,
-		Data:     wavData,
-		Filename: key,
-		Key:      key,
-	})
-	if err != nil {
+	st := stores.Default()
+	if err := st.Write(key, bytes.NewReader(wavData)); err != nil {
 		response.Fail(c, "上传音频失败", err.Error())
 		return
 	}
+	audioURL := strings.TrimSpace(st.PublicURL(key))
 
 	sampleRate := format.SampleRate
 	if sampleRate == 0 {
@@ -326,7 +322,7 @@ func (h *Handlers) openTTS(c *gin.Context) {
 	}
 	duration := float64(len(buf.Data)) / float64(sampleRate*channels*(bitDepth/8))
 	response.Success(c, "ok", gin.H{
-		"url":      result.URL,
+		"url":      audioURL,
 		"duration": duration,
 	})
 }

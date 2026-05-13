@@ -35,7 +35,7 @@ type SpeechTTSSynthesizeReq struct {
 	Extra          any                    `json:"extra"`
 	ResponseType   string                 `json:"response_type"`
 	Output         string                 `json:"output"`
-	UploadBucket   string                 `json:"upload_bucket"`
+	UploadBucket   string                 `json:"upload_bucket"` // deprecated: ignored by storage
 	UploadKey      string                 `json:"upload_key"`
 	UploadFilename string                 `json:"upload_filename"`
 	AudioFormat    string                 `json:"audio_format"`

@@ -14,7 +14,6 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/LingByte/SoulNexus/pkg/utils/cache"
-	"github.com/LingByte/lingstorage-sdk-go"
 )
 
 // Config main configuration structure
@@ -65,9 +64,8 @@ type DatabaseConfig struct {
 
 // ServicesConfig services configuration
 type ServicesConfig struct {
-	LLM     LLMConfig     `mapstructure:"llm"`
-	Voice   VoiceConfig   `mapstructure:"voice"`
-	Storage StorageConfig `mapstructure:"storage"`
+	LLM   LLMConfig   `mapstructure:"llm"`
+	Voice VoiceConfig `mapstructure:"voice"`
 }
 
 // LLMConfig LLM service configuration
@@ -118,14 +116,6 @@ type VoiceprintConfig struct {
 	LogLevel            string        `env:"VOICEPRINT_LOG_LEVEL"`
 }
 
-// StorageConfig storage configuration
-type StorageConfig struct {
-	BaseURL   string `env:"LINGSTORAGE_BASE_URL"`
-	APIKey    string `env:"LINGSTORAGE_API_KEY"`
-	APISecret string `env:"LINGSTORAGE_API_SECRET"`
-	Bucket    string `env:"LINGSTORAGE_BUCKET"`
-}
-
 // IntegrationsConfig integrations configuration
 type IntegrationsConfig struct {
 	// Other third-party integration configurations can be added here
@@ -143,8 +133,6 @@ type FeaturesConfig struct {
 }
 
 var GlobalConfig *Config
-
-var GlobalStore *lingstorage.Client
 
 // resolveAppEnv returns APP_ENV or MODE for layered files like .env-server.development.
 func resolveAppEnv() string {
@@ -235,12 +223,6 @@ func buildGlobalConfig() error {
 					LogLevel:            getStringOrDefault("VOICEPRINT_LOG_LEVEL", "info"),
 				},
 			},
-			Storage: StorageConfig{
-				BaseURL:   getStringOrDefault("LINGSTORAGE_BASE_URL", "https://api.lingstorage.com"),
-				APIKey:    getStringOrDefault("LINGSTORAGE_API_KEY", ""),
-				APISecret: getStringOrDefault("LINGSTORAGE_API_SECRET", ""),
-				Bucket:    getStringOrDefault("LINGSTORAGE_BUCKET", "default"),
-			},
 		},
 		Features: FeaturesConfig{
 			SearchEnabled:   getBoolOrDefault("SEARCH_ENABLED", false),
@@ -259,11 +241,6 @@ func buildGlobalConfig() error {
 			KeepOldKeys:  getIntOrDefault("JWT_KEEP_OLD_KEYS", 2),
 		},
 	}
-	GlobalStore = lingstorage.NewClient(&lingstorage.Config{
-		BaseURL:   GlobalConfig.Services.Storage.BaseURL,
-		APIKey:    GlobalConfig.Services.Storage.APIKey,
-		APISecret: GlobalConfig.Services.Storage.APISecret,
-	})
 
 	return nil
 }

@@ -4,13 +4,14 @@ package protocol
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
-	"github.com/LingByte/SoulNexus/internal/config"
 	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/synthesizer"
@@ -21,7 +22,7 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/voice/tools"
 	"github.com/LingByte/SoulNexus/pkg/voiceclone"
 	"github.com/LingByte/SoulNexus/pkg/voiceprint"
-	"github.com/LingByte/lingstorage-sdk-go"
+	"github.com/LingByte/SoulNexus/pkg/stores"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -742,23 +743,19 @@ func (s *HardwareSession) uploadRecordingFile(filePath string) {
 		zap.Int("fileSize", len(wavData)))
 
 	// 上传到存储服务
-	result, err := config.GlobalStore.UploadBytes(&lingstorage.UploadBytesRequest{
-		Bucket:   config.GlobalConfig.Services.Storage.Bucket,
-		Data:     wavData,
-		Filename: storageKey,
-	})
-
-	if err != nil {
+	st := stores.Default()
+	if err := st.Write(storageKey, bytes.NewReader(wavData)); err != nil {
 		s.logger.Error("[Session] 上传录音文件失败", zap.Error(err), zap.String("storageKey", storageKey))
 		return
 	}
+	storageURL := strings.TrimSpace(st.PublicURL(storageKey))
 
 	s.logger.Info("[Session] 录音文件上传成功",
 		zap.String("storageKey", storageKey),
-		zap.String("storageURL", result.URL))
+		zap.String("storageURL", storageURL))
 
 	// 更新数据库中的存储URL
-	if err := s.db.Model(s.callRecording).Update("storage_url", result.URL).Error; err != nil {
+	if err := s.db.Model(s.callRecording).Update("storage_url", storageURL).Error; err != nil {
 		s.logger.Error("[Session] 更新存储URL失败", zap.Error(err))
 		return
 	}

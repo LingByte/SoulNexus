@@ -9,6 +9,7 @@ interface VoiceChatSession {
   sessionId?: string
   content: string
   createdAt: string
+  agentName?: string
   assistantName?: string
   chatType?: string
   messageCount?: number

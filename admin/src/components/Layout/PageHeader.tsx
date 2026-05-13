@@ -66,21 +66,21 @@ const PageHeader = ({
 
       {/* 页面标题和副标题 */}
       {(title || subtitleContent || actionsContent) && (
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+          <div className="min-w-0 flex-1">
             {title && (
-              <h1 className="text-2xl font-semibold text-[var(--color-text-1)]">
+              <h1 className="text-xl font-semibold text-[var(--color-text-1)] sm:text-2xl">
                 {title}
               </h1>
             )}
             {subtitleContent && (
-              <p className="mt-1 text-sm text-[var(--color-text-3)]">
+              <p className="mt-1 break-all text-sm text-[var(--color-text-3)]">
                 {subtitleContent}
               </p>
             )}
           </div>
           {actionsContent && (
-            <div className="flex items-center gap-2">{actionsContent}</div>
+            <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">{actionsContent}</div>
           )}
         </div>
       )}

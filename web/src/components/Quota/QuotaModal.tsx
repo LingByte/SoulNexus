@@ -3,6 +3,7 @@ import { createGroupQuota, updateGroupQuota, type GroupQuota, type QuotaType, ty
 import { showAlert } from '@/utils/notification';
 import { X } from 'lucide-react';
 import Button from '@/components/UI/Button';
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/UI/Select';
 
 const quotaTypes: QuotaType[] = ['api_calls', 'storage', 'llm_tokens'];
 
@@ -104,19 +105,24 @@ const QuotaModal: React.FC<QuotaModalProps> = ({ isOpen, onClose, groupId, quota
                 {getQuotaTypeLabel(quota.quotaType)}
               </div>
             ) : (
-              <select
+              <Select
                 value={formData.quotaType}
-                onChange={(e) => setFormData({ ...formData, quotaType: e.target.value as QuotaType })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                required
+                onValueChange={(v) =>
+                  setFormData({ ...formData, quotaType: (v || '') as QuotaType | '' })
+                }
               >
-                <option value="">请选择配额类型</option>
-                {quotaTypes.map((type: QuotaType) => (
-                  <option key={type} value={type}>
-                    {getQuotaTypeLabel(type)}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="w-full border-gray-300 dark:border-neutral-700 dark:bg-neutral-800">
+                  <SelectValue placeholder="请选择配额类型" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">请选择配额类型</SelectItem>
+                  {quotaTypes.map((type: QuotaType) => (
+                    <SelectItem key={type} value={type}>
+                      {getQuotaTypeLabel(type)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             )}
           </div>
 
@@ -143,15 +149,19 @@ const QuotaModal: React.FC<QuotaModalProps> = ({ isOpen, onClose, groupId, quota
             <label className="block text-sm font-medium mb-2">
               配额周期
             </label>
-            <select
+            <Select
               value={formData.period}
-              onChange={(e) => setFormData({ ...formData, period: e.target.value as QuotaPeriod })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-purple-500"
+              onValueChange={(v) => setFormData({ ...formData, period: v as QuotaPeriod })}
             >
-              <option value="lifetime">永久有效</option>
-              <option value="monthly">按月重置</option>
-              <option value="yearly">按年重置</option>
-            </select>
+              <SelectTrigger className="w-full border-gray-300 dark:border-neutral-700 dark:bg-neutral-800">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="lifetime">永久有效</SelectItem>
+                <SelectItem value="monthly">按月重置</SelectItem>
+                <SelectItem value="yearly">按年重置</SelectItem>
+              </SelectContent>
+            </Select>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               选择配额的生效周期，到期后会自动重置使用量
             </p>

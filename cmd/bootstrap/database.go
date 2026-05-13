@@ -67,6 +67,9 @@ func SetupDatabase(logWriter io.Writer, opts *Options) (*gorm.DB, error) {
 		if err := models.MigrateTextCharset(db); err != nil {
 			logger.Warn("text charset migrate", zap.Error(err))
 		}
+		if err := models.MigrateAgentsDropIconColumn(db); err != nil {
+			logger.Warn("agents drop icon column migrate", zap.Error(err))
+		}
 		logger.Info("migration success",
 			zap.String("database", config.GlobalConfig.Database.Driver),
 			zap.String("dsn", config.GlobalConfig.Database.DSN),

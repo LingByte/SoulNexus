@@ -1,25 +1,25 @@
 import { useState, useEffect, useRef } from 'react'
 import {
-  User, Mail, Shield, Camera, Save, Edit3, X, Lock, Eye, EyeOff,
-  Clock, Phone, Settings, Bell, Key, Heart,
-  CheckCircle, AlertCircle, Smartphone,
+  User, Mail, Camera, Save, Edit3, X, Lock, Eye, EyeOff,
+  Phone, Heart,
+  Smartphone, Monitor, Laptop, Tablet, MapPin,
 } from 'lucide-react'
 import { useAuthStore } from '../stores/authStore'
 import { useI18nStore } from '../stores/i18nStore'
-import { useThemeStore, type ThemeMode, type ThemeColor } from '../stores/themeStore'
+import { useThemeStore, type ThemeMode } from '../stores/themeStore'
 import Button from '../components/UI/Button'
 import Input from '../components/UI/Input'
 import Card from '../components/UI/Card'
 import Badge from '../components/UI/Badge'
 import Switch from '../components/UI/Switch'
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '../components/UI/Select'
 import FadeIn from '../components/Animations/FadeIn'
 import LoadingAnimation from '../components/Animations/LoadingAnimation'
 import { showAlert } from '../utils/notification'
-import { getProfile, updateProfile, updatePreferences, changePassword, changePasswordByEmail, uploadAvatar, setupTwoFactor, enableTwoFactor, disableTwoFactor, getUserActivity, getUserDevices, deleteUserDevice, trustUserDevice, untrustUserDevice, TwoFactorSetupResponse, ActivityLog, UserDevice } from '../api/profile'
+import { getProfile, updateProfile, updatePreferences, changePassword, changePasswordByEmail, uploadAvatar, setupTwoFactor, enableTwoFactor, disableTwoFactor, getUserDevices, deleteUserDevice, trustUserDevice, untrustUserDevice, TwoFactorSetupResponse, UserDevice } from '../api/profile'
 import { sendEmailCode, sendEmailVerification } from '../api/auth'
 import { motion, AnimatePresence } from 'framer-motion'
 import ConfirmDialog from '../components/UI/ConfirmDialog'
-import AudioController from '../components/UI/AudioController'
 import { beginSSOLogin } from '@/utils/sso'
 import { Link, useParams, Navigate } from 'react-router-dom'
 import Billing from '@/pages/Billing.tsx'
@@ -27,7 +27,35 @@ import NotificationCenter from '@/pages/NotificationCenter.tsx'
 import CredentialManager from '@/pages/CredentialManager.tsx'
 import LLMTokenManager from '@/pages/profile/LLMTokenManager.tsx'
 import TeamWorkspacePage from '@/pages/profile/TeamWorkspacePage.tsx'
+import ProfileAuditLogPanel from '@/pages/profile/ProfileAuditLogPanel.tsx'
+import { resolveDeviceVisualKind, type DeviceVisualKind } from '@/pages/profile/profileDeviceVisual'
 import { getUserServiceBaseURL } from '@/config/apiConfig'
+
+const DEVICE_VISUAL: Record<
+  DeviceVisualKind,
+  { Icon: typeof Monitor; ring: string; icon: string }
+> = {
+  desktop: {
+    Icon: Monitor,
+    ring: 'ring-sky-200/80 dark:ring-sky-800/60',
+    icon: 'text-sky-600 dark:text-sky-400',
+  },
+  laptop: {
+    Icon: Laptop,
+    ring: 'ring-amber-200/80 dark:ring-amber-800/50',
+    icon: 'text-amber-700 dark:text-amber-400',
+  },
+  tablet: {
+    Icon: Tablet,
+    ring: 'ring-violet-200/80 dark:ring-violet-800/50',
+    icon: 'text-violet-600 dark:text-violet-400',
+  },
+  phone: {
+    Icon: Smartphone,
+    ring: 'ring-emerald-200/80 dark:ring-emerald-800/50',
+    icon: 'text-emerald-600 dark:text-emerald-400',
+  },
+}
 
 const VALID_SECTIONS = new Set([
   'personal',
@@ -35,12 +63,11 @@ const VALID_SECTIONS = new Set([
   'activity',
   'billing',
   'user-devices',
-  'integrations',
+  'account-security',
   'credential',
   'llm-tokens',
   'notifications',
   'locale',
-  'security',
 ])
 
 const Profile = () => {
@@ -62,12 +89,6 @@ const Profile = () => {
   const [showTwoFactorSetup, setShowTwoFactorSetup] = useState(false)
   const [showTwoFactorDisable, setShowTwoFactorDisable] = useState(false)
 
-  // 活动记录相关状态
-  const [activities, setActivities] = useState<ActivityLog[]>([])
-  const [isLoadingActivities, setIsLoadingActivities] = useState(false)
-  const [activityPage, setActivityPage] = useState(1)
-  const [activityTotalPages, setActivityTotalPages] = useState(1)
-  
   // 设备管理相关状态
   const [devices, setDevices] = useState<UserDevice[]>([])
   const [isLoadingDevices, setIsLoadingDevices] = useState(false)
@@ -105,7 +126,6 @@ const Profile = () => {
     locale: user?.locale || 'zh',
     timezone: user?.timezone || 'Asia/Shanghai',
     themeMode: (user?.themeMode as ThemeMode) || useThemeStore.getState().theme.mode,
-    themeColor: (user?.themeColor as ThemeColor) || useThemeStore.getState().theme.color,
     gender: user?.gender || '',
     city: user?.city || '',
     region: user?.region || '',
@@ -155,7 +175,6 @@ const Profile = () => {
             locale: response.data.locale || 'zh',
             timezone: response.data.timezone || 'Asia/Shanghai',
             themeMode: response.data.themeMode || useThemeStore.getState().theme.mode,
-            themeColor: response.data.themeColor || useThemeStore.getState().theme.color,
             gender: response.data.gender || '',
             city: response.data.city || '',
             region: response.data.region || '',
@@ -189,7 +208,6 @@ const Profile = () => {
       locale: user.locale || prev.locale,
       timezone: user.timezone || prev.timezone,
       themeMode: (user.themeMode as ThemeMode) || prev.themeMode,
-      themeColor: (user.themeColor as ThemeColor) || prev.themeColor,
     }))
   }, [user?.locale, user?.timezone, user?.themeMode])
 
@@ -220,12 +238,6 @@ const Profile = () => {
       window.history.replaceState({}, '', next)
     }
   }, [])
-
-  useEffect(() => {
-    if (section === 'activity' && isAuthenticated) {
-      loadActivities(1)
-    }
-  }, [section, isAuthenticated])
 
   useEffect(() => {
     if (!wechatBindExpiresAt) return
@@ -424,98 +436,16 @@ const Profile = () => {
     }
   }
 
-  // 加载活动记录
-  const loadActivities = async (page: number = 1) => {
-    setIsLoadingActivities(true)
-    try {
-      const response = await getUserActivity({ page, limit: 10 })
-      if (response.code === 200) {
-        setActivities(response.data.activities)
-        setActivityTotalPages(response.data.pagination.totalPages)
-        setActivityPage(page)
-      }
-    } catch (error: any) {
-      console.error('Failed to load activities:', error)
-    } finally {
-      setIsLoadingActivities(false)
-    }
-  }
-
-  // 获取活动记录图标
-  const getActivityIcon = (action: string) => {
-    switch (action.toLowerCase()) {
-      case 'post':
-        return <CheckCircle className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-      case 'put':
-        return <Edit3 className="w-5 h-5 text-green-600 dark:text-green-400" />
-      case 'delete':
-        return <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
-      case 'get':
-        return <Settings className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-      default:
-        return <Settings className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-    }
-  }
-
-  // 获取活动记录背景色
-  const getActivityBgColor = (action: string) => {
-    switch (action.toLowerCase()) {
-      case 'post':
-        return 'bg-blue-100 dark:bg-blue-900/30'
-      case 'put':
-        return 'bg-green-100 dark:bg-green-900/30'
-      case 'delete':
-        return 'bg-red-100 dark:bg-red-900/30'
-      case 'get':
-        return 'bg-purple-100 dark:bg-purple-900/30'
-      default:
-        return 'bg-gray-100 dark:bg-gray-800'
-    }
-  }
-
-  // 格式化活动记录描述
-  const formatActivityDescription = (activity: ActivityLog) => {
-    const actionMap: { [key: string]: string } = {
-      'POST': t('profile.activity.action.create'),
-      'PUT': t('profile.activity.action.update'),
-      'DELETE': t('profile.activity.action.delete'),
-      'GET': t('profile.activity.action.view'),
-      'PATCH': t('profile.activity.action.modify')
-    }
-    
-    const targetMap: { [key: string]: string } = {
-      '/api/auth/login': t('profile.activity.target.login'),
-      '/api/auth/update': t('profile.activity.target.profile'),
-      '/api/auth/change-password': t('profile.activity.target.password'),
-      '/api/auth/update/preferences': t('profile.activity.target.preferences'),
-      '/api/auth/two-factor': t('profile.activity.target.twoFactor')
-    }
-    
-    const action = actionMap[activity.action] || activity.action
-    const target = targetMap[activity.target] || t('profile.activity.target.system')
-    
-    return `${action}${target}`
-  }
-
-  // 格式化时间
-  const formatTimeAgo = (dateString: string) => {
-    const date = new Date(dateString)
-    const now = new Date()
-    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000)
-    
-    if (diffInSeconds < 60) return t('profile.activity.justNow')
-    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}${t('profile.activity.minutesAgo')}`
-    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}${t('profile.activity.hoursAgo')}`
-    if (diffInSeconds < 2592000) return `${Math.floor(diffInSeconds / 86400)}${t('profile.activity.daysAgo')}`
-    return date.toLocaleDateString('zh-CN')
-  }
-
   const handleSave = async () => {
     setIsLoading(true)
     try {
       const response = await updateProfile(formData)
       if (response.code === 200) {
         await useAuthStore.getState().refreshUserInfo()
+        // 资料里保存的外观需立即作用到全局（refresh 不再从服务端覆盖 mode，见 applyAuthUserUIPreferences）
+        useThemeStore.getState().setTheme({
+          mode: formData.themeMode,
+        })
         setIsEditing(false)
         showAlert(t('profile.messages.updateSuccess'), 'success', t('profile.messages.loadSuccess'))
       } else {
@@ -538,7 +468,6 @@ const Profile = () => {
       locale: user?.locale || 'zh',
       timezone: user?.timezone || 'Asia/Shanghai',
       themeMode: (user?.themeMode as ThemeMode) || useThemeStore.getState().theme.mode,
-      themeColor: (user?.themeColor as ThemeColor) || useThemeStore.getState().theme.color,
       gender: user?.gender || '',
       city: user?.city || '',
       region: user?.region || '',
@@ -798,188 +727,232 @@ const Profile = () => {
     )
   }
 
+  if (section === 'integrations' || section === 'security') {
+    return <Navigate to="/profile/account-security" replace />
+  }
+
   if (!section || !VALID_SECTIONS.has(section)) {
     return <Navigate to="/profile/personal" replace />
   }
 
   return (
     <>
-      <FadeIn direction="right">
+      <FadeIn direction="right" className={section === 'personal' ? 'flex min-h-0 min-w-0 flex-1 flex-col' : undefined}>
         {section === 'personal' && (
-                  <Card>
-                    <div className="p-6">
-                      <div className="flex items-center gap-4 pb-6 mb-6 border-b border-gray-200 dark:border-gray-700">
-                        <div className="relative group shrink-0">
-                          <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden ring-2 ring-slate-100 dark:ring-gray-700">
-                            <img
-                              src={
-                                user?.avatar ||
-                                `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.displayName || 'User')}&background=6366f1&color=fff&size=128`
-                              }
-                              alt=""
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
-                          <label className="absolute -bottom-0.5 -right-0.5 p-1.5 bg-white dark:bg-gray-800 rounded-full shadow border border-gray-200 dark:border-gray-600 cursor-pointer hover:scale-105 transition-transform">
-                            <Camera className="w-3 h-3 text-gray-600 dark:text-gray-300" />
-                            <input
-                              type="file"
-                              accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
-                              onChange={handleAvatarUpload}
-                              className="hidden"
-                              disabled={isLoading}
-                            />
-                          </label>
-                          {isLoading && (
-                            <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center">
-                              <LoadingAnimation type="progress" size="sm" color="#ffffff" />
-                            </div>
-                          )}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm text-gray-500 dark:text-gray-400">头像</p>
-                          <p className="font-medium text-gray-900 dark:text-white truncate">
-                            {user?.displayName || user?.email?.split('@')[0] || '—'}
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{user?.email || '—'}</p>
-                        </div>
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white dark:border-neutral-800 dark:bg-neutral-950 lg:min-h-[calc(100dvh-8.25rem)]">
+              <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[15.5rem_minmax(0,1fr)] lg:overflow-hidden">
+                <aside className="flex shrink-0 flex-col gap-3 border-b border-slate-200 bg-slate-50/90 px-3 py-4 dark:border-neutral-800 dark:bg-neutral-900/40 sm:px-4 lg:min-h-0 lg:items-stretch lg:justify-between lg:gap-6 lg:self-stretch lg:border-b-0 lg:border-r lg:px-4 lg:py-10">
+                  <div className="flex items-center gap-3 lg:flex-col lg:items-center lg:gap-5">
+                  <div className="relative shrink-0">
+                    <div className="h-16 w-16 overflow-hidden rounded-full bg-slate-200 ring-1 ring-slate-300/80 dark:bg-neutral-700 dark:ring-neutral-600 lg:h-36 lg:w-36">
+                      <img
+                        src={
+                          user?.avatar ||
+                          `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.displayName || 'User')}&background=64748b&color=fff&size=128`
+                        }
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
+                    <label className="absolute -bottom-0.5 -right-0.5 flex cursor-pointer rounded-full border border-slate-200 bg-white p-1.5 shadow-sm dark:border-neutral-600 dark:bg-neutral-800 lg:bottom-1 lg:right-1 lg:p-2">
+                      <Camera className="h-3.5 w-3.5 text-slate-600 dark:text-gray-400 lg:h-4 lg:w-4" />
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                        onChange={handleAvatarUpload}
+                        className="hidden"
+                        disabled={isLoading}
+                      />
+                    </label>
+                    {isLoading && (
+                      <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40">
+                        <LoadingAnimation type="progress" size="sm" color="#ffffff" />
                       </div>
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t('profile.basicInfo')}</h3>
-                        {!isEditing ? (
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1 lg:w-full lg:flex-none lg:text-center">
+                    <p className="truncate text-sm font-medium text-slate-900 dark:text-white lg:text-base">
+                      {user?.displayName || user?.email?.split('@')[0] || '—'}
+                    </p>
+                    <p className="mt-1 line-clamp-2 text-xs text-slate-500 dark:text-slate-400 lg:text-sm">{user?.email || '—'}</p>
+                  </div>
+                  </div>
+                  <div className="w-full space-y-2 border-t border-slate-200 pt-3 dark:border-neutral-700 lg:pt-4">
+                    <div className="flex items-center justify-between gap-2 text-xs">
+                      <span className="text-slate-500 dark:text-slate-400">微信</span>
+                      <Badge variant={user?.wechatOpenId ? 'success' : 'warning'} className="text-[10px]">
+                        {user?.wechatOpenId ? '已绑定' : '未绑定'}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 text-xs">
+                      <span className="text-slate-500 dark:text-slate-400">GitHub</span>
+                      <Badge variant={user?.githubId ? 'success' : 'warning'} className="text-[10px]">
+                        {user?.githubId ? '已绑定' : '未绑定'}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 text-xs">
+                      <span className="text-slate-500 dark:text-slate-400">微信认证</span>
+                      <Badge
+                        variant={
+                          typeof user?.wechatUnionId === 'string' && user.wechatUnionId.trim() !== ''
+                            ? 'success'
+                            : 'warning'
+                        }
+                        className="text-[10px]"
+                      >
+                        {typeof user?.wechatUnionId === 'string' && user.wechatUnionId.trim() !== ''
+                          ? '已通过'
+                          : '未通过'}
+                      </Badge>
+                    </div>
+                  </div>
+                </aside>
+
+                <div className="flex min-h-0 min-w-0 flex-col lg:overflow-hidden">
+                  <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-3 dark:border-neutral-800 sm:px-4">
+                    <span className="text-sm font-medium text-slate-800 dark:text-slate-100">{t('profile.basicInfo')}</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {!isEditing ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 px-2.5 text-xs"
+                          leftIcon={<Edit3 className="h-3.5 w-3.5" />}
+                          onClick={() => setIsEditing(true)}
+                          disabled={isLoading}
+                        >
+                          {t('profile.edit')}
+                        </Button>
+                      ) : (
+                        <>
                           <Button
                             variant="outline"
                             size="sm"
-                            leftIcon={<Edit3 className="w-4 h-4" />}
-                            onClick={() => setIsEditing(true)}
+                            className="h-8 px-2.5 text-xs"
+                            leftIcon={<X className="h-3.5 w-3.5" />}
+                            onClick={handleCancel}
                             disabled={isLoading}
                           >
-                            {t('profile.edit')}
+                            {t('profile.cancel')}
                           </Button>
-                        ) : (
-                          <div className="flex space-x-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              leftIcon={<X className="w-4 h-4" />}
-                              onClick={handleCancel}
-                              disabled={isLoading}
-                            >
-                              {t('profile.cancel')}
-                            </Button>
-                            <Button
-                              variant="primary"
-                              size="sm"
-                              leftIcon={<Save className="w-4 h-4" />}
-                              onClick={handleSave}
-                              disabled={isLoading}
-                            >
-                              {isLoading ? t('profile.saving') : t('profile.save')}
-                            </Button>
-                          </div>
-                        )}
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            className="h-8 px-2.5 text-xs"
+                            leftIcon={<Save className="h-3.5 w-3.5" />}
+                            onClick={handleSave}
+                            disabled={isLoading}
+                          >
+                            {isLoading ? t('profile.saving') : t('profile.save')}
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-3 sm:p-4 lg:max-h-full lg:overflow-y-auto lg:p-6">
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-3 md:gap-x-4 md:gap-y-4">
+                      <Input
+                        size="sm"
+                        label={t('profile.displayName')}
+                        value={formData.displayName}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, displayName: e.target.value }))}
+                        disabled={!isEditing}
+                        leftIcon={<User className="h-3.5 w-3.5" />}
+                        placeholder={t('profile.displayNamePlaceholder')}
+                      />
+                      <Input
+                        size="sm"
+                        label={t('profile.firstName')}
+                        value={formData.firstName}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, firstName: e.target.value }))}
+                        disabled={!isEditing}
+                        leftIcon={<User className="h-3.5 w-3.5" />}
+                        placeholder={t('profile.firstNamePlaceholder')}
+                      />
+                      <Input
+                        size="sm"
+                        label={t('profile.lastName')}
+                        value={formData.lastName}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, lastName: e.target.value }))}
+                        disabled={!isEditing}
+                        leftIcon={<User className="h-3.5 w-3.5" />}
+                        placeholder={t('profile.lastNamePlaceholder')}
+                      />
+                      <div>
+                        <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-gray-400">
+                          {t('profile.gender')}
+                        </label>
+                        <Select
+                          value={formData.gender}
+                          onValueChange={(v) => setFormData((prev) => ({ ...prev, gender: v }))}
+                          disabled={!isEditing}
+                        >
+                          <SelectTrigger className="h-9 w-full text-sm">
+                            <SelectValue placeholder={t('profile.genderSelect')} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="">{t('profile.genderSelect')}</SelectItem>
+                            <SelectItem value="male">{t('profile.gender.male')}</SelectItem>
+                            <SelectItem value="female">{t('profile.gender.female')}</SelectItem>
+                            <SelectItem value="other">{t('profile.gender.other')}</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <Input
-                            label={t('profile.displayName')}
-                            value={formData.displayName}
-                            onChange={(e) => setFormData(prev => ({ ...prev, displayName: e.target.value }))}
-                            disabled={!isEditing}
-                            leftIcon={<User className="w-4 h-4" />}
-                            placeholder={t('profile.displayNamePlaceholder')}
-                          />
-                          
-                          <Input
-                            label={t('profile.email')}
-                            type="email"
-                            value={formData.email}
-                            onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                            disabled={!isEditing}
-                            leftIcon={<Mail className="w-4 h-4" />}
-                            placeholder={t('profile.emailPlaceholder')}
-                          />
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <Input
-                            label={t('profile.firstName')}
-                            value={formData.firstName}
-                            onChange={(e) => setFormData(prev => ({ ...prev, firstName: e.target.value }))}
-                            disabled={!isEditing}
-                            leftIcon={<User className="w-4 h-4" />}
-                            placeholder={t('profile.firstNamePlaceholder')}
-                          />
-                          
-                          <Input
-                            label={t('profile.lastName')}
-                            value={formData.lastName}
-                            onChange={(e) => setFormData(prev => ({ ...prev, lastName: e.target.value }))}
-                            disabled={!isEditing}
-                            leftIcon={<User className="w-4 h-4" />}
-                            placeholder={t('profile.lastNamePlaceholder')}
-                          />
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <Input
-                            label={t('profile.phone')}
-                            value={formData.phone}
-                            onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
-                            disabled={!isEditing}
-                            leftIcon={<Phone className="w-4 h-4" />}
-                            placeholder={t('profile.phonePlaceholder')}
-                          />
-                          
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                              {t('profile.gender')}
-                            </label>
-                            <select
-                              value={formData.gender}
-                              onChange={(e) => setFormData(prev => ({ ...prev, gender: e.target.value }))}
-                              disabled={!isEditing}
-                              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
-                            >
-                              <option value="">{t('profile.genderSelect')}</option>
-                              <option value="male">{t('profile.gender.male')}</option>
-                              <option value="female">{t('profile.gender.female')}</option>
-                              <option value="other">{t('profile.gender.other')}</option>
-                            </select>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <Input
-                            label="城市"
-                            value={formData.city}
-                            onChange={(e) => setFormData(prev => ({ ...prev, city: e.target.value }))}
-                            disabled={!isEditing}
-                            placeholder="请输入所在城市"
-                          />
-                          
-                          <Input
-                            label="地区"
-                            value={formData.region}
-                            onChange={(e) => setFormData(prev => ({ ...prev, region: e.target.value }))}
-                            disabled={!isEditing}
-                            placeholder="请输入所在地区"
-                          />
-                        </div>
-
+                      <Input
+                        size="sm"
+                        label={t('profile.email')}
+                        type="email"
+                        value={formData.email}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
+                        disabled={!isEditing}
+                        leftIcon={<Mail className="h-3.5 w-3.5" />}
+                        placeholder={t('profile.emailPlaceholder')}
+                      />
+                      <Input
+                        size="sm"
+                        label={t('profile.phone')}
+                        value={formData.phone}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, phone: e.target.value }))}
+                        disabled={!isEditing}
+                        leftIcon={<Phone className="h-3.5 w-3.5" />}
+                        placeholder={t('profile.phonePlaceholder')}
+                      />
+                      <Input
+                        size="sm"
+                        label="城市"
+                        value={formData.city}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, city: e.target.value }))}
+                        disabled={!isEditing}
+                        placeholder="请输入所在城市"
+                      />
+                      <Input
+                        size="sm"
+                        label="地区"
+                        value={formData.region}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, region: e.target.value }))}
+                        disabled={!isEditing}
+                        placeholder="请输入所在地区"
+                      />
+                      <div className="col-span-full">
                         <Input
+                          size="sm"
                           label={t('profile.bio')}
                           value={formData.extra}
-                          onChange={(e) => setFormData(prev => ({ ...prev, extra: e.target.value }))}
+                          onChange={(e) => setFormData((prev) => ({ ...prev, extra: e.target.value }))}
                           disabled={!isEditing}
-                          leftIcon={<Heart className="w-4 h-4" />}
+                          leftIcon={<Heart className="h-3.5 w-3.5" />}
                           placeholder={t('profile.bioPlaceholder')}
-                          helperText={t('profile.bioHelper')}
                         />
                       </div>
                     </div>
-                  </Card>
-                )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
                 {section === 'locale' && (
                   <Card>
@@ -987,7 +960,7 @@ const Profile = () => {
                       <div>
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">语言、时区与外观</h3>
                         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                          设置界面语言、默认时区与主题外观；保存后写入账户，登录时会自动应用。
+                          设置界面语言、默认时区与外观模式；保存后写入账户。外观模式保存后立即应用到本机。
                         </p>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -995,33 +968,41 @@ const Profile = () => {
                           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                             {t('profile.timezone')}
                           </label>
-                          <select
+                          <Select
                             value={formData.timezone}
-                            onChange={(e) => setFormData(prev => ({ ...prev, timezone: e.target.value }))}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            onValueChange={(v) => setFormData((prev) => ({ ...prev, timezone: v }))}
                           >
-                            <option value="Asia/Shanghai">Asia/Shanghai</option>
-                            <option value="Asia/Tokyo">Asia/Tokyo</option>
-                            <option value="America/New_York">America/New_York</option>
-                            <option value="Europe/London">Europe/London</option>
-                            <option value="UTC">UTC</option>
-                          </select>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder={t('profile.timezone')} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Asia/Shanghai">Asia/Shanghai</SelectItem>
+                              <SelectItem value="Asia/Tokyo">Asia/Tokyo</SelectItem>
+                              <SelectItem value="America/New_York">America/New_York</SelectItem>
+                              <SelectItem value="Europe/London">Europe/London</SelectItem>
+                              <SelectItem value="UTC">UTC</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                             {t('profile.language')}
                           </label>
-                          <select
+                          <Select
                             value={formData.locale}
-                            onChange={(e) => setFormData(prev => ({ ...prev, locale: e.target.value }))}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            onValueChange={(v) => setFormData((prev) => ({ ...prev, locale: v }))}
                           >
-                            <option value="zh">简体中文</option>
-                            <option value="zh-TW">繁體中文</option>
-                            <option value="en">English</option>
-                            <option value="ja">日本語</option>
-                            <option value="fr">Français</option>
-                          </select>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder={t('profile.language')} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="zh">简体中文</SelectItem>
+                              <SelectItem value="zh-TW">繁體中文</SelectItem>
+                              <SelectItem value="en">English</SelectItem>
+                              <SelectItem value="ja">日本語</SelectItem>
+                              <SelectItem value="fr">Français</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1029,37 +1010,21 @@ const Profile = () => {
                           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                             外观模式
                           </label>
-                          <select
+                          <Select
                             value={formData.themeMode}
-                            onChange={(e) =>
-                              setFormData((prev) => ({ ...prev, themeMode: e.target.value as ThemeMode }))
+                            onValueChange={(v) =>
+                              setFormData((prev) => ({ ...prev, themeMode: v as ThemeMode }))
                             }
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                           >
-                            <option value="system">跟随系统</option>
-                            <option value="light">浅色</option>
-                            <option value="dark">深色</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            主题色
-                          </label>
-                          <select
-                            value={formData.themeColor}
-                            onChange={(e) =>
-                              setFormData((prev) => ({ ...prev, themeColor: e.target.value as ThemeColor }))
-                            }
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          >
-                            <option value="default">默认</option>
-                            <option value="cherry">樱桃</option>
-                            <option value="ocean">海洋</option>
-                            <option value="nature">自然</option>
-                            <option value="fresh">清新</option>
-                            <option value="sunset">日落</option>
-                            <option value="lavender">薰衣草</option>
-                          </select>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="外观模式" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="system">跟随系统</SelectItem>
+                              <SelectItem value="light">浅色</SelectItem>
+                              <SelectItem value="dark">深色</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
                       </div>
                       <Button variant="primary" size="sm" onClick={() => void handleSave()} disabled={isLoading} leftIcon={<Save className="w-4 h-4" />}>
@@ -1069,114 +1034,109 @@ const Profile = () => {
                   </Card>
                 )}
 
-                {/* 第三方账号与通知偏好 */}
-                {section === 'integrations' && (
-                  <Card>
-                    <div className="p-6 space-y-8">
-                      <div>
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('profile.accountBindingsTitle')}</h3>
-                        <div className="space-y-4">
-                          <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800/80 rounded-lg">
-                            <span className="text-sm text-gray-600 dark:text-gray-400">微信认证</span>
-                            <div className="flex items-center space-x-2">
-                              <Badge variant={user?.wechatOpenId ? 'success' : 'warning'} className="text-xs">
-                                {user?.wechatOpenId ? '已绑定' : '未绑定'}
-                              </Badge>
-                              {!user?.wechatOpenId && (
-                                <button
-                                  type="button"
-                                  onClick={handleBindWechat}
-                                  disabled={isWechatBinding}
-                                  className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline disabled:opacity-50"
-                                >
-                                  {isWechatBinding ? '绑定中...' : '立即绑定'}
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                          {!!wechatBindCode && (
-                            <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-md border border-blue-200 dark:border-blue-800">
-                              <div className="mb-2 rounded-md overflow-hidden border border-blue-200 dark:border-blue-700 bg-white">
-                                <img
-                                  src="/qrcode_official_account.jpg"
-                                  alt="微信公众号二维码"
-                                  className="w-full h-auto max-h-44 object-contain"
-                                />
-                              </div>
-                              <div className="text-xs text-blue-800 dark:text-blue-300">
-                                <span className="font-medium">微信绑定码：</span>
-                                <span className="font-mono tracking-wider">{wechatBindCode}</span>
-                              </div>
-                              <div className="text-xs text-blue-700 dark:text-blue-400 mt-1">
-                                {wechatBindStatus === 'pending' && `请在公众号发送该绑定码，剩余 ${wechatBindCountdown} 秒`}
-                                {wechatBindStatus === 'success' && '绑定成功'}
-                                {wechatBindStatus === 'failed' && '绑定失败，请重新获取绑定码'}
-                                {wechatBindStatus === 'expired' && '绑定码已过期，请重新获取'}
-                              </div>
-                            </div>
+                {/* 账号、第三方绑定与安全 — 各块标题与分栏样式统一 */}
+                {section === 'account-security' && (
+                  <div className="overflow-hidden rounded-lg border border-slate-200 bg-white dark:border-neutral-800 dark:bg-neutral-950">
+                    <div className="border-b border-slate-100 px-4 py-2.5 dark:border-neutral-800 sm:px-5">
+                      <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-gray-400">
+                        {t('profile.accountBindingsTitle')}
+                      </h3>
+                    </div>
+                    <div className="divide-y divide-slate-100 dark:divide-neutral-800">
+                      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 sm:px-5">
+                        <span className="text-sm text-slate-800 dark:text-gray-100">微信认证</span>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={user?.wechatOpenId ? 'success' : 'warning'} className="text-xs">
+                            {user?.wechatOpenId ? '已绑定' : '未绑定'}
+                          </Badge>
+                          {!user?.wechatOpenId && (
+                            <button
+                              type="button"
+                              onClick={handleBindWechat}
+                              disabled={isWechatBinding}
+                              className="text-xs font-medium text-sky-600 underline decoration-sky-600/40 underline-offset-2 hover:text-sky-700 disabled:opacity-50 dark:text-sky-400"
+                            >
+                              {isWechatBinding ? '绑定中...' : '立即绑定'}
+                            </button>
                           )}
-                          <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800/80 rounded-lg">
-                            <span className="text-sm text-gray-600 dark:text-gray-400">GitHub认证</span>
-                            <div className="flex items-center space-x-2">
-                              <Badge variant={user?.githubId ? 'success' : 'warning'} className="text-xs">
-                                {user?.githubId ? '已绑定' : '未绑定'}
-                              </Badge>
-                              {!user?.githubId && (
-                                <button
-                                  type="button"
-                                  onClick={handleBindGithub}
-                                  className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline"
-                                >
-                                  立即绑定
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800/80 rounded-lg">
-                            <span className="text-sm text-gray-600 dark:text-gray-400">邮箱状态</span>
-                            <div className="flex items-center space-x-2">
-                              <Badge variant={user?.emailVerified ? 'success' : 'warning'} className="text-xs">
-                                {user?.emailVerified ? '已验证' : '未验证'}
-                              </Badge>
-                              {!user?.emailVerified && (
-                                <button
-                                  type="button"
-                                  onClick={handleSendEmailVerification}
-                                  disabled={isSendingEmailVerification}
-                                  className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline disabled:opacity-50"
-                                >
-                                  {isSendingEmailVerification ? '发送中...' : '验证'}
-                                </button>
-                              )}
-                            </div>
-                          </div>
                         </div>
                       </div>
-
-                      <div>
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('profile.notificationPreferences')}</h3>
-                        <div className="space-y-4">
-                        <div className="mb-4">
-                          <AudioController />
+                      {!!wechatBindCode && (
+                        <div className="space-y-2 px-4 py-3 sm:px-5">
+                          <div className="overflow-hidden rounded-md border border-slate-200 bg-white dark:border-neutral-700">
+                            <img
+                              src="/qrcode_official_account.jpg"
+                              alt="微信公众号二维码"
+                              className="max-h-40 w-full object-contain"
+                            />
+                          </div>
+                          <div className="text-xs text-slate-600 dark:text-gray-400">
+                            <span className="font-medium text-slate-700 dark:text-gray-300">微信绑定码：</span>
+                            <span className="font-mono tracking-wider">{wechatBindCode}</span>
+                          </div>
+                          <div className="text-xs text-slate-500 dark:text-gray-500">
+                            {wechatBindStatus === 'pending' && `请在公众号发送该绑定码，剩余 ${wechatBindCountdown} 秒`}
+                            {wechatBindStatus === 'success' && '绑定成功'}
+                            {wechatBindStatus === 'failed' && '绑定失败，请重新获取绑定码'}
+                            {wechatBindStatus === 'expired' && '绑定码已过期，请重新获取'}
+                          </div>
                         </div>
-                        <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                          <div className="flex items-center space-x-3">
-                            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                              <Mail className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                            </div>
-                            <div>
-                              <h4 className="font-medium text-gray-900 dark:text-white">{t('profile.emailNotifications')}</h4>
-                              <p className="text-sm text-gray-600 dark:text-gray-400">{t('profile.emailNotificationsDesc')}</p>
-                            </div>
+                      )}
+                      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 sm:px-5">
+                        <span className="text-sm text-slate-800 dark:text-gray-100">GitHub 认证</span>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={user?.githubId ? 'success' : 'warning'} className="text-xs">
+                            {user?.githubId ? '已绑定' : '未绑定'}
+                          </Badge>
+                          {!user?.githubId && (
+                            <button
+                              type="button"
+                              onClick={handleBindGithub}
+                              className="text-xs font-medium text-sky-600 underline decoration-sky-600/40 underline-offset-2 hover:text-sky-700 dark:text-sky-400"
+                            >
+                              立即绑定
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 sm:px-5">
+                        <span className="text-sm text-slate-800 dark:text-gray-100">邮箱状态</span>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={user?.emailVerified ? 'success' : 'warning'} className="text-xs">
+                            {user?.emailVerified ? '已验证' : '未验证'}
+                          </Badge>
+                          {!user?.emailVerified && (
+                            <button
+                              type="button"
+                              onClick={handleSendEmailVerification}
+                              disabled={isSendingEmailVerification}
+                              className="text-xs font-medium text-sky-600 underline decoration-sky-600/40 underline-offset-2 hover:text-sky-700 disabled:opacity-50 dark:text-sky-400"
+                            >
+                              {isSendingEmailVerification ? '发送中...' : '验证'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-slate-100 dark:border-neutral-800">
+                      <div className="border-b border-slate-100 px-4 py-2.5 dark:border-neutral-800 sm:px-5">
+                        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-gray-400">
+                          {t('profile.notificationPreferences')}
+                        </h3>
+                      </div>
+                      <div className="divide-y divide-slate-100 dark:divide-neutral-800">
+                        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 sm:px-5">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-slate-800 dark:text-gray-100">{t('profile.emailNotifications')}</p>
+                            <p className="text-xs text-slate-500 dark:text-gray-400">{t('profile.emailNotificationsDesc')}</p>
                           </div>
                           <Switch
                             checked={user?.emailNotifications || false}
                             onCheckedChange={async (checked) => {
                               updateAuthStore({ emailNotifications: checked })
                               try {
-                                const response = await updatePreferences({
-                                  emailNotifications: checked
-                                })
+                                const response = await updatePreferences({ emailNotifications: checked })
                                 if (response.code === 200) {
                                   showAlert(t('profile.preferencesUpdated'), 'success', t('profile.messages.loadSuccess'))
                                 } else {
@@ -1189,25 +1149,17 @@ const Profile = () => {
                             }}
                           />
                         </div>
-
-                        <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                          <div className="flex items-center space-x-3">
-                            <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                              <Bell className="w-5 h-5 text-green-600 dark:text-green-400" />
-                            </div>
-                            <div>
-                              <h4 className="font-medium text-gray-900 dark:text-white">{t('profile.pushNotifications')}</h4>
-                              <p className="text-sm text-gray-600 dark:text-gray-400">{t('profile.pushNotificationsDesc')}</p>
-                            </div>
+                        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 sm:px-5">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-slate-800 dark:text-gray-100">{t('profile.pushNotifications')}</p>
+                            <p className="text-xs text-slate-500 dark:text-gray-400">{t('profile.pushNotificationsDesc')}</p>
                           </div>
                           <Switch
                             checked={user?.pushNotifications || false}
                             onCheckedChange={async (checked) => {
                               updateAuthStore({ pushNotifications: checked })
                               try {
-                                const response = await updatePreferences({
-                                  pushNotifications: checked
-                                })
+                                const response = await updatePreferences({ pushNotifications: checked })
                                 if (response.code === 200) {
                                   showAlert(t('profile.preferencesUpdated'), 'success', t('profile.messages.loadSuccess'))
                                 } else {
@@ -1220,174 +1172,166 @@ const Profile = () => {
                             }}
                           />
                         </div>
-
                       </div>
                     </div>
-                    </div>
-                  </Card>
-                )}
 
-                {/* 安全设置标签页 */}
-                {section === 'security' && (
-                  <Card className="w-full max-w-none">
-                    <div className="p-6">
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">密码安全</h3>
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
-                          <div className="flex items-center space-x-3">
-                            <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
-                              <Key className="w-5 h-5 text-red-600 dark:text-red-400" />
-                            </div>
-                            <div>
-                              <h4 className="font-medium text-gray-900 dark:text-white">更改密码</h4>
-                              <p className="text-sm text-gray-600 dark:text-gray-400">定期更新密码以保护账户安全</p>
-                            </div>
+                    <div className="border-t border-slate-100 dark:border-neutral-800">
+                      <div className="border-b border-slate-100 px-4 py-2.5 dark:border-neutral-800 sm:px-5">
+                        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-gray-400">
+                          密码与安全
+                        </h3>
+                      </div>
+                      <div className="divide-y divide-slate-100 dark:divide-neutral-800">
+                        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 sm:px-5">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-slate-800 dark:text-gray-100">更改密码</p>
+                            <p className="text-xs text-slate-500 dark:text-gray-400">定期更新登录密码</p>
                           </div>
-                          <Button 
-                            variant="outline" 
+                          <Button
+                            variant="outline"
                             size="sm"
+                            className="h-8 shrink-0 text-xs"
                             onClick={() => setIsChangingPassword(!isChangingPassword)}
                             disabled={isLoading}
                           >
                             {isChangingPassword ? '取消' : '更改密码'}
                           </Button>
                         </div>
-
                         <AnimatePresence>
                           {isChangingPassword && (
                             <motion.div
                               initial={{ opacity: 0, height: 0 }}
                               animate={{ opacity: 1, height: 'auto' }}
                               exit={{ opacity: 0, height: 0 }}
-                              className="space-y-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg"
+                              className="overflow-hidden border-t border-slate-100 bg-slate-50/60 px-4 py-3 dark:border-neutral-800 dark:bg-neutral-900/40 sm:px-5"
                             >
-                              {/* 更改密码方式选择 */}
-                              <div className="mb-4">
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                  更改密码方式
-                                </label>
-                                <div className="flex space-x-4">
+                              <div className="mb-3">
+                                <label className="mb-1.5 block text-xs font-medium text-slate-600 dark:text-gray-400">更改密码方式</label>
+                                <div className="flex gap-2">
                                   <button
                                     type="button"
                                     onClick={() => {
                                       setPasswordChangeMethod('password')
                                       setEmailCode('')
                                     }}
-                                    className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                                    className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
                                       passwordChangeMethod === 'password'
-                                        ? 'bg-blue-500 text-white'
-                                        : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                                        ? 'bg-slate-900 text-white dark:bg-gray-100 dark:text-gray-900'
+                                        : 'bg-white text-slate-700 ring-1 ring-slate-200 dark:bg-neutral-800 dark:text-gray-300 dark:ring-neutral-600'
                                     }`}
                                   >
-                                    使用当前密码
+                                    当前密码
                                   </button>
                                   <button
                                     type="button"
                                     onClick={() => {
                                       setPasswordChangeMethod('email')
-                                      setPasswordData(prev => ({ ...prev, currentPassword: '' }))
+                                      setPasswordData((prev) => ({ ...prev, currentPassword: '' }))
                                     }}
-                                    className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                                    className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
                                       passwordChangeMethod === 'email'
-                                        ? 'bg-blue-500 text-white'
-                                        : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                                        ? 'bg-slate-900 text-white dark:bg-gray-100 dark:text-gray-900'
+                                        : 'bg-white text-slate-700 ring-1 ring-slate-200 dark:bg-neutral-800 dark:text-gray-300 dark:ring-neutral-600'
                                     }`}
                                   >
-                                    使用邮箱验证码
+                                    邮箱验证码
                                   </button>
                                 </div>
                               </div>
-
-                              {/* 根据选择的方式显示不同的输入 */}
                               {passwordChangeMethod === 'password' ? (
                                 <Input
+                                  size="sm"
                                   label="当前密码"
                                   type={showCurrentPassword ? 'text' : 'password'}
                                   value={passwordData.currentPassword}
-                                  onChange={(e) => setPasswordData(prev => ({ ...prev, currentPassword: e.target.value }))}
-                                  leftIcon={<Lock className="w-4 h-4" />}
+                                  onChange={(e) =>
+                                    setPasswordData((prev) => ({ ...prev, currentPassword: e.target.value }))
+                                  }
+                                  leftIcon={<Lock className="h-3.5 w-3.5" />}
                                   rightIcon={
                                     <button
                                       type="button"
                                       onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                                      className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                      className="text-slate-400 hover:text-slate-600 dark:hover:text-gray-300"
                                     >
-                                      {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                      {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                                     </button>
                                   }
                                   placeholder="请输入当前密码"
                                 />
                               ) : (
                                 <div className="space-y-2">
-                                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                    邮箱验证码
-                                  </label>
-                                  <div className="flex space-x-2">
-                                    <div className="flex-1">
+                                  <label className="block text-xs font-medium text-slate-600 dark:text-gray-400">邮箱验证码</label>
+                                  <div className="flex gap-2">
+                                    <div className="min-w-0 flex-1">
                                       <Input
+                                        size="sm"
                                         label=""
                                         type="text"
                                         value={emailCode}
                                         onChange={(e) => setEmailCode(e.target.value)}
-                                        leftIcon={<Mail className="w-4 h-4" />}
+                                        leftIcon={<Mail className="h-3.5 w-3.5" />}
                                         placeholder="请输入邮箱验证码"
                                       />
                                     </div>
                                     <Button
                                       variant="outline"
                                       size="sm"
+                                      className="h-9 shrink-0 self-end text-xs"
                                       onClick={handleSendEmailCode}
                                       disabled={isSendingCode || countdown > 0}
-                                      className="whitespace-nowrap self-end"
                                     >
                                       {countdown > 0 ? `${countdown}秒` : isSendingCode ? '发送中...' : '发送验证码'}
                                     </Button>
                                   </div>
-                                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                                    验证码将发送到 {user?.email}
-                                  </p>
+                                  <p className="text-xs text-slate-500 dark:text-gray-500">验证码将发送到 {user?.email}</p>
                                 </div>
                               )}
-                              
-                              <Input
-                                label="新密码"
-                                type={showNewPassword ? 'text' : 'password'}
-                                value={passwordData.newPassword}
-                                onChange={(e) => setPasswordData(prev => ({ ...prev, newPassword: e.target.value }))}
-                                leftIcon={<Lock className="w-4 h-4" />}
-                                rightIcon={
-                                  <button
-                                    type="button"
-                                    onClick={() => setShowNewPassword(!showNewPassword)}
-                                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                                  >
-                                    {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                  </button>
-                                }
-                                placeholder="请输入新密码"
-                              />
-                              
-                              <Input
-                                label="确认新密码"
-                                type={showConfirmPassword ? 'text' : 'password'}
-                                value={passwordData.confirmPassword}
-                                onChange={(e) => setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }))}
-                                leftIcon={<Lock className="w-4 h-4" />}
-                                rightIcon={
-                                  <button
-                                    type="button"
-                                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                                  >
-                                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                  </button>
-                                }
-                                placeholder="请再次输入新密码"
-                              />
-                              
-                              <div className="flex space-x-3">
+                              <div className="mt-2 space-y-2">
+                                <Input
+                                  size="sm"
+                                  label="新密码"
+                                  type={showNewPassword ? 'text' : 'password'}
+                                  value={passwordData.newPassword}
+                                  onChange={(e) => setPasswordData((prev) => ({ ...prev, newPassword: e.target.value }))}
+                                  leftIcon={<Lock className="h-3.5 w-3.5" />}
+                                  rightIcon={
+                                    <button
+                                      type="button"
+                                      onClick={() => setShowNewPassword(!showNewPassword)}
+                                      className="text-slate-400 hover:text-slate-600 dark:hover:text-gray-300"
+                                    >
+                                      {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                    </button>
+                                  }
+                                  placeholder="请输入新密码"
+                                />
+                                <Input
+                                  size="sm"
+                                  label="确认新密码"
+                                  type={showConfirmPassword ? 'text' : 'password'}
+                                  value={passwordData.confirmPassword}
+                                  onChange={(e) =>
+                                    setPasswordData((prev) => ({ ...prev, confirmPassword: e.target.value }))
+                                  }
+                                  leftIcon={<Lock className="h-3.5 w-3.5" />}
+                                  rightIcon={
+                                    <button
+                                      type="button"
+                                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                      className="text-slate-400 hover:text-slate-600 dark:hover:text-gray-300"
+                                    >
+                                      {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                    </button>
+                                  }
+                                  placeholder="请再次输入新密码"
+                                />
+                              </div>
+                              <div className="mt-3 flex gap-2">
                                 <Button
                                   variant="outline"
+                                  size="sm"
+                                  className="h-8 text-xs"
                                   onClick={() => {
                                     setIsChangingPassword(false)
                                     setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' })
@@ -1401,6 +1345,8 @@ const Profile = () => {
                                 </Button>
                                 <Button
                                   variant="primary"
+                                  size="sm"
+                                  className="h-8 text-xs"
                                   onClick={handlePasswordChange}
                                   disabled={isLoading}
                                 >
@@ -1410,45 +1356,29 @@ const Profile = () => {
                             </motion.div>
                           )}
                         </AnimatePresence>
-
-                        <div className={`flex items-center justify-between p-4 rounded-lg border ${
-                          user?.twoFactorEnabled 
-                            ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' 
-                            : 'bg-gray-50 dark:bg-gray-800'
-                        }`}>
-                          <div className="flex items-center space-x-3">
-                            <div className={`p-2 rounded-lg ${
-                              user?.twoFactorEnabled 
-                                ? 'bg-green-100 dark:bg-green-900/30' 
-                                : 'bg-gray-100 dark:bg-gray-700'
-                            }`}>
-                              <Shield className={`w-5 h-5 ${
-                                user?.twoFactorEnabled 
-                                  ? 'text-green-600 dark:text-green-400' 
-                                  : 'text-gray-600 dark:text-gray-400'
-                              }`} />
-                            </div>
-                            <div>
-                              <h4 className="font-medium text-gray-900 dark:text-white">两步验证</h4>
-                              <p className="text-sm text-gray-600 dark:text-gray-400">
-                                {user?.twoFactorEnabled ? '已启用 - 为您的账户提供额外的安全保护' : '为您的账户添加额外的安全保护'}
-                              </p>
-                            </div>
+                        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 sm:px-5">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-slate-800 dark:text-gray-100">两步验证</p>
+                            <p className="text-xs text-slate-500 dark:text-gray-400">
+                              {user?.twoFactorEnabled ? '已为账户启用额外保护' : '为账户添加额外保护'}
+                            </p>
                           </div>
-                          <div className="flex items-center space-x-2">
+                          <div className="flex shrink-0 gap-2">
                             {user?.twoFactorEnabled ? (
-                              <Button 
-                                variant="destructive" 
+                              <Button
+                                variant="outline"
                                 size="sm"
+                                className="h-8 text-xs text-red-600 ring-red-200 hover:bg-red-50 dark:text-red-400 dark:ring-red-900"
                                 onClick={() => setShowTwoFactorDisable(true)}
                                 disabled={isTwoFactorLoading}
                               >
                                 禁用
                               </Button>
                             ) : (
-                              <Button 
-                                variant="outline" 
+                              <Button
+                                variant="outline"
                                 size="sm"
+                                className="h-8 text-xs"
                                 onClick={handleTwoFactorSetup}
                                 disabled={isTwoFactorLoading}
                               >
@@ -1457,108 +1387,101 @@ const Profile = () => {
                             )}
                           </div>
                         </div>
-
-                        <div className="mt-6 flex items-center justify-between p-4 rounded-lg border border-red-200 dark:border-red-900 bg-red-50/80 dark:bg-red-950/30">
-                          <div>
-                            <h4 className="font-medium text-gray-900 dark:text-white">注销账号</h4>
-                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                              申请后进入冷静期，期间无法使用产品，可随时撤销。
-                            </p>
+                        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 sm:px-5">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-slate-800 dark:text-gray-100">注销账号</p>
+                            <p className="text-xs text-slate-500 dark:text-gray-400">冷静期内无法使用，可随时撤销</p>
                           </div>
                           <Link
                             to="/account-deletion/request"
-                            className="inline-flex h-8 px-3 text-sm rounded-md items-center justify-center font-medium bg-red-600 text-white hover:bg-red-700 shadow-sm"
+                            className="inline-flex h-8 shrink-0 items-center justify-center rounded-md bg-slate-900 px-3 text-xs font-medium text-white hover:bg-slate-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
                           >
                             前往注销
                           </Link>
                         </div>
                       </div>
                     </div>
-                  </Card>
+                  </div>
                 )}
 
                 {section === 'user-devices' && (
-                  <Card className="w-full max-w-none">
-                    <div className="p-6">
-                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
-                        <div className="flex items-start gap-3 min-w-0">
-                          <div className="p-2 rounded-lg bg-sky-100 dark:bg-sky-900/30 shrink-0">
-                            <Smartphone className="w-5 h-5 text-sky-600 dark:text-sky-400" />
-                          </div>
-                          <div className="min-w-0">
-                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">登录设备</h3>
-                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                              查看已登录的浏览器与客户端，可信任常用设备或移除不再使用的会话。
-                            </p>
-                          </div>
-                        </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="shrink-0 self-start sm:self-center"
-                          onClick={loadDevices}
-                          disabled={isLoadingDevices}
-                        >
-                          {isLoadingDevices ? '加载中...' : '刷新'}
-                        </Button>
+                  <div className="mx-auto w-full max-w-3xl space-y-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <h3 className="text-lg font-semibold text-slate-900 dark:text-white">登录设备</h3>
+                        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                          当前账号下的会话与浏览器；可信任常用设备或移除不再使用的条目。
+                        </p>
                       </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="shrink-0 self-start sm:self-center"
+                        onClick={loadDevices}
+                        disabled={isLoadingDevices}
+                      >
+                        {isLoadingDevices ? '加载中...' : '刷新'}
+                      </Button>
+                    </div>
 
-                      {isLoadingDevices ? (
-                        <div className="flex items-center justify-center py-12">
-                          <LoadingAnimation type="progress" size="md" />
-                          <span className="ml-2 text-gray-600 dark:text-gray-400">加载中...</span>
-                        </div>
-                      ) : devices.length === 0 ? (
-                        <div className="text-center py-12 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                          <Smartphone className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                          <p className="text-gray-500 dark:text-gray-400">暂无设备记录</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-3 max-h-[min(480px,70vh)] overflow-y-auto">
-                          {devices.map((device) => (
-                            <motion.div
+                    {isLoadingDevices ? (
+                      <div className="flex items-center justify-center rounded-xl border border-slate-200 bg-slate-50/50 py-16 dark:border-neutral-800 dark:bg-neutral-900/40">
+                        <LoadingAnimation type="progress" size="md" />
+                        <span className="ml-2 text-sm text-slate-600 dark:text-slate-400">加载中...</span>
+                      </div>
+                    ) : devices.length === 0 ? (
+                      <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 py-14 text-center dark:border-neutral-800 dark:bg-neutral-900/30">
+                        <Monitor className="mx-auto h-10 w-10 text-slate-300 dark:text-slate-600" aria-hidden />
+                        <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">暂无设备记录</p>
+                      </div>
+                    ) : (
+                      <ul
+                        role="list"
+                        className="max-h-[min(520px,72vh)] divide-y divide-slate-200 overflow-y-auto overscroll-y-contain rounded-xl border border-slate-200 bg-white shadow-sm dark:divide-neutral-800 dark:border-neutral-800 dark:bg-neutral-950"
+                      >
+                        {devices.map((device) => {
+                          const kind = resolveDeviceVisualKind(device)
+                          const { Icon, ring, icon } = DEVICE_VISUAL[kind]
+                          const title = device.deviceName || `${device.browser} · ${device.os}`
+                          return (
+                            <li
                               key={device.id}
-                              initial={{ opacity: 0, y: 12 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700"
+                              className="flex flex-col gap-4 px-4 py-4 transition-colors hover:bg-slate-50/90 sm:flex-row sm:items-center sm:gap-4 sm:px-5 dark:hover:bg-neutral-900/60"
                             >
-                              <div className="flex items-center space-x-4 flex-1 min-w-0">
+                              <div className="flex min-w-0 flex-1 items-start gap-4">
                                 <div
-                                  className={`p-2 rounded-lg shrink-0 ${
-                                    device.isTrusted
-                                      ? 'bg-green-100 dark:bg-green-900/30'
-                                      : 'bg-gray-100 dark:bg-gray-700'
-                                  }`}
+                                  className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-50 ring-2 ${ring} dark:bg-neutral-900/80`}
+                                  aria-hidden
                                 >
-                                  <Settings
-                                    className={`w-5 h-5 ${
-                                      device.isTrusted
-                                        ? 'text-green-600 dark:text-green-400'
-                                        : 'text-gray-600 dark:text-gray-400'
-                                    }`}
-                                  />
+                                  <Icon className={`h-6 w-6 ${icon}`} />
                                 </div>
-                                <div className="flex-1 min-w-0">
+                                <div className="min-w-0 flex-1">
                                   <div className="flex flex-wrap items-center gap-2">
-                                    <h5 className="text-sm font-medium text-gray-900 dark:text-white">
-                                      {device.deviceName || `${device.browser} on ${device.os}`}
-                                    </h5>
+                                    <span className="font-medium text-slate-900 dark:text-white">{title}</span>
                                     {device.isTrusted && (
-                                      <Badge variant="success" className="text-xs">
+                                      <Badge variant="success" className="text-[11px] font-medium">
                                         已信任
                                       </Badge>
                                     )}
                                   </div>
-                                  <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                                    {device.os} • {device.browser}
+                                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                                    {device.os} · {device.browser}
                                   </p>
-                                  <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                                    {device.location || device.ipAddress} • 最后使用:{' '}
-                                    {new Date(device.lastUsedAt).toLocaleString('zh-CN')}
+                                  <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-slate-500 dark:text-slate-500">
+                                    <span className="inline-flex items-center gap-1">
+                                      <MapPin className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden />
+                                      {device.location || device.ipAddress || '—'}
+                                    </span>
+                                    <span className="text-slate-400 dark:text-slate-600" aria-hidden>
+                                      ·
+                                    </span>
+                                    <span>
+                                      最后使用 {new Date(device.lastUsedAt).toLocaleString('zh-CN')}
+                                    </span>
                                   </p>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-2 shrink-0 sm:pl-2">
+                              <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-slate-100 pt-3 sm:border-t-0 sm:pt-0 dark:border-neutral-800">
                                 {!device.isTrusted ? (
                                   <Button
                                     variant="outline"
@@ -1587,95 +1510,24 @@ const Profile = () => {
                                   删除
                                 </Button>
                               </div>
-                            </motion.div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </Card>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    )}
+                  </div>
                 )}
 
-                {/* 活动记录 */}
                 {section === 'activity' && (
-                  <Card className="overflow-hidden border-slate-200/80 dark:border-neutral-700">
-                    <div className="px-5 py-4 border-b border-slate-100 dark:border-neutral-800 flex items-center justify-between bg-slate-50/50 dark:bg-neutral-900/40">
-                      <h3 className="text-base font-semibold text-gray-900 dark:text-white">最近活动</h3>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => loadActivities(1)}
-                        disabled={isLoadingActivities}
-                      >
-                        {isLoadingActivities ? '加载中...' : '刷新'}
-                      </Button>
-                    </div>
-                    <div className="p-0">
-                      {isLoadingActivities ? (
-                        <div className="flex items-center justify-center py-16">
-                          <LoadingAnimation type="progress" size="md" />
-                          <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">加载中...</span>
-                        </div>
-                      ) : activities.length === 0 ? (
-                        <div className="text-center py-14 px-4">
-                          <Clock className="w-10 h-10 text-gray-300 dark:text-neutral-600 mx-auto mb-3" />
-                          <p className="text-sm text-gray-500 dark:text-gray-400">暂无活动记录</p>
-                        </div>
-                      ) : (
-                        <>
-                          <ul className="divide-y divide-slate-100 dark:divide-neutral-800 max-h-[min(560px,70vh)] overflow-y-auto">
-                            {activities.map((activity) => (
-                              <li
-                                key={activity.id}
-                                className="flex gap-4 px-5 py-3.5 hover:bg-slate-50/80 dark:hover:bg-neutral-800/40 transition-colors"
-                              >
-                                <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${getActivityBgColor(activity.action)}`}>
-                                  <span className="scale-90">{getActivityIcon(activity.action)}</span>
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100 leading-snug">
-                                    {formatActivityDescription(activity)}
-                                  </p>
-                                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 tabular-nums">
-                                    {formatTimeAgo(activity.createdAt)}
-                                    <span className="mx-1.5 text-gray-300 dark:text-neutral-600">·</span>
-                                    {[activity.browser, activity.location].filter(Boolean).join(' · ') || '—'}
-                                  </p>
-                                  {activity.details ? (
-                                    <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-500 border-l-2 border-slate-200 dark:border-neutral-600 pl-2">
-                                      {activity.details}
-                                    </p>
-                                  ) : null}
-                                </div>
-                              </li>
-                            ))}
-                          </ul>
-                          {activityTotalPages > 1 && (
-                            <div className="flex items-center justify-center gap-2 px-5 py-3 border-t border-slate-100 dark:border-neutral-800 bg-slate-50/30 dark:bg-neutral-900/30">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => loadActivities(activityPage - 1)}
-                                disabled={activityPage <= 1 || isLoadingActivities}
-                              >
-                                上一页
-                              </Button>
-                              <span className="text-xs text-gray-500 dark:text-gray-400">
-                                第 {activityPage} / {activityTotalPages} 页
-                              </span>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => loadActivities(activityPage + 1)}
-                                disabled={activityPage >= activityTotalPages || isLoadingActivities}
-                              >
-                                下一页
-                              </Button>
-                            </div>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  </Card>
+                  <ProfileAuditLogPanel
+                    userId={
+                      user?.ID != null
+                        ? Number(user.ID)
+                        : user?.id != null
+                          ? Number(user.id)
+                          : undefined
+                    }
+                  />
                 )}
 
                 {section === 'teams' && <TeamWorkspacePage />}

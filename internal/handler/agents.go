@@ -39,7 +39,6 @@ func (h *Handlers) CreateAgent(c *gin.Context) {
 	var input struct {
 		Name        string `json:"name" binding:"required"`
 		Description string `json:"description"`
-		Icon        string `json:"icon"`
 		GroupID     *uint  `json:"groupId,omitempty"` // Organization ID, if set, creates a shared assistant for the organization
 	}
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -77,12 +76,6 @@ func (h *Handlers) CreateAgent(c *gin.Context) {
 		CreatedBy:   user.ID,
 		Name:        input.Name,
 		Description: input.Description,
-		Icon: func() string {
-			if input.Icon == "" {
-				return "Bot" // 默认图标 key，前端会回落到内置 Bot 图标
-			}
-			return input.Icon
-		}(),
 		SystemPrompt: "empty system prompt",
 		PersonaTag:   "mentor",
 		Temperature:  0.6,
@@ -170,7 +163,6 @@ func (h *Handlers) UpdateAgent(c *gin.Context) {
 	var input struct {
 		Name                 string   `json:"name"`
 		Description          string   `json:"description"`
-		Icon                 string   `json:"icon"`
 		SystemPrompt         string   `json:"systemPrompt"`
 		PersonaTag           string   `json:"persona_tag"`
 		Temperature          float32  `json:"temperature"`
@@ -218,9 +210,6 @@ func (h *Handlers) UpdateAgent(c *gin.Context) {
 	}
 	if input.Description != "" {
 		updateData["description"] = input.Description
-	}
-	if input.Icon != "" {
-		updateData["icon"] = input.Icon
 	}
 	if input.SystemPrompt != "" {
 		updateData["system_prompt"] = input.SystemPrompt

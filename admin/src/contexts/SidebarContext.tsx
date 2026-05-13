@@ -8,8 +8,15 @@ interface SidebarContextType {
 
 const SidebarContext = createContext<SidebarContextType | undefined>(undefined)
 
+function readInitialCollapsed(): boolean {
+  if (typeof window === 'undefined') {
+    return false
+  }
+  return window.innerWidth < 992
+}
+
 export const SidebarProvider = ({ children }: { children: ReactNode }) => {
-  const [isCollapsed, setIsCollapsed] = useState(false)
+  const [isCollapsed, setIsCollapsed] = useState(() => readInitialCollapsed())
 
   const toggleCollapse = () => {
     setIsCollapsed((prev) => !prev)

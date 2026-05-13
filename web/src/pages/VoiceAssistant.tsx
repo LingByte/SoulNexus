@@ -159,7 +159,6 @@ const VoiceAssistant = () => {
     // 助手基本信息
     const [assistantName, setAssistantName] = useState('')
     const [assistantDescription, setAssistantDescription] = useState('')
-    const [assistantIcon, setAssistantIcon] = useState('Bot')
     // VAD 配置
     const [enableVAD, setEnableVAD] = useState(true)
     const [vadThreshold, setVadThreshold] = useState(500)
@@ -195,7 +194,6 @@ const VoiceAssistant = () => {
                 // 同步助手基础配置（包括图记忆开关和VAD配置）
                 setAssistantName(currentAssistant.name || '')
                 setAssistantDescription(currentAssistant.description || '')
-                setAssistantIcon(currentAssistant.icon || 'Bot')
                 // 同步 VAD 配置
                 if ((currentAssistant as any).enableVAD !== undefined) {
                     setEnableVAD((currentAssistant as any).enableVAD)
@@ -1539,7 +1537,6 @@ const VoiceAssistant = () => {
                             // 加载助手基本信息
                             setAssistantName(detail.name ?? '')
                             setAssistantDescription(detail.description ?? '')
-                            setAssistantIcon(detail.icon ?? 'Bot')
                             // 加载 VAD 配置
                             setEnableVAD(detail.enableVAD !== undefined ? detail.enableVAD : true)
                             setVadThreshold(detail.vadThreshold ?? 500)
@@ -1863,7 +1860,6 @@ const VoiceAssistant = () => {
                 // 加载助手基本信息
                 setAssistantName(detail.name ?? '')
                 setAssistantDescription(detail.description ?? '')
-                setAssistantIcon(detail.icon ?? 'Bot')
                 // 加载 VAD 配置
                 setEnableVAD(detail.enableVAD !== undefined ? detail.enableVAD : true)
                 setVadThreshold(detail.vadThreshold ?? 500)
@@ -1918,7 +1914,7 @@ const VoiceAssistant = () => {
     }
 
     // 添加助手
-    const handleAddAssistant = async (assistant: { name: string; description: string; icon: string }) => {
+    const handleAddAssistant = async (assistant: { name: string; description: string }) => {
         try {
             await createAssistant(assistant)
 
@@ -1957,7 +1953,6 @@ const VoiceAssistant = () => {
                 const response = await updateAssistant(agentId, {
                     name: assistantName,
                     description: assistantDescription,
-                    icon: assistantIcon,
                     systemPrompt,
                     persona_tag: assistants.find(a => a.id === agentId)?.name || '',
                     temperature: temperature,
@@ -2039,8 +2034,7 @@ const VoiceAssistant = () => {
                     const sessionDetails = {
                         sessionId: sessionId,
                         logs: response.data,
-                        assistantName: response.data[0]?.agentName || response.data[0]?.assistantName || '未知助手',
-                        assistantIcon: assistantIcon,
+                        assistantName: response.data[0]?.agentName || '未知助手',
                         chatType: response.data[0]?.chatType || 'text'
                     }
                     setSelectedLogDetail(sessionDetails as any)
@@ -2255,10 +2249,8 @@ const VoiceAssistant = () => {
                                 onJsSourceIdChange={setJsSourceIdState}
                                 assistantName={assistantName}
                                 assistantDescription={assistantDescription}
-                                assistantIcon={assistantIcon}
                                 onAssistantNameChange={setAssistantName}
                                 onAssistantDescriptionChange={setAssistantDescription}
-                                onAssistantIconChange={setAssistantIcon}
                                 enableVAD={enableVAD}
                                 vadThreshold={vadThreshold}
                                 vadConsecutiveFrames={vadConsecutiveFrames}
@@ -2390,7 +2382,6 @@ const VoiceAssistant = () => {
                 <ChatLogDetail
                     logs={selectedLogDetail.logs || [selectedLogDetail]}
                     assistantName={selectedLogDetail.agentName || selectedLogDetail.assistantName || assistantName}
-                    assistantIcon={selectedLogDetail.assistantIcon || assistantIcon}
                     onClose={() => setShowLogModal(false)}
                 />
             )}

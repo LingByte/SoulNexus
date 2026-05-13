@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronDown, Bot, MessageCircle, Users, Zap, Circle, User, Timer } from 'lucide-react'
+import { ChevronDown, Bot, User, Timer } from 'lucide-react'
 import { sanitizeReadableText } from '@/utils/string'
 
 interface LLMUsage {
@@ -43,22 +43,12 @@ interface ChatLog {
 interface ChatLogDetailProps {
   logs: ChatLog[]
   assistantName?: string
-  assistantIcon?: string
   onClose: () => void
-}
-
-const ICON_MAP = {
-  Bot: <Bot className="w-5 h-5" />,
-  MessageCircle: <MessageCircle className="w-5 h-5" />,
-  Users: <Users className="w-5 h-5" />,
-  Zap: <Zap className="w-5 h-5" />,
-  Circle: <Circle className="w-5 h-5" />
 }
 
 const ChatLogDetail: React.FC<ChatLogDetailProps> = ({
   logs,
   assistantName = 'AI助手',
-  assistantIcon,
   onClose,
 }) => {
   const [expandedLLMUsage, setExpandedLLMUsage] = useState<Set<number>>(new Set())
@@ -73,13 +63,7 @@ const ChatLogDetail: React.FC<ChatLogDetailProps> = ({
     setExpandedLLMUsage(newSet)
   }
 
-  // 获取助手图标组件
-  const getAssistantIconComponent = () => {
-    if (assistantIcon && assistantIcon in ICON_MAP) {
-      return ICON_MAP[assistantIcon as keyof typeof ICON_MAP]
-    }
-    return <Bot className="w-5 h-5" />
-  }
+  const getAssistantIconComponent = () => <Bot className="h-5 w-5" />
 
   const normalizeMs = (usage: LLMUsage, key: 'latency' | 'ttft' | 'queue') => {
     if (key === 'latency') return usage.latencyMs ?? usage.latency_ms

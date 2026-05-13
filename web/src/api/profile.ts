@@ -138,16 +138,23 @@ export const getTwoFactorStatus = async (): Promise<ApiResponse<TwoFactorStatusR
 // 活动记录相关接口
 export interface ActivityLog {
   id: number
+  userId?: number
+  username?: string
   action: string
   target: string
   details: string
   ipAddress: string
   userAgent: string
+  referer?: string
+  requestMethod?: string
   device: string
   browser: string
   os: string
   location: string
   createdAt: string
+  serviceName?: string
+  eventCode?: string
+  resourceSummary?: string
 }
 
 export interface ActivityLogResponse {
@@ -158,19 +165,35 @@ export interface ActivityLogResponse {
     total: number
     totalPages: number
   }
+  retentionDays?: number
 }
 
-// 获取用户活动记录
+// 获取用户活动记录（审计日志）
 export const getUserActivity = async (params?: {
   page?: number
   limit?: number
+  /** HTTP 方法筛选，对应后端 action 字段 */
   action?: string
+  start?: string
+  end?: string
+  service?: string
+  event?: string
+  operatorId?: string
+  credentialId?: string
+  resource?: string
 }): Promise<ApiResponse<ActivityLogResponse>> => {
   const queryParams = new URLSearchParams()
   if (params?.page) queryParams.append('page', params.page.toString())
   if (params?.limit) queryParams.append('limit', params.limit.toString())
   if (params?.action) queryParams.append('action', params.action)
-  
+  if (params?.start) queryParams.append('start', params.start)
+  if (params?.end) queryParams.append('end', params.end)
+  if (params?.service) queryParams.append('service', params.service)
+  if (params?.event) queryParams.append('event', params.event)
+  if (params?.operatorId) queryParams.append('operatorId', params.operatorId)
+  if (params?.credentialId) queryParams.append('credentialId', params.credentialId)
+  if (params?.resource) queryParams.append('resource', params.resource)
+
   const queryString = queryParams.toString()
   const url = queryString ? `/auth/activity?${queryString}` : '/auth/activity'
   return get(url, userServiceConfig)

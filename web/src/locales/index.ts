@@ -12,6 +12,7 @@ import { device } from './modules/device'
 import { jsTemplate } from './modules/jsTemplate'
 import { resetPassword } from './modules/resetPassword'
 import { animation } from './modules/animation'
+import { knowledge } from './modules/knowledge'
 import { zhTWOverrides } from './overrides/zhTW'
 import { frOverrides } from './overrides/fr'
 
@@ -57,5 +58,6 @@ export const translations = mergeTranslations(
   device,
   jsTemplate,
   resetPassword,
-  animation
+  animation,
+  knowledge,
 )

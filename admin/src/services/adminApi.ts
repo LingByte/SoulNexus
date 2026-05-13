@@ -1800,3 +1800,202 @@ export const resetLLMTokenUsage = async (id: number) => {
 export const deleteLLMToken = async (id: number) => {
   await del(`${BACKEND_BASE}/admin/llm-tokens/${id}`)
 }
+
+// ==================== Knowledge bases (RAG) ====================
+// Routes: /api/knowledge-namespaces, /api/knowledge-documents (session auth).
+
+export interface KnowledgeNamespaceRow {
+  id: string
+  groupId: number
+  createdBy: number
+  namespace: string
+  name: string
+  description?: string
+  vectorProvider: string
+  embedModel: string
+  vectorDim: number
+  status: string
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface KnowledgeNamespaceListPayload {
+  list: KnowledgeNamespaceRow[]
+  total: number
+  page: number
+  pageSize: number
+  totalPage: number
+}
+
+export interface KnowledgeDocumentRow {
+  id: string
+  groupId: number
+  createdBy: number
+  namespace: string
+  title: string
+  source?: string
+  fileHash: string
+  textUrl?: string
+  storedMarkdown?: string
+  recordIds?: string
+  status: string
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface KnowledgeDocumentListPayload {
+  list: KnowledgeDocumentRow[]
+  total: number
+  page: number
+  pageSize: number
+  totalPage: number
+}
+
+export interface MyGroupRow {
+  id: number
+  name: string
+  type: string
+  creatorId?: number
+  memberCount?: number
+  myRole?: string
+}
+
+export const listMyGroupsForKnowledge = async (): Promise<MyGroupRow[]> => {
+  const res = await get<MyGroupRow[]>(`${BACKEND_BASE}/group`)
+  if (res.code !== 200) {
+    throw new Error(res.msg || '加载组织列表失败')
+  }
+  return Array.isArray(res.data) ? res.data : []
+}
+
+export const listKnowledgeNamespaces = async (params?: {
+  page?: number
+  pageSize?: number
+  status?: string
+  q?: string
+}): Promise<KnowledgeNamespaceListPayload> => {
+  const res = await get<KnowledgeNamespaceListPayload>(`${BACKEND_BASE}/knowledge-namespaces`, { params })
+  if (res.code !== 200) {
+    throw new Error(res.msg || '加载知识库失败')
+  }
+  return res.data as KnowledgeNamespaceListPayload
+}
+
+export const createKnowledgeNamespace = async (body: {
+  namespace: string
+  name: string
+  description?: string
+  vectorProvider?: string
+  embedModel: string
+  groupId?: number
+  status?: string
+}): Promise<KnowledgeNamespaceRow> => {
+  const res = await post<KnowledgeNamespaceRow>(`${BACKEND_BASE}/knowledge-namespaces`, body)
+  if (res.code !== 200) {
+    throw new Error((res as { msg?: string }).msg || '创建失败')
+  }
+  return res.data as KnowledgeNamespaceRow
+}
+
+export const deleteKnowledgeNamespace = async (id: string | number) => {
+  const res = await del(`${BACKEND_BASE}/knowledge-namespaces/${id}`)
+  if (res.code !== 200) {
+    throw new Error((res as { msg?: string }).msg || '删除失败')
+  }
+}
+
+export const getKnowledgeNamespace = async (id: string | number): Promise<KnowledgeNamespaceRow> => {
+  const res = await get<{ namespace: KnowledgeNamespaceRow }>(`${BACKEND_BASE}/knowledge-namespaces/${id}`)
+  if (res.code !== 200) {
+    throw new Error(res.msg || '加载知识库失败')
+  }
+  const data = res.data as { namespace?: KnowledgeNamespaceRow }
+  if (!data?.namespace) {
+    throw new Error('知识库不存在')
+  }
+  return data.namespace
+}
+
+export const getKnowledgeDocument = async (
+  id: string | number,
+): Promise<{ document: KnowledgeDocumentRow; vectorProvider?: string }> => {
+  const res = await get<{ document: KnowledgeDocumentRow; vectorProvider?: string }>(`${BACKEND_BASE}/knowledge-documents/${id}`)
+  if (res.code !== 200) {
+    throw new Error(res.msg || '加载文档失败')
+  }
+  return res.data as { document: KnowledgeDocumentRow; vectorProvider?: string }
+}
+
+export const listKnowledgeDocuments = async (params?: {
+  page?: number
+  pageSize?: number
+  namespace?: string
+  status?: string
+  q?: string
+}): Promise<KnowledgeDocumentListPayload> => {
+  const res = await get<KnowledgeDocumentListPayload>(`${BACKEND_BASE}/knowledge-documents`, { params })
+  if (res.code !== 200) {
+    throw new Error(res.msg || '加载文档失败')
+  }
+  return res.data as KnowledgeDocumentListPayload
+}
+
+export const uploadKnowledgeToNamespace = async (namespaceId: string | number, file: File): Promise<{ document: KnowledgeDocumentRow }> => {
+  const fd = new FormData()
+  fd.append('file', file)
+  const res = await post<{ document: KnowledgeDocumentRow }>(
+    `${BACKEND_BASE}/knowledge-namespaces/${namespaceId}/upload`,
+    fd,
+  )
+  if (res.code !== 200) {
+    throw new Error((res as { msg?: string }).msg || '上传失败')
+  }
+  return res.data as { document: KnowledgeDocumentRow }
+}
+
+export const reuploadKnowledgeDocument = async (docId: string | number, file: File): Promise<{ document: KnowledgeDocumentRow }> => {
+  const fd = new FormData()
+  fd.append('file', file)
+  const res = await post<{ document: KnowledgeDocumentRow }>(
+    `${BACKEND_BASE}/knowledge-documents/${docId}/upload`,
+    fd,
+  )
+  if (res.code !== 200) {
+    throw new Error((res as { msg?: string }).msg || '重新上传失败')
+  }
+  return res.data as { document: KnowledgeDocumentRow }
+}
+
+export const deleteKnowledgeDocument = async (docId: string | number) => {
+  const res = await del(`${BACKEND_BASE}/knowledge-documents/${docId}`)
+  if (res.code !== 200) {
+    throw new Error((res as { msg?: string }).msg || '删除文档失败')
+  }
+}
+
+export const getKnowledgeDocumentText = async (docId: string | number): Promise<{ url: string; markdown: string }> => {
+  const res = await get<{ url: string; markdown: string }>(`${BACKEND_BASE}/knowledge-documents/${docId}/text`)
+  if (res.code !== 200) {
+    throw new Error(res.msg || '读取文本失败')
+  }
+  return res.data as { url: string; markdown: string }
+}
+
+export const putKnowledgeDocumentText = async (docId: string | number, markdown: string): Promise<{ document: KnowledgeDocumentRow }> => {
+  const res = await put<{ document: KnowledgeDocumentRow }>(`${BACKEND_BASE}/knowledge-documents/${docId}/text`, { markdown })
+  if (res.code !== 200) {
+    throw new Error((res as { msg?: string }).msg || '保存失败')
+  }
+  return res.data as { document: KnowledgeDocumentRow }
+}
+
+export const runKnowledgeRecallTest = async (
+  namespaceId: string | number,
+  body: { query: string; topK?: number; minScore?: number; docId?: string },
+): Promise<Record<string, unknown>> => {
+  const res = await post<Record<string, unknown>>(`${BACKEND_BASE}/knowledge-namespaces/${namespaceId}/recall-test`, body)
+  if (res.code !== 200) {
+    throw new Error((res as { msg?: string }).msg || '召回失败')
+  }
+  return res.data as Record<string, unknown>
+}

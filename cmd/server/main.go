@@ -58,6 +58,7 @@ func main() {
 	seed := flag.Bool("seed", false, "seed database")
 	mode := flag.String("mode", "", "running environment (development, test, production)")
 	initSQL := flag.String("init-sql", "", "path to database init .sql script (optional)")
+	flag.Parse()
 
 	// 2. Set Environment Variables
 	if *mode != "" {

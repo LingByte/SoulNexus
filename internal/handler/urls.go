@@ -229,6 +229,7 @@ func (h *Handlers) Register(engine *gin.Engine) {
 	h.registerAnnouncementRoutes(r)
 	h.registerWebSocketRoutes(r)
 	h.registerAgentRoutes(r)
+	h.registerKnowledgeRoutes(r)
 	h.registerChatRoutes(r)
 	h.registerCredentialsRoutes(r)
 	h.registerXunfeiTTSRoutes(r)
@@ -478,7 +479,6 @@ func (h *Handlers) registerAgentRoutes(r *gin.RouterGroup) {
 	agents := r.Group("agents")
 	{
 		agents.POST("add", models.AuthRequired, h.CreateAgent)
-		agents.POST("icon/upload", models.AuthRequired, h.UploadAgentIcon)
 
 		agents.GET("", models.AuthRequired, h.ListAgents)
 
