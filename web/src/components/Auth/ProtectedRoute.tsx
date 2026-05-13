@@ -1,5 +1,6 @@
 import { ReactNode, useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
+import LoadingAnimation from '@/components/Animations/LoadingAnimation'
 import { useAuthStore } from '@/stores/authStore'
 import { beginSSOLogin } from '@/utils/sso'
 import {
@@ -16,6 +17,15 @@ function isDeletionPending(user: { accountDeletionEffectiveAt?: string | null } 
   if (!user?.accountDeletionEffectiveAt) return false
   const t = new Date(user.accountDeletionEffectiveAt).getTime()
   return !Number.isNaN(t) && t > Date.now()
+}
+
+function AuthFullscreenLoading({ message }: { message: string }) {
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center px-4">
+      <LoadingAnimation type="spinner" size="lg" className="mb-4" />
+      <p className="text-sm text-gray-500 dark:text-gray-400 text-center">{message}</p>
+    </div>
+  )
 }
 
 const ProtectedRoute = ({ children, requireAuth = true }: ProtectedRouteProps) => {
@@ -60,11 +70,7 @@ const ProtectedRoute = ({ children, requireAuth = true }: ProtectedRouteProps) =
   }, [requireAuth, isAuthenticated, user, authGateReady])
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    )
+    return <AuthFullscreenLoading message="加载中…" />
   }
 
   if (requireAuth && !isAuthenticated) {
@@ -72,11 +78,7 @@ const ProtectedRoute = ({ children, requireAuth = true }: ProtectedRouteProps) =
   }
 
   if (requireAuth && isAuthenticated && !authGateReady) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    )
+    return <AuthFullscreenLoading message="加载中…" />
   }
 
   if (requireAuth && isAuthenticated && isDeletionPending(user)) {

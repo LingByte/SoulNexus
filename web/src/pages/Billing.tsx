@@ -622,7 +622,7 @@ const Billing = () => {
         <TabsContent value="statistics" className="space-y-6">
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <LoadingAnimation type="progress" size="lg" />
+              <LoadingAnimation type="spinner" size="lg" />
             </div>
           ) : statistics ? (
             <>
@@ -748,7 +748,7 @@ const Billing = () => {
           
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <LoadingAnimation type="progress" size="lg" />
+              <LoadingAnimation type="spinner" size="lg" />
             </div>
           ) : usageRecords.length > 0 ? (
             <>
@@ -839,7 +839,7 @@ const Billing = () => {
         <TabsContent value="bills" className="space-y-4 mt-3">
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <LoadingAnimation type="progress" size="lg" />
+              <LoadingAnimation type="spinner" size="lg" />
             </div>
           ) : bills.length > 0 ? (
             <>

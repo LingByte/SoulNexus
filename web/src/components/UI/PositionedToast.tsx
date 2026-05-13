@@ -156,7 +156,7 @@ const PositionedToast = ({
               <div className={cn('flex-shrink-0', styles.icon)}>
                 {getIcon()}
               </div>
-              
+
               <div className="flex-1 min-w-0">
                 <h4 className={cn('text-sm font-semibold', styles.title)}>
                   {title}
@@ -167,7 +167,7 @@ const PositionedToast = ({
                   </p>
                 )}
               </div>
-              
+
               <button
                 onClick={handleClose}
                 className={cn(

@@ -58,7 +58,7 @@ const NAVIGATION: NavItem[] = [
     ],
   },
   { key: '/assistants', name: '智能体管理', icon: Bot },
-  { key: '/groups', name: '企业管理', icon: Building2 },
+  { key: '/groups', name: '组织管理', icon: Building2 },
   { key: '/knowledge-bases', name: '知识库', icon: Library },
   { key: '/credentials', name: '密钥管理', icon: Key },
   { key: '/oauth-clients', name: 'OAuth 客户端', icon: KeyRound },

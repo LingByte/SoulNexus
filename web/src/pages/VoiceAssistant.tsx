@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { showAlert } from '@/utils/notification'
 import { Settings } from 'lucide-react'
@@ -10,11 +10,12 @@ import ChatHistory from '@/components/Voice/ChatHistory'
 import ChatArea from '@/components/Voice/ChatArea'
 import ControlPanel from '@/components/Voice/ControlPanel'
 import AddAssistantModal from '@/components/Voice/AddAssistantModal'
-import IntegrationModal from '@/components/Voice/IntegrationModal'
+import IntegrationDrawer from '@/components/Voice/IntegrationDrawer'
 import GuideTooltip from '@/components/Voice/GuideTooltip'
 import LineSelector from '@/components/Voice/LineSelector'
 import TextInputBox from '@/components/Voice/TextInputBox'
-import ChatLogDetail from '@/components/ChatLogDetail'
+import type { ChatSessionLogDetail } from '@/api/chat'
+import { chatSessionLogsToChatMessages } from '@/utils/chatSessionHistory'
 // 导入API服务
 import {
     createAssistant,
@@ -173,15 +174,11 @@ const VoiceAssistant = () => {
 
     // 模态框状态
     const [showAddAssistantModal, setShowAddAssistantModal] = useState(false)
-    const [showIntegrationModal, setShowIntegrationModal] = useState(false)
+    const [showIntegrationDrawer, setShowIntegrationDrawer] = useState(false)
     const [showConfirmModal, setShowConfirmModal] = useState(false)
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
     const [selectedMethod, setSelectedMethod] = useState<string | null>(null)
     const [pendingAgent, setPendingAgent] = useState<number | null>(null)
-
-    // 聊天记录详情
-    const [selectedLogDetail, setSelectedLogDetail] = useState<any>(null)
-    const [showLogModal, setShowLogModal] = useState(false)
 
     // 获取选中助手的 jsSourceId
     const jsSourceId = assistants.find(a => a.id === agentId)?.jsSourceId || ''
@@ -263,7 +260,7 @@ const VoiceAssistant = () => {
         const newMessage = {
             type: 'user' as const,
             content: text,
-            timestamp: new Date().toLocaleTimeString(),
+            timestamp: new Date().toISOString(),
             id: messageId
         }
         console.log('新用户消息对象:', newMessage)
@@ -300,7 +297,7 @@ const VoiceAssistant = () => {
         const newMessage = {
             type: 'agent' as const,
             content: text,
-            timestamp: new Date().toLocaleTimeString(),
+            timestamp: new Date().toISOString(),
             id: messageId,
             audioUrl: audioUrl
         }
@@ -332,7 +329,7 @@ const VoiceAssistant = () => {
         const loadingMessage = {
             type: 'agent' as const,
             content: '',
-            timestamp: new Date().toLocaleTimeString(),
+            timestamp: new Date().toISOString(),
             id: messageId,
             isLoading: true
         }
@@ -418,6 +415,32 @@ const VoiceAssistant = () => {
         setTimeout(poll, pollInterval)
     }
 
+    const refreshChatHistory = useCallback(async (forAgentId?: number) => {
+        const aid = forAgentId ?? agentId
+        try {
+            if (aid && aid > 0) {
+                const historyResponse = await getChatSessionLogsByAssistant(aid, { pageSize: 20 })
+                if (historyResponse.data && historyResponse.data.logs) {
+                    setChatHistory(historyResponse.data.logs.map(log => ({
+                        id: log.id,
+                        sessionId: log.sessionId,
+                        content: log.preview,
+                        createdAt: log.createdAt,
+                        agentName: log.agentName,
+                        chatType: log.chatType,
+                        messageCount: log.messageCount || 1
+                    })))
+                } else {
+                    setChatHistory([])
+                }
+            } else {
+                setChatHistory([])
+            }
+        } catch (err) {
+            console.warn('刷新聊天记录失败:', err)
+        }
+    }, [agentId])
+
     // 使用文本输入相关 hook（在函数定义之后）
     const voiceAssistantHook = useVoiceAssistant({
         apiKey,
@@ -438,6 +461,7 @@ const VoiceAssistant = () => {
         temperature,
         maxTokens,
         updateAIMessage,
+        onAfterTextExchangeSuccess: refreshChatHistory,
     })
 
     // 处理引导下一步
@@ -1557,30 +1581,7 @@ const VoiceAssistant = () => {
                     console.warn('获取助手列表失败:', err)
                 })
 
-                // 获取聊天历史（只获取当前助手的记录）
-                try {
-                    if (agentId && agentId > 0) {
-                        const historyResponse = await getChatSessionLogsByAssistant(agentId, { pageSize: 20 })
-                        if (historyResponse.data && historyResponse.data.logs) {
-                            setChatHistory(historyResponse.data.logs.map(log => ({
-                                id: log.id,
-                                sessionId: log.sessionId,
-                                content: log.preview,
-                                createdAt: log.createdAt,
-                                agentName: log.agentName,
-                                chatType: log.chatType,
-                                messageCount: log.messageCount || 1
-                            })))
-                        } else {
-                            setChatHistory([])
-                        }
-                    } else {
-                        setChatHistory([])
-                    }
-                } catch (historyErr) {
-                    console.warn('获取聊天历史失败:', historyErr)
-                    setChatHistory([])
-                }
+                await refreshChatHistory()
 
                 // 获取音色列表（但不自动选择，等待从助手配置加载）
                 try {
@@ -1801,29 +1802,7 @@ const VoiceAssistant = () => {
         setChatMessages([])
         showAlert('已开始新会话', 'success')
 
-        // 刷新聊天记录
-        try {
-            if (agentId && agentId > 0) {
-                const historyResponse = await getChatSessionLogsByAssistant(agentId, { pageSize: 20 })
-                if (historyResponse.data && historyResponse.data.logs) {
-                    setChatHistory(historyResponse.data.logs.map(log => ({
-                        id: log.id,
-                        sessionId: log.sessionId,
-                        content: log.preview,
-                        createdAt: log.createdAt,
-                        agentName: log.agentName,
-                        chatType: log.chatType,
-                        messageCount: log.messageCount || 1
-                    })))
-                } else {
-                    setChatHistory([])
-                }
-            } else {
-                setChatHistory([])
-            }
-        } catch (err) {
-            console.warn('刷新聊天记录失败:', err)
-        }
+        await refreshChatHistory()
     }
 
     // 切换助手
@@ -1868,26 +1847,7 @@ const VoiceAssistant = () => {
                 setEnableJSONOutput(detail.enableJSONOutput !== undefined ? detail.enableJSONOutput : false)
                 setJsSourceIdState(detail.jsSourceId ?? '')
 
-                // 重新加载当前助手的聊天记录
-                try {
-                    const historyResponse = await getChatSessionLogsByAssistant(agentId, { pageSize: 20 })
-                    if (historyResponse.data && historyResponse.data.logs) {
-                        setChatHistory(historyResponse.data.logs.map(log => ({
-                            id: log.id,
-                            sessionId: log.sessionId,
-                            content: log.preview,
-                            createdAt: log.createdAt,
-                            agentName: log.agentName,
-                            chatType: log.chatType,
-                            messageCount: log.messageCount || 1
-                        })))
-                    } else {
-                        setChatHistory([])
-                    }
-                } catch (historyErr) {
-                    console.warn('获取聊天历史失败:', historyErr)
-                    setChatHistory([])
-                }
+                await refreshChatHistory(agentId)
             }
         } catch (err: any) {
             console.error('获取助手详情失败:', err)
@@ -2019,51 +1979,53 @@ const VoiceAssistant = () => {
         }
     }
 
-    // 查看聊天记录详情
+    // 进入历史会话：在主聊天区加载完整消息并绑定 sessionId，后续请求携带同一上下文（与 ChatGPT 等一致）
     const handleSessionClick = async (logId: number, sessionId?: string) => {
+        if (isCalling) {
+            showAlert('请先结束当前通话，再进入历史会话', 'warning')
+            return
+        }
         try {
-            console.log('点击聊天记录:', logId, 'sessionId:', sessionId)
+            let rows: ChatSessionLogDetail[] = []
+            let resolvedSessionId: string | null = null
+            let chatType: string | undefined
 
-            // 如果有 sessionId，获取该 session 的所有记录
             if (sessionId) {
                 const response = await getChatSessionLogsBySession(sessionId)
-                console.log('会话记录响应:', response)
-
-                if (response.data && response.data.length > 0) {
-                    // 创建一个包含所有记录的详情对象
-                    const sessionDetails = {
-                        sessionId: sessionId,
-                        logs: response.data,
-                        assistantName: response.data[0]?.agentName || '未知助手',
-                        chatType: response.data[0]?.chatType || 'text'
-                    }
-                    setSelectedLogDetail(sessionDetails as any)
-                    setShowLogModal(true)
-                } else {
-                    showAlert('未找到会话记录', 'warning')
+                if (response.code !== 200) {
+                    showAlert(response.msg || '加载会话失败', 'error')
+                    return
                 }
+                const data = response.data
+                const list = Array.isArray(data) ? data : []
+                resolvedSessionId = sessionId
+                rows = list
+                chatType = list[0]?.chatType
             } else {
-                // 如果没有 sessionId，使用原来的方式获取单条记录
                 const response = await getChatSessionLogDetail(logId)
-                console.log('聊天记录详情响应:', response)
-
-                if (response.data) {
-                    setSelectedLogDetail(response.data)
-                    setShowLogModal(true)
-                } else {
-                    showAlert('未找到聊天记录详情', 'warning')
+                if (response.code !== 200 || !response.data) {
+                    showAlert(response.msg || '未找到该条会话记录', 'warning')
+                    return
                 }
+                rows = [response.data]
+                resolvedSessionId = response.data.sessionId || null
+                chatType = response.data.chatType
+            }
+
+            const messages = chatSessionLogsToChatMessages(rows)
+            setCurrentSessionId(resolvedSessionId)
+            setChatMessages(messages)
+            if (chatType === 'text') {
+                setTextMode('text')
             }
         } catch (err: any) {
-            console.error('获取聊天记录详情失败:', err)
-
-            // 检查是否是API错误响应
+            console.error('进入历史会话失败:', err)
             if (err.response && err.response.data && err.response.data.msg) {
                 showAlert(err.response.data.msg, 'error')
             } else if (err.message) {
                 showAlert(err.message, 'error')
             } else {
-                showAlert('获取聊天记录详情失败', 'error')
+                showAlert('进入历史会话失败', 'error')
             }
         }
     }
@@ -2075,7 +2037,7 @@ const VoiceAssistant = () => {
             return
         }
         setSelectedMethod(method)
-        setShowIntegrationModal(true)
+        setShowIntegrationDrawer(true)
     }
 
     return (
@@ -2316,9 +2278,9 @@ const VoiceAssistant = () => {
                 onAdd={handleAddAssistant}
             />
 
-            <IntegrationModal
-                isOpen={showIntegrationModal}
-                onClose={() => setShowIntegrationModal(false)}
+            <IntegrationDrawer
+                isOpen={showIntegrationDrawer}
+                onClose={() => setShowIntegrationDrawer(false)}
                 selectedMethod={selectedMethod}
                 selectedAgent={agentId}
                 jsSourceId={jsSourceId}
@@ -2376,15 +2338,6 @@ const VoiceAssistant = () => {
                 </div>
             )}
 
-
-            {/* 聊天记录详情模态框 - 使用优化后的组件 */}
-            {showLogModal && selectedLogDetail && (
-                <ChatLogDetail
-                    logs={selectedLogDetail.logs || [selectedLogDetail]}
-                    assistantName={selectedLogDetail.agentName || selectedLogDetail.assistantName || assistantName}
-                    onClose={() => setShowLogModal(false)}
-                />
-            )}
         </div>
     )
 }

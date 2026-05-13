@@ -18,6 +18,7 @@ import {
 import { useAuthStore } from '@/stores/authStore'
 import { useI18nStore } from '@/stores/i18nStore'
 import Button from '../UI/Button'
+import ConfirmDialog from '../UI/ConfirmDialog'
 import { getSystemInit, type SystemInitInfo } from '@/api/system'
 import { beginSSOLogin } from '@/utils/sso'
 
@@ -27,6 +28,7 @@ const Sidebar = () => {
   const { user, isAuthenticated, logout } = useAuthStore()
   const { t } = useI18nStore()
   const [showDropdown, setShowDropdown] = useState(false)
+  const [confirmLogoutOpen, setConfirmLogoutOpen] = useState(false)
   const [systemInfo, setSystemInfo] = useState<SystemInitInfo | null>(null)
   const navigate = useNavigate()
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -105,8 +107,12 @@ const Sidebar = () => {
 
   const isActive = (path: string) => location.pathname === path
   const isExternalHref = (href: string) => href.startsWith('http')
-  const handleSidebarLogout = async () => {
+  const handleSidebarLogout = () => {
     setShowDropdown(false)
+    setConfirmLogoutOpen(true)
+  }
+
+  const performLogout = async () => {
     await logout()
   }
 
@@ -116,7 +122,11 @@ const Sidebar = () => {
       <div className="border-b border-border flex-shrink-0">
         {isCollapsed ? (
           <div className="flex flex-col items-center gap-2 py-3 px-2">
-            <Link to="/" className="flex justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" title={t('brand.name')}>
+            <Link
+              to="/"
+              className="flex justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              title={t('brand.name')}
+            >
               <img src="/SoulMy.png" alt="" className="w-9 h-9 rounded" />
             </Link>
             <button
@@ -514,6 +524,16 @@ const Sidebar = () => {
           </nav>
         </div>
       </header>
+      <ConfirmDialog
+        isOpen={confirmLogoutOpen}
+        onClose={() => setConfirmLogoutOpen(false)}
+        onConfirm={performLogout}
+        title={t('nav.logoutConfirmTitle')}
+        message={t('nav.logoutConfirmMessage')}
+        confirmText={t('nav.logout')}
+        cancelText={t('profile.cancel')}
+        type="warning"
+      />
     </>
   )
 }

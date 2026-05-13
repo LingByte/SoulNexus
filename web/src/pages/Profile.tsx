@@ -715,7 +715,7 @@ const Profile = () => {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <LoadingAnimation type="progress" size="lg" className="mx-auto mb-4" />
+          <LoadingAnimation type="spinner" size="lg" className="mx-auto mb-4" />
           <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100 mb-4">
             {t('profile.loading')}
           </p>
@@ -767,7 +767,7 @@ const Profile = () => {
                     </label>
                     {isLoading && (
                       <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40">
-                        <LoadingAnimation type="progress" size="sm" color="#ffffff" />
+                        <LoadingAnimation type="spinner" size="sm" color="#ffffff" />
                       </div>
                     )}
                   </div>
@@ -1426,7 +1426,7 @@ const Profile = () => {
 
                     {isLoadingDevices ? (
                       <div className="flex items-center justify-center rounded-xl border border-slate-200 bg-slate-50/50 py-16 dark:border-neutral-800 dark:bg-neutral-900/40">
-                        <LoadingAnimation type="progress" size="md" />
+                        <LoadingAnimation type="spinner" size="md" />
                         <span className="ml-2 text-sm text-slate-600 dark:text-slate-400">加载中...</span>
                       </div>
                     ) : devices.length === 0 ? (

@@ -813,16 +813,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                             </div>
                                         </Card>
                                     </div>
-
-                                    <Card
-                                        variant="filled"
-                                        padding="sm"
-                                        className="mt-4"
-                                    >
-                                        <p className="text-xs text-gray-600 dark:text-gray-400 text-center">
-                                            {t('controlPanel.integration.hint')}
-                                        </p>
-                                    </Card>
                                 </div>
                             </motion.div>
                         )}
