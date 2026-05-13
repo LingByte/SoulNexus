@@ -1,0 +1,85 @@
+# coturn TURN / STUN server for VoiceServer WebRTC
+#
+# Why this exists:
+#   Pure STUN (the default voiceserver config) fails when either endpoint
+#   sits behind symmetric NAT / a strict corporate firewall — the two
+#   peers cannot punch a direct path so the WebRTC call never reaches
+#   ICE-connected and the browser just shows "failed". TURN relays media
+#   through a server both peers CAN reach, turning any NAT topology into
+#   a usable path at the cost of ~30-60ms extra latency and server
+#   bandwidth.
+#
+# How voiceserver consumes this:
+#   Set the env var WEBRTC_ICE_SERVERS with a comma-separated list, e.g.
+#     WEBRTC_ICE_SERVERS=stun:turn.example.com:3478,turn:turn.example.com:3478?transport=udp,turn:turn.example.com:3478?transport=tcp
+#   AND WEBRTC_TURN_USERNAME / WEBRTC_TURN_CREDENTIAL for the long-term
+#   credential. voiceserver passes the list into pion's ICEServers slice
+#   at offer time; browsers respect them via the /webrtc/v1/offer
+#   handshake.
+#
+# Quick start (on the TURN host, NOT on voiceserver):
+#   1. Set TURN_REALM / TURN_USER / TURN_PASSWORD / EXTERNAL_IP in .env next to this file
+#   2. Open UDP/3478, UDP/5349, TCP/3478, TCP/5349, and UDP 49160-49200 on your firewall
+#   3. docker compose up -d
+#   4. Verify:  docker compose logs -f coturn | grep 'IPv4. Relay'
+#   5. Test from outside: https://webrtc.github.io/samples/src/content/peerconnection/trickle-ice/
+#      Add turn:YOUR_HOST:3478 with your credentials → "done" with a relay candidate means OK
+#
+# Security:
+#   - Never expose coturn without credentials. --no-auth is for LAN labs only.
+#   - Rotate the shared secret monthly; set coturn --use-auth-secret with a
+#     TOTP-style ephemeral credential scheme if you're serving untrusted users.
+#   - Close the 49160-49200 range tight — that's your relay bandwidth.
+services:
+  coturn:
+    image: coturn/coturn:4.6-alpine
+    container_name: voiceserver-coturn
+    restart: unless-stopped
+    # Host networking is the simplest way to expose the ephemeral UDP
+    # relay port range; bridged networking requires publishing every
+    # single port in the range which doesn't scale. If your platform
+    # cannot do host networking (Docker Desktop on macOS), see the
+    # commented `ports:` stanza below for an alternative.
+    network_mode: host
+    environment:
+      # The realm matters: clients must send the same realm that was
+      # used to compute the HMAC at credential time. If you change this,
+      # regenerate user passwords.
+      - TURN_REALM=${TURN_REALM:-voiceserver.local}
+      - TURN_USER=${TURN_USER:-voiceserver}
+      - TURN_PASSWORD=${TURN_PASSWORD:-changeme}
+      # EXTERNAL_IP is the public / reachable IPv4 of this host. coturn
+      # advertises this in its TURN allocations so browsers know the
+      # relay address. For a cloud VM use its elastic IP; for a home
+      # router set to your WAN IP and port-forward (see README).
+      - EXTERNAL_IP=${EXTERNAL_IP:-auto}
+    command:
+      - -n
+      - --log-file=stdout
+      - --min-port=49160
+      - --max-port=49200
+      - --realm=${TURN_REALM:-voiceserver.local}
+      - --user=${TURN_USER:-voiceserver}:${TURN_PASSWORD:-changeme}
+      # Long-term credential mechanism matches the username/password
+      - --lt-cred-mech
+      # external-ip is rewritten inside entrypoint.sh via the
+      # EXTERNAL_IP env var; if you hardcode here use
+      # --external-ip=YOUR.IP.HERE and remove the env var.
+      # Modest DOS protection — drop nonsense packets fast so a scanner
+      # can't pin a core at 100%.
+      - --no-loopback-peers
+      - --no-multicast-peers
+      - --stale-nonce=600
+      # Turn off unused protocols to reduce attack surface. Remove these
+      # if you need old-school TCP transport for TURN.
+      - --no-cli
+
+    # Uncomment if you CANNOT use host networking (e.g. Docker Desktop
+    # on macOS). Comment out `network_mode: host` above first.
+    #
+    # ports:
+    #   - "3478:3478/udp"   # STUN + TURN
+    #   - "3478:3478/tcp"
+    #   - "5349:5349/udp"   # TURN/TLS
+    #   - "5349:5349/tcp"
+    #   - "49160-49200:49160-49200/udp"  # relay range
