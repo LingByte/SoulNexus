@@ -13,7 +13,7 @@ import (
 	"syscall"
 	"time"
 
-	LingEcho "github.com/LingByte/SoulNexus"
+	"github.com/LingByte/SoulNexus"
 	"github.com/LingByte/SoulNexus/cmd/bootstrap"
 	"github.com/LingByte/SoulNexus/internal/config"
 	handlers "github.com/LingByte/SoulNexus/internal/handler"
@@ -35,19 +35,19 @@ import (
 	"gorm.io/gorm"
 )
 
-type LingEchoService struct {
+type SoulNexusService struct {
 	db       *gorm.DB
 	handlers *handlers.Handlers
 }
 
-func NewLingEchoService(db *gorm.DB) *LingEchoService {
-	return &LingEchoService{
+func NewSoulNexusService(db *gorm.DB) *SoulNexusService {
+	return &SoulNexusService{
 		db:       db,
 		handlers: handlers.NewHandlers(db),
 	}
 }
 
-func (app *LingEchoService) RegisterRoutes(r *gin.Engine) {
+func (app *SoulNexusService) RegisterRoutes(r *gin.Engine) {
 	app.handlers.Register(r)
 }
 
@@ -148,7 +148,7 @@ func main() {
 	}
 
 	//// 11. New App
-	app := NewLingEchoService(db)
+	app := NewSoulNexusService(db)
 
 	// 12. Initialize Global Middleware Manager
 	middleware.InitGlobalMiddlewareManager(config.GlobalConfig.Middleware)
@@ -169,11 +169,11 @@ func main() {
 	r := gin.New()        // Use gin.New() instead of gin.Default() to avoid automatic redirects
 	r.Use(gin.Recovery()) // Manually add Recovery middleware
 	r.Use(middleware.SecureResponseHeaders())
-	templatesFS := LingEcho.NewCombineEmbedFS(
-		LingEcho.HintAssetsRoot("templates"),
-		LingEcho.EmbedFS{"templates", LingEcho.EmbedTemplates},
+	templatesFS := SoulNexus.NewCombineEmbedFS(
+		SoulNexus.HintAssetsRoot("templates"),
+		SoulNexus.EmbedFS{"templates", SoulNexus.EmbedTemplates},
 	)
-	r.HTMLRender = LingEcho.NewCombineTemplates(templatesFS)
+	r.HTMLRender = SoulNexus.NewCombineTemplates(templatesFS)
 	r.RedirectTrailingSlash = false
 	r.RedirectFixedPath = false
 	r.MaxMultipartMemory = 32 << 20 // 32 MB
@@ -200,12 +200,12 @@ func main() {
 	r.Use(middleware.LoggerMiddleware(zap.L()))
 
 	// Assets Middleware
-	r.Use(LingEcho.WithStaticAssets(r, utils.GetEnv(constants.ENV_STATIC_PREFIX), utils.GetEnv(constants.ENV_STATIC_ROOT)))
+	r.Use(SoulNexus.WithStaticAssets(r, utils.GetEnv(constants.ENV_STATIC_PREFIX), utils.GetEnv(constants.ENV_STATIC_ROOT)))
 	staticRootDir := utils.GetEnv(constants.ENV_STATIC_ROOT)
 	if staticRootDir == "" {
 		staticRootDir = "static"
 	}
-	staticAssets := LingEcho.NewCombineEmbedFS(LingEcho.HintAssetsRoot(staticRootDir), LingEcho.EmbedFS{"static", LingEcho.EmbedStaticAssets})
+	staticAssets := SoulNexus.NewCombineEmbedFS(SoulNexus.HintAssetsRoot(staticRootDir), SoulNexus.EmbedFS{"static", SoulNexus.EmbedStaticAssets})
 	apiPrefix := config.GlobalConfig.Server.APIPrefix
 	if apiPrefix == "" {
 		apiPrefix = "/api"

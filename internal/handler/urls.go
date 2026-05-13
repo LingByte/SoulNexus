@@ -165,7 +165,7 @@ func (h *Handlers) Register(engine *gin.Engine) {
 	// Apply global middlewares (rate limiting, timeout, circuit breaker, operation log)
 	middleware.ApplyGlobalMiddlewares(r)
 
-	// cmd/voice -dialog-ws：兼容 dialog-example 的 ws://host:port/ws/call（无 /api 前缀）
+	// cmd/voice VOICE_DIALOG_WS：兼容业务对话面 ws://host:port/ws/call（无 /api 前缀）
 	wsCall := engine.Group("")
 	wsCall.Use(middleware.InjectDB(h.db))
 	wsCall.Use(middleware.MutatingRequestTrustedOrigin())
@@ -387,6 +387,8 @@ func (h *Handlers) registerVolcengineTTSRoutes(r *gin.RouterGroup) {
 func (h *Handlers) registerVoiceTrainingRoutes(r *gin.RouterGroup) {
 	voice := r.Group("/voice")
 
+	// Device-Id → dialog payload for cmd/voice SoulNexus hardware mount (X-Lingecho-Voice-Secret when LINGECHO_HARDWARE_BINDING_SECRET is set; URL/header kept for backward compatibility).
+	voice.GET("/lingecho/binding", h.HandleSoulnexusHardwareBinding)
 	voice.GET("/lingecho/v1/", h.HandleHardwareWebSocketVoice)
 	voice.POST("/simple_text_chat", h.SimpleTextChat)
 

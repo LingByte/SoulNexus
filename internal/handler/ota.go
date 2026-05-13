@@ -204,17 +204,19 @@ func (h *Handlers) buildOTAResponse(deviceID, clientID string, req *models.Devic
 
 	// Build WebSocket configuration (only return when device is activated)
 	if device != nil {
-		// Actual route path is /api/voice/lingecho/v1/ (registered in registerVoiceTrainingRoutes)
+		// WebSocket URL: legacy SoulNexus in-process path /api/voice/lingecho/v1/
+		// or VoiceServer SoulNexus mount e.g. ws://<voice-host>:7080/voice/lingecho/v1/ (path kept for compat)
+		// (requires cmd/voice -lingecho-hw-ws-path and binding URL on SoulNexus).
 		wsURL := utils.GetValue(h.db, constants.KEY_SERVER_WEBSOCKET)
 		if wsURL == "" || wsURL == "null" {
-			// Use default WebSocket URL based on config
-			// Actual route path: /api/voice/lingecho/v1/
+			// Default: SoulNexus /api/voice/lingecho/v1/ (in-process pkg/voice) or set
+			// server.websocket to VoiceServer e.g. ws://host:7080/voice/lingecho/v1/
 			if config.GlobalConfig.Server.URL != "" {
 				baseURL := strings.TrimSuffix(config.GlobalConfig.Server.URL, "/")
 				// Keep API prefix since route is under /api
 				wsURL = strings.Replace(baseURL, "http://", "ws://", 1)
 				wsURL = strings.Replace(wsURL, "https://", "wss://", 1)
-				// Actual route path: /api/voice/lingecho/v1/
+				// SoulNexus legacy hardware WS path (see registerVoiceTrainingRoutes).
 				wsURL = fmt.Sprintf("%s/api/voice/lingecho/v1/", wsURL)
 			} else {
 				// Default to localhost with correct path

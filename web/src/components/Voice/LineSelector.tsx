@@ -41,13 +41,13 @@ const LineSelector: React.FC<LineSelectorProps> = ({ lineMode, onLineModeChange 
               <div className="flex items-start gap-2">
                 <span>
                   <span className="text-blue-300 dark:text-blue-600 font-medium">WebRTC：</span>
-                  此线路是WebRTC实时通信，超低延迟，适合连续对话
+                  页内对接 cmd/voice（<code className="text-xs">VITE_CMD_VOICE_BASE</code>），媒体在语音进程，对话走业务 WS。
                 </span>
               </div>
               <div className="flex items-start gap-2">
                 <span>
                   <span className="text-cyan-300 dark:text-cyan-600 font-medium">WebSocket：</span>
-                  WebSocket语音服务，高精度识别，略有延迟
+                  同样连 cmd/voice 的 xiaozhi 协议（<code className="text-xs">/xiaozhi/v1/?payload=</code> 透传鉴权），PCM 上行 / TTS 下行。
                 </span>
               </div>
             </div>

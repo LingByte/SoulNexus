@@ -2,7 +2,7 @@
 
 <div align="center">
 <div align="center">
-  <img src="docs/logo.png" alt="LingEcho Logo" width="100" height="110">
+  <img src="docs/logo.png" alt="SoulNexus Logo" width="100" height="110">
 </div>
 
 **Intelligent Voice Interaction Platform - Giving AI a Real Voice**
@@ -18,7 +18,7 @@
 
 ### 🌐 Live Demo
 
-**Experience LingEcho online**: [https://lingecho.com](https://lingecho.com)
+**Experience SoulNexus online**: [https://lingecho.com](https://lingecho.com)
 
 </div>
 
@@ -26,7 +26,7 @@
 
 ## 📖 Project Overview
 
-LingEcho is an enterprise-grade intelligent voice interaction platform based on Go + React, providing a complete AI voice interaction solution. It integrates advanced speech recognition (ASR), text-to-speech (TTS), large language models (LLM), and real-time communication technologies, supporting real-time calls, voice cloning, knowledge base management, workflow automation, device management, alerting, billing, and other enterprise-level features.
+SoulNexus is an enterprise-grade intelligent voice interaction platform based on Go + React, providing a complete AI voice interaction solution. It integrates advanced speech recognition (ASR), text-to-speech (TTS), large language models (LLM), and real-time communication technologies, supporting real-time calls, voice cloning, knowledge base management, workflow automation, device management, alerting, billing, and other enterprise-level features.
 
 ### ✨ Core Features
 
@@ -77,7 +77,7 @@ LingEcho is an enterprise-grade intelligent voice interaction platform based on 
 ## 🏗️ Technical Architecture
 
 <div align="center">
-  <img src="docs/core.png" alt="LingEcho Core Architecture" width="800">
+  <img src="docs/core.png" alt="SoulNexus Core Architecture" width="800">
 </div>
 
 ### Service Architecture
@@ -110,7 +110,7 @@ For detailed architecture documentation, see [Architecture Documentation](docs/a
 
 #### Method 1: Docker Compose (Recommended)
 
-The easiest way to get started with LingEcho is using Docker Compose:
+The easiest way to get started with SoulNexus is using Docker Compose:
 
 ```bash
 docker run -d --name neo4j \
@@ -118,8 +118,8 @@ docker run -d --name neo4j \
   -e NEO4J_AUTH=neo4j/admin123 \
   neo4j:latest
 # Clone the project
-git clone https://github.com/your-username/LingEcho.git
-cd LingEcho
+git clone https://github.com/your-username/SoulNexus.git
+cd SoulNexus
 
 # Copy environment configuration
 cp server/env.example .env
@@ -161,8 +161,8 @@ brew install pkg-config
 brew install opus opusfile
 
 # Clone the project
-git clone https://github.com/your-username/LingEcho.git
-cd LingEcho
+git clone https://github.com/your-username/SoulNexus.git
+cd SoulNexus
 
 # Backend setup
 cd server
@@ -207,7 +207,24 @@ docker-compose up -d
 # Start MCP service (optional)
 cd server
 go run ./cmd/mcp/main.go --transport sse --port 3001
+
+# Start Voice service (SIP / WebSocket-Web / WebSocket-Hardware / WebRTC)
+cd server
+cp .env-voice.example .env-voice    # first run only — fill in ASR / TTS keys
+go run ./cmd/voice                  # listens on VOICE_SIP_ADDR + VOICE_HTTP_ADDR
 ```
+
+**Voice service transports** (all served by `cmd/voice`):
+
+| Transport | Endpoint | Switch |
+| --- | --- | --- |
+| SIP (signaling + RTP) | `VOICE_SIP_ADDR`, `VOICE_RTP_START..END` | always on |
+| WebSocket xiaozhi | `VOICE_HTTP_ADDR` + `VOICE_XIAOZHI_WS_PATH` | `VOICE_ENABLE_XIAOZHI` |
+| WebRTC offer/answer | `VOICE_HTTP_ADDR` + `VOICE_WEBRTC_HTTP_PATH` | `VOICE_ENABLE_WEBRTC` |
+| WebSocket-Web (SFU) | `VOICE_HTTP_ADDR` + `VOICE_SFU_WS_PATH` | `VOICE_ENABLE_SFU` |
+| WebSocket SoulNexus-HW | `VOICE_HTTP_ADDR` + `VOICE_SOULNEXUS_HW_WS_PATH` | non-empty path enables |
+
+See `.env-voice.example` for the full list of voice knobs.
 
 For detailed installation instructions, see [Installation Guide](docs/installation.md).
 
@@ -256,6 +273,6 @@ A core team of four full-stack engineers focused on innovation and application o
 
 ## ⭐ Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=LingByte/SoulNexus&type=Date)](https://star-history.com/#your-username/LingEcho&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=LingByte/SoulNexus&type=Date)](https://star-history.com/#your-username/SoulNexus&Date)
 
 ---

@@ -66,6 +66,9 @@ type ServerConfig struct {
 
 	// DialogWSURL is the dialog-plane WebSocket the session dials out to.
 	// Same protocol the SIP path uses (pkg/voice/gateway). Required.
+	// If the HTTP upgrade URL carries query "payload" (JSON object, URL-encoded),
+	// Handle merges it into this base URL via gateway.MergeDialogPayloadQuery
+	// before dialing (browser → VoiceServer → SoulNexus /ws/call).
 	DialogWSURL string
 
 	// CallIDPrefix is prepended to auto-generated call IDs ("xz-..."). Empty =
@@ -158,7 +161,20 @@ func (s *Server) Handle(w http.ResponseWriter, r *http.Request) {
 	macAddr := strings.TrimSpace(r.Header.Get("X-Mac-Address"))
 
 	callID := fmt.Sprintf("%s-%d", s.cfg.CallIDPrefix, time.Now().UnixNano())
-	sess := newSession(s.cfg, conn, callID, deviceID, macAddr)
+
+	cfg := s.cfg
+	if payloadQ := strings.TrimSpace(r.URL.Query().Get("payload")); payloadQ != "" {
+		merged, err := gateway.MergeDialogPayloadQuery(strings.TrimSpace(cfg.DialogWSURL), []byte(payloadQ))
+		if err != nil {
+			s.cfg.Logger.Warn("xiaozhi: merge dialog payload query", zap.Error(err))
+			_ = conn.WriteMessage(websocket.TextMessage, MakeError("invalid payload query", true))
+			_ = conn.Close()
+			return
+		}
+		cfg.DialogWSURL = merged
+	}
+
+	sess := newSession(cfg, conn, callID, deviceID, macAddr)
 	sess.run(r.Context())
 }
 

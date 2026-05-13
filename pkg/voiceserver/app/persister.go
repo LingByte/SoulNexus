@@ -1,22 +1,13 @@
-// Copyright (c) 2026 LinByte. All rights reserved.
+// Copyright (c) 2026 LingByte. All rights reserved.
 // SPDX-License-Identifier: AGPL-3.0
 
-package main
-
-// Per-call persistence glue between the SIP/voice control plane and the
-// `pkg/persist` package. One callPersister is created at INVITE time, lives
-// for the life of a SIP dialog, and is closed (final UPDATE) on teardown.
-//
-// It is intentionally chatty about errors but never fatal: persistence is a
-// side-effect — the call must continue working even if the DB is read-only,
-// the disk is full, or `voiceserver.db` was deleted out from under us.
+package app
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
 	"log"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -24,51 +15,19 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/persist"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/sip/server"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/sip/session"
-	"github.com/LingByte/SoulNexus/pkg/voiceserver/utils"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/gateway"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/metrics"
-	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/recorder"
 	"gorm.io/gorm"
 )
 
-// openVoiceServerDB opens (and migrates) the SQLite database used by the
-// voiceserver process. The file is `voiceserver.db` in CWD by default and
-// can be overridden with VOICESERVER_DB. Returns (nil, nil) when persistence
-// is disabled via VOICESERVER_DB="off".
-func openVoiceServerDB() (*gorm.DB, error) {
-	dsn := strings.TrimSpace(os.Getenv("VOICESERVER_DB"))
-	if dsn == "" {
-		dsn = "voiceserver.db"
-	}
-	if strings.EqualFold(dsn, "off") || strings.EqualFold(dsn, "none") {
-		return nil, nil
-	}
-	db, err := utils.InitDatabase(nil, "", dsn)
-	if err != nil {
-		return nil, err
-	}
-	if err := persist.Migrate(db); err != nil {
-		_ = closeGormDB(db)
-		return nil, err
-	}
-	return db, nil
-}
-
-func closeGormDB(db *gorm.DB) error {
-	if db == nil {
-		return nil
-	}
-	sqlDB, err := db.DB()
-	if err != nil {
-		return err
-	}
-	return sqlDB.Close()
-}
-
-// callPersister captures the lifecycle of one SIP dialog into the SIPCall
+// CallPersister captures the lifecycle of one call into the SIPCall
 // table. It is concurrency-safe: ASR / TTS / SIP teardown can fire from
 // different goroutines without the persister losing rows.
-type callPersister struct {
+//
+// The struct is exported so cmd/voice (SIP inbound/outbound) can hold
+// it directly; transport adapters get a SessionPersister wrapper via
+// AsSessionPersister.
+type CallPersister struct {
 	db        *gorm.DB
 	callID    string
 	transport string // sip / xiaozhi / webrtc — for downstream tables
@@ -79,9 +38,28 @@ type callPersister struct {
 	finalAt   time.Time
 }
 
-// newCallPersister creates the SIPCall row in state=ringing for an inbound
-// INVITE. Returns nil (logged) on DB failure so the call can proceed.
-func newCallPersister(ctx context.Context, db *gorm.DB, inv *server.IncomingCall, direction string) *callPersister {
+// CallID returns the persister's call identifier (used by the recorder
+// flush path to stamp the URL on the same row).
+func (p *CallPersister) CallID() string {
+	if p == nil {
+		return ""
+	}
+	return p.callID
+}
+
+// Transport returns the call transport classification ("sip"/"xiaozhi"/
+// "webrtc"). Used by recorder/metric code that wants to label rows.
+func (p *CallPersister) Transport() string {
+	if p == nil {
+		return ""
+	}
+	return p.transport
+}
+
+// NewCallPersister creates the SIPCall row in state=ringing for an
+// inbound INVITE. Returns nil (logged) on DB failure so the call can
+// proceed.
+func NewCallPersister(ctx context.Context, db *gorm.DB, inv *server.IncomingCall, direction string) *CallPersister {
 	if inv == nil {
 		return nil
 	}
@@ -89,21 +67,22 @@ func newCallPersister(ctx context.Context, db *gorm.DB, inv *server.IncomingCall
 	if inv.RemoteSignalingAddr != nil {
 		remoteSig = inv.RemoteSignalingAddr.String()
 	}
-	return newGenericCallPersister(ctx, db, inv.CallID, "sip", direction,
+	return NewGenericCallPersister(ctx, db, inv.CallID, "sip", direction,
 		inv.FromURI, inv.ToURI, remoteSig, "")
 }
 
-// newGenericCallPersister is the transport-agnostic constructor used by
+// NewGenericCallPersister is the transport-agnostic constructor used by
 // every adapter (SIP, xiaozhi, WebRTC). It writes a row in state=ringing
 // with whatever caller / callee identity the transport can supply.
 //
-// transport classifies the call ("sip" / "xiaozhi" / "webrtc") so dashboards
-// can split metrics; userAgent is the device or browser identifier (free-
-// form, e.g. "ESP32-LingByte-A0:B1:..", "Mozilla/5.0 ...", "Asterisk").
+// transport classifies the call ("sip" / "xiaozhi" / "webrtc") so
+// dashboards can split metrics; userAgent is the device or browser
+// identifier (free-form, e.g. "ESP32-LingByte-A0:B1:..", "Mozilla/5.0
+// ...", "Asterisk").
 //
 // Returns nil when persistence is disabled (db == nil) or when the row
 // can't be created — the call still runs without a DB record.
-func newGenericCallPersister(ctx context.Context, db *gorm.DB, callID, transport, direction, fromHeader, toHeader, remoteSignaling, userAgent string) *callPersister {
+func NewGenericCallPersister(ctx context.Context, db *gorm.DB, callID, transport, direction, fromHeader, toHeader, remoteSignaling, userAgent string) *CallPersister {
 	if db == nil || callID == "" {
 		return nil
 	}
@@ -125,10 +104,10 @@ func newGenericCallPersister(ctx context.Context, db *gorm.DB, callID, transport
 		log.Printf("[persist] call=%s create row failed: %v", callID, err)
 		return nil
 	}
-	p := &callPersister{db: db, callID: callID, transport: row.Transport}
+	p := &CallPersister{db: db, callID: callID, transport: row.Transport}
 	// Stamp a "call.started" event so the per-call timeline starts here.
-	p.appendEvent(ctx, persist.EventKindCallStarted, persist.EventLevelInfo,
-		jsonObject(map[string]any{
+	p.AppendEvent(ctx, persist.EventKindCallStarted, persist.EventLevelInfo,
+		JSONObject(map[string]any{
 			"transport":  row.Transport,
 			"direction":  direction,
 			"from":       fromHeader,
@@ -139,9 +118,9 @@ func newGenericCallPersister(ctx context.Context, db *gorm.DB, callID, transport
 	return p
 }
 
-// onAccept stamps the negotiated codec and RTP topology and flips state to
-// `established`. Called once the MediaLeg is built.
-func (p *callPersister) onAccept(ctx context.Context, leg *session.MediaLeg, remoteRTP string) {
+// OnAccept stamps the negotiated codec and RTP topology and flips state
+// to `established`. Called once the MediaLeg is built.
+func (p *CallPersister) OnAccept(ctx context.Context, leg *session.MediaLeg, remoteRTP string) {
 	if p == nil || leg == nil {
 		return
 	}
@@ -150,14 +129,14 @@ func (p *callPersister) onAccept(ctx context.Context, leg *session.MediaLeg, rem
 	if rtpSess := leg.RTPSession(); rtpSess != nil && rtpSess.LocalAddr != nil {
 		localRTP = rtpSess.LocalAddr.String()
 	}
-	p.onAcceptMeta(ctx, strings.ToLower(neg.Name), int(neg.PayloadType), neg.ClockRate, localRTP, remoteRTP)
+	p.OnAcceptMeta(ctx, strings.ToLower(neg.Name), int(neg.PayloadType), neg.ClockRate, localRTP, remoteRTP)
 }
 
-// onAcceptMeta is the codec-only variant used by transports that don't
+// OnAcceptMeta is the codec-only variant used by transports that don't
 // carry an RTP session of their own (xiaozhi WS, WebRTC). codec is the
 // wire codec name ("opus", "pcm", "pcma", …); sampleRate is the
 // negotiated clock; localRTPAddr / remoteRTPAddr may be empty.
-func (p *callPersister) onAcceptMeta(ctx context.Context, codec string, payloadType int, sampleRate int, localRTPAddr, remoteRTPAddr string) {
+func (p *CallPersister) OnAcceptMeta(ctx context.Context, codec string, payloadType int, sampleRate int, localRTPAddr, remoteRTPAddr string) {
 	if p == nil {
 		return
 	}
@@ -182,8 +161,8 @@ func (p *callPersister) onAcceptMeta(ctx context.Context, codec string, payloadT
 	}
 }
 
-// onTerminate stamps end timestamps, duration and end status. Idempotent.
-func (p *callPersister) onTerminate(ctx context.Context, reason string) {
+// OnTerminate stamps end timestamps, duration and end status. Idempotent.
+func (p *CallPersister) OnTerminate(ctx context.Context, reason string) {
 	if p == nil {
 		return
 	}
@@ -204,7 +183,7 @@ func (p *callPersister) onTerminate(ctx context.Context, reason string) {
 		"state":          persist.SIPCallStateEnded,
 		"bye_at":         now,
 		"ended_at":       now,
-		"end_status":     classifyEndStatus(reason),
+		"end_status":     ClassifyEndStatus(reason),
 		"failure_reason": reason,
 	}
 	if row.InviteAt != nil && !row.InviteAt.IsZero() {
@@ -215,9 +194,9 @@ func (p *callPersister) onTerminate(ctx context.Context, reason string) {
 	}
 }
 
-// onASRFinal remembers the most recent user transcript so the next
-// onTurn can pair it with the assistant text into a complete dialog turn.
-func (p *callPersister) onASRFinal(text string) {
+// OnASRFinal remembers the most recent user transcript so the next
+// OnTurn can pair it with the assistant text into a complete dialog turn.
+func (p *CallPersister) OnASRFinal(text string) {
 	if p == nil {
 		return
 	}
@@ -227,10 +206,10 @@ func (p *callPersister) onASRFinal(text string) {
 	p.mu.Unlock()
 }
 
-// onTurn appends a SIPCallDialogTurn after each TTS speak finishes. If the
-// dialog app supplied CommandMeta with UserText, that overrides the buffered
-// ASR final (e.g. when the dialog app rephrased the input).
-func (p *callPersister) onTurn(ctx context.Context, ev gateway.TurnEvent) {
+// OnTurn appends a SIPCallDialogTurn after each TTS speak finishes. If
+// the dialog app supplied CommandMeta with UserText, that overrides the
+// buffered ASR final (e.g. when the dialog app rephrased the input).
+func (p *CallPersister) OnTurn(ctx context.Context, ev gateway.TurnEvent) {
 	if p == nil {
 		return
 	}
@@ -259,8 +238,8 @@ func (p *callPersister) onTurn(ctx context.Context, ev gateway.TurnEvent) {
 	}
 }
 
-// onRecording stamps the final WAV path and size after flush. Best-effort.
-func (p *callPersister) onRecording(ctx context.Context, url string, bytes int) {
+// OnRecording stamps the final WAV path and size after flush. Best-effort.
+func (p *CallPersister) OnRecording(ctx context.Context, url string, bytes int) {
 	if p == nil {
 		return
 	}
@@ -273,8 +252,8 @@ func (p *callPersister) onRecording(ctx context.Context, url string, bytes int) 
 	}
 }
 
-// appendEvent inserts one row into call_events. nil-safe.
-func (p *callPersister) appendEvent(ctx context.Context, kind, level string, detail []byte) {
+// AppendEvent inserts one row into call_events. nil-safe.
+func (p *CallPersister) AppendEvent(ctx context.Context, kind, level string, detail []byte) {
 	if p == nil {
 		return
 	}
@@ -283,8 +262,8 @@ func (p *callPersister) appendEvent(ctx context.Context, kind, level string, det
 	}
 }
 
-// appendMediaStats inserts one row into call_media_stats. nil-safe.
-func (p *callPersister) appendMediaStats(ctx context.Context, s gateway.MediaStatsSample) {
+// AppendMediaStats inserts one row into call_media_stats. nil-safe.
+func (p *CallPersister) AppendMediaStats(ctx context.Context, s gateway.MediaStatsSample) {
 	if p == nil {
 		return
 	}
@@ -315,8 +294,8 @@ func (p *callPersister) appendMediaStats(ctx context.Context, s gateway.MediaSta
 	}
 }
 
-// appendRecording inserts one row into call_recording. nil-safe.
-func (p *callPersister) appendRecording(ctx context.Context, r gateway.RecordingInfo) {
+// AppendRecording inserts one row into call_recording. nil-safe.
+func (p *CallPersister) AppendRecording(ctx context.Context, r gateway.RecordingInfo) {
 	if p == nil {
 		return
 	}
@@ -340,44 +319,10 @@ func (p *callPersister) appendRecording(ctx context.Context, r gateway.Recording
 	}
 }
 
-// makeRecorderFactory returns a closure suitable for the
-// RecorderFactory field on the xiaozhi and WebRTC ServerConfigs. When
-// record=false (the default) it returns nil so no recorder is built and
-// no WAV is written. When record=true every accepted call gets a fresh
-// recorder pointing at the supplied bucket; the per-transport session
-// pushes PCM into it through the call lifetime and flushes (uploads
-// stereo WAV + writes call_recording row) at teardown.
-func makeRecorderFactory(record bool, bucket, transport string) func(callID, codec string, sampleRate int) *recorder.Recorder {
-	if !record {
-		return nil
-	}
-	if bucket == "" {
-		bucket = "voiceserver-recordings"
-	}
-	return func(callID, codec string, sampleRate int) *recorder.Recorder {
-		return recorder.New(recorder.Config{
-			CallID:        callID,
-			Bucket:        bucket,
-			SampleRate:    sampleRate,
-			Transport:     transport,
-			Codec:         codec,
-			ChunkInterval: recordingChunkInterval(),
-		})
-	}
-}
-
-// recordingChunkInterval returns the rolling-chunk upload cadence
-// configured via -record-chunk (0 = no rolling uploads). Reading
-// through a function rather than the var directly keeps the rest of
-// persister.go from depending on flag-defined globals.
-func recordingChunkInterval() time.Duration {
-	return recordChunkFlag
-}
-
-// jsonObject marshals a small map to bytes for the call_events.detail
+// JSONObject marshals a small map to bytes for the call_events.detail
 // column. Returns nil on any failure (event still written, just without
 // detail) so callers don't have to guard the encoding step.
-func jsonObject(m map[string]any) []byte {
+func JSONObject(m map[string]any) []byte {
 	if len(m) == 0 {
 		return nil
 	}
@@ -388,89 +333,86 @@ func jsonObject(m map[string]any) []byte {
 	return b
 }
 
-// makePersisterFactory returns a closure suitable for the
+// MakePersisterFactory returns a closure suitable for the
 // PersisterFactory field on the xiaozhi and WebRTC ServerConfigs. Each
-// call mints a fresh callPersister and wraps it as a SessionPersister so
-// the adapter package can drive lifecycle hooks without depending on
+// call mints a fresh CallPersister and wraps it as a SessionPersister
+// so the adapter package can drive lifecycle hooks without depending on
 // cmd-level types.
 //
-// db == nil disables persistence (returns a factory that yields nil).
-// direction is the SIPCall.Direction value to stamp on every row;
-// transport is one of "sip" / "xiaozhi" / "webrtc". userAgent is read
-// from the per-call factory call (not closed over) since each session
-// has its own device / browser identity.
-func makePersisterFactory(db *gorm.DB, transport, direction string) func(ctx context.Context, callID, fromHeader, toHeader, remoteAddr string) gateway.SessionPersister {
+// db == nil disables persistence (returns nil so the adapter falls
+// through to a no-op). direction is the SIPCall.Direction value to
+// stamp on every row; transport is one of "sip" / "xiaozhi" / "webrtc".
+// userAgent is read from the per-call factory call (not closed over)
+// since each session has its own device / browser identity.
+func MakePersisterFactory(db *gorm.DB, transport, direction string) func(ctx context.Context, callID, fromHeader, toHeader, remoteAddr string) gateway.SessionPersister {
 	if db == nil {
 		return nil
 	}
 	return func(ctx context.Context, callID, fromHeader, toHeader, remoteAddr string) gateway.SessionPersister {
 		// userAgent is encoded into fromHeader by some adapters
 		// (xiaozhi puts the device id there); WebRTC passes the
-		// User-Agent through clientMeta as fromHeader. Either way
-		// it ends up on the row.
-		p := newGenericCallPersister(ctx, db, callID, transport, direction,
+		// User-Agent through clientMeta as fromHeader. Either way it
+		// ends up on the row.
+		p := NewGenericCallPersister(ctx, db, callID, transport, direction,
 			fromHeader, toHeader, remoteAddr, fromHeader)
 		if p == nil {
 			return nil
 		}
-		return p.asSessionPersister()
+		return p.AsSessionPersister()
 	}
 }
 
-// asSessionPersister adapts *callPersister to the transport-agnostic
+// AsSessionPersister adapts *CallPersister to the transport-agnostic
 // gateway.SessionPersister interface so the xiaozhi and WebRTC adapters
-// can record into voiceserver.db without importing cmd/voiceserver. The
-// returned value is nil-safe: passing it through ServerConfig is fine
-// even when persistence is disabled (db == nil) — the underlying
-// callPersister is just nil and every method becomes a no-op.
-func (p *callPersister) asSessionPersister() gateway.SessionPersister {
+// can record into voiceserver.db without importing this package's
+// concrete type. The returned value is nil-safe: passing it through
+// ServerConfig is fine even when persistence is disabled (db == nil) —
+// the underlying CallPersister is just nil and every method becomes a
+// no-op.
+func (p *CallPersister) AsSessionPersister() gateway.SessionPersister {
 	return persisterAdapter{p: p}
 }
 
-type persisterAdapter struct{ p *callPersister }
+type persisterAdapter struct{ p *CallPersister }
 
 func (a persisterAdapter) OnAccept(ctx context.Context, codec string, sampleRate int, remoteAddr string) {
-	a.p.onAcceptMeta(ctx, codec, 0, sampleRate, "", remoteAddr)
+	a.p.OnAcceptMeta(ctx, codec, 0, sampleRate, "", remoteAddr)
 	// Mirror the codec into the timeline so the per-call event view
 	// shows what the negotiation settled on.
-	a.p.appendEvent(ctx, persist.EventKindMediaCodec, persist.EventLevelInfo,
-		jsonObject(map[string]any{"codec": codec, "sample_rate": sampleRate, "remote_addr": remoteAddr}))
-	// Metrics side-effect: OnAccept is the closest analogue to
-	// "call became live" across all three transports — we bump the
+	a.p.AppendEvent(ctx, persist.EventKindMediaCodec, persist.EventLevelInfo,
+		JSONObject(map[string]any{"codec": codec, "sample_rate": sampleRate, "remote_addr": remoteAddr}))
+	// Metrics side-effect: OnAccept is the closest analogue to "call
+	// became live" across all three transports — we bump the
 	// active_calls gauge here so /metrics reflects currently-bridged
 	// calls, not just admitted ones.
 	if a.p != nil {
 		metrics.CallStarted(a.p.transport)
 	}
 }
+
 func (a persisterAdapter) OnASRFinal(ctx context.Context, text string) {
-	a.p.onASRFinal(text)
-	a.p.appendEvent(ctx, persist.EventKindASRFinal, persist.EventLevelInfo,
-		jsonObject(map[string]any{"text": text}))
+	a.p.OnASRFinal(text)
+	a.p.AppendEvent(ctx, persist.EventKindASRFinal, persist.EventLevelInfo,
+		JSONObject(map[string]any{"text": text}))
 }
+
 func (a persisterAdapter) OnTurn(ctx context.Context, t gateway.TurnEvent) {
-	a.p.onTurn(ctx, t)
-	a.p.appendEvent(ctx, persist.EventKindTTSEnd, persist.EventLevelInfo,
-		jsonObject(map[string]any{
+	a.p.OnTurn(ctx, t)
+	a.p.AppendEvent(ctx, persist.EventKindTTSEnd, persist.EventLevelInfo,
+		JSONObject(map[string]any{
 			"utter": t.UtteranceID, "ok": t.OK,
 			"dur_ms": t.DurationMs, "text": t.LLMText,
 			"tts_ttfb_ms": t.TTSFirstByteMs,
 			"e2e_ms":      t.E2EFirstByteMs,
 		}))
-	// Emit a dedicated e2e.first_byte event only when we have a real
-	// user-perceived number (non-zero means: this Speak followed an
-	// ASR final and produced audio). Keeps the timeline uncluttered —
-	// intra-turn sentences don't spam this event.
 	if t.E2EFirstByteMs > 0 {
-		a.p.appendEvent(ctx, persist.EventKindE2EFirstByte, persist.EventLevelInfo,
-			jsonObject(map[string]any{
+		a.p.AppendEvent(ctx, persist.EventKindE2EFirstByte, persist.EventLevelInfo,
+			JSONObject(map[string]any{
 				"utter":       t.UtteranceID,
 				"e2e_ms":      t.E2EFirstByteMs,
 				"tts_ttfb_ms": t.TTSFirstByteMs,
 			}))
 	}
-	// Feed the Prom histograms. ObserveX calls are no-ops for 0 /
-	// missing values so the quantile buffers stay clean.
 	metrics.ObserveE2EFirstByte(t.E2EFirstByteMs)
 	metrics.ObserveTTSFirstByte(t.TTSFirstByteMs)
 	if t.Meta != nil {
@@ -480,26 +422,35 @@ func (a persisterAdapter) OnTurn(ctx context.Context, t gateway.TurnEvent) {
 		metrics.TTSError(a.p.transport)
 	}
 }
+
 func (a persisterAdapter) OnTerminate(ctx context.Context, reason string) {
-	a.p.appendEvent(ctx, persist.EventKindCallTerminated, persist.EventLevelInfo,
-		jsonObject(map[string]any{"reason": reason}))
-	a.p.onTerminate(ctx, reason)
-	// Decrement active_calls and bump calls_total. We pair CallStarted
-	// (OnAccept) with CallEnded (OnTerminate) rather than session
-	// start/end — that way a call that never reached media bridging
-	// doesn't skew the gauge.
+	a.p.AppendEvent(ctx, persist.EventKindCallTerminated, persist.EventLevelInfo,
+		JSONObject(map[string]any{"reason": reason}))
+	a.p.OnTerminate(ctx, reason)
 	if a.p != nil {
-		metrics.CallEnded(a.p.transport, metricEndStatus(reason))
+		metrics.CallEnded(a.p.transport, MetricEndStatus(reason))
 	}
 }
 
-// metricEndStatus collapses free-form teardown reasons into a small,
+func (a persisterAdapter) OnEvent(ctx context.Context, kind, level string, detail []byte) {
+	a.p.AppendEvent(ctx, kind, level, detail)
+}
+
+func (a persisterAdapter) OnMediaStats(ctx context.Context, s gateway.MediaStatsSample) {
+	a.p.AppendMediaStats(ctx, s)
+}
+
+func (a persisterAdapter) OnRecording(ctx context.Context, r gateway.RecordingInfo) {
+	a.p.AppendRecording(ctx, r)
+}
+
+// MetricEndStatus collapses free-form teardown reasons into a small,
 // fixed-cardinality vocabulary suitable for a Prometheus label.
-// Distinct from the DB-side classifyEndStatus (which uses SIP-aligned
+// Distinct from the DB-side ClassifyEndStatus (which uses SIP-aligned
 // status codes for the call row) — metric labels stay coarse so the
 // `voiceserver_calls_total` series count never explodes when a new
 // reason string is introduced upstream.
-func metricEndStatus(reason string) string {
+func MetricEndStatus(reason string) string {
 	switch r := strings.ToLower(reason); {
 	case r == "" || r == "bye" || r == "ok" || r == "device closed":
 		return "ok"
@@ -515,20 +466,12 @@ func metricEndStatus(reason string) string {
 		return "other"
 	}
 }
-func (a persisterAdapter) OnEvent(ctx context.Context, kind, level string, detail []byte) {
-	a.p.appendEvent(ctx, kind, level, detail)
-}
-func (a persisterAdapter) OnMediaStats(ctx context.Context, s gateway.MediaStatsSample) {
-	a.p.appendMediaStats(ctx, s)
-}
-func (a persisterAdapter) OnRecording(ctx context.Context, r gateway.RecordingInfo) {
-	a.p.appendRecording(ctx, r)
-}
 
-// classifyEndStatus maps a free-form teardown reason to an EndStatus value.
-// The reason strings come from pkg/sip/server (BYE / CANCEL / cleanup / …);
-// we keep the mapping permissive — unknown reasons still land in the row.
-func classifyEndStatus(reason string) string {
+// ClassifyEndStatus maps a free-form teardown reason to an EndStatus
+// value. The reason strings come from pkg/sip/server (BYE / CANCEL /
+// cleanup / …); we keep the mapping permissive — unknown reasons still
+// land in the row.
+func ClassifyEndStatus(reason string) string {
 	r := strings.ToLower(strings.TrimSpace(reason))
 	switch {
 	case r == "":

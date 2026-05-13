@@ -33,6 +33,7 @@ uploads/.env
 .env.development
 .env.test
 .env.production
+.env-voice
 
 # Editor/IDE
 # .idea/

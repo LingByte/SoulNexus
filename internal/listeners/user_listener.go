@@ -60,7 +60,7 @@ func InitUserListeners() {
 
 		models.NewInternalNotificationService(params[0].(*gorm.DB)).Send(user.ID,
 			"Welcome back",
-			"Dear "+user.EffectiveDisplayName()+", welcome back to LingEcho AI voice platform! You have successfully logged into the system.")
+			"Dear "+user.EffectiveDisplayName()+", welcome back to SoulNexus AI voice platform! You have successfully logged into the system.")
 
 		// Log login event
 		logUserEvent(user, "user_login", "User login")

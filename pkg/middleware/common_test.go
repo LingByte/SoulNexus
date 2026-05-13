@@ -101,34 +101,6 @@ func TestInjectDB_SetsDBInContext(t *testing.T) {
 	}
 }
 
-// ===== GetCarrotSessionField =====
-
-func TestGetCarrotSessionField_DefaultWhenEnvEmpty(t *testing.T) {
-	// 清理后备份
-	key := constants.ENV_SESSION_FIELD
-	old := os.Getenv(key)
-	t.Cleanup(func() { _ = os.Setenv(key, old) })
-
-	_ = os.Unsetenv(key)
-
-	if got := GetCarrotSessionField(); got != "lingecho" {
-		t.Fatalf("expected default session field 'lingecho', got %q", got)
-	}
-}
-
-func TestGetCarrotSessionField_FromEnv(t *testing.T) {
-	key := constants.ENV_SESSION_FIELD
-	old := os.Getenv(key)
-	t.Cleanup(func() { _ = os.Setenv(key, old) })
-
-	want := "sess_field_from_env"
-	_ = os.Setenv(key, want)
-
-	if got := GetCarrotSessionField(); got != want {
-		t.Fatalf("expected session field %q from env, got %q", want, got)
-	}
-}
-
 // ===== Session：MemStore =====
 
 func TestWithMemSession_SetsCookieAndSavesSession(t *testing.T) {

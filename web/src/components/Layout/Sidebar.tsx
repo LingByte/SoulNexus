@@ -142,7 +142,7 @@ const Sidebar = () => {
         ) : (
           <div className="h-14 flex items-center px-3 relative">
             <Link to="/" className="flex items-center gap-2 min-w-0 pr-10">
-              <img src="/SoulMy.png" alt="LingEcho Logo" className="w-8 h-8 rounded shrink-0" />
+              <img src="/SoulMy.png" alt="SoulNexus Logo" className="w-8 h-8 rounded shrink-0" />
               <span className="relative inline-block text-sm font-extrabold tracking-wider truncate">
                 <span className="block">{t('brand.name')}</span>
                 <span className="absolute inset-0 bg-gradient-to-r via-violet-400 bg-clip-text pointer-events-none select-none">
@@ -408,7 +408,7 @@ const Sidebar = () => {
           <Link to="/" className="flex items-center gap-2 flex-shrink-0">
             <img
               src="https://cetide-1325039295.cos.ap-chengdu.myqcloud.com/folder/icon-192x192.ico"
-              alt="LingEcho Logo"
+              alt="SoulNexus Logo"
               className="w-6 h-8 rounded"
             />
             <span className="text-sm font-extrabold tracking-wider">

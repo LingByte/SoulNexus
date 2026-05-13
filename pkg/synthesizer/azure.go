@@ -144,7 +144,7 @@ func (as *AzureService) Synthesize(ctx context.Context, handler SynthesisHandler
 
 	httpReq.Header.Set("Content-Type", "application/ssml+xml")
 	httpReq.Header.Set("X-Microsoft-OutputFormat", opt.Codec)
-	httpReq.Header.Set("User-Agent", "LingEcho")
+	httpReq.Header.Set("User-Agent", "SoulNexus")
 	httpReq.Header.Set("Ocp-Apim-Subscription-Key", opt.SubscriptionKey)
 
 	// 生成鉴权头（可选，部分区域可能需要）

@@ -13,8 +13,8 @@ import (
 	"strings"
 
 	"github.com/LingByte/SoulNexus/internal/models"
-	"github.com/LingByte/SoulNexus/internal/voicedialog"
 	"github.com/LingByte/SoulNexus/pkg/response"
+	"github.com/LingByte/SoulNexus/pkg/voicedialog"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
@@ -436,7 +436,7 @@ func (h *Handlers) handleConnection(c *gin.Context) {
 	callID := strings.TrimSpace(c.Query("call_id"))
 	if callID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "缺少 call_id。本 URL 仅供 cmd/voice 作为对话面拨入；请在拨号 URL 上携带 call_id（gateway 会自动追加）。浏览器实时语音请在 VoiceAssistant 内建 WebRTC 或 /webrtc/v1/demo 发起；鉴权参数放在 POST body 的 payload JSON 内或 query 的 apiKey/apiSecret/agentId。",
+			"error": "缺少 call_id。本 URL 仅供 cmd/voice 作为对话面拨入；请在拨号 URL 上携带 call_id（gateway 会自动追加）。浏览器实时语音请在 VoiceAssistant 内建 WebRTC 发起；鉴权参数放在 POST body 的 payload JSON 内或 query 的 apiKey/apiSecret/agentId。",
 		})
 		c.Abort()
 		return

@@ -275,7 +275,7 @@ const JSTemplateManager = () => {
 <body style="margin: 0; padding: 20px; background: #f9fafb; font-family: system-ui, -apple-system, sans-serif;">
     <div id="preview-content"></div>
     
-    <!-- 加载LingEcho SDK -->
+    <!-- 加载 SoulNexus SDK -->
     <script>
         // 定义模拟的模板变量（用于预览环境）- 使用var避免重复声明错误
         if (typeof SERVER_BASE === 'undefined') {
@@ -301,7 +301,7 @@ const JSTemplateManager = () => {
                 script.src = '${sdkPath}';
                 script.async = false;
                 script.onload = function() {
-                    console.log('[Preview] LingEcho SDK loaded');
+                    console.log('[Preview] SoulNexus SDK loaded');
                     // 等待SDK类定义后创建实例
                     (function waitForSDK() {
                         if (typeof LingEchoSDK !== 'undefined') {

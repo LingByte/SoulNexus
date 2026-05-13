@@ -33,7 +33,7 @@ func TestQiniuService(t *testing.T) {
 	ctx := context.Background()
 
 	h := &testSynthesisHandler{}
-	err := svc.Synthesize(ctx, h, "hello LingEcho")
+	err := svc.Synthesize(ctx, h, "hello SoulNexus")
 
 	if err != nil {
 		t.Logf("Synthesis error: %v", err)

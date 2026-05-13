@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"time"
 
-	LingEcho "github.com/LingByte/SoulNexus"
+	SoulNexus "github.com/LingByte/SoulNexus"
 	"github.com/LingByte/SoulNexus/internal/config"
 	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/constants"
@@ -52,13 +52,13 @@ func (s *SeedService) seedMailTemplates() error {
 		code, name, subject, html, desc string
 	}
 	defs := []tplDef{
-		{notification.TmplWelcome, "欢迎邮件", "欢迎加入 LingEcho", LingEcho.WelcomeHTML, "用户注册成功欢迎邮件"},
-		{notification.TmplVerification, "通用验证码", "您的 LingEcho 验证码", LingEcho.VerificationHTML, "通用 6 位验证码邮件"},
-		{notification.TmplEmailVerification, "邮箱验证", "请验证您的邮箱地址", LingEcho.EmailVerificationHTML, "注册后邮箱地址验证邮件"},
-		{notification.TmplPasswordReset, "密码重置", "密码重置请求", LingEcho.PasswordResetHTML, "密码重置链接邮件"},
-		{notification.TmplDeviceVerification, "设备验证码", "设备验证码", LingEcho.DeviceVerificationHTML, "新设备登录二次验证邮件"},
-		{notification.TmplGroupInvitation, "组织邀请", "您收到了来自 {{.InviterName}} 的组织邀请", LingEcho.GroupInvitationHTML, "组织 / 团队邀请邮件"},
-		{notification.TmplNewDeviceLogin, "新设备登录提醒", "{{if .IsSuspicious}}可疑登录警告{{else}}新设备登录提醒{{end}}", LingEcho.NewDeviceLoginHTML, "新设备 / 异地登录提醒"},
+		{notification.TmplWelcome, "欢迎邮件", "欢迎加入 SoulNexus", SoulNexus.WelcomeHTML, "用户注册成功欢迎邮件"},
+		{notification.TmplVerification, "通用验证码", "您的 SoulNexus 验证码", SoulNexus.VerificationHTML, "通用 6 位验证码邮件"},
+		{notification.TmplEmailVerification, "邮箱验证", "请验证您的邮箱地址", SoulNexus.EmailVerificationHTML, "注册后邮箱地址验证邮件"},
+		{notification.TmplPasswordReset, "密码重置", "密码重置请求", SoulNexus.PasswordResetHTML, "密码重置链接邮件"},
+		{notification.TmplDeviceVerification, "设备验证码", "设备验证码", SoulNexus.DeviceVerificationHTML, "新设备登录二次验证邮件"},
+		{notification.TmplGroupInvitation, "组织邀请", "您收到了来自 {{.InviterName}} 的组织邀请", SoulNexus.GroupInvitationHTML, "组织 / 团队邀请邮件"},
+		{notification.TmplNewDeviceLogin, "新设备登录提醒", "{{if .IsSuspicious}}可疑登录警告{{else}}新设备登录提醒{{end}}", SoulNexus.NewDeviceLoginHTML, "新设备 / 异地登录提醒"},
 	}
 	for _, d := range defs {
 		var n int64

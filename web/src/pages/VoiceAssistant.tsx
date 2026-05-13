@@ -38,12 +38,26 @@ import type { Assistant, ChatMessage, VoiceChatSession, LineMode } from './Voice
 // 导入自定义 Hooks
 import { useVoiceAssistant } from '@/hooks/useVoiceAssistant'
 // 导入配置
-import { getUploadsBaseURL, buildWebSocketURL } from '@/config/apiConfig'
+import { getUploadsBaseURL } from '@/config/apiConfig'
 
 /** cmd/voice `-http` 根地址（与 VITE_CMD_VOICE_BASE 一致，无 /api 后缀） */
 function getCmdVoiceBase(): string {
     const raw = (import.meta.env.VITE_CMD_VOICE_BASE as string | undefined) || 'http://127.0.0.1:7080'
     return raw.endsWith('/') ? raw.slice(0, -1) : raw
+}
+
+/** WebSocket 浏览器语音：cmd/voice xiaozhi + `payload` 查询串透传到对话 WS（与 WebRTC 同源） */
+function buildCmdVoiceBrowserVoiceURL(payload: Record<string, unknown>): string {
+    const base = getCmdVoiceBase()
+    let origin: string
+    try {
+        const u = new URL(base.startsWith('http') ? base : `http://${base}`)
+        u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:'
+        origin = `${u.protocol}//${u.host}`
+    } catch {
+        origin = 'ws://127.0.0.1:7080'
+    }
+    return `${origin}/xiaozhi/v1/?${new URLSearchParams({ payload: JSON.stringify(payload) }).toString()}`
 }
 
 const VoiceAssistant = () => {
@@ -73,6 +87,12 @@ const VoiceAssistant = () => {
     const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
     const currentPlayingAudioRef = useRef<HTMLAudioElement | null>(null)
     const currentTTSAudioSourceRef = useRef<AudioBufferSourceNode | null>(null) // 当前播放的TTS音频源
+    /** xiaozhi 多段 TTS：每段 tts:stop 入队顺序播，避免下一段 tts:start 打断上一段 */
+    const wsTTSQueueRef = useRef<Array<{
+        chunks: Uint8Array[]
+        format: { sampleRate?: number; channels?: number; bitDepth?: number }
+    }>>([])
+    const wsTTSPlayingRef = useRef(false)
     const lastASRTextRef = useRef<string>('') // 上次已处理的ASR文本（用于去重）
     const lastLLMResponseRef = useRef<string>('') // 上次已处理的LLM回复（用于去重）
     const lastSelectedAgentRef = useRef<number | null>(null) // 防止重复选择同一个助手
@@ -551,6 +571,8 @@ const VoiceAssistant = () => {
 
     // 停止当前TTS播放
     const stopCurrentTTSPlayback = () => {
+        wsTTSQueueRef.current = []
+        wsTTSPlayingRef.current = false
         // 停止AudioBufferSourceNode
         if (currentTTSAudioSourceRef.current) {
             try {
@@ -572,33 +594,44 @@ const VoiceAssistant = () => {
         }
     }
 
-    // 播放TTS音频流（音频流方式）
-    const playTTSAudioStream = (
-        audioBuffer: Uint8Array[],
-        format: { sampleRate?: number; channels?: number; bitDepth?: number },
-        audioContext: AudioContext | null
-    ) => {
-        if (isGlobalMuted || audioBuffer.length === 0 || !audioContext) {
-            console.warn('[WebSocket语音] 跳过播放:', { isGlobalMuted, bufferLength: audioBuffer.length, hasContext: !!audioContext })
+    // xiaozhi 多段 TTS：顺序播放队列（不要在每段 tts:start 时 stop，否则会截断上一段 PCM）
+    const tryPlayNextWebSocketTTSQueue = (audioContext: AudioContext | null) => {
+        if (!audioContext || isGlobalMuted || wsTTSPlayingRef.current) {
             return
+        }
+        const item = wsTTSQueueRef.current.shift()
+        if (!item || item.chunks.length === 0) {
+            if (wsTTSQueueRef.current.length > 0) {
+                tryPlayNextWebSocketTTSQueue(audioContext)
+            }
+            return
+        }
+        const audioBuffer = item.chunks
+        const format = item.format
+
+        wsTTSPlayingRef.current = true
+
+        const finishSegment = () => {
+            if (currentTTSAudioSourceRef.current) {
+                currentTTSAudioSourceRef.current = null
+            }
+            wsTTSPlayingRef.current = false
+            tryPlayNextWebSocketTTSQueue(audioContext)
         }
 
         try {
-            // 停止之前的播放（确保同一时间只有一个音频在播放）
-            stopCurrentTTSPlayback()
-            // 确保AudioContext处于running状态
             if (audioContext.state === 'suspended') {
-                audioContext.resume().then(() => {
+                void audioContext.resume().then(() => {
                     console.log('[WebSocket语音] AudioContext已恢复')
                 }).catch(err => {
                     console.error('[WebSocket语音] 恢复AudioContext失败:', err)
                 })
             }
 
-            // 合并所有音频数据
             const totalLength = audioBuffer.reduce((sum, buf) => sum + buf.length, 0)
             if (totalLength === 0) {
                 console.warn('[WebSocket语音] 音频数据为空')
+                finishSegment()
                 return
             }
 
@@ -609,24 +642,23 @@ const VoiceAssistant = () => {
                 offset += buf.length
             }
 
-            console.log('[WebSocket语音] 合并音频数据，总长度:', totalLength, '格式:', format)
+            if (WS_AUDIO_DEBUG) {
+                console.log('[WebSocket语音] 合并音频数据，总长度:', totalLength, '格式:', format)
+            }
 
-            // 获取音频格式参数
-            const sampleRate = format.sampleRate || 8000 // 后端TTS默认8000
+            const sampleRate = format.sampleRate || 16000
             const channels = format.channels || 1
             const bitDepth = format.bitDepth || 16
 
-            // 根据位深度计算样本数
             const bytesPerSample = bitDepth / 8
             const samples = Math.floor(mergedBuffer.length / bytesPerSample)
 
             if (samples === 0) {
                 console.warn('[WebSocket语音] 样本数为0')
+                finishSegment()
                 return
             }
 
-            // 转换为Int16Array（线性PCM）
-            // 使用DataView显式按小端读取，避免手动位运算导致符号位处理不稳定。
             const pcmData = new Int16Array(samples)
             const view = new DataView(mergedBuffer.buffer, mergedBuffer.byteOffset, mergedBuffer.byteLength)
             for (let i = 0; i < samples; i++) {
@@ -634,70 +666,78 @@ const VoiceAssistant = () => {
                 if (bytesPerSample === 2) {
                     pcmData[i] = view.getInt16(byteOffset, true)
                 } else if (bytesPerSample === 1) {
-                    // 8位PCM通常是无符号，转换到16位有符号区间
                     pcmData[i] = (mergedBuffer[byteOffset] - 128) << 8
                 } else {
                     console.warn('[WebSocket语音] 暂不支持的位深度:', bitDepth)
+                    finishSegment()
                     return
                 }
             }
 
-            // 转换为Float32Array（Web Audio API使用，范围-1.0到1.0）
             const float32Data = new Float32Array(pcmData.length)
             for (let i = 0; i < pcmData.length; i++) {
                 float32Data[i] = Math.max(-1, Math.min(1, pcmData[i] / 32768.0))
             }
 
-            // 计算每个声道的样本数
             const samplesPerChannel = Math.floor(float32Data.length / channels)
             if (samplesPerChannel === 0) {
                 console.warn('[WebSocket语音] 每声道样本数为0')
+                finishSegment()
                 return
             }
 
-            // 创建AudioBuffer
-            const audioBufferSource = audioContext.createBuffer(channels, samplesPerChannel, sampleRate)
+            const decodedBuffer = audioContext.createBuffer(channels, samplesPerChannel, sampleRate)
 
-            // 填充音频数据
             if (channels === 1) {
-                // 单声道：直接填充
-                audioBufferSource.getChannelData(0).set(float32Data)
+                decodedBuffer.getChannelData(0).set(float32Data)
             } else {
-                // 多声道：交错数据需要解交错
                 for (let ch = 0; ch < channels; ch++) {
-                    const channelData = audioBufferSource.getChannelData(ch)
+                    const channelData = decodedBuffer.getChannelData(ch)
                     for (let i = 0; i < samplesPerChannel; i++) {
                         channelData[i] = float32Data[i * channels + ch]
                     }
                 }
             }
 
-            // 创建AudioBufferSourceNode并播放
             const source = audioContext.createBufferSource()
-            source.buffer = audioBufferSource
+            source.buffer = decodedBuffer
             source.connect(audioContext.destination)
-
-            // 保存当前播放的音频源（用于打断）
             currentTTSAudioSourceRef.current = source
 
-            // 添加结束回调
             source.onended = () => {
-                console.log('[WebSocket语音] TTS音频播放完成')
+                if (WS_AUDIO_DEBUG) {
+                    console.log('[WebSocket语音] TTS音频播放完成')
+                }
                 if (currentTTSAudioSourceRef.current === source) {
                     currentTTSAudioSourceRef.current = null
                 }
+                wsTTSPlayingRef.current = false
+                tryPlayNextWebSocketTTSQueue(audioContext)
             }
 
             source.start(0)
-            console.log('[WebSocket语音] 开始播放TTS音频流，时长:', (samplesPerChannel / sampleRate).toFixed(2), '秒')
+            if (WS_AUDIO_DEBUG) {
+                console.log('[WebSocket语音] 开始播放TTS音频流，时长:', (samplesPerChannel / sampleRate).toFixed(2), '秒')
+            }
         } catch (error) {
             console.error('[WebSocket语音] 播放TTS音频流失败:', error)
-            console.error('[WebSocket语音] 错误详情:', {
-                bufferCount: audioBuffer.length,
-                format,
-                contextState: audioContext?.state
-            })
+            finishSegment()
         }
+    }
+
+    const enqueueWebSocketTTSPlayback = (
+        audioBuffer: Uint8Array[],
+        format: { sampleRate?: number; channels?: number; bitDepth?: number },
+        audioContext: AudioContext | null
+    ) => {
+        if (isGlobalMuted || audioBuffer.length === 0 || !audioContext) {
+            if (WS_AUDIO_DEBUG) {
+                console.warn('[WebSocket语音] 跳过入队:', { isGlobalMuted, bufferLength: audioBuffer.length, hasContext: !!audioContext })
+            }
+            return
+        }
+        wsTTSQueueRef.current.push({ chunks: audioBuffer, format })
+        tryPlayNextWebSocketTTSQueue(audioContext)
     }
 
     // 连接WebSocket语音服务（通用模式，支持多服务商）
@@ -715,8 +755,14 @@ const VoiceAssistant = () => {
             return
         }
 
-        // 连接通用WebSocket语音服务
-        const wsUrl = `${buildWebSocketURL('/api/voice/websocket')}?apiKey=${encodeURIComponent(apiKey)}&apiSecret=${encodeURIComponent(apiSecret)}&agentId=${agentId}&language=${language}&speaker=${selectedSpeaker}`
+        // 连接 cmd/voice xiaozhi：鉴权与扩展字段放在 payload，由 voiceserver 写入对话 WS 查询串
+        const wsUrl = buildCmdVoiceBrowserVoiceURL({
+            apiKey,
+            apiSecret,
+            agentId: String(agentId),
+            language,
+            speaker: selectedSpeaker,
+        })
         const newSocket = new WebSocket(wsUrl)
 
         newSocket.onopen = async () => {
@@ -849,6 +895,15 @@ const VoiceAssistant = () => {
                     setIsConnecting(false)
                     setIsCalling(true)
 
+                    // xiaozhi：必须先 listen:start，上行 PCM 才会进 ASR
+                    if (newSocket.readyState === WebSocket.OPEN) {
+                        newSocket.send(JSON.stringify({
+                            type: 'listen',
+                            state: 'start',
+                            mode: 'manual',
+                        }))
+                    }
+
                     // 启动录音（如果还没开始）
                     if (!isRecordingStarted && (newSocket as any)._pendingStream) {
                         const stream = (newSocket as any)._pendingStream
@@ -881,8 +936,8 @@ const VoiceAssistant = () => {
                         // TTS开始，记录音频格式
                         console.log('[WebSocket语音] TTS开始，音频格式:', data)
 
-                        // 停止之前的播放（打断之前的TTS）
-                        stopCurrentTTSPlayback()
+                        // 勿在此处 stopCurrentTTSPlayback：xiaozhi 每段 utterance 都会先发 start 再发 stop，
+                        // 打断会导致上一段 PCM 尚未播放就被截断；多段顺序播放入队处理。
 
                         // 暂停发送音频数据（防止回声/反馈触发VAD barge-in）
                         if ((newSocket as any)._audioProcessor) {
@@ -921,7 +976,7 @@ const VoiceAssistant = () => {
                             // 复制缓冲区（因为playTTSAudioStream会清空它）
                             const audioDataToPlay = [...ttsAudioBuffer]
                             ttsAudioBuffer = [] // 立即清空，防止重复播放
-                            playTTSAudioStream(audioDataToPlay, ttsAudioFormat, audioContext)
+                            enqueueWebSocketTTSPlayback(audioDataToPlay, ttsAudioFormat, audioContext)
                         } else {
                             // 如果没有音频数据，清空缓冲区
                             ttsAudioBuffer = []
@@ -1586,19 +1641,17 @@ const VoiceAssistant = () => {
                 }
             }
 
-            // 关闭WebSocket连接（先发送关闭消息）
+            // 关闭 WebSocket（cmd/voice xiaozhi：listen:stop 后断开）
             if (socket && socket.readyState !== WebSocket.CLOSED) {
                 try {
-                    // 发送关闭消息通知后端
                     socket.send(JSON.stringify({
-                        type: 'close',
-                        session_id: currentSessionId || '',
-                        data: {}
+                        type: 'listen',
+                        state: 'stop',
+                        mode: 'manual',
                     }))
                 } catch (err) {
-                    console.warn('[StopCall] 发送关闭消息失败:', err)
+                    console.warn('[StopCall] 发送 listen:stop 失败:', err)
                 }
-                // 等待一小段时间让消息发送，然后关闭连接
                 setTimeout(() => {
                     if (socket && socket.readyState !== WebSocket.CLOSED) {
                         socket.close()

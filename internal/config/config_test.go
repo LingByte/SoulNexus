@@ -32,7 +32,7 @@ func setAllEnvs(t *testing.T) {
 	t.Setenv("LOG_MAX_BACKUPS", "7")
 
 	// 邮件
-	t.Setenv("SENDCLOUD_API_USER", "LingEcho")
+	t.Setenv("SENDCLOUD_API_USER", "SoulNexus")
 	t.Setenv("SENDCLOUD_API_KEY", "14b6e48501c452407421917c943be0c3")
 	t.Setenv("SENDCLOUD_FROM_EMAIL", "19511899044@163.com")
 
