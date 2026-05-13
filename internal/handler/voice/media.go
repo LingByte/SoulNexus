@@ -10,7 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/LingByte/SoulNexus/pkg/voiceserver/stores"
+	"github.com/LingByte/SoulNexus/pkg/stores"
 )
 
 // mountMediaFileServer wires an http.FileServer at the LocalStore's URL

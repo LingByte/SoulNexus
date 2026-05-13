@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/LingByte/SoulNexus/pkg/voiceserver/stores"
+	"github.com/LingByte/SoulNexus/pkg/stores"
 	"github.com/hraban/opus"
 	"github.com/pion/webrtc/v4"
 	"go.uber.org/zap"
@@ -145,7 +145,6 @@ func (r *recordingSession) Close() {
 		r.logger.Warn("sfu: default store unavailable; recording dropped")
 		return
 	}
-	bucket := r.cfg.RecordBucket
 	key := fmt.Sprintf("%s/%s-%s-%d.wav",
 		sanitiseSegment(r.roomName),
 		sanitiseSegment(r.identity),
@@ -154,11 +153,11 @@ func (r *recordingSession) Close() {
 	)
 	// store.Store.Write doesn't take a context today; upload time is
 	// bounded by whatever HTTP client the backend uses internally.
-	if err := store.Write(bucket, key, bytes.NewReader(wav)); err != nil {
+	if err := store.Write(key, bytes.NewReader(wav)); err != nil {
 		r.logger.Warn("sfu: recording upload", zap.Error(err))
 		return
 	}
-	url := store.PublicURL(bucket, key)
+	url := store.PublicURL(key)
 	duration := time.Duration(len(pcm)/2) * time.Second / time.Duration(recSampleRate)
 	r.logger.Info("sfu: recording uploaded",
 		zap.String("url", url),

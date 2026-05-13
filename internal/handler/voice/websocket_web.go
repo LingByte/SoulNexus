@@ -48,7 +48,6 @@ func (h *Handlers) mountSFU(r gin.IRoutes) bool {
 		MaxRooms:               cfg.SFUMaxRooms,
 		AllowedOrigins:         app.SplitCSV(cfg.SFUAllowedOrigins),
 		EnableRecording:        cfg.SFURecord,
-		RecordBucket:           cfg.SFURecordBucket,
 		WebhookURL:             cfg.SFUWebhookURL,
 		PublicIPs:              app.SplitCSV(utils.GetEnv("WEBRTC_PUBLIC_IPS")),
 		SinglePort:             app.ParseSinglePort(utils.GetEnv("WEBRTC_UDP_PORT")),

@@ -1,12 +1,13 @@
 // Copyright (c) 2026 LingByte. All rights reserved.
 // SPDX-License-Identifier: AGPL-3.0
- 
+
 package main
- 
+
 import (
 	"context"
 	"log"
 	"sync"
+
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/app"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/media"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/recorder"
@@ -14,7 +15,6 @@ import (
 
 type pcmRecorder struct {
 	callID    string
-	bucket    string
 	codec     string
 	persister *app.CallPersister
 
@@ -22,8 +22,8 @@ type pcmRecorder struct {
 	rec *recorder.Recorder // late-init in setPCMRate
 }
 
-func newRTPRecorder(callID, bucket string) *pcmRecorder {
-	return &pcmRecorder{callID: callID, bucket: bucket}
+func newRTPRecorder(callID string) *pcmRecorder {
+	return &pcmRecorder{callID: callID}
 }
 
 // setCodec stamps the negotiated wire codec for the flush log line. The
@@ -54,7 +54,6 @@ func (r *pcmRecorder) setPCMRate(rate int) {
 	}
 	r.rec = recorder.New(recorder.Config{
 		CallID:     r.callID,
-		Bucket:     r.bucket,
 		SampleRate: rate,
 		Transport:  "sip",
 		Codec:      r.codec,
@@ -112,4 +111,3 @@ func (r *pcmRecorder) recorder() *recorder.Recorder {
 }
 
 // ---------- DTMFSink --------------------------------------------------------
-

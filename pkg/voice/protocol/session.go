@@ -14,6 +14,7 @@ import (
 
 	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/logger"
+	"github.com/LingByte/SoulNexus/pkg/stores"
 	"github.com/LingByte/SoulNexus/pkg/synthesizer"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/LingByte/SoulNexus/pkg/voice/constants"
@@ -22,7 +23,6 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/voice/tools"
 	"github.com/LingByte/SoulNexus/pkg/voiceclone"
 	"github.com/LingByte/SoulNexus/pkg/voiceprint"
-	"github.com/LingByte/SoulNexus/pkg/stores"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -32,7 +32,7 @@ import (
 type HardwareSessionOption struct {
 	Conn                 *websocket.Conn
 	Logger               *zap.Logger
-	AgentID          uint
+	AgentID              uint
 	Credential           *models.UserCredential
 	LLMModel             string
 	SystemPrompt         string
@@ -259,8 +259,8 @@ func NewHardwareSession(ctx context.Context, hardwareConfig *HardwareSessionOpti
 		callRecording: &models.CallRecording{
 			GroupID:   hardwareConfig.Credential.GroupID,
 			CreatedBy: hardwareConfig.Credential.CreatedBy,
-			AgentID: hardwareConfig.AgentID,
-			SessionID:   sessionID,
+			AgentID:   hardwareConfig.AgentID,
+			SessionID: sessionID,
 			DeviceID: func() string {
 				if hardwareConfig.DeviceID != nil {
 					return *hardwareConfig.DeviceID

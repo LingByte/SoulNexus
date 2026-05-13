@@ -51,7 +51,7 @@ func TestIntegration_S3_CRUD(t *testing.T) {
 		Region:          s3MustEnv("S3_REGION"),
 		AccessKeyID:     s3MustEnv("S3_ACCESS_KEY_ID"),
 		AccessKeySecret: s3MustEnv("S3_SECRET_ACCESS_KEY"),
-		BucketName:      s3MustEnv("S3_BUCKET"),
+		BucketName:      "test-bucket",
 		Endpoint:        os.Getenv("S3_ENDPOINT"),
 		UsePathStyle:    usePathStyle,
 		Domain:          os.Getenv("S3_DOMAIN"),
@@ -287,7 +287,7 @@ func TestS3Store_Exists_NonExistent(t *testing.T) {
 		Region:          s3MustEnv("S3_REGION"),
 		AccessKeyID:     s3MustEnv("S3_ACCESS_KEY_ID"),
 		AccessKeySecret: s3MustEnv("S3_SECRET_ACCESS_KEY"),
-		BucketName:      s3MustEnv("S3_BUCKET"),
+		BucketName:      "test-bucket",
 		Endpoint:        os.Getenv("S3_ENDPOINT"),
 		UsePathStyle:    strings.ToLower(os.Getenv("S3_USE_PATH_STYLE")) == "true" || os.Getenv("S3_USE_PATH_STYLE") == "1",
 	}

@@ -73,10 +73,6 @@ type Config struct {
 	// VP8 decode path does not, keeping the feature scoped).
 	EnableRecording bool
 
-	// RecordBucket is the pkg/stores bucket for recordings. Defaults
-	// to "sfu-recordings".
-	RecordBucket string
-
 	// WebhookURL receives POSTed JSON events when set. Each request is
 	// signed with X-SFU-Signature = hex(HMAC_SHA256(AuthSecret, body)).
 	WebhookURL string
@@ -100,9 +96,6 @@ func (c *Config) Normalise() *Config {
 	}
 	if c.HeartbeatInterval == 0 {
 		c.HeartbeatInterval = 20 * time.Second
-	}
-	if c.RecordBucket == "" {
-		c.RecordBucket = "sfu-recordings"
 	}
 	if c.WebhookTimeout == 0 {
 		c.WebhookTimeout = 5 * time.Second

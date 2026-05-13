@@ -1,17 +1,11 @@
 // Copyright (c) 2026 LingByte. All rights reserved.
 // SPDX-License-Identifier: AGPL-3.0
- 
+
 package main
- 
+
 import (
 	"context"
 	"fmt"
-	"log"
-	"net"
-	"strconv"
-	"strings"
-	"sync"
-	"sync/atomic"
 	"github.com/LingByte/SoulNexus/pkg/recognizer"
 	"github.com/LingByte/SoulNexus/pkg/synthesizer"
 	"github.com/LingByte/SoulNexus/pkg/utils"
@@ -23,6 +17,12 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/gateway"
 	voicetts "github.com/LingByte/SoulNexus/pkg/voiceserver/voice/tts"
 	"gorm.io/gorm"
+	"log"
+	"net"
+	"strconv"
+	"strings"
+	"sync"
+	"sync/atomic"
 )
 
 type gatewayRegistry struct {
@@ -62,15 +62,14 @@ func (r *gatewayRegistry) drop(callID string) {
 }
 
 type echoInviteHandler struct {
-	serial       *int64
-	record       bool
-	recordBucket string
-	asrEcho      bool
-	replyText    string
-	dialogWS     string
-	srv          *server.SIPServer
-	db           *gorm.DB         // optional persistence; nil = disabled
-	gateways     *gatewayRegistry // tracks per-call *gateway.Client for REFER lookup
+	serial    *int64
+	record    bool
+	asrEcho   bool
+	replyText string
+	dialogWS  string
+	srv       *server.SIPServer
+	db        *gorm.DB         // optional persistence; nil = disabled
+	gateways  *gatewayRegistry // tracks per-call *gateway.Client for REFER lookup
 }
 
 // OnRefer implements server.TransferHandler. The SIP server invokes
@@ -112,7 +111,7 @@ func (h *echoInviteHandler) OnIncomingCall(ctx context.Context, inv *server.Inco
 	// writes a stereo WAV (L=caller / R=AI-TTS) on teardown. Codec-agnostic.
 	var recorder *pcmRecorder
 	if h.record {
-		recorder = newRTPRecorder(inv.CallID, h.recordBucket)
+		recorder = newRTPRecorder(inv.CallID)
 	}
 
 	// Optional persistence row created right at INVITE so we have a row even

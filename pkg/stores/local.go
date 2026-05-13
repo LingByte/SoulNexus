@@ -12,9 +12,19 @@ import (
 
 var UploadDir = "./uploads"
 
+// DefaultLocalURLPrefix is the HTTP path prefix used by LocalStore.PublicURL
+// when LOCAL_MEDIA_URL_PREFIX is not set. Pair this with a matching
+// http.FileServer mount (see cmd/voiceserver/http_listener.go) so the
+// returned URLs are actually fetchable.
+const DefaultLocalURLPrefix = "/media"
+
 type LocalStore struct {
 	Root       string
 	NewDirPerm os.FileMode
+	// URLPrefix is the HTTP path prefix served by the file server that
+	// exposes Root. PublicURL returns URLPrefix + "/" + bucket + "/" + key.
+	// Empty falls back to DefaultLocalURLPrefix.
+	URLPrefix string
 }
 
 // Delete implements Store.
@@ -98,11 +108,25 @@ func (l *LocalStore) Write(key string, r io.Reader) error {
 	return err
 }
 
+// PublicURL returns a path that the local /media file server can resolve.
+// It is intentionally rooted at a public URL prefix (default /media) rather
+// than at the on-disk Root, so the path stays stable even when UPLOAD_DIR is
+// STORAGE_PUBLIC_BASE_URL when an absolute URL is required.
 func (l *LocalStore) PublicURL(key string) string {
-	mediaPrefix := strings.TrimSuffix(l.Root, "/")
-	key = strings.TrimPrefix(key, "/")
-	relativePath := path.Join("/", mediaPrefix, key)
-	return relativePath
+	prefix := strings.TrimSpace(l.URLPrefix)
+	if prefix == "" {
+		prefix = strings.TrimSpace(utils.GetEnv("LOCAL_MEDIA_URL_PREFIX"))
+	}
+	if prefix == "" {
+		prefix = DefaultLocalURLPrefix
+	}
+	prefix = "/" + strings.Trim(prefix, "/")
+	// LocalStore's Write/Read/Delete/Exists all ignore the bucket name and
+	// resolve keys directly under Root, so PublicURL must follow suit.
+	// Cloud backends overlay the bucket in their host name (e.g. S3) so this
+	// asymmetry is invisible to callers as long as they go through PublicURL.
+	key = strings.TrimPrefix(strings.TrimSpace(key), "/")
+	return path.Join(prefix, key)
 }
 
 func NewLocalStore() Store {
@@ -113,6 +137,7 @@ func NewLocalStore() Store {
 	s := &LocalStore{
 		Root:       uploadDir,
 		NewDirPerm: 0755,
+		URLPrefix:  strings.TrimSpace(utils.GetEnv("LOCAL_MEDIA_URL_PREFIX")),
 	}
 	return s
 }
