@@ -1,0 +1,7 @@
+{
+  "_comment": "Hold messages played to the user while cmd/voice reconnects to the dialog plane (LLM/business backend). Loaded at startup via -hold-messages (default scripts/hold/hold_messages.json). Customize per language/tenant. The TTS engine renders these on demand — phrases also listed in cmd/voice prewarmTexts() get cached on first use, so subsequent reconnects play with near-zero TTFB.",
+  "default": "请稍等，正在为您接通。",
+  "first_attempt": "请稍等。",
+  "retry": "正在重新连接，请稍候。",
+  "give_up": "抱歉，当前服务暂时不可用，请稍后再试。"
+}

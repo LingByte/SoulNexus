@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>SFU Demo</title>
+<style>
+  body{font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+       background:#0e0f12;color:#e6e6e6;margin:0;padding:20px}
+  h1{font-size:18px;margin:0 0 8px}
+  .row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+  input,button{font:inherit;padding:6px 10px;border-radius:4px;border:1px solid #2a2d33;background:#14161a;color:#e6e6e6}
+  button{background:#234;cursor:pointer}
+  button:hover{background:#345}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  #peers{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
+  .peer{background:#14161a;border:1px solid #25282e;border-radius:6px;padding:8px}
+  .peer h3{margin:0 0 6px;font-size:13px;color:#4ea1ff}
+  video{width:100%;background:#000;border-radius:4px;display:block}
+  #log{font-family:ui-monospace,Menlo,monospace;font-size:11px;background:#0a0b0e;
+       padding:8px;border-radius:4px;height:160px;overflow:auto;white-space:pre-wrap;color:#9aa}
+  .status{color:#8b8e95;font-size:12px}
+</style>
+</head>
+<body>
+<h1>VoiceServer SFU Demo</h1>
+<div class="status">Multi-party WebRTC via Selective Forwarding Unit. Open this page in 2+ tabs/devices with the same room name.</div>
+<div class="row" style="margin-top:12px">
+  <input id="room" placeholder="room" value="demo-room">
+  <input id="name" placeholder="display name" value="">
+  <button id="join">Join</button>
+  <button id="leave" disabled>Leave</button>
+  <label style="align-self:center"><input type="checkbox" id="video" checked> video</label>
+  <label style="align-self:center"><input type="checkbox" id="audio" checked> audio</label>
+</div>
+<div id="peers"></div>
+<h3 style="margin-top:18px;font-size:13px">log</h3>
+<div id="log"></div>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const peersEl = $("peers"), logEl = $("log");
+  const log = (...a) => { logEl.textContent += a.join(" ") + "\n"; logEl.scrollTop = logEl.scrollHeight; };
+
+  // Default identity = random 6-char hex so reload doesn't trip the
+  // duplicate-identity eviction unless the user explicitly set name.
+  $("name").value = "user-" + Math.random().toString(16).slice(2, 8);
+
+  let ws, pc, localStream, myId;
+  const peerEls = {};
+
+  function ensurePeerEl(id, name) {
+    if (peerEls[id]) return peerEls[id];
+    const div = document.createElement("div");
+    div.className = "peer";
+    div.innerHTML = `<h3>${name || id}</h3><video autoplay playsinline ${id === "self" ? "muted" : ""}></video>`;
+    peersEl.appendChild(div);
+    peerEls[id] = div;
+    return div;
+  }
+  function removePeerEl(id) {
+    if (peerEls[id]) { peerEls[id].remove(); delete peerEls[id]; }
+  }
+
+  function send(type, data, requestId) {
+    if (ws && ws.readyState === 1) ws.send(JSON.stringify({type, data, requestId}));
+  }
+
+  async function fetchToken(room, identity, name) {
+    // Allow-anon mode (server-decided): pass empty token, server fills
+    // claims from join.Room/join.Name.
+    try {
+      const r = await fetch(`./token?room=${encodeURIComponent(room)}&identity=${encodeURIComponent(identity)}&name=${encodeURIComponent(name||"")}`);
+      if (!r.ok) return "";
+      const j = await r.json();
+      return j.token || "";
+    } catch { return ""; }
+  }
+
+  async function join() {
+    const room = $("room").value.trim() || "demo-room";
+    const name = $("name").value.trim();
+    const identity = name || ("anon-" + Math.random().toString(16).slice(2, 8));
+
+    const constraints = { audio: $("audio").checked, video: $("video").checked };
+    if (!constraints.audio && !constraints.video) { log("must enable audio or video"); return; }
+    localStream = await navigator.mediaDevices.getUserMedia(constraints);
+    ensurePeerEl("self", "you").querySelector("video").srcObject = localStream;
+
+    const token = await fetchToken(room, identity, name);
+
+    pc = new RTCPeerConnection({ iceServers: [{urls:"stun:stun.l.google.com:19302"}] });
+    // pendingRemoteCandidates buffers iceCandidate frames that arrive
+    // BEFORE we've set the remote SDP. pion eagerly trickles candidates
+    // alongside (and often ahead of) the answer; addIceCandidate throws
+    // "remote description was null" if we apply them too early.
+    let pendingRemoteCandidates = [];
+    let remoteReady = false;
+    async function applyRemoteCandidate(cand) {
+      try {
+        await pc.addIceCandidate({
+          candidate: cand.candidate,
+          sdpMid: cand.sdpMid || null,
+          sdpMLineIndex: cand.sdpMLineIndex,
+        });
+      } catch(e) { log("addIce err", e.message); }
+    }
+    async function flushPendingCandidates() {
+      remoteReady = true;
+      const q = pendingRemoteCandidates; pendingRemoteCandidates = [];
+      for (const c of q) await applyRemoteCandidate(c);
+    }
+
+    localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+    pc.ontrack = ev => {
+      // ev.streams[0] groups tracks by participant (their MSID == participantId server-side).
+      const stream = ev.streams[0];
+      const id = stream ? stream.id : ev.track.id;
+      const el = ensurePeerEl(id, id.slice(0,8));
+      const v = el.querySelector("video");
+      if (v.srcObject !== stream) v.srcObject = stream;
+    };
+    pc.oniceconnectionstatechange = () => log("ice:", pc.iceConnectionState);
+    pc.onconnectionstatechange = () => log("pc:", pc.connectionState);
+    pc.onicecandidate = e => {
+      if (e.candidate) send("iceCandidate", {
+        candidate: e.candidate.candidate,
+        sdpMid: e.candidate.sdpMid || "",
+        sdpMLineIndex: e.candidate.sdpMLineIndex,
+      });
+    };
+
+    const wsPath = location.pathname.replace(/\/demo$/, "/ws");
+    const wsURL = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + wsPath;
+    ws = new WebSocket(wsURL);
+    ws.onopen = () => {
+      log("ws open; sending join");
+      send("join", { token, room, name });
+    };
+    ws.onclose = () => log("ws closed");
+    ws.onerror = e => log("ws error", e.message || "");
+    ws.onmessage = async ev => {
+      const msg = JSON.parse(ev.data);
+      switch (msg.type) {
+        case "joined": {
+          myId = msg.data.participantId;
+          log("joined as", myId, "peers:", msg.data.participants.length);
+          // Send our offer.
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          send("offer", { sdp: offer.sdp });
+          break;
+        }
+        case "answer": {
+          await pc.setRemoteDescription({ type: "answer", sdp: msg.data.sdp });
+          await flushPendingCandidates();
+          break;
+        }
+        case "offer": {
+          // Server-initiated renegotiation: drop the remote-ready flag
+          // until the new SDP is applied, since the peer state machine
+          // restarts with a new generation of candidates.
+          remoteReady = false;
+          await pc.setRemoteDescription({ type: "offer", sdp: msg.data.sdp });
+          const ans = await pc.createAnswer();
+          await pc.setLocalDescription(ans);
+          send("answer", { sdp: ans.sdp });
+          await flushPendingCandidates();
+          break;
+        }
+        case "iceCandidate": {
+          // Buffer until we've applied the matching SDP. addIceCandidate
+          // without a remote description throws InvalidStateError.
+          if (!remoteReady) {
+            pendingRemoteCandidates.push(msg.data);
+          } else {
+            await applyRemoteCandidate(msg.data);
+          }
+          break;
+        }
+        case "participantJoined":
+          log("peer join:", msg.data.participant.identity);
+          break;
+        case "participantLeft":
+          log("peer left:", msg.data.participantId, msg.data.reason || "");
+          removePeerEl(msg.data.participantId);
+          break;
+        case "trackPublished":
+          log("track pub:", msg.data.participantId, msg.data.track.kind);
+          break;
+        case "error":
+          log("ERROR:", msg.data.code, msg.data.message);
+          break;
+      }
+    };
+    $("join").disabled = true; $("leave").disabled = false;
+  }
+
+  function leave() {
+    if (ws) { try { send("leave", {}); ws.close(); } catch{} ws = null; }
+    if (pc) { pc.close(); pc = null; }
+    if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
+    Object.keys(peerEls).forEach(removePeerEl);
+    $("join").disabled = false; $("leave").disabled = true;
+    log("left");
+  }
+
+  $("join").onclick = () => join().catch(e => log("join failed:", e.message));
+  $("leave").onclick = leave;
+})();
+</script>
+</body>
+</html>

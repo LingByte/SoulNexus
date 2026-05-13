@@ -1,6 +1,6 @@
 module github.com/LingByte/SoulNexus
 
-go 1.25.0
+go 1.26.2
 
 require (
 	cloud.google.com/go/speech v1.28.1
@@ -47,7 +47,13 @@ require (
 	github.com/nicksnyder/go-i18n/v2 v2.6.0
 	github.com/otiai10/gosseract/v2 v2.4.1
 	github.com/patrickmn/go-cache v2.1.0+incompatible
+	github.com/pion/ice/v4 v4.2.5
+	github.com/pion/interceptor v0.1.44
+	github.com/pion/rtcp v1.2.16
+	github.com/pion/rtp v1.10.1
+	github.com/pion/srtp/v2 v2.0.20
 	github.com/pion/webrtc/v3 v3.3.6
+	github.com/pion/webrtc/v4 v4.2.12
 	github.com/pquerna/otp v1.5.0
 	github.com/prometheus/client_golang v1.19.1
 	github.com/qiniu/go-sdk/v7 v7.26.12
@@ -73,6 +79,7 @@ require (
 	golang.org/x/image v0.34.0
 	golang.org/x/net v0.53.0
 	golang.org/x/text v0.37.0
+	golang.org/x/time v0.14.0
 	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/datatypes v1.2.7
 	gorm.io/driver/mysql v1.6.0
@@ -203,21 +210,23 @@ require (
 	github.com/mschoch/smat v0.2.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
-	github.com/pion/datachannel v1.5.8 // indirect
+	github.com/pion/datachannel v1.6.0 // indirect
 	github.com/pion/dtls/v2 v2.2.12 // indirect
+	github.com/pion/dtls/v3 v3.1.2 // indirect
 	github.com/pion/ice/v2 v2.3.38 // indirect
-	github.com/pion/interceptor v0.1.29 // indirect
-	github.com/pion/logging v0.2.2 // indirect
+	github.com/pion/logging v0.2.4 // indirect
 	github.com/pion/mdns v0.0.12 // indirect
+	github.com/pion/mdns/v2 v2.1.0 // indirect
 	github.com/pion/randutil v0.1.0 // indirect
-	github.com/pion/rtcp v1.2.14 // indirect
-	github.com/pion/rtp v1.8.25 // indirect
-	github.com/pion/sctp v1.8.19 // indirect
-	github.com/pion/sdp/v3 v3.0.9 // indirect
-	github.com/pion/srtp/v2 v2.0.20 // indirect
+	github.com/pion/sctp v1.9.5 // indirect
+	github.com/pion/sdp/v3 v3.0.18 // indirect
+	github.com/pion/srtp/v3 v3.0.10 // indirect
 	github.com/pion/stun v0.6.1 // indirect
+	github.com/pion/stun/v3 v3.1.2 // indirect
 	github.com/pion/transport/v2 v2.2.10 // indirect
+	github.com/pion/transport/v4 v4.0.1 // indirect
 	github.com/pion/turn/v2 v2.1.6 // indirect
+	github.com/pion/turn/v5 v5.0.3 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_model v0.5.0 // indirect
@@ -238,7 +247,7 @@ require (
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.3.0 // indirect
 	github.com/vcaesar/cedar v0.20.2 // indirect
-	github.com/wlynxg/anet v0.0.3 // indirect
+	github.com/wlynxg/anet v0.0.5 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xuri/efp v0.0.1 // indirect
 	github.com/xuri/nfp v0.0.2-0.20250530014748-2ddeb826f9a9 // indirect
@@ -256,7 +265,6 @@ require (
 	golang.org/x/oauth2 v0.32.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/sys v0.44.0 // indirect
-	golang.org/x/time v0.14.0 // indirect
 	google.golang.org/api v0.254.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250818200422-3122310a409c // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251111163417-95abcf5c77ba // indirect
