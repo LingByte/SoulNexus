@@ -4,7 +4,8 @@
 package voice
 
 import (
-	"log"
+	"fmt"
+	"github.com/LingByte/SoulNexus/pkg/logger"
 	"net/http"
 	"strings"
 
@@ -32,7 +33,7 @@ import (
 func (h *Handlers) mountSFU(r gin.IRoutes) bool {
 	cfg := h.cfg
 	if !cfg.SFUAllowAnon && strings.TrimSpace(cfg.SFUSecret) == "" {
-		log.Printf("[sfu] disabled: VOICE_SFU_SECRET is required (or set VOICE_SFU_ALLOW_ANON=true for local dev)")
+		logger.Info(fmt.Sprintf("[sfu] disabled: VOICE_SFU_SECRET is required (or set VOICE_SFU_ALLOW_ANON=true for local dev)"))
 		return false
 	}
 
@@ -61,7 +62,7 @@ func (h *Handlers) mountSFU(r gin.IRoutes) bool {
 
 	mgr, err := sfu.NewManager(mgrCfg, logger.Named("sfu"))
 	if err != nil {
-		log.Printf("[sfu] init failed: %v", err)
+		logger.Info(fmt.Sprintf("[sfu] init failed: %v", err))
 		return false
 	}
 
@@ -124,7 +125,7 @@ func (h *Handlers) mountSFU(r gin.IRoutes) bool {
 	// goroutine doesn't leak when the parent server shuts down.
 	app.RegisterSFUManagerForShutdown(mgr)
 
-	log.Printf("[sfu] mounted: ws=%s anon=%v record=%v webhook=%s",
-		wsPath, cfg.SFUAllowAnon, cfg.SFURecord, cfg.SFUWebhookURL)
+	logger.Info(fmt.Sprintf("[sfu] mounted: ws=%s anon=%v record=%v webhook=%s",
+		wsPath, cfg.SFUAllowAnon, cfg.SFURecord, cfg.SFUWebhookURL))
 	return true
 }

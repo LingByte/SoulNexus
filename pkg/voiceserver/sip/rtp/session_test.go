@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LingByte/SoulNexus/pkg/voiceserver/media"
+	"github.com/LingByte/SoulNexus/pkg/media"
 )
 
 // TestSession_UDPLoopback verifies that a single Session can send and receive

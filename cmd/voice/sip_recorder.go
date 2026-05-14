@@ -4,12 +4,13 @@
 package main
 
 import (
+	"fmt"
 	"context"
-	"log"
+	"github.com/LingByte/SoulNexus/pkg/logger"
 	"sync"
 
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/app"
-	"github.com/LingByte/SoulNexus/pkg/voiceserver/media"
+	"github.com/LingByte/SoulNexus/pkg/media"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/recorder"
 )
 
@@ -92,11 +93,11 @@ func (r *pcmRecorder) flush() {
 	}
 	info, ok := rec.Flush(context.Background())
 	if !ok {
-		log.Printf("[record] call=%s empty (no inbound/outbound PCM) or upload failed, skip", r.callID)
+		logger.Info(fmt.Sprintf("[record] call=%s empty (no inbound/outbound PCM) or upload failed, skip", r.callID))
 		return
 	}
-	log.Printf("[record] call=%s wrote %d bytes stereo WAV → %s",
-		r.callID, info.Bytes, info.URL)
+	logger.Info(fmt.Sprintf("[record] call=%s wrote %d bytes stereo WAV → %s",
+		r.callID, info.Bytes, info.URL))
 	if r.persister == nil {
 		return
 	}

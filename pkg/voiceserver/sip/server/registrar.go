@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LingByte/SoulNexus/pkg/voiceserver/logger"
+	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/sip/stack"
 	"go.uber.org/zap"
 )

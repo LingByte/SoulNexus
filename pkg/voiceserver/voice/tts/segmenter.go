@@ -13,10 +13,11 @@ import (
 //
 // The rules, applied in order, emit a segment as soon as one matches:
 //
-//   1. buffer ends with one of SentenceEnders  → flush immediately
-//   2. buffer ends with one of ClauseMarkers and len(buffer) >= MinRunes → flush
-//   3. len(buffer) >= MaxRunes                  → flush (forced)
-//   4. IdleFlush elapsed since last token and len(buffer) >= MinRunes → flush
+//  1. buffer ends with one of SentenceEnders  → flush immediately
+//  2. buffer ends with one of ClauseMarkers and len(buffer) >= MinRunes → flush
+//     (skipped when OmitClauseFlushes is true)
+//  3. len(buffer) >= MaxRunes                  → flush (forced)
+//  4. IdleFlush elapsed since last token and len(buffer) >= MinRunes → flush
 //
 // OnComplete forces a final flush regardless of length.
 type SegmenterConfig struct {
@@ -25,6 +26,10 @@ type SegmenterConfig struct {
 	MinRunes       int
 	MaxRunes       int
 	IdleFlush      time.Duration
+	// OmitClauseFlushes, when true, disables rule 2 (clause punctuation).
+	// Use this when TTS should follow full sentences (。！？) rather than
+	// every comma / pause, which otherwise sounds like arbitrary semantic cuts.
+	OmitClauseFlushes bool
 }
 
 // DefaultSegmenterConfig returns a tuned config suited to Chinese + English
@@ -96,7 +101,7 @@ func (s *Segmenter) Push(piece string) {
 		return
 	}
 	// Rule 2: clause marker + min length.
-	if endsWithAny(cur, s.cfg.ClauseMarkers) && runeLen(cur) >= s.cfg.MinRunes {
+	if !s.cfg.OmitClauseFlushes && endsWithAny(cur, s.cfg.ClauseMarkers) && runeLen(cur) >= s.cfg.MinRunes {
 		s.flushLocked(false)
 		return
 	}

@@ -5,19 +5,20 @@ package app
 
 import (
 	"fmt"
-	"log"
 	"net"
 	"os"
 	"strconv"
 	"strings"
 
+	"github.com/LingByte/SoulNexus/internal/config"
+	"github.com/LingByte/SoulNexus/pkg/logger"
+
 	pionwebrtc "github.com/pion/webrtc/v4"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	"github.com/LingByte/SoulNexus/pkg/utils"
-	"github.com/LingByte/SoulNexus/pkg/voiceserver/persist"
 	vsutils "github.com/LingByte/SoulNexus/pkg/utils"
+	"github.com/LingByte/SoulNexus/pkg/voiceserver/persist"
 	"gorm.io/gorm"
 )
 
@@ -116,19 +117,16 @@ func VoiceLogger(tag string) *zap.Logger {
 	return zap.New(core).Named(tag)
 }
 
-// OpenVoiceServerDB initialises the SQLite voiceserver.db (default file
-// path); the path can be overridden with VOICESERVER_DB. Returns
-// (nil, nil) when persistence is disabled via VOICESERVER_DB="off"|
-// "none".
+// OpenVoiceServerDB initialises the voice persistence DB using the unified
+// DB_DRIVER + DSN configuration shared with the main and auth services.
+// Set DSN=off (or none) to disable persistence and return (nil, nil).
 func OpenVoiceServerDB() (*gorm.DB, error) {
-	dsn := strings.TrimSpace(utils.GetEnv("VOICESERVER_DB"))
-	if dsn == "" {
-		dsn = "voiceserver.db"
-	}
+	driver := strings.TrimSpace(config.GlobalConfig.Database.Driver)
+	dsn := strings.TrimSpace(config.GlobalConfig.Database.DSN)
 	if strings.EqualFold(dsn, "off") || strings.EqualFold(dsn, "none") {
 		return nil, nil
 	}
-	db, err := vsutils.InitDatabase(nil, "", dsn)
+	db, err := vsutils.InitDatabase(nil, driver, dsn)
 	if err != nil {
 		return nil, err
 	}
@@ -154,6 +152,6 @@ func CloseGormDB(db *gorm.DB) error {
 // LogStartupBanner prints a single line summarising the voice server
 // listener layout, useful for spotting misconfigurations at boot.
 func LogStartupBanner(host string, port, rtpStart, rtpEnd int, localIP string, record, asrEcho bool) {
-	log.Printf("voiceserver ready: sip=udp:%s:%d local_ip=%s rtp=%d..%d record=%v asr-echo=%v",
-		host, port, localIP, rtpStart, rtpEnd, record, asrEcho)
+	logger.Info(fmt.Sprintf("voiceserver ready: sip=udp:%s:%d local_ip=%s rtp=%d..%d record=%v asr-echo=%v",
+		host, port, localIP, rtpStart, rtpEnd, record, asrEcho))
 }

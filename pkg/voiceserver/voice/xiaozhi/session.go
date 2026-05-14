@@ -8,16 +8,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
+	"github.com/LingByte/SoulNexus/pkg/logger"
 	"net/http"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/LingByte/SoulNexus/pkg/media"
+	"github.com/LingByte/SoulNexus/pkg/media/encoder"
 	"github.com/LingByte/SoulNexus/pkg/recognizer"
-	"github.com/LingByte/SoulNexus/pkg/voiceserver/media"
-	"github.com/LingByte/SoulNexus/pkg/voiceserver/media/encoder"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/asr"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/gateway"
@@ -205,6 +205,9 @@ type session struct {
 	outFormat  string
 	outSR      int
 	outFrameMs int
+	// ttsWireFrameMs is outbound TTS frame duration (ms): PCM browser uses
+	// 20 ms (match WebRTC); Opus hardware keeps hello frame_ms (~60).
+	ttsWireFrameMs int
 
 	// Codec workers. Opus dec/enc are nil for PCM mode.
 	opusDec media.EncoderFunc
@@ -398,12 +401,16 @@ func (s *session) handleHello(ctx context.Context, raw []byte) {
 		s.writeText(MakeError("tts unavailable", true))
 		return
 	}
+	s.ttsWireFrameMs = s.outFrameMs
+	if s.opusEnc == nil && s.outFormat == AudioFormatPCM && s.outFrameMs >= 40 {
+		s.ttsWireFrameMs = 20
+	}
 	ttsPipe, err := tts.New(tts.Config{
 		Service:          ttsSvc,
 		InputSampleRate:  ttsSR,
 		OutputSampleRate: s.outSR,
 		Channels:         1,
-		FrameDuration:    time.Duration(s.outFrameMs) * time.Millisecond,
+		FrameDuration:    time.Duration(s.ttsWireFrameMs) * time.Millisecond,
 		PaceRealtime:     true,
 		Sink:             s.ttsSink,
 		Logger:           s.log,
@@ -451,13 +458,23 @@ func (s *session) handleHello(ctx context.Context, raw []byte) {
 		// The firmware uses tts:start to unmute its speaker and tts:stop
 		// to flush its decoder; raw binary frames without the envelope are
 		// dropped on most builds.
+		//
+		// When the dialog plane queues several tts.speak chunks in a row,
+		// the gateway sets TurnEvent.MoreSpeaksQueued so we keep a single
+		// tts:start…tts:stop span: skipping intermediate stop/start removes
+		// audible gaps (device mute + TTS cold-start) between sentences.
 		OnTTSStart: func(_ string, _ string) {
-			s.ttsActive.Store(true)
-			s.writeText(MakeTTSStateReply(s.sessionID, "start", s.outFormat))
+			wasActive := s.ttsActive.Swap(true)
+			if wasActive {
+				return
+			}
+			s.writeText(MakeTTSStateReplyFrames(s.sessionID, "start", s.outFormat, s.ttsWireFrameMs))
 		},
 		OnTurn: func(t gateway.TurnEvent) {
-			if s.ttsActive.CompareAndSwap(true, false) {
-				s.writeText(MakeTTSStateReply(s.sessionID, "stop", s.outFormat))
+			if !t.MoreSpeaksQueued {
+				if s.ttsActive.CompareAndSwap(true, false) {
+					s.writeText(MakeTTSStateReply(s.sessionID, "stop", s.outFormat))
+				}
 			}
 			if s.persister != nil {
 				s.persister.OnTurn(context.Background(), t)
@@ -465,7 +482,8 @@ func (s *session) handleHello(ctx context.Context, raw []byte) {
 			s.log.Info("xiaozhi: turn",
 				zap.String("utter", t.UtteranceID),
 				zap.Int("dur_ms", t.DurationMs),
-				zap.Bool("ok", t.OK))
+				zap.Bool("ok", t.OK),
+				zap.Bool("more_queued", t.MoreSpeaksQueued))
 		},
 		Logger: s.log,
 	}
@@ -496,7 +514,7 @@ func (s *session) handleHello(ctx context.Context, raw []byte) {
 		Format:        s.outFormat,
 		SampleRate:    s.outSR,
 		Channels:      1,
-		FrameDuration: s.outFrameMs,
+		FrameDuration: s.ttsWireFrameMs,
 		BitDepth:      16,
 	}))
 	if s.cfg.OnSessionStart != nil {
@@ -533,8 +551,8 @@ func (s *session) handleHello(ctx context.Context, raw []byte) {
 			s.persister.OnEvent(ctx, "xiaozhi.hello", "info", detail)
 		}
 	}
-	log.Printf("[xiaozhi] call=%s device=%s connected: in=%s/%dHz out=%s/%dHz dialog=%s",
-		s.callID, s.deviceID, s.inFormat, s.inSR, s.outFormat, s.outSR, gateway.RedactDialogDialURL(s.cfg.DialogWSURL))
+	logger.Info(fmt.Sprintf("[xiaozhi] call=%s device=%s connected: in=%s/%dHz out=%s/%dHz dialog=%s",
+		s.callID, s.deviceID, s.inFormat, s.inSR, s.outFormat, s.outSR, gateway.RedactDialogDialURL(s.cfg.DialogWSURL)))
 }
 
 // handleListen flips the input gate: while !listening the inbound audio
@@ -676,7 +694,7 @@ func (s *session) teardown(reason string) {
 	if s.cfg.OnSessionEnd != nil {
 		s.cfg.OnSessionEnd(context.Background(), s.callID, reason)
 	}
-	log.Printf("[xiaozhi] call=%s closed: %s", s.callID, reason)
+	logger.Info(fmt.Sprintf("[xiaozhi] call=%s closed: %s", s.callID, reason))
 }
 
 // writeText / writeBinary serialise WS writes (gorilla forbids concurrent

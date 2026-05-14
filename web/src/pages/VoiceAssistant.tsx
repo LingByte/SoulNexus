@@ -37,27 +37,32 @@ import { getCredentialByKey } from '@/api/credential'
 import type { Assistant, ChatMessage, VoiceChatSession, LineMode } from './VoiceAssistant/types'
 // 导入自定义 Hooks
 import { useVoiceAssistant } from '@/hooks/useVoiceAssistant'
-// 导入配置
-import { getUploadsBaseURL } from '@/config/apiConfig'
-
-/** cmd/voice `-http` 根地址（与 VITE_CMD_VOICE_BASE 一致，无 /api 后缀） */
+/** cmd/voice `-http` 访问前缀，可包含反向代理路径前缀。 */
 function getCmdVoiceBase(): string {
-    const raw = (import.meta.env.VITE_CMD_VOICE_BASE as string | undefined) || 'http://127.0.0.1:7080'
-    return raw.endsWith('/') ? raw.slice(0, -1) : raw
+    const raw = ((import.meta.env.VITE_CMD_VOICE_BASE as string | undefined) || 'http://127.0.0.1:7080').trim()
+    return raw.replace(/\/+$/, '')
 }
 
 /** WebSocket 浏览器语音：cmd/voice xiaozhi + `payload` 查询串透传到对话 WS（与 WebRTC 同源） */
 function buildCmdVoiceBrowserVoiceURL(payload: Record<string, unknown>): string {
     const base = getCmdVoiceBase()
-    let origin: string
     try {
-        const u = new URL(base.startsWith('http') ? base : `http://${base}`)
+        const u = new URL(
+            base.startsWith('http://') || base.startsWith('https://')
+                ? base
+                : base.startsWith('/')
+                    ? base
+                    : `/${base}`,
+            window.location.origin,
+        )
         u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:'
-        origin = `${u.protocol}//${u.host}`
+        const prefix = u.pathname.replace(/\/+$/, '')
+        u.pathname = `${prefix}/xiaozhi/v1/`
+        u.search = new URLSearchParams({ payload: JSON.stringify(payload) }).toString()
+        return u.toString()
     } catch {
-        origin = 'ws://127.0.0.1:7080'
+        return `ws://127.0.0.1:7080/xiaozhi/v1/?${new URLSearchParams({ payload: JSON.stringify(payload) }).toString()}`
     }
-    return `${origin}/xiaozhi/v1/?${new URLSearchParams({ payload: JSON.stringify(payload) }).toString()}`
 }
 
 const VoiceAssistant = () => {
@@ -386,9 +391,7 @@ const VoiceAssistant = () => {
                 console.log('轮询结果:', response)
 
                 if (response.data?.status === 'completed' && response.data?.audioUrl) {
-                    // 将 /media/ 路径替换为完整的 URL 路径
-                    const uploadsBaseURL = getUploadsBaseURL()
-                    const audioUrl = response.data.audioUrl.replace('/media/', `${uploadsBaseURL}/`);
+                    const audioUrl = response.data.audioUrl
 
                     // 更新消息的音频URL（不触发打字特效）
                     setChatMessages(prev => prev.map(msg =>

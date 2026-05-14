@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/LingByte/SoulNexus/pkg/voiceserver/logger"
+	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/sip/stack"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/sip/sdp"
 )

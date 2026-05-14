@@ -222,6 +222,15 @@ func (tl *TransportManager) trySendPacket(packet MediaPacket) {
 	if tl.txqueue == nil || tl.transport == nil {
 		return
 	}
+	// TTS / synthesized downlink must not be dropped when the queue is briefly full
+	// (long prompts fill faster than realtime playout); blocking avoids choppy audio.
+	if ap, ok := packet.(*AudioPacket); ok && ap != nil && ap.IsSynthesized {
+		select {
+		case tl.txqueue <- packet:
+		case <-tl.session.GetContext().Done():
+		}
+		return
+	}
 	select {
 	case tl.txqueue <- packet:
 	default:
@@ -294,7 +303,7 @@ func NewDefaultSession() *MediaSession {
 		SampleRate:   16000,
 
 		Running:            false,
-		QueueSize:          128,
+		QueueSize:          256,
 		MaxSessionDuration: 10 * 60,
 		shutdownCh:         make(chan struct{}),
 	}

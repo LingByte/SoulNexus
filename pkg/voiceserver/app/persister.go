@@ -4,10 +4,11 @@
 package app
 
 import (
+	"fmt"
 	"context"
 	"encoding/json"
 	"errors"
-	"log"
+	"github.com/LingByte/SoulNexus/pkg/logger"
 	"strings"
 	"sync"
 	"time"
@@ -101,7 +102,7 @@ func NewGenericCallPersister(ctx context.Context, db *gorm.DB, callID, transport
 		InviteAt:        &now,
 	}
 	if err := persist.CreateSIPCall(ctx, db, row); err != nil {
-		log.Printf("[persist] call=%s create row failed: %v", callID, err)
+		logger.Info(fmt.Sprintf("[persist] call=%s create row failed: %v", callID, err))
 		return nil
 	}
 	p := &CallPersister{db: db, callID: callID, transport: row.Transport}
@@ -157,7 +158,7 @@ func (p *CallPersister) OnAcceptMeta(ctx context.Context, codec string, payloadT
 		upd["remote_rtp_addr"] = remoteRTPAddr
 	}
 	if _, err := persist.UpdateSIPCallStateByCallID(ctx, p.db, p.callID, upd); err != nil {
-		log.Printf("[persist] call=%s onAccept update failed: %v", p.callID, err)
+		logger.Info(fmt.Sprintf("[persist] call=%s onAccept update failed: %v", p.callID, err))
 	}
 }
 
@@ -177,7 +178,7 @@ func (p *CallPersister) OnTerminate(ctx context.Context, reason string) {
 	now := time.Now().UTC()
 	row, err := persist.FindSIPCallByCallID(ctx, p.db, p.callID)
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		log.Printf("[persist] call=%s onTerminate find failed: %v", p.callID, err)
+		logger.Info(fmt.Sprintf("[persist] call=%s onTerminate find failed: %v", p.callID, err))
 	}
 	upd := map[string]any{
 		"state":          persist.SIPCallStateEnded,
@@ -190,7 +191,7 @@ func (p *CallPersister) OnTerminate(ctx context.Context, reason string) {
 		upd["duration_sec"] = int(now.Sub(row.InviteAt.UTC()).Seconds())
 	}
 	if _, err := persist.UpdateSIPCallStateByCallID(ctx, p.db, p.callID, upd); err != nil {
-		log.Printf("[persist] call=%s onTerminate update failed: %v", p.callID, err)
+		logger.Info(fmt.Sprintf("[persist] call=%s onTerminate update failed: %v", p.callID, err))
 	}
 }
 
@@ -234,7 +235,7 @@ func (p *CallPersister) OnTurn(ctx context.Context, ev gateway.TurnEvent) {
 		turn.LLMWallMs = ev.Meta.LLMWallMs
 	}
 	if _, err := persist.AppendSIPCallTurn(ctx, p.db, p.callID, turn); err != nil {
-		log.Printf("[persist] call=%s onTurn append failed: %v", p.callID, err)
+		logger.Info(fmt.Sprintf("[persist] call=%s onTurn append failed: %v", p.callID, err))
 	}
 }
 
@@ -248,7 +249,7 @@ func (p *CallPersister) OnRecording(ctx context.Context, url string, bytes int) 
 		"recording_wav_bytes": bytes,
 	}
 	if _, err := persist.UpdateSIPCallStateByCallID(ctx, p.db, p.callID, upd); err != nil {
-		log.Printf("[persist] call=%s onRecording update failed: %v", p.callID, err)
+		logger.Info(fmt.Sprintf("[persist] call=%s onRecording update failed: %v", p.callID, err))
 	}
 }
 
@@ -258,7 +259,7 @@ func (p *CallPersister) AppendEvent(ctx context.Context, kind, level string, det
 		return
 	}
 	if err := persist.AppendCallEvent(ctx, p.db, p.callID, kind, level, time.Now().UTC(), detail); err != nil {
-		log.Printf("[persist] call=%s event=%s append failed: %v", p.callID, kind, err)
+		logger.Info(fmt.Sprintf("[persist] call=%s event=%s append failed: %v", p.callID, kind, err))
 	}
 }
 
@@ -290,7 +291,7 @@ func (p *CallPersister) AppendMediaStats(ctx context.Context, s gateway.MediaSta
 		Note:            s.Note,
 	}
 	if err := persist.AppendCallMediaStats(ctx, p.db, row); err != nil {
-		log.Printf("[persist] call=%s media-stats append failed: %v", p.callID, err)
+		logger.Info(fmt.Sprintf("[persist] call=%s media-stats append failed: %v", p.callID, err))
 	}
 }
 
@@ -314,7 +315,7 @@ func (p *CallPersister) AppendRecording(ctx context.Context, r gateway.Recording
 		Note:       r.Note,
 	}
 	if err := persist.AppendCallRecording(ctx, p.db, row); err != nil {
-		log.Printf("[persist] call=%s recording append failed: %v", p.callID, err)
+		logger.Info(fmt.Sprintf("[persist] call=%s recording append failed: %v", p.callID, err))
 	}
 }
 

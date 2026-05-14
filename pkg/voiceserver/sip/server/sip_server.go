@@ -11,7 +11,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/LingByte/SoulNexus/pkg/voiceserver/logger"
+	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/sip/rtp"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/sip/sdp"
 	sipSession "github.com/LingByte/SoulNexus/pkg/voiceserver/sip/session"

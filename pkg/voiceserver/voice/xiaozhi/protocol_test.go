@@ -108,6 +108,11 @@ func TestMakeTTSStateReply_StartIncludesAudioParamsStopOmits(t *testing.T) {
 	if _, ok := startOut["audio_params"]; !ok {
 		t.Fatal("tts:start must carry audio_params for the firmware codec switch")
 	}
+	if ap, ok := startOut["audio_params"].(map[string]any); ok {
+		if int(ap["frame_duration"].(float64)) != 60 {
+			t.Fatalf("default frame_duration: %v", ap["frame_duration"])
+		}
+	}
 	stopRaw := MakeTTSStateReply("s1", "stop", "opus")
 	stopOut := roundTrip(t, stopRaw, RespTTS)
 	if stopOut["state"] != "stop" {
@@ -120,6 +125,15 @@ func TestMakeTTSStateReply_StartIncludesAudioParamsStopOmits(t *testing.T) {
 	defaultRaw := MakeTTSStateReply("s1", "start", "")
 	if !strings.Contains(string(defaultRaw), `"codec":"opus"`) {
 		t.Fatalf("default codec should be opus, got %s", defaultRaw)
+	}
+}
+
+func TestMakeTTSStateReplyFrames_CustomFrameMs(t *testing.T) {
+	raw := MakeTTSStateReplyFrames("s1", "start", "pcm", 20)
+	out := roundTrip(t, raw, RespTTS)
+	ap := out["audio_params"].(map[string]any)
+	if int(ap["frame_duration"].(float64)) != 20 {
+		t.Fatalf("frame_duration: %v", ap["frame_duration"])
 	}
 }
 

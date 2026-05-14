@@ -93,3 +93,21 @@ func TestSegmenterIdleFlush(t *testing.T) {
 		t.Fatalf("idle flush: %#v", got)
 	}
 }
+
+func TestSegmenterOmitClauseFlushes(t *testing.T) {
+	c := &segCapture{}
+	s := NewSegmenter(SegmenterConfig{
+		OmitClauseFlushes: true,
+		MinRunes:          5,
+		MaxRunes:          500,
+		IdleFlush:         time.Hour,
+	}, c.append)
+	s.Push("这是一段足够长的文字，中间有逗号")
+	if got, _ := c.snap(); len(got) != 0 {
+		t.Fatalf("comma must not flush when OmitClauseFlushes: %#v", got)
+	}
+	s.Push("。")
+	if got, _ := c.snap(); len(got) != 1 || got[0] != "这是一段足够长的文字，中间有逗号。" {
+		t.Fatalf("want one sentence segment, got %#v", got)
+	}
+}

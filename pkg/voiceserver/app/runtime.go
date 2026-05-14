@@ -4,8 +4,9 @@
 package app
 
 import (
+	"fmt"
 	"encoding/json"
-	"log"
+	"github.com/LingByte/SoulNexus/pkg/logger"
 	"os"
 	"strings"
 	"sync"
@@ -151,7 +152,7 @@ func NewDenoiserOrNil() voicertc.Denoiser {
 	d, err := rnnoise.New()
 	if err != nil {
 		denoiseFallbackOnce.Do(func() {
-			log.Printf("[denoise] disabled: %v (build with -tags rnnoise to enable)", err)
+			logger.Info(fmt.Sprintf("[denoise] disabled: %v (build with -tags rnnoise to enable)", err))
 		})
 		return nil
 	}
@@ -211,12 +212,12 @@ func LoadHoldMessages(path string) {
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
-		log.Printf("[hold] using built-in defaults (read %s: %v)", path, err)
+		logger.Info(fmt.Sprintf("[hold] using built-in defaults (read %s: %v)", path, err))
 		return
 	}
 	var raw map[string]string
 	if err := json.Unmarshal(data, &raw); err != nil {
-		log.Printf("[hold] using built-in defaults (parse %s: %v)", path, err)
+		logger.Info(fmt.Sprintf("[hold] using built-in defaults (parse %s: %v)", path, err))
 		return
 	}
 	if v, ok := raw["first_attempt"]; ok && strings.TrimSpace(v) != "" {
@@ -228,5 +229,5 @@ func LoadHoldMessages(path string) {
 	if v, ok := raw["give_up"]; ok && strings.TrimSpace(v) != "" {
 		HoldMessages.GiveUp = v
 	}
-	log.Printf("[hold] loaded reconnect prompts from %s", path)
+	logger.Info(fmt.Sprintf("[hold] loaded reconnect prompts from %s", path))
 }

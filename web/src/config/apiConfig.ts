@@ -7,7 +7,6 @@ interface ApiConfig {
   apiBaseURL: string
   userServiceBaseURL: string
   wsBaseURL: string
-  uploadsBaseURL: string
 }
 
 /**
@@ -43,13 +42,10 @@ function getApiConfig(): ApiConfig {
     wsBaseURL = convertToWebSocketURL(apiBaseURL.split('/api')[0] || `http://${apiHost}`)
   }
   
-  const uploadsBaseURL = import.meta.env.VITE_UPLOADS_BASE_URL || apiBaseURL.replace('/api', '/uploads')
-
   return {
     apiBaseURL,
     userServiceBaseURL,
     wsBaseURL,
-    uploadsBaseURL,
   }
 }
 
@@ -141,16 +137,8 @@ export function buildWebSocketURL(path: string): string {
 }
 
 /**
- * 获取上传文件基础URL
- */
-export function getUploadsBaseURL(): string {
-  return getConfig().uploadsBaseURL
-}
-
-/**
  * 清除配置缓存（用于重新加载配置）
  */
 export function clearConfigCache(): void {
   cachedConfig = null
 }
-

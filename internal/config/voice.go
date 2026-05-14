@@ -48,10 +48,10 @@ type VoiceServerConfig struct {
 	Denoise                     bool
 	ASRSentenceFilter           bool
 	ASRSentenceFilterSimilarity float64
-
-	HoldMessages           string
-	DialogReconnect        int
-	DialogReconnectBackoff time.Duration
+	Mode                        string `env:"MODE"`
+	HoldMessages                string
+	DialogReconnect             int
+	DialogReconnectBackoff      time.Duration
 
 	EnableSFU           bool
 	SFUPath             string
@@ -90,7 +90,7 @@ func buildVoiceConfig() *VoiceServerConfig {
 			MaxBackups: voiceInt("VOICE_LOG_MAX_BACKUPS", 5),
 			Daily:      voiceBool("VOICE_LOG_DAILY", true),
 		},
-
+		Mode:         voiceString("MODE", "local"),
 		SIPAddr:      voiceString("VOICE_SIP_ADDR", "127.0.0.1:5060"),
 		LocalIP:      voiceString("VOICE_LOCAL_IP", ""),
 		RTPStart:     voiceInt("VOICE_RTP_START", 30000),
@@ -118,7 +118,7 @@ func buildVoiceConfig() *VoiceServerConfig {
 		TTSPrewarm:                  voiceBool("VOICE_TTS_PREWARM", false),
 		BargeIn:                     voiceBool("VOICE_BARGE_IN", true),
 		BargeInThreshold:            voiceFloat("VOICE_BARGE_IN_THRESHOLD", 1500),
-		BargeInFrames:               voiceInt("VOICE_BARGE_IN_FRAMES", 1),
+		BargeInFrames:               voiceInt("VOICE_BARGE_IN_FRAMES", 2),
 		Denoise:                     voiceBool("VOICE_DENOISE", false),
 		ASRSentenceFilter:           voiceBool("VOICE_ASR_SENTENCE_FILTER", false),
 		ASRSentenceFilterSimilarity: voiceFloat("VOICE_ASR_SENTENCE_FILTER_SIMILARITY", 0.85),

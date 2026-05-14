@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LingByte/SoulNexus/pkg/voiceserver/media"
+	"github.com/LingByte/SoulNexus/pkg/media"
 	siprtp "github.com/LingByte/SoulNexus/pkg/voiceserver/sip/rtp"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/sip/sdp"
 )

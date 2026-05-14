@@ -5,7 +5,7 @@ package app
 
 import (
 	"fmt"
-	"log"
+	"github.com/LingByte/SoulNexus/pkg/logger"
 	"net/url"
 	"strings"
 
@@ -58,7 +58,7 @@ func WarnDialogAuthIfNeeded(dialogURL string) {
 	if q.Get("apiKey") != "" && q.Get("apiSecret") != "" && q.Get("agentId") != "" {
 		return
 	}
-	log.Printf("[warn] dialog-plane URL still missing apiKey, apiSecret, or agentId after merging DIALOG_* env. " +
+	logger.Info(fmt.Sprintf("[warn] dialog-plane URL still missing apiKey, apiSecret, or agentId after merging DIALOG_* env. " +
 		"If the peer is SoulNexus /ws/call, the upgrade returns HTTP 400 (websocket: bad handshake). " +
-		"WebRTC: POST these fields in /webrtc/v1/offer JSON from the browser; SIP/xiaozhi: set DIALOG_* env or add query params to VOICE_DIALOG_WS.")
+		"WebRTC: POST these fields in /webrtc/v1/offer JSON from the browser; SIP/xiaozhi: set DIALOG_* env or add query params to VOICE_DIALOG_WS."))
 }

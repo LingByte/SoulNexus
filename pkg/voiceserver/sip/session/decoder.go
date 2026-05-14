@@ -3,7 +3,7 @@ package session
 // Copyright (c) 2026 LinByte. All rights reserved.
 // SPDX-License-Identifier: AGPL-3.0
 
-import "github.com/LingByte/SoulNexus/pkg/voiceserver/media"
+import "github.com/LingByte/SoulNexus/pkg/media"
 
 // passthroughDTMFDecode wraps an audio decoder so DTMFPackets (RFC 2833
 // telephone-events) are forwarded unchanged while audio payloads go

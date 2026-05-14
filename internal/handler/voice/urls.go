@@ -4,7 +4,8 @@
 package voice
 
 import (
-	"log"
+	"fmt"
+	"github.com/LingByte/SoulNexus/pkg/logger"
 	"net/http"
 	"strings"
 
@@ -47,9 +48,9 @@ func (h *Handlers) Register(r gin.IRoutes) int {
 		h.mountSoulnexusHardware(r)
 		mounted++
 	case hwPath != "" && hwBind == "":
-		log.Printf("[lingecho-hw] not mounted: SoulnexusHardwareBindingURL empty (set VOICE_SOULNEXUS_HW_BINDING_URL or LINGECHO_HARDWARE_BINDING_URL)")
+		logger.Info(fmt.Sprintf("[lingecho-hw] not mounted: SoulnexusHardwareBindingURL empty (set VOICE_SOULNEXUS_HW_BINDING_URL or LINGECHO_HARDWARE_BINDING_URL)"))
 	case hwPath != "" && h.xiaozhiSrv == nil:
-		log.Printf("[lingecho-hw] not mounted: xiaozhi server unavailable (fix ASR/TTS / VOICE_DIALOG_WS)")
+		logger.Info(fmt.Sprintf("[lingecho-hw] not mounted: xiaozhi server unavailable (fix ASR/TTS / VOICE_DIALOG_WS)"))
 	}
 
 	// WebRTC: 1v1 browser ↔ AI signaling.

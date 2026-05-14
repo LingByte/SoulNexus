@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"github.com/LingByte/SoulNexus/pkg/logger"
 	"net/http"
 	"net/url"
 	"strings"
@@ -43,12 +43,12 @@ type soulnexusBindingHTTPResp struct {
 func (h *Handlers) mountXiaozhi(r gin.IRoutes) bool {
 	dialogWS := strings.TrimSpace(h.cfg.DialogWS)
 	if dialogWS == "" {
-		log.Printf("[xiaozhi] disabled: VOICE_DIALOG_WS is empty")
+		logger.Info(fmt.Sprintf("[xiaozhi] disabled: VOICE_DIALOG_WS is empty"))
 		return false
 	}
 	factory, err := app.NewXiaozhiFactory()
 	if err != nil {
-		log.Printf("[xiaozhi] disabled: %v", err)
+		logger.Info(fmt.Sprintf("[xiaozhi] disabled: %v", err))
 		return false
 	}
 	srv, err := xiaozhi.NewServer(xiaozhi.ServerConfig{
@@ -61,18 +61,18 @@ func (h *Handlers) mountXiaozhi(r gin.IRoutes) bool {
 		PersisterFactory: app.MakePersisterFactory(h.cfg.DB, "xiaozhi", "inbound"),
 		RecorderFactory:  app.MakeRecorderFactory(h.cfg.Record, "xiaozhi"),
 		OnSessionStart: func(_ context.Context, callID, deviceID string) {
-			log.Printf("[xiaozhi] session start call=%s device=%s", callID, deviceID)
+			logger.Info(fmt.Sprintf("[xiaozhi] session start call=%s device=%s", callID, deviceID))
 		},
 		OnSessionEnd: func(_ context.Context, callID, reason string) {
-			log.Printf("[xiaozhi] session end   call=%s reason=%s", callID, reason)
+			logger.Info(fmt.Sprintf("[xiaozhi] session end   call=%s reason=%s", callID, reason))
 		},
 	})
 	if err != nil {
-		log.Printf("[xiaozhi] init failed: %v", err)
+		logger.Info(fmt.Sprintf("[xiaozhi] init failed: %v", err))
 		return false
 	}
 	r.GET(h.cfg.XiaozhiPath, gin.WrapF(srv.Handle))
-	log.Printf("[xiaozhi] mounted: ws://<http>%s -> dialog=%s (esp32+web)", h.cfg.XiaozhiPath, gateway.RedactDialogDialURL(dialogWS))
+	logger.Info(fmt.Sprintf("[xiaozhi] mounted: ws://<http>%s -> dialog=%s (esp32+web)", h.cfg.XiaozhiPath, gateway.RedactDialogDialURL(dialogWS)))
 	h.xiaozhiSrv = srv
 	return true
 }
@@ -108,7 +108,7 @@ func (h *Handlers) mountSoulnexusHardware(r gin.IRoutes) {
 		}
 		payloadJSON, err := fetchSoulnexusBindingPayload(req.Context(), client, bindingBaseURL, bindingSecret, dev)
 		if err != nil {
-			log.Printf("[lingecho-hw] binding failed device=%s: %v", dev, err)
+			logger.Info(fmt.Sprintf("[lingecho-hw] binding failed device=%s: %v", dev, err))
 			c.String(http.StatusBadGateway, "binding failed")
 			return
 		}
@@ -120,7 +120,7 @@ func (h *Handlers) mountSoulnexusHardware(r gin.IRoutes) {
 		r2.URL = &u
 		srv.Handle(c.Writer, r2)
 	})
-	log.Printf("[lingecho-hw] mounted ws path=%s (binding=%s)", wsPath, redactBindingURL(bindingBaseURL))
+	logger.Info(fmt.Sprintf("[lingecho-hw] mounted ws path=%s (binding=%s)", wsPath, redactBindingURL(bindingBaseURL)))
 }
 
 // fetchSoulnexusBindingPayload calls the SoulNexus binding API and
