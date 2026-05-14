@@ -6,7 +6,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/LingByte/SoulNexus/pkg/voiceserver/media"
+	"github.com/LingByte/SoulNexus/pkg/media"
 )
 
 // helper to make a 16-bit little-endian PCM sample buffer.

@@ -17,7 +17,7 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/gateway"
 	voicetts "github.com/LingByte/SoulNexus/pkg/voiceserver/voice/tts"
 	"gorm.io/gorm"
-	"log"
+	"github.com/LingByte/SoulNexus/pkg/logger"
 	"net"
 	"strconv"
 	"strings"
@@ -82,7 +82,7 @@ type echoInviteHandler struct {
 // the carrier's B2BUA / SBC executes the actual redirect).
 func (h *echoInviteHandler) OnRefer(ctx context.Context, callID, referTo string, notify func(frag, subState string)) {
 	target := strings.TrimSpace(referTo)
-	log.Printf("[refer] call=%s target=%q", callID, target)
+	logger.Info(fmt.Sprintf("[refer] call=%s target=%q", callID, target))
 	if h.gateways != nil {
 		if cli := h.gateways.get(callID); cli != nil {
 			cli.ForwardTransferRequest(target)
@@ -100,10 +100,10 @@ func (h *echoInviteHandler) OnRefer(ctx context.Context, callID, referTo string,
 
 func (h *echoInviteHandler) OnIncomingCall(ctx context.Context, inv *server.IncomingCall) (server.Decision, error) {
 	n := atomic.AddInt64(h.serial, 1)
-	log.Printf("[call#%d] INVITE from=%s call-id=%s", n, inv.FromURI, inv.CallID)
+	logger.Info(fmt.Sprintf("[call#%d] INVITE from=%s call-id=%s", n, inv.FromURI, inv.CallID))
 
 	if inv.SDP == nil || len(inv.SDP.Codecs) == 0 {
-		log.Printf("[call#%d] rejecting: no usable codecs", n)
+		logger.Info(fmt.Sprintf("[call#%d] rejecting: no usable codecs", n))
 		return server.Decision{StatusCode: 488, ReasonPhrase: "Not Acceptable Here"}, nil
 	}
 
@@ -123,11 +123,11 @@ func (h *echoInviteHandler) OnIncomingCall(ctx context.Context, inv *server.Inco
 	// a port nobody is listening on, and inbound RTP would be dropped silently.
 	rtpSess := inv.RTPSession
 	if rtpSess == nil {
-		log.Printf("[call#%d] missing inv.RTPSession", n)
+		logger.Info(fmt.Sprintf("[call#%d] missing inv.RTPSession", n))
 		return server.Decision{StatusCode: 500, ReasonPhrase: "Server Misconfigured"}, nil
 	}
 	if err := session.ApplyRemoteSDP(rtpSess, inv.SDP); err != nil {
-		log.Printf("[call#%d] apply remote sdp: %v", n, err)
+		logger.Info(fmt.Sprintf("[call#%d] apply remote sdp: %v", n, err))
 		return server.Decision{StatusCode: 488, ReasonPhrase: "Not Acceptable Here"}, nil
 	}
 
@@ -139,7 +139,7 @@ func (h *echoInviteHandler) OnIncomingCall(ctx context.Context, inv *server.Inco
 
 	leg, err := session.NewMediaLeg(ctx, inv.CallID, rtpSess, inv.SDP.Codecs, legCfg)
 	if err != nil {
-		log.Printf("[call#%d] media leg: %v", n, err)
+		logger.Info(fmt.Sprintf("[call#%d] media leg: %v", n, err))
 		return server.Decision{StatusCode: 488, ReasonPhrase: "Not Acceptable Here"}, nil
 	}
 
@@ -162,7 +162,7 @@ func (h *echoInviteHandler) OnIncomingCall(ctx context.Context, inv *server.Inco
 	case strings.TrimSpace(h.dialogWS) != "":
 		va, c, err := attachVoiceGateway(ctx, leg, inv, n, h.dialogWS, h.srv, pers)
 		if err != nil {
-			log.Printf("[call#%d] dialog-ws disabled: %v", n, err)
+			logger.Info(fmt.Sprintf("[call#%d] dialog-ws disabled: %v", n, err))
 		} else {
 			voiceAtt, gw = va, c
 			// Register so the SIP REFER (TransferHandler.OnRefer)
@@ -173,13 +173,13 @@ func (h *echoInviteHandler) OnIncomingCall(ctx context.Context, inv *server.Inco
 	case h.asrEcho:
 		va, err := attachVoiceEcho(ctx, leg, inv.CallID, n, h.replyText)
 		if err != nil {
-			log.Printf("[call#%d] asr-echo disabled: %v", n, err)
+			logger.Info(fmt.Sprintf("[call#%d] asr-echo disabled: %v", n, err))
 		} else {
 			voiceAtt = va
 		}
 	}
 
-	log.Printf("[call#%d] accepted, codec=%s rtp=%s", n, leg.NegotiatedSDP().Name, rtpSess.LocalAddr.String())
+	logger.Info(fmt.Sprintf("[call#%d] accepted, codec=%s rtp=%s", n, leg.NegotiatedSDP().Name, rtpSess.LocalAddr.String()))
 
 	// Stamp negotiated codec/rtp on the persisted row.
 	remoteRTP := ""
@@ -195,7 +195,7 @@ func (h *echoInviteHandler) OnIncomingCall(ctx context.Context, inv *server.Inco
 		Accept:   true,
 		MediaLeg: leg,
 		OnTerminate: func(reason string) {
-			log.Printf("[call#%d] terminated: %s", n, reason)
+			logger.Info(fmt.Sprintf("[call#%d] terminated: %s", n, reason))
 			if gw != nil {
 				gw.Close(reason)
 				h.gateways.drop(inv.CallID)
@@ -275,7 +275,7 @@ func attachVoiceEcho(ctx context.Context, leg *session.MediaLeg, callID string, 
 			return
 		}
 		if !isFinal {
-			log.Printf("[call#%d][asr-partial] %s", callN, text)
+			logger.Info(fmt.Sprintf("[call#%d][asr-partial] %s", callN, text))
 			return
 		}
 		// Dedupe: some vendors emit the same final twice back-to-back.
@@ -287,23 +287,23 @@ func attachVoiceEcho(ctx context.Context, leg *session.MediaLeg, callID string, 
 		last = text
 		lastMu.Unlock()
 
-		log.Printf("[call#%d][asr-final ] %s", callN, text)
+		logger.Info(fmt.Sprintf("[call#%d][asr-final ] %s", callN, text))
 		if !busy.CompareAndSwap(false, true) {
 			return // a reply is already playing; skip to avoid overlap
 		}
 		go func() {
 			defer busy.Store(false)
 			if err := att.TTS.Speak(replyText); err != nil {
-				log.Printf("[call#%d][tts] speak failed: %v", callN, err)
+				logger.Info(fmt.Sprintf("[call#%d][tts] speak failed: %v", callN, err))
 			}
 		}()
 	})
 	att.ASR.SetErrorCallback(func(err error, fatal bool) {
-		log.Printf("[call#%d][asr] error fatal=%v: %v", callN, fatal, err)
+		logger.Info(fmt.Sprintf("[call#%d][asr] error fatal=%v: %v", callN, fatal, err))
 	})
 
-	log.Printf("[call#%d][voice] attached: asr=qcloud(%s,%dHz) tts=qcloud(%dHz) reply=%q",
-		callN, asrOpt.ModelType, asrRate, ttsSR, replyText)
+	logger.Info(fmt.Sprintf("[call#%d][voice] attached: asr=qcloud(%s,%dHz) tts=qcloud(%dHz) reply=%q",
+		callN, asrOpt.ModelType, asrRate, ttsSR, replyText))
 	return att, nil
 }
 
@@ -362,7 +362,7 @@ func attachVoiceGateway(ctx context.Context, leg *session.MediaLeg, inv *server.
 		// calls before any user has dialed in — surprising in dev.
 		if app.TTSPrewarmEnabled() {
 			go caching.Prewarm(ctx, app.PrewarmTexts(), func(t string, e error) {
-				log.Printf("[tts-cache] prewarm %q failed: %v", t, e)
+				logger.Info(fmt.Sprintf("[tts-cache] prewarm %q failed: %v", t, e))
 			})
 		}
 	}
@@ -391,7 +391,7 @@ func attachVoiceGateway(ctx context.Context, leg *session.MediaLeg, inv *server.
 		CallID:   inv.CallID,
 		BargeIn:  app.NewBargeInDetector(),
 		OnHangup: func(reason string) {
-			log.Printf("[call#%d][gw] hangup requested: %q", callN, reason)
+			logger.Info(fmt.Sprintf("[call#%d][gw] hangup requested: %q", callN, reason))
 			// Stamp a dialog.hangup event so the timeline carries the
 			// reason the dialog plane asked us to drop the call. The
 			// terminating call.terminated event comes later from the
@@ -436,7 +436,7 @@ func attachVoiceGateway(ctx context.Context, leg *session.MediaLeg, inv *server.
 		att.Close()
 		return nil, nil, fmt.Errorf("dial dialog ws: %w", err)
 	}
-	log.Printf("[call#%d][gw] dialog ws connected: %s", callN, gateway.RedactDialogDialURL(dialogURL))
+	logger.Info(fmt.Sprintf("[call#%d][gw] dialog ws connected: %s", callN, gateway.RedactDialogDialURL(dialogURL)))
 	return att, cli, nil
 }
 

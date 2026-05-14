@@ -4,13 +4,14 @@
 package main
  
 import (
-	"log"
+	"fmt"
+	"github.com/LingByte/SoulNexus/pkg/logger"
 )
 
 type loggingDTMFSink struct{}
 
 func (loggingDTMFSink) OnDTMF(callID, digit string, end bool) {
-	log.Printf("[dtmf] call=%s digit=%s end=%v", callID, digit, end)
+	logger.Info(fmt.Sprintf("[dtmf] call=%s digit=%s end=%v", callID, digit, end))
 }
 
 // ---------- CallLifecycleObserver ------------------------------------------
@@ -18,12 +19,12 @@ func (loggingDTMFSink) OnDTMF(callID, digit string, end bool) {
 type loggingObserver struct{}
 
 func (loggingObserver) OnCallPreHangup(callID string) bool {
-	log.Printf("[call=%s] pre-hangup", callID)
+	logger.Info(fmt.Sprintf("[call=%s] pre-hangup", callID))
 	return false // let the server send BYE
 }
 
 func (loggingObserver) OnCallCleanup(callID string) {
-	log.Printf("[call=%s] cleanup", callID)
+	logger.Info(fmt.Sprintf("[call=%s] cleanup", callID))
 }
 
 // ---------- helpers ---------------------------------------------------------

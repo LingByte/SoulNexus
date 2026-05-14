@@ -4,7 +4,8 @@
 package voice
 
 import (
-	"log"
+	"fmt"
+	"github.com/LingByte/SoulNexus/pkg/logger"
 	"net/http"
 	"strings"
 
@@ -42,5 +43,5 @@ func mountMediaFileServer(r gin.IRoutes, local *stores.LocalStore) {
 		w.Header().Set("Cache-Control", "public, max-age=604800, immutable")
 		fs.ServeHTTP(w, r)
 	}))
-	log.Printf("[http] media file server mounted: %s -> %s", prefix, root)
+	logger.Info(fmt.Sprintf("[http] media file server mounted: %s -> %s", prefix, root))
 }

@@ -5,6 +5,7 @@ package handlers
 
 import (
 	"log"
+	"sync"
 	"time"
 
 	"github.com/LingByte/SoulNexus/cmd/bootstrap"
@@ -15,6 +16,7 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/middleware"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/LingByte/SoulNexus/pkg/utils/search"
+	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/xiaozhi"
 	"github.com/LingByte/SoulNexus/pkg/websocket"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -26,6 +28,14 @@ type Handlers struct {
 	wsHub             *websocket.Hub
 	searchHandler     *search.SearchHandlers
 	ipLocationService *utils.IPLocationService
+
+	// /lingecho/v2/ — lazily initialised xiaozhi server (new architecture).
+	// kept here so the singleton survives across requests; sync.Once ensures
+	// we never spin up two factories. Errors are sticky so subsequent
+	// requests don't repeatedly retry a misconfigured ASR/TTS env.
+	xiaozhiV2Once sync.Once
+	xiaozhiV2Srv  *xiaozhi.Server
+	xiaozhiV2Err  error
 }
 
 // GetSearchHandler gets the search handler (for scheduled tasks)
@@ -389,6 +399,7 @@ func (h *Handlers) registerVoiceTrainingRoutes(r *gin.RouterGroup) {
 
 	// Device-Id → dialog payload for cmd/voice SoulNexus hardware mount (X-Lingecho-Voice-Secret when LINGECHO_HARDWARE_BINDING_SECRET is set; URL/header kept for backward compatibility).
 	voice.GET("/lingecho/binding", h.HandleSoulnexusHardwareBinding)
+	// v1: legacy in-process pkg/voice.HardwareHandler (ASR/LLM/TTS all in cmd/server).
 	voice.GET("/lingecho/v1/", h.HandleHardwareWebSocketVoice)
 	voice.POST("/simple_text_chat", h.SimpleTextChat)
 

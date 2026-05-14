@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LingByte/SoulNexus/pkg/voiceserver/logger"
+	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/sip/sdp"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/sip/stack"
 )

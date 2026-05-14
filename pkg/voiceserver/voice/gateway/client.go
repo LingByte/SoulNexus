@@ -7,7 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"github.com/LingByte/SoulNexus/pkg/logger"
 	"net/http"
 	"net/url"
 	"strings"
@@ -156,7 +156,11 @@ type TurnEvent struct {
 	// "heard the AI start to reply" against. 0 also when no ASR final
 	// preceded this Speak (e.g. unprompted greeting).
 	E2EFirstByteMs int
-	OK             bool
+	// MoreSpeaksQueued is true when another tts.speak is already waiting on
+	// the gateway worker queue when this Speak returns. xiaozhi uses it to
+	// avoid tts:stop/tts:start between adjacent chunks so playback stays continuous.
+	MoreSpeaksQueued bool
+	OK               bool
 }
 
 // Client streams ASR events / DTMF to a dialog app via WebSocket and executes
@@ -282,8 +286,8 @@ func (c *Client) Start(ctx context.Context, meta StartMeta) error {
 		c.ttsQueue = make(chan ttsJob, 64)
 		c.ttsWg.Add(1)
 		go c.ttsWorker()
-		log.Printf("[gw] call=%s tts worker started (serial speak queue cap=64)",
-			c.cfg.CallID)
+		logger.Info(fmt.Sprintf("[gw] call=%s tts worker started (serial speak queue cap=64)",
+			c.cfg.CallID))
 	}
 
 	// Wire ASR → events.
@@ -370,8 +374,8 @@ func (c *Client) Start(ctx context.Context, meta StartMeta) error {
 						Type: EvTTSInterrupt, CallID: c.cfg.CallID,
 					})
 					metrics.BargeIn(c.transportLabel())
-					log.Printf("[gw] call=%s barge-in: tts interrupted by user voice",
-						c.cfg.CallID)
+					logger.Info(fmt.Sprintf("[gw] call=%s barge-in: tts interrupted by user voice",
+						c.cfg.CallID))
 				},
 			)
 		}
@@ -582,7 +586,7 @@ func (c *Client) reconnectWithHold() bool {
 			time.Sleep(250 * time.Millisecond)
 		}
 
-		log.Printf("[gw] call=%s reconnect attempt %d/%d", c.cfg.CallID, attempt, maxN)
+		logger.Info(fmt.Sprintf("[gw] call=%s reconnect attempt %d/%d", c.cfg.CallID, attempt, maxN))
 		metrics.DialogReconnect(c.transportLabel(), "attempt")
 
 		if err := c.dialAndSwap(); err != nil {
@@ -602,7 +606,7 @@ func (c *Client) reconnectWithHold() bool {
 			}
 			continue
 		}
-		log.Printf("[gw] call=%s reconnect ok on attempt %d", c.cfg.CallID, attempt)
+		logger.Info(fmt.Sprintf("[gw] call=%s reconnect ok on attempt %d", c.cfg.CallID, attempt))
 		metrics.DialogReconnect(c.transportLabel(), "ok")
 		return true
 	}
@@ -726,8 +730,8 @@ func (c *Client) ttsWorker() {
 				firstByteAt.Store(&ts)
 			})
 
-			log.Printf("[gw] call=%s tts speak begin utter=%s text=%q",
-				c.cfg.CallID, job.utter, ellipsize(job.text, 40))
+			logger.Info(fmt.Sprintf("[gw] call=%s tts speak begin utter=%s text=%q",
+				c.cfg.CallID, job.utter, ellipsize(job.text, 40)))
 			_ = c.sendEvent(Event{
 				Type: EvTTSStarted, CallID: c.cfg.CallID, UtteranceID: job.utter,
 			})
@@ -761,9 +765,9 @@ func (c *Client) ttsWorker() {
 				Type: EvTTSEnded, CallID: c.cfg.CallID,
 				UtteranceID: job.utter, OK: err == nil,
 			})
-			log.Printf("[gw] call=%s tts speak end   utter=%s ok=%v dur=%s ttf=%dms e2e=%dms",
+			logger.Info(fmt.Sprintf("[gw] call=%s tts speak end   utter=%s ok=%v dur=%s ttf=%dms e2e=%dms",
 				c.cfg.CallID, job.utter, err == nil, dur.Round(time.Millisecond),
-				ttsFirstMs, e2eFirstMs)
+				ttsFirstMs, e2eFirstMs))
 			if err != nil {
 				c.log.Warn("voice/gateway tts speak",
 					zap.String("utter", job.utter), zap.Error(err))
@@ -772,15 +776,17 @@ func (c *Client) ttsWorker() {
 			// has been emitted, so a slow observer cannot delay the dialog
 			// app's view of tts.ended. Errors and OK both surface here so
 			// the observer can decide whether to record a turn.
+			moreQueued := c.ttsQueue != nil && len(c.ttsQueue) > 0
 			if c.cfg.OnTurn != nil {
 				c.cfg.OnTurn(TurnEvent{
-					UtteranceID:    job.utter,
-					LLMText:        job.text,
-					Meta:           job.meta,
-					DurationMs:     int(dur.Milliseconds()),
-					TTSFirstByteMs: ttsFirstMs,
-					E2EFirstByteMs: e2eFirstMs,
-					OK:             err == nil,
+					UtteranceID:      job.utter,
+					LLMText:          job.text,
+					Meta:             job.meta,
+					DurationMs:       int(dur.Milliseconds()),
+					TTSFirstByteMs:   ttsFirstMs,
+					E2EFirstByteMs:   e2eFirstMs,
+					MoreSpeaksQueued: moreQueued,
+					OK:               err == nil,
 				})
 			}
 		}

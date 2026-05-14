@@ -16,9 +16,9 @@ type SampleRateConverter interface {
 // ConverterFactory creates a sample rate converter
 type ConverterFactory func(inputRate, outputRate int) SampleRateConverter
 
-var defaultConverterFactory ConverterFactory = NewInterpolatingConverter
+var defaultConverterFactory ConverterFactory = NewCubicInterpolatingConverter
 
-// DefaultResampler creates a default sample rate converter
+// DefaultResampler creates the standard PCM16 rate converter (cubic interpolation).
 func DefaultResampler(inputRate, outputRate int) SampleRateConverter {
 	return defaultConverterFactory(inputRate, outputRate)
 }

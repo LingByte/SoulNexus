@@ -26,15 +26,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"github.com/LingByte/SoulNexus/pkg/logger"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/LingByte/SoulNexus/pkg/recognizer"
-	"github.com/LingByte/SoulNexus/pkg/voiceserver/media"
-	"github.com/LingByte/SoulNexus/pkg/voiceserver/media/encoder"
+	"github.com/LingByte/SoulNexus/pkg/media"
+	"github.com/LingByte/SoulNexus/pkg/media/encoder"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/asr"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/gateway"
@@ -381,7 +381,7 @@ func (s *session) handleRemoteTrack(ctx context.Context, track *pionwebrtc.Track
 		// Surface to stderr too so a Nop zap logger doesn't hide the
 		// root cause — operators just see "pipeline-error" otherwise.
 		s.log.Error("webrtc: pipelines", zap.Error(err))
-		log.Printf("[webrtc] call=%s startPipelines failed: %v", s.callID, err)
+		logger.Info(fmt.Sprintf("[webrtc] call=%s startPipelines failed: %v", s.callID, err))
 		s.teardown("pipeline-error")
 		return
 	}
@@ -568,8 +568,8 @@ func (s *session) startPipelines(ctx context.Context) error {
 			s.persister.OnAccept(ctx, "opus", s.bridgeSR, s.clientMeta)
 		}
 	}
-	log.Printf("[webrtc] call=%s connected: bridge=%dHz asr=%dHz tts=%dHz dialog=%s",
-		s.callID, s.bridgeSR, asrSR, ttsSR, gateway.RedactDialogDialURL(s.dialogDialURL))
+	logger.Info(fmt.Sprintf("[webrtc] call=%s connected: bridge=%dHz asr=%dHz tts=%dHz dialog=%s",
+		s.callID, s.bridgeSR, asrSR, ttsSR, gateway.RedactDialogDialURL(s.dialogDialURL)))
 	return nil
 }
 
@@ -673,7 +673,7 @@ func (s *session) teardown(reason string) {
 			s.sessCancel()
 		}
 		close(s.done)
-		log.Printf("[webrtc] call=%s closed: %s", s.callID, reason)
+		logger.Info(fmt.Sprintf("[webrtc] call=%s closed: %s", s.callID, reason))
 	})
 }
 

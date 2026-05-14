@@ -14,13 +14,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/LingByte/SoulNexus/pkg/voiceserver/llm"
+	"github.com/LingByte/SoulNexus/pkg/llm"
+	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/gateway"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/tts"
 	"github.com/gorilla/websocket"
@@ -40,14 +40,14 @@ type Config struct {
 // Serve blocks until the WebSocket read loop ends or ctx is cancelled.
 // The caller must perform HTTP auth and WebSocket upgrade; Serve does not close conn.
 func Serve(ctx context.Context, conn *websocket.Conn, callID string, cfg Config, fallback string) {
-	log.Printf("[call=%s] dialog-plane WS from %s", callID, conn.RemoteAddr())
+	logger.Info(fmt.Sprintf("[call=%s] dialog-plane WS from %s", callID, conn.RemoteAddr()))
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	provider, err := llm.NewLLMProvider(ctx, cfg.Provider, cfg.APIKey, cfg.APIURL, cfg.SystemPrompt)
 	if err != nil {
-		log.Printf("[call=%s] llm init: %v", callID, err)
+		logger.Info(fmt.Sprintf("[call=%s] llm init: %v", callID, err))
 		return
 	}
 	defer provider.Hangup()
@@ -64,12 +64,12 @@ func Serve(ctx context.Context, conn *websocket.Conn, callID string, cfg Config,
 		_ = conn.SetReadDeadline(time.Now().Add(5 * time.Minute))
 		_, raw, err := conn.ReadMessage()
 		if err != nil {
-			log.Printf("[call=%s] read end: %v", callID, err)
+			logger.Info(fmt.Sprintf("[call=%s] read end: %v", callID, err))
 			return
 		}
 		var ev gateway.Event
 		if err := json.Unmarshal(raw, &ev); err != nil {
-			log.Printf("[call=%s] bad event: %v raw=%s", callID, err, string(raw))
+			logger.Info(fmt.Sprintf("[call=%s] bad event: %v raw=%s", callID, err, string(raw)))
 			continue
 		}
 		c.dispatch(ctx, ev)
@@ -81,7 +81,7 @@ type callConn struct {
 	conn     *websocket.Conn
 	cfg      Config
 	fallback string
-	provider llm.LLMProvider
+	provider llm.LLMHandler
 
 	writeM sync.Mutex
 
@@ -94,18 +94,22 @@ type callConn struct {
 func (c *callConn) dispatch(ctx context.Context, ev gateway.Event) {
 	switch ev.Type {
 	case gateway.EvCallStarted:
-		log.Printf("[call=%s] started: from=%s to=%s codec=%s pcm_hz=%d",
-			c.callID, ev.From, ev.To, ev.Codec, ev.PCMHz)
+		logger.Info(fmt.Sprintf("[call=%s] started: from=%s to=%s codec=%s pcm_hz=%d",
+			c.callID, ev.From, ev.To, ev.Codec, ev.PCMHz))
 
 	case gateway.EvCallEnded:
-		log.Printf("[call=%s] ended: %s", c.callID, ev.Reason)
+		logger.Info(fmt.Sprintf("[call=%s] ended: %s", c.callID, ev.Reason))
 
 	case gateway.EvASRPartial:
-		log.Printf("[call=%s] asr-partial: %s", c.callID, ev.Text)
+		logger.Info(fmt.Sprintf("[call=%s] asr-partial: %s", c.callID, ev.Text))
 
 	case gateway.EvASRFinal:
 		text := strings.TrimSpace(ev.Text)
 		if text == "" {
+			return
+		}
+		if isNoiseOnlyASRFinal(text) {
+			logger.Info(fmt.Sprintf("[call=%s] asr-final ignored (noise-only): %q", c.callID, text))
 			return
 		}
 		c.lastFinalM.Lock()
@@ -116,23 +120,26 @@ func (c *callConn) dispatch(ctx context.Context, ev gateway.Event) {
 		c.lastFinal = text
 		c.lastFinalM.Unlock()
 
-		log.Printf("[call=%s] asr-final  : %s", c.callID, text)
+		logger.Info(fmt.Sprintf("[call=%s] asr-final  : %s", c.callID, text))
 		go c.runTurn(ctx, text)
 
+	case gateway.EvTTSInterrupt:
+		logger.Info(fmt.Sprintf("[call=%s] tts-interrupt (playback cut by voiceserver)", c.callID))
+
 	case gateway.EvASRError:
-		log.Printf("[call=%s] asr-error fatal=%v: %s", c.callID, ev.Fatal, ev.Message)
+		logger.Info(fmt.Sprintf("[call=%s] asr-error fatal=%v: %s", c.callID, ev.Fatal, ev.Message))
 
 	case gateway.EvDTMF:
-		log.Printf("[call=%s] dtmf %s end=%v", c.callID, ev.Digit, ev.End)
+		logger.Info(fmt.Sprintf("[call=%s] dtmf %s end=%v", c.callID, ev.Digit, ev.End))
 
 	case gateway.EvTTSStarted:
-		log.Printf("[call=%s] tts-started utt=%s", c.callID, ev.UtteranceID)
+		logger.Info(fmt.Sprintf("[call=%s] tts-started utt=%s", c.callID, ev.UtteranceID))
 
 	case gateway.EvTTSEnded:
-		log.Printf("[call=%s] tts-ended  utt=%s ok=%v", c.callID, ev.UtteranceID, ev.OK)
+		logger.Info(fmt.Sprintf("[call=%s] tts-ended  utt=%s ok=%v", c.callID, ev.UtteranceID, ev.OK))
 
 	default:
-		log.Printf("[call=%s] unknown event type=%q", c.callID, ev.Type)
+		logger.Info(fmt.Sprintf("[call=%s] unknown event type=%q", c.callID, ev.Type))
 	}
 }
 
@@ -169,7 +176,21 @@ func (c *callConn) runTurn(ctx context.Context, userText string) {
 		})
 	}
 
-	seg := tts.NewSegmenter(tts.SegmenterConfig{}, func(text string, _ bool) {
+	seg := tts.NewSegmenter(tts.SegmenterConfig{
+		// Balance: pure sentence-only + huge MaxRunes waits too long for the
+		// first tts.speak and ships multi-sentence blobs (slow TTF, long
+		// monologue). Defaults (MinRunes 12 / MaxRunes 40) over-split on commas.
+		// Here: clause flush only after a substantial clause, hard-cap length,
+		// and modest idle so streaming still chunks without "语义碎屑".
+		OmitClauseFlushes: false,
+		SentenceEnders:    []string{"。", "！", "？", ".", "!", "?", "\n"},
+		// Chinese models often use … / …… instead of commas; treat as soft
+		// boundaries so we do not ship one 8s tts.speak before a period.
+		ClauseMarkers: []string{"，", "、", "；", "：", "—", "……", "…"},
+		MinRunes:      12,
+		MaxRunes:      32,
+		IdleFlush:     200 * time.Millisecond,
+	}, func(text string, _ bool) {
 		speak(text)
 	})
 	defer seg.Reset()
@@ -181,15 +202,10 @@ func (c *callConn) runTurn(ctx context.Context, userText string) {
 	if temp <= 0 {
 		temp = 0.7
 	}
-	ft := float32(temp)
-	opts := llm.QueryOptions{
+	opts := &llm.QueryOptions{
 		Model:       c.cfg.Model,
-		Stream:      true,
-		Temperature: &ft,
-	}
-	if c.cfg.MaxTokens > 0 {
-		m := c.cfg.MaxTokens
-		opts.MaxTokens = &m
+		Temperature: temp,
+		MaxTokens:   c.cfg.MaxTokens,
 	}
 
 	_, err := c.provider.QueryStream(userText, opts, func(piece string, isComplete bool) error {
@@ -203,7 +219,7 @@ func (c *callConn) runTurn(ctx context.Context, userText string) {
 			if !startedTTS {
 				startedTTS = true
 				firstByteMs = int(time.Since(t0).Milliseconds())
-				log.Printf("[call=%s] llm first-byte=%dms", c.callID, firstByteMs)
+				logger.Info(fmt.Sprintf("[call=%s] llm first-byte=%dms", c.callID, firstByteMs))
 			}
 			seg.Push(delta)
 		}
@@ -213,8 +229,8 @@ func (c *callConn) runTurn(ctx context.Context, userText string) {
 		return nil
 	})
 	if err != nil {
-		log.Printf("[call=%s] llm stream failed: %v (fullSeen=%q)",
-			c.callID, err, ellipsize(sv.seen, 200))
+		logger.Info(fmt.Sprintf("[call=%s] llm stream failed: %v (fullSeen=%q)",
+			c.callID, err, ellipsize(sv.seen, 200)))
 		seg.Complete()
 		if !startedTTS && c.fallback != "" {
 			speak(c.fallback)
@@ -223,7 +239,7 @@ func (c *callConn) runTurn(ctx context.Context, userText string) {
 	}
 	seg.Complete()
 	if !startedTTS {
-		log.Printf("[call=%s] llm produced no speakable text; using fallback", c.callID)
+		logger.Info(fmt.Sprintf("[call=%s] llm produced no speakable text; using fallback", c.callID))
 		if c.fallback != "" {
 			speak(c.fallback)
 		}
@@ -302,13 +318,13 @@ func (c *callConn) sendCommand(cmd gateway.Command) {
 	cmd.CallID = c.callID
 	data, err := json.Marshal(cmd)
 	if err != nil {
-		log.Printf("[call=%s] marshal cmd: %v", c.callID, err)
+		logger.Info(fmt.Sprintf("[call=%s] marshal cmd: %v", c.callID, err))
 		return
 	}
 	c.writeM.Lock()
 	defer c.writeM.Unlock()
 	_ = c.conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
 	if err := c.conn.WriteMessage(websocket.TextMessage, data); err != nil {
-		log.Printf("[call=%s] write cmd %s: %v", c.callID, cmd.Type, err)
+		logger.Info(fmt.Sprintf("[call=%s] write cmd %s: %v", c.callID, cmd.Type, err))
 	}
 }

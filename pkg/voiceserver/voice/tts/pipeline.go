@@ -11,7 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/LingByte/SoulNexus/pkg/voiceserver/media"
+	"github.com/LingByte/SoulNexus/pkg/media"
 	"go.uber.org/zap"
 )
 

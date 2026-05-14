@@ -10,7 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/LingByte/SoulNexus/pkg/voiceserver/logger"
+	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/pion/srtp/v2"
 	"go.uber.org/zap"
 )

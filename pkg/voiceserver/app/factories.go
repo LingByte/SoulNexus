@@ -6,7 +6,7 @@ package app
 import (
 	"context"
 	"fmt"
-	"log"
+	"github.com/LingByte/SoulNexus/pkg/logger"
 	"strings"
 
 	"github.com/LingByte/SoulNexus/pkg/recognizer"
@@ -74,7 +74,7 @@ func NewXiaozhiFactory() (*XiaozhiFactory, error) {
 	// calls fire at boot, regardless of which transports are mounted.
 	if cached != nil && TTSPrewarmEnabled() {
 		go cached.Prewarm(context.Background(), PrewarmTexts(), func(t string, e error) {
-			log.Printf("[xiaozhi][tts-cache] prewarm %q failed: %v", t, e)
+			logger.Info(fmt.Sprintf("[xiaozhi][tts-cache] prewarm %q failed: %v", t, e))
 		})
 	}
 	return &XiaozhiFactory{

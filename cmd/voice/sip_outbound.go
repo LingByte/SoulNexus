@@ -8,7 +8,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"log"
+	"github.com/LingByte/SoulNexus/pkg/logger"
 	"net"
 	"strconv"
 	"strings"
@@ -61,7 +61,7 @@ func runOutbound(ctx context.Context, cfg outboundConfig) error {
 	if ua, ok := localSigAddr.(*net.UDPAddr); ok {
 		localSigPort = ua.Port
 	}
-	log.Printf("[out] signalling bound: %s", localSigAddr)
+	logger.Info(fmt.Sprintf("[out] signalling bound: %s", localSigAddr))
 
 	// 2) Allocate RTP session and build offer SDP.
 	rtpSess, err := siprtp.NewSession(0)
@@ -94,19 +94,19 @@ func runOutbound(ctx context.Context, cfg outboundConfig) error {
 		Body:         offerBody,
 	})
 
-	log.Printf("[out] INVITE → %s (call-id=%s)", target.addr, callID)
+	logger.Info(fmt.Sprintf("[out] INVITE → %s (call-id=%s)", target.addr, callID))
 	sendFn := func(m *stack.Message, a *net.UDPAddr) error { return ep.Send(m, a) }
 
 	inviteCtx, cancelInvite := context.WithTimeout(ctx, 30*time.Second)
 	defer cancelInvite()
 	result, err := mgr.RunInviteClient(inviteCtx, invite, target.addr, sendFn, func(prov *stack.Message) {
-		log.Printf("[out] %d %s", prov.StatusCode, prov.StatusText)
+		logger.Info(fmt.Sprintf("[out] %d %s", prov.StatusCode, prov.StatusText))
 	})
 	if err != nil {
 		return fmt.Errorf("run invite: %w", err)
 	}
 	final := result.Final
-	log.Printf("[out] final: %d %s", final.StatusCode, final.StatusText)
+	logger.Info(fmt.Sprintf("[out] final: %d %s", final.StatusCode, final.StatusText))
 
 	if final.StatusCode < 200 || final.StatusCode >= 300 {
 		// Non-2xx final: still owes an ACK (absorbed by server tx, no BYE).
@@ -126,13 +126,13 @@ func runOutbound(ctx context.Context, cfg outboundConfig) error {
 	if err := ep.Send(ack, result.Remote); err != nil {
 		return fmt.Errorf("send ack: %w", err)
 	}
-	log.Printf("[out] ACK → %s", result.Remote)
+	logger.Info(fmt.Sprintf("[out] ACK → %s", result.Remote))
 
 	remoteSDP, err := sdp.Parse(final.Body)
 	if err != nil {
-		log.Printf("[out] WARN parse 200 sdp: %v", err)
+		logger.Info(fmt.Sprintf("[out] WARN parse 200 sdp: %v", err))
 	} else if err := session.ApplyRemoteSDP(rtpSess, remoteSDP); err != nil {
-		log.Printf("[out] WARN apply remote sdp: %v", err)
+		logger.Info(fmt.Sprintf("[out] WARN apply remote sdp: %v", err))
 	}
 
 	var leg *session.MediaLeg
@@ -144,18 +144,18 @@ func runOutbound(ctx context.Context, cfg outboundConfig) error {
 		}
 		leg, err = session.NewMediaLeg(ctx, callID, rtpSess, remoteSDP.Codecs, legCfg)
 		if err != nil {
-			log.Printf("[out] WARN media leg: %v", err)
+			logger.Info(fmt.Sprintf("[out] WARN media leg: %v", err))
 		} else {
 			neg := leg.NegotiatedSDP()
-			log.Printf("[out] leg up: codec=%s rtp_local=%s rtp_remote=%s:%d",
-				neg.Name, rtpSess.LocalAddr.String(), remoteSDP.IP, remoteSDP.Port)
+			logger.Info(fmt.Sprintf("[out] leg up: codec=%s rtp_local=%s rtp_remote=%s:%d",
+				neg.Name, rtpSess.LocalAddr.String(), remoteSDP.IP, remoteSDP.Port))
 			if cfg.Recorder != nil {
 				cfg.Recorder.setCodec(neg.Name, neg.ClockRate)
 				cfg.Recorder.setPCMRate(leg.PCMSampleRate())
 			}
 			if cfg.AsrEcho {
 				if va, err := attachVoiceEcho(ctx, leg, callID, 0, cfg.ReplyText); err != nil {
-					log.Printf("[out] asr-echo disabled: %v", err)
+					logger.Info(fmt.Sprintf("[out] asr-echo disabled: %v", err))
 				} else {
 					defer va.Close()
 				}
@@ -165,7 +165,7 @@ func runOutbound(ctx context.Context, cfg outboundConfig) error {
 	}
 
 	// 5) Hold the call.
-	log.Printf("[out] holding for %s", cfg.HoldFor)
+	logger.Info(fmt.Sprintf("[out] holding for %s", cfg.HoldFor))
 	select {
 	case <-ctx.Done():
 	case <-time.After(cfg.HoldFor):
@@ -187,14 +187,14 @@ func runOutbound(ctx context.Context, cfg outboundConfig) error {
 		CallID:       callID,
 		CSeq:         2,
 	})
-	log.Printf("[out] BYE → %s", result.Remote)
+	logger.Info(fmt.Sprintf("[out] BYE → %s", result.Remote))
 	byeCtx, cancelBye := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancelBye()
 	byeRes, err := mgr.RunNonInviteClient(byeCtx, bye, result.Remote, sendFn)
 	if err != nil {
-		log.Printf("[out] BYE error: %v", err)
+		logger.Info(fmt.Sprintf("[out] BYE error: %v", err))
 	} else {
-		log.Printf("[out] BYE final: %d %s", byeRes.Final.StatusCode, byeRes.Final.StatusText)
+		logger.Info(fmt.Sprintf("[out] BYE final: %d %s", byeRes.Final.StatusCode, byeRes.Final.StatusText))
 	}
 
 	if cfg.Recorder != nil {

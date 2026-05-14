@@ -30,9 +30,9 @@
 //
 // Architecture mirrors the SIP path; one dialog plane serves all transports:
 //
-//   Device / Browser ── xiaozhi WS ──►  VoiceServer  ── gateway WS ──►  Dialog
-//                                                                        (LLM)
-//   Device / Browser ◄── audio bin ──  VoiceServer  ◄── tts.speak ──   Dialog
+//	Device / Browser ── xiaozhi WS ──►  VoiceServer  ── gateway WS ──►  Dialog
+//	                                                                     (LLM)
+//	Device / Browser ◄── audio bin ──  VoiceServer  ◄── tts.speak ──   Dialog
 //
 // Why a fresh package instead of reusing pkg/voice/gateway.Client?
 //
@@ -59,11 +59,11 @@ const (
 	MsgPing   = "ping"
 
 	// Server-emitted reply types (sent back to the device).
-	RespHello       = "hello"
-	RespPong        = "pong"
-	RespSTT         = "stt"
-	RespTTS         = "tts"
-	RespError       = "error"
+	RespHello        = "hello"
+	RespPong         = "pong"
+	RespSTT          = "stt"
+	RespTTS          = "tts"
+	RespError        = "error"
 	RespAbortConfirm = "abort"
 	RespConnected    = "connected"
 )
@@ -190,8 +190,15 @@ func MakeSTTReply(sessionID, text string) []byte {
 
 // MakeTTSStateReply signals the start / stop of a TTS playback span.
 // codec ("opus" or "pcm") tells the firmware how to decode the binary
-// frames that follow until the matching stop.
+// frames that follow until the matching stop. TTS start uses 60 ms frames
+// unless you call MakeTTSStateReplyFrames (PCM browser path often uses 20).
 func MakeTTSStateReply(sessionID, state, codec string) []byte {
+	return MakeTTSStateReplyFrames(sessionID, state, codec, 60)
+}
+
+// MakeTTSStateReplyFrames is like MakeTTSStateReply but sets audio_params.
+// frame_duration_ms on tts:start so it matches the binary chunk cadence.
+func MakeTTSStateReplyFrames(sessionID, state, codec string, frameMs int) []byte {
 	if codec == "" {
 		codec = AudioFormatOpus
 	}
@@ -201,11 +208,14 @@ func MakeTTSStateReply(sessionID, state, codec string) []byte {
 		"session_id": sessionID,
 	}
 	if state == "start" {
+		if frameMs <= 0 {
+			frameMs = 60
+		}
 		body["audio_params"] = AudioParams{
 			Codec:         codec,
 			SampleRate:    16000,
 			Channels:      1,
-			FrameDuration: 60,
+			FrameDuration: frameMs,
 			BitDepth:      16,
 		}
 	}

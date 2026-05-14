@@ -3,8 +3,8 @@ package dtmf
 import (
 	"context"
 
-	"github.com/LingByte/SoulNexus/pkg/voiceserver/logger"
-	"github.com/LingByte/SoulNexus/pkg/voiceserver/media"
+	"github.com/LingByte/SoulNexus/pkg/logger"
+	"github.com/LingByte/SoulNexus/pkg/media"
 	"go.uber.org/zap"
 )
 

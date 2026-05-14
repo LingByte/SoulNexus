@@ -3,7 +3,7 @@ package session
 import (
 	"testing"
 
-	"github.com/LingByte/SoulNexus/pkg/voiceserver/media"
+	"github.com/LingByte/SoulNexus/pkg/media"
 )
 
 func TestInternalPCMSampleRate_PCMU(t *testing.T) {

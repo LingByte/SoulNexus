@@ -5,11 +5,19 @@ package encoder
 
 import (
 	"fmt"
+	"runtime"
 	"strings"
 
 	"github.com/LingByte/SoulNexus/pkg/media"
 	"github.com/hraban/opus"
 )
+
+func opusEncoderComplexity() int {
+	if runtime.NumCPU() < 4 {
+		return 5
+	}
+	return 10
+}
 
 // createOPUSDecode creates OPUS decoder
 // OPUS standard sample rate is 48000Hz, but also supports 8000, 12000, 16000, 24000, 48000
@@ -74,7 +82,13 @@ func createOPUSDecode(src, pcm media.CodecConfig) media.EncoderFunc {
 			return []media.MediaPacket{packet}, nil
 		}
 
-		pcmBuffer := make([]int16, maxSamplesPerCh*decodeCh)
+		// Borrow a PCM scratch buffer from the shared pool — at 50 fps
+		// per direction this saved a measurable amount of GC work in
+		// pre-pool benchmarks. The buffer is returned at the end of
+		// this function; nothing inside the loop retains it because we
+		// copy into a freshly-allocated decodedData below.
+		pcmBuffer := getInt16Slice(maxSamplesPerCh * decodeCh)
+		defer putInt16Slice(pcmBuffer)
 		n, err := decoder.Decode(audioPacket.Payload, pcmBuffer)
 		if err != nil {
 			return nil, fmt.Errorf("opus decode error: %w", err)
@@ -181,7 +195,7 @@ func createOPUSEncode(src, pcm media.CodecConfig) media.EncoderFunc {
 
 	// 设置复杂度为 10（最高质量，0-10）
 	// 更高的复杂度会提高音质但增加 CPU 使用
-	if err := encoder.SetComplexity(10); err != nil {
+	if err := encoder.SetComplexity(opusEncoderComplexity()); err != nil {
 		panic(fmt.Errorf("failed to set opus complexity: %w", err))
 	}
 
@@ -228,23 +242,29 @@ func createOPUSEncode(src, pcm media.CodecConfig) media.EncoderFunc {
 		}
 
 		nPCM := len(data) / 2
-		raw := make([]int16, nPCM)
+		// Pool: raw is a transient buffer for byte→int16 unpacking; we
+		// either copy it into stereo or hand it off as pcmSamples and
+		// return it after the encode loop. Tracked separately from
+		// pcmSamples so the cleanup is unambiguous.
+		raw := getInt16Slice(nPCM)
 		for i := 0; i < nPCM; i++ {
 			raw[i] = int16(data[i*2]) | int16(data[i*2+1])<<8
 		}
-
+		// stereoBuf is borrowed only when we need to up-mix mono→stereo.
+		// If the codec is mono or PCM is already stereo, stereoBuf
+		// stays nil and we feed `raw` straight to the encoder.
+		var stereoBuf []int16
 		var pcmSamples []int16
 		if channels == 2 {
 			if pcm.Channels >= 2 {
-				// Interleaved stereo L,R,L,R,... (SIP PCM bridge)
 				pcmSamples = raw
 			} else {
-				stereo := make([]int16, len(raw)*2)
+				stereoBuf = getInt16Slice(len(raw) * 2)
 				for i, s := range raw {
-					stereo[2*i] = s
-					stereo[2*i+1] = s
+					stereoBuf[2*i] = s
+					stereoBuf[2*i+1] = s
 				}
-				pcmSamples = stereo
+				pcmSamples = stereoBuf
 			}
 		} else {
 			pcmSamples = raw
@@ -253,27 +273,40 @@ func createOPUSEncode(src, pcm media.CodecConfig) media.EncoderFunc {
 		samplesPerFrame := frameSize * channels
 		totalSamples := len(pcmSamples)
 		if totalSamples == 0 {
+			putInt16Slice(raw)
+			if stereoBuf != nil {
+				putInt16Slice(stereoBuf)
+			}
 			return nil, nil
 		}
 
 		// Encode every 20ms (samplesPerFrame) at target rate. Previously only the first frame
 		// was encoded and the rest was dropped; short tails were dropped entirely — causing
 		// TTS truncation and garbled playout when one MediaPacket carried multiple frames.
-		opusScratch := make([]byte, 4000)
+		// opusScratch and frame are pooled — payload (escapes into RTP)
+		// is freshly allocated per packet.
+		opusScratch := getByteScratch(4000)
+		frame := getInt16Slice(samplesPerFrame)
 		var out []media.MediaPacket
+		var encErr error
 		for offset := 0; offset < totalSamples; offset += samplesPerFrame {
 			remain := totalSamples - offset
-			frame := make([]int16, samplesPerFrame)
+			// Reuse frame buffer; zero it first so a partial tail
+			// doesn't replay the previous frame's stale samples in the
+			// padded slots.
+			for i := range frame {
+				frame[i] = 0
+			}
 			if remain >= samplesPerFrame {
 				copy(frame, pcmSamples[offset:offset+samplesPerFrame])
 			} else {
 				copy(frame, pcmSamples[offset:])
-				// zero-pad last partial frame so Opus always gets a full frame
 			}
 
 			n, err := encoder.Encode(frame, opusScratch)
 			if err != nil {
-				return nil, fmt.Errorf("opus encode error: %w", err)
+				encErr = fmt.Errorf("opus encode error: %w", err)
+				break
 			}
 			if n <= 0 {
 				continue
@@ -282,11 +315,23 @@ func createOPUSEncode(src, pcm media.CodecConfig) media.EncoderFunc {
 			copy(payload, opusScratch[:n])
 			out = append(out, &media.AudioPacket{
 				Payload:       payload,
+				RTPSamples:    uint32(frameSize),
 				IsSynthesized: audioPacket.IsSynthesized,
 				PlayID:        audioPacket.PlayID,
 				Sequence:      audioPacket.Sequence,
 				SourceText:    audioPacket.SourceText,
 			})
+		}
+		// Return all pooled buffers — any of them holding payload data
+		// would have been copied into a fresh allocation above.
+		putByteScratch(opusScratch)
+		putInt16Slice(frame)
+		putInt16Slice(raw)
+		if stereoBuf != nil {
+			putInt16Slice(stereoBuf)
+		}
+		if encErr != nil {
+			return nil, encErr
 		}
 		if len(out) == 0 {
 			return nil, nil

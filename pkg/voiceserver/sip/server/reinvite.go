@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/LingByte/SoulNexus/pkg/voiceserver/logger"
+	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/sip/sdp"
 	sipSession "github.com/LingByte/SoulNexus/pkg/voiceserver/sip/session"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/sip/stack"

@@ -3,13 +3,15 @@ package main
 import (
 	"context"
 	"errors"
-	"log"
+	"fmt"
 	"net/http"
 	"os/signal"
 	"strings"
 	"sync/atomic"
 	"syscall"
 	"time"
+
+	"github.com/LingByte/SoulNexus/pkg/logger"
 
 	"github.com/LingByte/SoulNexus/internal/config"
 	voicehttp "github.com/LingByte/SoulNexus/internal/handler/voice"
@@ -20,10 +22,12 @@ import (
 
 func main() {
 	if err := config.LoadVoice(); err != nil {
-		log.Fatalf("config load failed: %v", err)
+		logger.Fatal(fmt.Sprintf("config load failed: %v", err))
 	}
-	if config.VoiceGlobalConfig == nil {
-		log.Fatalf("config load failed: VoiceGlobalConfig is nil")
+
+	err := logger.Init(&config.VoiceGlobalConfig.Log, config.VoiceGlobalConfig.Mode)
+	if err != nil {
+		panic(err)
 	}
 	cfg := config.VoiceGlobalConfig
 	app.SetTTSPrewarm(cfg.TTSPrewarm)
@@ -36,13 +40,13 @@ func main() {
 
 	dialogWSEffective, err := app.MergeDialogAuthQuery(cfg.DialogWS)
 	if err != nil {
-		log.Fatalf("invalid VOICE_DIALOG_WS: %v", err)
+		logger.Fatal(fmt.Sprintf("invalid VOICE_DIALOG_WS: %v", err))
 	}
 	app.WarnDialogAuthIfNeeded(dialogWSEffective)
 
 	host, port, err := app.SplitHostPort(cfg.SIPAddr)
 	if err != nil {
-		log.Fatalf("invalid VOICE_SIP_ADDR: %v", err)
+		logger.Fatal(fmt.Sprintf("invalid VOICE_SIP_ADDR: %v", err))
 	}
 	ip := strings.TrimSpace(cfg.LocalIP)
 	if ip == "" {
@@ -68,7 +72,7 @@ func main() {
 			AsrEcho:   cfg.ASREcho,
 			ReplyText: cfg.ReplyText,
 		}); err != nil {
-			log.Fatalf("outbound failed: %v", err)
+			logger.Fatal(fmt.Sprintf("outbound failed: %v", err))
 		}
 		return
 	}
@@ -93,13 +97,13 @@ func main() {
 		dialogWS:  dialogWSEffective,
 		srv:       srv,
 	}
-	// --- Persistence (voiceserver.db SQLite by default; VOICESERVER_DB=off disables) ---
+	// --- Persistence (shared DB_DRIVER + DSN with main / auth; DSN=off disables) ---
 	db, err := app.OpenVoiceServerDB()
 	if err != nil {
-		log.Printf("[persist] disabled: %v", err)
+		logger.Info(fmt.Sprintf("[persist] disabled: %v", err))
 	}
 	if db != nil {
-		log.Printf("[persist] voiceserver.db ready")
+		logger.Info(fmt.Sprintf("[persist] voice db ready (driver=%s)", config.GlobalConfig.Database.Driver))
 	}
 	invite.db = db
 
@@ -115,14 +119,14 @@ func main() {
 	srv.SetInboundAllowUnknownDID(true)
 
 	if err := srv.Start(); err != nil {
-		log.Fatalf("sip start: %v", err)
+		logger.Fatal(fmt.Sprintf("sip start: %v", err))
 	}
 	defer srv.Stop()
 
 	h, p := srv.ListenAddr()
-	log.Printf("voiceserver ready: sip=udp:%s:%d local_ip=%s rtp=%d..%d record=%v asr-echo=%v",
-		h, p, ip, cfg.RTPStart, cfg.RTPEnd, cfg.Record, cfg.ASREcho)
-	log.Printf("place a call to sip:anyone@%s:%d to test", h, p)
+	logger.Info(fmt.Sprintf("voiceserver ready: sip=udp:%s:%d local_ip=%s rtp=%d..%d record=%v asr-echo=%v",
+		h, p, ip, cfg.RTPStart, cfg.RTPEnd, cfg.Record, cfg.ASREcho))
+	logger.Info(fmt.Sprintf("place a call to sip:anyone@%s:%d to test", h, p))
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -158,7 +162,7 @@ func main() {
 	}))
 
 	<-ctx.Done()
-	log.Printf("shutting down (handled %d calls)", atomic.LoadInt64(&callCount))
+	logger.Info(fmt.Sprintf("shutting down (handled %d calls)", atomic.LoadInt64(&callCount)))
 }
 
 // ---------- InviteHandler ---------------------------------------------------
@@ -173,7 +177,7 @@ func main() {
 func startVoiceHTTPListener(ctx context.Context, addr string, h *voicehttp.Handlers) {
 	addr = strings.TrimSpace(addr)
 	if addr == "" {
-		log.Printf("[http] disabled: VOICE_HTTP_ADDR is empty (xiaozhi/webrtc/sfu require an HTTP listener)")
+		logger.Info(fmt.Sprintf("[http] disabled: VOICE_HTTP_ADDR is empty (xiaozhi/webrtc/sfu require an HTTP listener)"))
 		return
 	}
 
@@ -183,14 +187,14 @@ func startVoiceHTTPListener(ctx context.Context, addr string, h *voicehttp.Handl
 
 	mounted := h.Register(r)
 	if mounted == 0 {
-		log.Printf("[http] %s reachable, no transports mounted; only /healthz, /metrics and /media will respond", addr)
+		logger.Info(fmt.Sprintf("[http] %s reachable, no transports mounted; only /healthz, /metrics and /media will respond", addr))
 	}
 
 	httpSrv := &http.Server{Addr: addr, Handler: r}
 	go func() {
-		log.Printf("[http] listening on %s (xiaozhi=%v transports=%d)", addr, h.XiaozhiServer() != nil, mounted)
+		logger.Info(fmt.Sprintf("[http] listening on %s (xiaozhi=%v transports=%d)", addr, h.XiaozhiServer() != nil, mounted))
 		if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Printf("[http] server error: %v", err)
+			logger.Info(fmt.Sprintf("[http] server error: %v", err))
 		}
 	}()
 	go func() {
