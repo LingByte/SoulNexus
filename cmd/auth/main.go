@@ -83,6 +83,7 @@ func main() {
 		InitSQLPath:   *initSQL,
 		AutoMigrate:   *init,
 		SeedNonProd:   *seed,
+		SeedKind:      "auth",
 		MigrateModels: schema.AuthEntities,
 	})
 	if err != nil {

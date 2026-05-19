@@ -155,6 +155,7 @@ func (h *Handlers) RegisterUserServiceRoutes(engine *gin.Engine) {
 	}
 
 	h.registerAuthRoutes(r)
+	h.registerAuthAdminManagementRoutes(r)
 
 	// Browser HTML pages need DB (GetRenderPageContext); API group prefix is not used here.
 	browser := engine.Group("")
@@ -780,7 +781,9 @@ func (h *Handlers) registerAuthRoutes(r *gin.RouterGroup) {
 	}
 }
 
-func (h *Handlers) registerAdminManagementRoutes(r *gin.RouterGroup) {
+// registerAuthAdminManagementRoutes registers user/role/permission/passkey and related
+// admin surfaces on the standalone auth service (cmd/auth).
+func (h *Handlers) registerAuthAdminManagementRoutes(r *gin.RouterGroup) {
 	adminGuard := []gin.HandlerFunc{models.AuthRequired, h.requireAdmin}
 
 	h.registerAccessAdminRoutes(r)
@@ -811,6 +814,37 @@ func (h *Handlers) registerAdminManagementRoutes(r *gin.RouterGroup) {
 		oauthClients.PUT("/:id", h.handleAdminUpdateOAuthClient)
 		oauthClients.DELETE("/:id", h.handleAdminDeleteOAuthClient)
 	}
+
+	mePasskeys := r.Group("me/passkeys", models.AuthRequired)
+	{
+		mePasskeys.GET("", h.handleMeListPasskeys)
+		mePasskeys.POST("/registration/begin", h.handleMePasskeyRegistrationBegin)
+		mePasskeys.POST("/registration/finish", h.handleMePasskeyRegistrationFinish)
+		mePasskeys.PUT("/:id", h.handleMeUpdatePasskey)
+		mePasskeys.DELETE("/:id", h.handleMeDeletePasskey)
+	}
+
+	meTwoFA := r.Group("me/twofa", models.AuthRequired)
+	{
+		meTwoFA.GET("/status", h.handleMeTwoFAStatus)
+		meTwoFA.POST("/backup-codes/regenerate", h.handleMeTwoFABackupCodesRegenerate)
+		meTwoFA.POST("/backup-codes/use", h.handleMeTwoFABackupCodeUse)
+		meTwoFA.POST("/reset", h.handleMeTwoFAReset)
+	}
+
+	security := r.Group("security", adminGuard...)
+	{
+		security.GET("/operation-logs", h.handleAdminListOperationLogs)
+		security.GET("/operation-logs/:id", h.handleAdminGetOperationLog)
+		security.GET("/login-history", h.handleAdminListLoginHistory)
+		security.GET("/login-history/:id", h.handleAdminGetLoginHistory)
+		security.GET("/account-locks", h.handleAdminListAccountLocks)
+		security.POST("/account-locks/:id/unlock", h.handleAdminUnlockAccount)
+	}
+}
+
+func (h *Handlers) registerAdminManagementRoutes(r *gin.RouterGroup) {
+	adminGuard := []gin.HandlerFunc{models.AuthRequired, h.requireAdmin}
 
 	adminAgents := r.Group("admin/agents", adminGuard...)
 	{
@@ -893,23 +927,6 @@ func (h *Handlers) registerAdminManagementRoutes(r *gin.RouterGroup) {
 		meSpeechUsage.GET("", models.AuthRequired, h.handleMeListSpeechUsage)
 	}
 
-	mePasskeys := r.Group("me/passkeys", models.AuthRequired)
-	{
-		mePasskeys.GET("", h.handleMeListPasskeys)
-		mePasskeys.POST("/registration/begin", h.handleMePasskeyRegistrationBegin)
-		mePasskeys.POST("/registration/finish", h.handleMePasskeyRegistrationFinish)
-		mePasskeys.PUT("/:id", h.handleMeUpdatePasskey)
-		mePasskeys.DELETE("/:id", h.handleMeDeletePasskey)
-	}
-
-	meTwoFA := r.Group("me/twofa", models.AuthRequired)
-	{
-		meTwoFA.GET("/status", h.handleMeTwoFAStatus)
-		meTwoFA.POST("/backup-codes/regenerate", h.handleMeTwoFABackupCodesRegenerate)
-		meTwoFA.POST("/backup-codes/use", h.handleMeTwoFABackupCodeUse)
-		meTwoFA.POST("/reset", h.handleMeTwoFAReset)
-	}
-
 	meLLMTokens := r.Group("me/llm-tokens", models.AuthRequired, h.OrgScopeMiddleware())
 	{
 		meLLMTokens.GET("", h.handleMeListLLMTokens)
@@ -928,14 +945,6 @@ func (h *Handlers) registerAdminManagementRoutes(r *gin.RouterGroup) {
 		llmTokens.POST("/:id/regenerate", h.handleAdminRegenerateLLMToken)
 		llmTokens.POST("/:id/reset-usage", h.handleAdminResetLLMTokenUsage)
 		llmTokens.DELETE("/:id", h.handleAdminDeleteLLMToken)
-	}
-
-	security := r.Group("security", adminGuard...)
-	{
-		security.GET("/operation-logs", h.handleAdminListOperationLogs)
-		security.GET("/operation-logs/:id", h.handleAdminGetOperationLog)
-		security.GET("/account-locks", h.handleAdminListAccountLocks)
-		security.POST("/account-locks/:id/unlock", h.handleAdminUnlockAccount)
 	}
 
 	groups := r.Group("admin/groups", adminGuard...)

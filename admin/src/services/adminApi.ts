@@ -3,8 +3,10 @@ import { getMainApiBaseURL, getAuthApiBaseURL } from '@/config/apiConfig'
 import { handleConfigCacheUpdate } from '@/utils/siteConfigCache'
 import { normalizeAuthUser } from '@/utils/authUserProfile'
 
-// 主业务服务 API（不含认证）
+// 主业务服务 API（不含认证与用户域管理）
 const BACKEND_BASE = getMainApiBaseURL()
+// 用户 / 角色 / 权限 / Passkey / 安全配置等（cmd/auth）
+const AUTH_SERVICE_BASE = getAuthApiBaseURL()
 
 // ==================== Users API ====================
 export interface User {
@@ -103,7 +105,7 @@ export const listUsers = async (params?: ListUsersParams): Promise<UserListRespo
   if (params?.enabled) queryParams.enabled = params.enabled
   if (params?.hasPhone) queryParams.hasPhone = params.hasPhone
   
-  const res = await get<UserListResponse>(`${BACKEND_BASE}/users`, { params: queryParams })
+  const res = await get<UserListResponse>(`${AUTH_SERVICE_BASE}/users`, { params: queryParams })
   const body = res.data
   return {
     ...body,
@@ -112,22 +114,22 @@ export const listUsers = async (params?: ListUsersParams): Promise<UserListRespo
 }
 
 export const getUser = async (id: number): Promise<User> => {
-  const res = await get<User>(`${BACKEND_BASE}/users/${id}`)
+  const res = await get<User>(`${AUTH_SERVICE_BASE}/users/${id}`)
   return normalizeAuthUser(res.data as unknown as Record<string, unknown>) as User
 }
 
 export const createUser = async (data: CreateUserRequest): Promise<User> => {
-  const res = await post<User>(`${BACKEND_BASE}/users`, data)
+  const res = await post<User>(`${AUTH_SERVICE_BASE}/users`, data)
   return normalizeAuthUser(res.data as unknown as Record<string, unknown>) as User
 }
 
 export const updateUser = async (id: number, data: UpdateUserRequest): Promise<User> => {
-  const res = await put<User>(`${BACKEND_BASE}/users/${id}`, data)
+  const res = await put<User>(`${AUTH_SERVICE_BASE}/users/${id}`, data)
   return normalizeAuthUser(res.data as unknown as Record<string, unknown>) as User
 }
 
 export const deleteUser = async (id: number): Promise<void> => {
-  await del(`${BACKEND_BASE}/users/${id}`)
+  await del(`${AUTH_SERVICE_BASE}/users/${id}`)
 }
 
 // Legacy function for backward compatibility
@@ -276,25 +278,25 @@ export interface CreateAPIKeyResponse {
 }
 
 export const getAPIKeys = async (): Promise<APIKey[]> => {
-  const res = await get<{ keys: APIKey[] }>(`${BACKEND_BASE}/auth/api-keys`)
+  const res = await get<{ keys: APIKey[] }>(`${AUTH_SERVICE_BASE}/auth/api-keys`)
   return res.data.keys
 }
 
 export const createAPIKey = async (data: CreateAPIKeyRequest): Promise<CreateAPIKeyResponse> => {
-  const res = await post<CreateAPIKeyResponse>(`${BACKEND_BASE}/auth/api-keys`, data)
+  const res = await post<CreateAPIKeyResponse>(`${AUTH_SERVICE_BASE}/auth/api-keys`, data)
   return res.data
 }
 
 export const deleteAPIKey = async (id: number): Promise<void> => {
-  await del(`${BACKEND_BASE}/auth/api-keys/${id}`)
+  await del(`${AUTH_SERVICE_BASE}/auth/api-keys/${id}`)
 }
 
 export const banAPIKey = async (id: number): Promise<void> => {
-  await post(`${BACKEND_BASE}/auth/api-keys/${id}/ban`, {})
+  await post(`${AUTH_SERVICE_BASE}/auth/api-keys/${id}/ban`, {})
 }
 
 export const unbanAPIKey = async (id: number): Promise<void> => {
-  await post(`${BACKEND_BASE}/auth/api-keys/${id}/unban`, {})
+  await post(`${AUTH_SERVICE_BASE}/auth/api-keys/${id}/unban`, {})
 }
 
 // ==================== Security API ====================
@@ -337,12 +339,12 @@ export const getOperationLogs = async (params?: {
   if (params?.user_id) queryParams.user_id = params.user_id
   if (params?.action) queryParams.action = params.action
   if (params?.target) queryParams.target = params.target
-  const res = await get<OperationLogListResponse>(`${BACKEND_BASE}/security/operation-logs`, { params: queryParams })
+  const res = await get<OperationLogListResponse>(`${AUTH_SERVICE_BASE}/security/operation-logs`, { params: queryParams })
   return res.data
 }
 
 export const getOperationLog = async (id: number): Promise<{ log: OperationLog }> => {
-  const res = await get<{ log: OperationLog }>(`${BACKEND_BASE}/security/operation-logs/${id}`)
+  const res = await get<{ log: OperationLog }>(`${AUTH_SERVICE_BASE}/security/operation-logs/${id}`)
   return res.data
 }
 
@@ -368,25 +370,25 @@ export interface UserDevice {
 export const getUserDevices = async (userId?: number): Promise<{ devices: UserDevice[] }> => {
   const queryParams: any = {}
   if (userId) queryParams.user_id = userId
-  const res = await get<{ devices: UserDevice[] }>(`${BACKEND_BASE}/auth/devices`, { params: queryParams })
+  const res = await get<{ devices: UserDevice[] }>(`${AUTH_SERVICE_BASE}/auth/devices`, { params: queryParams })
   return res.data
 }
 
 export const deleteUserDevice = async (deviceId: string): Promise<void> => {
-  await del(`${BACKEND_BASE}/auth/devices/${deviceId}`)
+  await del(`${AUTH_SERVICE_BASE}/auth/devices/${deviceId}`)
 }
 
 export const trustUserDevice = async (deviceId: string): Promise<void> => {
-  await post(`${BACKEND_BASE}/auth/devices/${deviceId}/trust`, {})
+  await post(`${AUTH_SERVICE_BASE}/auth/devices/${deviceId}/trust`, {})
 }
 
 export const getUserDevice = async (deviceId: string): Promise<{ device: UserDevice }> => {
-  const res = await get<{ device: UserDevice }>(`${BACKEND_BASE}/auth/devices/${deviceId}`)
+  const res = await get<{ device: UserDevice }>(`${AUTH_SERVICE_BASE}/auth/devices/${deviceId}`)
   return res.data
 }
 
 export const updateUserDevice = async (deviceId: string, data: { deviceName?: string }): Promise<void> => {
-  await put(`${BACKEND_BASE}/auth/devices/${deviceId}`, data)
+  await put(`${AUTH_SERVICE_BASE}/auth/devices/${deviceId}`, data)
 }
 
 // Login History
@@ -427,12 +429,12 @@ export const getLoginHistory = async (params?: {
   if (params?.user_id) queryParams.user_id = params.user_id
   if (params?.success !== undefined) queryParams.success = params.success.toString()
   if (params?.is_suspicious !== undefined) queryParams.is_suspicious = params.is_suspicious.toString()
-  const res = await get<LoginHistoryListResponse>(`${BACKEND_BASE}/security/login-history`, { params: queryParams })
+  const res = await get<LoginHistoryListResponse>(`${AUTH_SERVICE_BASE}/security/login-history`, { params: queryParams })
   return res.data
 }
 
 export const getLoginHistoryDetail = async (id: number): Promise<{ history: LoginHistory }> => {
-  const res = await get<{ history: LoginHistory }>(`${BACKEND_BASE}/security/login-history/${id}`)
+  const res = await get<{ history: LoginHistory }>(`${AUTH_SERVICE_BASE}/security/login-history/${id}`)
   return res.data
 }
 
@@ -471,12 +473,12 @@ export const getAccountLocks = async (params?: {
   if (params?.user_id) queryParams.user_id = params.user_id
   if (params?.email) queryParams.email = params.email
   if (params?.is_active !== undefined) queryParams.is_active = params.is_active.toString()
-  const res = await get<AccountLockListResponse>(`${BACKEND_BASE}/security/account-locks`, { params: queryParams })
+  const res = await get<AccountLockListResponse>(`${AUTH_SERVICE_BASE}/security/account-locks`, { params: queryParams })
   return res.data
 }
 
 export const unlockAccount = async (id: number): Promise<void> => {
-  await post(`${BACKEND_BASE}/security/account-locks/${id}/unlock`, {})
+  await post(`${AUTH_SERVICE_BASE}/security/account-locks/${id}/unlock`, {})
 }
 
 // ==================== User API ====================
@@ -756,7 +758,7 @@ export const processImage = async (
 }
 
 // ==================== Configs API ====================
-const CONFIGS_API_BASE = `${BACKEND_BASE}/configs`
+const CONFIGS_API_BASE = `${AUTH_SERVICE_BASE}/configs`
 
 export interface Config {
   id: number
@@ -883,7 +885,7 @@ export const batchUpdateConfigs = async (configs: BatchUpdateConfig[]) => {
 }
 
 // ==================== OAuth Clients API ====================
-const OAUTH_CLIENTS_API_BASE = `${BACKEND_BASE}/oauth-clients`
+const OAUTH_CLIENTS_API_BASE = `${AUTH_SERVICE_BASE}/oauth-clients`
 
 export interface OAuthClient {
   id: number
@@ -1301,12 +1303,12 @@ export const getCensorStatistics = async (params?: {
 }
 
 export const updateCensorConfig = async (data: { key: string; value: string }) => {
-  const res = await put(`${BACKEND_BASE}/configs/${data.key}`, { value: data.value })
+  const res = await put(`${AUTH_SERVICE_BASE}/configs/${data.key}`, { value: data.value })
   return res.data
 }
 
 export const getCensorConfig = async (key: string) => {
-  const res = await get(`${BACKEND_BASE}/configs/${key}`)
+  const res = await get(`${AUTH_SERVICE_BASE}/configs/${key}`)
   return res.data
 }
 

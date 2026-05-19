@@ -13,17 +13,13 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/utils"
 )
 
-// ServerEntities is the full schema for cmd/server (and SIP when sharing the main API database).
+// ServerEntities is the business API schema for cmd/server (and SIP when sharing the main API database).
+// User identity/RBAC tables are owned by cmd/auth (AuthEntities); server validates JWT permission claims only.
 func ServerEntities() []any {
 	return []any{
 		&utils.Config{},
 		&models.User{},
 		&models.UserProfile{},
-		&models.Role{},
-		&models.Permission{},
-		&models.RolePermission{},
-		&models.UserRole{},
-		&models.UserPermission{},
 		&models.Group{},
 		&models.UserCredential{},
 		&models.GroupMember{},
@@ -42,10 +38,6 @@ func ServerEntities() []any {
 		&models.ASRChannel{},
 		&models.TTSChannel{},
 		&models.SpeechUsage{},
-		&models.TwoFA{},
-		&models.TwoFABackupCode{},
-		&models.Passkey{},
-		&models.PasskeyChallenge{},
 		&models.InternalNotification{},
 		&models.NotificationChannel{},
 		&models.MailTemplate{},
@@ -76,12 +68,8 @@ func ServerEntities() []any {
 		&models.NodePluginVersion{},
 		&models.NodePluginReview{},
 		&models.NodePluginInstallation{},
-		&models.UserDevice{},
-		&models.LoginHistory{},
-		&models.AccountLock{},
 		&models.DeviceErrorLog{},
 		&models.CallRecording{},
-		&models.OAuthClient{},
 		&models.KnowledgeNamespace{},
 		&models.KnowledgeDocument{},
 	}
@@ -99,8 +87,13 @@ func AuthEntities() []any {
 		&models.UserRole{},
 		&models.UserPermission{},
 		&models.UserCredential{},
+		&models.TwoFA{},
+		&models.TwoFABackupCode{},
+		&models.Passkey{},
+		&models.PasskeyChallenge{},
 		&models.LoginHistory{},
 		&models.AccountLock{},
+		&middleware.OperationLog{},
 		&models.InternalNotification{},
 		&models.NotificationChannel{},
 		&models.MailTemplate{},

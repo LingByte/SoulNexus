@@ -30,7 +30,7 @@ func (h *Handlers) handleListMailLogs(c *gin.Context) {
 
 	q := h.db.Model(&mail.MailLog{})
 	// 普通用户只能看自己的；管理员可按 user_id 过滤，否则看全部
-	if !models.UserHasAdminAccess(h.db, user.ID) {
+	if !user.HasAdminAccess() {
 		q = q.Where("user_id = ?", user.ID)
 	} else if uidStr := strings.TrimSpace(c.Query("user_id")); uidStr != "" {
 		var uid uint
@@ -82,7 +82,7 @@ func (h *Handlers) handleGetMailLogDetail(c *gin.Context) {
 	}
 	var row mail.MailLog
 	q := h.db.Where("id = ?", id)
-	if !models.UserHasAdminAccess(h.db, user.ID) {
+	if !user.HasAdminAccess() {
 		q = q.Where("user_id = ?", user.ID)
 	}
 	if err := q.First(&row).Error; err != nil {
@@ -104,7 +104,7 @@ func (h *Handlers) handleGetMailLogStats(c *gin.Context) {
 		return
 	}
 	uid := user.ID
-	if models.UserHasAdminAccess(h.db, user.ID) && strings.EqualFold(strings.TrimSpace(c.Query("scope")), "all") {
+	if user.HasAdminAccess() && strings.EqualFold(strings.TrimSpace(c.Query("scope")), "all") {
 		uid = 0 // 0 means "all users" — interpreted by GetMailLogStats below
 	}
 	stats, err := getMailLogStats(h.db, uid)

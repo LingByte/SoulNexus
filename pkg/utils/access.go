@@ -25,15 +25,17 @@ const (
 
 // AccessPayload is the application data carried in an access token.
 type AccessPayload struct {
-	UserID uint   `json:"uid"`
-	Email  string `json:"email"`
-	Role   string `json:"role"`
+	UserID uint     `json:"uid"`
+	Email  string   `json:"email"`
+	Role   string   `json:"role"`
+	Perms  []string `json:"perms,omitempty"`
 }
 
 type accessClaims struct {
-	UserID uint   `json:"uid"`
-	Email  string `json:"email"`
-	Role   string `json:"role"`
+	UserID uint     `json:"uid"`
+	Email  string   `json:"email"`
+	Role   string   `json:"role"`
+	Perms  []string `json:"perms,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -50,6 +52,7 @@ func SignAccessToken(p AccessPayload, secret string, ttl time.Duration) (string,
 		UserID: p.UserID,
 		Email:  p.Email,
 		Role:   p.Role,
+		Perms:  append([]string(nil), p.Perms...),
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    AccessIssuer,
 			Subject:   fmt.Sprintf("user:%d", p.UserID),
@@ -81,6 +84,7 @@ func SignAccessTokenWithKey(p AccessPayload, keyManager *KeyManager, ttl time.Du
 		UserID: p.UserID,
 		Email:  p.Email,
 		Role:   p.Role,
+		Perms:  append([]string(nil), p.Perms...),
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    AccessIssuer,
 			Subject:   fmt.Sprintf("user:%d", p.UserID),
@@ -130,6 +134,7 @@ func ParseAccessToken(tokenString, secret string) (*AccessPayload, error) {
 		UserID: ac.UserID,
 		Email:  ac.Email,
 		Role:   ac.Role,
+		Perms:  append([]string(nil), ac.Perms...),
 	}, nil
 }
 
@@ -193,5 +198,6 @@ func ParseAccessTokenWithKey(tokenString string, keyManager *KeyManager) (*Acces
 		UserID: ac.UserID,
 		Email:  ac.Email,
 		Role:   ac.Role,
+		Perms:  append([]string(nil), ac.Perms...),
 	}, nil
 }
