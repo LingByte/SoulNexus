@@ -21,7 +21,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// CallPersister captures the lifecycle of one call into the SIPCall
+// CallPersister captures the lifecycle of one call into the voice_call
 // table. It is concurrency-safe: ASR / TTS / SIP teardown can fire from
 // different goroutines without the persister losing rows.
 //
@@ -57,7 +57,7 @@ func (p *CallPersister) Transport() string {
 	return p.transport
 }
 
-// NewCallPersister creates the SIPCall row in state=ringing for an
+// NewCallPersister creates the VoiceCall row in state=ringing for an
 // inbound INVITE. Returns nil (logged) on DB failure so the call can
 // proceed.
 func NewCallPersister(ctx context.Context, db *gorm.DB, inv *server.IncomingCall, direction string) *CallPersister {
@@ -88,7 +88,7 @@ func NewGenericCallPersister(ctx context.Context, db *gorm.DB, callID, transport
 		return nil
 	}
 	now := time.Now().UTC()
-	row := &persist.SIPCall{
+	row := &persist.VoiceCall{
 		CallID:          callID,
 		Direction:       direction,
 		Transport:       strings.ToLower(strings.TrimSpace(transport)),
@@ -98,10 +98,10 @@ func NewGenericCallPersister(ctx context.Context, db *gorm.DB, callID, transport
 		FromNumber:      persist.ExtractSIPUserPart(fromHeader),
 		ToNumber:        persist.ExtractSIPUserPart(toHeader),
 		RemoteAddr:      remoteSignaling,
-		State:           persist.SIPCallStateRinging,
+		State:           persist.VoiceCallStateRinging,
 		InviteAt:        &now,
 	}
-	if err := persist.CreateSIPCall(ctx, db, row); err != nil {
+	if err := persist.CreateVoiceCall(ctx, db, row); err != nil {
 		logger.Info(fmt.Sprintf("[persist] call=%s create row failed: %v", callID, err))
 		return nil
 	}
@@ -143,7 +143,7 @@ func (p *CallPersister) OnAcceptMeta(ctx context.Context, codec string, payloadT
 	}
 	now := time.Now().UTC()
 	upd := map[string]any{
-		"state":      persist.SIPCallStateEstablished,
+		"state":      persist.VoiceCallStateEstablished,
 		"ack_at":     now,
 		"codec":      strings.ToLower(strings.TrimSpace(codec)),
 		"clock_rate": sampleRate,
@@ -157,7 +157,7 @@ func (p *CallPersister) OnAcceptMeta(ctx context.Context, codec string, payloadT
 	if remoteRTPAddr != "" {
 		upd["remote_rtp_addr"] = remoteRTPAddr
 	}
-	if _, err := persist.UpdateSIPCallStateByCallID(ctx, p.db, p.callID, upd); err != nil {
+	if _, err := persist.UpdateVoiceCallStateByCallID(ctx, p.db, p.callID, upd); err != nil {
 		logger.Info(fmt.Sprintf("[persist] call=%s onAccept update failed: %v", p.callID, err))
 	}
 }
@@ -176,12 +176,12 @@ func (p *CallPersister) OnTerminate(ctx context.Context, reason string) {
 	p.mu.Unlock()
 
 	now := time.Now().UTC()
-	row, err := persist.FindSIPCallByCallID(ctx, p.db, p.callID)
+	row, err := persist.FindVoiceCallByCallID(ctx, p.db, p.callID)
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		logger.Info(fmt.Sprintf("[persist] call=%s onTerminate find failed: %v", p.callID, err))
 	}
 	upd := map[string]any{
-		"state":          persist.SIPCallStateEnded,
+		"state":          persist.VoiceCallStateEnded,
 		"bye_at":         now,
 		"ended_at":       now,
 		"end_status":     ClassifyEndStatus(reason),
@@ -190,7 +190,7 @@ func (p *CallPersister) OnTerminate(ctx context.Context, reason string) {
 	if row.InviteAt != nil && !row.InviteAt.IsZero() {
 		upd["duration_sec"] = int(now.Sub(row.InviteAt.UTC()).Seconds())
 	}
-	if _, err := persist.UpdateSIPCallStateByCallID(ctx, p.db, p.callID, upd); err != nil {
+	if _, err := persist.UpdateVoiceCallStateByCallID(ctx, p.db, p.callID, upd); err != nil {
 		logger.Info(fmt.Sprintf("[persist] call=%s onTerminate update failed: %v", p.callID, err))
 	}
 }
@@ -207,7 +207,7 @@ func (p *CallPersister) OnASRFinal(text string) {
 	p.mu.Unlock()
 }
 
-// OnTurn appends a SIPCallDialogTurn after each TTS speak finishes. If
+// OnTurn appends a VoiceCallDialogTurn after each TTS speak finishes. If
 // the dialog app supplied CommandMeta with UserText, that overrides the
 // buffered ASR final (e.g. when the dialog app rephrased the input).
 func (p *CallPersister) OnTurn(ctx context.Context, ev gateway.TurnEvent) {
@@ -221,7 +221,7 @@ func (p *CallPersister) OnTurn(ctx context.Context, ev gateway.TurnEvent) {
 	if ev.Meta != nil && strings.TrimSpace(ev.Meta.UserText) != "" {
 		userText = ev.Meta.UserText
 	}
-	turn := persist.SIPCallDialogTurn{
+	turn := persist.VoiceCallDialogTurn{
 		ASRText:        userText,
 		LLMText:        ev.LLMText,
 		At:             time.Now().UTC(),
@@ -234,7 +234,7 @@ func (p *CallPersister) OnTurn(ctx context.Context, ev gateway.TurnEvent) {
 		turn.LLMFirstMs = ev.Meta.LLMFirstMs
 		turn.LLMWallMs = ev.Meta.LLMWallMs
 	}
-	if _, err := persist.AppendSIPCallTurn(ctx, p.db, p.callID, turn); err != nil {
+	if _, err := persist.AppendVoiceCallTurn(ctx, p.db, p.callID, turn); err != nil {
 		logger.Info(fmt.Sprintf("[persist] call=%s onTurn append failed: %v", p.callID, err))
 	}
 }
@@ -248,7 +248,7 @@ func (p *CallPersister) OnRecording(ctx context.Context, url string, bytes int) 
 		"recording_url":       url,
 		"recording_wav_bytes": bytes,
 	}
-	if _, err := persist.UpdateSIPCallStateByCallID(ctx, p.db, p.callID, upd); err != nil {
+	if _, err := persist.UpdateVoiceCallStateByCallID(ctx, p.db, p.callID, upd); err != nil {
 		logger.Info(fmt.Sprintf("[persist] call=%s onRecording update failed: %v", p.callID, err))
 	}
 }
@@ -295,27 +295,25 @@ func (p *CallPersister) AppendMediaStats(ctx context.Context, s gateway.MediaSta
 	}
 }
 
-// AppendRecording inserts one row into call_recording. nil-safe.
+// AppendRecording stamps full recording metadata on the voice_call row. nil-safe.
 func (p *CallPersister) AppendRecording(ctx context.Context, r gateway.RecordingInfo) {
 	if p == nil {
 		return
 	}
-	row := &persist.CallRecording{
-		CallID:     p.callID,
-		Transport:  p.transport,
-		Key:        r.Key,
-		URL:        r.URL,
-		Format:     r.Format,
-		Layout:     r.Layout,
-		SampleRate: r.SampleRate,
-		Channels:   r.Channels,
-		Bytes:      r.Bytes,
-		DurationMs: r.DurationMs,
-		Hash:       r.Hash,
-		Note:       r.Note,
+	upd := map[string]any{
+		"recording_url":           r.URL,
+		"recording_key":           r.Key,
+		"recording_format":        r.Format,
+		"recording_layout":        r.Layout,
+		"recording_sample_rate":   r.SampleRate,
+		"recording_channels":      r.Channels,
+		"recording_wav_bytes":     r.Bytes,
+		"recording_duration_ms":   r.DurationMs,
+		"recording_hash":          r.Hash,
+		"recording_note":          r.Note,
 	}
-	if err := persist.AppendCallRecording(ctx, p.db, row); err != nil {
-		logger.Info(fmt.Sprintf("[persist] call=%s recording append failed: %v", p.callID, err))
+	if _, err := persist.UpdateVoiceCallStateByCallID(ctx, p.db, p.callID, upd); err != nil {
+		logger.Info(fmt.Sprintf("[persist] call=%s recording update failed: %v", p.callID, err))
 	}
 }
 
@@ -340,7 +338,7 @@ func JSONObject(m map[string]any) []byte {
 // cmd-level types.
 //
 // db == nil disables persistence (returns nil so the adapter falls
-// through to a no-op). direction is the SIPCall.Direction value to
+// through to a no-op). direction is the VoiceCall.Direction value to
 // stamp on every row; transport is one of "sip" / "xiaozhi" / "webrtc".
 // userAgent is read from the per-call factory call (not closed over)
 // since each session has its own device / browser identity.
@@ -475,22 +473,22 @@ func ClassifyEndStatus(reason string) string {
 	r := strings.ToLower(strings.TrimSpace(reason))
 	switch {
 	case r == "":
-		return persist.SIPCallEndUnknown
+		return persist.VoiceCallEndUnknown
 	case strings.Contains(r, "bye"):
-		return persist.SIPCallEndCompletedRemote
+		return persist.VoiceCallEndCompletedRemote
 	case strings.Contains(r, "cancel"):
-		return persist.SIPCallEndCancelled
+		return persist.VoiceCallEndCancelled
 	case strings.Contains(r, "busy"):
-		return persist.SIPCallEndBusy
+		return persist.VoiceCallEndBusy
 	case strings.Contains(r, "decline"):
-		return persist.SIPCallEndDeclined
+		return persist.VoiceCallEndDeclined
 	case strings.Contains(r, "transport"):
-		return persist.SIPCallEndTransportError
+		return persist.VoiceCallEndTransportError
 	case strings.Contains(r, "cleanup"), strings.Contains(r, "normal"):
-		return persist.SIPCallEndNormalClearing
+		return persist.VoiceCallEndNormalClearing
 	case strings.Contains(r, "error"), strings.Contains(r, "fail"):
-		return persist.SIPCallEndServerError
+		return persist.VoiceCallEndServerError
 	default:
-		return persist.SIPCallEndCompletedLocal
+		return persist.VoiceCallEndCompletedLocal
 	}
 }

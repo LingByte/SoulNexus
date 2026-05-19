@@ -17,11 +17,10 @@ import (
 // hand-written migration scripts under `cmd/bootstrap/migrations`.
 func Models() []any {
 	return []any{
-		&SIPCall{},
+		&VoiceCall{},
 		&SIPUser{},
 		&CallEvent{},
 		&CallMediaStats{},
-		&CallRecording{},
 	}
 }
 
