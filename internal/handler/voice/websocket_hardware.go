@@ -41,18 +41,18 @@ type soulnexusBindingHTTPResp struct {
 // returns false — the listener keeps running so SIP traffic isn't
 // affected by a misconfigured xiaozhi stack.
 func (h *Handlers) mountXiaozhi(r gin.IRoutes) bool {
+	mode := app.NormalizeXiaozhiMode(h.cfg.XiaozhiMode)
 	dialogWS := strings.TrimSpace(h.cfg.DialogWS)
-	if dialogWS == "" {
-		logger.Info(fmt.Sprintf("[xiaozhi] disabled: VOICE_DIALOG_WS is empty"))
-		return false
+
+	bindingURL := strings.TrimSpace(h.cfg.SoulnexusHardwareBindingURL)
+	bindingSecret := strings.TrimSpace(h.cfg.SoulnexusHardwareBindingSecret)
+	var bindingClient *http.Client
+	if bindingURL != "" {
+		bindingClient = &http.Client{Timeout: 12 * time.Second}
 	}
-	factory, err := app.NewXiaozhiFactory()
-	if err != nil {
-		logger.Info(fmt.Sprintf("[xiaozhi] disabled: %v", err))
-		return false
-	}
-	srv, err := xiaozhi.NewServer(xiaozhi.ServerConfig{
-		SessionFactory:   factory,
+
+	srvCfg := xiaozhi.ServerConfig{
+		Mode:             mode,
 		DialogWSURL:      dialogWS,
 		CallIDPrefix:     "xz",
 		BargeInFactory:   app.NewBargeInDetector,
@@ -66,13 +66,55 @@ func (h *Handlers) mountXiaozhi(r gin.IRoutes) bool {
 		OnSessionEnd: func(_ context.Context, callID, reason string) {
 			logger.Info(fmt.Sprintf("[xiaozhi] session end   call=%s reason=%s", callID, reason))
 		},
-	})
+	}
+
+	var realtimeProvider string
+	switch mode {
+	case app.XiaozhiModeRealtime:
+		rt, err := app.NewXiaozhiRealtimeFactory()
+		if err != nil {
+			logger.Info(fmt.Sprintf("[xiaozhi] disabled (realtime): %v", err))
+			return false
+		}
+		srvCfg.RealtimeFactory = rt
+		realtimeProvider = rt.Provider()
+	default:
+		if dialogWS == "" {
+			logger.Info(fmt.Sprintf("[xiaozhi] disabled: VOICE_DIALOG_WS is empty (pipeline mode)"))
+			return false
+		}
+		factory, err := app.NewXiaozhiFactory()
+		if err != nil {
+			logger.Info(fmt.Sprintf("[xiaozhi] disabled: %v", err))
+			return false
+		}
+		srvCfg.SessionFactory = factory
+	}
+
+	if bindingClient != nil {
+		url := bindingURL
+		secret := bindingSecret
+		srvCfg.ResolveDevicePayload = func(ctx context.Context, deviceID string) ([]byte, error) {
+			return fetchSoulnexusBindingPayload(ctx, bindingClient, url, secret, deviceID)
+		}
+	}
+
+	srv, err := xiaozhi.NewServer(srvCfg)
 	if err != nil {
 		logger.Info(fmt.Sprintf("[xiaozhi] init failed: %v", err))
 		return false
 	}
 	r.GET(h.cfg.XiaozhiPath, gin.WrapF(srv.Handle))
-	logger.Info(fmt.Sprintf("[xiaozhi] mounted: ws://<http>%s -> dialog=%s (esp32+web)", h.cfg.XiaozhiPath, gateway.RedactDialogDialURL(dialogWS)))
+	switch mode {
+	case app.XiaozhiModeRealtime:
+		logger.Info(fmt.Sprintf("[xiaozhi] mounted: ws://<http>%s mode=realtime provider=%s (esp32+web)", h.cfg.XiaozhiPath, realtimeProvider))
+	default:
+		bindNote := ""
+		if bindingClient != nil {
+			bindNote = " device-id→binding=on"
+		}
+		logger.Info(fmt.Sprintf("[xiaozhi] mounted: ws://<http>%s -> dialog=%s mode=pipeline (esp32+web)%s", h.cfg.XiaozhiPath, gateway.RedactDialogDialURL(dialogWS), bindNote))
+	}
 	h.xiaozhiSrv = srv
 	return true
 }

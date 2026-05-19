@@ -63,6 +63,12 @@ const (
 	defaultVoice   = "Cherry"
 	defaultDialMs  = 10000
 	defaultSendBuf = 64
+
+	// Server VAD defaults tuned for ESP32 / room noise: higher threshold
+	// and longer trailing silence than DashScope's 0.5 / 800 ms.
+	defaultVADThreshold         = 0.75
+	defaultVADSilenceDurationMs = 1000
+	defaultVADPrefixPaddingMs   = 300
 )
 
 func init() {
@@ -78,6 +84,14 @@ type Config struct {
 	Voice         string
 	Instructions  string
 	DialTimeoutMs int
+
+	// Server-side VAD (turn_detection). See Aliyun client-events docs.
+	VADType              string
+	VADThreshold         float64
+	VADSilenceDurationMs int
+	VADPrefixPaddingMs   int
+	VADInterruptResponse bool
+	VADCreateResponse    bool
 }
 
 // New is the realtime.Provider entry point. cfg keys (camelCase preferred,
@@ -89,14 +103,27 @@ type Config struct {
 //	instructions           system prompt / persona
 //	baseUrl                override WS endpoint
 //	dialTimeoutMs          handshake timeout, default 10000
+//	vadType                server_vad | semantic_vad (qwen3.5-omni-realtime)
+//	vadThreshold           [-1,1], higher = less sensitive (default 0.75)
+//	vadSilenceDurationMs   [200,6000], longer = wait more after speech (default 1000)
+//	vadPrefixPaddingMs     prepended audio before speech start
+//	vadInterruptResponse   user speech cancels AI reply (default true)
+//	vadCreateResponse      auto reply after user turn (default true)
 func New(cfg map[string]any, opts realtime.Options) (realtime.Agent, error) {
+	vad := parseVADFromCredential(cfg)
 	c := Config{
-		APIKey:        firstString(cfg, "apiKey", "api_key"),
-		BaseURL:       firstString(cfg, "baseUrl", "base_url"),
-		Model:         firstString(cfg, "model"),
-		Voice:         firstString(cfg, "voice"),
-		Instructions:  firstString(cfg, "instructions"),
-		DialTimeoutMs: firstInt(cfg, "dialTimeoutMs", "dial_timeout_ms"),
+		APIKey:               firstString(cfg, "apiKey", "api_key"),
+		BaseURL:              firstString(cfg, "baseUrl", "base_url"),
+		Model:                firstString(cfg, "model"),
+		Voice:                firstString(cfg, "voice"),
+		Instructions:         firstString(cfg, "instructions"),
+		DialTimeoutMs:        firstInt(cfg, "dialTimeoutMs", "dial_timeout_ms"),
+		VADType:              vad.Type,
+		VADThreshold:         vad.Threshold,
+		VADSilenceDurationMs: vad.SilenceDurationMs,
+		VADPrefixPaddingMs:   vad.PrefixPaddingMs,
+		VADInterruptResponse: vad.InterruptResponse,
+		VADCreateResponse:    vad.CreateResponse,
 	}
 	if strings.TrimSpace(c.APIKey) == "" {
 		return nil, fmt.Errorf("aliyunomni: apiKey is required")
@@ -220,13 +247,7 @@ func (a *agent) buildSession() map[string]any {
 		"input_audio_format":  "pcm16",
 		"output_audio_format": "pcm16",
 	}
-	if !a.opts.DisableServerVAD {
-		// Vendor default is server VAD on; we set it explicitly so future
-		// schema changes don't silently flip behaviour.
-		session["turn_detection"] = map[string]any{"type": "server_vad"}
-	} else {
-		session["turn_detection"] = nil
-	}
+	session["turn_detection"] = buildTurnDetection(a.cfg, a.opts)
 	if strings.TrimSpace(a.cfg.Instructions) != "" {
 		session["instructions"] = a.cfg.Instructions
 	}
@@ -540,6 +561,60 @@ func firstString(m map[string]any, keys ...string) string {
 	return ""
 }
 
+func buildTurnDetection(cfg Config, opts realtime.Options) any {
+	if opts.DisableServerVAD {
+		return nil
+	}
+	td := map[string]any{
+		"type":                 cfg.VADType,
+		"threshold":            cfg.VADThreshold,
+		"silence_duration_ms":  cfg.VADSilenceDurationMs,
+		"prefix_padding_ms":    cfg.VADPrefixPaddingMs,
+		"interrupt_response":   cfg.VADInterruptResponse,
+		"create_response":      cfg.VADCreateResponse,
+	}
+	return td
+}
+
+type vadSettings struct {
+	Type              string
+	Threshold         float64
+	SilenceDurationMs int
+	PrefixPaddingMs   int
+	InterruptResponse bool
+	CreateResponse    bool
+}
+
+func parseVADFromCredential(cfg map[string]any) vadSettings {
+	v := vadSettings{
+		Type:              "server_vad",
+		Threshold:         defaultVADThreshold,
+		SilenceDurationMs: defaultVADSilenceDurationMs,
+		PrefixPaddingMs:   defaultVADPrefixPaddingMs,
+		InterruptResponse: true,
+		CreateResponse:    true,
+	}
+	if t := firstString(cfg, "vadType", "vad_type"); t != "" {
+		v.Type = strings.ToLower(t)
+	}
+	if th, ok := floatField(cfg, "vadThreshold", "vad_threshold"); ok {
+		v.Threshold = clampFloat(th, -1, 1)
+	}
+	if ms, ok := intFieldPositive(cfg, "vadSilenceDurationMs", "vad_silence_duration_ms"); ok {
+		v.SilenceDurationMs = clampInt(ms, 200, 6000)
+	}
+	if ms, ok := intFieldPositive(cfg, "vadPrefixPaddingMs", "vad_prefix_padding_ms"); ok {
+		v.PrefixPaddingMs = ms
+	}
+	if b, ok := boolField(cfg, "vadInterruptResponse", "vad_interrupt_response"); ok {
+		v.InterruptResponse = b
+	}
+	if b, ok := boolField(cfg, "vadCreateResponse", "vad_create_response"); ok {
+		v.CreateResponse = b
+	}
+	return v
+}
+
 func firstInt(m map[string]any, keys ...string) int {
 	for _, k := range keys {
 		if v, ok := m[k]; ok {
@@ -554,6 +629,72 @@ func firstInt(m map[string]any, keys ...string) int {
 		}
 	}
 	return 0
+}
+
+func floatField(m map[string]any, keys ...string) (float64, bool) {
+	for _, k := range keys {
+		if v, ok := m[k]; ok {
+			switch t := v.(type) {
+			case float64:
+				return t, true
+			case float32:
+				return float64(t), true
+			case int:
+				return float64(t), true
+			case int64:
+				return float64(t), true
+			}
+		}
+	}
+	return 0, false
+}
+
+func intFieldPositive(m map[string]any, keys ...string) (int, bool) {
+	for _, k := range keys {
+		if v, ok := m[k]; ok {
+			switch t := v.(type) {
+			case int:
+				return t, true
+			case int64:
+				return int(t), true
+			case float64:
+				return int(t), true
+			}
+		}
+	}
+	return 0, false
+}
+
+func boolField(m map[string]any, keys ...string) (bool, bool) {
+	for _, k := range keys {
+		if v, ok := m[k]; ok {
+			switch t := v.(type) {
+			case bool:
+				return t, true
+			}
+		}
+	}
+	return false, false
+}
+
+func clampFloat(v, lo, hi float64) float64 {
+	if v < lo {
+		return lo
+	}
+	if v > hi {
+		return hi
+	}
+	return v
+}
+
+func clampInt(v, lo, hi int) int {
+	if v < lo {
+		return lo
+	}
+	if v > hi {
+		return hi
+	}
+	return v
 }
 
 // --- wire types -------------------------------------------------------------

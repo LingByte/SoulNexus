@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LinByte/VoiceServer/pkg/realtime"
+	"github.com/LingByte/SoulNexus/pkg/realtime"
 	"github.com/gorilla/websocket"
 )
 
@@ -59,6 +59,52 @@ func TestNew_AppliesDefaults(t *testing.T) {
 	}
 	if ag.cfg.DialTimeoutMs != 1234 {
 		t.Fatalf("snake_case dial_timeout_ms not applied: %d", ag.cfg.DialTimeoutMs)
+	}
+	if ag.cfg.VADThreshold != defaultVADThreshold {
+		t.Fatalf("expected default VAD threshold %v, got %v", defaultVADThreshold, ag.cfg.VADThreshold)
+	}
+	if ag.cfg.VADSilenceDurationMs != defaultVADSilenceDurationMs {
+		t.Fatalf("expected default VAD silence %d, got %d", defaultVADSilenceDurationMs, ag.cfg.VADSilenceDurationMs)
+	}
+}
+
+func TestBuildTurnDetection_defaults(t *testing.T) {
+	cfg := Config{
+		VADType:              "server_vad",
+		VADThreshold:         defaultVADThreshold,
+		VADSilenceDurationMs: defaultVADSilenceDurationMs,
+		VADPrefixPaddingMs:   defaultVADPrefixPaddingMs,
+		VADInterruptResponse: true,
+		VADCreateResponse:    true,
+	}
+	td, ok := buildTurnDetection(cfg, realtime.Options{}).(map[string]any)
+	if !ok {
+		t.Fatal("expected map turn_detection")
+	}
+	if td["type"] != "server_vad" {
+		t.Fatalf("type: %v", td["type"])
+	}
+	if td["threshold"] != defaultVADThreshold {
+		t.Fatalf("threshold: %v", td["threshold"])
+	}
+	if td["silence_duration_ms"] != defaultVADSilenceDurationMs {
+		t.Fatalf("silence_duration_ms: %v", td["silence_duration_ms"])
+	}
+}
+
+func TestBuildTurnDetection_disabled(t *testing.T) {
+	if buildTurnDetection(Config{}, realtime.Options{DisableServerVAD: true}) != nil {
+		t.Fatal("expected nil turn_detection when VAD disabled")
+	}
+}
+
+func TestParseVADFromCredential_override(t *testing.T) {
+	v := parseVADFromCredential(map[string]any{
+		"vad_threshold":           0.9,
+		"vad_silence_duration_ms": 1500,
+	})
+	if v.Threshold != 0.9 || v.SilenceDurationMs != 1500 {
+		t.Fatalf("override failed: %+v", v)
 	}
 }
 
