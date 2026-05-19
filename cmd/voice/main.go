@@ -19,6 +19,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/LingByte/SoulNexus/cmd/bootstrap"
 	"github.com/LingByte/SoulNexus/internal/config"
 	voicehttp "github.com/LingByte/SoulNexus/internal/handler/voice"
 	"github.com/LingByte/SoulNexus/pkg/logger"
@@ -28,9 +29,9 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/app"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/persist"
-	"github.com/LingByte/SoulNexus/pkg/voiceserver/sip/server"
 	siprtp "github.com/LingByte/SoulNexus/pkg/voiceserver/sip/rtp"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/sip/sdp"
+	"github.com/LingByte/SoulNexus/pkg/voiceserver/sip/server"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/sip/session"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/sip/stack"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/sip/transaction"
@@ -805,6 +806,10 @@ func main() {
 		logger.Fatal(fmt.Sprintf("config load failed: %v", err))
 	}
 
+	if err := bootstrap.PrintBannerFromFile("voice-banner.txt", config.VoiceGlobalConfig.Name); err != nil {
+		logger.Error(fmt.Sprintf("unload banner: %v", err))
+	}
+
 	err := logger.Init(&config.VoiceGlobalConfig.Log, config.VoiceGlobalConfig.Mode)
 	if err != nil {
 		panic(err)
@@ -910,6 +915,7 @@ func main() {
 		DB:                             db,
 		Record:                         cfg.Record,
 		EnableXiaozhi:                  cfg.EnableXiaozhi,
+		XiaozhiMode:                    cfg.XiaozhiMode,
 		XiaozhiPath:                    cfg.XiaozhiPath,
 		SoulnexusHardwarePath:          cfg.SoulnexusHardwarePath,
 		SoulnexusHardwareBindingURL:    cfg.SoulnexusHardwareBindingURL,

@@ -6,6 +6,7 @@ package config
 import (
 	"errors"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/LingByte/SoulNexus/pkg/logger"
@@ -27,6 +28,7 @@ type VoiceServerConfig struct {
 	HTTPAddr        string
 	DialogWS        string
 	EnableXiaozhi   bool
+	XiaozhiMode     string // pipeline | realtime (XIAOZHIMODE)
 	XiaozhiPath     string
 	EnableWebRTC    bool
 	WebRTCOfferPath string
@@ -49,20 +51,20 @@ type VoiceServerConfig struct {
 	ASRSentenceFilter           bool
 	ASRSentenceFilterSimilarity float64
 	Mode                        string `env:"MODE"`
+	Name                        string `env:"NAME"`
 	HoldMessages                string
 	DialogReconnect             int
 	DialogReconnectBackoff      time.Duration
-
-	EnableSFU           bool
-	SFUPath             string
-	SFUSecret           string
-	SFUAllowAnon        bool
-	SFUMaxParticipants  int
-	SFUMaxRooms         int
-	SFUAllowedOrigins   string
-	SFUTokenAdminSecret string
-	SFURecord           bool
-	SFUWebhookURL       string
+	EnableSFU                   bool
+	SFUPath                     string
+	SFUSecret                   string
+	SFUAllowAnon                bool
+	SFUMaxParticipants          int
+	SFUMaxRooms                 int
+	SFUAllowedOrigins           string
+	SFUTokenAdminSecret         string
+	SFURecord                   bool
+	SFUWebhookURL               string
 }
 
 var VoiceGlobalConfig *VoiceServerConfig
@@ -90,6 +92,7 @@ func buildVoiceConfig() *VoiceServerConfig {
 			MaxBackups: voiceInt("VOICE_LOG_MAX_BACKUPS", 5),
 			Daily:      voiceBool("VOICE_LOG_DAILY", true),
 		},
+		Name:         voiceString("NAME", "SoulNexusVoice"),
 		Mode:         voiceString("MODE", "local"),
 		SIPAddr:      voiceString("VOICE_SIP_ADDR", "127.0.0.1:5060"),
 		LocalIP:      voiceString("VOICE_LOCAL_IP", ""),
@@ -101,6 +104,7 @@ func buildVoiceConfig() *VoiceServerConfig {
 		HTTPAddr:        voiceString("VOICE_HTTP_ADDR", "127.0.0.1:7080"),
 		DialogWS:        voiceString("VOICE_DIALOG_WS", "ws://localhost:7072/ws/call"),
 		EnableXiaozhi:   voiceBool("VOICE_ENABLE_XIAOZHI", true),
+		XiaozhiMode:     normalizeXiaozhiModeEnv(voiceString("XIAOZHIMODE", "pipeline")),
 		XiaozhiPath:     voiceString("VOICE_XIAOZHI_WS_PATH", "/xiaozhi/v1/"),
 		EnableWebRTC:    voiceBool("VOICE_ENABLE_WEBRTC", true),
 		WebRTCOfferPath: voiceString("VOICE_WEBRTC_HTTP_PATH", "/webrtc/v1/offer"),
@@ -169,9 +173,13 @@ func (c *VoiceServerConfig) Validate() error {
 		return errors.New("VOICE_HTTP_ADDR is set but no transport is enabled (set VOICE_ENABLE_XIAOZHI / VOICE_ENABLE_WEBRTC / VOICE_ENABLE_SFU)")
 	}
 
-	// --- Dialog plane required for ASR/TTS-bridged transports ---
-	if (c.EnableXiaozhi || c.EnableWebRTC) && c.DialogWS == "" {
-		return errors.New("VOICE_DIALOG_WS is required when xiaozhi or webrtc transports are enabled")
+	// --- Dialog plane required for pipeline xiaozhi and WebRTC ---
+	needsDialog := c.EnableWebRTC
+	if c.EnableXiaozhi && c.XiaozhiMode != "realtime" {
+		needsDialog = true
+	}
+	if needsDialog && c.DialogWS == "" {
+		return errors.New("VOICE_DIALOG_WS is required when xiaozhi uses pipeline mode or webrtc is enabled")
 	}
 
 	// --- SFU consistency ---
@@ -242,6 +250,16 @@ func voiceFloat(key string, defaultValue float64) float64 {
 		return defaultValue
 	}
 	return utils.GetFloatEnvWithDefault(key, defaultValue)
+}
+
+func normalizeXiaozhiModeEnv(m string) string {
+	m = strings.ToLower(strings.TrimSpace(m))
+	switch m {
+	case "realtime", "omni", "multimodal":
+		return "realtime"
+	default:
+		return "pipeline"
+	}
 }
 
 func voiceDuration(key string, defaultValue time.Duration) time.Duration {

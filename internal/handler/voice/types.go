@@ -28,6 +28,7 @@ type Config struct {
 
 	// WebSocket-Hardware (xiaozhi protocol + optional SoulNexus binding wrapper)
 	EnableXiaozhi                  bool
+	XiaozhiMode                    string // pipeline | realtime
 	XiaozhiPath                    string
 	SoulnexusHardwarePath          string
 	SoulnexusHardwareBindingURL    string
