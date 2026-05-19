@@ -29,7 +29,7 @@ func (h *Handlers) handleListSMSLogs(c *gin.Context) {
 
 	orgID := notificationChannelOrgID(c)
 	q := h.db.Model(&sms.SMSLog{}).Where("org_id = ?", orgID)
-	if !models.UserHasAdminAccess(h.db, user.ID) {
+	if !user.HasAdminAccess() {
 		q = q.Where("user_id = ?", user.ID)
 	} else if uidStr := strings.TrimSpace(c.Query("user_id")); uidStr != "" {
 		var uid uint
@@ -83,7 +83,7 @@ func (h *Handlers) handleGetSMSLogDetail(c *gin.Context) {
 	}
 	orgID := notificationChannelOrgID(c)
 	q := h.db.Where("org_id = ? AND id = ?", orgID, id)
-	if !models.UserHasAdminAccess(h.db, user.ID) {
+	if !user.HasAdminAccess() {
 		q = q.Where("user_id = ?", user.ID)
 	}
 	var row sms.SMSLog

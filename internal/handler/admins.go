@@ -101,7 +101,7 @@ func (h *Handlers) requireAdmin(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("authorization required"))
 		return
 	}
-	if models.UserHasAdminAccess(h.db, user.ID) {
+	if user.HasAdminAccess() {
 		c.Next()
 		return
 	}

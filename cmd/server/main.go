@@ -89,6 +89,7 @@ func main() {
 		InitSQLPath:   *initSQL,
 		AutoMigrate:   *init,
 		SeedNonProd:   *seed,
+		SeedKind:      "server",
 		MigrateModels: schema.ServerEntities,
 	})
 	if err != nil {
@@ -254,8 +255,6 @@ func main() {
 
 	// 21. Emit system initialization signal
 	utils.Sig().Emit(models.SigInitSystemConfig, nil)
-
-	task.StartAccountDeletionScheduler(db)
 
 	// 21.5. Start Workflow Event Listener and Scheduler
 	eventListener := workflowdef.NewWorkflowEventListener(db)

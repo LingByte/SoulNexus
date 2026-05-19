@@ -21,13 +21,32 @@ type SeedService struct {
 }
 
 func (s *SeedService) SeedAll() error {
+	if err := s.SeedAuth(); err != nil {
+		return err
+	}
+	return s.SeedServer()
+}
+
+// SeedAuth seeds roles, admin users, and shared site configs (cmd/auth only).
+func (s *SeedService) SeedAuth() error {
 	if err := s.seedMinimalRolesIfEmpty(); err != nil {
+		return err
+	}
+	if err := s.seedBootstrapRBAC(); err != nil {
 		return err
 	}
 	if err := s.seedConfigs(); err != nil {
 		return err
 	}
 	if err := s.seedAdminUsers(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// SeedServer seeds business demo data (cmd/server only).
+func (s *SeedService) SeedServer() error {
+	if err := s.seedConfigs(); err != nil {
 		return err
 	}
 	if err := s.seedAssistants(); err != nil {
@@ -179,6 +198,48 @@ func (s *SeedService) seedMinimalRolesIfEmpty() error {
 	return s.db.Create(&models.Role{Name: "Member", Slug: "member", IsSystem: true}).Error
 }
 
+// seedBootstrapRBAC ensures admin console + RBAC permissions and an admin role for JWT claims.
+func (s *SeedService) seedBootstrapRBAC() error {
+	permDefs := []models.Permission{
+		{Key: models.PermAdminAccess, Name: "Admin console", Description: "Access management UI", Resource: "admin"},
+		{Key: models.PermManageRoles, Name: "Manage RBAC", Description: "Manage roles and permissions", Resource: "rbac"},
+	}
+	permIDs := make([]uint, 0, len(permDefs))
+	for _, def := range permDefs {
+		var p models.Permission
+		err := s.db.Where("`key` = ? AND is_deleted = ?", def.Key, models.SoftDeleteStatusActive).First(&p).Error
+		if err != nil {
+			if err := s.db.Create(&def).Error; err != nil {
+				return err
+			}
+			permIDs = append(permIDs, def.ID)
+			continue
+		}
+		permIDs = append(permIDs, p.ID)
+	}
+
+	var adminRole models.Role
+	err := s.db.Where("slug = ? AND is_deleted = ?", "admin", models.SoftDeleteStatusActive).First(&adminRole).Error
+	if err != nil {
+		adminRole = models.Role{Name: "Administrator", Slug: "admin", Description: "Full admin access", IsSystem: true}
+		if err := s.db.Create(&adminRole).Error; err != nil {
+			return err
+		}
+	}
+	for _, pid := range permIDs {
+		var n int64
+		if err := s.db.Model(&models.RolePermission{}).Where("role_id = ? AND permission_id = ?", adminRole.ID, pid).Count(&n).Error; err != nil {
+			return err
+		}
+		if n == 0 {
+			if err := s.db.Create(&models.RolePermission{RoleID: adminRole.ID, PermissionID: pid}).Error; err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (s *SeedService) seedAdminUsers() error {
 	defaultAdmins := []models.User{
 		{
@@ -206,7 +267,7 @@ func (s *SeedService) seedAdminUsers() error {
 				return err
 			}
 			_ = models.UpdateUserProfileFields(s.db, user.ID, map[string]any{"display_name": "Administrator"})
-			if err := models.EnsureUserHasOneRole(s.db, user.ID); err != nil {
+			if err := models.AssignUserSingleRoleBySlug(s.db, user.ID, "admin"); err != nil {
 				return err
 			}
 		}

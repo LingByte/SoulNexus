@@ -452,11 +452,13 @@ func buildTokenPair(db *gorm.DB, user *models.User, accessTTL time.Duration) (st
 		return "", "", errors.New("jwt key manager not initialized")
 	}
 	roleClaim := jwtRoleForToken(db, user)
+	perms, _ := models.EffectivePermissionKeys(db, user.ID)
 
 	accessToken, err := utils.SignAccessTokenWithKey(utils.AccessPayload{
 		UserID: user.ID,
 		Email:  user.Email,
 		Role:   roleClaim,
+		Perms:  perms,
 	}, km, accessTTL)
 	if err != nil {
 		logger.Error("jwt access token sign failed", zap.Error(err))

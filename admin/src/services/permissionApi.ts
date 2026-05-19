@@ -1,7 +1,7 @@
 import { get, post, put, del } from '@/utils/request'
-import { getMainApiBaseURL } from '@/config/apiConfig'
+import { getAuthApiBaseURL } from '@/config/apiConfig'
 
-const BASE = getMainApiBaseURL()
+const BASE = getAuthApiBaseURL()
 
 /** withRoles=1 时后端返回的关联角色摘要 */
 export interface PermissionLinkedRole {

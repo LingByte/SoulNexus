@@ -412,7 +412,7 @@ func (h *Handlers) knowledgeLoadDocumentForUser(c *gin.Context, user *models.Use
 		response.FailWithCode(c, 403, "forbidden", "no permission")
 		return nil, false
 	}
-	if strings.EqualFold(strings.TrimSpace(row.Status), models.KnowledgeStatusDeleted) && !models.UserHasAdminAccess(h.db, user.ID) {
+	if strings.EqualFold(strings.TrimSpace(row.Status), models.KnowledgeStatusDeleted) && !user.HasAdminAccess() {
 		response.FailWithCode(c, 404, "not found", "document not found")
 		return nil, false
 	}
@@ -761,7 +761,7 @@ func (h *Handlers) knowledgeDocumentsListHandler(c *gin.Context) {
 		status = statusRaw
 	}
 	keyword := strings.TrimSpace(c.Query("q"))
-	excludeDeleted := !models.UserHasAdminAccess(h.db, user.ID)
+	excludeDeleted := !user.HasAdminAccess()
 	out, err := models.ListKnowledgeDocuments(h.db, gids, namespace, status, keyword, page, pageSize, excludeDeleted)
 	if err != nil {
 		response.Fail(c, "query failed", err.Error())

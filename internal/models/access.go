@@ -46,7 +46,29 @@ func UserRoleSlugs(db *gorm.DB, userID uint) ([]string, error) {
 	return slugs, err
 }
 
-// UserHasPermission 判断是否拥有某权限（含通配符 *）。
+// HasPermissionKey reports whether the user carries a permission from JWT (no DB).
+func (u *User) HasPermissionKey(key string) bool {
+	if u == nil {
+		return false
+	}
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return false
+	}
+	for _, k := range u.PermissionKeys {
+		if k == PermWildcard || k == key {
+			return true
+		}
+	}
+	return false
+}
+
+// HasAdminAccess reports admin console access from JWT permission claims (no DB).
+func (u *User) HasAdminAccess() bool {
+	return u != nil && (u.HasPermissionKey(PermAdminAccess) || u.HasPermissionKey(PermWildcard))
+}
+
+// UserHasPermission 判断是否拥有某权限（含通配符 *）。仅 auth 服务应查库；业务服务请用 User.HasPermissionKey。
 func UserHasPermission(db *gorm.DB, userID uint, key string) bool {
 	if db == nil || userID == 0 || strings.TrimSpace(key) == "" {
 		return false

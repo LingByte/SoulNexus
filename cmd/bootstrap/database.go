@@ -27,6 +27,8 @@ type Options struct {
 	AutoMigrate bool
 	// SeedNonProd whether to write default configuration in non-production environments (default true)
 	SeedNonProd bool
+	// SeedKind limits which seed routines run: "auth", "server", or "all" (default "all").
+	SeedKind string
 	// MigrateModels returns entities passed to GORM AutoMigrate when AutoMigrate is true.
 	// Required for entity migration when AutoMigrate is true (each binary supplies its own list).
 	MigrateModels func() []any
@@ -78,10 +80,21 @@ func SetupDatabase(logWriter io.Writer, opts *Options) (*gorm.DB, error) {
 
 	// 4) Non-production: default configuration
 	if opts.SeedNonProd && utils.GetEnv("APP_ENV") != "production" {
-		service := SeedService{
-			db: db,
+		service := SeedService{db: db}
+		kind := strings.TrimSpace(strings.ToLower(opts.SeedKind))
+		if kind == "" {
+			kind = "all"
 		}
-		if err := service.SeedAll(); err != nil {
+		var err error
+		switch kind {
+		case "auth":
+			err = service.SeedAuth()
+		case "server":
+			err = service.SeedServer()
+		default:
+			err = service.SeedAll()
+		}
+		if err != nil {
 			logger.Error("seed failed", zap.Error(err))
 			return nil, err
 		}

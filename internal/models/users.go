@@ -315,10 +315,11 @@ func AuthRequired(c *gin.Context) {
 		return
 	}
 	c.Set(constants.UserField, &User{
-		BaseModel: BaseModel{ID: p.UserID},
-		Email:     p.Email,
-		RoleSlugs: RoleSlugsFromJWTClaim(p.Role),
-		Status:    UserStatusActive,
+		BaseModel:      BaseModel{ID: p.UserID},
+		Email:          p.Email,
+		RoleSlugs:      RoleSlugsFromJWTClaim(p.Role),
+		PermissionKeys: append([]string(nil), p.Perms...),
+		Status:         UserStatusActive,
 	})
 	c.Next()
 }
@@ -535,10 +536,11 @@ func AuthApiRequired(c *gin.Context) {
 		return
 	}
 	c.Set(constants.UserField, &User{
-		BaseModel: BaseModel{ID: p.UserID},
-		Email:     p.Email,
-		RoleSlugs: RoleSlugsFromJWTClaim(p.Role),
-		Status:    UserStatusActive,
+		BaseModel:      BaseModel{ID: p.UserID},
+		Email:          p.Email,
+		RoleSlugs:      RoleSlugsFromJWTClaim(p.Role),
+		PermissionKeys: append([]string(nil), p.Perms...),
+		Status:         UserStatusActive,
 	})
 	c.Next()
 }
