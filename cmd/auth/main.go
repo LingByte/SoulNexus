@@ -16,7 +16,7 @@ import (
 	"github.com/LingByte/SoulNexus"
 	"github.com/LingByte/SoulNexus/cmd/bootstrap"
 	"github.com/LingByte/SoulNexus/internal/config"
-	handlers "github.com/LingByte/SoulNexus/internal/handler/auth"
+	handlers "github.com/LingByte/SoulNexus/internal/handlers/auth"
 	"github.com/LingByte/SoulNexus/internal/listeners"
 	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/internal/schema"

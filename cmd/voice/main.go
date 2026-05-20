@@ -21,7 +21,7 @@ import (
 
 	"github.com/LingByte/SoulNexus/cmd/bootstrap"
 	"github.com/LingByte/SoulNexus/internal/config"
-	voicehttp "github.com/LingByte/SoulNexus/internal/handler/voice"
+	voicehttp "github.com/LingByte/SoulNexus/internal/handlers/voice"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/media"
 	"github.com/LingByte/SoulNexus/pkg/recognizer"
