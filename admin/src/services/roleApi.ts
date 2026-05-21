@@ -1,7 +1,7 @@
 import { get, post, put, del } from '@/utils/request'
-import { getMainApiBaseURL } from '@/config/apiConfig'
+import { getAuthApiBaseURL } from '@/config/apiConfig'
 
-const BASE = getMainApiBaseURL()
+const BASE = getAuthApiBaseURL()
 
 export interface RoleLinkedPermission {
   id: number

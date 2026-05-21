@@ -4,12 +4,12 @@ package tools
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"context"
 	"encoding/binary"
 	"fmt"
 	"sync"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/voiceprint"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -119,7 +119,7 @@ func (t *VoiceprintIdentifyTool) Identify(ctx context.Context) (*IdentifiedSpeak
 	wavData := t.pcmToWAV(audioData, 16000, 1, 16)
 
 	// 获取该助手下的所有声纹
-	var voiceprints []models.Voiceprint
+	var voiceprints []svcmodels.Voiceprint
 	if err := t.db.Where("agent_id = ?", t.assistantID).Find(&voiceprints).Error; err != nil {
 		return nil, fmt.Errorf("failed to get voiceprints: %w", err)
 	}
@@ -130,7 +130,7 @@ func (t *VoiceprintIdentifyTool) Identify(ctx context.Context) (*IdentifiedSpeak
 
 	// 构建候选 ID 列表
 	candidateIDs := make([]string, len(voiceprints))
-	voiceprintMap := make(map[string]*models.Voiceprint)
+	voiceprintMap := make(map[string]*svcmodels.Voiceprint)
 	for i, vp := range voiceprints {
 		candidateIDs[i] = vp.SpeakerID
 		voiceprintMap[vp.SpeakerID] = &vp

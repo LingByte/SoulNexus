@@ -49,71 +49,71 @@ func TestExtractSIPUserPart(t *testing.T) {
 	}
 }
 
-func TestSIPCall_CreateAndFind(t *testing.T) {
+func TestVoiceCall_CreateAndFind(t *testing.T) {
 	db := newTestDB(t)
 	ctx := context.Background()
 
 	now := time.Now().UTC().Truncate(time.Second)
-	row := &SIPCall{
+	row := &VoiceCall{
 		CallID:     "abc-123",
 		Direction:  DirectionInbound,
 		FromHeader: `"Alice" <sip:alice@host>;tag=A1`,
 		ToHeader:   `<sip:bob@host>`,
 		FromNumber: ExtractSIPUserPart(`"Alice" <sip:alice@host>`),
 		ToNumber:   "bob",
-		State:      SIPCallStateRinging,
+		State:      VoiceCallStateRinging,
 		InviteAt:   &now,
 	}
-	if err := CreateSIPCall(ctx, db, row); err != nil {
+	if err := CreateVoiceCall(ctx, db, row); err != nil {
 		t.Fatalf("create: %v", err)
 	}
 	if row.ID == 0 {
 		t.Fatalf("expected auto-assigned ID")
 	}
-	got, err := FindSIPCallByCallID(ctx, db, "abc-123")
+	got, err := FindVoiceCallByCallID(ctx, db, "abc-123")
 	if err != nil {
 		t.Fatalf("find: %v", err)
 	}
 	if got.CallID != row.CallID {
 		t.Errorf("CallID = %q, want %q", got.CallID, row.CallID)
 	}
-	if got.State != SIPCallStateRinging {
-		t.Errorf("State = %q, want %q", got.State, SIPCallStateRinging)
+	if got.State != VoiceCallStateRinging {
+		t.Errorf("State = %q, want %q", got.State, VoiceCallStateRinging)
 	}
 }
 
-func TestSIPCall_NotFoundIsTyped(t *testing.T) {
+func TestVoiceCall_NotFoundIsTyped(t *testing.T) {
 	db := newTestDB(t)
-	_, err := FindSIPCallByCallID(context.Background(), db, "missing")
+	_, err := FindVoiceCallByCallID(context.Background(), db, "missing")
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		t.Fatalf("expected ErrRecordNotFound, got %v", err)
 	}
 }
 
-func TestSIPCall_AppendTurnCreatesRow(t *testing.T) {
+func TestVoiceCall_AppendTurnCreatesRow(t *testing.T) {
 	db := newTestDB(t)
 	ctx := context.Background()
 
-	turn := SIPCallDialogTurn{
+	turn := VoiceCallDialogTurn{
 		ASRText: "你好",
 		LLMText: "您好，请问有什么可以帮您？",
 		At:      time.Now().UTC().Truncate(time.Millisecond),
 	}
-	n, err := AppendSIPCallTurn(ctx, db, "new-call", turn)
+	n, err := AppendVoiceCallTurn(ctx, db, "new-call", turn)
 	if err != nil {
 		t.Fatalf("append: %v", err)
 	}
 	if n != 1 {
 		t.Fatalf("turn count = %d, want 1", n)
 	}
-	got, err := FindSIPCallByCallID(ctx, db, "new-call")
+	got, err := FindVoiceCallByCallID(ctx, db, "new-call")
 	if err != nil {
 		t.Fatalf("find: %v", err)
 	}
-	if got.State != SIPCallStateEstablished {
-		t.Errorf("auto-created state = %q, want %q", got.State, SIPCallStateEstablished)
+	if got.State != VoiceCallStateEstablished {
+		t.Errorf("auto-created state = %q, want %q", got.State, VoiceCallStateEstablished)
 	}
-	turns, err := UnmarshalSIPCallTurns(got.Turns)
+	turns, err := UnmarshalVoiceCallTurns(got.Turns)
 	if err != nil {
 		t.Fatalf("unmarshal turns: %v", err)
 	}
@@ -122,12 +122,12 @@ func TestSIPCall_AppendTurnCreatesRow(t *testing.T) {
 	}
 }
 
-func TestSIPCall_AppendTurnGrowsExisting(t *testing.T) {
+func TestVoiceCall_AppendTurnGrowsExisting(t *testing.T) {
 	db := newTestDB(t)
 	ctx := context.Background()
 
 	for i := 0; i < 3; i++ {
-		_, err := AppendSIPCallTurn(ctx, db, "grow", SIPCallDialogTurn{
+		_, err := AppendVoiceCallTurn(ctx, db, "grow", VoiceCallDialogTurn{
 			ASRText: "u-" + string(rune('a'+i)),
 			LLMText: "a-" + string(rune('a'+i)),
 		})
@@ -135,14 +135,14 @@ func TestSIPCall_AppendTurnGrowsExisting(t *testing.T) {
 			t.Fatalf("append %d: %v", i, err)
 		}
 	}
-	got, err := FindSIPCallByCallID(ctx, db, "grow")
+	got, err := FindVoiceCallByCallID(ctx, db, "grow")
 	if err != nil {
 		t.Fatalf("find: %v", err)
 	}
 	if got.TurnCount != 3 {
 		t.Errorf("TurnCount = %d, want 3", got.TurnCount)
 	}
-	turns, _ := UnmarshalSIPCallTurns(got.Turns)
+	turns, _ := UnmarshalVoiceCallTurns(got.Turns)
 	if len(turns) != 3 {
 		t.Fatalf("len(turns) = %d, want 3", len(turns))
 	}
@@ -151,15 +151,15 @@ func TestSIPCall_AppendTurnGrowsExisting(t *testing.T) {
 	}
 }
 
-func TestSIPCall_UpdateState(t *testing.T) {
+func TestVoiceCall_UpdateState(t *testing.T) {
 	db := newTestDB(t)
 	ctx := context.Background()
-	if err := CreateSIPCall(ctx, db, &SIPCall{CallID: "u1", State: SIPCallStateRinging}); err != nil {
+	if err := CreateVoiceCall(ctx, db, &VoiceCall{CallID: "u1", State: VoiceCallStateRinging}); err != nil {
 		t.Fatalf("create: %v", err)
 	}
 	now := time.Now().UTC()
-	n, err := UpdateSIPCallStateByCallID(ctx, db, "u1", map[string]any{
-		"state":  SIPCallStateEstablished,
+	n, err := UpdateVoiceCallStateByCallID(ctx, db, "u1", map[string]any{
+		"state":  VoiceCallStateEstablished,
 		"ack_at": now,
 	})
 	if err != nil {
@@ -168,25 +168,25 @@ func TestSIPCall_UpdateState(t *testing.T) {
 	if n != 1 {
 		t.Fatalf("rows-affected = %d, want 1", n)
 	}
-	got, _ := FindSIPCallByCallID(ctx, db, "u1")
-	if got.State != SIPCallStateEstablished {
-		t.Errorf("State = %q, want %q", got.State, SIPCallStateEstablished)
+	got, _ := FindVoiceCallByCallID(ctx, db, "u1")
+	if got.State != VoiceCallStateEstablished {
+		t.Errorf("State = %q, want %q", got.State, VoiceCallStateEstablished)
 	}
 	if got.AckAt == nil {
 		t.Errorf("AckAt not set")
 	}
 }
 
-func TestSIPCall_ListPage(t *testing.T) {
+func TestVoiceCall_ListPage(t *testing.T) {
 	db := newTestDB(t)
 	ctx := context.Background()
 	for i := 0; i < 5; i++ {
-		_ = CreateSIPCall(ctx, db, &SIPCall{
+		_ = CreateVoiceCall(ctx, db, &VoiceCall{
 			CallID: "list-" + string(rune('A'+i)),
-			State:  SIPCallStateEnded,
+			State:  VoiceCallStateEnded,
 		})
 	}
-	list, total, err := ListSIPCallsPage(ctx, db, 1, 3, "", SIPCallStateEnded)
+	list, total, err := ListVoiceCallsPage(ctx, db, 1, 3, "", VoiceCallStateEnded)
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}

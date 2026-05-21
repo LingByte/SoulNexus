@@ -4,10 +4,10 @@ package workflow
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"encoding/json"
 	"fmt"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"gorm.io/gorm"
 )
 
@@ -15,7 +15,7 @@ import (
 type WorkflowPluginNode struct {
 	Node
 	PluginID   uint                   // 插件ID
-	Plugin     *models.WorkflowPlugin // 插件定义（运行时加载）
+	Plugin     *svcmodels.WorkflowPlugin // 插件定义（运行时加载）
 	Parameters map[string]interface{} // 用户配置的参数
 }
 
@@ -73,7 +73,7 @@ func (w *WorkflowPluginNode) loadPlugin(db *gorm.DB) error {
 		return fmt.Errorf("数据库连接为空")
 	}
 
-	var plugin models.WorkflowPlugin
+	var plugin svcmodels.WorkflowPlugin
 	if err := db.First(&plugin, w.PluginID).Error; err != nil {
 		return fmt.Errorf("加载工作流插件失败: %v", err)
 	}
@@ -90,7 +90,7 @@ func (w *WorkflowPluginNode) executeWorkflowPlugin(ctx *WorkflowContext, inputs 
 	ctx.AddLog("info", fmt.Sprintf("执行工作流插件: %s", w.Plugin.DisplayName), w.ID, w.Name)
 
 	// 创建子工作流定义
-	subWorkflowDef := &models.WorkflowDefinition{
+	subWorkflowDef := &svcmodels.WorkflowDefinition{
 		ID:         w.Plugin.ID, // 使用插件ID作为工作流ID
 		Name:       w.Plugin.DisplayName,
 		Definition: workflowGraph,
@@ -210,7 +210,7 @@ func (s *SubWorkflowLogForwarder) SendLog(log ExecutionLog) error {
 }
 
 // buildSubWorkflow 构建子工作流
-func (w *WorkflowPluginNode) buildSubWorkflow(def *models.WorkflowDefinition, db *gorm.DB) (*Workflow, error) {
+func (w *WorkflowPluginNode) buildSubWorkflow(def *svcmodels.WorkflowDefinition, db *gorm.DB) (*Workflow, error) {
 	if def == nil {
 		return nil, fmt.Errorf("workflow definition is nil")
 	}
@@ -316,7 +316,7 @@ func (w *WorkflowPluginNode) buildSubWorkflow(def *models.WorkflowDefinition, db
 }
 
 // toNativeMap 转换字符串映射
-func (w *WorkflowPluginNode) toNativeMap(sm models.StringMap) map[string]string {
+func (w *WorkflowPluginNode) toNativeMap(sm svcmodels.StringMap) map[string]string {
 	if len(sm) == 0 {
 		return nil
 	}

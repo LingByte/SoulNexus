@@ -4,9 +4,9 @@ package listeners
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"time"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/llm"
 	"github.com/LingByte/SoulNexus/pkg/utils"
@@ -36,12 +36,12 @@ func initSignalConnections(db *gorm.DB) {
 		}
 
 		// 检查是否已存在相同 request_id 的记录
-		var existingUsage models.LLMUsage
+		var existingUsage svcmodels.LLMUsage
 		if err := db.Where("request_id = ?", requestID).First(&existingUsage).Error; err == nil {
 			return
 		}
 
-		usage := &models.LLMUsage{
+		usage := &svcmodels.LLMUsage{
 			ID:          utils.SnowflakeUtil.GenID(),
 			RequestID:   requestID,
 			SessionID:   asString(usageInfo["session_id"]),
@@ -99,7 +99,7 @@ func initSignalConnections(db *gorm.DB) {
 			sessionID = utils.SnowflakeUtil.GenID()
 		}
 
-		session := &models.ChatSession{
+		session := &svcmodels.ChatSession{
 			ID:           sessionID,
 			UserID:       data.UserID,
 			AgentID:  data.AgentID,
@@ -111,7 +111,7 @@ func initSignalConnections(db *gorm.DB) {
 			CreatedAt:    toTimeFromMillis(data.CreatedAt),
 			UpdatedAt:    toTimeFromMillis(data.CreatedAt),
 		}
-		_ = db.Where("id = ?", sessionID).Assign(session).FirstOrCreate(&models.ChatSession{}).Error
+		_ = db.Where("id = ?", sessionID).Assign(session).FirstOrCreate(&svcmodels.ChatSession{}).Error
 	})
 
 	// MessageCreated 信号连接
@@ -123,7 +123,7 @@ func initSignalConnections(db *gorm.DB) {
 		if !ok {
 			return
 		}
-		message := &models.ChatMessage{
+		message := &svcmodels.ChatMessage{
 			ID:         utils.SnowflakeUtil.GenID(),
 			SessionID:  data.SessionID,
 			Role:       data.Role,

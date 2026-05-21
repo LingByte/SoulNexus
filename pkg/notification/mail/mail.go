@@ -28,7 +28,8 @@ type mailerRuntime struct {
 }
 
 // Mailer sends HTML mail over one or more channels: each send round-robins the starting channel,
-// then fails over to the rest until one succeeds or all are exhausted. Per-channel retries use RetryPolicy.
+// then fails over to the next when the current channel is exhausted. Per-channel retries use RetryPolicy
+// for transient errors; definitive upstream errors (quota, auth, invalid recipient) skip retries and fail over immediately.
 type Mailer struct {
 	channels  []providerSlot
 	retry     RetryPolicy
@@ -103,8 +104,10 @@ func (m *Mailer) SendHTML(ctx context.Context, to, subject, htmlBody string) err
 	}
 	var lastErr error
 	var failParts []string
+	var triedChannels []string
 	totalAttempts := 0
 	for chIdx, slot := range order {
+		triedChannels = append(triedChannels, slot.label)
 		backoff := policy.InitialBackoff
 		for attempt := 1; attempt <= policy.MaxAttempts; attempt++ {
 			if ctx.Err() != nil {
@@ -127,8 +130,13 @@ func (m *Mailer) SendHTML(ctx context.Context, to, subject, htmlBody string) err
 			}
 			lastErr = err
 			failParts = append(failParts, fmt.Sprintf("[%s] %v", slot.label, err))
-			logger.Warnf("notification: send attempt failed - channelIndex=%d channel=%s attempt=%d maxAttempts=%d to=%s provider=%s err=%v",
-				chIdx, slot.label, attempt, policy.MaxAttempts, to, string(slot.provider.Kind()), err)
+			permanent := isPermanentMailError(err)
+			logger.Warnf("notification: send attempt failed - channelIndex=%d channel=%s attempt=%d maxAttempts=%d permanent=%v to=%s provider=%s err=%v",
+				chIdx, slot.label, attempt, policy.MaxAttempts, permanent, to, string(slot.provider.Kind()), err)
+			// Definitive upstream errors (quota, auth, invalid recipient): skip remaining retries on this channel.
+			if permanent {
+				break
+			}
 			if attempt >= policy.MaxAttempts {
 				break
 			}
@@ -148,8 +156,12 @@ func (m *Mailer) SendHTML(ctx context.Context, to, subject, htmlBody string) err
 	}
 	logger.Errorf("notification: all channels failed - to=%s subject=%s channel=multi userId=%d err=%v",
 		to, subject, m.rt.userID, lastErr)
+	channelSummary := strings.Join(triedChannels, " → ")
+	if channelSummary == "" {
+		channelSummary = "multi"
+	}
 	if m.rt.db != nil {
-		_, dbErr := CreateFailedMailLog(m.rt.db, m.rt.orgID, m.rt.userID, "multi", "", to, subject, htmlBody, errMsg, totalAttempts, m.rt.ipAddress)
+		_, dbErr := CreateFailedMailLog(m.rt.db, m.rt.orgID, m.rt.userID, "multi", channelSummary, to, subject, htmlBody, errMsg, totalAttempts, m.rt.ipAddress)
 		if dbErr != nil {
 			logger.Errorf("notification: failed mail log create failed - to=%s err=%v", to, dbErr)
 		}

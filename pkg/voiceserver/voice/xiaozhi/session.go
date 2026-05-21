@@ -23,6 +23,7 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/gateway"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/recorder"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/tts"
+	"github.com/LingByte/SoulNexus/pkg/realtime"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/vad"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
@@ -61,15 +62,29 @@ type ServerConfig struct {
 	// row. nil = recording disabled (no WAV, no row).
 	RecorderFactory func(callID, codec string, sampleRate int) *recorder.Recorder
 
-	// SessionFactory builds ASR / TTS for each session. Required.
+	// Mode selects pipeline (ASR+dialog+TTS) or realtime (pkg/realtime).
+	// Empty defaults to pipeline.
+	Mode string
+
+	// SessionFactory builds ASR / TTS for each session. Required in pipeline mode.
 	SessionFactory SessionFactory
 
+	// RealtimeFactory builds a multimodal agent per session. Required in realtime mode.
+	RealtimeFactory RealtimeAgentFactory
+
 	// DialogWSURL is the dialog-plane WebSocket the session dials out to.
-	// Same protocol the SIP path uses (pkg/voice/gateway). Required.
+	// Same protocol the SIP path uses (pkg/voice/gateway). Required in pipeline mode.
 	// If the HTTP upgrade URL carries query "payload" (JSON object, URL-encoded),
 	// Handle merges it into this base URL via gateway.MergeDialogPayloadQuery
 	// before dialing (browser → VoiceServer → SoulNexus /ws/call).
 	DialogWSURL string
+
+	// ResolveDevicePayload looks up dialog credentials when the client sends
+	// Device-Id but no ?payload= (typical ESP32 firmware). Returns JSON like
+	// {"apiKey":"...","apiSecret":"...","agentId":"..."}. The cmd layer wires
+	// this to the SoulNexus hardware binding API — same data as the legacy
+	// /voice/lingecho/v1/ wrapper injects before Handle.
+	ResolveDevicePayload func(ctx context.Context, deviceID string) ([]byte, error)
 
 	// CallIDPrefix is prepended to auto-generated call IDs ("xz-..."). Empty =
 	// "xz". Useful when running multiple hardware servers behind one dialog.
@@ -122,11 +137,18 @@ type Server struct {
 
 // NewServer validates cfg and returns an HTTP-ready Server.
 func NewServer(cfg ServerConfig) (*Server, error) {
-	if cfg.SessionFactory == nil {
-		return nil, errors.New("xiaozhi: nil SessionFactory")
-	}
-	if strings.TrimSpace(cfg.DialogWSURL) == "" {
-		return nil, errors.New("xiaozhi: empty DialogWSURL")
+	switch normalizeMode(cfg.Mode) {
+	case ModeRealtime:
+		if cfg.RealtimeFactory == nil {
+			return nil, errors.New("xiaozhi: nil RealtimeFactory in realtime mode")
+		}
+	default:
+		if cfg.SessionFactory == nil {
+			return nil, errors.New("xiaozhi: nil SessionFactory in pipeline mode")
+		}
+		if strings.TrimSpace(cfg.DialogWSURL) == "" {
+			return nil, errors.New("xiaozhi: empty DialogWSURL in pipeline mode")
+		}
 	}
 	if cfg.Logger == nil {
 		cfg.Logger = zap.NewNop()
@@ -163,8 +185,23 @@ func (s *Server) Handle(w http.ResponseWriter, r *http.Request) {
 	callID := fmt.Sprintf("%s-%d", s.cfg.CallIDPrefix, time.Now().UnixNano())
 
 	cfg := s.cfg
-	if payloadQ := strings.TrimSpace(r.URL.Query().Get("payload")); payloadQ != "" {
-		merged, err := gateway.MergeDialogPayloadQuery(strings.TrimSpace(cfg.DialogWSURL), []byte(payloadQ))
+	payloadRaw := strings.TrimSpace(r.URL.Query().Get("payload"))
+	if payloadRaw == "" && deviceID != "" && cfg.ResolveDevicePayload != nil {
+		resolved, err := cfg.ResolveDevicePayload(r.Context(), deviceID)
+		if err != nil {
+			s.cfg.Logger.Warn("xiaozhi: device binding failed",
+				zap.String("device_id", deviceID),
+				zap.Error(err))
+			_ = conn.WriteMessage(websocket.TextMessage, MakeError("device binding failed", true))
+			_ = conn.Close()
+			return
+		}
+		payloadRaw = string(resolved)
+		s.cfg.Logger.Info("xiaozhi: resolved dialog payload from Device-Id",
+			zap.String("device_id", deviceID))
+	}
+	if payloadRaw != "" {
+		merged, err := gateway.MergeDialogPayloadQuery(strings.TrimSpace(cfg.DialogWSURL), []byte(payloadRaw))
 		if err != nil {
 			s.cfg.Logger.Warn("xiaozhi: merge dialog payload query", zap.Error(err))
 			_ = conn.WriteMessage(websocket.TextMessage, MakeError("invalid payload query", true))
@@ -218,8 +255,14 @@ type session struct {
 	ttsPipe *tts.Pipeline
 	att     *voice.Attached
 
-	// Dialog-plane bridge.
+	// Dialog-plane bridge (pipeline mode).
 	gw *gateway.Client
+
+	// Realtime multimodal agent (realtime mode).
+	rtAgent realtime.Agent
+	rtInSR  int
+	rtOutSR int
+	rtOut   *realtimeOutPacer
 
 	// Listen-state machine. Only forward audio to ASR while listening; the
 	// firmware sends frames continuously but expects the server to ignore
@@ -373,7 +416,17 @@ func (s *session) handleHello(ctx context.Context, raw []byte) {
 		s.opusEnc = enc
 	}
 
-	// Build ASR + TTS pipelines.
+	s.ttsWireFrameMs = s.outFrameMs
+	if s.opusEnc == nil && s.outFormat == AudioFormatPCM && s.outFrameMs >= 40 {
+		s.ttsWireFrameMs = 20
+	}
+
+	if normalizeMode(s.cfg.Mode) == ModeRealtime {
+		s.handleHelloRealtime(ctx)
+		return
+	}
+
+	// Build ASR + TTS pipelines (pipeline mode).
 	asrSvc, asrSR, err := s.cfg.SessionFactory.NewASR(ctx, s.callID)
 	if err != nil || asrSvc == nil {
 		s.log.Error("xiaozhi: asr factory", zap.Error(err))
@@ -400,10 +453,6 @@ func (s *session) handleHello(ctx context.Context, raw []byte) {
 		s.log.Error("xiaozhi: tts factory", zap.Error(err))
 		s.writeText(MakeError("tts unavailable", true))
 		return
-	}
-	s.ttsWireFrameMs = s.outFrameMs
-	if s.opusEnc == nil && s.outFormat == AudioFormatPCM && s.outFrameMs >= 40 {
-		s.ttsWireFrameMs = 20
 	}
 	ttsPipe, err := tts.New(tts.Config{
 		Service:          ttsSvc,
@@ -588,6 +637,12 @@ func (s *session) handleListen(raw []byte) {
 // path — here we already cancel locally), then send tts:stop so the device
 // flushes its audio buffer, finally an abort:confirmed acknowledgement.
 func (s *session) handleAbort() {
+	if s.rtAgent != nil {
+		_ = s.rtAgent.Cancel()
+	}
+	if s.rtOut != nil {
+		s.rtOut.interrupt(false)
+	}
 	if s.ttsPipe != nil {
 		s.ttsPipe.Interrupt()
 	}
@@ -606,6 +661,10 @@ func (s *session) handleAbort() {
 // one was built; we record only while listening so background noise
 // between turns is not captured.
 func (s *session) handleAudio(ctx context.Context, frame []byte) {
+	if normalizeMode(s.cfg.Mode) == ModeRealtime {
+		s.handleAudioRealtime(ctx, frame)
+		return
+	}
 	if s.asrPipe == nil || !s.listening.Load() {
 		return
 	}
@@ -632,19 +691,11 @@ func (s *session) handleAudio(ctx context.Context, frame []byte) {
 	}
 }
 
-// ttsSink is the sink the TTS Pipeline calls for each paced PCM16 frame.
-// We encode to opus (when negotiated) and write a binary WS frame. The
-// Pipeline already paces realtime, so we don't need extra flow control.
-//
-// The PCM is also pushed into the recorder before encoding so the AI
-// channel of the stereo recording is captured at the bridge sample rate
-// (no opus round-trip artefacts in the WAV).
-func (s *session) ttsSink(pcm []byte) error {
+// emitOutboundPCMFrame encodes one paced PCM16 frame and writes a binary WS
+// packet. Shared by pipeline ttsSink and realtime playback pacer.
+func (s *session) emitOutboundPCMFrame(pcm []byte) error {
 	if s.closed.Load() {
 		return errors.New("xiaozhi: session closed")
-	}
-	if s.rec != nil {
-		s.rec.WriteAI(pcm)
 	}
 	var payload []byte
 	if s.opusEnc != nil {
@@ -663,6 +714,14 @@ func (s *session) ttsSink(pcm []byte) error {
 	return s.writeBinary(payload)
 }
 
+// ttsSink is the sink the TTS Pipeline calls for each paced PCM16 frame.
+func (s *session) ttsSink(pcm []byte) error {
+	if s.rec != nil {
+		s.rec.WriteAI(pcm)
+	}
+	return s.emitOutboundPCMFrame(pcm)
+}
+
 // teardown closes everything in reverse build order. Idempotent.
 func (s *session) teardown(reason string) {
 	if !s.closed.CompareAndSwap(false, true) {
@@ -670,6 +729,14 @@ func (s *session) teardown(reason string) {
 	}
 	if s.gw != nil {
 		s.gw.Close(reason)
+	}
+	if s.rtOut != nil {
+		s.rtOut.close()
+		s.rtOut = nil
+	}
+	if s.rtAgent != nil {
+		_ = s.rtAgent.Close()
+		s.rtAgent = nil
 	}
 	if s.att != nil {
 		s.att.Close()

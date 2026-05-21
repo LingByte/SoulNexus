@@ -4,6 +4,7 @@ package main
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"github.com/LingByte/SoulNexus/internal/modelbase"
 	"context"
 	"flag"
 	"fmt"
@@ -16,9 +17,9 @@ import (
 	"github.com/LingByte/SoulNexus"
 	"github.com/LingByte/SoulNexus/cmd/bootstrap"
 	"github.com/LingByte/SoulNexus/internal/config"
-	handlers "github.com/LingByte/SoulNexus/internal/handler"
+	grpcclients "github.com/LingByte/SoulNexus/internal/grpc/clients"
+	handlers "github.com/LingByte/SoulNexus/internal/handlers/server"
 	"github.com/LingByte/SoulNexus/internal/listeners"
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/internal/schema"
 	"github.com/LingByte/SoulNexus/internal/task"
 	workflowdef "github.com/LingByte/SoulNexus/internal/workflow"
@@ -40,10 +41,10 @@ type SoulNexusService struct {
 	handlers *handlers.Handlers
 }
 
-func NewSoulNexusService(db *gorm.DB) *SoulNexusService {
+func NewSoulNexusService(db *gorm.DB, rpc *grpcclients.Bundle) *SoulNexusService {
 	return &SoulNexusService{
 		db:       db,
-		handlers: handlers.NewHandlers(db),
+		handlers: handlers.NewHandlers(db, rpc),
 	}
 }
 
@@ -89,6 +90,7 @@ func main() {
 		InitSQLPath:   *initSQL,
 		AutoMigrate:   *init,
 		SeedNonProd:   *seed,
+		SeedKind:      "server",
 		MigrateModels: schema.ServerEntities,
 	})
 	if err != nil {
@@ -147,8 +149,21 @@ func main() {
 		return
 	}
 
-	//// 11. New App
-	app := NewSoulNexusService(db)
+	authGRPC := config.GlobalConfig.Services.AuthRPC.GRPCAddr
+	if authGRPC == "" {
+		authGRPC = "127.0.0.1:7075"
+	}
+	authClient, err := grpcclients.DialAuth(context.Background(), authGRPC)
+	if err != nil {
+		logger.Error("auth gRPC client dial failed", zap.String("addr", authGRPC), zap.Error(err))
+		return
+	}
+	rpcClients := &grpcclients.Bundle{Auth: authClient}
+	defer rpcClients.Close()
+	rpcClients.InstallAPIKeyUserResolver()
+	logger.Info("auth gRPC client connected", zap.String("addr", authGRPC))
+
+	app := NewSoulNexusService(db, rpcClients)
 
 	// 12. Initialize Global Middleware Manager
 	middleware.InitGlobalMiddlewareManager(config.GlobalConfig.Middleware)
@@ -253,9 +268,7 @@ func main() {
 	}
 
 	// 21. Emit system initialization signal
-	utils.Sig().Emit(models.SigInitSystemConfig, nil)
-
-	task.StartAccountDeletionScheduler(db)
+	utils.Sig().Emit(modelbase.SigInitSystemConfig, nil)
 
 	// 21.5. Start Workflow Event Listener and Scheduler
 	eventListener := workflowdef.NewWorkflowEventListener(db)

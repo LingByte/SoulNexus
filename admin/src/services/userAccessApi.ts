@@ -1,9 +1,9 @@
 import { get, put } from '@/utils/request'
-import { getMainApiBaseURL } from '@/config/apiConfig'
+import { getAuthApiBaseURL } from '@/config/apiConfig'
 import type { Role } from '@/services/roleApi'
 import type { Permission } from '@/services/permissionApi'
 
-const BASE = getMainApiBaseURL()
+const BASE = getAuthApiBaseURL()
 
 export interface UserAccessPayload {
   user: {

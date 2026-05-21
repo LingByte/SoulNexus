@@ -304,7 +304,7 @@ type MessageCreatedData struct {
 }
 
 // UsageChannelAttempt 多渠道路由/重试时单次走向（失败后再换渠道成功时形成数组）。
-// 与 internal/models.LLMUsageChannelAttempt 对齐，便于直接 JSON 序列化入库。
+// 与 internal/svcmodels.LLMUsageChannelAttempt 对齐，便于直接 JSON 序列化入库。
 type UsageChannelAttempt struct {
 	Order        int    `json:"order"` // 从 1 递增
 	ChannelID    int    `json:"channel_id"`
@@ -318,7 +318,7 @@ type UsageChannelAttempt struct {
 }
 
 // LLMUsageSignalPayload 在 SignalLLMUsage 上由 Relay Gateway 作为 sender 传递；
-// 时间字段为 Unix 毫秒，与 internal/models.LLMUsage 对齐。
+// 时间字段为 Unix 毫秒，与 internal/svcmodels.LLMUsage 对齐。
 // 注意：内部 in-process 路径（tracking.go）发送的是 map[string]interface{}，listener 需做类型分发。
 type LLMUsageSignalPayload struct {
 	RequestID       string

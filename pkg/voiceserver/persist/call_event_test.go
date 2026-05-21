@@ -4,7 +4,7 @@
 package persist
 
 // End-to-end test for the new persistence tables (call_events,
-// call_media_stats, call_recording). Boots an in-memory SQLite via
+// call_media_stats, voice_call). Boots an in-memory SQLite via
 // glebarez/sqlite, runs Migrate(), inserts representative rows, then
 // queries them back. The point is to lock down the schema contract so
 // later refactors can't silently drop columns or rename tables.
@@ -104,29 +104,40 @@ func TestAppendCallMediaStats_LatestReturnsMostRecent(t *testing.T) {
 	}
 }
 
-func TestAppendCallRecording_ListByCall(t *testing.T) {
+func TestVoiceCall_RecordingFields(t *testing.T) {
 	db := freshDB(t)
 	ctx := context.Background()
-	for _, r := range []*CallRecording{
-		{CallID: "c-3", Transport: "sip", Bucket: "b", Key: "a.wav",
-			Format: "wav", Layout: RecordingLayoutStereoLR,
-			SampleRate: 16000, Channels: 2, Bytes: 1024, DurationMs: 500},
-		{CallID: "c-3", Transport: "sip", Bucket: "b", Key: "b.wav",
-			Format: "wav", Layout: RecordingLayoutStereoLR,
-			SampleRate: 16000, Channels: 2, Bytes: 2048, DurationMs: 1000},
-	} {
-		if err := AppendCallRecording(ctx, db, r); err != nil {
-			t.Fatal(err)
-		}
+	if err := CreateVoiceCall(ctx, db, &VoiceCall{
+		CallID:    "c-3",
+		Transport: "sip",
+		State:     VoiceCallStateEstablished,
+	}); err != nil {
+		t.Fatal(err)
 	}
-	got, err := ListCallRecordings(ctx, db, "c-3")
+	n, err := UpdateVoiceCallStateByCallID(ctx, db, "c-3", map[string]any{
+		"recording_url":           "https://example/a.wav",
+		"recording_key":           "a.wav",
+		"recording_format":        "wav",
+		"recording_layout":        RecordingLayoutStereoLR,
+		"recording_sample_rate":   16000,
+		"recording_channels":      2,
+		"recording_wav_bytes":     1024,
+		"recording_duration_ms":   int64(500),
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 2 {
-		t.Fatalf("len: %d", len(got))
+	if n != 1 {
+		t.Fatalf("rows-affected = %d, want 1", n)
 	}
-	if got[0].Key != "a.wav" || got[1].Key != "b.wav" {
-		t.Errorf("order: %s, %s", got[0].Key, got[1].Key)
+	got, err := FindVoiceCallByCallID(ctx, db, "c-3")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.RecordingURL != "https://example/a.wav" || got.RecordingKey != "a.wav" {
+		t.Errorf("recording fields: url=%q key=%q", got.RecordingURL, got.RecordingKey)
+	}
+	if got.RecordingWavBytes != 1024 || got.RecordingDurationMs != 500 {
+		t.Errorf("recording size/duration: bytes=%d dur=%d", got.RecordingWavBytes, got.RecordingDurationMs)
 	}
 }

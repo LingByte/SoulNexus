@@ -4,6 +4,7 @@ package bootstrap
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"bufio"
 	"errors"
 	"io"
@@ -11,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/LingByte/SoulNexus/internal/config"
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"go.uber.org/zap"
@@ -27,6 +27,8 @@ type Options struct {
 	AutoMigrate bool
 	// SeedNonProd whether to write default configuration in non-production environments (default true)
 	SeedNonProd bool
+	// SeedKind limits which seed routines run: "auth", "server", or "all" (default "all").
+	SeedKind string
 	// MigrateModels returns entities passed to GORM AutoMigrate when AutoMigrate is true.
 	// Required for entity migration when AutoMigrate is true (each binary supplies its own list).
 	MigrateModels func() []any
@@ -61,13 +63,13 @@ func SetupDatabase(logWriter io.Writer, opts *Options) (*gorm.DB, error) {
 			logger.Error("migration failed", zap.Error(err))
 			return nil, err
 		}
-		if err := models.MigrateGroupTenancyResources(db); err != nil {
+		if err := svcmodels.MigrateGroupTenancyResources(db); err != nil {
 			logger.Warn("group tenancy data migrate", zap.Error(err))
 		}
-		if err := models.MigrateTextCharset(db); err != nil {
+		if err := svcmodels.MigrateTextCharset(db); err != nil {
 			logger.Warn("text charset migrate", zap.Error(err))
 		}
-		if err := models.MigrateAgentsDropIconColumn(db); err != nil {
+		if err := svcmodels.MigrateAgentsDropIconColumn(db); err != nil {
 			logger.Warn("agents drop icon column migrate", zap.Error(err))
 		}
 		logger.Info("migration success",
@@ -78,10 +80,21 @@ func SetupDatabase(logWriter io.Writer, opts *Options) (*gorm.DB, error) {
 
 	// 4) Non-production: default configuration
 	if opts.SeedNonProd && utils.GetEnv("APP_ENV") != "production" {
-		service := SeedService{
-			db: db,
+		service := SeedService{db: db}
+		kind := strings.TrimSpace(strings.ToLower(opts.SeedKind))
+		if kind == "" {
+			kind = "all"
 		}
-		if err := service.SeedAll(); err != nil {
+		var err error
+		switch kind {
+		case "auth":
+			err = service.SeedAuth()
+		case "server":
+			err = service.SeedServer()
+		default:
+			err = service.SeedAll()
+		}
+		if err != nil {
 			logger.Error("seed failed", zap.Error(err))
 			return nil, err
 		}

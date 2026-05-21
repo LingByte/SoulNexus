@@ -535,6 +535,9 @@ func NewSynthesisService(name string, options map[string]any) (SynthesisService,
 	case TTS_MINIMAX:
 		opt := media.CastOption[MinimaxOption](options)
 		return NewMinimaxService(opt), nil
+	case TTS_ALIYUN:
+		opt := media.CastOption[AliyunTTSConfig](options)
+		return NewAliyunService(opt), nil
 	default:
 		return nil, fmt.Errorf("synthesis: unknown synthesis: %s", name)
 	}
@@ -920,6 +923,54 @@ func NewSynthesisServiceFromCredential(config TTSCredentialConfig) (SynthesisSer
 		options = make(map[string]any)
 		if err := json.Unmarshal(configBytes, &options); err != nil {
 			return nil, fmt.Errorf("反序列化火山引擎配置失败: %w", err)
+		}
+
+	case "aliyun", "dashscope", "qwen":
+		apiKey := config.getString("apiKey")
+		if apiKey == "" {
+			apiKey = config.getString("api_key")
+		}
+		if apiKey == "" {
+			return nil, fmt.Errorf("阿里云 TTS 配置不完整：缺少 apiKey (DashScope API Key)")
+		}
+		providerName = TTS_ALIYUN
+		aliyunCfg := NewAliyunTTSConfig(apiKey)
+		if v := config.getString("model"); v != "" {
+			aliyunCfg.Model = v
+		}
+		if v := config.getString("voice"); v != "" {
+			aliyunCfg.Voice = v
+		}
+		if v := config.getString("languageType"); v != "" {
+			aliyunCfg.LanguageType = v
+		} else if v := config.getString("language_type"); v != "" {
+			aliyunCfg.LanguageType = v
+		} else if v := config.getString("language"); v != "" {
+			aliyunCfg.LanguageType = v
+		}
+		if v := config.getString("mode"); v != "" {
+			aliyunCfg.Mode = v
+		}
+		if v := config.getString("baseUrl"); v != "" {
+			aliyunCfg.BaseURL = v
+		} else if v := config.getString("base_url"); v != "" {
+			aliyunCfg.BaseURL = v
+		}
+		if v := config.getInt64("sampleRate"); v > 0 {
+			aliyunCfg.SampleRate = int(v)
+		} else if v := config.getInt64("sample_rate"); v > 0 {
+			aliyunCfg.SampleRate = int(v)
+		}
+		if v := config.getString("instructions"); v != "" {
+			aliyunCfg.Instructions = v
+		}
+		configBytes, err := json.Marshal(aliyunCfg)
+		if err != nil {
+			return nil, fmt.Errorf("序列化阿里云配置失败: %w", err)
+		}
+		options = make(map[string]any)
+		if err := json.Unmarshal(configBytes, &options); err != nil {
+			return nil, fmt.Errorf("反序列化阿里云配置失败: %w", err)
 		}
 
 	case "minimax":

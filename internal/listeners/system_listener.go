@@ -4,10 +4,10 @@ package listeners
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"github.com/LingByte/SoulNexus/internal/modelbase"
 	"crypto/tls"
 	"sync"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/internal/config"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/utils"
@@ -24,7 +24,7 @@ var (
 // InitSystemListeners initializes system listeners
 func InitSystemListeners() {
 	// Connect system initialization signal
-	utils.Sig().Connect(models.SigInitSystemConfig, func(sender any, params ...any) {
+	utils.Sig().Connect(modelbase.SigInitSystemConfig, func(sender any, params ...any) {
 		// Load SSL certificates
 		loadSSLCertificates()
 	})

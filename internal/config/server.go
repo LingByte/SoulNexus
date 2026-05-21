@@ -66,6 +66,12 @@ type DatabaseConfig struct {
 type ServicesConfig struct {
 	LLM   LLMConfig   `mapstructure:"llm"`
 	Voice VoiceConfig `mapstructure:"voice"`
+	AuthRPC AuthRPCConfig `mapstructure:"auth_rpc"`
+}
+
+// AuthRPCConfig points cmd/server at the internal auth gRPC service.
+type AuthRPCConfig struct {
+	GRPCAddr string `env:"AUTH_SERVICE_GRPC_ADDR"`
 }
 
 // LLMConfig LLM service configuration
@@ -79,17 +85,8 @@ type LLMConfig struct {
 
 // VoiceConfig voice service configuration
 type VoiceConfig struct {
-	Qiniu      QiniuVoiceConfig  `mapstructure:"qiniu"`
 	Xunfei     XunfeiVoiceConfig `mapstructure:"xunfei"`
 	Voiceprint VoiceprintConfig  `mapstructure:"voiceprint"`
-}
-
-// QiniuVoiceConfig Qiniu voice configuration
-type QiniuVoiceConfig struct {
-	ASRAPIKey  string `env:"QINIU_ASR_API_KEY"`
-	ASRBaseURL string `env:"QINIU_ASR_BASE_URL"`
-	TTSAPIKey  string `env:"QINIU_TTS_API_KEY"`
-	TTSBaseURL string `env:"QINIU_TTS_BASE_URL"`
 }
 
 // XunfeiVoiceConfig Xunfei voice configuration
@@ -196,12 +193,6 @@ func buildGlobalConfig() error {
 				ShortTermMessageLimit:   getIntOrDefault("LLM_SHORT_TERM_MESSAGE_LIMIT", 20),
 			},
 			Voice: VoiceConfig{
-				Qiniu: QiniuVoiceConfig{
-					ASRAPIKey:  getStringOrDefault("QINIU_ASR_API_KEY", ""),
-					ASRBaseURL: getStringOrDefault("QINIU_ASR_BASE_URL", ""),
-					TTSAPIKey:  getStringOrDefault("QINIU_TTS_API_KEY", ""),
-					TTSBaseURL: getStringOrDefault("QINIU_TTS_BASE_URL", ""),
-				},
 				Xunfei: XunfeiVoiceConfig{
 					WSAppId:     getStringOrDefault("XUNFEI_WS_APP_ID", ""),
 					WSAPIKey:    getStringOrDefault("XUNFEI_WS_API_KEY", ""),
@@ -222,6 +213,9 @@ func buildGlobalConfig() error {
 					LogEnabled:          getBoolOrDefault("VOICEPRINT_LOG_ENABLED", true),
 					LogLevel:            getStringOrDefault("VOICEPRINT_LOG_LEVEL", "info"),
 				},
+			},
+			AuthRPC: AuthRPCConfig{
+				GRPCAddr: getStringOrDefault("AUTH_SERVICE_GRPC_ADDR", "127.0.0.1:7075"),
 			},
 		},
 		Features: FeaturesConfig{

@@ -4,11 +4,11 @@ package websocket
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"github.com/LingByte/SoulNexus/internal/models/auth"
 	"fmt"
 	"net/http"
 	"time"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/gin-gonic/gin"
@@ -49,7 +49,7 @@ func (h *Handler) HandleWebSocket(c *gin.Context) {
 	var userIDStr string
 	// 处理不同类型的用户ID：可能是 *User 对象或字符串
 	switch v := userObj.(type) {
-	case *models.User:
+	case *auth.User:
 		// 从 User 对象中提取 ID 并转换为字符串
 		userIDStr = fmt.Sprintf("%d", v.ID)
 	case string:

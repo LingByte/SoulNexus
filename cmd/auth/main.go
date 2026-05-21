@@ -7,6 +7,8 @@ package main
 // Uses the same database and config as the main API server until the schema is split.
 
 import (
+	"github.com/LingByte/SoulNexus/internal/modelbase"
+	"context"
 	"flag"
 	"log"
 	"net/http"
@@ -16,9 +18,9 @@ import (
 	"github.com/LingByte/SoulNexus"
 	"github.com/LingByte/SoulNexus/cmd/bootstrap"
 	"github.com/LingByte/SoulNexus/internal/config"
-	handlers "github.com/LingByte/SoulNexus/internal/handler"
+	handlers "github.com/LingByte/SoulNexus/internal/handlers/auth"
+	authgrpcserver "github.com/LingByte/SoulNexus/internal/grpc/auth/server"
 	"github.com/LingByte/SoulNexus/internal/listeners"
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/internal/schema"
 	"github.com/LingByte/SoulNexus/internal/task"
 	"github.com/LingByte/SoulNexus/pkg/constants"
@@ -83,6 +85,7 @@ func main() {
 		InitSQLPath:   *initSQL,
 		AutoMigrate:   *init,
 		SeedNonProd:   *seed,
+		SeedKind:      "auth",
 		MigrateModels: schema.AuthEntities,
 	})
 	if err != nil {
@@ -118,6 +121,18 @@ func main() {
 	}
 
 	app := NewSoulNexusAuthService(db)
+
+	grpcAddr := a.GRPCListenAddr
+	if grpcAddr == "" {
+		grpcAddr = ":7075"
+	}
+	grpcCtx, grpcCancel := context.WithCancel(context.Background())
+	defer grpcCancel()
+	go func() {
+		if err := authgrpcserver.Listen(grpcCtx, grpcAddr, db); err != nil {
+			logger.Error("auth gRPC server stopped", zap.Error(err))
+		}
+	}()
 
 	middleware.InitGlobalMiddlewareManager(a.Middleware)
 
@@ -169,7 +184,7 @@ func main() {
 	app.registerRoutes(r)
 
 	listeners.InitSystemListeners()
-	utils.Sig().Emit(models.SigInitSystemConfig, nil)
+	utils.Sig().Emit(modelbase.SigInitSystemConfig, nil)
 
 	task.StartAccountDeletionScheduler(db)
 

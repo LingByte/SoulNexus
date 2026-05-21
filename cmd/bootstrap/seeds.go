@@ -4,12 +4,14 @@ package bootstrap
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"github.com/LingByte/SoulNexus/internal/models/auth"
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
+	"github.com/LingByte/SoulNexus/internal/modelbase"
 	"strconv"
 	"time"
 
 	SoulNexus "github.com/LingByte/SoulNexus"
 	"github.com/LingByte/SoulNexus/internal/config"
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/notification"
 	"github.com/LingByte/SoulNexus/pkg/utils"
@@ -21,13 +23,32 @@ type SeedService struct {
 }
 
 func (s *SeedService) SeedAll() error {
+	if err := s.SeedAuth(); err != nil {
+		return err
+	}
+	return s.SeedServer()
+}
+
+// SeedAuth seeds roles, admin users, and shared site configs (cmd/auth only).
+func (s *SeedService) SeedAuth() error {
 	if err := s.seedMinimalRolesIfEmpty(); err != nil {
+		return err
+	}
+	if err := s.seedBootstrapRBAC(); err != nil {
 		return err
 	}
 	if err := s.seedConfigs(); err != nil {
 		return err
 	}
 	if err := s.seedAdminUsers(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// SeedServer seeds business demo data (cmd/server only).
+func (s *SeedService) SeedServer() error {
+	if err := s.seedConfigs(); err != nil {
 		return err
 	}
 	if err := s.seedAssistants(); err != nil {
@@ -62,7 +83,7 @@ func (s *SeedService) seedMailTemplates() error {
 	}
 	for _, d := range defs {
 		var n int64
-		if err := s.db.Model(&models.MailTemplate{}).
+		if err := s.db.Model(&svcmodels.MailTemplate{}).
 			Where("org_id = ? AND code = ? AND locale = ?", 0, d.code, "").
 			Count(&n).Error; err != nil {
 			return err
@@ -70,7 +91,7 @@ func (s *SeedService) seedMailTemplates() error {
 		if n > 0 {
 			continue
 		}
-		tpl := &models.MailTemplate{
+		tpl := &svcmodels.MailTemplate{
 			OrgID:       0,
 			Code:        d.code,
 			Name:        d.name,
@@ -79,7 +100,7 @@ func (s *SeedService) seedMailTemplates() error {
 			Locale:      "",
 			Enabled:     true,
 		}
-		models.ApplyMailTemplateHTMLDerivedFields(tpl, d.html, "")
+		svcmodels.ApplyMailTemplateHTMLDerivedFields(tpl, d.html, "")
 		if err := s.db.Create(tpl).Error; err != nil {
 			return err
 		}
@@ -170,34 +191,76 @@ func (s *SeedService) seedConfigs() error {
 // seedMinimalRolesIfEmpty inserts one generic role when the table is empty so sign-up / seed users can satisfy user_roles.
 func (s *SeedService) seedMinimalRolesIfEmpty() error {
 	var n int64
-	if err := s.db.Model(&models.Role{}).Where("is_deleted = ?", models.SoftDeleteStatusActive).Count(&n).Error; err != nil {
+	if err := s.db.Model(&auth.Role{}).Where("is_deleted = ?", modelbase.SoftDeleteStatusActive).Count(&n).Error; err != nil {
 		return err
 	}
 	if n > 0 {
 		return nil
 	}
-	return s.db.Create(&models.Role{Name: "Member", Slug: "member", IsSystem: true}).Error
+	return s.db.Create(&auth.Role{Name: "Member", Slug: "member", IsSystem: true}).Error
+}
+
+// seedBootstrapRBAC ensures admin console + RBAC permissions and an admin role for JWT claims.
+func (s *SeedService) seedBootstrapRBAC() error {
+	permDefs := []auth.Permission{
+		{Key: auth.PermAdminAccess, Name: "Admin console", Description: "Access management UI", Resource: "admin"},
+		{Key: auth.PermManageRoles, Name: "Manage RBAC", Description: "Manage roles and permissions", Resource: "rbac"},
+	}
+	permIDs := make([]uint, 0, len(permDefs))
+	for _, def := range permDefs {
+		var p auth.Permission
+		err := s.db.Where("`key` = ? AND is_deleted = ?", def.Key, modelbase.SoftDeleteStatusActive).First(&p).Error
+		if err != nil {
+			if err := s.db.Create(&def).Error; err != nil {
+				return err
+			}
+			permIDs = append(permIDs, def.ID)
+			continue
+		}
+		permIDs = append(permIDs, p.ID)
+	}
+
+	var adminRole auth.Role
+	err := s.db.Where("slug = ? AND is_deleted = ?", "admin", modelbase.SoftDeleteStatusActive).First(&adminRole).Error
+	if err != nil {
+		adminRole = auth.Role{Name: "Administrator", Slug: "admin", Description: "Full admin access", IsSystem: true}
+		if err := s.db.Create(&adminRole).Error; err != nil {
+			return err
+		}
+	}
+	for _, pid := range permIDs {
+		var n int64
+		if err := s.db.Model(&auth.RolePermission{}).Where("role_id = ? AND permission_id = ?", adminRole.ID, pid).Count(&n).Error; err != nil {
+			return err
+		}
+		if n == 0 {
+			if err := s.db.Create(&auth.RolePermission{RoleID: adminRole.ID, PermissionID: pid}).Error; err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func (s *SeedService) seedAdminUsers() error {
-	defaultAdmins := []models.User{
+	defaultAdmins := []auth.User{
 		{
 			Email:    "admin@lingecho.com",
-			Password: models.HashPassword("admin123"),
-			Status:   models.UserStatusActive,
-			Source:   models.UserSourceAdmin,
+			Password: auth.HashPassword("admin123"),
+			Status:   auth.UserStatusActive,
+			Source:   auth.UserSourceAdmin,
 		},
 		{
 			Email:    "19511899044@163.com",
-			Password: models.HashPassword("admin123"),
-			Status:   models.UserStatusActive,
-			Source:   models.UserSourceAdmin,
+			Password: auth.HashPassword("admin123"),
+			Status:   auth.UserStatusActive,
+			Source:   auth.UserSourceAdmin,
 		},
 	}
 
 	for _, user := range defaultAdmins {
 		var count int64
-		err := s.db.Model(&models.User{}).Where("`email` = ?", user.Email).Count(&count).Error
+		err := s.db.Model(&auth.User{}).Where("`email` = ?", user.Email).Count(&count).Error
 		if err != nil {
 			return err
 		}
@@ -205,8 +268,8 @@ func (s *SeedService) seedAdminUsers() error {
 			if err := s.db.Create(&user).Error; err != nil {
 				return err
 			}
-			_ = models.UpdateUserProfileFields(s.db, user.ID, map[string]any{"display_name": "Administrator"})
-			if err := models.EnsureUserHasOneRole(s.db, user.ID); err != nil {
+			_ = auth.UpdateUserProfileFields(s.db, user.ID, map[string]any{"display_name": "Administrator"})
+			if err := auth.AssignUserSingleRoleBySlug(s.db, user.ID, "admin"); err != nil {
 				return err
 			}
 		}
@@ -216,23 +279,23 @@ func (s *SeedService) seedAdminUsers() error {
 
 func (s *SeedService) seedAssistants() error {
 	var count int64
-	if err := s.db.Model(&models.Agent{}).Count(&count).Error; err != nil {
+	if err := s.db.Model(&svcmodels.Agent{}).Count(&count).Error; err != nil {
 		return err
 	}
 	if count != 0 {
 		return nil // Data already exists, skip
 	}
 
-	g2, err := models.EnsurePersonalGroupForUser(s.db, 2)
+	g2, err := svcmodels.EnsurePersonalGroupForUser(s.db, 2)
 	if err != nil {
 		return err
 	}
-	g1, err := models.EnsurePersonalGroupForUser(s.db, 1)
+	g1, err := svcmodels.EnsurePersonalGroupForUser(s.db, 1)
 	if err != nil {
 		return err
 	}
 
-	defaultAssistant := []models.Agent{
+	defaultAssistant := []svcmodels.Agent{
 		{
 			GroupID:      g2.ID,
 			CreatedBy:    2,
