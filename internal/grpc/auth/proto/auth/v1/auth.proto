@@ -1,0 +1,137 @@
+syntax = "proto3";
+
+package auth.v1;
+
+option go_package = "github.com/LingByte/SoulNexus/internal/grpc/auth/pb/auth/v1;authv1";
+
+// UserAuthService is the internal RPC surface from cmd/server (and peers) to cmd/auth.
+// Browser-facing auth stays on HTTP; JWT claims are validated locally on server.
+// Anything that needs DB-backed user rows or API secrets must use this service.
+service UserAuthService {
+  rpc GetUser(GetUserRequest) returns (User);
+  rpc GetUserByEmail(GetUserByEmailRequest) returns (User);
+  rpc ResolveCredential(ResolveCredentialRequest) returns (UserCredential);
+  rpc ListUserCredentials(ListUserCredentialsRequest) returns (ListUserCredentialsResponse);
+  rpc GetCredential(GetCredentialRequest) returns (UserCredential);
+  rpc DeleteCredential(DeleteCredentialRequest) returns (DeleteCredentialResponse);
+  rpc MarkCredentialUsed(MarkCredentialUsedRequest) returns (MarkCredentialUsedResponse);
+  rpc AdminListCredentials(AdminListCredentialsRequest) returns (AdminListCredentialsResponse);
+  rpc UpdateCredentialStatus(UpdateCredentialStatusRequest) returns (UserCredential);
+  rpc CreateUserCredential(CreateUserCredentialRequest) returns (UserCredential);
+  rpc DeleteUserCredentialForUser(DeleteUserCredentialForUserRequest) returns (DeleteCredentialResponse);
+}
+
+message CreateUserCredentialRequest {
+  uint64 user_id = 1;
+  string request_json = 2; // JSON of auth.UserCredentialRequest
+}
+
+message DeleteUserCredentialForUserRequest {
+  uint64 user_id = 1;
+  uint64 credential_id = 2;
+}
+
+message AdminListCredentialsRequest {
+  int32 page = 1;
+  int32 page_size = 2;
+  string search = 3;
+  string status = 4;
+  uint64 user_id = 5;
+}
+
+message AdminListCredentialsResponse {
+  repeated UserCredential credentials = 1;
+  int64 total = 2;
+}
+
+message UpdateCredentialStatusRequest {
+  uint64 id = 1;
+  string status = 2;
+  string banned_reason = 3;
+  optional string expires_at = 4; // set to clear (empty) or update; RFC3339 or "2006-01-02 15:04:05"
+  optional int64 token_quota = 5;
+  optional int64 request_quota = 6;
+  optional bool use_native_quota = 7;
+  optional bool unlimited_quota = 8;
+}
+
+message GetUserRequest {
+  uint64 id = 1;
+}
+
+message GetUserByEmailRequest {
+  string email = 1;
+}
+
+message ResolveCredentialRequest {
+  string api_key = 1;
+  string api_secret = 2;
+}
+
+message ListUserCredentialsRequest {
+  uint64 user_id = 1;
+}
+
+message ListUserCredentialsResponse {
+  repeated UserCredential credentials = 1;
+}
+
+message GetCredentialRequest {
+  uint64 id = 1;
+}
+
+message DeleteCredentialRequest {
+  uint64 id = 1;
+}
+
+message DeleteCredentialResponse {}
+
+message MarkCredentialUsedRequest {
+  uint64 credential_id = 1;
+}
+
+message MarkCredentialUsedResponse {}
+
+message UserProfile {
+  string display_name = 1;
+  string avatar = 2;
+  string username = 3;
+}
+
+message User {
+  uint64 id = 1;
+  string email = 2;
+  string status = 3;
+  string source = 4;
+  bool email_verified = 5;
+  bool phone_verified = 6;
+  bool two_factor_enabled = 7;
+  string phone = 8;
+  string locale = 9;
+  string timezone = 10;
+  string theme_mode = 11;
+  UserProfile profile = 12;
+  repeated string role_slugs = 13;
+}
+
+// UserCredential includes secrets for service-to-service use only (mTLS / private network).
+message UserCredential {
+  uint64 id = 1;
+  uint64 group_id = 2;
+  uint64 created_by = 3;
+  string name = 4;
+  string api_key = 5;
+  string api_secret = 6;
+  string status = 7;
+  string llm_provider = 8;
+  string llm_api_key = 9;
+  string llm_api_url = 10;
+  string asr_config_json = 11;
+  string tts_config_json = 12;
+  int64 token_quota = 13;
+  int64 token_used = 14;
+  int64 request_quota = 15;
+  bool use_native_quota = 16;
+  bool unlimited_quota = 17;
+  int64 usage_count = 18;
+}
