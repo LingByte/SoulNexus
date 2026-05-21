@@ -4,6 +4,7 @@ package server
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"github.com/LingByte/SoulNexus/internal/models/auth"
 	"bytes"
 	"context"
 	"encoding/binary"
@@ -19,7 +20,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/recognizer"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/stores"
@@ -200,7 +200,7 @@ func readOpenASRWAVPayload(c *gin.Context) ([]byte, error) {
 // registerOpenAPIRoutes 注册对外开放 API 路由，使用 apiKey + apiSecret 鉴权
 func (h *Handlers) registerOpenAPIRoutes(r *gin.RouterGroup) {
 	open := r.Group("/open")
-	open.Use(models.AuthApiRequired)
+	open.Use(auth.AuthApiRequired)
 	{
 		open.GET("/me", h.openGetMe)
 		open.POST("/tts", h.openTTS)
@@ -212,12 +212,12 @@ func (h *Handlers) registerOpenAPIRoutes(r *gin.RouterGroup) {
 
 // openGetMe 返回当前鉴权用户的基本信息
 func (h *Handlers) openGetMe(c *gin.Context) {
-	ctxUser := models.CurrentUser(c)
+	ctxUser := auth.CurrentUser(c)
 	if ctxUser == nil {
 		response.AbortWithStatus(c, http.StatusUnauthorized)
 		return
 	}
-	user, err := models.GetUserByID(h.db, ctxUser.ID)
+	user, err := auth.GetUserByID(h.db, ctxUser.ID)
 	if err != nil || user == nil {
 		response.AbortWithStatus(c, http.StatusUnauthorized)
 		return
@@ -633,7 +633,7 @@ func buildWAV(pcm []byte, sampleRate, channels, bitDepth int) []byte {
 }
 
 // getCredentialFromCtx 从请求头或 query 参数中取当前鉴权凭证
-func (h *Handlers) getCredentialFromCtx(c *gin.Context) *models.UserCredential {
+func (h *Handlers) getCredentialFromCtx(c *gin.Context) *auth.UserCredential {
 	apiKey := c.GetHeader("X-API-KEY")
 	apiSecret := c.GetHeader("X-API-SECRET")
 	if apiKey == "" {
@@ -643,7 +643,7 @@ func (h *Handlers) getCredentialFromCtx(c *gin.Context) *models.UserCredential {
 	if apiKey == "" || apiSecret == "" {
 		return nil
 	}
-	cred, _ := models.GetUserCredentialByApiSecretAndApiKey(h.db, apiKey, apiSecret)
+	cred, _ := auth.GetUserCredentialByApiSecretAndApiKey(h.db, apiKey, apiSecret)
 	return cred
 }
 

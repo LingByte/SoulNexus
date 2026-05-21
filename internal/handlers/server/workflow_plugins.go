@@ -4,12 +4,12 @@ package server
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/response"
 )
 
@@ -41,12 +41,12 @@ func (h *WorkflowPluginHandler) PublishWorkflowAsPlugin(c *gin.Context) {
 		Name         string                        `json:"name" binding:"required"`
 		DisplayName  string                        `json:"displayName" binding:"required"`
 		Description  string                        `json:"description"`
-		Category     models.WorkflowPluginCategory `json:"category" binding:"required"`
+		Category     svcmodels.WorkflowPluginCategory `json:"category" binding:"required"`
 		Icon         string                        `json:"icon"`
 		Color        string                        `json:"color"`
 		Tags         []string                      `json:"tags"`
-		InputSchema  models.WorkflowPluginIOSchema `json:"inputSchema"`
-		OutputSchema models.WorkflowPluginIOSchema `json:"outputSchema"`
+		InputSchema  svcmodels.WorkflowPluginIOSchema `json:"inputSchema"`
+		OutputSchema svcmodels.WorkflowPluginIOSchema `json:"outputSchema"`
 		Author       string                        `json:"author"`
 		Homepage     string                        `json:"homepage"`
 		Repository   string                        `json:"repository"`
@@ -58,12 +58,12 @@ func (h *WorkflowPluginHandler) PublishWorkflowAsPlugin(c *gin.Context) {
 		return
 	}
 
-	groupIDs, gerr := models.MemberGroupIDs(h.db, userID)
+	groupIDs, gerr := svcmodels.MemberGroupIDs(h.db, userID)
 	if gerr != nil {
 		response.Fail(c, "查询失败: "+gerr.Error(), nil)
 		return
 	}
-	var workflow models.WorkflowDefinition
+	var workflow svcmodels.WorkflowDefinition
 	if err := h.db.Where("id = ? AND group_id IN ?", workflowID, groupIDs).First(&workflow).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			response.Fail(c, "工作流不存在或无权限", nil)
@@ -72,7 +72,7 @@ func (h *WorkflowPluginHandler) PublishWorkflowAsPlugin(c *gin.Context) {
 		}
 		return
 	}
-	if !models.CanManageTenantResource(h.db, userID, workflow.GroupID, workflow.CreatorUID) {
+	if !svcmodels.CanManageTenantResource(h.db, userID, workflow.GroupID, workflow.CreatorUID) {
 		response.Fail(c, "工作流不存在或无权限", nil)
 		return
 	}
@@ -81,13 +81,13 @@ func (h *WorkflowPluginHandler) PublishWorkflowAsPlugin(c *gin.Context) {
 	slug := generateSlug(req.Name)
 
 	// 检查slug是否已存在
-	var existingPlugin models.WorkflowPlugin
+	var existingPlugin svcmodels.WorkflowPlugin
 	if err := h.db.Where("slug = ?", slug).First(&existingPlugin).Error; err == nil {
 		response.Fail(c, "插件名称已存在", nil)
 		return
 	}
 
-	plugin := models.WorkflowPlugin{
+	plugin := svcmodels.WorkflowPlugin{
 		CreatedBy:        userID,
 		GroupID:          workflow.GroupID,
 		WorkflowID:       uint(workflowID),
@@ -97,10 +97,10 @@ func (h *WorkflowPluginHandler) PublishWorkflowAsPlugin(c *gin.Context) {
 		Description:      req.Description,
 		Category:         req.Category,
 		Version:          "1.0.0",
-		Status:           models.WorkflowPluginStatusDraft,
+		Status:           svcmodels.WorkflowPluginStatusDraft,
 		Icon:             req.Icon,
 		Color:            req.Color,
-		Tags:             models.StringArray(req.Tags),
+		Tags:             svcmodels.StringArray(req.Tags),
 		InputSchema:      ensureIOSchema(req.InputSchema),
 		OutputSchema:     ensureIOSchema(req.OutputSchema),
 		WorkflowSnapshot: workflow.Definition,
@@ -116,7 +116,7 @@ func (h *WorkflowPluginHandler) PublishWorkflowAsPlugin(c *gin.Context) {
 	}
 
 	// 创建初始版本
-	version := models.WorkflowPluginVersion{
+	version := svcmodels.WorkflowPluginVersion{
 		PluginID:         plugin.ID,
 		Version:          plugin.Version,
 		WorkflowSnapshot: plugin.WorkflowSnapshot,
@@ -157,7 +157,7 @@ func (h *WorkflowPluginHandler) ListWorkflowPlugins(c *gin.Context) {
 		req.PageSize = 20
 	}
 
-	query := h.db.Model(&models.WorkflowPlugin{})
+	query := h.db.Model(&svcmodels.WorkflowPlugin{})
 
 	// 过滤条件
 	if req.Category != "" {
@@ -183,7 +183,7 @@ func (h *WorkflowPluginHandler) ListWorkflowPlugins(c *gin.Context) {
 	}
 
 	// 分页查询
-	var plugins []models.WorkflowPlugin
+	var plugins []svcmodels.WorkflowPlugin
 	offset := (req.Page - 1) * req.PageSize
 	if err := query.Offset(offset).Limit(req.PageSize).
 		Order("download_count DESC, star_count DESC, created_at DESC").
@@ -208,7 +208,7 @@ func (h *WorkflowPluginHandler) GetWorkflowPlugin(c *gin.Context) {
 		return
 	}
 
-	var plugin models.WorkflowPlugin
+	var plugin svcmodels.WorkflowPlugin
 	if err := h.db.Preload("Versions").Preload("Reviews.User").
 		First(&plugin, pluginID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -236,7 +236,7 @@ func (h *WorkflowPluginHandler) UpdateWorkflowPlugin(c *gin.Context) {
 		return
 	}
 
-	var plugin models.WorkflowPlugin
+	var plugin svcmodels.WorkflowPlugin
 	if err := h.db.First(&plugin, pluginID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			response.Fail(c, "插件不存在", nil)
@@ -246,7 +246,7 @@ func (h *WorkflowPluginHandler) UpdateWorkflowPlugin(c *gin.Context) {
 		return
 	}
 
-	if !models.CanManageTenantResource(h.db, userID, plugin.GroupID, plugin.CreatedBy) {
+	if !svcmodels.CanManageTenantResource(h.db, userID, plugin.GroupID, plugin.CreatedBy) {
 		response.Fail(c, "无权限操作", nil)
 		return
 	}
@@ -254,12 +254,12 @@ func (h *WorkflowPluginHandler) UpdateWorkflowPlugin(c *gin.Context) {
 	var req struct {
 		DisplayName  string                        `json:"displayName"`
 		Description  string                        `json:"description"`
-		Category     models.WorkflowPluginCategory `json:"category"`
+		Category     svcmodels.WorkflowPluginCategory `json:"category"`
 		Icon         string                        `json:"icon"`
 		Color        string                        `json:"color"`
 		Tags         []string                      `json:"tags"`
-		InputSchema  models.WorkflowPluginIOSchema `json:"inputSchema"`
-		OutputSchema models.WorkflowPluginIOSchema `json:"outputSchema"`
+		InputSchema  svcmodels.WorkflowPluginIOSchema `json:"inputSchema"`
+		OutputSchema svcmodels.WorkflowPluginIOSchema `json:"outputSchema"`
 		Version      string                        `json:"version"`
 		ChangeLog    string                        `json:"changeLog"`
 		Author       string                        `json:"author"`
@@ -291,7 +291,7 @@ func (h *WorkflowPluginHandler) UpdateWorkflowPlugin(c *gin.Context) {
 		updates["color"] = req.Color
 	}
 	if len(req.Tags) > 0 {
-		updates["tags"] = models.StringArray(req.Tags)
+		updates["tags"] = svcmodels.StringArray(req.Tags)
 	}
 	if req.Author != "" {
 		updates["author"] = req.Author
@@ -313,7 +313,7 @@ func (h *WorkflowPluginHandler) UpdateWorkflowPlugin(c *gin.Context) {
 		updates["output_schema"] = ensureIOSchema(req.OutputSchema)
 
 		// 创建新版本记录
-		version := models.WorkflowPluginVersion{
+		version := svcmodels.WorkflowPluginVersion{
 			PluginID:         plugin.ID,
 			Version:          req.Version,
 			WorkflowSnapshot: plugin.WorkflowSnapshot,
@@ -350,7 +350,7 @@ func (h *WorkflowPluginHandler) PublishWorkflowPlugin(c *gin.Context) {
 		return
 	}
 
-	var plugin models.WorkflowPlugin
+	var plugin svcmodels.WorkflowPlugin
 	if err := h.db.First(&plugin, pluginID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			response.Fail(c, "插件不存在", nil)
@@ -360,13 +360,13 @@ func (h *WorkflowPluginHandler) PublishWorkflowPlugin(c *gin.Context) {
 		return
 	}
 
-	if !models.CanManageTenantResource(h.db, userID, plugin.GroupID, plugin.CreatedBy) {
+	if !svcmodels.CanManageTenantResource(h.db, userID, plugin.GroupID, plugin.CreatedBy) {
 		response.Fail(c, "无权限操作", nil)
 		return
 	}
 
 	// 更新状态为已发布
-	if err := h.db.Model(&plugin).Update("status", models.WorkflowPluginStatusPublished).Error; err != nil {
+	if err := h.db.Model(&plugin).Update("status", svcmodels.WorkflowPluginStatusPublished).Error; err != nil {
 		response.Fail(c, "发布失败: "+err.Error(), nil)
 		return
 	}
@@ -399,14 +399,14 @@ func (h *WorkflowPluginHandler) InstallWorkflowPlugin(c *gin.Context) {
 		return
 	}
 
-	targetGID, err := models.ResolveWriteGroupID(h.db, userID, req.GroupID)
+	targetGID, err := svcmodels.ResolveWriteGroupID(h.db, userID, req.GroupID)
 	if err != nil {
 		response.Fail(c, err.Error(), nil)
 		return
 	}
 
 	// 检查插件是否存在
-	var plugin models.WorkflowPlugin
+	var plugin svcmodels.WorkflowPlugin
 	if err := h.db.First(&plugin, pluginID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			response.Fail(c, "插件不存在", nil)
@@ -417,7 +417,7 @@ func (h *WorkflowPluginHandler) InstallWorkflowPlugin(c *gin.Context) {
 	}
 
 	// 检查是否已安装
-	var existing models.WorkflowPluginInstallation
+	var existing svcmodels.WorkflowPluginInstallation
 	if err := h.db.Where("group_id = ? AND plugin_id = ?", targetGID, pluginID).
 		First(&existing).Error; err == nil {
 		response.Fail(c, "插件已安装", nil)
@@ -431,13 +431,13 @@ func (h *WorkflowPluginHandler) InstallWorkflowPlugin(c *gin.Context) {
 	}
 
 	// 创建安装记录
-	installation := models.WorkflowPluginInstallation{
+	installation := svcmodels.WorkflowPluginInstallation{
 		GroupID:   targetGID,
 		CreatedBy: userID,
 		PluginID:  uint(pluginID),
 		Version:   version,
 		Status:    "active",
-		Config:    models.JSONMap(req.Config),
+		Config:    svcmodels.JSONMap(req.Config),
 	}
 
 	if err := h.db.Create(&installation).Error; err != nil {
@@ -459,12 +459,12 @@ func (h *WorkflowPluginHandler) ListInstalledWorkflowPlugins(c *gin.Context) {
 		return
 	}
 
-	groupIDs, gerr := models.MemberGroupIDs(h.db, userID)
+	groupIDs, gerr := svcmodels.MemberGroupIDs(h.db, userID)
 	if gerr != nil {
 		response.Fail(c, "查询失败: "+gerr.Error(), nil)
 		return
 	}
-	var installations []models.WorkflowPluginInstallation
+	var installations []svcmodels.WorkflowPluginInstallation
 	if err := h.db.Preload("Plugin").Where("group_id IN ? AND status = ?", groupIDs, "active").
 		Find(&installations).Error; err != nil {
 		response.Fail(c, "查询失败: "+err.Error(), nil)
@@ -488,7 +488,7 @@ func (h *WorkflowPluginHandler) DeleteWorkflowPlugin(c *gin.Context) {
 		return
 	}
 
-	var plugin models.WorkflowPlugin
+	var plugin svcmodels.WorkflowPlugin
 	if err := h.db.First(&plugin, pluginID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			response.Fail(c, "插件不存在", nil)
@@ -498,7 +498,7 @@ func (h *WorkflowPluginHandler) DeleteWorkflowPlugin(c *gin.Context) {
 		return
 	}
 
-	if !models.CanManageTenantResource(h.db, userID, plugin.GroupID, plugin.CreatedBy) {
+	if !svcmodels.CanManageTenantResource(h.db, userID, plugin.GroupID, plugin.CreatedBy) {
 		response.Fail(c, "无权限操作", nil)
 		return
 	}
@@ -512,21 +512,21 @@ func (h *WorkflowPluginHandler) DeleteWorkflowPlugin(c *gin.Context) {
 	}()
 
 	// 删除相关的版本记录
-	if err := tx.Where("plugin_id = ?", pluginID).Delete(&models.WorkflowPluginVersion{}).Error; err != nil {
+	if err := tx.Where("plugin_id = ?", pluginID).Delete(&svcmodels.WorkflowPluginVersion{}).Error; err != nil {
 		tx.Rollback()
 		response.Fail(c, "删除版本记录失败: "+err.Error(), nil)
 		return
 	}
 
 	// 删除相关的评价记录
-	if err := tx.Where("plugin_id = ?", pluginID).Delete(&models.WorkflowPluginReview{}).Error; err != nil {
+	if err := tx.Where("plugin_id = ?", pluginID).Delete(&svcmodels.WorkflowPluginReview{}).Error; err != nil {
 		tx.Rollback()
 		response.Fail(c, "删除评价记录失败: "+err.Error(), nil)
 		return
 	}
 
 	// 删除相关的安装记录
-	if err := tx.Where("plugin_id = ?", pluginID).Delete(&models.WorkflowPluginInstallation{}).Error; err != nil {
+	if err := tx.Where("plugin_id = ?", pluginID).Delete(&svcmodels.WorkflowPluginInstallation{}).Error; err != nil {
 		tx.Rollback()
 		response.Fail(c, "删除安装记录失败: "+err.Error(), nil)
 		return
@@ -556,7 +556,7 @@ func (h *WorkflowPluginHandler) GetUserWorkflowPlugins(c *gin.Context) {
 		return
 	}
 
-	var plugins []models.WorkflowPlugin
+	var plugins []svcmodels.WorkflowPlugin
 	if err := h.db.Where("created_by = ?", userID).
 		Order("created_at DESC").
 		Find(&plugins).Error; err != nil {
@@ -581,7 +581,7 @@ func (h *WorkflowPluginHandler) GetWorkflowPublishedPlugin(c *gin.Context) {
 		return
 	}
 
-	var wf models.WorkflowDefinition
+	var wf svcmodels.WorkflowDefinition
 	if err := h.db.First(&wf, workflowID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			response.Fail(c, "工作流不存在", nil)
@@ -590,12 +590,12 @@ func (h *WorkflowPluginHandler) GetWorkflowPublishedPlugin(c *gin.Context) {
 		}
 		return
 	}
-	if !models.UserIsGroupMember(h.db, userID, wf.GroupID) {
+	if !svcmodels.UserIsGroupMember(h.db, userID, wf.GroupID) {
 		response.Fail(c, "无权限", nil)
 		return
 	}
 
-	var plugin models.WorkflowPlugin
+	var plugin svcmodels.WorkflowPlugin
 	if err := h.db.Where("workflow_id = ? AND group_id = ?", workflowID, wf.GroupID).
 		First(&plugin).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -611,9 +611,9 @@ func (h *WorkflowPluginHandler) GetWorkflowPublishedPlugin(c *gin.Context) {
 }
 
 // ensureIOSchema 确保 IOSchema 不为 nil，如果为 nil 则返回空的 IOSchema
-func ensureIOSchema(schema models.WorkflowPluginIOSchema) models.WorkflowPluginIOSchema {
+func ensureIOSchema(schema svcmodels.WorkflowPluginIOSchema) svcmodels.WorkflowPluginIOSchema {
 	if schema.Parameters == nil {
-		schema.Parameters = []models.WorkflowPluginParameter{}
+		schema.Parameters = []svcmodels.WorkflowPluginParameter{}
 	}
 	return schema
 }

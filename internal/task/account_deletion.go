@@ -4,9 +4,9 @@ package task
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"github.com/LingByte/SoulNexus/internal/models/auth"
 	"time"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/robfig/cron/v3"
 	"go.uber.org/zap"
@@ -18,7 +18,7 @@ func ProcessDueAccountDeletions(db *gorm.DB) int {
 	if db == nil {
 		return 0
 	}
-	users, err := models.ListUsersDueForAccountDeletion(db, time.Now())
+	users, err := auth.ListUsersDueForAccountDeletion(db, time.Now())
 	if err != nil {
 		logger.Error("list due account deletions failed", zap.Error(err))
 		return 0
@@ -26,7 +26,7 @@ func ProcessDueAccountDeletions(db *gorm.DB) int {
 	n := 0
 	for i := range users {
 		u := users[i]
-		if err := models.FinalizeAccountDeletion(db, u.ID, "account_deletion_cron"); err != nil {
+		if err := auth.FinalizeAccountDeletion(db, u.ID, "account_deletion_cron"); err != nil {
 			logger.Warn("finalize account deletion failed",
 				zap.Uint("userID", u.ID),
 				zap.Error(err))

@@ -6,12 +6,13 @@
 package server
 
 import (
+	"github.com/LingByte/SoulNexus/internal/models/auth"
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"errors"
 	"net/http"
 	"strconv"
 	"strings"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/gin-gonic/gin"
@@ -27,7 +28,7 @@ type meLLMTokenWriteReq struct {
 }
 
 func (h *Handlers) handleMeListLLMTokens(c *gin.Context) {
-	u := models.CurrentUser(c)
+	u := auth.CurrentUser(c)
 	if u == nil {
 		response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("not authenticated"))
 		return
@@ -35,7 +36,7 @@ func (h *Handlers) handleMeListLLMTokens(c *gin.Context) {
 	page, pageSize := utils.ParsePagination(c)
 	// 列表按当前激活组织过滤：org_id=0（中间件默认）只看个人 token；
 	// org_id>0 时只看该组织下且 user_id 属于自己的 token。
-	q := h.db.Model(&models.LLMToken{}).Where("user_id = ? AND org_id = ?", u.ID, OrgIDFromContext(c))
+	q := h.db.Model(&svcmodels.LLMToken{}).Where("user_id = ? AND org_id = ?", u.ID, OrgIDFromContext(c))
 	if s := strings.TrimSpace(c.Query("status")); s != "" {
 		q = q.Where("status = ?", s)
 	}
@@ -44,7 +45,7 @@ func (h *Handlers) handleMeListLLMTokens(c *gin.Context) {
 		response.Fail(c, "list tokens failed", err)
 		return
 	}
-	var rows []models.LLMToken
+	var rows []svcmodels.LLMToken
 	if err := q.Order("id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&rows).Error; err != nil {
 		response.Fail(c, "list tokens failed", err)
 		return
@@ -61,7 +62,7 @@ func (h *Handlers) handleMeListLLMTokens(c *gin.Context) {
 }
 
 func (h *Handlers) handleMeCreateLLMToken(c *gin.Context) {
-	u := models.CurrentUser(c)
+	u := auth.CurrentUser(c)
 	if u == nil {
 		response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("not authenticated"))
 		return
@@ -71,25 +72,25 @@ func (h *Handlers) handleMeCreateLLMToken(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, err)
 		return
 	}
-	typ := models.LLMTokenType(strings.TrimSpace(req.Type))
+	typ := svcmodels.LLMTokenType(strings.TrimSpace(req.Type))
 	if typ == "" {
-		typ = models.LLMTokenTypeLLM
-	} else if !models.IsValidLLMTokenType(string(typ)) {
+		typ = svcmodels.LLMTokenTypeLLM
+	} else if !svcmodels.IsValidLLMTokenType(string(typ)) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid type; expected llm/asr/tts"))
 		return
 	}
 	// 多租户：若请求带 X-Org-ID（或 ?org_id=），中间件已校验成员身份，落到 token.OrgID；
 	// 未指定时为 0，表示个人级 token。
-	row := &models.LLMToken{
+	row := &svcmodels.LLMToken{
 		UserID:         u.ID,
 		OrgID:          OrgIDFromContext(c),
 		Name:           strings.TrimSpace(req.Name),
 		Type:           typ,
 		Group:          firstNonEmpty(strings.TrimSpace(req.Group), "default"),
 		ModelWhitelist: strings.TrimSpace(req.ModelWhitelist),
-		Status:         models.LLMTokenStatusActive,
+		Status:         svcmodels.LLMTokenStatusActive,
 	}
-	apiKey, err := models.GenerateLLMTokenAPIKey()
+	apiKey, err := svcmodels.GenerateLLMTokenAPIKey()
 	if err != nil {
 		response.Fail(c, "generate api key failed", err)
 		return
@@ -103,7 +104,7 @@ func (h *Handlers) handleMeCreateLLMToken(c *gin.Context) {
 }
 
 func (h *Handlers) handleMeUpdateLLMToken(c *gin.Context) {
-	u := models.CurrentUser(c)
+	u := auth.CurrentUser(c)
 	if u == nil {
 		response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("not authenticated"))
 		return
@@ -113,7 +114,7 @@ func (h *Handlers) handleMeUpdateLLMToken(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid id"))
 		return
 	}
-	var row models.LLMToken
+	var row svcmodels.LLMToken
 	if err := h.db.Where("id = ? AND user_id = ?", id, u.ID).First(&row).Error; err != nil {
 		response.Fail(c, "token not found", err)
 		return
@@ -125,11 +126,11 @@ func (h *Handlers) handleMeUpdateLLMToken(c *gin.Context) {
 	}
 	row.Name = strings.TrimSpace(req.Name)
 	if t := strings.TrimSpace(req.Type); t != "" {
-		if !models.IsValidLLMTokenType(t) {
+		if !svcmodels.IsValidLLMTokenType(t) {
 			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid type; expected llm/asr/tts"))
 			return
 		}
-		row.Type = models.LLMTokenType(t)
+		row.Type = svcmodels.LLMTokenType(t)
 	}
 	if g := strings.TrimSpace(req.Group); g != "" {
 		row.Group = g
@@ -143,7 +144,7 @@ func (h *Handlers) handleMeUpdateLLMToken(c *gin.Context) {
 }
 
 func (h *Handlers) handleMeRegenerateLLMToken(c *gin.Context) {
-	u := models.CurrentUser(c)
+	u := auth.CurrentUser(c)
 	if u == nil {
 		response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("not authenticated"))
 		return
@@ -153,12 +154,12 @@ func (h *Handlers) handleMeRegenerateLLMToken(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid id"))
 		return
 	}
-	var row models.LLMToken
+	var row svcmodels.LLMToken
 	if err := h.db.Where("id = ? AND user_id = ?", id, u.ID).First(&row).Error; err != nil {
 		response.Fail(c, "token not found", err)
 		return
 	}
-	apiKey, err := models.GenerateLLMTokenAPIKey()
+	apiKey, err := svcmodels.GenerateLLMTokenAPIKey()
 	if err != nil {
 		response.Fail(c, "generate api key failed", err)
 		return
@@ -172,7 +173,7 @@ func (h *Handlers) handleMeRegenerateLLMToken(c *gin.Context) {
 }
 
 func (h *Handlers) handleMeDeleteLLMToken(c *gin.Context) {
-	u := models.CurrentUser(c)
+	u := auth.CurrentUser(c)
 	if u == nil {
 		response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("not authenticated"))
 		return
@@ -182,7 +183,7 @@ func (h *Handlers) handleMeDeleteLLMToken(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid id"))
 		return
 	}
-	if err := h.db.Where("id = ? AND user_id = ?", id, u.ID).Delete(&models.LLMToken{}).Error; err != nil {
+	if err := h.db.Where("id = ? AND user_id = ?", id, u.ID).Delete(&svcmodels.LLMToken{}).Error; err != nil {
 		response.Fail(c, "delete token failed", err)
 		return
 	}

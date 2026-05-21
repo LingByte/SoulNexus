@@ -4,11 +4,11 @@ package server
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"github.com/LingByte/SoulNexus/internal/models/auth"
 	"log"
 	"time"
 
 	"github.com/LingByte/SoulNexus/internal/config"
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/middleware"
@@ -233,7 +233,7 @@ func (h *Handlers) registerNodePluginRoutes(r *gin.RouterGroup) {
 	}
 
 	pluginsAuth := r.Group("node-plugins")
-	pluginsAuth.Use(models.AuthRequired)
+	pluginsAuth.Use(auth.AuthRequired)
 	{
 		pluginsAuth.POST("", pluginHandler.CreatePlugin)
 		pluginsAuth.PUT("/:id", pluginHandler.UpdatePlugin)
@@ -255,7 +255,7 @@ func (h *Handlers) registerWorkflowPluginRoutes(r *gin.RouterGroup) {
 	}
 
 	pluginsAuth := r.Group("workflow-plugins")
-	pluginsAuth.Use(models.AuthRequired)
+	pluginsAuth.Use(auth.AuthRequired)
 	{
 		pluginsAuth.POST("/publish/:workflowId", pluginHandler.PublishWorkflowAsPlugin)
 
@@ -275,12 +275,12 @@ func (h *Handlers) registerWorkflowPluginRoutes(r *gin.RouterGroup) {
 func (h *Handlers) registerWebSocketRoutes(r *gin.RouterGroup) {
 	wsHandler := websocket.NewHandler(h.wsHub)
 
-	r.GET("/ws", models.AuthRequired, wsHandler.HandleWebSocket)
+	r.GET("/ws", auth.AuthRequired, wsHandler.HandleWebSocket)
 
 	r.GET("/voice/websocket", h.HandleWebSocketVoice)
 
 	wsGroup := r.Group("/ws")
-	wsGroup.Use(models.AuthRequired)
+	wsGroup.Use(auth.AuthRequired)
 	{
 		wsGroup.GET("/stats", wsHandler.GetStats)
 		wsGroup.GET("/health", wsHandler.HealthCheck)
@@ -296,7 +296,7 @@ func (h *Handlers) registerWebSocketRoutes(r *gin.RouterGroup) {
 // registerXunfeiTTSRoutes 注册讯飞TTS路由
 func (h *Handlers) registerXunfeiTTSRoutes(r *gin.RouterGroup) {
 	xunfei := r.Group("/xunfei")
-	xunfei.Use(models.AuthRequired)
+	xunfei.Use(auth.AuthRequired)
 	{
 		xunfei.POST("/synthesize", h.XunfeiSynthesize)
 
@@ -311,7 +311,7 @@ func (h *Handlers) registerXunfeiTTSRoutes(r *gin.RouterGroup) {
 // registerVolcengineTTSRoutes 注册火山引擎TTS路由
 func (h *Handlers) registerVolcengineTTSRoutes(r *gin.RouterGroup) {
 	volcengine := r.Group("/volcengine")
-	volcengine.Use(models.AuthRequired)
+	volcengine.Use(auth.AuthRequired)
 	{
 		volcengine.POST("/synthesize", h.VolcengineSynthesize)
 
@@ -331,7 +331,7 @@ func (h *Handlers) registerVoiceTrainingRoutes(r *gin.RouterGroup) {
 	voice.GET("/lingecho/v1/", h.HandleHardwareWebSocketVoice)
 	voice.POST("/simple_text_chat", h.SimpleTextChat)
 
-	voice.Use(models.AuthRequired)
+	voice.Use(auth.AuthRequired)
 	{
 		voice.POST("/training/create", h.CreateTrainingTask)
 		voice.POST("/training/submit-audio", h.SubmitAudio)
@@ -364,7 +364,7 @@ func (h *Handlers) registerVoiceTrainingRoutes(r *gin.RouterGroup) {
 // registerBillingRoutes 注册计费路由
 func (h *Handlers) registerBillingRoutes(r *gin.RouterGroup) {
 	billing := r.Group("billing")
-	billing.Use(models.AuthRequired)
+	billing.Use(auth.AuthRequired)
 	{
 		billing.GET("/statistics", h.GetUsageStatistics)
 		billing.GET("/daily-usage", h.GetDailyUsageData)
@@ -386,7 +386,7 @@ func (h *Handlers) registerBillingRoutes(r *gin.RouterGroup) {
 // registerGroupRoutes Group Module
 func (h *Handlers) registerGroupRoutes(r *gin.RouterGroup) {
 	group := r.Group("group")
-	group.Use(models.AuthRequired)
+	group.Use(auth.AuthRequired)
 	{
 		group.POST("", h.CreateGroup)
 		group.GET("", h.ListGroups)
@@ -425,15 +425,15 @@ func (h *Handlers) registerGroupRoutes(r *gin.RouterGroup) {
 func (h *Handlers) registerAgentRoutes(r *gin.RouterGroup) {
 	agents := r.Group("agents")
 	{
-		agents.POST("add", models.AuthRequired, h.CreateAgent)
+		agents.POST("add", auth.AuthRequired, h.CreateAgent)
 
-		agents.GET("", models.AuthRequired, h.ListAgents)
+		agents.GET("", auth.AuthRequired, h.ListAgents)
 
-		agents.GET("/:id", models.AuthRequired, h.GetAgent)
+		agents.GET("/:id", auth.AuthRequired, h.GetAgent)
 
-		agents.PUT("/:id", models.AuthRequired, h.UpdateAgent)
+		agents.PUT("/:id", auth.AuthRequired, h.UpdateAgent)
 
-		agents.DELETE("/:id", models.AuthRequired, h.DeleteAgent)
+		agents.DELETE("/:id", auth.AuthRequired, h.DeleteAgent)
 
 		agents.GET("/lingecho/client/:id/loader.js", h.ServeVoiceSculptorLoaderJS)
 
@@ -443,7 +443,7 @@ func (h *Handlers) registerAgentRoutes(r *gin.RouterGroup) {
 // registerJSTemplateRoutes JSTemplate Module
 func (h *Handlers) registerJSTemplateRoutes(r *gin.RouterGroup) {
 	jsTemplate := r.Group("js-templates")
-	jsTemplate.Use(models.AuthRequired)
+	jsTemplate.Use(auth.AuthRequired)
 	{
 		jsTemplate.POST("", h.CreateJSTemplate)
 		jsTemplate.GET("/:id", h.GetJSTemplate)
@@ -473,7 +473,7 @@ func (h *Handlers) registerChatRoutes(r *gin.RouterGroup) {
 
 	chat.GET("call", h.handleConnection)
 
-	chat.Use(models.AuthApiRequired)
+	chat.Use(auth.AuthApiRequired)
 	{
 		chat.GET("chat-session-log", h.getChatSessionLog)
 
@@ -489,13 +489,13 @@ func (h *Handlers) registerChatRoutes(r *gin.RouterGroup) {
 func (h *Handlers) registerCredentialsRoutes(r *gin.RouterGroup) {
 	credential := r.Group("credentials")
 	{
-		credential.POST("/", models.AuthRequired, h.handleCreateCredential)
+		credential.POST("/", auth.AuthRequired, h.handleCreateCredential)
 
-		credential.GET("/", models.AuthRequired, h.handleGetCredential)
+		credential.GET("/", auth.AuthRequired, h.handleGetCredential)
 
 		credential.POST("/by-key", h.handleGetCredentialByKey)
 
-		credential.DELETE("/:id", models.AuthRequired, h.handleDeleteCredential)
+		credential.DELETE("/:id", auth.AuthRequired, h.handleDeleteCredential)
 	}
 }
 
@@ -503,19 +503,19 @@ func (h *Handlers) registerCredentialsRoutes(r *gin.RouterGroup) {
 func (h *Handlers) registerNotificationRoutes(r *gin.RouterGroup) {
 	notificationGroup := r.Group("notification")
 	{
-		notificationGroup.GET("unread-count", models.AuthRequired, h.handleUnReadNotificationCount)
+		notificationGroup.GET("unread-count", auth.AuthRequired, h.handleUnReadNotificationCount)
 
-		notificationGroup.GET("", models.AuthRequired, h.handleListNotifications)
+		notificationGroup.GET("", auth.AuthRequired, h.handleListNotifications)
 
-		notificationGroup.POST("readAll", models.AuthRequired, h.handleAllNotifications)
+		notificationGroup.POST("readAll", auth.AuthRequired, h.handleAllNotifications)
 
-		notificationGroup.PUT("/read/:id", models.AuthRequired, h.handleMarkNotificationAsRead)
+		notificationGroup.PUT("/read/:id", auth.AuthRequired, h.handleMarkNotificationAsRead)
 
-		notificationGroup.DELETE("/:id", models.AuthRequired, h.handleDeleteNotification)
+		notificationGroup.DELETE("/:id", auth.AuthRequired, h.handleDeleteNotification)
 
-		notificationGroup.POST("/batch-delete", models.AuthRequired, h.handleBatchDeleteNotifications)
+		notificationGroup.POST("/batch-delete", auth.AuthRequired, h.handleBatchDeleteNotifications)
 
-		notificationGroup.GET("/all-ids", models.AuthRequired, h.handleGetAllNotificationIds)
+		notificationGroup.GET("/all-ids", auth.AuthRequired, h.handleGetAllNotificationIds)
 	}
 }
 
@@ -527,31 +527,31 @@ func (h *Handlers) registerSystemRoutes(r *gin.RouterGroup) {
 
 		system.GET("/health", h.HealthCheck)
 		system.GET("/status", h.SystemStatus)
-		system.GET("/dashboard/metrics", models.AuthRequired, h.DashboardMetrics)
+		system.GET("/dashboard/metrics", auth.AuthRequired, h.DashboardMetrics)
 
 		system.GET("/init", h.SystemInit)
 
-		system.POST("/voice-clone/config", models.AuthRequired, h.SaveVoiceCloneConfig)
+		system.POST("/voice-clone/config", auth.AuthRequired, h.SaveVoiceCloneConfig)
 
-		system.POST("/voiceprint/config", models.AuthRequired, h.SaveVoiceprintConfig)
+		system.POST("/voiceprint/config", auth.AuthRequired, h.SaveVoiceprintConfig)
 
 		system.POST("/upload/audio", h.UploadAudio)
 
 		system.GET("/search/status", h.GetSearchStatus)
-		system.PUT("/search/config", models.AuthRequired, h.UpdateSearchConfig)
-		system.POST("/search/enable", models.AuthRequired, h.EnableSearch)
-		system.POST("/search/disable", models.AuthRequired, h.DisableSearch)
+		system.PUT("/search/config", auth.AuthRequired, h.UpdateSearchConfig)
+		system.POST("/search/enable", auth.AuthRequired, h.EnableSearch)
+		system.POST("/search/disable", auth.AuthRequired, h.DisableSearch)
 	}
 
 	voiceprint := r.Group("/voiceprint")
 	{
-		voiceprint.GET("", models.AuthRequired, h.GetVoiceprints)
-		voiceprint.POST("", models.AuthRequired, h.CreateVoiceprint)
-		voiceprint.POST("/register", models.AuthRequired, h.RegisterVoiceprint)
-		voiceprint.POST("/identify", models.AuthRequired, h.IdentifyVoiceprint)
-		voiceprint.POST("/verify", models.AuthRequired, h.VerifyVoiceprint)
-		voiceprint.PUT("/:id", models.AuthRequired, h.UpdateVoiceprint)
-		voiceprint.DELETE("/:id", models.AuthRequired, h.DeleteVoiceprint)
+		voiceprint.GET("", auth.AuthRequired, h.GetVoiceprints)
+		voiceprint.POST("", auth.AuthRequired, h.CreateVoiceprint)
+		voiceprint.POST("/register", auth.AuthRequired, h.RegisterVoiceprint)
+		voiceprint.POST("/identify", auth.AuthRequired, h.IdentifyVoiceprint)
+		voiceprint.POST("/verify", auth.AuthRequired, h.VerifyVoiceprint)
+		voiceprint.PUT("/:id", auth.AuthRequired, h.UpdateVoiceprint)
+		voiceprint.DELETE("/:id", auth.AuthRequired, h.DeleteVoiceprint)
 	}
 }
 
@@ -573,7 +573,7 @@ func (h *Handlers) registerDeviceRoutes(r *gin.RouterGroup) {
 
 	device.GET("/config/:deviceId", h.GetDeviceConfig)
 
-	device.Use(models.AuthRequired)
+	device.Use(auth.AuthRequired)
 	{
 		device.POST("/bind/:agentId/:deviceCode", h.BindDevice)
 
@@ -612,7 +612,7 @@ func (h *Handlers) registerSendCloudWebhookRoutes(r *gin.RouterGroup) {
 }
 
 func (h *Handlers) registerAdminManagementRoutes(r *gin.RouterGroup) {
-	adminGuard := []gin.HandlerFunc{models.AuthRequired, middleware.RequireAdmin}
+	adminGuard := []gin.HandlerFunc{auth.AuthRequired, middleware.RequireAdmin}
 
 	llmChannels := r.Group("admin/llm-channels", adminGuard...)
 	{
@@ -662,17 +662,17 @@ func (h *Handlers) registerAdminManagementRoutes(r *gin.RouterGroup) {
 		speechUsage.GET("/:id", h.handleAdminGetSpeechUsage)
 	}
 
-	meOrgs := r.Group("me/orgs", models.AuthRequired)
+	meOrgs := r.Group("me/orgs", auth.AuthRequired)
 	{
 		meOrgs.GET("", h.handleMeListOrgs)
 	}
 
 	meSpeechUsage := r.Group("me/speech-usage")
 	{
-		meSpeechUsage.GET("", models.AuthRequired, h.handleMeListSpeechUsage)
+		meSpeechUsage.GET("", auth.AuthRequired, h.handleMeListSpeechUsage)
 	}
 
-	meLLMTokens := r.Group("me/llm-tokens", models.AuthRequired, h.OrgScopeMiddleware())
+	meLLMTokens := r.Group("me/llm-tokens", auth.AuthRequired, h.OrgScopeMiddleware())
 	{
 		meLLMTokens.GET("", h.handleMeListLLMTokens)
 		meLLMTokens.POST("", h.handleMeCreateLLMToken)

@@ -4,27 +4,28 @@ package server
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"github.com/LingByte/SoulNexus/internal/models/auth"
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"fmt"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/gin-gonic/gin"
 )
 
 // UpdateRateLimiterConfig updates rate limiter configuration
 func (h *Handlers) handleCreateCredential(c *gin.Context) {
-	var credential models.UserCredentialRequest
+	var credential auth.UserCredentialRequest
 	if err := c.ShouldBindJSON(&credential); err != nil {
 		response.Fail(c, "Invalid request", nil)
 		return
 	}
 
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User is not logged in.", nil)
 	}
 
-	userCredential, err := models.CreateUserCredential(h.db, user.ID, &credential)
+	userCredential, err := svcmodels.CreateUserCredential(h.db, user.ID, &credential)
 	if err != nil {
 		response.Fail(c, "create user credential failed", err)
 		return
@@ -38,14 +39,14 @@ func (h *Handlers) handleCreateCredential(c *gin.Context) {
 }
 
 func (h *Handlers) handleGetCredential(c *gin.Context) {
-	user := models.CurrentUser(c)
-	credentials, err := models.GetUserCredentials(h.db, user.ID)
+	user := auth.CurrentUser(c)
+	credentials, err := svcmodels.GetUserCredentials(h.db, user.ID)
 	if err != nil {
 		response.Fail(c, "get user credentials failed", err)
 		return
 	}
 	// 转换为响应格式，不包含敏感信息
-	response.Success(c, "get user credentials success", models.ToResponseList(credentials))
+	response.Success(c, "get user credentials success", auth.ToResponseList(credentials))
 }
 
 // handleGetCredentialByKey 根据 apikey 和 apisecret 获取凭证信息（用于 controlpanel 调用）
@@ -60,7 +61,7 @@ func (h *Handlers) handleGetCredentialByKey(c *gin.Context) {
 		return
 	}
 
-	credential, err := models.GetUserCredentialByApiSecretAndApiKey(h.db, req.APIKey, req.APISecret)
+	credential, err := auth.GetUserCredentialByApiSecretAndApiKey(h.db, req.APIKey, req.APISecret)
 	if err != nil {
 		response.Fail(c, "query credential failed", err)
 		return
@@ -82,7 +83,7 @@ func (h *Handlers) handleGetCredentialByKey(c *gin.Context) {
 
 // handleDeleteCredential 删除用户凭证
 func (h *Handlers) handleDeleteCredential(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User is not logged in.", nil)
 		return
@@ -98,7 +99,7 @@ func (h *Handlers) handleDeleteCredential(c *gin.Context) {
 	}
 
 	// Delete credential
-	err = models.DeleteUserCredential(h.db, user.ID, credentialID)
+	err = svcmodels.DeleteUserCredential(h.db, user.ID, credentialID)
 	if err != nil {
 		response.Fail(c, "Failed to delete credential", err)
 		return

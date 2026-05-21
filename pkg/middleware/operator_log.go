@@ -4,10 +4,10 @@ package middleware
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"github.com/LingByte/SoulNexus/internal/models/auth"
 	"log"
 	"time"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/gin-gonic/gin"
@@ -33,7 +33,7 @@ func OperationLogMiddleware() gin.HandlerFunc {
 		}
 
 		// 类型断言获取用户信息
-		userModel, ok := user.(*models.User)
+		userModel, ok := user.(*auth.User)
 		if !ok {
 			return
 		}

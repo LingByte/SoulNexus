@@ -4,9 +4,9 @@ package search
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"github.com/LingByte/SoulNexus/internal/models/auth"
 	"fmt"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/utils"
@@ -93,7 +93,7 @@ func (h *SearchHandlers) handleSearch(c *gin.Context) {
 
 	// 从上下文获取用户ID（如果已登录）
 	// 使用 CurrentUser 函数获取当前用户
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user != nil && user.ID > 0 {
 		// 添加用户ID过滤，确保用户只能搜索到自己的数据
 		userID := fmt.Sprintf("%d", user.ID)

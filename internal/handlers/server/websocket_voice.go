@@ -4,13 +4,14 @@ package server
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"github.com/LingByte/SoulNexus/internal/models/auth"
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"context"
 	"fmt"
 	"log"
 	"net/http"
 	"strconv"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/voice"
@@ -57,7 +58,7 @@ func (h *Handlers) HandleWebSocketVoice(c *gin.Context) {
 	}
 
 	// 验证凭证
-	cred, err := models.GetUserCredentialByApiSecretAndApiKey(h.db, apiKey, apiSecret)
+	cred, err := auth.GetUserCredentialByApiSecretAndApiKey(h.db, apiKey, apiSecret)
 	if err != nil {
 		response.Fail(c, "Database error: "+err.Error(), nil)
 		return
@@ -68,7 +69,7 @@ func (h *Handlers) HandleWebSocketVoice(c *gin.Context) {
 	}
 
 	// 获取助手配置
-	var assistant models.Agent
+	var assistant svcmodels.Agent
 	if err := h.db.Where("id = ?", assistantID).First(&assistant).Error; err != nil {
 		response.Fail(c, "获取助手配置失败: "+err.Error(), nil)
 		return

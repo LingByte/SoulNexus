@@ -4,11 +4,11 @@ package server
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	workflowdef "github.com/LingByte/SoulNexus/internal/workflow"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/gin-gonic/gin"
@@ -40,7 +40,7 @@ func (h *Handlers) ExecutePublicWorkflow(c *gin.Context) {
 	}
 
 	// 查找工作流定义
-	var def models.WorkflowDefinition
+	var def svcmodels.WorkflowDefinition
 	if err := h.db.Where("slug = ? AND status = ?", slug, "active").First(&def).Error; err != nil {
 		response.Fail(c, "workflow not found or not active", nil)
 		return
@@ -105,7 +105,7 @@ func (h *Handlers) WebhookTriggerWorkflow(c *gin.Context) {
 	}
 
 	// 查找工作流定义
-	var def models.WorkflowDefinition
+	var def svcmodels.WorkflowDefinition
 	if err := h.db.Where("slug = ? AND status = ?", slug, "active").First(&def).Error; err != nil {
 		response.Fail(c, "workflow not found or not active", nil)
 		return

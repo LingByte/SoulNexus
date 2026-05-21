@@ -4,6 +4,7 @@ package workflow
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -13,15 +14,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 )
 
 // PluginNode 插件节点
 type PluginNode struct {
 	Node
-	Plugin  *models.NodePlugin       // 插件定义
+	Plugin  *svcmodels.NodePlugin       // 插件定义
 	Config  map[string]interface{}   // 用户配置
-	Runtime models.NodePluginRuntime // 运行时配置
+	Runtime svcmodels.NodePluginRuntime // 运行时配置
 }
 
 func (p *PluginNode) Base() *Node {

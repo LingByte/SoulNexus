@@ -4,9 +4,9 @@ package server
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"github.com/LingByte/SoulNexus/internal/models/auth"
 	"strconv"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/utils"
@@ -30,7 +30,7 @@ func (h *Handlers) GetSearchStatus(c *gin.Context) {
 
 // UpdateSearchConfig updates search configuration
 func (h *Handlers) UpdateSearchConfig(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "unauthorized", "User not logged in")
 		return
@@ -72,7 +72,7 @@ func (h *Handlers) UpdateSearchConfig(c *gin.Context) {
 
 // EnableSearch enables search function
 func (h *Handlers) EnableSearch(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "unauthorized", "User not logged in")
 		return
@@ -86,7 +86,7 @@ func (h *Handlers) EnableSearch(c *gin.Context) {
 
 // DisableSearch disables search function
 func (h *Handlers) DisableSearch(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "unauthorized", "User not logged in")
 		return

@@ -1,12 +1,13 @@
 package handlers
 
 import (
+	authmodel "github.com/LingByte/SoulNexus/internal/models/auth"
+	"github.com/LingByte/SoulNexus/internal/modelbase"
 	"errors"
 	"net/http"
 	"strconv"
 	"strings"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/gin-gonic/gin"
@@ -14,7 +15,7 @@ import (
 )
 
 func (h *Handlers) handleAdminListRoles(c *gin.Context) {
-	base := h.db.Model(&models.Role{}).Where("is_deleted = ?", models.SoftDeleteStatusActive)
+	base := h.db.Model(&authmodel.Role{}).Where("is_deleted = ?", modelbase.SoftDeleteStatusActive)
 	if s := strings.TrimSpace(c.Query("search")); s != "" {
 		like := "%" + strings.ToLower(s) + "%"
 		base = base.Where("LOWER(slug) LIKE ? OR LOWER(name) LIKE ?", like, like)
@@ -22,8 +23,8 @@ func (h *Handlers) handleAdminListRoles(c *gin.Context) {
 	var total int64
 	_ = base.Count(&total).Error
 	page, pageSize := utils.ParsePagination(c)
-	q := base.Session(&gorm.Session{}).Preload("Permissions", "is_deleted = ?", models.SoftDeleteStatusActive)
-	var rows []models.Role
+	q := base.Session(&gorm.Session{}).Preload("Permissions", "is_deleted = ?", modelbase.SoftDeleteStatusActive)
+	var rows []authmodel.Role
 	err := q.Order("slug ASC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&rows).Error
 	if err != nil {
 		response.Fail(c, "list roles failed", err)
@@ -40,9 +41,9 @@ func (h *Handlers) handleAdminGetRole(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid id"))
 		return
 	}
-	var role models.Role
-	if err = h.db.Where("id = ? AND is_deleted = ?", id, models.SoftDeleteStatusActive).
-		Preload("Permissions", "is_deleted = ?", models.SoftDeleteStatusActive).
+	var role authmodel.Role
+	if err = h.db.Where("id = ? AND is_deleted = ?", id, modelbase.SoftDeleteStatusActive).
+		Preload("Permissions", "is_deleted = ?", modelbase.SoftDeleteStatusActive).
 		First(&role).Error; err != nil {
 		response.Fail(c, "role not found", err)
 		return
@@ -68,7 +69,7 @@ func (h *Handlers) handleAdminCreateRole(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("name and slug required"))
 		return
 	}
-	role := models.Role{Name: req.Name, Slug: req.Slug, Description: req.Description, IsSystem: false}
+	role := authmodel.Role{Name: req.Name, Slug: req.Slug, Description: req.Description, IsSystem: false}
 	role.SetCreateInfo(operatorEmail(c))
 	if err := h.db.Create(&role).Error; err != nil {
 		response.Fail(c, "create role failed", err)
@@ -88,8 +89,8 @@ func (h *Handlers) handleAdminUpdateRole(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, err)
 		return
 	}
-	var role models.Role
-	if err = h.db.Where("id = ? AND is_deleted = ?", id, models.SoftDeleteStatusActive).First(&role).Error; err != nil {
+	var role authmodel.Role
+	if err = h.db.Where("id = ? AND is_deleted = ?", id, modelbase.SoftDeleteStatusActive).First(&role).Error; err != nil {
 		response.Fail(c, "role not found", err)
 		return
 	}
@@ -116,7 +117,7 @@ func (h *Handlers) handleAdminUpdateRole(c *gin.Context) {
 		response.Fail(c, "update failed", err)
 		return
 	}
-	_ = h.db.Preload("Permissions", "is_deleted = ?", models.SoftDeleteStatusActive).First(&role, id).Error
+	_ = h.db.Preload("Permissions", "is_deleted = ?", modelbase.SoftDeleteStatusActive).First(&role, id).Error
 	response.Success(c, "updated", role)
 }
 
@@ -126,8 +127,8 @@ func (h *Handlers) handleAdminDeleteRole(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid id"))
 		return
 	}
-	var role models.Role
-	if err = h.db.Where("id = ? AND is_deleted = ?", id, models.SoftDeleteStatusActive).First(&role).Error; err != nil {
+	var role authmodel.Role
+	if err = h.db.Where("id = ? AND is_deleted = ?", id, modelbase.SoftDeleteStatusActive).First(&role).Error; err != nil {
 		response.Fail(c, "role not found", err)
 		return
 	}
@@ -137,14 +138,14 @@ func (h *Handlers) handleAdminDeleteRole(c *gin.Context) {
 	}
 	op := operatorEmail(c)
 	if err = h.db.Model(&role).Updates(map[string]any{
-		"is_deleted": models.SoftDeleteStatusDeleted,
+		"is_deleted": modelbase.SoftDeleteStatusDeleted,
 		"update_by":  op,
 	}).Error; err != nil {
 		response.Fail(c, "delete failed", err)
 		return
 	}
-	_ = h.db.Where("role_id = ?", id).Delete(&models.RolePermission{}).Error
-	_ = h.db.Where("role_id = ?", id).Delete(&models.UserRole{}).Error
+	_ = h.db.Where("role_id = ?", id).Delete(&authmodel.RolePermission{}).Error
+	_ = h.db.Where("role_id = ?", id).Delete(&authmodel.UserRole{}).Error
 	response.Success(c, "deleted", nil)
 }
 
@@ -163,13 +164,13 @@ func (h *Handlers) handleAdminSetRolePermissions(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, err)
 		return
 	}
-	var role models.Role
-	if err = h.db.Where("id = ? AND is_deleted = ?", id, models.SoftDeleteStatusActive).First(&role).Error; err != nil {
+	var role authmodel.Role
+	if err = h.db.Where("id = ? AND is_deleted = ?", id, modelbase.SoftDeleteStatusActive).First(&role).Error; err != nil {
 		response.Fail(c, "role not found", err)
 		return
 	}
 	tx := h.db.Begin()
-	if err = tx.Where("role_id = ?", role.ID).Delete(&models.RolePermission{}).Error; err != nil {
+	if err = tx.Where("role_id = ?", role.ID).Delete(&authmodel.RolePermission{}).Error; err != nil {
 		tx.Rollback()
 		response.Fail(c, "failed", err)
 		return
@@ -179,12 +180,12 @@ func (h *Handlers) handleAdminSetRolePermissions(c *gin.Context) {
 			continue
 		}
 		var cnt int64
-		if err = tx.Model(&models.Permission{}).Where("id = ? AND is_deleted = ?", pid, models.SoftDeleteStatusActive).Count(&cnt).Error; err != nil || cnt == 0 {
+		if err = tx.Model(&authmodel.Permission{}).Where("id = ? AND is_deleted = ?", pid, modelbase.SoftDeleteStatusActive).Count(&cnt).Error; err != nil || cnt == 0 {
 			tx.Rollback()
 			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid permission id"))
 			return
 		}
-		if err = tx.Create(&models.RolePermission{RoleID: role.ID, PermissionID: pid}).Error; err != nil {
+		if err = tx.Create(&authmodel.RolePermission{RoleID: role.ID, PermissionID: pid}).Error; err != nil {
 			tx.Rollback()
 			response.Fail(c, "failed", err)
 			return
@@ -194,6 +195,6 @@ func (h *Handlers) handleAdminSetRolePermissions(c *gin.Context) {
 		response.Fail(c, "commit failed", err)
 		return
 	}
-	_ = h.db.Preload("Permissions", "is_deleted = ?", models.SoftDeleteStatusActive).First(&role, role.ID).Error
+	_ = h.db.Preload("Permissions", "is_deleted = ?", modelbase.SoftDeleteStatusActive).First(&role, role.ID).Error
 	response.Success(c, "updated", role)
 }

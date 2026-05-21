@@ -4,9 +4,10 @@ package task
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"github.com/LingByte/SoulNexus/internal/models/auth"
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"time"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/robfig/cron/v3"
@@ -49,7 +50,7 @@ func CleanUnreadEmails(db *gorm.DB) error {
 	// Process all enabled users after removing per-user auto-clean preference.
 	var userIDs []uint
 	err := db.Table(constants.USER_TABLE_NAME).
-		Where("status = ?", models.UserStatusActive).
+		Where("status = ?", auth.UserStatusActive).
 		Pluck("id", &userIDs).Error
 
 	if err != nil {
@@ -65,7 +66,7 @@ func CleanUnreadEmails(db *gorm.DB) error {
 	for _, userID := range userIDs {
 		// Delete notifications unread for more than seven days for this user
 		result := db.Where("user_id = ? AND `read` = ? AND created_at < ?", userID, false, sevenDaysAgo).
-			Delete(&models.InternalNotification{})
+			Delete(&svcmodels.InternalNotification{})
 
 		if result.Error != nil {
 			logger.Warn("Failed to clean emails for user", zap.Uint("userID", userID), zap.Error(result.Error))

@@ -4,6 +4,8 @@ package server
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"github.com/LingByte/SoulNexus/internal/models/auth"
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -13,7 +15,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/llm"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/response"
@@ -96,7 +97,7 @@ func (h *Handlers) BindDevice(c *gin.Context) {
 
 	// Check if device has already been activated
 	logger.Info("检查设备是否已激活", zap.String("deviceId", deviceId))
-	existingDevice, err := models.GetDeviceByMacAddress(h.db, deviceId)
+	existingDevice, err := svcmodels.GetDeviceByMacAddress(h.db, deviceId)
 	if err != nil {
 		logger.Warn("查询现有设备时出错", zap.Error(err), zap.String("deviceId", deviceId))
 	}
@@ -109,7 +110,7 @@ func (h *Handlers) BindDevice(c *gin.Context) {
 	}
 
 	// Get current user
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		logger.Error("设备绑定失败：用户未登录")
 		response.Fail(c, "User not logged in", nil)
@@ -132,7 +133,7 @@ func (h *Handlers) BindDevice(c *gin.Context) {
 	logger.Info("解析助手ID成功", zap.Uint("assistantID", assistantID))
 
 	// Verify that assistant exists and belongs to current user
-	var assistant models.Agent
+	var assistant svcmodels.Agent
 	if err := h.db.Where("id = ?", assistantID).First(&assistant).Error; err != nil {
 		logger.Error("查询助手失败", zap.Error(err), zap.Uint("assistantID", assistantID))
 		response.Fail(c, "Assistant does not exist", nil)
@@ -144,7 +145,7 @@ func (h *Handlers) BindDevice(c *gin.Context) {
 		zap.String("assistantName", assistant.Name),
 		zap.Uint("assistantGroupId", assistant.GroupID))
 
-	if !models.UserIsGroupMember(h.db, user.ID, assistant.GroupID) {
+	if !svcmodels.UserIsGroupMember(h.db, user.ID, assistant.GroupID) {
 		logger.Error("权限验证失败：无权使用该助手下的设备",
 			zap.Uint("assistantGroupId", assistant.GroupID),
 			zap.Uint("currentUserId", user.ID))
@@ -177,7 +178,7 @@ func (h *Handlers) BindDevice(c *gin.Context) {
 
 	// Create device
 	now := time.Now()
-	newDevice := &models.Device{
+	newDevice := &svcmodels.Device{
 		ID:            deviceId,
 		MacAddress:    macAddress,
 		Board:         board,
@@ -192,7 +193,7 @@ func (h *Handlers) BindDevice(c *gin.Context) {
 
 	logger.Info("开始创建设备记录", zap.Any("deviceData", newDevice))
 
-	if err := models.CreateDevice(h.db, newDevice); err != nil {
+	if err := svcmodels.CreateDevice(h.db, newDevice); err != nil {
 		logger.Error("创建设备失败",
 			zap.Error(err),
 			zap.String("deviceId", deviceId),
@@ -237,14 +238,14 @@ func (h *Handlers) GetUserDevices(c *gin.Context) {
 	assistantID := uint(agentId)
 
 	// Get current user
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User not logged in", nil)
 		return
 	}
 
 	// 使用新的 GetUserDevices 方法，支持监控字段
-	devices, err := models.GetUserDevices(h.db, user.ID, &assistantID)
+	devices, err := svcmodels.GetUserDevices(h.db, user.ID, &assistantID)
 	if err != nil {
 		logger.Error("Failed to query devices", zap.Error(err))
 		response.Fail(c, "Failed to query devices", nil)
@@ -267,26 +268,26 @@ func (h *Handlers) UnbindDevice(c *gin.Context) {
 	}
 
 	// Get current user
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User not logged in", nil)
 		return
 	}
 
 	// Query device
-	device, err := models.GetDeviceByID(h.db, req.DeviceID)
+	device, err := svcmodels.GetDeviceByID(h.db, req.DeviceID)
 	if err != nil || device == nil {
 		response.Fail(c, "Device does not exist", nil)
 		return
 	}
 
-	if !models.CanManageTenantResource(h.db, user.ID, device.GroupID, device.CreatedBy) {
+	if !svcmodels.CanManageTenantResource(h.db, user.ID, device.GroupID, device.CreatedBy) {
 		response.Fail(c, "Insufficient permissions", nil)
 		return
 	}
 
 	// Delete device
-	if err := models.DeleteDevice(h.db, req.DeviceID); err != nil {
+	if err := svcmodels.DeleteDevice(h.db, req.DeviceID); err != nil {
 		logger.Error("Failed to delete device", zap.Error(err))
 		response.Fail(c, "Failed to delete device", nil)
 		return
@@ -312,26 +313,26 @@ func (h *Handlers) UpdateDeviceInfo(c *gin.Context) {
 	}
 
 	// Get current user
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User not logged in", nil)
 		return
 	}
 
 	// Query device
-	device, err := models.GetDeviceByID(h.db, deviceID)
+	device, err := svcmodels.GetDeviceByID(h.db, deviceID)
 	if err != nil || device == nil {
 		response.Fail(c, "Device does not exist", nil)
 		return
 	}
 
-	if !models.CanManageTenantResource(h.db, user.ID, device.GroupID, device.CreatedBy) {
+	if !svcmodels.CanManageTenantResource(h.db, user.ID, device.GroupID, device.CreatedBy) {
 		response.Fail(c, "Insufficient permissions", nil)
 		return
 	}
 
 	if req.GroupID != nil {
-		if !models.UserIsGroupMember(h.db, user.ID, *req.GroupID) {
+		if !svcmodels.UserIsGroupMember(h.db, user.ID, *req.GroupID) {
 			response.Fail(c, "权限不足", "您不是该组织的成员")
 			return
 		}
@@ -346,7 +347,7 @@ func (h *Handlers) UpdateDeviceInfo(c *gin.Context) {
 		device.AutoUpdate = *req.AutoUpdate
 	}
 
-	if err := models.UpdateDevice(h.db, device); err != nil {
+	if err := svcmodels.UpdateDevice(h.db, device); err != nil {
 		logger.Error("Failed to update device", zap.Error(err))
 		response.Fail(c, "Failed to update device", nil)
 		return
@@ -392,7 +393,7 @@ func (h *Handlers) ManualAddDevice(c *gin.Context) {
 
 	// Check if MAC address already exists
 	logger.Info("检查MAC地址是否已存在", zap.String("macAddress", req.MacAddress))
-	existingDevice, err := models.GetDeviceByMacAddress(h.db, req.MacAddress)
+	existingDevice, err := svcmodels.GetDeviceByMacAddress(h.db, req.MacAddress)
 	if err != nil {
 		logger.Warn("查询现有设备时出错", zap.Error(err), zap.String("macAddress", req.MacAddress))
 	}
@@ -405,7 +406,7 @@ func (h *Handlers) ManualAddDevice(c *gin.Context) {
 	}
 
 	// 获取当前用户
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		logger.Error("手动添加设备失败：用户未登录")
 		response.Fail(c, "用户未登录", nil)
@@ -428,7 +429,7 @@ func (h *Handlers) ManualAddDevice(c *gin.Context) {
 	logger.Info("解析助手ID成功", zap.Uint("assistantID", assistantID))
 
 	// 验证 assistant 是否存在且属于当前用户
-	var assistant models.Agent
+	var assistant svcmodels.Agent
 	if err := h.db.Where("id = ?", assistantID).First(&assistant).Error; err != nil {
 		logger.Error("查询助手失败", zap.Error(err), zap.Uint("assistantID", assistantID))
 		response.Fail(c, "助手不存在", nil)
@@ -440,7 +441,7 @@ func (h *Handlers) ManualAddDevice(c *gin.Context) {
 		zap.String("assistantName", assistant.Name),
 		zap.Uint("assistantGroupId", assistant.GroupID))
 
-	if !models.UserIsGroupMember(h.db, user.ID, assistant.GroupID) {
+	if !svcmodels.UserIsGroupMember(h.db, user.ID, assistant.GroupID) {
 		logger.Error("权限验证失败：无权使用该助手",
 			zap.Uint("assistantGroupId", assistant.GroupID),
 			zap.Uint("currentUserId", user.ID))
@@ -456,7 +457,7 @@ func (h *Handlers) ManualAddDevice(c *gin.Context) {
 	// 如果设置了 GroupID，验证用户是否有权限共享到该组织
 	if req.GroupID != nil {
 		logger.Info("验证组织权限", zap.Uint("groupId", *req.GroupID))
-		var group models.Group
+		var group svcmodels.Group
 		if err := h.db.Where("id = ?", *req.GroupID).First(&group).Error; err != nil {
 			logger.Error("查询组织失败", zap.Error(err), zap.Uint("groupId", *req.GroupID))
 			response.Fail(c, "组织不存在", nil)
@@ -464,7 +465,7 @@ func (h *Handlers) ManualAddDevice(c *gin.Context) {
 		}
 		// 检查用户是否是组织成员或创建者
 		if group.CreatorID != user.ID {
-			var member models.GroupMember
+			var member svcmodels.GroupMember
 			if err := h.db.Where("group_id = ? AND user_id = ?", *req.GroupID, user.ID).First(&member).Error; err != nil {
 				logger.Error("组织权限验证失败",
 					zap.Uint("groupId", *req.GroupID),
@@ -492,7 +493,7 @@ func (h *Handlers) ManualAddDevice(c *gin.Context) {
 
 	// 创建设备
 	now := time.Now()
-	newDevice := &models.Device{
+	newDevice := &svcmodels.Device{
 		ID:            req.MacAddress,
 		MacAddress:    req.MacAddress,
 		Board:         req.Board,
@@ -507,7 +508,7 @@ func (h *Handlers) ManualAddDevice(c *gin.Context) {
 
 	logger.Info("开始创建设备记录", zap.Any("deviceData", newDevice))
 
-	if err := models.CreateDevice(h.db, newDevice); err != nil {
+	if err := svcmodels.CreateDevice(h.db, newDevice); err != nil {
 		logger.Error("创建设备失败",
 			zap.Error(err),
 			zap.String("macAddress", req.MacAddress),
@@ -546,7 +547,7 @@ func (h *Handlers) GetDeviceConfig(c *gin.Context) {
 	}
 
 	// 根据Device-Id查询设备
-	device, err := models.GetDeviceByMacAddress(h.db, deviceID)
+	device, err := svcmodels.GetDeviceByMacAddress(h.db, deviceID)
 	if err != nil || device == nil {
 		response.Fail(c, "Device not found or not activated", nil)
 		return
@@ -561,7 +562,7 @@ func (h *Handlers) GetDeviceConfig(c *gin.Context) {
 	assistantID := *device.AgentID
 
 	// 获取助手配置
-	var assistant models.Agent
+	var assistant svcmodels.Agent
 	if err := h.db.Where("id = ?", assistantID).First(&assistant).Error; err != nil {
 		logger.Error("Failed to get assistant", zap.Error(err), zap.Uint("assistantID", assistantID))
 		response.Fail(c, "Failed to get assistant configuration", nil)
@@ -675,7 +676,7 @@ func (h *Handlers) UpdateDeviceStatus(c *gin.Context) {
 		updates["service_status"] = &jsonStr
 	}
 
-	err := models.UpdateDeviceStatus(h.db, req.MacAddress, updates)
+	err := svcmodels.UpdateDeviceStatus(h.db, req.MacAddress, updates)
 	if err != nil {
 		logger.Error("更新设备状态失败", zap.Error(err), zap.String("mac_address", req.MacAddress))
 		response.Fail(c, "更新设备状态失败", nil)
@@ -704,7 +705,7 @@ func (h *Handlers) LogDeviceError(c *gin.Context) {
 	}
 
 	// 查找设备
-	device, err := models.GetDeviceByMacAddress(h.db, req.MacAddress)
+	device, err := svcmodels.GetDeviceByMacAddress(h.db, req.MacAddress)
 	if err != nil {
 		logger.Error("查找设备失败", zap.Error(err), zap.String("mac_address", req.MacAddress))
 		response.Fail(c, "查找设备失败", nil)
@@ -716,7 +717,7 @@ func (h *Handlers) LogDeviceError(c *gin.Context) {
 		return
 	}
 
-	err = models.LogDeviceError(h.db, device.ID, req.MacAddress, req.ErrorType, req.ErrorLevel,
+	err = svcmodels.LogDeviceError(h.db, device.ID, req.MacAddress, req.ErrorType, req.ErrorLevel,
 		req.ErrorCode, req.ErrorMsg, req.StackTrace, req.Context)
 	if err != nil {
 		logger.Error("记录设备错误失败", zap.Error(err), zap.String("device_id", device.ID))
@@ -730,7 +731,7 @@ func (h *Handlers) LogDeviceError(c *gin.Context) {
 // GetDeviceDetail 获取设备详情
 // GET /device/:deviceId
 func (h *Handlers) GetDeviceDetail(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "用户未登录", nil)
 		return
@@ -743,13 +744,13 @@ func (h *Handlers) GetDeviceDetail(c *gin.Context) {
 	}
 
 	// 查询设备详情 - 使用MAC地址查询
-	device, err := models.GetDeviceByMacAddress(h.db, deviceID)
+	device, err := svcmodels.GetDeviceByMacAddress(h.db, deviceID)
 	if err != nil || device == nil {
 		response.Fail(c, "设备不存在", nil)
 		return
 	}
 
-	if !models.UserIsGroupMember(h.db, user.ID, device.GroupID) {
+	if !svcmodels.UserIsGroupMember(h.db, user.ID, device.GroupID) {
 		response.Fail(c, "权限不足", nil)
 		return
 	}
@@ -760,7 +761,7 @@ func (h *Handlers) GetDeviceDetail(c *gin.Context) {
 // GetDeviceErrorLogs 获取设备错误日志
 // GET /device/:deviceId/error-logs
 func (h *Handlers) GetDeviceErrorLogs(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "用户未登录", nil)
 		return
@@ -772,8 +773,8 @@ func (h *Handlers) GetDeviceErrorLogs(c *gin.Context) {
 		return
 	}
 
-	dev, err := models.GetDeviceByMacAddress(h.db, deviceID)
-	if err != nil || dev == nil || !models.UserIsGroupMember(h.db, user.ID, dev.GroupID) {
+	dev, err := svcmodels.GetDeviceByMacAddress(h.db, deviceID)
+	if err != nil || dev == nil || !svcmodels.UserIsGroupMember(h.db, user.ID, dev.GroupID) {
 		response.Fail(c, "设备不存在", nil)
 		return
 	}
@@ -795,7 +796,7 @@ func (h *Handlers) GetDeviceErrorLogs(c *gin.Context) {
 	errorType := c.Query("error_type")
 	errorLevel := c.Query("error_level")
 
-	var logs []models.DeviceErrorLog
+	var logs []svcmodels.DeviceErrorLog
 	var total int64
 
 	// 构建查询
@@ -808,7 +809,7 @@ func (h *Handlers) GetDeviceErrorLogs(c *gin.Context) {
 	}
 
 	// 获取总数
-	query.Model(&models.DeviceErrorLog{}).Count(&total)
+	query.Model(&svcmodels.DeviceErrorLog{}).Count(&total)
 
 	// 获取分页数据
 	err = query.Order("created_at DESC").
@@ -833,7 +834,7 @@ func (h *Handlers) GetDeviceErrorLogs(c *gin.Context) {
 // ResolveDeviceError 标记设备错误为已解决
 // POST /device/error-logs/:errorId/resolve
 func (h *Handlers) ResolveDeviceError(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "用户未登录", nil)
 		return
@@ -847,20 +848,20 @@ func (h *Handlers) ResolveDeviceError(c *gin.Context) {
 	}
 
 	// 验证错误日志所有权
-	var errorLog models.DeviceErrorLog
+	var errorLog svcmodels.DeviceErrorLog
 	if err := h.db.First(&errorLog, errorID).Error; err != nil {
 		response.Fail(c, "错误日志不存在", nil)
 		return
 	}
 
-	dev, derr := models.GetDeviceByMacAddress(h.db, errorLog.MacAddress)
-	if derr != nil || dev == nil || !models.UserIsGroupMember(h.db, user.ID, dev.GroupID) {
+	dev, derr := svcmodels.GetDeviceByMacAddress(h.db, errorLog.MacAddress)
+	if derr != nil || dev == nil || !svcmodels.UserIsGroupMember(h.db, user.ID, dev.GroupID) {
 		response.Fail(c, "无权限操作此设备", nil)
 		return
 	}
 
 	// 标记为已解决
-	if err := models.ResolveDeviceError(h.db, uint(errorID), user.EffectiveDisplayName()); err != nil {
+	if err := svcmodels.ResolveDeviceError(h.db, uint(errorID), user.EffectiveDisplayName()); err != nil {
 		logger.Error("标记错误为已解决失败", zap.Error(err), zap.Uint64("errorId", errorID))
 		response.Fail(c, "标记失败", nil)
 		return
@@ -872,7 +873,7 @@ func (h *Handlers) ResolveDeviceError(c *gin.Context) {
 // GetCallRecordings 获取通话录音列表
 // GET /device/call-recordings
 func (h *Handlers) GetCallRecordings(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "用户未登录", nil)
 		return
@@ -892,7 +893,7 @@ func (h *Handlers) GetCallRecordings(c *gin.Context) {
 	assistantIDStr := c.Query("agent_id")
 	macAddress := c.Query("mac_address")
 
-	var recordings []models.CallRecording
+	var recordings []svcmodels.CallRecording
 	var total int64
 	var err error
 
@@ -902,29 +903,29 @@ func (h *Handlers) GetCallRecordings(c *gin.Context) {
 			response.Fail(c, "助手ID格式错误", nil)
 			return
 		}
-		var ag models.Agent
+		var ag svcmodels.Agent
 		if err := h.db.First(&ag, assistantID).Error; err != nil {
 			response.Fail(c, "助手不存在", nil)
 			return
 		}
-		if !models.UserIsGroupMember(h.db, user.ID, ag.GroupID) {
+		if !svcmodels.UserIsGroupMember(h.db, user.ID, ag.GroupID) {
 			response.Fail(c, "无权访问", nil)
 			return
 		}
-		recordings, total, err = models.GetCallRecordingsByAgent(h.db, ag.GroupID, uint(assistantID), pageSize, (page-1)*pageSize)
+		recordings, total, err = svcmodels.GetCallRecordingsByAgent(h.db, ag.GroupID, uint(assistantID), pageSize, (page-1)*pageSize)
 	} else if macAddress != "" {
-		dev, derr := models.GetDeviceByMacAddress(h.db, macAddress)
+		dev, derr := svcmodels.GetDeviceByMacAddress(h.db, macAddress)
 		if derr != nil || dev == nil {
 			response.Fail(c, "设备不存在", nil)
 			return
 		}
-		if !models.UserIsGroupMember(h.db, user.ID, dev.GroupID) {
+		if !svcmodels.UserIsGroupMember(h.db, user.ID, dev.GroupID) {
 			response.Fail(c, "无权访问", nil)
 			return
 		}
-		recordings, total, err = models.GetCallRecordingsByDevice(h.db, dev.GroupID, macAddress, pageSize, (page-1)*pageSize)
+		recordings, total, err = svcmodels.GetCallRecordingsByDevice(h.db, dev.GroupID, macAddress, pageSize, (page-1)*pageSize)
 	} else {
-		recordings, total, err = models.GetCallRecordingsByMemberUser(h.db, user.ID, pageSize, (page-1)*pageSize)
+		recordings, total, err = svcmodels.GetCallRecordingsByMemberUser(h.db, user.ID, pageSize, (page-1)*pageSize)
 	}
 
 	if err != nil {
@@ -989,7 +990,7 @@ func (h *Handlers) GetCallRecordings(c *gin.Context) {
 // AnalyzeCallRecording 分析通话录音
 // POST /device/call-recordings/:id/analyze
 func (h *Handlers) AnalyzeCallRecording(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "用户未登录", nil)
 		return
@@ -1002,12 +1003,12 @@ func (h *Handlers) AnalyzeCallRecording(c *gin.Context) {
 		return
 	}
 
-	groupIDs, err := models.MemberGroupIDs(h.db, user.ID)
+	groupIDs, err := svcmodels.MemberGroupIDs(h.db, user.ID)
 	if err != nil || len(groupIDs) == 0 {
 		response.Fail(c, "录音不存在", nil)
 		return
 	}
-	var recording models.CallRecording
+	var recording svcmodels.CallRecording
 	if err := h.db.Where("id = ? AND group_id IN ?", recordingID, groupIDs).First(&recording).Error; err != nil {
 		response.Fail(c, "录音不存在", nil)
 		return
@@ -1029,14 +1030,14 @@ func (h *Handlers) AnalyzeCallRecording(c *gin.Context) {
 		}
 
 		// 获取助手信息
-		var assistant models.Agent
+		var assistant svcmodels.Agent
 		if err := h.db.Where("id = ?", recording.AgentID).First(&assistant).Error; err != nil {
 			logger.Error("获取助手信息失败", zap.Error(err), zap.Uint("assistantID", recording.AgentID))
 			return
 		}
 
 		// 根据 assistant 的 apiKey 和 apiSecret 获取 UserCredential
-		credential, err := models.GetUserCredentialByApiSecretAndApiKey(h.db, assistant.ApiKey, assistant.ApiSecret)
+		credential, err := auth.GetUserCredentialByApiSecretAndApiKey(h.db, assistant.ApiKey, assistant.ApiSecret)
 		if err != nil || credential == nil {
 			logger.Error("获取用户凭证失败", zap.Error(err), zap.String("apiKey", assistant.ApiKey))
 			return
@@ -1151,7 +1152,7 @@ func (h *Handlers) AnalyzeCallRecording(c *gin.Context) {
 // BatchAnalyzeCallRecordings 批量分析通话录音
 // POST /device/call-recordings/batch-analyze
 func (h *Handlers) BatchAnalyzeCallRecordings(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "用户未登录", nil)
 		return
@@ -1177,7 +1178,7 @@ func (h *Handlers) BatchAnalyzeCallRecordings(c *gin.Context) {
 // GetCallRecordingAnalysis 获取通话录音分析结果
 // GET /device/call-recordings/:id/analysis
 func (h *Handlers) GetCallRecordingAnalysis(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "用户未登录", nil)
 		return
@@ -1190,12 +1191,12 @@ func (h *Handlers) GetCallRecordingAnalysis(c *gin.Context) {
 		return
 	}
 
-	groupIDs, gerr := models.MemberGroupIDs(h.db, user.ID)
+	groupIDs, gerr := svcmodels.MemberGroupIDs(h.db, user.ID)
 	if gerr != nil || len(groupIDs) == 0 {
 		response.Fail(c, "录音不存在", nil)
 		return
 	}
-	var recording models.CallRecording
+	var recording svcmodels.CallRecording
 	if err := h.db.Where("id = ? AND group_id IN ?", recordingID, groupIDs).First(&recording).Error; err != nil {
 		response.Fail(c, "录音不存在", nil)
 		return
@@ -1227,7 +1228,7 @@ func (h *Handlers) GetCallRecordingAnalysis(c *gin.Context) {
 // GetCallRecordingDetail 获取通话录音详情
 // GET /api/device/call-recordings/:id
 func (h *Handlers) GetCallRecordingDetail(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "未授权", nil)
 		return
@@ -1240,12 +1241,12 @@ func (h *Handlers) GetCallRecordingDetail(c *gin.Context) {
 		return
 	}
 
-	groupIDs, gerr := models.MemberGroupIDs(h.db, user.ID)
+	groupIDs, gerr := svcmodels.MemberGroupIDs(h.db, user.ID)
 	if gerr != nil || len(groupIDs) == 0 {
 		response.Fail(c, "通话记录不存在", nil)
 		return
 	}
-	var recording models.CallRecording
+	var recording svcmodels.CallRecording
 	err = h.db.Where("id = ? AND group_id IN ?", recordingID, groupIDs).First(&recording).Error
 	if err != nil {
 		logger.Error("获取通话记录详情失败", zap.Error(err), zap.Uint("userID", user.ID), zap.Uint64("recordingID", recordingID))
@@ -1330,7 +1331,7 @@ func (h *Handlers) GetCallRecordingDetail(c *gin.Context) {
 // ServeRecordingFile 提供录音文件下载服务
 // GET /device/recordings/*filepath
 func (h *Handlers) ServeRecordingFile(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "用户未登录", nil)
 		return
@@ -1361,7 +1362,7 @@ func (h *Handlers) ServeRecordingFile(c *gin.Context) {
 		return
 	}
 	scopeID := uint(scopeID64)
-	allowed := scopeID == user.ID || models.UserIsGroupMember(h.db, user.ID, scopeID)
+	allowed := scopeID == user.ID || svcmodels.UserIsGroupMember(h.db, user.ID, scopeID)
 	if !allowed {
 		response.Fail(c, "权限不足", nil)
 		return
@@ -1409,7 +1410,7 @@ func (h *Handlers) ServeRecordingFile(c *gin.Context) {
 }
 
 // generateBasicConversationDetails 基于现有数据生成基本的对话详情
-func generateBasicConversationDetails(recording models.CallRecording) map[string]interface{} {
+func generateBasicConversationDetails(recording svcmodels.CallRecording) map[string]interface{} {
 	// 从 ConversationDetailsJSON 中解析对话数据
 	conversationDetails, err := recording.GetConversationDetails()
 	if err == nil && conversationDetails != nil && len(conversationDetails.Turns) > 0 {
@@ -1516,7 +1517,7 @@ func generateBasicConversationDetails(recording models.CallRecording) map[string
 }
 
 // generateBasicTimingMetrics 基于现有数据生成基本的时间指标
-func generateBasicTimingMetrics(recording models.CallRecording) map[string]interface{} {
+func generateBasicTimingMetrics(recording svcmodels.CallRecording) map[string]interface{} {
 	sessionDuration := int64(recording.Duration) * 1000 // 转换为毫秒
 
 	// 基于对话详情来统计调用次数和时间

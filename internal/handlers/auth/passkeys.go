@@ -17,6 +17,7 @@
 package handlers
 
 import (
+	authmodel "github.com/LingByte/SoulNexus/internal/models/auth"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -27,7 +28,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	webauthnsvc "github.com/LingByte/SoulNexus/pkg/auth/webauthn"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/gin-gonic/gin"
@@ -68,17 +68,17 @@ func passkeyServiceFromEnv() (*webauthnsvc.Service, error) {
 	})
 }
 
-// passkeyUserAdapter 让 models.User + 已注册 Passkey 列表实现 webauthnsvc.User。
+// passkeyUserAdapter 让 authmodel.User + 已注册 Passkey 列表实现 webauthnsvc.User。
 type passkeyUserAdapter struct {
-	user        *models.User
+	user        *authmodel.User
 	credentials []webauthn.Credential
 }
 
-func newPasskeyUserAdapter(db *gorm.DB, user *models.User) (*passkeyUserAdapter, error) {
+func newPasskeyUserAdapter(db *gorm.DB, user *authmodel.User) (*passkeyUserAdapter, error) {
 	if user == nil {
 		return nil, errors.New("user nil")
 	}
-	rows, err := models.ListPasskeysForUser(db, user.ID)
+	rows, err := authmodel.ListPasskeysForUser(db, user.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -121,12 +121,12 @@ func (emptyPasskeyUser) WebAuthnCredentials() []webauthn.Credential { return nil
 
 // handleMeListPasskeys GET /api/me/passkeys
 func (h *Handlers) handleMeListPasskeys(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := authmodel.CurrentUser(c)
 	if user == nil {
 		response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("unauthorized"))
 		return
 	}
-	rows, err := models.ListPasskeysForUser(h.db, user.ID)
+	rows, err := authmodel.ListPasskeysForUser(h.db, user.ID)
 	if err != nil {
 		response.Fail(c, "list passkeys failed", err)
 		return
@@ -136,7 +136,7 @@ func (h *Handlers) handleMeListPasskeys(c *gin.Context) {
 
 // handleMePasskeyRegistrationBegin POST /api/me/passkeys/registration/begin
 func (h *Handlers) handleMePasskeyRegistrationBegin(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := authmodel.CurrentUser(c)
 	if user == nil {
 		response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("unauthorized"))
 		return
@@ -157,7 +157,7 @@ func (h *Handlers) handleMePasskeyRegistrationBegin(c *gin.Context) {
 		return
 	}
 	chid := uuid.NewString()
-	if err := models.SavePasskeyChallenge(h.db, &models.PasskeyChallenge{
+	if err := authmodel.SavePasskeyChallenge(h.db, &authmodel.PasskeyChallenge{
 		ID:          chid,
 		UserID:      user.ID,
 		Type:        "registration",
@@ -183,7 +183,7 @@ type passkeyRegistrationFinishReq struct {
 }
 
 func (h *Handlers) handleMePasskeyRegistrationFinish(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := authmodel.CurrentUser(c)
 	if user == nil {
 		response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("unauthorized"))
 		return
@@ -193,7 +193,7 @@ func (h *Handlers) handleMePasskeyRegistrationFinish(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, err)
 		return
 	}
-	ch, err := models.LoadPasskeyChallenge(h.db, req.SessionID)
+	ch, err := authmodel.LoadPasskeyChallenge(h.db, req.SessionID)
 	if err != nil {
 		response.AbortWithJSONError(c, http.StatusBadRequest, fmt.Errorf("invalid session: %w", err))
 		return
@@ -222,7 +222,7 @@ func (h *Handlers) handleMePasskeyRegistrationFinish(c *gin.Context) {
 		response.Fail(c, "marshal credential failed", err)
 		return
 	}
-	row := &models.Passkey{
+	row := &authmodel.Passkey{
 		UserID:          user.ID,
 		CredentialID:    base64.RawURLEncoding.EncodeToString(cred.ID),
 		PublicKey:       credBlob,
@@ -245,7 +245,7 @@ func (h *Handlers) handleMePasskeyRegistrationFinish(c *gin.Context) {
 
 // handleMeUpdatePasskey PUT /api/me/passkeys/:id
 func (h *Handlers) handleMeUpdatePasskey(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := authmodel.CurrentUser(c)
 	if user == nil {
 		response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("unauthorized"))
 		return
@@ -262,7 +262,7 @@ func (h *Handlers) handleMeUpdatePasskey(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, err)
 		return
 	}
-	res := h.db.Model(&models.Passkey{}).
+	res := h.db.Model(&authmodel.Passkey{}).
 		Where("id = ? AND user_id = ?", id, user.ID).
 		Update("nickname", strings.TrimSpace(req.Nickname))
 	if res.Error != nil {
@@ -278,7 +278,7 @@ func (h *Handlers) handleMeUpdatePasskey(c *gin.Context) {
 
 // handleMeDeletePasskey DELETE /api/me/passkeys/:id
 func (h *Handlers) handleMeDeletePasskey(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := authmodel.CurrentUser(c)
 	if user == nil {
 		response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("unauthorized"))
 		return
@@ -288,7 +288,7 @@ func (h *Handlers) handleMeDeletePasskey(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid id"))
 		return
 	}
-	if err := models.DeletePasskey(h.db, user.ID, uint(id)); err != nil {
+	if err := authmodel.DeletePasskey(h.db, user.ID, uint(id)); err != nil {
 		response.Fail(c, "delete passkey failed", err)
 		return
 	}
@@ -310,7 +310,7 @@ func (h *Handlers) handleAuthPasskeyBegin(c *gin.Context) {
 		return
 	}
 	chid := uuid.NewString()
-	if err := models.SavePasskeyChallenge(h.db, &models.PasskeyChallenge{
+	if err := authmodel.SavePasskeyChallenge(h.db, &authmodel.PasskeyChallenge{
 		ID:          chid,
 		UserID:      0,
 		Type:        "login",
@@ -340,7 +340,7 @@ func (h *Handlers) handleAuthPasskeyFinish(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, err)
 		return
 	}
-	ch, err := models.LoadPasskeyChallenge(h.db, req.SessionID)
+	ch, err := authmodel.LoadPasskeyChallenge(h.db, req.SessionID)
 	if err != nil || ch.Type != "login" {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid session"))
 		return
@@ -363,12 +363,12 @@ func (h *Handlers) handleAuthPasskeyFinish(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("missing credential id"))
 		return
 	}
-	row, err := models.FindPasskeyByCredentialID(h.db, credID)
+	row, err := authmodel.FindPasskeyByCredentialID(h.db, credID)
 	if err != nil {
 		response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("passkey not registered"))
 		return
 	}
-	user, err := models.GetUserByID(h.db, row.UserID)
+	user, err := authmodel.GetUserByID(h.db, row.UserID)
 	if err != nil || user == nil {
 		response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("user not found"))
 		return
@@ -391,7 +391,7 @@ func (h *Handlers) handleAuthPasskeyFinish(c *gin.Context) {
 	// 更新 sign_count + last used。
 	credBlob, _ := webauthnsvc.CredentialToBytes(cred)
 	now := time.Now()
-	_ = h.db.Model(&models.Passkey{}).Where("id = ?", row.ID).Updates(map[string]interface{}{
+	_ = h.db.Model(&authmodel.Passkey{}).Where("id = ?", row.ID).Updates(map[string]interface{}{
 		"public_key":   credBlob,
 		"sign_count":   cred.Authenticator.SignCount,
 		"last_used_at": &now,
@@ -399,7 +399,7 @@ func (h *Handlers) handleAuthPasskeyFinish(c *gin.Context) {
 	}).Error
 
 	// 写 session 并签 JWT（与密码登录路径一致）。
-	models.Login(c, user)
+	authmodel.Login(c, user)
 	if c.IsAborted() {
 		return
 	}

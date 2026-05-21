@@ -4,9 +4,9 @@ package workflowdef
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"fmt"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/events"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"go.uber.org/zap"
@@ -57,7 +57,7 @@ func (l *WorkflowEventListener) handleEvent(event events.Event) error {
 
 	// 为每个工作流触发执行
 	for _, wf := range workflows {
-		go func(workflow models.WorkflowDefinition) {
+		go func(workflow svcmodels.WorkflowDefinition) {
 			// 将事件数据作为参数传递给工作流
 			parameters := make(map[string]interface{})
 			parameters["_event_type"] = event.Type

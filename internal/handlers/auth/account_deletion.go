@@ -4,12 +4,13 @@ package handlers
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	authmodel "github.com/LingByte/SoulNexus/internal/models/auth"
+	"github.com/LingByte/SoulNexus/internal/modelbase"
 	"errors"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/notification"
@@ -21,15 +22,15 @@ import (
 )
 
 // loginBlockedByAccountDeletion 冷静期内阻止签发新的登录态（密码 / 邮箱登录等）。已响应则返回 true。
-func (h *Handlers) loginBlockedByAccountDeletion(c *gin.Context, db *gorm.DB, user *models.User) bool {
+func (h *Handlers) loginBlockedByAccountDeletion(c *gin.Context, db *gorm.DB, user *authmodel.User) bool {
 	if user == nil {
 		return false
 	}
-	var fresh models.User
-	if err := db.Where("id = ? AND is_deleted = ?", user.ID, models.SoftDeleteStatusActive).First(&fresh).Error; err != nil {
+	var fresh authmodel.User
+	if err := db.Where("id = ? AND is_deleted = ?", user.ID, modelbase.SoftDeleteStatusActive).First(&fresh).Error; err != nil {
 		return false
 	}
-	if !models.AccountDeletionPending(&fresh) {
+	if !authmodel.AccountDeletionPending(&fresh) {
 		return false
 	}
 	effective := ""
@@ -44,18 +45,18 @@ func (h *Handlers) loginBlockedByAccountDeletion(c *gin.Context, db *gorm.DB, us
 	return true
 }
 
-func verifyUserLoginPassword(user *models.User, password string) bool {
+func verifyUserLoginPassword(user *authmodel.User, password string) bool {
 	if user == nil || password == "" {
 		return false
 	}
 	if strings.Contains(password, ":") && len(strings.Split(password, ":")) == 4 {
-		return models.VerifyEncryptedPassword(password, user.Password)
+		return authmodel.VerifyEncryptedPassword(password, user.Password)
 	}
-	return models.CheckPassword(user, password)
+	return authmodel.CheckPassword(user, password)
 }
 
-func (h *Handlers) accountDeletionRiskFlags(c *gin.Context, db *gorm.DB, user *models.User) (accountLocked, remoteLoginRisk, recentSuspicious bool, err error) {
-	lock, err := models.GetAccountLock(db, user.Email, user.ID)
+func (h *Handlers) accountDeletionRiskFlags(c *gin.Context, db *gorm.DB, user *authmodel.User) (accountLocked, remoteLoginRisk, recentSuspicious bool, err error) {
+	lock, err := authmodel.GetAccountLock(db, user.Email, user.ID)
 	if err != nil {
 		return false, false, false, err
 	}
@@ -70,7 +71,7 @@ func (h *Handlers) accountDeletionRiskFlags(c *gin.Context, db *gorm.DB, user *m
 	}
 	if utils.GlobalLoginSecurityManager != nil {
 		getLocationsFunc := func(db *gorm.DB, userID uint, limit int) ([]utils.LoginLocation, error) {
-			histories, e := models.GetRecentLoginLocations(db, userID, limit)
+			histories, e := authmodel.GetRecentLoginLocations(db, userID, limit)
 			if e != nil {
 				return nil, e
 			}
@@ -83,7 +84,7 @@ func (h *Handlers) accountDeletionRiskFlags(c *gin.Context, db *gorm.DB, user *m
 		remoteLoginRisk, _ = utils.GlobalLoginSecurityManager.DetectSuspiciousLogin(db, user.ID, clientIP, location, country, getLocationsFunc)
 	}
 
-	recentSuspicious, err = models.HasRecentSuspiciousLogins(db, user.ID, 14*24*time.Hour)
+	recentSuspicious, err = authmodel.HasRecentSuspiciousLogins(db, user.ID, 14*24*time.Hour)
 	if err != nil {
 		return false, false, false, err
 	}
@@ -92,14 +93,14 @@ func (h *Handlers) accountDeletionRiskFlags(c *gin.Context, db *gorm.DB, user *m
 
 // handleAccountDeletionEligibility 注销前置：状态、风控、第三方绑定说明（文案由前端展示时可结合 warnings）。
 func (h *Handlers) handleAccountDeletionEligibility(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := authmodel.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "未登录", errors.New("unauthorized"))
 		return
 	}
 	db := c.MustGet(constants.DbField).(*gorm.DB)
-	var fresh models.User
-	if err := db.Where("id = ? AND is_deleted = ?", user.ID, models.SoftDeleteStatusActive).First(&fresh).Error; err != nil {
+	var fresh authmodel.User
+	if err := db.Where("id = ? AND is_deleted = ?", user.ID, modelbase.SoftDeleteStatusActive).First(&fresh).Error; err != nil {
 		response.Fail(c, "用户不存在", err)
 		return
 	}
@@ -109,8 +110,8 @@ func (h *Handlers) handleAccountDeletionEligibility(c *gin.Context) {
 		response.Fail(c, "风险检测失败", err)
 		return
 	}
-	reasons := models.AccountDeletionEligibilityReasons(db, &fresh, locked, remote, suspicious)
-	gh, wx := models.ThirdPartyBindings(&fresh)
+	reasons := authmodel.AccountDeletionEligibilityReasons(db, &fresh, locked, remote, suspicious)
+	gh, wx := authmodel.ThirdPartyBindings(&fresh)
 
 	warnings := []string{
 		"注销完成后数据永久不可恢复。",
@@ -127,15 +128,15 @@ func (h *Handlers) handleAccountDeletionEligibility(c *gin.Context) {
 		"remoteLoginRisk":            remote,
 		"recentSuspiciousLogins":     suspicious,
 		"warnings":                   warnings,
-		"cooldownHours":              int(models.DefaultAccountDeletionCooldown().Hours()),
-		"deletionPending":            models.AccountDeletionPending(&fresh),
+		"cooldownHours":              int(authmodel.DefaultAccountDeletionCooldown().Hours()),
+		"deletionPending":            authmodel.AccountDeletionPending(&fresh),
 		"accountDeletionEffectiveAt": fresh.AccountDeletionEffectiveAt,
 		"accountDeletionRequestedAt": fresh.AccountDeletionRequestedAt,
 	})
 }
 
 func (h *Handlers) handleAccountDeletionSendEmailCode(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := authmodel.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "未登录", errors.New("unauthorized"))
 		return
@@ -174,19 +175,19 @@ func (h *Handlers) handleAccountDeletionRequest(c *gin.Context) {
 		return
 	}
 
-	user := models.CurrentUser(c)
+	user := authmodel.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "未登录", errors.New("unauthorized"))
 		return
 	}
 	db := c.MustGet(constants.DbField).(*gorm.DB)
-	var fresh models.User
-	if err := db.Where("id = ? AND is_deleted = ?", user.ID, models.SoftDeleteStatusActive).First(&fresh).Error; err != nil {
+	var fresh authmodel.User
+	if err := db.Where("id = ? AND is_deleted = ?", user.ID, modelbase.SoftDeleteStatusActive).First(&fresh).Error; err != nil {
 		response.Fail(c, "用户不存在", err)
 		return
 	}
 
-	if models.AccountDeletionPending(&fresh) {
+	if authmodel.AccountDeletionPending(&fresh) {
 		response.Fail(c, "已处于注销冷静期", errors.New("already pending"))
 		return
 	}
@@ -209,7 +210,7 @@ func (h *Handlers) handleAccountDeletionRequest(c *gin.Context) {
 		response.Fail(c, "风险检测失败", err)
 		return
 	}
-	reasons := models.AccountDeletionEligibilityReasons(db, &fresh, locked, remote, suspicious)
+	reasons := authmodel.AccountDeletionEligibilityReasons(db, &fresh, locked, remote, suspicious)
 	if len(reasons) > 0 {
 		response.Fail(c, "当前不满足注销条件", gin.H{"reasons": reasons})
 		return
@@ -219,7 +220,7 @@ func (h *Handlers) handleAccountDeletionRequest(c *gin.Context) {
 	if operator == "" {
 		operator = "self"
 	}
-	if err := models.ScheduleAccountDeletion(db, fresh.ID, operator); err != nil {
+	if err := authmodel.ScheduleAccountDeletion(db, fresh.ID, operator); err != nil {
 		response.Fail(c, "申请注销失败", err)
 		return
 	}
@@ -240,18 +241,18 @@ func (h *Handlers) handleAccountDeletionCancel(c *gin.Context) {
 		return
 	}
 
-	user := models.CurrentUser(c)
+	user := authmodel.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "未登录", errors.New("unauthorized"))
 		return
 	}
 	db := c.MustGet(constants.DbField).(*gorm.DB)
-	var fresh models.User
-	if err := db.Where("id = ? AND is_deleted = ?", user.ID, models.SoftDeleteStatusActive).First(&fresh).Error; err != nil {
+	var fresh authmodel.User
+	if err := db.Where("id = ? AND is_deleted = ?", user.ID, modelbase.SoftDeleteStatusActive).First(&fresh).Error; err != nil {
 		response.Fail(c, "用户不存在", err)
 		return
 	}
-	if !models.AccountDeletionPending(&fresh) {
+	if !authmodel.AccountDeletionPending(&fresh) {
 		response.Fail(c, "当前没有进行中的注销申请", errors.New("not pending"))
 		return
 	}
@@ -268,7 +269,7 @@ func (h *Handlers) handleAccountDeletionCancel(c *gin.Context) {
 	if operator == "" {
 		operator = "self"
 	}
-	if err := models.CancelAccountDeletion(db, fresh.ID, operator); err != nil {
+	if err := authmodel.CancelAccountDeletion(db, fresh.ID, operator); err != nil {
 		response.Fail(c, "撤回失败", err)
 		return
 	}
@@ -286,17 +287,17 @@ func (h *Handlers) handleAccountDeletionSendCancelCode(c *gin.Context) {
 	}
 	email := strings.ToLower(strings.TrimSpace(form.Email))
 	db := c.MustGet(constants.DbField).(*gorm.DB)
-	user, err := models.GetUserByEmail(db, email)
+	user, err := authmodel.GetUserByEmail(db, email)
 	if err != nil || user == nil {
 		response.Success(c, "若该邮箱存在冷静期内的注销申请，将发送验证码", nil)
 		return
 	}
-	var fresh models.User
-	if err := db.Where("id = ? AND is_deleted = ?", user.ID, models.SoftDeleteStatusActive).First(&fresh).Error; err != nil {
+	var fresh authmodel.User
+	if err := db.Where("id = ? AND is_deleted = ?", user.ID, modelbase.SoftDeleteStatusActive).First(&fresh).Error; err != nil {
 		response.Success(c, "若该邮箱存在冷静期内的注销申请，将发送验证码", nil)
 		return
 	}
-	if !models.AccountDeletionPending(&fresh) {
+	if !authmodel.AccountDeletionPending(&fresh) {
 		response.Success(c, "若该邮箱存在冷静期内的注销申请，将发送验证码", nil)
 		return
 	}
@@ -329,17 +330,17 @@ func (h *Handlers) handleAccountDeletionCancelByEmail(c *gin.Context) {
 	}
 	email := strings.ToLower(strings.TrimSpace(form.Email))
 	db := c.MustGet(constants.DbField).(*gorm.DB)
-	user, err := models.GetUserByEmail(db, email)
+	user, err := authmodel.GetUserByEmail(db, email)
 	if err != nil || user == nil {
 		response.Fail(c, "邮箱或验证码不正确", errors.New("invalid"))
 		return
 	}
-	var fresh models.User
-	if err := db.Where("id = ? AND is_deleted = ?", user.ID, models.SoftDeleteStatusActive).First(&fresh).Error; err != nil {
+	var fresh authmodel.User
+	if err := db.Where("id = ? AND is_deleted = ?", user.ID, modelbase.SoftDeleteStatusActive).First(&fresh).Error; err != nil {
 		response.Fail(c, "邮箱或验证码不正确", errors.New("invalid"))
 		return
 	}
-	if !models.AccountDeletionPending(&fresh) {
+	if !authmodel.AccountDeletionPending(&fresh) {
 		response.Fail(c, "当前没有进行中的注销申请", errors.New("not pending"))
 		return
 	}
@@ -358,7 +359,7 @@ func (h *Handlers) handleAccountDeletionCancelByEmail(c *gin.Context) {
 	if operator == "" {
 		operator = "self"
 	}
-	if err := models.CancelAccountDeletion(db, fresh.ID, operator); err != nil {
+	if err := authmodel.CancelAccountDeletion(db, fresh.ID, operator); err != nil {
 		response.Fail(c, "撤回失败", err)
 		return
 	}
@@ -366,12 +367,12 @@ func (h *Handlers) handleAccountDeletionCancelByEmail(c *gin.Context) {
 }
 
 func (h *Handlers) handleUnbindGitHub(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := authmodel.CurrentUser(c)
 	if user == nil {
 		response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("unauthorized"))
 		return
 	}
-	if err := h.db.Model(&models.User{}).Where("id = ?", user.ID).Updates(map[string]any{
+	if err := h.db.Model(&authmodel.User{}).Where("id = ?", user.ID).Updates(map[string]any{
 		"github_id":    "",
 		"github_login": "",
 		"update_by":    strings.TrimSpace(user.Email),
@@ -383,12 +384,12 @@ func (h *Handlers) handleUnbindGitHub(c *gin.Context) {
 }
 
 func (h *Handlers) handleUnbindWechat(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := authmodel.CurrentUser(c)
 	if user == nil {
 		response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("unauthorized"))
 		return
 	}
-	if err := h.db.Model(&models.User{}).Where("id = ?", user.ID).Updates(map[string]any{
+	if err := h.db.Model(&authmodel.User{}).Where("id = ?", user.ID).Updates(map[string]any{
 		"wechat_open_id":  "",
 		"wechat_union_id": "",
 		"update_by":       strings.TrimSpace(user.Email),

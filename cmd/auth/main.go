@@ -7,6 +7,7 @@ package main
 // Uses the same database and config as the main API server until the schema is split.
 
 import (
+	"github.com/LingByte/SoulNexus/internal/modelbase"
 	"flag"
 	"log"
 	"net/http"
@@ -18,7 +19,6 @@ import (
 	"github.com/LingByte/SoulNexus/internal/config"
 	handlers "github.com/LingByte/SoulNexus/internal/handlers/auth"
 	"github.com/LingByte/SoulNexus/internal/listeners"
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/internal/schema"
 	"github.com/LingByte/SoulNexus/internal/task"
 	"github.com/LingByte/SoulNexus/pkg/constants"
@@ -170,7 +170,7 @@ func main() {
 	app.registerRoutes(r)
 
 	listeners.InitSystemListeners()
-	utils.Sig().Emit(models.SigInitSystemConfig, nil)
+	utils.Sig().Emit(modelbase.SigInitSystemConfig, nil)
 
 	task.StartAccountDeletionScheduler(db)
 

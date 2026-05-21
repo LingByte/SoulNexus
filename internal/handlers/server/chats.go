@@ -4,6 +4,8 @@ package server
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"github.com/LingByte/SoulNexus/internal/models/auth"
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -12,7 +14,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/voicedialog"
 	"github.com/gin-gonic/gin"
@@ -42,7 +43,7 @@ type ChatSessionMap struct {
 }
 
 func (h *Handlers) Chat(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User is not logged in.", nil)
 		return
@@ -54,7 +55,7 @@ func (h *Handlers) Chat(c *gin.Context) {
 		return
 	}
 
-	cred, err := models.GetUserCredentialByApiSecretAndApiKey(h.db, req.ApiKey, req.ApiSecret)
+	cred, err := auth.GetUserCredentialByApiSecretAndApiKey(h.db, req.ApiKey, req.ApiSecret)
 	if err != nil {
 		response.Fail(c, "Database error: "+err.Error(), nil)
 		return
@@ -90,7 +91,7 @@ func (h *Handlers) ChatStream(c *gin.Context) {
 
 func (h *Handlers) getChatSessionLog(c *gin.Context) {
 	// 获取当前登录用户
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User is not logged in.", nil)
 		return
@@ -118,7 +119,7 @@ func (h *Handlers) getChatSessionLog(c *gin.Context) {
 	}
 
 	// 使用新的模型方法获取聊天记录
-	logs, err := models.GetChatSessionLogs(h.db, user.ID, pageSizeInt, cursorID)
+	logs, err := svcmodels.GetChatSessionLogs(h.db, user.ID, pageSizeInt, cursorID)
 	if err != nil {
 		response.Fail(c, "Failed to fetch chat logs", err.Error())
 		return
@@ -140,7 +141,7 @@ func (h *Handlers) getChatSessionLog(c *gin.Context) {
 
 func (h *Handlers) getChatSessionLogDetail(c *gin.Context) {
 	// 获取当前登录用户
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User is not logged in.", nil)
 		return
@@ -162,7 +163,7 @@ func (h *Handlers) getChatSessionLogDetail(c *gin.Context) {
 	// 使用新的模型方法获取聊天记录详情
 	fmt.Printf("查询聊天记录详情: logID=%d, userID=%d\n", logID, user.ID)
 
-	detail, err := models.GetChatSessionLogDetail(h.db, logID, user.ID)
+	detail, err := svcmodels.GetChatSessionLogDetail(h.db, logID, user.ID)
 	if err != nil {
 		fmt.Printf("查询聊天记录详情失败: %v\n", err)
 		response.Fail(c, "Failed to fetch chat log", err.Error())
@@ -177,7 +178,7 @@ func (h *Handlers) getChatSessionLogDetail(c *gin.Context) {
 // getChatSessionLogsBySession 获取指定会话的所有聊天记录
 func (h *Handlers) getChatSessionLogsBySession(c *gin.Context) {
 	// 获取当前登录用户
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User is not logged in.", nil)
 		return
@@ -191,13 +192,13 @@ func (h *Handlers) getChatSessionLogsBySession(c *gin.Context) {
 	}
 
 	// 先确认 session 归属
-	var session models.ChatSession
+	var session svcmodels.ChatSession
 	if err := h.db.Where("id = ? AND user_id = ?", sessionID, fmt.Sprintf("%d", user.ID)).First(&session).Error; err != nil {
 		response.Fail(c, "Failed to fetch chat logs", err.Error())
 		return
 	}
 
-	var messages []models.ChatMessage
+	var messages []svcmodels.ChatMessage
 	if err := h.db.Where("session_id = ?", sessionID).Order("created_at ASC").Find(&messages).Error; err != nil {
 		response.Fail(c, "Failed to fetch chat logs", err.Error())
 		return
@@ -206,9 +207,9 @@ func (h *Handlers) getChatSessionLogsBySession(c *gin.Context) {
 	var agentName string
 	_ = h.db.Table("agents").Where("id = ?", session.AgentID).Select("name").Scan(&agentName)
 
-	var usages []models.LLMUsage
+	var usages []svcmodels.LLMUsage
 	_ = h.db.Where("session_id = ?", sessionID).Order("requested_at ASC, created_at ASC").Find(&usages).Error
-	usageByRequestID := make(map[string]models.LLMUsage, len(usages))
+	usageByRequestID := make(map[string]svcmodels.LLMUsage, len(usages))
 	for _, usage := range usages {
 		reqID := strings.TrimSpace(usage.RequestID)
 		if reqID != "" {
@@ -217,14 +218,14 @@ func (h *Handlers) getChatSessionLogsBySession(c *gin.Context) {
 	}
 	usageCursor := 0
 
-	details := make([]models.ChatSessionLogDetail, 0, len(messages))
+	details := make([]svcmodels.ChatSessionLogDetail, 0, len(messages))
 	for i := 0; i < len(messages); i++ {
 		if messages[i].Role != "user" {
 			continue
 		}
 		userMsg := messages[i]
 
-		var agentMsg *models.ChatMessage
+		var agentMsg *svcmodels.ChatMessage
 		for j := i + 1; j < len(messages); j++ {
 			if messages[j].Role == "assistant" {
 				agentMsg = &messages[j]
@@ -232,12 +233,12 @@ func (h *Handlers) getChatSessionLogsBySession(c *gin.Context) {
 			}
 		}
 
-		detail := models.ChatSessionLogDetail{
+		detail := svcmodels.ChatSessionLogDetail{
 			ID:          userMsg.CreatedAt.UnixMilli(),
 			SessionID:   sessionID,
 			AgentID:     session.AgentID,
 			AgentName:   agentName,
-			ChatType:    models.ChatTypeText,
+			ChatType:    svcmodels.ChatTypeText,
 			UserMessage: userMsg.Content,
 			CreatedAt:   userMsg.CreatedAt,
 			UpdatedAt:   userMsg.UpdatedAt,
@@ -267,7 +268,7 @@ func (h *Handlers) getChatSessionLogsBySession(c *gin.Context) {
 // getChatSessionLogByAgent returns chat logs for an agent
 func (h *Handlers) getChatSessionLogByAgent(c *gin.Context) {
 	// 获取当前登录用户
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User is not logged in.", nil)
 		return
@@ -306,12 +307,12 @@ func (h *Handlers) getChatSessionLogByAgent(c *gin.Context) {
 	}
 
 	// 使用新会话表查询并在内存中过滤助手
-	allLogs, err := models.GetChatSessionLogs(h.db, user.ID, pageSizeInt*5, cursorID)
+	allLogs, err := svcmodels.GetChatSessionLogs(h.db, user.ID, pageSizeInt*5, cursorID)
 	if err != nil {
 		response.Fail(c, "Failed to fetch chat logs", err.Error())
 		return
 	}
-	logs := make([]models.ChatSessionLogSummary, 0, pageSizeInt)
+	logs := make([]svcmodels.ChatSessionLogSummary, 0, pageSizeInt)
 	for _, item := range allLogs {
 		if item.AgentID == agentID {
 			logs = append(logs, item)
@@ -401,7 +402,7 @@ func (h *Handlers) handleConnection(c *gin.Context) {
 		return
 	}
 
-	cred, err := models.GetUserCredentialByApiSecretAndApiKey(h.db, apiKey, apiSecret)
+	cred, err := auth.GetUserCredentialByApiSecretAndApiKey(h.db, apiKey, apiSecret)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error: " + err.Error()})
 		c.Abort()
@@ -420,7 +421,7 @@ func (h *Handlers) handleConnection(c *gin.Context) {
 		return
 	}
 
-	var agent models.Agent
+	var agent svcmodels.Agent
 	if err := h.db.First(&agent, agentID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Agent not found"})
 		c.Abort()

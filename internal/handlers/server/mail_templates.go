@@ -4,10 +4,11 @@
 package server
 
 import (
+	"github.com/LingByte/SoulNexus/internal/models/auth"
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"errors"
 	"net/http"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/gin-gonic/gin"
@@ -40,12 +41,12 @@ func (h *Handlers) handleListMailTemplates(c *gin.Context) {
 	offset := (page - 1) * pageSize
 
 	orgID := notificationChannelOrgID(c)
-	total, err := models.CountMailTemplatesByOrg(h.db, orgID)
+	total, err := svcmodels.CountMailTemplatesByOrg(h.db, orgID)
 	if err != nil {
 		response.AbortWithStatusJSON(c, http.StatusInternalServerError, err)
 		return
 	}
-	list, err := models.ListMailTemplatesByOrg(h.db, orgID, offset, pageSize)
+	list, err := svcmodels.ListMailTemplatesByOrg(h.db, orgID, offset, pageSize)
 	if err != nil {
 		response.AbortWithStatusJSON(c, http.StatusInternalServerError, err)
 		return
@@ -66,7 +67,7 @@ func (h *Handlers) handleGetMailTemplate(c *gin.Context) {
 		return
 	}
 	orgID := notificationChannelOrgID(c)
-	tpl, err := models.GetMailTemplateByOrgAndID(h.db, orgID, id)
+	tpl, err := svcmodels.GetMailTemplateByOrgAndID(h.db, orgID, id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.AbortWithStatus(c, http.StatusNotFound)
@@ -84,9 +85,9 @@ func (h *Handlers) handleCreateMailTemplate(c *gin.Context) {
 		response.FailWithCode(c, http.StatusBadRequest, "参数错误", gin.H{"error": err.Error()})
 		return
 	}
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	orgID := notificationChannelOrgID(c)
-	tpl := models.MailTemplate{
+	tpl := svcmodels.MailTemplate{
 		OrgID:       orgID,
 		Code:        req.Code,
 		Name:        req.Name,
@@ -95,14 +96,14 @@ func (h *Handlers) handleCreateMailTemplate(c *gin.Context) {
 		Locale:      req.Locale,
 		Enabled:     true,
 	}
-	models.ApplyMailTemplateHTMLDerivedFields(&tpl, req.HTMLBody, req.Variables)
+	svcmodels.ApplyMailTemplateHTMLDerivedFields(&tpl, req.HTMLBody, req.Variables)
 	if req.Enabled != nil {
 		tpl.Enabled = *req.Enabled
 	}
 	if user != nil {
 		tpl.SetCreateInfo(user.Email)
 	}
-	if err := models.CreateMailTemplate(h.db, &tpl); err != nil {
+	if err := svcmodels.CreateMailTemplate(h.db, &tpl); err != nil {
 		response.AbortWithStatusJSON(c, http.StatusInternalServerError, err)
 		return
 	}
@@ -121,7 +122,7 @@ func (h *Handlers) handleUpdateMailTemplate(c *gin.Context) {
 		return
 	}
 	orgID := notificationChannelOrgID(c)
-	tpl, err := models.GetMailTemplateByOrgAndID(h.db, orgID, id)
+	tpl, err := svcmodels.GetMailTemplateByOrgAndID(h.db, orgID, id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.AbortWithStatus(c, http.StatusNotFound)
@@ -134,14 +135,14 @@ func (h *Handlers) handleUpdateMailTemplate(c *gin.Context) {
 	tpl.Subject = req.Subject
 	tpl.Description = req.Description
 	tpl.Locale = req.Locale
-	models.ApplyMailTemplateHTMLDerivedFields(tpl, req.HTMLBody, req.Variables)
+	svcmodels.ApplyMailTemplateHTMLDerivedFields(tpl, req.HTMLBody, req.Variables)
 	if req.Enabled != nil {
 		tpl.Enabled = *req.Enabled
 	}
-	if user := models.CurrentUser(c); user != nil {
+	if user := auth.CurrentUser(c); user != nil {
 		tpl.SetUpdateInfo(user.Email)
 	}
-	if err := models.SaveMailTemplate(h.db, tpl); err != nil {
+	if err := svcmodels.SaveMailTemplate(h.db, tpl); err != nil {
 		response.AbortWithStatusJSON(c, http.StatusInternalServerError, err)
 		return
 	}
@@ -155,7 +156,7 @@ func (h *Handlers) handleDeleteMailTemplate(c *gin.Context) {
 		return
 	}
 	orgID := notificationChannelOrgID(c)
-	n, err := models.DeleteMailTemplateByOrgAndID(h.db, orgID, id)
+	n, err := svcmodels.DeleteMailTemplateByOrgAndID(h.db, orgID, id)
 	if err != nil {
 		response.AbortWithStatusJSON(c, http.StatusInternalServerError, err)
 		return

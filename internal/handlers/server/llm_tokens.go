@@ -6,13 +6,13 @@
 package server
 
 import (
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"errors"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/gin-gonic/gin"
@@ -31,18 +31,18 @@ type adminLLMTokenWriteReq struct {
 	ExpiresAt      *string `json:"expires_at"` // RFC3339 / 空字符串清除
 }
 
-func (req *adminLLMTokenWriteReq) applyTo(row *models.LLMToken) error {
+func (req *adminLLMTokenWriteReq) applyTo(row *svcmodels.LLMToken) error {
 	row.Name = strings.TrimSpace(req.Name)
 	if req.UserID > 0 {
 		row.UserID = req.UserID
 	}
 	if t := strings.TrimSpace(req.Type); t != "" {
-		if !models.IsValidLLMTokenType(t) {
+		if !svcmodels.IsValidLLMTokenType(t) {
 			return errors.New("invalid type; expected llm/asr/tts")
 		}
-		row.Type = models.LLMTokenType(t)
+		row.Type = svcmodels.LLMTokenType(t)
 	} else if row.Type == "" {
-		row.Type = models.LLMTokenTypeLLM
+		row.Type = svcmodels.LLMTokenTypeLLM
 	}
 	row.Group = strings.TrimSpace(req.Group)
 	if row.Group == "" {
@@ -59,9 +59,9 @@ func (req *adminLLMTokenWriteReq) applyTo(row *models.LLMToken) error {
 		row.RequestQuota = *req.RequestQuota
 	}
 	if req.Status != "" {
-		switch models.LLMTokenStatus(req.Status) {
-		case models.LLMTokenStatusActive, models.LLMTokenStatusDisabled, models.LLMTokenStatusExpired:
-			row.Status = models.LLMTokenStatus(req.Status)
+		switch svcmodels.LLMTokenStatus(req.Status) {
+		case svcmodels.LLMTokenStatusActive, svcmodels.LLMTokenStatusDisabled, svcmodels.LLMTokenStatusExpired:
+			row.Status = svcmodels.LLMTokenStatus(req.Status)
 		default:
 			return errors.New("invalid status")
 		}
@@ -90,7 +90,7 @@ func maskLLMTokenAPIKey(k string) string {
 
 func (h *Handlers) handleAdminListLLMTokens(c *gin.Context) {
 	page, pageSize := utils.ParsePagination(c)
-	q := h.db.Model(&models.LLMToken{})
+	q := h.db.Model(&svcmodels.LLMToken{})
 	if uid := strings.TrimSpace(c.Query("user_id")); uid != "" {
 		if v, err := strconv.Atoi(uid); err == nil {
 			q = q.Where("user_id = ?", v)
@@ -111,7 +111,7 @@ func (h *Handlers) handleAdminListLLMTokens(c *gin.Context) {
 		response.Fail(c, "list tokens failed", err)
 		return
 	}
-	var rows []models.LLMToken
+	var rows []svcmodels.LLMToken
 	if err := q.Order("id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&rows).Error; err != nil {
 		response.Fail(c, "list tokens failed", err)
 		return
@@ -136,7 +136,7 @@ func (h *Handlers) handleAdminGetLLMToken(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid id"))
 		return
 	}
-	var row models.LLMToken
+	var row svcmodels.LLMToken
 	if err := h.db.First(&row, id).Error; err != nil {
 		response.Fail(c, "token not found", err)
 		return
@@ -154,12 +154,12 @@ func (h *Handlers) handleAdminCreateLLMToken(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("user_id is required"))
 		return
 	}
-	row := &models.LLMToken{Status: models.LLMTokenStatusActive}
+	row := &svcmodels.LLMToken{Status: svcmodels.LLMTokenStatusActive}
 	if err := req.applyTo(row); err != nil {
 		response.AbortWithJSONError(c, http.StatusBadRequest, err)
 		return
 	}
-	apiKey, err := models.GenerateLLMTokenAPIKey()
+	apiKey, err := svcmodels.GenerateLLMTokenAPIKey()
 	if err != nil {
 		response.Fail(c, "generate api key failed", err)
 		return
@@ -179,7 +179,7 @@ func (h *Handlers) handleAdminUpdateLLMToken(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid id"))
 		return
 	}
-	var row models.LLMToken
+	var row svcmodels.LLMToken
 	if err := h.db.First(&row, id).Error; err != nil {
 		response.Fail(c, "token not found", err)
 		return
@@ -206,12 +206,12 @@ func (h *Handlers) handleAdminRegenerateLLMToken(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid id"))
 		return
 	}
-	var row models.LLMToken
+	var row svcmodels.LLMToken
 	if err := h.db.First(&row, id).Error; err != nil {
 		response.Fail(c, "token not found", err)
 		return
 	}
-	apiKey, err := models.GenerateLLMTokenAPIKey()
+	apiKey, err := svcmodels.GenerateLLMTokenAPIKey()
 	if err != nil {
 		response.Fail(c, "generate api key failed", err)
 		return
@@ -230,7 +230,7 @@ func (h *Handlers) handleAdminResetLLMTokenUsage(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid id"))
 		return
 	}
-	if err := h.db.Model(&models.LLMToken{}).Where("id = ?", id).Updates(map[string]any{
+	if err := h.db.Model(&svcmodels.LLMToken{}).Where("id = ?", id).Updates(map[string]any{
 		"token_used":   0,
 		"quota_used":   0,
 		"request_used": 0,
@@ -247,7 +247,7 @@ func (h *Handlers) handleAdminDeleteLLMToken(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid id"))
 		return
 	}
-	if err := h.db.Delete(&models.LLMToken{}, id).Error; err != nil {
+	if err := h.db.Delete(&svcmodels.LLMToken{}, id).Error; err != nil {
 		response.Fail(c, "delete token failed", err)
 		return
 	}

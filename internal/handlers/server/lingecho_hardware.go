@@ -4,11 +4,12 @@ package server
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"github.com/LingByte/SoulNexus/internal/models/auth"
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"net/http"
 	"strconv"
 	"strings"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/utils"
@@ -26,9 +27,9 @@ const HeaderSoulnexusVoiceSecret = "X-Lingecho-Voice-Secret"
 // soulnexusHardwareSession holds everything needed for in-process hardware WS
 // (pkg/voice) or for exposing dialog-plane credentials to VoiceServer.
 type soulnexusHardwareSession struct {
-	Device               *models.Device
-	Assistant            models.Agent
-	Credential           *models.UserCredential
+	Device               *svcmodels.Device
+	Assistant            svcmodels.Agent
+	Credential           *auth.UserCredential
 	AssistantID          uint
 	Language             string
 	Speaker              string
@@ -48,7 +49,7 @@ func (h *Handlers) resolveSoulnexusHardwareSession(deviceID string) (*soulnexusH
 		return nil, http.StatusBadRequest, "缺少Device-Id参数"
 	}
 
-	device, err := models.GetDeviceByMacAddress(h.db, deviceID)
+	device, err := svcmodels.GetDeviceByMacAddress(h.db, deviceID)
 	if err != nil || device == nil {
 		return nil, http.StatusBadRequest, "设备未激活，请先激活设备"
 	}
@@ -57,7 +58,7 @@ func (h *Handlers) resolveSoulnexusHardwareSession(deviceID string) (*soulnexusH
 	}
 	assistantID := *device.AgentID
 
-	var assistant models.Agent
+	var assistant svcmodels.Agent
 	if err := h.db.Where("id = ?", assistantID).First(&assistant).Error; err != nil {
 		return nil, http.StatusBadRequest, "获取助手配置失败: " + err.Error()
 	}
@@ -68,7 +69,7 @@ func (h *Handlers) resolveSoulnexusHardwareSession(deviceID string) (*soulnexusH
 		return nil, http.StatusBadRequest, "助手未配置API凭证"
 	}
 
-	cred, err := models.GetUserCredentialByApiSecretAndApiKey(h.db, assistant.ApiKey, assistant.ApiSecret)
+	cred, err := auth.GetUserCredentialByApiSecretAndApiKey(h.db, assistant.ApiKey, assistant.ApiSecret)
 	if err != nil {
 		return nil, http.StatusInternalServerError, "获取凭证失败: " + err.Error()
 	}

@@ -12,10 +12,11 @@
 package server
 
 import (
+	"github.com/LingByte/SoulNexus/internal/models/auth"
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"errors"
 	"net/http"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/gin-gonic/gin"
 )
@@ -33,13 +34,13 @@ type meOrgItem struct {
 //
 // 返回当前用户加入的全部组织（包含个人空间）。如果个人空间不存在自动创建。
 func (h *Handlers) handleMeListOrgs(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("unauthorized"))
 		return
 	}
 	// 确保 personal 存在
-	if _, err := models.EnsurePersonalGroupForUser(h.db, user.ID); err != nil {
+	if _, err := svcmodels.EnsurePersonalGroupForUser(h.db, user.ID); err != nil {
 		response.Fail(c, "ensure personal org failed", err)
 		return
 	}
@@ -70,7 +71,7 @@ func (h *Handlers) handleMeListOrgs(c *gin.Context) {
 			Type:       r.Type,
 			Avatar:     r.Avatar,
 			Role:       r.Role,
-			IsPersonal: r.Type == models.GroupTypePersonal,
+			IsPersonal: r.Type == svcmodels.GroupTypePersonal,
 		})
 	}
 	response.Success(c, "orgs fetched", gin.H{"items": out})

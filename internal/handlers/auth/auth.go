@@ -4,6 +4,8 @@ package handlers
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	authmodel "github.com/LingByte/SoulNexus/internal/models/auth"
+	"github.com/LingByte/SoulNexus/internal/modelbase"
 	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
@@ -31,7 +33,6 @@ import (
 
 	SoulNexus "github.com/LingByte/SoulNexus"
 	"github.com/LingByte/SoulNexus/internal/config"
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/middleware"
@@ -427,23 +428,23 @@ func authTokenTTLFromDB(db *gorm.DB, def time.Duration) time.Duration {
 	return d
 }
 
-func jwtRoleForToken(db *gorm.DB, user *models.User) string {
+func jwtRoleForToken(db *gorm.DB, user *authmodel.User) string {
 	if user == nil {
 		return ""
 	}
 	if len(user.RoleSlugs) > 0 {
-		return models.PrimaryJWTClaimRole(user.RoleSlugs)
+		return authmodel.PrimaryJWTClaimRole(user.RoleSlugs)
 	}
 	if db != nil && user.ID != 0 {
-		slugs, err := models.UserRoleSlugs(db, user.ID)
+		slugs, err := authmodel.UserRoleSlugs(db, user.ID)
 		if err == nil && len(slugs) > 0 {
-			return models.PrimaryJWTClaimRole(slugs)
+			return authmodel.PrimaryJWTClaimRole(slugs)
 		}
 	}
 	return ""
 }
 
-func buildTokenPair(db *gorm.DB, user *models.User, accessTTL time.Duration) (string, string, error) {
+func buildTokenPair(db *gorm.DB, user *authmodel.User, accessTTL time.Duration) (string, string, error) {
 	if accessTTL <= 0 {
 		accessTTL = 24 * time.Hour
 	}
@@ -452,7 +453,7 @@ func buildTokenPair(db *gorm.DB, user *models.User, accessTTL time.Duration) (st
 		return "", "", errors.New("jwt key manager not initialized")
 	}
 	roleClaim := jwtRoleForToken(db, user)
-	perms, _ := models.EffectivePermissionKeys(db, user.ID)
+	perms, _ := authmodel.EffectivePermissionKeys(db, user.ID)
 
 	accessToken, err := utils.SignAccessTokenWithKey(utils.AccessPayload{
 		UserID: user.ID,
@@ -623,12 +624,12 @@ func sendWechatReplyText(c *gin.Context, toUser, fromUser, text string) {
 	c.String(http.StatusOK, reply)
 }
 
-func (h *Handlers) findOrCreateWechatUser(openID string, info *wechatUserInfoResp) (*models.User, error) {
+func (h *Handlers) findOrCreateWechatUser(openID string, info *wechatUserInfoResp) (*authmodel.User, error) {
 	if openID == "" {
 		return nil, errors.New("empty openid")
 	}
 
-	var user models.User
+	var user authmodel.User
 	if err := h.db.Where("wechat_open_id = ?", openID).First(&user).Error; err == nil {
 		updates := map[string]any{
 			"wechat_union_id": info.UnionID,
@@ -637,7 +638,7 @@ func (h *Handlers) findOrCreateWechatUser(openID string, info *wechatUserInfoRes
 			logger.Warn("failed to update existing wechat fields, continue login", zap.Error(updateErr))
 		}
 		if info.HeadImg != "" {
-			if perr := models.UpdateUserProfileFields(h.db, user.ID, map[string]any{"avatar": info.HeadImg}); perr != nil {
+			if perr := authmodel.UpdateUserProfileFields(h.db, user.ID, map[string]any{"avatar": info.HeadImg}); perr != nil {
 				logger.Warn("failed to update wechat avatar on profile", zap.Error(perr))
 			}
 		}
@@ -656,10 +657,10 @@ func (h *Handlers) findOrCreateWechatUser(openID string, info *wechatUserInfoRes
 	displayName := fmt.Sprintf("%s_%s", nickname, suffix)
 	email := fmt.Sprintf("wechat_%s@temp.local", suffix)
 	password := newWechatSessionID()
-	created, err := models.CreateUserByEmailWithMeta(h.db, displayName, displayName, email, password, models.UserSourceWechat, models.UserStatusActive)
+	created, err := authmodel.CreateUserByEmailWithMeta(h.db, displayName, displayName, email, password, authmodel.UserSourceWechat, authmodel.UserStatusActive)
 	if err != nil {
 		email = fmt.Sprintf("wechat_%d@temp.local", time.Now().UnixNano())
-		created, err = models.CreateUserByEmailWithMeta(h.db, displayName, displayName, email, password, models.UserSourceWechat, models.UserStatusActive)
+		created, err = authmodel.CreateUserByEmailWithMeta(h.db, displayName, displayName, email, password, authmodel.UserSourceWechat, authmodel.UserStatusActive)
 		if err != nil {
 			return nil, err
 		}
@@ -675,18 +676,18 @@ func (h *Handlers) findOrCreateWechatUser(openID string, info *wechatUserInfoRes
 		logger.Warn("failed to persist wechat fields for new user, continue login", zap.Error(err))
 	}
 	if info.HeadImg != "" {
-		_ = models.UpdateUserProfileFields(h.db, created.ID, map[string]any{"avatar": info.HeadImg})
+		_ = authmodel.UpdateUserProfileFields(h.db, created.ID, map[string]any{"avatar": info.HeadImg})
 	}
 	_ = h.db.First(created, created.ID).Error
 	return created, nil
 }
 
-func (h *Handlers) findOrCreateGitHubUser(githubUser *githubUserResp, githubEmail string) (*models.User, error) {
+func (h *Handlers) findOrCreateGitHubUser(githubUser *githubUserResp, githubEmail string) (*authmodel.User, error) {
 	if githubUser == nil || githubUser.ID <= 0 {
 		return nil, errors.New("invalid github user")
 	}
 	githubID := strconv.FormatInt(githubUser.ID, 10)
-	var user models.User
+	var user authmodel.User
 	if err := h.db.Where("github_id = ?", githubID).First(&user).Error; err == nil {
 		updates := map[string]any{
 			"github_login": strings.TrimSpace(githubUser.Login),
@@ -695,7 +696,7 @@ func (h *Handlers) findOrCreateGitHubUser(githubUser *githubUserResp, githubEmai
 			logger.Warn("failed to update github user fields", zap.Error(updateErr))
 		}
 		if githubUser.AvatarURL != "" {
-			_ = models.UpdateUserProfileFields(h.db, user.ID, map[string]any{"avatar": githubUser.AvatarURL})
+			_ = authmodel.UpdateUserProfileFields(h.db, user.ID, map[string]any{"avatar": githubUser.AvatarURL})
 		}
 		_ = h.db.First(&user, user.ID).Error
 		return &user, nil
@@ -703,7 +704,7 @@ func (h *Handlers) findOrCreateGitHubUser(githubUser *githubUserResp, githubEmai
 
 	normalizedEmail := strings.ToLower(strings.TrimSpace(githubEmail))
 	if normalizedEmail != "" {
-		if existing, err := models.GetUserByEmail(h.db, normalizedEmail); err == nil && existing != nil {
+		if existing, err := authmodel.GetUserByEmail(h.db, normalizedEmail); err == nil && existing != nil {
 			updates := map[string]any{
 				"github_id":    githubID,
 				"github_login": strings.TrimSpace(githubUser.Login),
@@ -712,7 +713,7 @@ func (h *Handlers) findOrCreateGitHubUser(githubUser *githubUserResp, githubEmai
 				return nil, updateErr
 			}
 			if githubUser.AvatarURL != "" {
-				_ = models.UpdateUserProfileFields(h.db, existing.ID, map[string]any{"avatar": githubUser.AvatarURL})
+				_ = authmodel.UpdateUserProfileFields(h.db, existing.ID, map[string]any{"avatar": githubUser.AvatarURL})
 			}
 			_ = h.db.First(existing, existing.ID).Error
 			return existing, nil
@@ -731,10 +732,10 @@ func (h *Handlers) findOrCreateGitHubUser(githubUser *githubUserResp, githubEmai
 	}
 
 	password := newGitHubStateNonce()
-	created, err := models.CreateUserByEmailWithMeta(h.db, displayName, displayName, normalizedEmail, password, models.UserSourceGithub, models.UserStatusActive)
+	created, err := authmodel.CreateUserByEmailWithMeta(h.db, displayName, displayName, normalizedEmail, password, authmodel.UserSourceGithub, authmodel.UserStatusActive)
 	if err != nil {
 		normalizedEmail = fmt.Sprintf("github_%d@temp.local", time.Now().UnixNano())
-		created, err = models.CreateUserByEmailWithMeta(h.db, displayName, displayName, normalizedEmail, password, models.UserSourceGithub, models.UserStatusActive)
+		created, err = authmodel.CreateUserByEmailWithMeta(h.db, displayName, displayName, normalizedEmail, password, authmodel.UserSourceGithub, authmodel.UserStatusActive)
 		if err != nil {
 			return nil, err
 		}
@@ -747,19 +748,19 @@ func (h *Handlers) findOrCreateGitHubUser(githubUser *githubUserResp, githubEmai
 		logger.Warn("failed to persist github fields for new user", zap.Error(err))
 	}
 	if githubUser.AvatarURL != "" {
-		_ = models.UpdateUserProfileFields(h.db, created.ID, map[string]any{"avatar": githubUser.AvatarURL})
+		_ = authmodel.UpdateUserProfileFields(h.db, created.ID, map[string]any{"avatar": githubUser.AvatarURL})
 	}
 	_ = h.db.First(created, created.ID).Error
 	return created, nil
 }
 
 func (h *Handlers) finishWechatSessionSuccess(c *gin.Context, session *wechatLoginSession) (gin.H, error) {
-	user, err := models.GetUserByUID(h.db, session.UserID)
+	user, err := authmodel.GetUserByUID(h.db, session.UserID)
 	if err != nil || user == nil {
 		return nil, errors.New("wechat user is not bound")
 	}
-	var wxFresh models.User
-	if err := h.db.Where("id = ? AND is_deleted = ?", user.ID, models.SoftDeleteStatusActive).First(&wxFresh).Error; err == nil && models.AccountDeletionPending(&wxFresh) {
+	var wxFresh authmodel.User
+	if err := h.db.Where("id = ? AND is_deleted = ?", user.ID, modelbase.SoftDeleteStatusActive).First(&wxFresh).Error; err == nil && authmodel.AccountDeletionPending(&wxFresh) {
 		effective := ""
 		if wxFresh.AccountDeletionEffectiveAt != nil {
 			effective = wxFresh.AccountDeletionEffectiveAt.UTC().Format(time.RFC3339)
@@ -772,7 +773,7 @@ func (h *Handlers) finishWechatSessionSuccess(c *gin.Context, session *wechatLog
 			"message":                    "账号处于注销冷静期，暂无法登录。请使用撤销注销流程恢复。",
 		}, nil
 	}
-	models.Login(c, user)
+	authmodel.Login(c, user)
 	accessToken, refreshToken, err := buildTokenPair(h.db, user, 7*24*time.Hour)
 	if err != nil {
 		return nil, err
@@ -973,8 +974,8 @@ func (h *Handlers) handleWechatOAuthCallback(c *gin.Context) {
 // oidcUserFromContextOrSession resolves the user for GET /oidc/authorize.
 // Browser navigations do not send Authorization; after password login we only have a session cookie.
 // JWT-based CurrentUser reads gin context (set by AuthRequired), so we fall back to session uid here.
-func oidcUserFromContextOrSession(c *gin.Context) *models.User {
-	if u := models.CurrentUser(c); u != nil {
+func oidcUserFromContextOrSession(c *gin.Context) *authmodel.User {
+	if u := authmodel.CurrentUser(c); u != nil {
 		return u
 	}
 	session := sessions.Default(c)
@@ -1004,9 +1005,9 @@ func oidcUserFromContextOrSession(c *gin.Context) *models.User {
 	if uid == 0 {
 		return nil
 	}
-	return &models.User{
-		BaseModel: models.BaseModel{ID: uid},
-		Status:    models.UserStatusActive,
+	return &authmodel.User{
+		BaseModel: modelbase.BaseModel{ID: uid},
+		Status:    authmodel.UserStatusActive,
 	}
 }
 
@@ -1018,7 +1019,7 @@ func (h *Handlers) handleOIDCAuthorize(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("client_id and redirect_uri are required"))
 		return
 	}
-	oauthClient, err := models.GetEnabledOAuthClientByClientID(h.db, clientID)
+	oauthClient, err := authmodel.GetEnabledOAuthClientByClientID(h.db, clientID)
 	if err != nil {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid oauth client"))
 		return
@@ -1130,7 +1131,7 @@ func readOIDCTokenReq(c *gin.Context) oidcTokenReq {
 }
 
 func (h *Handlers) processOIDCTokenReq(c *gin.Context, req oidcTokenReq) {
-	oauthClient, err := models.GetEnabledOAuthClientByClientID(h.db, req.ClientID)
+	oauthClient, err := authmodel.GetEnabledOAuthClientByClientID(h.db, req.ClientID)
 	if err != nil {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid oauth client"))
 		return
@@ -1166,13 +1167,13 @@ func (h *Handlers) processOIDCTokenReq(c *gin.Context, req oidcTokenReq) {
 	codeData.Used = true
 	oidcAuthCodeStore.Unlock()
 
-	user, err := models.GetUserByUID(h.db, codeData.UserID)
+	user, err := authmodel.GetUserByUID(h.db, codeData.UserID)
 	if err != nil || user == nil {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("user not found"))
 		return
 	}
-	var oidcFresh models.User
-	if err := h.db.Where("id = ? AND is_deleted = ?", user.ID, models.SoftDeleteStatusActive).First(&oidcFresh).Error; err == nil && models.AccountDeletionPending(&oidcFresh) {
+	var oidcFresh authmodel.User
+	if err := h.db.Where("id = ? AND is_deleted = ?", user.ID, modelbase.SoftDeleteStatusActive).First(&oidcFresh).Error; err == nil && authmodel.AccountDeletionPending(&oidcFresh) {
 		effective := ""
 		if oidcFresh.AccountDeletionEffectiveAt != nil {
 			effective = oidcFresh.AccountDeletionEffectiveAt.UTC().Format(time.RFC3339)
@@ -1227,11 +1228,11 @@ func (h *Handlers) handleRefreshToken(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("invalid refresh token"))
 		return
 	}
-	user := &models.User{
-		BaseModel: models.BaseModel{ID: payload.UserID},
+	user := &authmodel.User{
+		BaseModel: modelbase.BaseModel{ID: payload.UserID},
 		Email:     payload.Email,
-		RoleSlugs: models.RoleSlugsFromJWTClaim(payload.Role),
-		Status:    models.UserStatusActive,
+		RoleSlugs: authmodel.RoleSlugsFromJWTClaim(payload.Role),
+		Status:    authmodel.UserStatusActive,
 	}
 	accessToken, refreshToken, err := buildTokenPair(h.db, user, 24*time.Hour)
 	if err != nil {
@@ -1263,7 +1264,7 @@ func (h *Handlers) handleGitHubLogin(c *gin.Context) {
 		ExpiresAt:    time.Now().Add(10 * time.Minute),
 	}
 	if strings.EqualFold(strings.TrimSpace(c.Query("bind")), "1") {
-		if u := models.CurrentUser(c); u != nil {
+		if u := authmodel.CurrentUser(c); u != nil {
 			stateData.BindUserID = u.ID
 		}
 	}
@@ -1390,7 +1391,7 @@ func (h *Handlers) handleGitHubCallback(c *gin.Context) {
 		return
 	}
 	if stateData.BindUserID > 0 {
-		bindUser, err := models.GetUserByUID(h.db, stateData.BindUserID)
+		bindUser, err := authmodel.GetUserByUID(h.db, stateData.BindUserID)
 		if err == nil && bindUser != nil {
 			newGithubID := strconv.FormatInt(githubUser.ID, 10)
 			redirectURL := strings.TrimSpace(stateData.RedirectURL)
@@ -1413,7 +1414,7 @@ func (h *Handlers) handleGitHubCallback(c *gin.Context) {
 				return
 			}
 			// A GitHub account can only belong to one local user.
-			var existing models.User
+			var existing authmodel.User
 			if findErr := h.db.Where("github_id = ?", newGithubID).First(&existing).Error; findErr == nil && existing.ID != bindUser.ID {
 				c.Redirect(http.StatusFound, buildBindRedirect("github_bound_other"))
 				return
@@ -1424,18 +1425,18 @@ func (h *Handlers) handleGitHubCallback(c *gin.Context) {
 			}
 			_ = h.db.Model(bindUser).Updates(updates).Error
 			if githubUser.AvatarURL != "" {
-				_ = models.UpdateUserProfileFields(h.db, bindUser.ID, map[string]any{"avatar": githubUser.AvatarURL})
+				_ = authmodel.UpdateUserProfileFields(h.db, bindUser.ID, map[string]any{"avatar": githubUser.AvatarURL})
 			}
 			c.Redirect(http.StatusFound, buildBindRedirect("github_ok"))
 			return
 		}
 	}
-	var ghFresh models.User
-	if err := h.db.Where("id = ? AND is_deleted = ?", user.ID, models.SoftDeleteStatusActive).First(&ghFresh).Error; err == nil && models.AccountDeletionPending(&ghFresh) {
+	var ghFresh authmodel.User
+	if err := h.db.Where("id = ? AND is_deleted = ?", user.ID, modelbase.SoftDeleteStatusActive).First(&ghFresh).Error; err == nil && authmodel.AccountDeletionPending(&ghFresh) {
 		c.Redirect(http.StatusFound, revokeAccountDeletionBrowserURL(c, user.Email))
 		return
 	}
-	models.Login(c, user)
+	authmodel.Login(c, user)
 	token, refreshToken, err := buildTokenPair(h.db, user, 7*24*time.Hour)
 	if err != nil {
 		response.AbortWithJSONError(c, http.StatusInternalServerError, err)
@@ -1464,7 +1465,7 @@ func (h *Handlers) handleGitHubCallback(c *gin.Context) {
 }
 
 func (h *Handlers) handleWechatBindCode(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := authmodel.CurrentUser(c)
 	if user == nil {
 		response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("authorization required"))
 		return
@@ -1493,7 +1494,7 @@ func (h *Handlers) handleWechatBindCode(c *gin.Context) {
 }
 
 func (h *Handlers) handleWechatBindStatus(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := authmodel.CurrentUser(c)
 	if user == nil {
 		response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("authorization required"))
 		return
@@ -1657,7 +1658,7 @@ func (h *Handlers) handleWechatLoginMessage(c *gin.Context) {
 			if bindMatched != nil {
 				bindMatched.OpenID = msg.FromUserName
 				// If the OpenID is already bound to another account, reject this bind.
-				var existing models.User
+				var existing authmodel.User
 				if err := h.db.Where("wechat_open_id = ?", msg.FromUserName).First(&existing).Error; err == nil && existing.ID != bindMatched.UserID {
 					bindMatched.Status = "failed"
 					bindMatched.Reason = "already_bound"
@@ -1686,7 +1687,7 @@ func (h *Handlers) handleWechatLoginMessage(c *gin.Context) {
 					}(); userInfoErr == nil && wechatUserInfo != nil && wechatUserInfo.UnionID != "" {
 						updates["wechat_union_id"] = wechatUserInfo.UnionID
 					}
-					if err := h.db.Model(&models.User{}).Where("id = ?", bindMatched.UserID).Updates(updates).Error; err != nil {
+					if err := h.db.Model(&authmodel.User{}).Where("id = ?", bindMatched.UserID).Updates(updates).Error; err != nil {
 						bindMatched.Status = "failed"
 						bindMatched.Reason = "bind_failed"
 					} else {
@@ -1794,9 +1795,9 @@ func (h *Handlers) handleWechatLoginMessage(c *gin.Context) {
 		}
 	}
 
-	var loginUser *models.User
+	var loginUser *authmodel.User
 	if bindEmail := strings.TrimSpace(os.Getenv("WECHAT_LOGIN_BIND_EMAIL")); bindEmail != "" {
-		if u, findErr := models.GetUserByEmail(h.db, bindEmail); findErr == nil && u != nil {
+		if u, findErr := authmodel.GetUserByEmail(h.db, bindEmail); findErr == nil && u != nil {
 			loginUser = u
 		}
 	}
@@ -1827,9 +1828,9 @@ func (h *Handlers) handleWechatLoginMessage(c *gin.Context) {
 
 // handleUserLogout handle user logout
 func (h *Handlers) handleUserLogout(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := authmodel.CurrentUser(c)
 	if user != nil {
-		models.Logout(c, user)
+		authmodel.Logout(c, user)
 	} else {
 		session := sessions.Default(c)
 		session.Delete(constants.UserField)
@@ -1845,21 +1846,21 @@ func (h *Handlers) handleUserLogout(c *gin.Context) {
 
 // handleUserInfo handle user info
 func (h *Handlers) handleUserInfo(c *gin.Context) {
-	ctxUser := models.CurrentUser(c)
+	ctxUser := authmodel.CurrentUser(c)
 	if ctxUser == nil {
 		response.AbortWithStatus(c, http.StatusUnauthorized)
 		return
 	}
 	db := c.MustGet(constants.DbField).(*gorm.DB)
-	user, err := models.GetUserByID(db, ctxUser.ID)
+	user, err := authmodel.GetUserByID(db, ctxUser.ID)
 	if err != nil || user == nil {
 		response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("user not found"))
 		return
 	}
-	if keys, err := models.EffectivePermissionKeys(db, user.ID); err == nil {
+	if keys, err := authmodel.EffectivePermissionKeys(db, user.ID); err == nil {
 		user.PermissionKeys = keys
 	}
-	if slugs, err := models.UserRoleSlugs(db, user.ID); err == nil {
+	if slugs, err := authmodel.UserRoleSlugs(db, user.ID); err == nil {
 		user.RoleSlugs = slugs
 	}
 	withToken := c.Query("with_token")
@@ -1886,7 +1887,7 @@ func (h *Handlers) handleUserInfo(c *gin.Context) {
 
 // handleUserSigninByEmail handle user signin by email
 func (h *Handlers) handleUserSigninByEmail(c *gin.Context) {
-	var form models.EmailOperatorForm
+	var form authmodel.EmailOperatorForm
 	if err := c.BindJSON(&form); err != nil {
 		response.AbortWithJSONError(c, http.StatusBadRequest, err)
 		return
@@ -1906,7 +1907,7 @@ func (h *Handlers) handleUserSigninByEmail(c *gin.Context) {
 	// 2. 账号锁定检查
 	if utils.GlobalLoginSecurityManager != nil {
 		checkLockFunc := func(db *gorm.DB, email string, userID uint) (*utils.AccountLockInfo, error) {
-			lock, err := models.GetAccountLock(db, email, userID)
+			lock, err := authmodel.GetAccountLock(db, email, userID)
 			if err != nil {
 				return nil, err
 			}
@@ -1930,7 +1931,7 @@ func (h *Handlers) handleUserSigninByEmail(c *gin.Context) {
 		if err != nil || !valid {
 			if utils.GlobalLoginSecurityManager != nil {
 				recordFunc := func(db *gorm.DB, email string, userID uint, ipAddress string, failedCount int) error {
-					_, err := models.CreateOrUpdateAccountLock(db, email, userID, ipAddress, failedCount)
+					_, err := authmodel.CreateOrUpdateAccountLock(db, email, userID, ipAddress, failedCount)
 					return err
 				}
 				utils.GlobalLoginSecurityManager.RecordFailedLogin(db, form.Email, 0, clientIP, recordFunc)
@@ -1947,11 +1948,11 @@ func (h *Handlers) handleUserSigninByEmail(c *gin.Context) {
 	}
 
 	// 4. 获取用户
-	user, err := models.GetUserByEmail(db, form.Email)
+	user, err := authmodel.GetUserByEmail(db, form.Email)
 	if err != nil {
 		if utils.GlobalLoginSecurityManager != nil {
 			recordFunc := func(db *gorm.DB, email string, userID uint, ipAddress string, failedCount int) error {
-				_, err := models.CreateOrUpdateAccountLock(db, email, userID, ipAddress, failedCount)
+				_, err := authmodel.CreateOrUpdateAccountLock(db, email, userID, ipAddress, failedCount)
 				return err
 			}
 			utils.GlobalLoginSecurityManager.RecordFailedLogin(db, form.Email, 0, clientIP, recordFunc)
@@ -1971,7 +1972,7 @@ func (h *Handlers) handleUserSigninByEmail(c *gin.Context) {
 	if !ok || cachedCode != form.Code {
 		if utils.GlobalLoginSecurityManager != nil {
 			recordFunc := func(db *gorm.DB, email string, userID uint, ipAddress string, failedCount int) error {
-				_, err := models.CreateOrUpdateAccountLock(db, email, userID, ipAddress, failedCount)
+				_, err := authmodel.CreateOrUpdateAccountLock(db, email, userID, ipAddress, failedCount)
 				return err
 			}
 			utils.GlobalLoginSecurityManager.RecordFailedLogin(db, form.Email, user.ID, clientIP, recordFunc)
@@ -1984,11 +1985,11 @@ func (h *Handlers) handleUserSigninByEmail(c *gin.Context) {
 	utils.GlobalCache.Remove(form.Email)
 
 	// 6. 检查用户是否允许登录（激活、启用等）
-	err = models.CheckUserAllowLogin(db, user)
+	err = authmodel.CheckUserAllowLogin(db, user)
 	if err != nil {
 		if utils.GlobalLoginSecurityManager != nil {
 			recordFunc := func(db *gorm.DB, email string, userID uint, ipAddress string, failedCount int) error {
-				_, err := models.CreateOrUpdateAccountLock(db, email, userID, ipAddress, failedCount)
+				_, err := authmodel.CreateOrUpdateAccountLock(db, email, userID, ipAddress, failedCount)
 				return err
 			}
 			utils.GlobalLoginSecurityManager.RecordFailedLogin(db, form.Email, user.ID, clientIP, recordFunc)
@@ -2011,7 +2012,7 @@ func (h *Handlers) handleUserSigninByEmail(c *gin.Context) {
 	isSuspicious := false
 	if utils.GlobalLoginSecurityManager != nil {
 		getLocationsFunc := func(db *gorm.DB, userID uint, limit int) ([]utils.LoginLocation, error) {
-			histories, err := models.GetRecentLoginLocations(db, userID, limit)
+			histories, err := authmodel.GetRecentLoginLocations(db, userID, limit)
 			if err != nil {
 				return nil, err
 			}
@@ -2039,7 +2040,7 @@ func (h *Handlers) handleUserSigninByEmail(c *gin.Context) {
 	deviceID := utils.GetDeviceID(userAgent, clientIP)
 
 	// 10. 检查设备信任状态
-	isTrusted, err := models.CheckDeviceTrust(db, user.ID, deviceID)
+	isTrusted, err := authmodel.CheckDeviceTrust(db, user.ID, deviceID)
 	if err != nil {
 		logger.Warn("Failed to check device trust", zap.Error(err))
 	}
@@ -2051,19 +2052,19 @@ func (h *Handlers) handleUserSigninByEmail(c *gin.Context) {
 		zap.Error(err))
 
 	// 11. 创建设备记录
-	if _, err := models.CreateOrUpdateUserDevice(db, user.ID, deviceID, fmt.Sprintf("%s on %s", browser, os), deviceType, os, browser, userAgent, clientIP, location); err != nil {
+	if _, err := authmodel.CreateOrUpdateUserDevice(db, user.ID, deviceID, fmt.Sprintf("%s on %s", browser, os), deviceType, os, browser, userAgent, clientIP, location); err != nil {
 		logger.Warn("Failed to create/update user device", zap.Error(err))
 	}
 
 	// 邮箱验证码本身已证明邮箱控制权：登录成功后信任该设备，避免每次都被当作新设备发告警/风控。
-	if err := models.TrustUserDevice(db, user.ID, deviceID); err != nil {
+	if err := authmodel.TrustUserDevice(db, user.ID, deviceID); err != nil {
 		logger.Warn("Failed to auto-trust device after email login", zap.Error(err), zap.Uint("userID", user.ID), zap.String("deviceID", deviceID))
 	} else {
 		isTrusted = true
 	}
 
 	// 12. 记录登录历史
-	if err := models.RecordLoginHistory(db, user.ID, form.Email, clientIP, location, country, city, userAgent, deviceID, "email", true, "", isSuspicious); err != nil {
+	if err := authmodel.RecordLoginHistory(db, user.ID, form.Email, clientIP, location, country, city, userAgent, deviceID, "email", true, "", isSuspicious); err != nil {
 		logger.Warn("Failed to record login history", zap.Error(err))
 	}
 
@@ -2104,7 +2105,7 @@ func (h *Handlers) handleUserSigninByEmail(c *gin.Context) {
 		// 删除最近7天的密码登录记录，给用户一个重新开始的机会
 		if err := db.Where("user_id = ? AND login_type = ? AND created_at > ?",
 			user.ID, "password", time.Now().AddDate(0, 0, -7)).
-			Delete(&models.LoginHistory{}).Error; err != nil {
+			Delete(&authmodel.LoginHistory{}).Error; err != nil {
 			logger.Warn("Failed to reset password login history", zap.Error(err))
 		} else {
 			logger.Info("Password login history reset after email verification",
@@ -2120,11 +2121,11 @@ func (h *Handlers) handleUserSigninByEmail(c *gin.Context) {
 
 	// 设置时区（如果有的话）
 	if form.Timezone != "" {
-		models.InTimezone(c, form.Timezone)
+		authmodel.InTimezone(c, form.Timezone)
 	}
 
 	// 登录用户，设置 Session
-	models.Login(c, user)
+	authmodel.Login(c, user)
 
 	// 检查是否被中止
 	if c.IsAborted() {
@@ -2132,7 +2133,7 @@ func (h *Handlers) handleUserSigninByEmail(c *gin.Context) {
 	}
 
 	// 重新从数据库加载用户信息，确保获取最新的LastLogin等信息
-	updatedUser, err := models.GetUserByUID(db, user.ID)
+	updatedUser, err := authmodel.GetUserByUID(db, user.ID)
 	if err != nil {
 		logger.Warn("Failed to reload user after login, using original user object", zap.Error(err))
 		updatedUser = user // 如果加载失败，使用原始user对象
@@ -2171,7 +2172,7 @@ func (h *Handlers) handleUserSigninByEmail(c *gin.Context) {
 
 // handleUserSignin handle user signin
 func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
-	var form models.LoginForm
+	var form authmodel.LoginForm
 	if err := c.BindJSON(&form); err != nil {
 		logger.Error("Failed to bind login form", zap.Error(err))
 		response.Fail(c, "login failed", err)
@@ -2204,7 +2205,7 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 	// 3. 账号锁定检查
 	if utils.GlobalLoginSecurityManager != nil {
 		checkLockFunc := func(db *gorm.DB, email string, userID uint) (*utils.AccountLockInfo, error) {
-			lock, err := models.GetAccountLock(db, email, userID)
+			lock, err := authmodel.GetAccountLock(db, email, userID)
 			if err != nil {
 				return nil, err
 			}
@@ -2235,16 +2236,16 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 	}
 
 	// 4. 获取用户
-	var user *models.User
+	var user *authmodel.User
 	var err error
 	if form.Password != "" {
-		user, err = models.GetUserByEmail(db, form.Email)
+		user, err = authmodel.GetUserByEmail(db, form.Email)
 		if err != nil {
 			logger.Warn("Login attempt with non-existent email", zap.String("email", form.Email), zap.String("ip", clientIP), zap.Error(err))
 			// 记录失败登录
 			if utils.GlobalLoginSecurityManager != nil {
 				recordFunc := func(db *gorm.DB, email string, userID uint, ipAddress string, failedCount int) error {
-					_, err := models.CreateOrUpdateAccountLock(db, email, userID, ipAddress, failedCount)
+					_, err := authmodel.CreateOrUpdateAccountLock(db, email, userID, ipAddress, failedCount)
 					return err
 				}
 				utils.GlobalLoginSecurityManager.RecordFailedLogin(db, form.Email, 0, clientIP, recordFunc)
@@ -2289,7 +2290,7 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 				// 明文密码在此路径一律被拒（安全加固：防中间人/日志泄露）。
 				passwordValid := false
 				if strings.Contains(form.Password, ":") && len(strings.Split(form.Password, ":")) == 4 {
-					passwordValid = models.VerifyEncryptedPassword(form.Password, user.Password)
+					passwordValid = authmodel.VerifyEncryptedPassword(form.Password, user.Password)
 				} else {
 					logger.Warn("login rejected: plaintext password submission is no longer accepted",
 						zap.String("email", form.Email), zap.Uint("userID", user.ID), zap.String("ip", clientIP))
@@ -2299,7 +2300,7 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 					logger.Warn("Login failed: incorrect password (email verification required)", zap.String("email", form.Email), zap.Uint("userID", user.ID), zap.String("ip", clientIP))
 					if utils.GlobalLoginSecurityManager != nil {
 						recordFunc := func(db *gorm.DB, email string, userID uint, ipAddress string, failedCount int) error {
-							_, err := models.CreateOrUpdateAccountLock(db, email, userID, ipAddress, failedCount)
+							_, err := authmodel.CreateOrUpdateAccountLock(db, email, userID, ipAddress, failedCount)
 							return err
 						}
 						utils.GlobalLoginSecurityManager.RecordFailedLogin(db, form.Email, user.ID, clientIP, recordFunc)
@@ -2325,7 +2326,7 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 				logger.Warn("Login failed: invalid captcha", zap.String("email", form.Email), zap.Uint("userID", user.ID), zap.String("ip", clientIP), zap.String("captchaID", form.CaptchaID), zap.Error(err))
 				if utils.GlobalLoginSecurityManager != nil {
 					recordFunc := func(db *gorm.DB, email string, userID uint, ipAddress string, failedCount int) error {
-						_, err := models.CreateOrUpdateAccountLock(db, email, userID, ipAddress, failedCount)
+						_, err := authmodel.CreateOrUpdateAccountLock(db, email, userID, ipAddress, failedCount)
 						return err
 					}
 					utils.GlobalLoginSecurityManager.RecordFailedLogin(db, form.Email, user.ID, clientIP, recordFunc)
@@ -2339,7 +2340,7 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 		// 明文密码在这里会被拒；老客户端必须升级。
 		passwordValid := false
 		if strings.Contains(form.Password, ":") && len(strings.Split(form.Password, ":")) == 4 {
-			passwordValid = models.VerifyEncryptedPassword(form.Password, user.Password)
+			passwordValid = authmodel.VerifyEncryptedPassword(form.Password, user.Password)
 		} else {
 			logger.Warn("login rejected: plaintext password submission is no longer accepted",
 				zap.String("email", form.Email), zap.Uint("userID", user.ID), zap.String("ip", clientIP))
@@ -2350,7 +2351,7 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 			// 记录失败登录
 			if utils.GlobalLoginSecurityManager != nil {
 				recordFunc := func(db *gorm.DB, email string, userID uint, ipAddress string, failedCount int) error {
-					_, err := models.CreateOrUpdateAccountLock(db, email, userID, ipAddress, failedCount)
+					_, err := authmodel.CreateOrUpdateAccountLock(db, email, userID, ipAddress, failedCount)
 					return err
 				}
 				utils.GlobalLoginSecurityManager.RecordFailedLogin(db, form.Email, user.ID, clientIP, recordFunc)
@@ -2370,7 +2371,7 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 			response.Fail(c, "login failed", errors.New("invalid auth token"))
 			return
 		}
-		user, err = models.GetUserByUID(db, p.UserID)
+		user, err = authmodel.GetUserByUID(db, p.UserID)
 		if err != nil {
 			logger.Warn("Login failed: user not found by auth token", zap.String("ip", clientIP), zap.Error(err))
 			response.Fail(c, "login failed", errors.New("user not found"))
@@ -2378,7 +2379,7 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 		}
 	}
 
-	err = models.CheckUserAllowLogin(db, user)
+	err = authmodel.CheckUserAllowLogin(db, user)
 	if err != nil {
 		logger.Warn("Login failed: user not allowed to login", zap.String("email", form.Email), zap.Uint("userID", user.ID), zap.String("ip", clientIP), zap.Error(err))
 		response.Fail(c, "user no authorization to login", err)
@@ -2416,7 +2417,7 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 	isSuspicious := false
 	if utils.GlobalLoginSecurityManager != nil {
 		getLocationsFunc := func(db *gorm.DB, userID uint, limit int) ([]utils.LoginLocation, error) {
-			histories, err := models.GetRecentLoginLocations(db, userID, limit)
+			histories, err := authmodel.GetRecentLoginLocations(db, userID, limit)
 			if err != nil {
 				return nil, err
 			}
@@ -2444,7 +2445,7 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 	deviceID := utils.GetDeviceID(userAgent, clientIP)
 
 	// 11. 检查设备信任状态
-	isTrusted, err := models.CheckDeviceTrust(db, user.ID, deviceID)
+	isTrusted, err := authmodel.CheckDeviceTrust(db, user.ID, deviceID)
 	if err != nil {
 		logger.Warn("Failed to check device trust", zap.Error(err))
 	}
@@ -2454,11 +2455,11 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 		// 仅当「异地 / 可疑登录」（基于历史登录国家与当前 IP 解析结果）才要求邮箱设备验证；
 		// 同区域内仅未信任设备时，密码+图形验证码通过后直接信任该 UA 设备，避免 IP 抖动反复弹验证。
 		if !isTokenLogin && isSuspicious {
-			if _, err := models.CreateOrUpdateUserDevice(db, user.ID, deviceID, fmt.Sprintf("%s on %s", browser, os), deviceType, os, browser, userAgent, clientIP, location); err != nil {
+			if _, err := authmodel.CreateOrUpdateUserDevice(db, user.ID, deviceID, fmt.Sprintf("%s on %s", browser, os), deviceType, os, browser, userAgent, clientIP, location); err != nil {
 				logger.Warn("Failed to create/update user device before verification", zap.Error(err))
 			}
 
-			if err := models.RecordLoginHistory(db, user.ID, form.Email, clientIP, location, country, city, userAgent, deviceID, "password", false, "suspicious location untrusted device", true); err != nil {
+			if err := authmodel.RecordLoginHistory(db, user.ID, form.Email, clientIP, location, country, city, userAgent, deviceID, "password", false, "suspicious location untrusted device", true); err != nil {
 				logger.Warn("Failed to record login history for untrusted device", zap.Error(err))
 			}
 
@@ -2478,10 +2479,10 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 		}
 
 		if !isTokenLogin && !isSuspicious {
-			if _, err := models.CreateOrUpdateUserDevice(db, user.ID, deviceID, fmt.Sprintf("%s on %s", browser, os), deviceType, os, browser, userAgent, clientIP, location); err != nil {
+			if _, err := authmodel.CreateOrUpdateUserDevice(db, user.ID, deviceID, fmt.Sprintf("%s on %s", browser, os), deviceType, os, browser, userAgent, clientIP, location); err != nil {
 				logger.Warn("Failed to create/update user device before auto-trust", zap.Error(err))
 			}
-			if err := models.TrustUserDevice(db, user.ID, deviceID); err != nil {
+			if err := authmodel.TrustUserDevice(db, user.ID, deviceID); err != nil {
 				logger.Warn("Failed to auto-trust device after password login", zap.Error(err), zap.Uint("userID", user.ID), zap.String("deviceID", deviceID))
 			} else {
 				isTrusted = true
@@ -2496,12 +2497,12 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 	}
 
 	// 12. 创建设备记录
-	if _, err := models.CreateOrUpdateUserDevice(db, user.ID, deviceID, fmt.Sprintf("%s on %s", browser, os), deviceType, os, browser, userAgent, clientIP, location); err != nil {
+	if _, err := authmodel.CreateOrUpdateUserDevice(db, user.ID, deviceID, fmt.Sprintf("%s on %s", browser, os), deviceType, os, browser, userAgent, clientIP, location); err != nil {
 		logger.Warn("Failed to create/update user device", zap.Error(err))
 	}
 
 	// 13. 记录登录历史
-	if err := models.RecordLoginHistory(db, user.ID, form.Email, clientIP, location, country, city, userAgent, deviceID, "password", true, "", isSuspicious); err != nil {
+	if err := authmodel.RecordLoginHistory(db, user.ID, form.Email, clientIP, location, country, city, userAgent, deviceID, "password", true, "", isSuspicious); err != nil {
 		logger.Warn("Failed to record login history", zap.Error(err))
 	}
 
@@ -2540,18 +2541,18 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 	}
 
 	if form.Timezone != "" {
-		models.InTimezone(c, form.Timezone)
+		authmodel.InTimezone(c, form.Timezone)
 	}
 
 	// 执行登录操作（设置session等）
-	models.Login(c, user)
+	authmodel.Login(c, user)
 
 	// 检查是否被中止（models.Login内部可能出错并中止请求）
 	if c.IsAborted() {
-		logger.Error("Login failed: models.Login aborted the request", zap.String("email", form.Email), zap.Uint("userID", user.ID), zap.String("ip", clientIP))
+		logger.Error("Login failed: authmodel.Login aborted the request", zap.String("email", form.Email), zap.Uint("userID", user.ID), zap.String("ip", clientIP))
 		return
 	}
-	updatedUser, err := models.GetUserByUID(db, user.ID)
+	updatedUser, err := authmodel.GetUserByUID(db, user.ID)
 	if err != nil {
 		logger.Warn("Failed to reload user after login, using original user object", zap.Error(err))
 		updatedUser = user // 如果加载失败，使用原始user对象
@@ -2585,7 +2586,7 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 
 // handleUserSignin handle user signin
 func (h *Handlers) handleUserSignin(c *gin.Context) {
-	var form models.LoginForm
+	var form authmodel.LoginForm
 	if err := c.BindJSON(&form); err != nil {
 		response.AbortWithJSONError(c, http.StatusBadRequest, err)
 		return
@@ -2602,15 +2603,15 @@ func (h *Handlers) handleUserSignin(c *gin.Context) {
 	}
 
 	db := c.MustGet(constants.DbField).(*gorm.DB)
-	var user *models.User
+	var user *authmodel.User
 	var err error
 	if form.Password != "" {
-		user, err = models.GetUserByEmail(db, form.Email)
+		user, err = authmodel.GetUserByEmail(db, form.Email)
 		if err != nil {
 			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("user not exists"))
 			return
 		}
-		if !models.CheckPassword(user, form.Password) {
+		if !authmodel.CheckPassword(user, form.Password) {
 			response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("unauthorized"))
 			return
 		}
@@ -2625,14 +2626,14 @@ func (h *Handlers) handleUserSignin(c *gin.Context) {
 			response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("invalid auth token"))
 			return
 		}
-		user, err = models.GetUserByUID(db, p.UserID)
+		user, err = authmodel.GetUserByUID(db, p.UserID)
 		if err != nil {
 			response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("user not found"))
 			return
 		}
 	}
 
-	err = models.CheckUserAllowLogin(db, user)
+	err = authmodel.CheckUserAllowLogin(db, user)
 	if err != nil {
 		response.AbortWithJSONError(c, http.StatusForbidden, err)
 		return
@@ -2662,14 +2663,14 @@ func (h *Handlers) handleUserSignin(c *gin.Context) {
 	}
 
 	if form.Timezone != "" {
-		models.InTimezone(c, form.Timezone)
+		authmodel.InTimezone(c, form.Timezone)
 	}
 
 	if h.loginBlockedByAccountDeletion(c, db, user) {
 		return
 	}
 
-	models.Login(c, user)
+	authmodel.Login(c, user)
 
 	if form.Remember {
 		expired := authTokenTTLFromDB(db, 7*24*time.Hour)
@@ -2689,7 +2690,7 @@ func (h *Handlers) handleUserSignin(c *gin.Context) {
 
 // handleUserSignup handle user signup
 func (h *Handlers) handleUserSignup(c *gin.Context) {
-	var form models.RegisterUserForm
+	var form authmodel.RegisterUserForm
 	if err := c.BindJSON(&form); err != nil {
 		response.AbortWithJSONError(c, http.StatusBadRequest, err)
 		return
@@ -2789,7 +2790,7 @@ func (h *Handlers) handleUserSignup(c *gin.Context) {
 	}
 
 	db := c.MustGet(constants.DbField).(*gorm.DB)
-	if models.IsExistsByEmail(db, form.Email) {
+	if authmodel.IsExistsByEmail(db, form.Email) {
 		if utils.GlobalRegistrationGuard != nil {
 			utils.GlobalRegistrationGuard.RecordRegistrationAttempt(clientIP, form.Email, false, "email already exists")
 		}
@@ -2807,7 +2808,7 @@ func (h *Handlers) handleUserSignup(c *gin.Context) {
 		passwordToStore = fmt.Sprintf("sha256$%s", passwordHash)
 	}
 
-	user, err := models.CreateUserWithMeta(db, form.Email, passwordToStore, models.NormalizeUserSource(form.Source), models.UserStatusActive)
+	user, err := authmodel.CreateUserWithMeta(db, form.Email, passwordToStore, authmodel.NormalizeUserSource(form.Source), authmodel.UserStatusActive)
 	if err != nil {
 		if utils.GlobalRegistrationGuard != nil {
 			utils.GlobalRegistrationGuard.RecordRegistrationAttempt(clientIP, form.Email, false, err.Error())
@@ -2830,7 +2831,7 @@ func (h *Handlers) handleUserSignup(c *gin.Context) {
 	user.LastLogin = &n
 	user.LastLoginIP = c.ClientIP()
 
-	if err = models.UpdateUserFields(db, user, coreVals); err != nil {
+	if err = authmodel.UpdateUserFields(db, user, coreVals); err != nil {
 		logger.Warn("update user fields fail id:", zap.Uint("userId", user.ID), zap.Any("vals", coreVals), zap.Error(err))
 	}
 
@@ -2845,7 +2846,7 @@ func (h *Handlers) handleUserSignup(c *gin.Context) {
 		profVals["last_name"] = form.LastName
 	}
 	if len(profVals) > 0 {
-		if err = models.UpdateUserProfileFields(db, user.ID, profVals); err != nil {
+		if err = authmodel.UpdateUserProfileFields(db, user.ID, profVals); err != nil {
 			logger.Warn("update user profile fail id:", zap.Uint("userId", user.ID), zap.Any("vals", profVals), zap.Error(err))
 		}
 	}
@@ -2857,11 +2858,11 @@ func (h *Handlers) handleUserSignup(c *gin.Context) {
 		uiVals["preferred_timezone"] = strings.TrimSpace(form.Timezone)
 	}
 	if len(uiVals) > 0 {
-		if err = models.UpdateUserFields(db, user, uiVals); err != nil {
+		if err = authmodel.UpdateUserFields(db, user, uiVals); err != nil {
 			logger.Warn("update user ui prefs fail", zap.Uint("userId", user.ID), zap.Error(err))
 		}
 	}
-	if ru, rerr := models.GetUserByID(db, user.ID); rerr == nil && ru != nil {
+	if ru, rerr := authmodel.GetUserByID(db, user.ID); rerr == nil && ru != nil {
 		user = ru
 	}
 
@@ -2872,18 +2873,18 @@ func (h *Handlers) handleUserSignup(c *gin.Context) {
 	}
 
 	// Check if user is allowed to login before auto-login
-	err = models.CheckUserAllowLogin(db, user)
+	err = authmodel.CheckUserAllowLogin(db, user)
 	if err != nil {
 		response.AbortWithJSONError(c, http.StatusForbidden, err)
 		return
 	}
-	models.Login(c, user) //Login now
+	authmodel.Login(c, user) //Login now
 	c.JSON(http.StatusOK, r)
 }
 
 // handleUserSignupByEmail email register email activation
 func (h *Handlers) handleUserSignupByEmail(c *gin.Context) {
-	var form models.EmailOperatorForm
+	var form authmodel.EmailOperatorForm
 	if err := c.BindJSON(&form); err != nil {
 		response.AbortWithJSONError(c, http.StatusBadRequest, err)
 		return
@@ -2953,7 +2954,7 @@ func (h *Handlers) handleUserSignupByEmail(c *gin.Context) {
 	}
 
 	db := c.MustGet(constants.DbField).(*gorm.DB)
-	if models.IsExistsByEmail(db, form.Email) {
+	if authmodel.IsExistsByEmail(db, form.Email) {
 		if utils.GlobalRegistrationGuard != nil {
 			utils.GlobalRegistrationGuard.RecordRegistrationAttempt(clientIP, form.Email, false, "email already exists")
 		}
@@ -2982,7 +2983,7 @@ func (h *Handlers) handleUserSignupByEmail(c *gin.Context) {
 		passwordToStore = fmt.Sprintf("sha256$%s", passwordHash)
 	}
 
-	user, err := models.CreateUserByEmailWithMeta(db, form.UserName, form.DisplayName, form.Email, passwordToStore, models.UserSourceSystem, models.UserStatusActive)
+	user, err := authmodel.CreateUserByEmailWithMeta(db, form.UserName, form.DisplayName, form.Email, passwordToStore, authmodel.UserSourceSystem, authmodel.UserStatusActive)
 	if err != nil {
 		if utils.GlobalRegistrationGuard != nil {
 			utils.GlobalRegistrationGuard.RecordRegistrationAttempt(clientIP, form.Email, false, err.Error())
@@ -3007,7 +3008,7 @@ func (h *Handlers) handleUserSignupByEmail(c *gin.Context) {
 		profVals["last_name"] = form.LastName
 	}
 	if len(profVals) > 0 {
-		if err = models.UpdateUserProfileFields(db, user.ID, profVals); err != nil {
+		if err = authmodel.UpdateUserProfileFields(db, user.ID, profVals); err != nil {
 			logger.Warn("update user profile fail id:", zap.Uint("userId", user.ID), zap.Any("vals", profVals), zap.Error(err))
 		}
 	}
@@ -3019,11 +3020,11 @@ func (h *Handlers) handleUserSignupByEmail(c *gin.Context) {
 		uiVals["preferred_timezone"] = strings.TrimSpace(form.Timezone)
 	}
 	if len(uiVals) > 0 {
-		if err = models.UpdateUserFields(db, user, uiVals); err != nil {
+		if err = authmodel.UpdateUserFields(db, user, uiVals); err != nil {
 			logger.Warn("update user ui prefs fail", zap.Uint("userId", user.ID), zap.Error(err))
 		}
 	}
-	if ru, rerr := models.GetUserByID(db, user.ID); rerr == nil && ru != nil {
+	if ru, rerr := authmodel.GetUserByID(db, user.ID); rerr == nil && ru != nil {
 		user = ru
 	}
 	utils.Sig().Emit(constants.SigUserCreate, user, db)
@@ -3033,13 +3034,13 @@ func (h *Handlers) handleUserSignupByEmail(c *gin.Context) {
 
 // handleUserUpdate Update User Info
 func (h *Handlers) handleUserUpdate(c *gin.Context) {
-	var req models.UpdateUserRequest
+	var req authmodel.UpdateUserRequest
 	if err := c.ShouldBind(&req); err != nil {
 		response.Fail(c, "Invalid request", err)
 		return
 	}
 
-	user := models.CurrentUser(c)
+	user := authmodel.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User not found", errors.New("user not found"))
 		return
@@ -3069,7 +3070,7 @@ func (h *Handlers) handleUserUpdate(c *gin.Context) {
 	if req.Timezone != "" {
 		coreVals["preferred_timezone"] = strings.TrimSpace(req.Timezone)
 	}
-	if tm := models.NormalizeThemeMode(req.ThemeMode); tm != "" {
+	if tm := authmodel.NormalizeThemeMode(req.ThemeMode); tm != "" {
 		coreVals["theme_mode"] = tm
 	}
 	if req.Gender != "" {
@@ -3094,20 +3095,20 @@ func (h *Handlers) handleUserUpdate(c *gin.Context) {
 
 	if len(coreVals) > 0 {
 		coreVals["update_by"] = operator
-		if err := models.UpdateUser(h.db, user, coreVals); err != nil {
+		if err := authmodel.UpdateUser(h.db, user, coreVals); err != nil {
 			response.Fail(c, "update user failed", err)
 			return
 		}
 	}
 	if len(profVals) > 0 {
-		if err := models.UpdateUserProfileFields(h.db, user.ID, profVals); err != nil {
+		if err := authmodel.UpdateUserProfileFields(h.db, user.ID, profVals); err != nil {
 			response.Fail(c, "update user profile failed", err)
 			return
 		}
 	}
 
 	// 重新获取更新后的用户信息
-	updatedUser, err := models.GetUserByUID(h.db, user.ID)
+	updatedUser, err := authmodel.GetUserByUID(h.db, user.ID)
 	if err != nil {
 		response.Fail(c, "failed to get updated user", err)
 		return
@@ -3118,12 +3119,12 @@ func (h *Handlers) handleUserUpdate(c *gin.Context) {
 
 // handleUserUpdate Update User Info
 func (h *Handlers) handleUserUpdateBasicInfo(c *gin.Context) {
-	var req models.UserBasicInfoUpdate
+	var req authmodel.UserBasicInfoUpdate
 	if err := c.ShouldBind(&req); err != nil {
 		response.Fail(c, "Invalid request", err)
 		return
 	}
-	user := models.CurrentUser(c)
+	user := authmodel.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User not found", errors.New("user not found"))
 		return
@@ -3146,7 +3147,7 @@ func (h *Handlers) handleUserUpdateBasicInfo(c *gin.Context) {
 		response.Success(c, "handle update user success", nil)
 		return
 	}
-	if err := models.UpdateUserProfileFields(h.db, user.ID, vals); err != nil {
+	if err := authmodel.UpdateUserProfileFields(h.db, user.ID, vals); err != nil {
 		response.Fail(c, "update user failed", err)
 		return
 	}
@@ -3175,12 +3176,12 @@ func (h *Handlers) handleUserUpdatePreferences(c *gin.Context) {
 		return
 	}
 
-	user := models.CurrentUser(c)
+	user := authmodel.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User not found", errors.New("user not found"))
 		return
 	}
-	if err := models.UpdateUserProfileFields(h.db, user.ID, vals); err != nil {
+	if err := authmodel.UpdateUserProfileFields(h.db, user.ID, vals); err != nil {
 		response.Fail(c, "update user failed", err)
 		return
 	}
@@ -3227,19 +3228,19 @@ func (h *Handlers) handleChangePassword(c *gin.Context) {
 		return
 	}
 
-	user := models.CurrentUser(c)
+	user := authmodel.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User not found", errors.New("user not found"))
 		return
 	}
 
-	if err := models.ChangePassword(h.db, user, oldPassword, form.NewPassword); err != nil {
+	if err := authmodel.ChangePassword(h.db, user, oldPassword, form.NewPassword); err != nil {
 		response.Fail(c, "Change password failed", err)
 		return
 	}
 
 	// 修改密码成功后强制下线，要求重新登录
-	models.Logout(c, user)
+	authmodel.Logout(c, user)
 	response.Success(c, "Password changed successfully", map[string]any{"logout": true})
 }
 
@@ -3270,7 +3271,7 @@ func (h *Handlers) handleChangePasswordByEmail(c *gin.Context) {
 		return
 	}
 
-	user := models.CurrentUser(c)
+	user := authmodel.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "用户未找到", errors.New("user not found"))
 		return
@@ -3293,7 +3294,7 @@ func (h *Handlers) handleChangePasswordByEmail(c *gin.Context) {
 	utils.GlobalCache.Remove(user.Email)
 
 	// 设置新密码（不验证旧密码）
-	err := models.SetPassword(h.db, user, form.NewPassword)
+	err := authmodel.SetPassword(h.db, user, form.NewPassword)
 	if err != nil {
 		response.Fail(c, "密码修改失败", err)
 		return
@@ -3301,7 +3302,7 @@ func (h *Handlers) handleChangePasswordByEmail(c *gin.Context) {
 
 	// 更新最后密码修改时间
 	now := time.Now()
-	err = models.UpdateUserFields(h.db, user, map[string]any{
+	err = authmodel.UpdateUserFields(h.db, user, map[string]any{
 		"LastPasswordChange": &now,
 	})
 	if err != nil {
@@ -3312,19 +3313,19 @@ func (h *Handlers) handleChangePasswordByEmail(c *gin.Context) {
 	user.LastPasswordChange = &now
 
 	// 修改密码成功后强制下线，要求重新登录
-	models.Logout(c, user)
+	authmodel.Logout(c, user)
 	response.Success(c, "密码修改成功", map[string]any{"logout": true})
 }
 
 // handleGetUserDevices 获取用户的登录设备列表
 func (h *Handlers) handleGetUserDevices(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := authmodel.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "用户未找到", errors.New("user not found"))
 		return
 	}
 
-	devices, err := models.GetUserLoginDevices(h.db, user.ID)
+	devices, err := authmodel.GetUserLoginDevices(h.db, user.ID)
 	if err != nil {
 		response.Fail(c, "获取设备列表失败", err)
 		return
@@ -3337,7 +3338,7 @@ func (h *Handlers) handleGetUserDevices(c *gin.Context) {
 
 // handleDeleteUserDevice 删除用户设备
 func (h *Handlers) handleDeleteUserDevice(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := authmodel.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "用户未找到", errors.New("user not found"))
 		return
@@ -3349,7 +3350,7 @@ func (h *Handlers) handleDeleteUserDevice(c *gin.Context) {
 		return
 	}
 
-	err := models.DeleteUserDevice(h.db, user.ID, deviceID)
+	err := authmodel.DeleteUserDevice(h.db, user.ID, deviceID)
 	if err != nil {
 		response.Fail(c, "删除设备失败", err)
 		return
@@ -3360,7 +3361,7 @@ func (h *Handlers) handleDeleteUserDevice(c *gin.Context) {
 
 // handleTrustUserDevice 信任用户设备
 func (h *Handlers) handleTrustUserDevice(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := authmodel.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "用户未找到", errors.New("user not found"))
 		return
@@ -3375,7 +3376,7 @@ func (h *Handlers) handleTrustUserDevice(c *gin.Context) {
 		return
 	}
 
-	err := models.TrustUserDevice(h.db, user.ID, form.DeviceID)
+	err := authmodel.TrustUserDevice(h.db, user.ID, form.DeviceID)
 	if err != nil {
 		response.Fail(c, "信任设备失败", err)
 		return
@@ -3386,7 +3387,7 @@ func (h *Handlers) handleTrustUserDevice(c *gin.Context) {
 
 // handleUntrustUserDevice 取消信任用户设备
 func (h *Handlers) handleUntrustUserDevice(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := authmodel.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "用户未找到", errors.New("user not found"))
 		return
@@ -3401,7 +3402,7 @@ func (h *Handlers) handleUntrustUserDevice(c *gin.Context) {
 		return
 	}
 
-	err := models.UntrustUserDevice(h.db, user.ID, form.DeviceID)
+	err := authmodel.UntrustUserDevice(h.db, user.ID, form.DeviceID)
 	if err != nil {
 		response.Fail(c, "取消信任设备失败", err)
 		return
@@ -3436,14 +3437,14 @@ func (h *Handlers) handleVerifyDeviceForLogin(c *gin.Context) {
 	utils.GlobalCache.Remove(form.Email + ":device_verify")
 
 	// 获取用户
-	user, err := models.GetUserByEmail(db, form.Email)
+	user, err := authmodel.GetUserByEmail(db, form.Email)
 	if err != nil {
 		response.Fail(c, "用户不存在", err)
 		return
 	}
 
 	// 信任设备
-	err = models.TrustUserDevice(db, user.ID, form.DeviceID)
+	err = authmodel.TrustUserDevice(db, user.ID, form.DeviceID)
 	if err != nil {
 		response.Fail(c, "信任设备失败", err)
 		return
@@ -3472,7 +3473,7 @@ func (h *Handlers) handleSendDeviceVerificationCode(c *gin.Context) {
 	db := c.MustGet(constants.DbField).(*gorm.DB)
 
 	// 验证用户存在
-	user, err := models.GetUserByEmail(db, form.Email)
+	user, err := authmodel.GetUserByEmail(db, form.Email)
 	if err != nil {
 		response.Fail(c, "用户不存在", err)
 		return
@@ -3510,13 +3511,13 @@ func (h *Handlers) handleResetPassword(c *gin.Context) {
 		return
 	}
 
-	user, err := models.GetUserByEmail(h.db, form.Email)
+	user, err := authmodel.GetUserByEmail(h.db, form.Email)
 	if err != nil {
 		response.Success(c, "If the email exists, a reset link has been sent", nil)
 		return
 	}
 
-	token, err := models.GeneratePasswordResetToken(h.db, user)
+	token, err := authmodel.GeneratePasswordResetToken(h.db, user)
 	if err != nil {
 		response.Fail(c, "Failed to generate reset token", err)
 		return
@@ -3540,13 +3541,13 @@ func (h *Handlers) handleResetPasswordConfirm(c *gin.Context) {
 		return
 	}
 
-	user, err := models.VerifyPasswordResetToken(h.db, form.Token)
+	user, err := authmodel.VerifyPasswordResetToken(h.db, form.Token)
 	if err != nil {
 		response.Fail(c, "Invalid or expired token", err)
 		return
 	}
 
-	err = models.ResetPassword(h.db, user, form.Password)
+	err = authmodel.ResetPassword(h.db, user, form.Password)
 	if err != nil {
 		response.Fail(c, "Reset password failed", err)
 		return
@@ -3563,7 +3564,7 @@ func (h *Handlers) handleVerifyEmail(c *gin.Context) {
 		return
 	}
 
-	user, err := models.VerifyEmail(h.db, token)
+	user, err := authmodel.VerifyEmail(h.db, token)
 	if err != nil {
 		response.Fail(c, "Invalid or expired token", err)
 		return
@@ -3574,12 +3575,12 @@ func (h *Handlers) handleVerifyEmail(c *gin.Context) {
 
 // handleSendEmailVerification 发送邮箱验证邮件
 func (h *Handlers) handleSendEmailVerification(c *gin.Context) {
-	ctxUser := models.CurrentUser(c)
+	ctxUser := authmodel.CurrentUser(c)
 	if ctxUser == nil {
 		response.Fail(c, "User not found", errors.New("user not found"))
 		return
 	}
-	user, err := models.GetUserByID(h.db, ctxUser.ID)
+	user, err := authmodel.GetUserByID(h.db, ctxUser.ID)
 	if err != nil || user == nil {
 		response.Fail(c, "User not found", err)
 		return
@@ -3595,7 +3596,7 @@ func (h *Handlers) handleSendEmailVerification(c *gin.Context) {
 		return
 	}
 
-	token, err := models.GenerateEmailVerifyToken(h.db, user)
+	token, err := authmodel.GenerateEmailVerifyToken(h.db, user)
 	if err != nil {
 		logger.Error("Failed to generate verification token", zap.Error(err))
 		response.Fail(c, "Failed to generate verification token", err)
@@ -3627,13 +3628,13 @@ func (h *Handlers) handleVerifyPhone(c *gin.Context) {
 		return
 	}
 
-	user := models.CurrentUser(c)
+	user := authmodel.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User not found", errors.New("user not found"))
 		return
 	}
 
-	err := models.VerifyPhone(h.db, user, form.Code)
+	err := authmodel.VerifyPhone(h.db, user, form.Code)
 	if err != nil {
 		response.Fail(c, "Invalid verification code", err)
 		return
@@ -3664,12 +3665,12 @@ func (h *Handlers) handleGetSalt(c *gin.Context) {
 
 // handleSendPhoneVerification 发送手机验证码
 func (h *Handlers) handleSendPhoneVerification(c *gin.Context) {
-	ctxUser := models.CurrentUser(c)
+	ctxUser := authmodel.CurrentUser(c)
 	if ctxUser == nil {
 		response.Fail(c, "User not found", errors.New("user not found"))
 		return
 	}
-	user, err := models.GetUserByID(h.db, ctxUser.ID)
+	user, err := authmodel.GetUserByID(h.db, ctxUser.ID)
 	if err != nil || user == nil {
 		response.Fail(c, "User not found", err)
 		return
@@ -3685,7 +3686,7 @@ func (h *Handlers) handleSendPhoneVerification(c *gin.Context) {
 		return
 	}
 
-	token, err := models.GeneratePhoneVerifyToken(h.db, user)
+	token, err := authmodel.GeneratePhoneVerifyToken(h.db, user)
 	if err != nil {
 		response.Fail(c, "Failed to generate verification code", err)
 		return
@@ -3707,13 +3708,13 @@ func (h *Handlers) handleUpdateNotificationSettings(c *gin.Context) {
 		return
 	}
 
-	user := models.CurrentUser(c)
+	user := authmodel.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User not found", errors.New("user not found"))
 		return
 	}
 
-	err := models.UpdateNotificationSettings(h.db, user, settings)
+	err := authmodel.UpdateNotificationSettings(h.db, user, settings)
 	if err != nil {
 		response.Fail(c, "Update notification settings failed", err)
 		return
@@ -3731,20 +3732,20 @@ func (h *Handlers) handleUpdateUserPreferences(c *gin.Context) {
 		return
 	}
 
-	user := models.CurrentUser(c)
+	user := authmodel.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User not found", errors.New("user not found"))
 		return
 	}
 
-	err := models.UpdatePreferences(h.db, user, preferences)
+	err := authmodel.UpdatePreferences(h.db, user, preferences)
 	if err != nil {
 		response.Fail(c, "Update preferences failed", err)
 		return
 	}
 
 	// 更新资料完整度
-	err = models.UpdateProfileComplete(h.db, user)
+	err = authmodel.UpdateProfileComplete(h.db, user)
 	if err != nil {
 		logger.Warn("Failed to update profile complete", zap.Error(err))
 	}
@@ -3754,12 +3755,12 @@ func (h *Handlers) handleUpdateUserPreferences(c *gin.Context) {
 
 // handleGetUserStats 获取用户统计信息
 func (h *Handlers) handleGetUserStats(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := authmodel.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User not found", errors.New("user not found"))
 		return
 	}
-	full, err := models.GetUserByID(h.db, user.ID)
+	full, err := authmodel.GetUserByID(h.db, user.ID)
 	if err != nil || full == nil {
 		response.Fail(c, "User not found", err)
 		return
@@ -3767,7 +3768,7 @@ func (h *Handlers) handleGetUserStats(c *gin.Context) {
 	user = full
 
 	// 更新资料完整度
-	err = models.UpdateProfileComplete(h.db, user)
+	err = authmodel.UpdateProfileComplete(h.db, user)
 	if err != nil {
 		logger.Warn("Failed to update profile complete", zap.Error(err))
 	}
@@ -3788,7 +3789,7 @@ func (h *Handlers) handleGetUserStats(c *gin.Context) {
 
 // handleUploadAvatar 处理用户头像上传
 func (h *Handlers) handleUploadAvatar(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := authmodel.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User not found", errors.New("user not found"))
 		return
@@ -3869,7 +3870,7 @@ func (h *Handlers) handleUploadAvatar(c *gin.Context) {
 		avatarURL = fmt.Sprintf("%s://%s%s", scheme, host, avatarURL)
 	}
 
-	err = models.UpdateUserProfileFields(h.db, user.ID, map[string]any{
+	err = authmodel.UpdateUserProfileFields(h.db, user.ID, map[string]any{
 		"avatar": avatarURL,
 	})
 	if err != nil {
@@ -3882,7 +3883,7 @@ func (h *Handlers) handleUploadAvatar(c *gin.Context) {
 	user.Profile.Avatar = avatarURL
 
 	// 更新资料完整度
-	err = models.UpdateProfileComplete(h.db, user)
+	err = authmodel.UpdateProfileComplete(h.db, user)
 	if err != nil {
 		logger.Warn("Failed to update profile complete", zap.Error(err))
 	}
@@ -3910,7 +3911,7 @@ func isDefaultAvatar(avatarURL string) bool {
 		strings.Contains(avatarURL, "gravatar")
 }
 
-func sendHashMail(db *gorm.DB, user *models.User, signame, expireKey, defaultExpired, clientIp, useragent string) {
+func sendHashMail(db *gorm.DB, user *authmodel.User, signame, expireKey, defaultExpired, clientIp, useragent string) {
 	d, err := time.ParseDuration(utils.GetValue(db, expireKey))
 	if err != nil {
 		d, _ = time.ParseDuration(defaultExpired)
@@ -3936,7 +3937,7 @@ func sendHashMail(db *gorm.DB, user *models.User, signame, expireKey, defaultExp
 
 // handleSendEmailCode Send Email Code
 func (h *Handlers) handleSendEmailCode(context *gin.Context) {
-	var req models.SendEmailVerifyEmail
+	var req authmodel.SendEmailVerifyEmail
 	if err := context.BindJSON(&req); err != nil {
 		response.AbortWithJSONError(context, http.StatusBadRequest, err)
 		return
@@ -3958,7 +3959,7 @@ func (h *Handlers) handleSendEmailCode(context *gin.Context) {
 
 // handleTwoFactorSetup 设置两步验证
 func (h *Handlers) handleTwoFactorSetup(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := authmodel.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User not found", errors.New("user not found"))
 		return
@@ -3977,7 +3978,7 @@ func (h *Handlers) handleTwoFactorSetup(c *gin.Context) {
 	}
 
 	// 保存密钥到数据库（不启用）
-	err = models.UpdateUser(h.db, user, map[string]interface{}{
+	err = authmodel.UpdateUser(h.db, user, map[string]interface{}{
 		"two_factor_secret": setup.Secret,
 	})
 	if err != nil {
@@ -4002,7 +4003,7 @@ func (h *Handlers) handleTwoFactorEnable(c *gin.Context) {
 		return
 	}
 
-	user := models.CurrentUser(c)
+	user := authmodel.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User not found", errors.New("user not found"))
 		return
@@ -4014,7 +4015,7 @@ func (h *Handlers) handleTwoFactorEnable(c *gin.Context) {
 	}
 
 	// 启用两步验证
-	err := models.UpdateUser(h.db, user, map[string]interface{}{
+	err := authmodel.UpdateUser(h.db, user, map[string]interface{}{
 		"two_factor_enabled": true,
 	})
 	if err != nil {
@@ -4035,7 +4036,7 @@ func (h *Handlers) handleTwoFactorDisable(c *gin.Context) {
 		return
 	}
 
-	user := models.CurrentUser(c)
+	user := authmodel.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User not found", errors.New("user not found"))
 		return
@@ -4047,7 +4048,7 @@ func (h *Handlers) handleTwoFactorDisable(c *gin.Context) {
 	}
 
 	// 禁用两步验证并清除密钥
-	err := models.UpdateUser(h.db, user, map[string]interface{}{
+	err := authmodel.UpdateUser(h.db, user, map[string]interface{}{
 		"two_factor_enabled": false,
 		"two_factor_secret":  "",
 	})
@@ -4061,7 +4062,7 @@ func (h *Handlers) handleTwoFactorDisable(c *gin.Context) {
 
 // handleTwoFactorStatus 获取两步验证状态
 func (h *Handlers) handleTwoFactorStatus(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := authmodel.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User not found", errors.New("user not found"))
 		return
@@ -4164,7 +4165,7 @@ func (h *Handlers) handleGetUserActivity(c *gin.Context) {
 		response.Fail(c, "User not found", errors.New("user not found"))
 		return
 	}
-	u := user.(*models.User)
+	u := user.(*authmodel.User)
 
 	if op := strings.TrimSpace(c.Query("operatorId")); op != "" {
 		opID, err := strconv.ParseUint(op, 10, 64)

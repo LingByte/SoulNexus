@@ -1,12 +1,13 @@
 package handlers
 
 import (
+	authmodel "github.com/LingByte/SoulNexus/internal/models/auth"
+	"github.com/LingByte/SoulNexus/internal/modelbase"
 	"errors"
 	"net/http"
 	"strconv"
 	"strings"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/gin-gonic/gin"
@@ -14,13 +15,13 @@ import (
 )
 
 type permissionListItem struct {
-	models.Permission
+	authmodel.Permission
 	RoleCount            int64 `json:"roleCount"`
 	DirectUserGrantCount int64 `json:"directUserGrantCount"`
 }
 
 func (h *Handlers) handleAdminListPermissions(c *gin.Context) {
-	base := h.db.Model(&models.Permission{}).Where("is_deleted = ?", models.SoftDeleteStatusActive)
+	base := h.db.Model(&authmodel.Permission{}).Where("is_deleted = ?", modelbase.SoftDeleteStatusActive)
 	if s := strings.TrimSpace(c.Query("search")); s != "" {
 		like := "%" + strings.ToLower(s) + "%"
 		base = base.Where("LOWER(`key`) LIKE ? OR LOWER(name) LIKE ?", like, like)
@@ -31,9 +32,9 @@ func (h *Handlers) handleAdminListPermissions(c *gin.Context) {
 	page, pageSize := utils.ParsePagination(c)
 	q := base.Session(&gorm.Session{})
 	if withRoles {
-		q = q.Preload("Roles", "is_deleted = ?", models.SoftDeleteStatusActive)
+		q = q.Preload("Roles", "is_deleted = ?", modelbase.SoftDeleteStatusActive)
 	}
-	var rows []models.Permission
+	var rows []authmodel.Permission
 	err := q.Order("`key` ASC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&rows).Error
 	if err != nil {
 		response.Fail(c, "list permissions failed", err)
@@ -97,7 +98,7 @@ func (h *Handlers) handleAdminCreatePermission(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("key and name required"))
 		return
 	}
-	p := models.Permission{
+	p := authmodel.Permission{
 		Key: req.Key, Name: req.Name, Description: req.Description, Resource: strings.TrimSpace(req.Resource),
 	}
 	p.SetCreateInfo(operatorEmail(c))
@@ -119,8 +120,8 @@ func (h *Handlers) handleAdminUpdatePermission(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, err)
 		return
 	}
-	var p models.Permission
-	if err = h.db.Where("id = ? AND is_deleted = ?", id, models.SoftDeleteStatusActive).First(&p).Error; err != nil {
+	var p authmodel.Permission
+	if err = h.db.Where("id = ? AND is_deleted = ?", id, modelbase.SoftDeleteStatusActive).First(&p).Error; err != nil {
 		response.Fail(c, "permission not found", err)
 		return
 	}
@@ -156,24 +157,24 @@ func (h *Handlers) handleAdminDeletePermission(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid id"))
 		return
 	}
-	var p models.Permission
-	if err = h.db.Where("id = ? AND is_deleted = ?", id, models.SoftDeleteStatusActive).First(&p).Error; err != nil {
+	var p authmodel.Permission
+	if err = h.db.Where("id = ? AND is_deleted = ?", id, modelbase.SoftDeleteStatusActive).First(&p).Error; err != nil {
 		response.Fail(c, "permission not found", err)
 		return
 	}
-	if p.Key == models.PermWildcard || p.Key == models.PermAdminAccess || p.Key == models.PermManageRoles {
+	if p.Key == authmodel.PermWildcard || p.Key == authmodel.PermAdminAccess || p.Key == authmodel.PermManageRoles {
 		response.AbortWithJSONError(c, http.StatusForbidden, errors.New("cannot delete core permission"))
 		return
 	}
 	op := operatorEmail(c)
 	if err = h.db.Model(&p).Updates(map[string]any{
-		"is_deleted": models.SoftDeleteStatusDeleted,
+		"is_deleted": modelbase.SoftDeleteStatusDeleted,
 		"update_by":  op,
 	}).Error; err != nil {
 		response.Fail(c, "delete failed", err)
 		return
 	}
-	_ = h.db.Where("permission_id = ?", id).Delete(&models.RolePermission{}).Error
-	_ = h.db.Where("permission_id = ?", id).Delete(&models.UserPermission{}).Error
+	_ = h.db.Where("permission_id = ?", id).Delete(&authmodel.RolePermission{}).Error
+	_ = h.db.Where("permission_id = ?", id).Delete(&authmodel.UserPermission{}).Error
 	response.Success(c, "deleted", nil)
 }

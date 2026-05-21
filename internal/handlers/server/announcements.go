@@ -1,13 +1,15 @@
 package server
 
 import (
+	"github.com/LingByte/SoulNexus/internal/models/auth"
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
+	"github.com/LingByte/SoulNexus/internal/modelbase"
 	"errors"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/gin-gonic/gin"
@@ -38,9 +40,9 @@ func parseAnnouncementTime(raw *string) (*time.Time, error) {
 func (h *Handlers) handleListAnnouncements(c *gin.Context) {
 	page, pageSize := utils.ParsePagination(c)
 	now := time.Now()
-	query := h.db.Model(&models.Announcement{}).
-		Where("is_deleted = ?", models.SoftDeleteStatusActive).
-		Where("status = ?", models.AnnouncementStatusPublished).
+	query := h.db.Model(&svcmodels.Announcement{}).
+		Where("is_deleted = ?", modelbase.SoftDeleteStatusActive).
+		Where("status = ?", svcmodels.AnnouncementStatusPublished).
 		Where("(publish_at IS NULL OR publish_at <= ?)", now).
 		Where("(expire_at IS NULL OR expire_at > ?)", now)
 
@@ -49,7 +51,7 @@ func (h *Handlers) handleListAnnouncements(c *gin.Context) {
 		response.Fail(c, "list announcements failed", err)
 		return
 	}
-	var items []models.Announcement
+	var items []svcmodels.Announcement
 	if err := query.Order("pinned DESC, publish_at DESC, created_at DESC").
 		Offset((page - 1) * pageSize).Limit(pageSize).Find(&items).Error; err != nil {
 		response.Fail(c, "list announcements failed", err)
@@ -70,8 +72,8 @@ func (h *Handlers) handleGetAnnouncement(c *gin.Context) {
 		return
 	}
 	now := time.Now()
-	var item models.Announcement
-	if err := h.db.Where("id = ? AND is_deleted = ? AND status = ?", id, models.SoftDeleteStatusActive, models.AnnouncementStatusPublished).
+	var item svcmodels.Announcement
+	if err := h.db.Where("id = ? AND is_deleted = ? AND status = ?", id, modelbase.SoftDeleteStatusActive, svcmodels.AnnouncementStatusPublished).
 		Where("(publish_at IS NULL OR publish_at <= ?)", now).
 		Where("(expire_at IS NULL OR expire_at > ?)", now).
 		First(&item).Error; err != nil {
@@ -85,9 +87,9 @@ func (h *Handlers) handleAdminListAnnouncements(c *gin.Context) {
 	page, pageSize := utils.ParsePagination(c)
 	status := strings.TrimSpace(c.Query("status"))
 	search := strings.TrimSpace(c.Query("search"))
-	query := h.db.Model(&models.Announcement{}).Where("is_deleted = ?", models.SoftDeleteStatusActive)
+	query := h.db.Model(&svcmodels.Announcement{}).Where("is_deleted = ?", modelbase.SoftDeleteStatusActive)
 	if status != "" {
-		query = query.Where("status = ?", models.NormalizeAnnouncementStatus(status))
+		query = query.Where("status = ?", svcmodels.NormalizeAnnouncementStatus(status))
 	}
 	if search != "" {
 		like := "%" + search + "%"
@@ -98,7 +100,7 @@ func (h *Handlers) handleAdminListAnnouncements(c *gin.Context) {
 		response.Fail(c, "list announcements failed", err)
 		return
 	}
-	var items []models.Announcement
+	var items []svcmodels.Announcement
 	if err := query.Order("pinned DESC, updated_at DESC, id DESC").
 		Offset((page - 1) * pageSize).Limit(pageSize).Find(&items).Error; err != nil {
 		response.Fail(c, "list announcements failed", err)
@@ -118,8 +120,8 @@ func (h *Handlers) handleAdminGetAnnouncement(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid announcement id"))
 		return
 	}
-	var item models.Announcement
-	if err := h.db.Where("id = ? AND is_deleted = ?", id, models.SoftDeleteStatusActive).First(&item).Error; err != nil {
+	var item svcmodels.Announcement
+	if err := h.db.Where("id = ? AND is_deleted = ?", id, modelbase.SoftDeleteStatusActive).First(&item).Error; err != nil {
 		response.Fail(c, "announcement not found", err)
 		return
 	}
@@ -156,20 +158,20 @@ func (h *Handlers) handleAdminCreateAnnouncement(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid expireAt format"))
 		return
 	}
-	admin := models.CurrentUser(c)
+	admin := auth.CurrentUser(c)
 	operator := "system"
 	if admin != nil && strings.TrimSpace(admin.Email) != "" {
 		operator = strings.TrimSpace(admin.Email)
 	}
-	item := models.Announcement{
+	item := svcmodels.Announcement{
 		Title:     title,
 		Summary:   strings.TrimSpace(req.Summary),
 		Content:   content,
-		Status:    models.NormalizeAnnouncementStatus(strings.TrimSpace(req.Status)),
+		Status:    svcmodels.NormalizeAnnouncementStatus(strings.TrimSpace(req.Status)),
 		Pinned:    req.Pinned != nil && *req.Pinned,
 		PublishAt: publishAt,
 		ExpireAt:  expireAt,
-		BaseModel: models.BaseModel{
+		BaseModel: modelbase.BaseModel{
 			CreateBy: operator,
 			UpdateBy: operator,
 		},
@@ -211,7 +213,7 @@ func (h *Handlers) handleAdminUpdateAnnouncement(c *gin.Context) {
 		updates["content"] = strings.TrimSpace(*req.Content)
 	}
 	if req.Status != nil {
-		updates["status"] = models.NormalizeAnnouncementStatus(strings.TrimSpace(*req.Status))
+		updates["status"] = svcmodels.NormalizeAnnouncementStatus(strings.TrimSpace(*req.Status))
 	}
 	if req.Pinned != nil {
 		updates["pinned"] = *req.Pinned
@@ -232,7 +234,7 @@ func (h *Handlers) handleAdminUpdateAnnouncement(c *gin.Context) {
 		}
 		updates["expire_at"] = expireAt
 	}
-	admin := models.CurrentUser(c)
+	admin := auth.CurrentUser(c)
 	if admin != nil && strings.TrimSpace(admin.Email) != "" {
 		updates["update_by"] = strings.TrimSpace(admin.Email)
 	}
@@ -240,8 +242,8 @@ func (h *Handlers) handleAdminUpdateAnnouncement(c *gin.Context) {
 		response.Success(c, "nothing changed", nil)
 		return
 	}
-	result := h.db.Model(&models.Announcement{}).
-		Where("id = ? AND is_deleted = ?", id, models.SoftDeleteStatusActive).
+	result := h.db.Model(&svcmodels.Announcement{}).
+		Where("id = ? AND is_deleted = ?", id, modelbase.SoftDeleteStatusActive).
 		Updates(updates)
 	if result.Error != nil {
 		response.Fail(c, "update announcement failed", result.Error)
@@ -251,7 +253,7 @@ func (h *Handlers) handleAdminUpdateAnnouncement(c *gin.Context) {
 		response.Fail(c, "announcement not found", errors.New("announcement not found"))
 		return
 	}
-	var item models.Announcement
+	var item svcmodels.Announcement
 	_ = h.db.First(&item, id).Error
 	response.Success(c, "announcement updated", item)
 }
@@ -264,15 +266,15 @@ func (h *Handlers) handleAdminPublishAnnouncement(c *gin.Context) {
 	}
 	now := time.Now()
 	updates := map[string]any{
-		"status":     models.AnnouncementStatusPublished,
+		"status":     svcmodels.AnnouncementStatusPublished,
 		"publish_at": &now,
 	}
-	admin := models.CurrentUser(c)
+	admin := auth.CurrentUser(c)
 	if admin != nil && strings.TrimSpace(admin.Email) != "" {
 		updates["update_by"] = strings.TrimSpace(admin.Email)
 	}
-	result := h.db.Model(&models.Announcement{}).
-		Where("id = ? AND is_deleted = ?", id, models.SoftDeleteStatusActive).
+	result := h.db.Model(&svcmodels.Announcement{}).
+		Where("id = ? AND is_deleted = ?", id, modelbase.SoftDeleteStatusActive).
 		Updates(updates)
 	if result.Error != nil {
 		response.Fail(c, "publish announcement failed", result.Error)
@@ -292,14 +294,14 @@ func (h *Handlers) handleAdminOfflineAnnouncement(c *gin.Context) {
 		return
 	}
 	updates := map[string]any{
-		"status": models.AnnouncementStatusOffline,
+		"status": svcmodels.AnnouncementStatusOffline,
 	}
-	admin := models.CurrentUser(c)
+	admin := auth.CurrentUser(c)
 	if admin != nil && strings.TrimSpace(admin.Email) != "" {
 		updates["update_by"] = strings.TrimSpace(admin.Email)
 	}
-	result := h.db.Model(&models.Announcement{}).
-		Where("id = ? AND is_deleted = ?", id, models.SoftDeleteStatusActive).
+	result := h.db.Model(&svcmodels.Announcement{}).
+		Where("id = ? AND is_deleted = ?", id, modelbase.SoftDeleteStatusActive).
 		Updates(updates)
 	if result.Error != nil {
 		response.Fail(c, "offline announcement failed", result.Error)
@@ -318,13 +320,13 @@ func (h *Handlers) handleAdminDeleteAnnouncement(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid announcement id"))
 		return
 	}
-	updates := map[string]any{"is_deleted": models.SoftDeleteStatusDeleted}
-	admin := models.CurrentUser(c)
+	updates := map[string]any{"is_deleted": modelbase.SoftDeleteStatusDeleted}
+	admin := auth.CurrentUser(c)
 	if admin != nil && strings.TrimSpace(admin.Email) != "" {
 		updates["update_by"] = strings.TrimSpace(admin.Email)
 	}
-	result := h.db.Model(&models.Announcement{}).
-		Where("id = ? AND is_deleted = ?", id, models.SoftDeleteStatusActive).
+	result := h.db.Model(&svcmodels.Announcement{}).
+		Where("id = ? AND is_deleted = ?", id, modelbase.SoftDeleteStatusActive).
 		Updates(updates)
 	if result.Error != nil {
 		response.Fail(c, "delete announcement failed", result.Error)

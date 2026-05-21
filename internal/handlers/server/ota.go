@@ -4,6 +4,7 @@ package server
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -17,7 +18,6 @@ import (
 	"time"
 
 	"github.com/LingByte/SoulNexus/internal/config"
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/response"
@@ -60,7 +60,7 @@ func (h *Handlers) HandleOTACheck(c *gin.Context) {
 	}
 
 	// Parse request body - lenient handling, allow connection even if JSON is incomplete
-	var req models.DeviceReportReq
+	var req svcmodels.DeviceReportReq
 	bodyBytes, _ := c.GetRawData()
 	if len(bodyBytes) > 0 {
 		// Try to parse JSON, but don't require all fields to be correct
@@ -71,11 +71,11 @@ func (h *Handlers) HandleOTACheck(c *gin.Context) {
 				zap.String("deviceID", deviceID),
 				zap.String("body", string(bodyBytes)))
 			// Create empty req object to ensure subsequent processing doesn't panic
-			req = models.DeviceReportReq{}
+			req = svcmodels.DeviceReportReq{}
 		}
 	} else {
 		// No request body, create empty req
-		req = models.DeviceReportReq{}
+		req = svcmodels.DeviceReportReq{}
 	}
 
 	// Build response - completely consistent with xiaozhi-esp32 flow
@@ -101,7 +101,7 @@ func (h *Handlers) HandleOTAActivate(c *gin.Context) {
 		return
 	}
 
-	device, err := models.GetDeviceByMacAddress(h.db, deviceID)
+	device, err := svcmodels.GetDeviceByMacAddress(h.db, deviceID)
 	if err != nil || device == nil {
 		c.Status(http.StatusAccepted)
 		return
@@ -139,21 +139,21 @@ func (h *Handlers) HandleOTAGet(c *gin.Context) {
 
 // buildOTAResponse builds the OTA response based on device status
 // Completely consistent with xiaozhi-esp32 activation code flow
-func (h *Handlers) buildOTAResponse(deviceID, clientID string, req *models.DeviceReportReq) *models.DeviceReportResp {
+func (h *Handlers) buildOTAResponse(deviceID, clientID string, req *svcmodels.DeviceReportReq) *svcmodels.DeviceReportResp {
 	_ = clientID // Reserved for future use
 	// Get timezone offset from config or use default
 	timezoneOffset := 8 * 60 // Default UTC+8 (in minutes)
-	resp := &models.DeviceReportResp{}
+	resp := &svcmodels.DeviceReportResp{}
 
 	// Build server time (consistent with xiaozhi-esp32 format)
 	now := time.Now()
-	resp.ServerTime = &models.ServerTime{
+	resp.ServerTime = &svcmodels.ServerTime{
 		Timestamp:      now.UnixMilli(),
 		TimezoneOffset: timezoneOffset,
 	}
 
 	// Check if device exists
-	device, err := models.GetDeviceByMacAddress(h.db, deviceID)
+	device, err := svcmodels.GetDeviceByMacAddress(h.db, deviceID)
 
 	if err != nil || device == nil {
 		// Device doesn't exist - generate activation code (completely consistent with xiaozhi-esp32)
@@ -165,7 +165,7 @@ func (h *Handlers) buildOTAResponse(deviceID, clientID string, req *models.Devic
 		if req.Application != nil && req.Application.Version != "" {
 			appVersion = req.Application.Version
 		}
-		resp.Firmware = &models.Firmware{
+		resp.Firmware = &svcmodels.Firmware{
 			Version: appVersion,
 			URL:     "NOT_ACTIVATED_FIRMWARE_THIS_IS_A_INVALID_URL", // Consistent with xiaozhi-esp32
 		}
@@ -176,7 +176,7 @@ func (h *Handlers) buildOTAResponse(deviceID, clientID string, req *models.Devic
 		if req.Application != nil {
 			device.AppVersion = req.Application.Version
 		}
-		models.UpdateDevice(h.db, device)
+		svcmodels.UpdateDevice(h.db, device)
 
 		// Only return firmware upgrade info when device is bound and autoUpdate is not 0
 		if device.AutoUpdate != 0 {
@@ -195,7 +195,7 @@ func (h *Handlers) buildOTAResponse(deviceID, clientID string, req *models.Devic
 			if req.Application != nil && req.Application.Version != "" {
 				appVersion = req.Application.Version
 			}
-			resp.Firmware = &models.Firmware{
+			resp.Firmware = &svcmodels.Firmware{
 				Version: appVersion,
 				URL:     "",
 			}
@@ -253,7 +253,7 @@ func (h *Handlers) buildOTAResponse(deviceID, clientID string, req *models.Devic
 			logger.Info("MQTT gateway configured, returning MQTT config", zap.String("deviceID", deviceID))
 		} else {
 			// MQTT is not configured, return WebSocket configuration (xiaozhi-esp32 behavior)
-			resp.Websocket = &models.Websocket{
+			resp.Websocket = &svcmodels.Websocket{
 				URL:   wsURL,
 				Token: "", // Can be generated if auth is enabled
 			}
@@ -268,7 +268,7 @@ func (h *Handlers) buildOTAResponse(deviceID, clientID string, req *models.Devic
 
 // buildActivation generates activation code (completely consistent with xiaozhi-esp32)
 // Uses local cache to store activation codes (via cache.GetGlobalCache(), defaults to local cache)
-func (h *Handlers) buildActivation(deviceID string, req *models.DeviceReportReq) *models.Activation {
+func (h *Handlers) buildActivation(deviceID string, req *svcmodels.DeviceReportReq) *svcmodels.Activation {
 	ctx := context.Background()
 	// Use global cache (defaults to local cache, configurable via CACHE_TYPE environment variable)
 	cacheClient := cache.GetGlobalCache()
@@ -286,7 +286,7 @@ func (h *Handlers) buildActivation(deviceID string, req *models.DeviceReportReq)
 		}
 	}
 
-	activation := &models.Activation{
+	activation := &svcmodels.Activation{
 		Challenge: deviceID,
 	}
 
@@ -363,7 +363,7 @@ func generateActivationCode() string {
 }
 
 // buildMQTTConfig builds MQTT configuration (completely consistent with xiaozhi-esp32)
-func (h *Handlers) buildMQTTConfig(deviceID string, groupId string) *models.MQTT {
+func (h *Handlers) buildMQTTConfig(deviceID string, groupId string) *svcmodels.MQTT {
 	// Build safe MAC address
 	macAddressSafe := strings.ReplaceAll(deviceID, ":", "_")
 	mqttClientID := fmt.Sprintf("%s@@@%s@@@%s", groupId, macAddressSafe, macAddressSafe)
@@ -383,7 +383,7 @@ func (h *Handlers) buildMQTTConfig(deviceID string, groupId string) *models.MQTT
 		password = generatePasswordSignature(content, signatureKey)
 	}
 
-	return &models.MQTT{
+	return &svcmodels.MQTT{
 		ClientID:       mqttClientID,
 		Username:       username,
 		Password:       password,
@@ -401,16 +401,16 @@ func generatePasswordSignature(content, secretKey string) string {
 }
 
 // getLatestFirmware gets the latest firmware for a board type
-func (h *Handlers) getLatestFirmware(boardType, currentVersion string) *models.Firmware {
+func (h *Handlers) getLatestFirmware(boardType, currentVersion string) *svcmodels.Firmware {
 	if boardType == "" {
 		boardType = "default"
 	}
 
 	// Get latest firmware from database
-	ota, err := models.GetLatestOTA(h.db, boardType)
+	ota, err := svcmodels.GetLatestOTA(h.db, boardType)
 	if err != nil || ota == nil {
 		// No firmware available, return current version
-		return &models.Firmware{
+		return &svcmodels.Firmware{
 			Version: currentVersion,
 			URL:     "",
 		}
@@ -419,14 +419,14 @@ func (h *Handlers) getLatestFirmware(boardType, currentVersion string) *models.F
 	// Check if new version is available
 	if ota.Version != currentVersion {
 		// New version available
-		return &models.Firmware{
+		return &svcmodels.Firmware{
 			Version: ota.Version,
 			URL:     ota.FirmwarePath,
 		}
 	}
 
 	// Same version, no update
-	return &models.Firmware{
+	return &svcmodels.Firmware{
 		Version: currentVersion,
 		URL:     "",
 	}

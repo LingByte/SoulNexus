@@ -4,12 +4,12 @@
 package listeners
 
 import (
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/notification/sms"
 	"gorm.io/gorm"
 )
@@ -25,8 +25,8 @@ func EnabledSMSChannels(db *gorm.DB, orgID uint) ([]sms.SenderChannel, error) {
 	if db == nil {
 		return nil, errors.New("nil db")
 	}
-	var rows []models.NotificationChannel
-	q := db.Where("type = ? AND enabled = ?", models.NotificationChannelTypeSMS, true)
+	var rows []svcmodels.NotificationChannel
+	q := db.Where("type = ? AND enabled = ?", svcmodels.NotificationChannelTypeSMS, true)
 	if orgID > 0 {
 		q = q.Where("org_id = ?", orgID)
 	} else {

@@ -4,13 +4,14 @@ package server
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"github.com/LingByte/SoulNexus/internal/models/auth"
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"context"
 	"fmt"
 	_ "net/http"
 	"strconv"
 	"time"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	jsPkg "github.com/LingByte/SoulNexus/pkg/js"
 	"github.com/LingByte/SoulNexus/pkg/logger"
@@ -29,36 +30,36 @@ func uintPtrIfNonZero(v uint) *uint {
 	return &v
 }
 
-func jsTemplateVisibleToUser(db *gorm.DB, userID uint, t *models.JSTemplate) bool {
+func jsTemplateVisibleToUser(db *gorm.DB, userID uint, t *svcmodels.JSTemplate) bool {
 	if t.Type == "default" {
 		return true
 	}
-	return models.UserIsGroupMember(db, userID, t.GroupID)
+	return svcmodels.UserIsGroupMember(db, userID, t.GroupID)
 }
 
-func jsTemplateMutableByUser(db *gorm.DB, userID uint, t *models.JSTemplate) bool {
+func jsTemplateMutableByUser(db *gorm.DB, userID uint, t *svcmodels.JSTemplate) bool {
 	if t.Type == "default" {
 		return false
 	}
-	return models.CanManageTenantResource(db, userID, t.GroupID, t.CreatedBy)
+	return svcmodels.CanManageTenantResource(db, userID, t.GroupID, t.CreatedBy)
 }
 
 // CreateJSTemplate creates JS template
 func (h *Handlers) CreateJSTemplate(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User not logged in", nil)
 		return
 	}
 
-	var template models.JSTemplate
+	var template svcmodels.JSTemplate
 	if err := c.ShouldBindJSON(&template); err != nil {
 		response.Fail(c, "Invalid parameters: "+err.Error(), nil)
 		return
 	}
 
 	if template.Type == "custom" {
-		gid, err := models.ResolveWriteGroupID(h.db, user.ID, uintPtrIfNonZero(template.GroupID))
+		gid, err := svcmodels.ResolveWriteGroupID(h.db, user.ID, uintPtrIfNonZero(template.GroupID))
 		if err != nil {
 			response.Fail(c, err.Error(), nil)
 			return
@@ -110,13 +111,13 @@ func (h *Handlers) CreateJSTemplate(c *gin.Context) {
 	}
 
 	db := c.MustGet(constants.DbField).(*gorm.DB)
-	if err := models.CreateJSTemplate(db, &template); err != nil {
+	if err := svcmodels.CreateJSTemplate(db, &template); err != nil {
 		response.Fail(c, "Failed to create template: "+err.Error(), nil)
 		return
 	}
 
 	// 创建初始版本记录
-	version := models.JSTemplateVersion{
+	version := svcmodels.JSTemplateVersion{
 		ID:         uuid.New().String(),
 		TemplateID: template.ID,
 		Version:    template.Version,
@@ -127,7 +128,7 @@ func (h *Handlers) CreateJSTemplate(c *gin.Context) {
 		ChangeNote: "初始版本",
 		CreatedBy:  user.ID,
 	}
-	if err := models.CreateJSTemplateVersion(db, &version); err != nil {
+	if err := svcmodels.CreateJSTemplateVersion(db, &version); err != nil {
 		logger.Warn("failed to create template version", zap.Error(err))
 		// 不阻止模板创建，只记录警告
 	}
@@ -140,13 +141,13 @@ func (h *Handlers) GetJSTemplate(c *gin.Context) {
 	id := c.Param("id")
 	db := c.MustGet(constants.DbField).(*gorm.DB)
 
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User not logged in", nil)
 		return
 	}
 
-	template, err := models.GetJSTemplateByID(db, id)
+	template, err := svcmodels.GetJSTemplateByID(db, id)
 	if err != nil {
 		response.Fail(c, "Template not found", nil)
 		return
@@ -165,7 +166,7 @@ func (h *Handlers) GetJSTemplateByName(c *gin.Context) {
 	name := c.Param("name")
 	db := c.MustGet(constants.DbField).(*gorm.DB)
 
-	templates, err := models.GetJSTemplatesByName(db, name)
+	templates, err := svcmodels.GetJSTemplatesByName(db, name)
 	if err != nil {
 		response.Fail(c, "Template not found", nil)
 		return
@@ -177,7 +178,7 @@ func (h *Handlers) GetJSTemplateByName(c *gin.Context) {
 // ListJSTemplates gets JS template list
 func (h *Handlers) ListJSTemplates(c *gin.Context) {
 	db := c.MustGet(constants.DbField).(*gorm.DB)
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User not logged in", nil)
 		return
@@ -200,13 +201,13 @@ func (h *Handlers) ListJSTemplates(c *gin.Context) {
 
 	offset := (pageInt - 1) * limitInt
 
-	groupIDs, gerr := models.MemberGroupIDs(h.db, userId)
+	groupIDs, gerr := svcmodels.MemberGroupIDs(h.db, userId)
 	if gerr != nil {
 		response.Fail(c, "Failed to get template list: "+gerr.Error(), nil)
 		return
 	}
 
-	var templates []models.JSTemplate
+	var templates []svcmodels.JSTemplate
 	query := db.Offset(offset).Limit(limitInt).Order("created_at DESC")
 	if len(groupIDs) > 0 {
 		query = query.Where("type = ? OR group_id IN ?", "default", groupIDs)
@@ -220,7 +221,7 @@ func (h *Handlers) ListJSTemplates(c *gin.Context) {
 	}
 
 	var total int64
-	countQuery := db.Model(&models.JSTemplate{})
+	countQuery := db.Model(&svcmodels.JSTemplate{})
 	if len(groupIDs) > 0 {
 		countQuery = countQuery.Where("type = ? OR group_id IN ?", "default", groupIDs)
 	} else {
@@ -245,13 +246,13 @@ func (h *Handlers) UpdateJSTemplate(c *gin.Context) {
 	db := c.MustGet(constants.DbField).(*gorm.DB)
 
 	// 检查模板是否存在
-	template, err := models.GetJSTemplateByID(db, id)
+	template, err := svcmodels.GetJSTemplateByID(db, id)
 	if err != nil {
 		response.Fail(c, "Template not found", nil)
 		return
 	}
 
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User not logged in", nil)
 		return
@@ -312,13 +313,13 @@ func (h *Handlers) UpdateJSTemplate(c *gin.Context) {
 	if groupIDVal, ok := updates["group_id"]; ok {
 		if groupIDVal != nil {
 			groupID := uint(groupIDVal.(float64))
-			var group models.Group
+			var group svcmodels.Group
 			if err := h.db.Where("id = ?", groupID).First(&group).Error; err != nil {
 				response.Fail(c, "Organization not found", nil)
 				return
 			}
 			if group.CreatorID != userId {
-				var member models.GroupMember
+				var member svcmodels.GroupMember
 				if err := h.db.Where("group_id = ? AND user_id = ?", groupID, userId).First(&member).Error; err != nil {
 					response.Fail(c, "Insufficient permissions", "You are not a member of this organization")
 					return
@@ -339,7 +340,7 @@ func (h *Handlers) UpdateJSTemplate(c *gin.Context) {
 	// 如果内容有变化，创建新版本
 	if content, ok := updates["content"].(string); ok && content != template.Content {
 		// 保存当前版本到历史
-		currentVersion := models.JSTemplateVersion{
+		currentVersion := svcmodels.JSTemplateVersion{
 			ID:         uuid.New().String(),
 			TemplateID: template.ID,
 			Version:    template.Version,
@@ -349,7 +350,7 @@ func (h *Handlers) UpdateJSTemplate(c *gin.Context) {
 			ChangeNote: changeNote,
 			CreatedBy:  user.ID,
 		}
-		if err := models.CreateJSTemplateVersion(db, &currentVersion); err != nil {
+		if err := svcmodels.CreateJSTemplateVersion(db, &currentVersion); err != nil {
 			logger.Warn("failed to save version history", zap.Error(err))
 		}
 
@@ -363,13 +364,13 @@ func (h *Handlers) UpdateJSTemplate(c *gin.Context) {
 	delete(updates, "created_by")
 	delete(updates, "created_at")
 
-	if err := models.UpdateJSTemplate(db, id, updates); err != nil {
+	if err := svcmodels.UpdateJSTemplate(db, id, updates); err != nil {
 		response.Fail(c, "Failed to update template: "+err.Error(), nil)
 		return
 	}
 
 	// Get updated template
-	updatedTemplate, err := models.GetJSTemplateByID(db, id)
+	updatedTemplate, err := svcmodels.GetJSTemplateByID(db, id)
 	if err != nil {
 		response.Fail(c, "Failed to get updated template: "+err.Error(), nil)
 		return
@@ -392,13 +393,13 @@ func (h *Handlers) DeleteJSTemplate(c *gin.Context) {
 	db := c.MustGet(constants.DbField).(*gorm.DB)
 
 	// 检查模板是否存在
-	template, err := models.GetJSTemplateByID(db, id)
+	template, err := svcmodels.GetJSTemplateByID(db, id)
 	if err != nil {
 		response.Fail(c, "Template not found", nil)
 		return
 	}
 
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User not logged in", nil)
 		return
@@ -414,7 +415,7 @@ func (h *Handlers) DeleteJSTemplate(c *gin.Context) {
 		return
 	}
 
-	if err := models.DeleteJSTemplate(db, id); err != nil {
+	if err := svcmodels.DeleteJSTemplate(db, id); err != nil {
 		response.Fail(c, "Failed to delete template: "+err.Error(), nil)
 		return
 	}
@@ -441,14 +442,14 @@ func (h *Handlers) ListDefaultJSTemplates(c *gin.Context) {
 
 	offset := (pageInt - 1) * limitInt
 
-	templates, err := models.ListJSTemplatesByType(db, "default", 0, offset, limitInt)
+	templates, err := svcmodels.ListJSTemplatesByType(db, "default", 0, offset, limitInt)
 	if err != nil {
 		response.Fail(c, "Failed to get default templates: "+err.Error(), nil)
 		return
 	}
 
 	// Get total count for pagination
-	total, err := models.GetJSTemplatesCount(db, "default", 0)
+	total, err := svcmodels.GetJSTemplatesCount(db, "default", 0)
 	if err != nil {
 		response.Fail(c, "Failed to get total default templates count: "+err.Error(), nil)
 		return
@@ -465,7 +466,7 @@ func (h *Handlers) ListDefaultJSTemplates(c *gin.Context) {
 // ListCustomJSTemplates gets user custom template list
 func (h *Handlers) ListCustomJSTemplates(c *gin.Context) {
 	db := c.MustGet(constants.DbField).(*gorm.DB)
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User not logged in", nil)
 		return
@@ -487,14 +488,14 @@ func (h *Handlers) ListCustomJSTemplates(c *gin.Context) {
 
 	offset := (pageInt - 1) * limitInt
 
-	templates, err := models.ListJSTemplatesByType(db, "custom", userId, offset, limitInt)
+	templates, err := svcmodels.ListJSTemplatesByType(db, "custom", userId, offset, limitInt)
 	if err != nil {
 		response.Fail(c, "Failed to get custom templates: "+err.Error(), nil)
 		return
 	}
 
 	// Get total count for pagination
-	total, err := models.GetJSTemplatesCount(db, "custom", userId)
+	total, err := svcmodels.GetJSTemplatesCount(db, "custom", userId)
 	if err != nil {
 		response.Fail(c, "Failed to get total custom templates count: "+err.Error(), nil)
 		return
@@ -511,7 +512,7 @@ func (h *Handlers) ListCustomJSTemplates(c *gin.Context) {
 // SearchJSTemplates search JS templates
 func (h *Handlers) SearchJSTemplates(c *gin.Context) {
 	db := c.MustGet(constants.DbField).(*gorm.DB)
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User not logged in", nil)
 		return
@@ -534,14 +535,14 @@ func (h *Handlers) SearchJSTemplates(c *gin.Context) {
 
 	offset := (pageInt - 1) * limitInt
 
-	templates, err := models.SearchJSTemplates(db, keyword, userId, offset, limitInt)
+	templates, err := svcmodels.SearchJSTemplates(db, keyword, userId, offset, limitInt)
 	if err != nil {
 		response.Fail(c, "Failed to search templates: "+err.Error(), nil)
 		return
 	}
 
 	// Get total count for pagination
-	total, err := models.GetJSTemplatesCount(db, "", userId)
+	total, err := svcmodels.GetJSTemplatesCount(db, "", userId)
 	if err != nil {
 		response.Fail(c, "Failed to get search results total count: "+err.Error(), nil)
 		return
@@ -563,7 +564,7 @@ func (h *Handlers) TriggerJSTemplateWebhook(c *gin.Context) {
 	db := c.MustGet(constants.DbField).(*gorm.DB)
 
 	// 查找模板
-	template, err := models.GetJSTemplateByJsSourceID(db, jsSourceID)
+	template, err := svcmodels.GetJSTemplateByJsSourceID(db, jsSourceID)
 	if err != nil {
 		response.Fail(c, "Template not found", nil)
 		return
@@ -660,14 +661,14 @@ func (h *Handlers) ListJSTemplateVersions(c *gin.Context) {
 	templateID := c.Param("id")
 	db := c.MustGet(constants.DbField).(*gorm.DB)
 
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User not logged in", nil)
 		return
 	}
 
 	// 检查模板权限
-	template, err := models.GetJSTemplateByID(db, templateID)
+	template, err := svcmodels.GetJSTemplateByID(db, templateID)
 	if err != nil {
 		response.Fail(c, "Template not found", nil)
 		return
@@ -693,7 +694,7 @@ func (h *Handlers) ListJSTemplateVersions(c *gin.Context) {
 
 	offset := (pageInt - 1) * limitInt
 
-	versions, err := models.GetJSTemplateVersions(db, templateID, offset, limitInt)
+	versions, err := svcmodels.GetJSTemplateVersions(db, templateID, offset, limitInt)
 	if err != nil {
 		response.Fail(c, "Failed to get versions: "+err.Error(), nil)
 		return
@@ -701,7 +702,7 @@ func (h *Handlers) ListJSTemplateVersions(c *gin.Context) {
 
 	// 获取总数
 	var total int64
-	if err := db.Model(&models.JSTemplateVersion{}).Where("template_id = ?", templateID).Count(&total).Error; err != nil {
+	if err := db.Model(&svcmodels.JSTemplateVersion{}).Where("template_id = ?", templateID).Count(&total).Error; err != nil {
 		response.Fail(c, "Failed to get total count: "+err.Error(), nil)
 		return
 	}
@@ -720,14 +721,14 @@ func (h *Handlers) GetJSTemplateVersion(c *gin.Context) {
 	versionID := c.Param("versionId")
 	db := c.MustGet(constants.DbField).(*gorm.DB)
 
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User not logged in", nil)
 		return
 	}
 
 	// 检查权限
-	template, err := models.GetJSTemplateByID(db, templateID)
+	template, err := svcmodels.GetJSTemplateByID(db, templateID)
 	if err != nil {
 		response.Fail(c, "Template not found", nil)
 		return
@@ -738,7 +739,7 @@ func (h *Handlers) GetJSTemplateVersion(c *gin.Context) {
 		return
 	}
 
-	version, err := models.GetJSTemplateVersion(db, templateID, versionID)
+	version, err := svcmodels.GetJSTemplateVersion(db, templateID, versionID)
 	if err != nil {
 		response.Fail(c, "Version not found", nil)
 		return
@@ -753,14 +754,14 @@ func (h *Handlers) RollbackJSTemplateVersion(c *gin.Context) {
 	versionID := c.Param("versionId")
 	db := c.MustGet(constants.DbField).(*gorm.DB)
 
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User not logged in", nil)
 		return
 	}
 
 	// 检查权限
-	template, err := models.GetJSTemplateByID(db, templateID)
+	template, err := svcmodels.GetJSTemplateByID(db, templateID)
 	if err != nil {
 		response.Fail(c, "Template not found", nil)
 		return
@@ -771,7 +772,7 @@ func (h *Handlers) RollbackJSTemplateVersion(c *gin.Context) {
 		return
 	}
 
-	if err := models.RollbackJSTemplateVersion(db, templateID, versionID); err != nil {
+	if err := svcmodels.RollbackJSTemplateVersion(db, templateID, versionID); err != nil {
 		response.Fail(c, "Failed to rollback: "+err.Error(), nil)
 		return
 	}
@@ -785,7 +786,7 @@ func (h *Handlers) RollbackJSTemplateVersion(c *gin.Context) {
 	cacheClient.Delete(ctx, cacheKey2)
 
 	// 获取更新后的模板
-	updatedTemplate, err := models.GetJSTemplateByID(db, templateID)
+	updatedTemplate, err := svcmodels.GetJSTemplateByID(db, templateID)
 	if err != nil {
 		response.Fail(c, "Failed to get updated template: "+err.Error(), nil)
 		return
@@ -800,7 +801,7 @@ func (h *Handlers) PublishJSTemplateVersion(c *gin.Context) {
 	versionID := c.Param("versionId")
 	db := c.MustGet(constants.DbField).(*gorm.DB)
 
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User not logged in", nil)
 		return
@@ -819,7 +820,7 @@ func (h *Handlers) PublishJSTemplateVersion(c *gin.Context) {
 	}
 
 	// 检查权限
-	template, err := models.GetJSTemplateByID(db, templateID)
+	template, err := svcmodels.GetJSTemplateByID(db, templateID)
 	if err != nil {
 		response.Fail(c, "Template not found", nil)
 		return
@@ -831,7 +832,7 @@ func (h *Handlers) PublishJSTemplateVersion(c *gin.Context) {
 	}
 
 	// 获取版本
-	version, err := models.GetJSTemplateVersion(db, templateID, versionID)
+	version, err := svcmodels.GetJSTemplateVersion(db, templateID, versionID)
 	if err != nil {
 		response.Fail(c, "Version not found", nil)
 		return
@@ -842,7 +843,7 @@ func (h *Handlers) PublishJSTemplateVersion(c *gin.Context) {
 		"status":    "active",
 		"grayscale": input.Grayscale,
 	}
-	if err := models.UpdateJSTemplateVersion(db, versionID, updates); err != nil {
+	if err := svcmodels.UpdateJSTemplateVersion(db, versionID, updates); err != nil {
 		response.Fail(c, "Failed to publish version: "+err.Error(), nil)
 		return
 	}
@@ -853,7 +854,7 @@ func (h *Handlers) PublishJSTemplateVersion(c *gin.Context) {
 			"content": version.Content,
 			"version": template.Version + 1,
 		}
-		if err := models.UpdateJSTemplate(db, templateID, templateUpdates); err != nil {
+		if err := svcmodels.UpdateJSTemplate(db, templateID, templateUpdates); err != nil {
 			response.Fail(c, "Failed to update template: "+err.Error(), nil)
 			return
 		}

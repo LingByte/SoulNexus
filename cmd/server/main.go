@@ -4,6 +4,7 @@ package main
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"github.com/LingByte/SoulNexus/internal/modelbase"
 	"context"
 	"flag"
 	"fmt"
@@ -18,7 +19,6 @@ import (
 	"github.com/LingByte/SoulNexus/internal/config"
 	handlers "github.com/LingByte/SoulNexus/internal/handlers/server"
 	"github.com/LingByte/SoulNexus/internal/listeners"
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/internal/schema"
 	"github.com/LingByte/SoulNexus/internal/task"
 	workflowdef "github.com/LingByte/SoulNexus/internal/workflow"
@@ -254,7 +254,7 @@ func main() {
 	}
 
 	// 21. Emit system initialization signal
-	utils.Sig().Emit(models.SigInitSystemConfig, nil)
+	utils.Sig().Emit(modelbase.SigInitSystemConfig, nil)
 
 	// 21.5. Start Workflow Event Listener and Scheduler
 	eventListener := workflowdef.NewWorkflowEventListener(db)
