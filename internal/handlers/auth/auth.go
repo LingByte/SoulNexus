@@ -2798,15 +2798,7 @@ func (h *Handlers) handleUserSignup(c *gin.Context) {
 		return
 	}
 
-	// 处理加密密码：如果是加密格式，提取原始密码哈希
-	passwordToStore := form.Password
-	if strings.Contains(form.Password, ":") && len(strings.Split(form.Password, ":")) == 4 {
-		// 加密密码格式：passwordHash:encryptedHash:salt:timestamp
-		parts := strings.Split(form.Password, ":")
-		passwordHash := parts[0]
-		// 提取原始密码的哈希，加上 sha256$ 前缀
-		passwordToStore = fmt.Sprintf("sha256$%s", passwordHash)
-	}
+	passwordToStore := authmodel.PasswordForStorageFromClient(form.Password)
 
 	user, err := authmodel.CreateUserWithMeta(db, form.Email, passwordToStore, authmodel.NormalizeUserSource(form.Source), authmodel.UserStatusActive)
 	if err != nil {
@@ -2974,14 +2966,7 @@ func (h *Handlers) handleUserSignupByEmail(c *gin.Context) {
 	// 清除已用验证码
 	utils.GlobalCache.Remove(form.Email)
 
-	// 处理加密密码：如果是加密格式，提取原始密码哈希
-	passwordToStore := form.Password
-	if strings.Contains(form.Password, ":") && len(strings.Split(form.Password, ":")) == 4 {
-		// 加密密码格式：passwordHash:encryptedHash:salt:timestamp
-		parts := strings.Split(form.Password, ":")
-		passwordHash := parts[0]
-		passwordToStore = fmt.Sprintf("sha256$%s", passwordHash)
-	}
+	passwordToStore := authmodel.PasswordForStorageFromClient(form.Password)
 
 	user, err := authmodel.CreateUserByEmailWithMeta(db, form.UserName, form.DisplayName, form.Email, passwordToStore, authmodel.UserSourceSystem, authmodel.UserStatusActive)
 	if err != nil {

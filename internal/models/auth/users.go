@@ -5,12 +5,8 @@ package auth
 import (
 
 
-	"crypto/sha256"
 	"errors"
-	"fmt"
-
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -306,24 +302,7 @@ func AuthRequired(c *gin.Context) {
 	}
 
 	token = strings.TrimPrefix(token, constants.AUTHORIZATION_PREFIX)
-	km := utils.JWTKeyManager()
-	if km == nil {
-		response.AbortWithJSONError(c, http.StatusInternalServerError, errors.New("jwt key manager not initialized"))
-		return
-	}
-	p, err := utils.ParseAccessTokenWithKey(token, km)
-	if err != nil || p == nil || p.UserID == 0 {
-		response.AbortWithJSONError(c, http.StatusUnauthorized, utils.ErrInvalidToken)
-		return
-	}
-	c.Set(constants.UserField, &User{
-		BaseModel:      modelbase.BaseModel{ID: p.UserID},
-		Email:          p.Email,
-		RoleSlugs:      RoleSlugsFromJWTClaim(p.Role),
-		PermissionKeys: append([]string(nil), p.Perms...),
-		Status:         UserStatusActive,
-	})
-	c.Next()
+	setUserFromJWT(c, token)
 }
 
 // authPathExemptWhileAccountDeletionPending 冷静期内仍允许访问的认证接口（获取信息、撤销注销）。
@@ -350,102 +329,6 @@ func CurrentUser(c *gin.Context) *User {
 	// JWT auth stores a minimal user object in context; we intentionally do not
 	// resolve sessions or hit the database on every request.
 	return nil
-}
-
-func CheckPassword(user *User, password string) bool {
-	if user.Password == "" {
-		return false
-	}
-	return user.Password == HashPassword(password)
-}
-
-func SetPassword(db *gorm.DB, user *User, password string) (err error) {
-	p := HashPassword(password)
-	err = UpdateUserFields(db, user, map[string]any{
-		"Password": p,
-	})
-	if err != nil {
-		return
-	}
-	user.Password = p
-	return
-}
-
-func HashPassword(password string) string {
-	if password == "" {
-		return ""
-	}
-	// 如果已经是哈希格式（sha256$...），直接返回
-	if strings.HasPrefix(password, "sha256$") {
-		return password
-	}
-	hashVal := sha256.Sum256([]byte(password))
-	return fmt.Sprintf("sha256$%x", hashVal)
-}
-
-// VerifyEncryptedPassword 验证加密密码
-// 前端发送格式：passwordHash:encryptedHash:salt:timestamp
-// passwordHash = SHA256(原始密码) - 用于验证密码正确性
-// encryptedHash = SHA256(原始密码 + salt + timestamp) - 用于防重放
-// 后端验证：
-// 1. passwordHash 与存储的密码哈希匹配（去掉 sha256$ 前缀）
-// 2. 时间戳在有效期内（5分钟）
-// 3. 验证 salt 是否在缓存中（防重放）
-func VerifyEncryptedPassword(encryptedPassword, storedPasswordHash string) bool {
-	// 解析加密密码格式：passwordHash:encryptedHash:salt:timestamp
-	parts := strings.Split(encryptedPassword, ":")
-	if len(parts) != 4 {
-		return false
-	}
-
-	passwordHash := parts[0]
-	encryptedHash := parts[1]
-	salt := parts[2]
-	timestampStr := parts[3]
-
-	// 验证时间戳（5分钟内有效）
-	timestamp, err := strconv.ParseInt(timestampStr, 10, 64)
-	if err != nil {
-		return false
-	}
-
-	// 如果时间戳是毫秒级（13位数字），转换为秒级
-	if timestamp > 9999999999 { // 大于10位数字，说明是毫秒时间戳
-		timestamp = timestamp / 1000
-	}
-
-	now := time.Now().Unix()
-	maxAge := int64(300) // 5分钟
-	if now-timestamp > maxAge {
-		logger.Info(fmt.Sprintf("DEBUG: Timestamp expired. now=%d, timestamp=%d, diff=%d\n",
-			now, timestamp, now-timestamp))
-		return false
-	}
-
-	// 验证 passwordHash 与存储的密码哈希匹配
-	storedHash := strings.TrimPrefix(storedPasswordHash, "sha256$")
-
-	if passwordHash != storedHash {
-		logger.Info(fmt.Sprintf("DEBUG: Password hash mismatch. Expected: %s, Got: %s\n",
-			storedHash, passwordHash))
-		return false
-	}
-
-	// 验证加密哈希：SHA256(原始密码的SHA256 + salt + timestamp)
-	// 注意：这里使用 passwordHash（即 SHA256(原始密码)）而不是原始密码本身
-	// 前端使用毫秒时间戳计算hash，所以这里也要使用原始的毫秒时间戳
-	originalTimestamp, _ := strconv.ParseInt(timestampStr, 10, 64)
-	hashInput := fmt.Sprintf("%s%s%d", passwordHash, salt, originalTimestamp)
-	hashVal := sha256.Sum256([]byte(hashInput))
-	expectedHash := fmt.Sprintf("%x", hashVal)
-
-	isValid := encryptedHash == expectedHash
-	if !isValid {
-		fmt.Printf("DEBUG: Hash verification failed. Expected: %s, Got: %s\n",
-			expectedHash, encryptedHash)
-	}
-
-	return isValid
 }
 
 func scopeUserWithProfile(db *gorm.DB) *gorm.DB {
@@ -490,23 +373,8 @@ func IsExistsByEmail(db *gorm.DB, email string) bool {
 }
 
 func AuthApiRequired(c *gin.Context) {
-	apiKey := c.GetHeader(constants.CREDENTIAL_API_KEY)
-	apiSecret := c.GetHeader(constants.CREDENTIAL_API_SECRET)
-	if apiKey != "" && apiSecret != "" {
-		user, err := GetUserByAPIKey(c, apiKey, apiSecret)
-		if err != nil {
-			response.AbortWithJSONError(c, http.StatusUnauthorized, err)
-			return
-		}
-		c.Set(constants.UserField, user)
-		c.Next()
-		return
-	}
-
-	apiKey = c.Query("apiKey")
-	apiSecret = c.Query("apiSecret")
-	if apiKey != "" && apiSecret != "" {
-		user, err := GetUserByAPIKey(c, apiKey, apiSecret)
+	if apiKey, apiSecret, ok := apiKeySecretFromRequest(c); ok {
+		user, err := resolveUserByAPIKey(c.Request.Context(), c, apiKey, apiSecret)
 		if err != nil {
 			response.AbortWithJSONError(c, http.StatusUnauthorized, err)
 			return
@@ -526,38 +394,24 @@ func AuthApiRequired(c *gin.Context) {
 		return
 	}
 
-	token = strings.TrimPrefix(token, "Bearer ")
-	km := utils.JWTKeyManager()
-	if km == nil {
-		response.AbortWithJSONError(c, http.StatusInternalServerError, errors.New("jwt key manager not initialized"))
-		return
-	}
-	p, err := utils.ParseAccessTokenWithKey(token, km)
-	if err != nil || p == nil || p.UserID == 0 {
-		response.AbortWithJSONError(c, http.StatusUnauthorized, utils.ErrInvalidToken)
-		return
-	}
-	c.Set(constants.UserField, &User{
-		BaseModel:      modelbase.BaseModel{ID: p.UserID},
-		Email:          p.Email,
-		RoleSlugs:      RoleSlugsFromJWTClaim(p.Role),
-		PermissionKeys: append([]string(nil), p.Perms...),
-		Status:         UserStatusActive,
-	})
-	c.Next()
+	token = strings.TrimPrefix(token, constants.AUTHORIZATION_PREFIX)
+	setUserFromJWT(c, token)
 }
 
 func GetUserByAPIKey(c *gin.Context, apiKey, apiSecret string) (*User, error) {
 	db := c.MustGet(constants.DbField).(*gorm.DB)
 	var userCredential UserCredential
-	err := db.Model(&UserCredential{}).Where("api_key = ? AND api_secret = ?", apiKey, apiSecret).Find(&userCredential).Error
+	err := db.Where("api_key = ? AND api_secret = ?", apiKey, apiSecret).First(&userCredential).Error
 	if err != nil {
-		return nil, err
+		return nil, errors.New("invalid api credentials")
+	}
+	if userCredential.ID == 0 {
+		return nil, errors.New("invalid api credentials")
 	}
 	var u User
 	err = db.Where("id = ? AND status = ?", userCredential.CreatedBy, UserStatusActive).First(&u).Error
 	if err != nil {
-		return nil, err
+		return nil, errors.New("invalid api credentials")
 	}
 	return &u, nil
 }

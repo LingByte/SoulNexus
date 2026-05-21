@@ -19,10 +19,7 @@ import (
 func ServerEntities() []any {
 	return []any{
 		&utils.Config{},
-		&auth.User{},
-		&auth.UserProfile{},
 		&svcmodels.Group{},
-		&auth.UserCredential{},
 		&svcmodels.GroupMember{},
 		&svcmodels.GroupInvitation{},
 		&svcmodels.GroupActivityLog{},
@@ -88,6 +85,8 @@ func AuthEntities() []any {
 		&auth.UserRole{},
 		&auth.UserPermission{},
 		&auth.UserCredential{},
+		&svcmodels.Group{},
+		&svcmodels.GroupMember{},
 		&auth.TwoFA{},
 		&auth.TwoFABackupCode{},
 		&auth.Passkey{},

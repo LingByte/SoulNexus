@@ -4,7 +4,6 @@ package server
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
-	"github.com/LingByte/SoulNexus/internal/models/auth"
 	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"context"
 	"fmt"
@@ -58,7 +57,7 @@ func (h *Handlers) HandleWebSocketVoice(c *gin.Context) {
 	}
 
 	// 验证凭证
-	cred, err := auth.GetUserCredentialByApiSecretAndApiKey(h.db, apiKey, apiSecret)
+	cred, err := h.rpc.Auth.ResolveCredential(c.Request.Context(), apiKey, apiSecret)
 	if err != nil {
 		response.Fail(c, "Database error: "+err.Error(), nil)
 		return
@@ -130,7 +129,7 @@ func (h *Handlers) HandleHardwareWebSocketVoice(c *gin.Context) {
 		zap.String("remoteAddr", c.Request.RemoteAddr),
 		zap.String("userAgent", c.Request.UserAgent()))
 
-	sess, status, msg := h.resolveSoulnexusHardwareSession(deviceID)
+	sess, status, msg := h.resolveSoulnexusHardwareSession(c.Request.Context(), deviceID)
 	if sess == nil {
 		if deviceID == "" {
 			logger.Warn("硬件WebSocket连接缺少Device-Id参数",

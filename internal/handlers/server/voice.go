@@ -1227,7 +1227,7 @@ func (h *Handlers) getFishSpeechVoices(c *gin.Context) {
 
 	// 如果没有从查询参数获取，尝试从 user_credential 中获取
 	if apiKey == "" {
-		credentials, err := svcmodels.GetUserCredentials(h.db, user.ID)
+		credentials, err := h.rpc.Auth.ListUserCredentials(c.Request.Context(), user.ID)
 		if err != nil {
 			logrus.WithError(err).Errorf("获取用户凭证失败")
 			response.Fail(c, "获取用户凭证失败", nil)
@@ -1289,7 +1289,7 @@ func (h *Handlers) getFishAudioVoices(c *gin.Context) {
 
 	// 如果没有从查询参数获取，尝试从 user_credential 中获取
 	if apiKey == "" {
-		credentials, err := svcmodels.GetUserCredentials(h.db, user.ID)
+		credentials, err := h.rpc.Auth.ListUserCredentials(c.Request.Context(), user.ID)
 		if err != nil {
 			logrus.WithError(err).Errorf("获取用户凭证失败")
 			response.Fail(c, "获取用户凭证失败", nil)
@@ -1539,21 +1539,9 @@ func (h *Handlers) OneShotText(c *gin.Context) {
 		response.Fail(c, "参数错误", err.Error())
 		return
 	}
-	// 1. 查询用户凭证配置
-	credential, err := auth.GetUserCredentialByApiSecretAndApiKey(h.db, req.APIKey, req.APISecret)
+	user, credential, err := h.resolveCredentialOwner(c.Request.Context(), req.APIKey, req.APISecret)
 	if err != nil {
-		response.Fail(c, "查询凭证失败", err.Error())
-		return
-	}
-	if credential == nil {
-		response.Fail(c, "凭证不存在", "无效的 apiKey 或 apiSecret")
-		return
-	}
-
-	// 获取用户信息
-	var user auth.User
-	if err := h.db.First(&user, credential.CreatedBy).Error; err != nil {
-		response.Fail(c, "用户不存在", err.Error())
+		response.Fail(c, "凭证或用户无效", err.Error())
 		return
 	}
 
@@ -1734,21 +1722,9 @@ func (h *Handlers) SimpleTextChat(c *gin.Context) {
 		response.Fail(c, "参数错误", err.Error())
 		return
 	}
-	// 1. 验证凭证
-	credential, err := auth.GetUserCredentialByApiSecretAndApiKey(h.db, req.APIKey, req.APISecret)
+	user, credential, err := h.resolveCredentialOwner(c.Request.Context(), req.APIKey, req.APISecret)
 	if err != nil {
-		response.Fail(c, "查询凭证失败", err.Error())
-		return
-	}
-	if credential == nil {
-		response.Fail(c, "凭证不存在", "无效的 apiKey 或 apiSecret")
-		return
-	}
-
-	// 2. 获取用户信息
-	var user auth.User
-	if err := h.db.First(&user, credential.CreatedBy).Error; err != nil {
-		response.Fail(c, "用户不存在", err.Error())
+		response.Fail(c, "凭证或用户无效", err.Error())
 		return
 	}
 
@@ -1887,21 +1863,9 @@ func (h *Handlers) PlainText(c *gin.Context) {
 		return
 	}
 
-	// 2. 查询用户凭证配置
-	credential, err := auth.GetUserCredentialByApiSecretAndApiKey(h.db, req.APIKey, req.APISecret)
+	user, credential, err := h.resolveCredentialOwner(c.Request.Context(), req.APIKey, req.APISecret)
 	if err != nil {
-		response.Fail(c, "查询凭证失败", err.Error())
-		return
-	}
-	if credential == nil {
-		response.Fail(c, "凭证不存在", "无效的 apiKey 或 apiSecret")
-		return
-	}
-
-	// 3. 获取用户信息
-	var user auth.User
-	if err := h.db.First(&user, credential.CreatedBy).Error; err != nil {
-		response.Fail(c, "用户不存在", err.Error())
+		response.Fail(c, "凭证或用户无效", err.Error())
 		return
 	}
 

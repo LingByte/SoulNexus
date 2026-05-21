@@ -76,6 +76,7 @@ type AuthServiceConfig struct {
 	Server     ServerConfig
 	Services   ServicesConfig
 	Features   FeaturesConfig
+	GRPCListenAddr string
 }
 
 // AuthGlobalConfig is populated by LoadAuth() after Load(); safe to read from cmd/auth only.
@@ -104,6 +105,7 @@ func LoadAuth() error {
 		Server:     g.Server,
 		Services:   g.Services,
 		Features:   g.Features,
+		GRPCListenAddr: getStringOrDefault("AUTH_GRPC_ADDR", ":7075"),
 	}
 	return nil
 }

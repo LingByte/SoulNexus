@@ -5,7 +5,6 @@ package server
 
 import (
 	"github.com/LingByte/SoulNexus/internal/models/auth"
-	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"fmt"
 
 	"github.com/LingByte/SoulNexus/pkg/response"
@@ -23,9 +22,10 @@ func (h *Handlers) handleCreateCredential(c *gin.Context) {
 	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User is not logged in.", nil)
+		return
 	}
 
-	userCredential, err := svcmodels.CreateUserCredential(h.db, user.ID, &credential)
+	userCredential, err := h.rpc.Auth.CreateUserCredential(c.Request.Context(), user.ID, &credential)
 	if err != nil {
 		response.Fail(c, "create user credential failed", err)
 		return
@@ -40,7 +40,11 @@ func (h *Handlers) handleCreateCredential(c *gin.Context) {
 
 func (h *Handlers) handleGetCredential(c *gin.Context) {
 	user := auth.CurrentUser(c)
-	credentials, err := svcmodels.GetUserCredentials(h.db, user.ID)
+	if user == nil {
+		response.Fail(c, "User is not logged in.", nil)
+		return
+	}
+	credentials, err := h.rpc.Auth.ListUserCredentials(c.Request.Context(), user.ID)
 	if err != nil {
 		response.Fail(c, "get user credentials failed", err)
 		return
@@ -61,14 +65,9 @@ func (h *Handlers) handleGetCredentialByKey(c *gin.Context) {
 		return
 	}
 
-	credential, err := auth.GetUserCredentialByApiSecretAndApiKey(h.db, req.APIKey, req.APISecret)
+	credential, err := h.resolveCredential(c.Request.Context(), req.APIKey, req.APISecret)
 	if err != nil {
-		response.Fail(c, "query credential failed", err)
-		return
-	}
-
-	if credential == nil {
-		response.Fail(c, "invalid credentials", nil)
+		response.Fail(c, "invalid credentials", err)
 		return
 	}
 
@@ -99,7 +98,7 @@ func (h *Handlers) handleDeleteCredential(c *gin.Context) {
 	}
 
 	// Delete credential
-	err = svcmodels.DeleteUserCredential(h.db, user.ID, credentialID)
+	err = h.rpc.Auth.DeleteUserCredentialForUser(c.Request.Context(), user.ID, credentialID)
 	if err != nil {
 		response.Fail(c, "Failed to delete credential", err)
 		return

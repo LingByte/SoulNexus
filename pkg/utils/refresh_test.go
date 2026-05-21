@@ -8,15 +8,16 @@ import (
 )
 
 func TestRefreshSignParse(t *testing.T) {
-	secret := "another-secret-at-least-8-chars"
+	km := testJWTKeyManager(t)
 	p := RefreshPayload{UserID: 7}
-	tok, err := SignRefreshToken(p, secret, 2*time.Hour)
+	tok, err := SignRefreshTokenWithKey(p, km, 2*time.Hour)
 	require.NoError(t, err)
 
-	out, err := ParseRefreshToken(tok, secret)
+	out, err := ParseRefreshTokenWithKey(tok, km)
 	require.NoError(t, err)
 	require.Equal(t, uint(7), out.UserID)
 
-	_, err = ParseRefreshToken(tok, "wrong-secret-at-least-8")
+	km2 := testJWTKeyManager(t)
+	_, err = ParseRefreshTokenWithKey(tok, km2)
 	require.Error(t, err)
 }

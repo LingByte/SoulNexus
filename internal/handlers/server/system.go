@@ -4,13 +4,11 @@ package server
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
-	"github.com/LingByte/SoulNexus/internal/models/auth"
 	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -22,7 +20,6 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/utils/cache"
 	"github.com/LingByte/SoulNexus/pkg/voiceprint"
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
 // UpdateRateLimiterConfig updates rate limiter configuration
@@ -482,31 +479,6 @@ func (h *Handlers) UploadAudio(c *gin.Context) {
 		return
 	}
 	audioURL := strings.TrimSpace(st.PublicURL(storageKey))
-
-	// Record storage usage
-	user := auth.CurrentUser(c)
-	if user != nil {
-		// 从middleware获取数据库连接
-		db, exists := c.Get("db")
-		if exists {
-			if gormDB, ok := db.(*gorm.DB); ok {
-				// Try to get credential ID (from request parameters or user's default credential)
-				var credentialID uint
-				if credIDStr := c.Query("credentialId"); credIDStr != "" {
-					if id, err := strconv.ParseUint(credIDStr, 10, 32); err == nil {
-						credentialID = uint(id)
-					}
-				}
-				// 如果没有提供凭证ID，尝试获取用户的第一个凭证
-				if credentialID == 0 {
-					credentials, err := svcmodels.GetUserCredentials(gormDB, user.ID)
-					if err == nil && len(credentials) > 0 {
-						credentialID = credentials[0].ID
-					}
-				}
-			}
-		}
-	}
 
 	// Return success response
 	response.Success(c, "音频文件上传成功", map[string]interface{}{

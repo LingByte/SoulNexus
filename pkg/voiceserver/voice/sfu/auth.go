@@ -14,10 +14,10 @@ import (
 	"time"
 )
 
-// AccessToken is a compact signed token carrying everything the SFU
-// needs to admit a participant into a room. Shape is deliberately
-// similar to JWT but we avoid the dependency: header is implicit
-// ("HS256" only), payload is our own struct, signature is HMAC-SHA256
+// AccessToken is a compact signed token for WebRTC/SFU room admission only.
+// This is NOT the SoulNexus login JWT (those use pkg/utils + KeyManager, default RS256).
+// Shape is JWT-like but intentionally minimal: no JWT header segment; signature is
+// HMAC-SHA256 over base64url(payload), keyed with Config.AuthSecret (comments may say "HS256").
 // of `base64(payload) . ""` (no header segment) keyed with Config.AuthSecret.
 //
 // Token on the wire:

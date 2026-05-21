@@ -73,7 +73,7 @@ func TestHashPassword(t *testing.T) {
 		{
 			name:     "normal password",
 			password: "test123",
-			want:     "sha256$",
+			want:     PasswordHashPrefix,
 		},
 	}
 
@@ -83,7 +83,7 @@ func TestHashPassword(t *testing.T) {
 			if tt.password == "" {
 				assert.Equal(t, "", result)
 			} else {
-				assert.Contains(t, result, "sha256$")
+				assert.Contains(t, result, PasswordHashPrefix)
 				assert.NotEqual(t, tt.password, result) // Should be hashed
 			}
 		})
@@ -115,7 +115,7 @@ func TestCreateUser(t *testing.T) {
 	assert.Equal(t, UserStatusActive, user.Status)
 	assert.Equal(t, UserSourceSystem, user.Source)
 	assert.NotEmpty(t, user.Password)
-	assert.Contains(t, user.Password, "sha256$")
+	assert.Contains(t, user.Password, PasswordHashPrefix)
 }
 
 func TestCreateUserByEmail(t *testing.T) {
