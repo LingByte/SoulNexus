@@ -4,6 +4,7 @@ package bootstrap
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"bufio"
 	"errors"
 	"io"
@@ -11,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/LingByte/SoulNexus/internal/config"
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"go.uber.org/zap"
@@ -63,13 +63,13 @@ func SetupDatabase(logWriter io.Writer, opts *Options) (*gorm.DB, error) {
 			logger.Error("migration failed", zap.Error(err))
 			return nil, err
 		}
-		if err := models.MigrateGroupTenancyResources(db); err != nil {
+		if err := svcmodels.MigrateGroupTenancyResources(db); err != nil {
 			logger.Warn("group tenancy data migrate", zap.Error(err))
 		}
-		if err := models.MigrateTextCharset(db); err != nil {
+		if err := svcmodels.MigrateTextCharset(db); err != nil {
 			logger.Warn("text charset migrate", zap.Error(err))
 		}
-		if err := models.MigrateAgentsDropIconColumn(db); err != nil {
+		if err := svcmodels.MigrateAgentsDropIconColumn(db); err != nil {
 			logger.Warn("agents drop icon column migrate", zap.Error(err))
 		}
 		logger.Info("migration success",

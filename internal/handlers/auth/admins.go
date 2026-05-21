@@ -1,12 +1,13 @@
 package handlers
 
 import (
+	authmodel "github.com/LingByte/SoulNexus/internal/models/auth"
+	"github.com/LingByte/SoulNexus/internal/modelbase"
 	"errors"
 	"net/http"
 	"strconv"
 	"strings"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/middleware"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/utils"
@@ -70,7 +71,7 @@ func roleSlugExists(db *gorm.DB, slug string) bool {
 		return false
 	}
 	var cnt int64
-	if err := db.Model(&models.Role{}).Where("slug = ? AND is_deleted = ?", slug, models.SoftDeleteStatusActive).Count(&cnt).Error; err != nil {
+	if err := db.Model(&authmodel.Role{}).Where("slug = ? AND is_deleted = ?", slug, modelbase.SoftDeleteStatusActive).Count(&cnt).Error; err != nil {
 		return false
 	}
 	return cnt > 0
@@ -84,9 +85,9 @@ func (h *Handlers) handleAdminListUsers(c *gin.Context) {
 	enabledQuery := strings.TrimSpace(c.Query("enabled"))
 	hasPhoneQuery := strings.TrimSpace(c.Query("hasPhone"))
 
-	query := h.db.Model(&models.User{}).
+	query := h.db.Model(&authmodel.User{}).
 		Joins("LEFT JOIN user_profiles ON user_profiles.user_id = users.id").
-		Where("users.is_deleted = ?", models.SoftDeleteStatusActive)
+		Where("users.is_deleted = ?", modelbase.SoftDeleteStatusActive)
 	if search != "" {
 		like := "%" + search + "%"
 		query = query.Where("users.email LIKE ? OR user_profiles.display_name LIKE ? OR user_profiles.first_name LIKE ? OR user_profiles.last_name LIKE ?",
@@ -94,19 +95,19 @@ func (h *Handlers) handleAdminListUsers(c *gin.Context) {
 	}
 	if roleFilter != "" && roleSlugExists(h.db, roleFilter) {
 		query = query.Joins("INNER JOIN user_roles ur ON ur.user_id = users.id").
-			Joins("INNER JOIN roles r ON r.id = ur.role_id AND r.is_deleted = ?", models.SoftDeleteStatusActive).
+			Joins("INNER JOIN roles r ON r.id = ur.role_id AND r.is_deleted = ?", modelbase.SoftDeleteStatusActive).
 			Where("r.slug = ?", roleFilter)
 	}
 	if statusQuery != "" {
-		if st := models.NormalizeUserStatus(statusQuery); st != "" {
+		if st := authmodel.NormalizeUserStatus(statusQuery); st != "" {
 			query = query.Where("users.status = ?", st)
 		}
 	} else if enabledQuery != "" {
 		if enabled, err := strconv.ParseBool(enabledQuery); err == nil {
 			if enabled {
-				query = query.Where("users.status = ?", models.UserStatusActive)
+				query = query.Where("users.status = ?", authmodel.UserStatusActive)
 			} else {
-				query = query.Where("users.status <> ?", models.UserStatusActive)
+				query = query.Where("users.status <> ?", authmodel.UserStatusActive)
 			}
 		}
 	}
@@ -126,7 +127,7 @@ func (h *Handlers) handleAdminListUsers(c *gin.Context) {
 		return
 	}
 
-	var users []models.User
+	var users []authmodel.User
 	if err := query.Order("users.id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&users).Error; err != nil {
 		response.Fail(c, "list users failed", err)
 		return
@@ -146,8 +147,8 @@ func (h *Handlers) handleAdminGetUser(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid user id"))
 		return
 	}
-	var user models.User
-	if err = h.db.Where("id = ? AND is_deleted = ?", id, models.SoftDeleteStatusActive).First(&user).Error; err != nil {
+	var user authmodel.User
+	if err = h.db.Where("id = ? AND is_deleted = ?", id, modelbase.SoftDeleteStatusActive).First(&user).Error; err != nil {
 		response.Fail(c, "user not found", err)
 		return
 	}
@@ -174,14 +175,14 @@ func (h *Handlers) handleAdminCreateUser(c *gin.Context) {
 	if password == "" {
 		password = utils.RandString(16)
 	}
-	if models.IsExistsByEmail(h.db, req.Email) {
+	if authmodel.IsExistsByEmail(h.db, req.Email) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("email already exists"))
 		return
 	}
 
-	status := models.UserStatusActive
+	status := authmodel.UserStatusActive
 	if req.Status != nil && strings.TrimSpace(*req.Status) != "" {
-		if st := models.NormalizeUserStatus(*req.Status); st != "" {
+		if st := authmodel.NormalizeUserStatus(*req.Status); st != "" {
 			status = st
 		} else {
 			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid status"))
@@ -189,7 +190,7 @@ func (h *Handlers) handleAdminCreateUser(c *gin.Context) {
 		}
 	}
 
-	user, err := models.CreateUserByEmailWithMeta(h.db, req.DisplayName, req.DisplayName, req.Email, password, models.UserSourceAdmin, status)
+	user, err := authmodel.CreateUserByEmailWithMeta(h.db, req.DisplayName, req.DisplayName, req.Email, password, authmodel.UserSourceAdmin, status)
 	if err != nil {
 		response.Fail(c, "create user failed", err)
 		return
@@ -200,7 +201,7 @@ func (h *Handlers) handleAdminCreateUser(c *gin.Context) {
 		coreVals["phone"] = strings.TrimSpace(req.Phone)
 	}
 	operator := "system"
-	if current := models.CurrentUser(c); current != nil {
+	if current := authmodel.CurrentUser(c); current != nil {
 		operator = current.Email
 		if operator == "" {
 			operator = "system"
@@ -234,12 +235,12 @@ func (h *Handlers) handleAdminCreateUser(c *gin.Context) {
 	if req.PushNotifications != nil {
 		profVals["push_notifications"] = *req.PushNotifications
 	}
-	if err = models.UpdateUserProfileFields(h.db, user.ID, profVals); err != nil {
+	if err = authmodel.UpdateUserProfileFields(h.db, user.ID, profVals); err != nil {
 		response.Fail(c, "create user failed", err)
 		return
 	}
 	_ = h.db.First(user, user.ID).Error
-	if err = models.AssignUserSingleRoleBySlug(h.db, user.ID, roleSlug); err != nil {
+	if err = authmodel.AssignUserSingleRoleBySlug(h.db, user.ID, roleSlug); err != nil {
 		response.Fail(c, "assign role failed", err)
 		return
 	}
@@ -259,8 +260,8 @@ func (h *Handlers) handleAdminUpdateUser(c *gin.Context) {
 		return
 	}
 
-	var user models.User
-	if err = h.db.Where("id = ? AND is_deleted = ?", id, models.SoftDeleteStatusActive).First(&user).Error; err != nil {
+	var user authmodel.User
+	if err = h.db.Where("id = ? AND is_deleted = ?", id, modelbase.SoftDeleteStatusActive).First(&user).Error; err != nil {
 		response.Fail(c, "user not found", err)
 		return
 	}
@@ -312,7 +313,7 @@ func (h *Handlers) handleAdminUpdateUser(c *gin.Context) {
 		newRoleSlug = rs
 	}
 	if req.Password != "" {
-		coreVals["password"] = models.HashPassword(req.Password)
+		coreVals["password"] = authmodel.HashPassword(req.Password)
 	}
 	if req.Status != nil {
 		raw := strings.TrimSpace(*req.Status)
@@ -320,7 +321,7 @@ func (h *Handlers) handleAdminUpdateUser(c *gin.Context) {
 			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("status cannot be empty"))
 			return
 		}
-		if st := models.NormalizeUserStatus(raw); st == "" {
+		if st := authmodel.NormalizeUserStatus(raw); st == "" {
 			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid status"))
 			return
 		} else {
@@ -338,7 +339,7 @@ func (h *Handlers) handleAdminUpdateUser(c *gin.Context) {
 		return
 	}
 	operator := "system"
-	if current := models.CurrentUser(c); current != nil {
+	if current := authmodel.CurrentUser(c); current != nil {
 		operator = current.Email
 		if operator == "" {
 			operator = "system"
@@ -353,14 +354,14 @@ func (h *Handlers) handleAdminUpdateUser(c *gin.Context) {
 		}
 	}
 	if len(profVals) > 0 {
-		if err = models.UpdateUserProfileFields(h.db, user.ID, profVals); err != nil {
+		if err = authmodel.UpdateUserProfileFields(h.db, user.ID, profVals); err != nil {
 			response.Fail(c, "update user profile failed", err)
 			return
 		}
 	}
 	_ = h.db.First(&user, user.ID).Error
 	if roleChanged {
-		if err = models.AssignUserSingleRoleBySlug(h.db, user.ID, newRoleSlug); err != nil {
+		if err = authmodel.AssignUserSingleRoleBySlug(h.db, user.ID, newRoleSlug); err != nil {
 			response.Fail(c, "assign role failed", err)
 			return
 		}
@@ -375,14 +376,14 @@ func (h *Handlers) handleAdminDeleteUser(c *gin.Context) {
 		return
 	}
 	operator := "system"
-	if current := models.CurrentUser(c); current != nil {
+	if current := authmodel.CurrentUser(c); current != nil {
 		operator = current.Email
 		if operator == "" {
 			operator = "system"
 		}
 	}
-	if err = h.db.Model(&models.User{}).Where("id = ? AND is_deleted = ?", id, models.SoftDeleteStatusActive).
-		Updates(map[string]any{"is_deleted": models.SoftDeleteStatusDeleted, "status": models.UserStatusBanned, "update_by": operator}).Error; err != nil {
+	if err = h.db.Model(&authmodel.User{}).Where("id = ? AND is_deleted = ?", id, modelbase.SoftDeleteStatusActive).
+		Updates(map[string]any{"is_deleted": modelbase.SoftDeleteStatusDeleted, "status": authmodel.UserStatusBanned, "update_by": operator}).Error; err != nil {
 		response.Fail(c, "delete user failed", err)
 		return
 	}
@@ -549,13 +550,13 @@ func (h *Handlers) handleAdminDeleteConfig(c *gin.Context) {
 
 func (h *Handlers) handleAdminListOAuthClients(c *gin.Context) {
 	page, pageSize := utils.ParsePagination(c)
-	query := h.db.Model(&models.OAuthClient{})
+	query := h.db.Model(&authmodel.OAuthClient{})
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
 		response.Fail(c, "list oauth clients failed", err)
 		return
 	}
-	var clients []models.OAuthClient
+	var clients []authmodel.OAuthClient
 	if err := query.Order("id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&clients).Error; err != nil {
 		response.Fail(c, "list oauth clients failed", err)
 		return
@@ -575,7 +576,7 @@ func (h *Handlers) handleAdminGetOAuthClient(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid oauth client id"))
 		return
 	}
-	var client models.OAuthClient
+	var client authmodel.OAuthClient
 	if err = h.db.First(&client, id).Error; err != nil {
 		response.Fail(c, "oauth client not found", err)
 		return
@@ -600,11 +601,11 @@ func (h *Handlers) handleAdminCreateOAuthClient(c *gin.Context) {
 	if secret == "" {
 		secret = utils.RandString(32)
 	}
-	status := int8(models.OAuthClientStatusEnabled)
+	status := int8(authmodel.OAuthClientStatusEnabled)
 	if req.Status != nil {
 		status = *req.Status
 	}
-	client := models.OAuthClient{
+	client := authmodel.OAuthClient{
 		ClientID:     req.ClientID,
 		ClientSecret: secret,
 		Name:         req.Name,
@@ -690,7 +691,7 @@ func (h *Handlers) handleAdminListLoginHistory(c *gin.Context) {
 	successRaw := strings.TrimSpace(c.Query("success"))
 	suspiciousRaw := strings.TrimSpace(c.Query("is_suspicious"))
 
-	query := h.db.Model(&models.LoginHistory{})
+	query := h.db.Model(&authmodel.LoginHistory{})
 	if userID > 0 {
 		query = query.Where("user_id = ?", userID)
 	}
@@ -714,7 +715,7 @@ func (h *Handlers) handleAdminListLoginHistory(c *gin.Context) {
 		response.Fail(c, "list login history failed", err)
 		return
 	}
-	var histories []models.LoginHistory
+	var histories []authmodel.LoginHistory
 	if err = query.Order("id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&histories).Error; err != nil {
 		response.Fail(c, "list login history failed", err)
 		return
@@ -736,7 +737,7 @@ func (h *Handlers) handleAdminGetLoginHistory(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid login history id"))
 		return
 	}
-	var history models.LoginHistory
+	var history authmodel.LoginHistory
 	if err = h.db.First(&history, id).Error; err != nil {
 		response.Fail(c, "login history not found", err)
 		return
@@ -758,7 +759,7 @@ func (h *Handlers) handleAdminListAccountLocks(c *gin.Context) {
 	email := strings.TrimSpace(c.Query("email"))
 	isActiveRaw := strings.TrimSpace(c.Query("is_active"))
 
-	query := h.db.Model(&models.AccountLock{})
+	query := h.db.Model(&authmodel.AccountLock{})
 	if userID > 0 {
 		query = query.Where("user_id = ?", userID)
 	}
@@ -776,7 +777,7 @@ func (h *Handlers) handleAdminListAccountLocks(c *gin.Context) {
 		response.Fail(c, "list account locks failed", err)
 		return
 	}
-	var locks []models.AccountLock
+	var locks []authmodel.AccountLock
 	if err = query.Order("id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&locks).Error; err != nil {
 		response.Fail(c, "list account locks failed", err)
 		return
@@ -796,7 +797,7 @@ func (h *Handlers) handleAdminUnlockAccount(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid account lock id"))
 		return
 	}
-	var lock models.AccountLock
+	var lock authmodel.AccountLock
 	if err = h.db.First(&lock, id).Error; err != nil {
 		response.Fail(c, "account lock not found", err)
 		return
@@ -819,7 +820,7 @@ func (h *Handlers) handleAdminUpdateOAuthClient(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, err)
 		return
 	}
-	var client models.OAuthClient
+	var client authmodel.OAuthClient
 	if err = h.db.First(&client, id).Error; err != nil {
 		response.Fail(c, "oauth client not found", err)
 		return
@@ -863,7 +864,7 @@ func (h *Handlers) handleAdminDeleteOAuthClient(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid oauth client id"))
 		return
 	}
-	if err = h.db.Delete(&models.OAuthClient{}, id).Error; err != nil {
+	if err = h.db.Delete(&authmodel.OAuthClient{}, id).Error; err != nil {
 		response.Fail(c, "delete oauth client failed", err)
 		return
 	}

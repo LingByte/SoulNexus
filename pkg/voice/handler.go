@@ -4,10 +4,10 @@ package voice
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"github.com/LingByte/SoulNexus/internal/models/auth"
 	"context"
 	"fmt"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/utils/cache"
 	"github.com/LingByte/SoulNexus/pkg/voice/constants"
 	"github.com/LingByte/SoulNexus/pkg/voice/protocol"
@@ -21,7 +21,7 @@ import (
 type HardwareOptions struct {
 	Conn                 *websocket.Conn        // websocket connection
 	AgentID              uint                   // assistant id
-	Credential           *models.UserCredential // credential
+	Credential           *auth.UserCredential // credential
 	Language             string                 // language
 	Speaker              string                 // speaker
 	Temperature          float64                // temperature

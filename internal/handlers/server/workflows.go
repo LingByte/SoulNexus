@@ -4,6 +4,8 @@ package server
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"github.com/LingByte/SoulNexus/internal/models/auth"
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	workflowdef "github.com/LingByte/SoulNexus/internal/workflow"
 	"github.com/LingByte/SoulNexus/pkg/events"
 	"github.com/LingByte/SoulNexus/pkg/logger"
@@ -51,7 +52,7 @@ func (w *WorkflowLogSender) SendLog(log runtimewf.ExecutionLog) error {
 
 func (h *Handlers) registerWorkflowRoutes(r *gin.RouterGroup) {
 	workflows := r.Group("/workflows")
-	workflows.Use(models.AuthRequired)
+	workflows.Use(auth.AuthRequired)
 	{
 		defs := workflows.Group("/definitions")
 		defs.POST("", h.CreateWorkflowDefinition)
@@ -78,9 +79,9 @@ type workflowDefinitionInput struct {
 	Slug        string               `json:"slug" binding:"required"`
 	Description string               `json:"description"`
 	Status      string               `json:"status"`
-	Definition  models.WorkflowGraph `json:"definition" binding:"required"`
-	Settings    models.JSONMap       `json:"settings"`
-	Triggers    models.JSONMap       `json:"triggers"`
+	Definition  svcmodels.WorkflowGraph `json:"definition" binding:"required"`
+	Settings    svcmodels.JSONMap       `json:"settings"`
+	Triggers    svcmodels.JSONMap       `json:"triggers"`
 	Tags        []string             `json:"tags"`
 	Version     uint                 `json:"version"`
 	GroupID     interface{}          `json:"groupId,omitempty"` // 组织ID，如果设置则表示这是组织共享的工作流
@@ -88,7 +89,7 @@ type workflowDefinitionInput struct {
 
 // CreateWorkflowDefinition stores a new workflow template.
 func (h *Handlers) CreateWorkflowDefinition(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "unauthorized", "User not logged in")
 		return
@@ -107,7 +108,7 @@ func (h *Handlers) CreateWorkflowDefinition(c *gin.Context) {
 			requested = &uid
 		}
 	}
-	gid, err := models.ResolveWriteGroupID(h.db, user.ID, requested)
+	gid, err := svcmodels.ResolveWriteGroupID(h.db, user.ID, requested)
 	if err != nil {
 		response.Fail(c, "organization error", err.Error())
 		return
@@ -125,7 +126,7 @@ func (h *Handlers) CreateWorkflowDefinition(c *gin.Context) {
 		input.Version = 1
 	}
 
-	def := models.WorkflowDefinition{
+	def := svcmodels.WorkflowDefinition{
 		GroupID:     gid,
 		CreatorUID:  user.ID,
 		Name:        input.Name,
@@ -135,7 +136,7 @@ func (h *Handlers) CreateWorkflowDefinition(c *gin.Context) {
 		Definition:  input.Definition,
 		Settings:    input.Settings,
 		Triggers:    input.Triggers,
-		Tags:        models.StringArray(input.Tags),
+		Tags:        svcmodels.StringArray(input.Tags),
 		Version:     input.Version,
 		CreatedBy:   user.Email,
 		UpdatedBy:   user.Email,
@@ -147,7 +148,7 @@ func (h *Handlers) CreateWorkflowDefinition(c *gin.Context) {
 	}
 
 	// Save initial version to history
-	initialVersion := models.WorkflowVersion{
+	initialVersion := svcmodels.WorkflowVersion{
 		DefinitionID: def.ID,
 		Version:      def.Version,
 		Name:         def.Name,
@@ -170,7 +171,7 @@ func (h *Handlers) CreateWorkflowDefinition(c *gin.Context) {
 
 // ListWorkflowDefinitions returns definitions with optional status filter.
 func (h *Handlers) ListWorkflowDefinitions(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "unauthorized", "User not logged in")
 		return
@@ -179,16 +180,16 @@ func (h *Handlers) ListWorkflowDefinitions(c *gin.Context) {
 	var (
 		status  = c.Query("status")
 		keyword = c.Query("keyword")
-		list    []models.WorkflowDefinition
+		list    []svcmodels.WorkflowDefinition
 	)
 
-	groupIDs, err := models.MemberGroupIDs(h.db, user.ID)
+	groupIDs, err := svcmodels.MemberGroupIDs(h.db, user.ID)
 	if err != nil {
 		response.Fail(c, "failed to list workflow definitions", err.Error())
 		return
 	}
 
-	query := h.db.Model(&models.WorkflowDefinition{})
+	query := h.db.Model(&svcmodels.WorkflowDefinition{})
 	if len(groupIDs) == 0 {
 		response.Success(c, "ok", list)
 		return
@@ -213,7 +214,7 @@ func (h *Handlers) ListWorkflowDefinitions(c *gin.Context) {
 
 // GetWorkflowDefinition returns a single definition.
 func (h *Handlers) GetWorkflowDefinition(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "unauthorized", "User not logged in")
 		return
@@ -225,13 +226,13 @@ func (h *Handlers) GetWorkflowDefinition(c *gin.Context) {
 		return
 	}
 
-	var def models.WorkflowDefinition
+	var def svcmodels.WorkflowDefinition
 	if err := h.db.First(&def, id).Error; err != nil {
 		response.Fail(c, "workflow definition not found", err.Error())
 		return
 	}
 
-	if !models.UserIsGroupMember(h.db, user.ID, def.GroupID) {
+	if !svcmodels.UserIsGroupMember(h.db, user.ID, def.GroupID) {
 		response.Fail(c, "forbidden", nil)
 		return
 	}
@@ -241,7 +242,7 @@ func (h *Handlers) GetWorkflowDefinition(c *gin.Context) {
 
 // UpdateWorkflowDefinition updates definition fields.
 func (h *Handlers) UpdateWorkflowDefinition(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "unauthorized", nil)
 		return
@@ -253,7 +254,7 @@ func (h *Handlers) UpdateWorkflowDefinition(c *gin.Context) {
 		return
 	}
 
-	var def models.WorkflowDefinition
+	var def svcmodels.WorkflowDefinition
 	if err := h.db.First(&def, id).Error; err != nil {
 		response.Fail(c, "workflow definition not found", err.Error())
 		return
@@ -263,9 +264,9 @@ func (h *Handlers) UpdateWorkflowDefinition(c *gin.Context) {
 		Name             *string               `json:"name"`
 		Description      *string               `json:"description"`
 		Status           *string               `json:"status"`
-		Definition       *models.WorkflowGraph `json:"definition"`
-		Settings         *models.JSONMap       `json:"settings"`
-		Triggers         *models.JSONMap       `json:"triggers"`
+		Definition       *svcmodels.WorkflowGraph `json:"definition"`
+		Settings         *svcmodels.JSONMap       `json:"settings"`
+		Triggers         *svcmodels.JSONMap       `json:"triggers"`
 		InputParameters  []interface{}         `json:"inputParameters"`
 		OutputParameters []interface{}         `json:"outputParameters"`
 		Tags             []string              `json:"tags"`
@@ -295,7 +296,7 @@ func (h *Handlers) UpdateWorkflowDefinition(c *gin.Context) {
 		return
 	}
 
-	if !models.CanManageTenantResource(h.db, user.ID, def.GroupID, def.CreatorUID) {
+	if !svcmodels.CanManageTenantResource(h.db, user.ID, def.GroupID, def.CreatorUID) {
 		response.Fail(c, "insufficient permissions", nil)
 		return
 	}
@@ -306,7 +307,7 @@ func (h *Handlers) UpdateWorkflowDefinition(c *gin.Context) {
 			uid := uint(groupIDVal)
 			requested = &uid
 		}
-		newGid, err := models.ResolveWriteGroupID(h.db, user.ID, requested)
+		newGid, err := svcmodels.ResolveWriteGroupID(h.db, user.ID, requested)
 		if err != nil {
 			response.Fail(c, "organization error", err.Error())
 			return
@@ -315,7 +316,7 @@ func (h *Handlers) UpdateWorkflowDefinition(c *gin.Context) {
 	}
 
 	// Save current version to history before updating
-	versionHistory := models.WorkflowVersion{
+	versionHistory := svcmodels.WorkflowVersion{
 		DefinitionID:     def.ID,
 		Version:          def.Version,
 		Name:             def.Name,
@@ -357,13 +358,13 @@ func (h *Handlers) UpdateWorkflowDefinition(c *gin.Context) {
 		def.Triggers = *input.Triggers
 	}
 	if input.Tags != nil {
-		def.Tags = models.StringArray(input.Tags)
+		def.Tags = svcmodels.StringArray(input.Tags)
 	}
 	if input.InputParameters != nil {
-		def.InputParameters = models.JSONArray(input.InputParameters)
+		def.InputParameters = svcmodels.JSONArray(input.InputParameters)
 	}
 	if input.OutputParameters != nil {
-		def.OutputParameters = models.JSONArray(input.OutputParameters)
+		def.OutputParameters = svcmodels.JSONArray(input.OutputParameters)
 	}
 	def.UpdatedBy = user.Email
 	oldVersion := def.Version
@@ -384,7 +385,7 @@ func (h *Handlers) UpdateWorkflowDefinition(c *gin.Context) {
 		"group_id":          def.GroupID,
 	}
 
-	tx := h.db.Model(&models.WorkflowDefinition{}).
+	tx := h.db.Model(&svcmodels.WorkflowDefinition{}).
 		Where("id = ? AND version = ?", def.ID, oldVersion).
 		Updates(updates)
 	if tx.Error != nil {
@@ -401,7 +402,7 @@ func (h *Handlers) UpdateWorkflowDefinition(c *gin.Context) {
 
 // DeleteWorkflowDefinition deletes a workflow definition.
 func (h *Handlers) DeleteWorkflowDefinition(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "unauthorized", "User not logged in")
 		return
@@ -413,13 +414,13 @@ func (h *Handlers) DeleteWorkflowDefinition(c *gin.Context) {
 		return
 	}
 
-	var def models.WorkflowDefinition
+	var def svcmodels.WorkflowDefinition
 	if err := h.db.First(&def, id).Error; err != nil {
 		response.Fail(c, "workflow definition not found", err.Error())
 		return
 	}
 
-	if !models.CanManageTenantResource(h.db, user.ID, def.GroupID, def.CreatorUID) {
+	if !svcmodels.CanManageTenantResource(h.db, user.ID, def.GroupID, def.CreatorUID) {
 		response.Fail(c, "insufficient permissions", nil)
 		return
 	}
@@ -452,7 +453,7 @@ var allowedNodeTypes = map[string]struct{}{
 	"ai_chat":         {},
 }
 
-func validateWorkflowGraph(graph models.WorkflowGraph) error {
+func validateWorkflowGraph(graph svcmodels.WorkflowGraph) error {
 	if len(graph.Nodes) == 0 {
 		return errors.New("workflow must contain at least one node")
 	}
@@ -501,12 +502,12 @@ func validateWorkflowGraph(graph models.WorkflowGraph) error {
 		}
 
 		switch edge.Type {
-		case models.WorkflowEdgeTypeTrue, models.WorkflowEdgeTypeFalse:
+		case svcmodels.WorkflowEdgeTypeTrue, svcmodels.WorkflowEdgeTypeFalse:
 			if sourceType != "gateway" && sourceType != "condition" {
 				return fmt.Errorf("edge type %s allowed only for gateway/condition nodes", edge.Type)
 			}
 			// Note: condition type is deprecated but kept for backward compatibility
-		case models.WorkflowEdgeTypeBranch:
+		case svcmodels.WorkflowEdgeTypeBranch:
 			if sourceType != "parallel" {
 				return fmt.Errorf("branch edge allowed only for parallel nodes")
 			}
@@ -518,7 +519,7 @@ func validateWorkflowGraph(graph models.WorkflowGraph) error {
 
 // RunWorkflowDefinition executes a workflow definition and creates an instance.
 func (h *Handlers) RunWorkflowDefinition(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "unauthorized", "User not logged in")
 		return
@@ -530,13 +531,13 @@ func (h *Handlers) RunWorkflowDefinition(c *gin.Context) {
 		return
 	}
 
-	var def models.WorkflowDefinition
+	var def svcmodels.WorkflowDefinition
 	if err := h.db.First(&def, id).Error; err != nil {
 		response.Fail(c, "workflow definition not found", err.Error())
 		return
 	}
 
-	if !models.UserIsGroupMember(h.db, user.ID, def.GroupID) {
+	if !svcmodels.UserIsGroupMember(h.db, user.ID, def.GroupID) {
 		response.Fail(c, "forbidden", nil)
 		return
 	}
@@ -592,13 +593,13 @@ func (h *Handlers) RunWorkflowDefinition(c *gin.Context) {
 
 	// Create workflow instance
 	now := time.Now()
-	instance := models.WorkflowInstance{
+	instance := svcmodels.WorkflowInstance{
 		DefinitionID:   def.ID,
 		DefinitionName: def.Name,
 		Status:         "running",
 		StartedAt:      &now,
-		ContextData:    make(models.JSONMap),
-		ResultData:     make(models.JSONMap),
+		ContextData:    make(svcmodels.JSONMap),
+		ResultData:     make(svcmodels.JSONMap),
 	}
 
 	if err := h.db.Create(&instance).Error; err != nil {
@@ -615,7 +616,7 @@ func (h *Handlers) RunWorkflowDefinition(c *gin.Context) {
 
 	if execErr != nil {
 		instance.Status = "failed"
-		instance.ResultData = models.JSONMap{
+		instance.ResultData = svcmodels.JSONMap{
 			"error": execErr.Error(),
 		}
 	} else {
@@ -623,7 +624,7 @@ func (h *Handlers) RunWorkflowDefinition(c *gin.Context) {
 		// Store workflow context data as result
 		if runtimeWf.Context != nil {
 			instance.ContextData = runtimeWf.Context.NodeData
-			instance.ResultData = models.JSONMap{
+			instance.ResultData = svcmodels.JSONMap{
 				"success": true,
 				"context": runtimeWf.Context.NodeData,
 			}
@@ -676,7 +677,7 @@ func (h *Handlers) RunWorkflowDefinition(c *gin.Context) {
 
 // TestWorkflowNode tests a single node with provided inputs
 func (h *Handlers) TestWorkflowNode(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "unauthorized", "User not logged in")
 		return
@@ -694,19 +695,19 @@ func (h *Handlers) TestWorkflowNode(c *gin.Context) {
 		return
 	}
 
-	var def models.WorkflowDefinition
+	var def svcmodels.WorkflowDefinition
 	if err := h.db.First(&def, id).Error; err != nil {
 		response.Fail(c, "workflow definition not found", err.Error())
 		return
 	}
 
-	if !models.UserIsGroupMember(h.db, user.ID, def.GroupID) {
+	if !svcmodels.UserIsGroupMember(h.db, user.ID, def.GroupID) {
 		response.Fail(c, "forbidden", nil)
 		return
 	}
 
 	// Find the node in definition
-	var targetNode *models.WorkflowNodeSchema
+	var targetNode *svcmodels.WorkflowNodeSchema
 	for i := range def.Definition.Nodes {
 		if def.Definition.Nodes[i].ID == nodeID {
 			targetNode = &def.Definition.Nodes[i]
@@ -830,13 +831,13 @@ func (h *Handlers) ListWorkflowVersions(c *gin.Context) {
 	}
 
 	// Verify workflow definition exists
-	var def models.WorkflowDefinition
+	var def svcmodels.WorkflowDefinition
 	if err := h.db.First(&def, id).Error; err != nil {
 		response.Fail(c, "workflow definition not found", err.Error())
 		return
 	}
 
-	var versions []models.WorkflowVersion
+	var versions []svcmodels.WorkflowVersion
 	if err := h.db.Where("definition_id = ?", id).
 		Order("version desc").
 		Find(&versions).Error; err != nil {
@@ -862,13 +863,13 @@ func (h *Handlers) GetWorkflowVersion(c *gin.Context) {
 	}
 
 	// Verify workflow definition exists
-	var def models.WorkflowDefinition
+	var def svcmodels.WorkflowDefinition
 	if err := h.db.First(&def, id).Error; err != nil {
 		response.Fail(c, "workflow definition not found", err.Error())
 		return
 	}
 
-	var version models.WorkflowVersion
+	var version svcmodels.WorkflowVersion
 	if err := h.db.Where("definition_id = ? AND id = ?", id, versionId).
 		First(&version).Error; err != nil {
 		response.Fail(c, "workflow version not found", err.Error())
@@ -880,7 +881,7 @@ func (h *Handlers) GetWorkflowVersion(c *gin.Context) {
 
 // RollbackWorkflowVersion restores a workflow definition to a specific version.
 func (h *Handlers) RollbackWorkflowVersion(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "unauthorized", nil)
 		return
@@ -899,14 +900,14 @@ func (h *Handlers) RollbackWorkflowVersion(c *gin.Context) {
 	}
 
 	// Get current workflow definition
-	var def models.WorkflowDefinition
+	var def svcmodels.WorkflowDefinition
 	if err := h.db.First(&def, id).Error; err != nil {
 		response.Fail(c, "workflow definition not found", err.Error())
 		return
 	}
 
 	// Get the version to rollback to
-	var version models.WorkflowVersion
+	var version svcmodels.WorkflowVersion
 	if err := h.db.Where("definition_id = ? AND id = ?", id, versionId).
 		First(&version).Error; err != nil {
 		response.Fail(c, "workflow version not found", err.Error())
@@ -914,7 +915,7 @@ func (h *Handlers) RollbackWorkflowVersion(c *gin.Context) {
 	}
 
 	// Save current version to history before rollback
-	currentVersionHistory := models.WorkflowVersion{
+	currentVersionHistory := svcmodels.WorkflowVersion{
 		DefinitionID: def.ID,
 		Version:      def.Version,
 		Name:         def.Name,
@@ -957,7 +958,7 @@ func (h *Handlers) RollbackWorkflowVersion(c *gin.Context) {
 		"version":     def.Version,
 	}
 
-	if err := h.db.Model(&models.WorkflowDefinition{}).
+	if err := h.db.Model(&svcmodels.WorkflowDefinition{}).
 		Where("id = ?", def.ID).
 		Updates(updates).Error; err != nil {
 		response.Fail(c, "failed to rollback workflow definition", err.Error())
@@ -997,14 +998,14 @@ func (h *Handlers) CompareWorkflowVersions(c *gin.Context) {
 	}
 
 	// Verify workflow definition exists
-	var def models.WorkflowDefinition
+	var def svcmodels.WorkflowDefinition
 	if err := h.db.First(&def, id).Error; err != nil {
 		response.Fail(c, "workflow definition not found", err.Error())
 		return
 	}
 
 	// Get both versions
-	var v1, v2 models.WorkflowVersion
+	var v1, v2 svcmodels.WorkflowVersion
 	if err := h.db.Where("definition_id = ? AND id = ?", id, v1Id).
 		First(&v1).Error; err != nil {
 		response.Fail(c, "workflow version 1 not found", err.Error())
@@ -1028,7 +1029,7 @@ func (h *Handlers) CompareWorkflowVersions(c *gin.Context) {
 }
 
 // buildWorkflowDiff compares two workflow versions and returns differences.
-func buildWorkflowDiff(v1, v2 *models.WorkflowVersion) map[string]interface{} {
+func buildWorkflowDiff(v1, v2 *svcmodels.WorkflowVersion) map[string]interface{} {
 	diff := make(map[string]interface{})
 
 	// Compare basic fields
@@ -1083,19 +1084,19 @@ func buildWorkflowDiff(v1, v2 *models.WorkflowVersion) map[string]interface{} {
 }
 
 // compareNodes compares two node arrays and returns differences.
-func compareNodes(nodes1, nodes2 []models.WorkflowNodeSchema) map[string]interface{} {
+func compareNodes(nodes1, nodes2 []svcmodels.WorkflowNodeSchema) map[string]interface{} {
 	diff := make(map[string]interface{})
-	added := []models.WorkflowNodeSchema{}
-	removed := []models.WorkflowNodeSchema{}
+	added := []svcmodels.WorkflowNodeSchema{}
+	removed := []svcmodels.WorkflowNodeSchema{}
 	modified := []map[string]interface{}{}
 
 	// Create maps for easier lookup
-	nodes1Map := make(map[string]models.WorkflowNodeSchema)
+	nodes1Map := make(map[string]svcmodels.WorkflowNodeSchema)
 	for _, n := range nodes1 {
 		nodes1Map[n.ID] = n
 	}
 
-	nodes2Map := make(map[string]models.WorkflowNodeSchema)
+	nodes2Map := make(map[string]svcmodels.WorkflowNodeSchema)
 	for _, n := range nodes2 {
 		nodes2Map[n.ID] = n
 	}
@@ -1134,19 +1135,19 @@ func compareNodes(nodes1, nodes2 []models.WorkflowNodeSchema) map[string]interfa
 }
 
 // compareEdges compares two edge arrays and returns differences.
-func compareEdges(edges1, edges2 []models.WorkflowEdgeSchema) map[string]interface{} {
+func compareEdges(edges1, edges2 []svcmodels.WorkflowEdgeSchema) map[string]interface{} {
 	diff := make(map[string]interface{})
-	added := []models.WorkflowEdgeSchema{}
-	removed := []models.WorkflowEdgeSchema{}
+	added := []svcmodels.WorkflowEdgeSchema{}
+	removed := []svcmodels.WorkflowEdgeSchema{}
 	modified := []map[string]interface{}{}
 
 	// Create maps for easier lookup
-	edges1Map := make(map[string]models.WorkflowEdgeSchema)
+	edges1Map := make(map[string]svcmodels.WorkflowEdgeSchema)
 	for _, e := range edges1 {
 		edges1Map[e.ID] = e
 	}
 
-	edges2Map := make(map[string]models.WorkflowEdgeSchema)
+	edges2Map := make(map[string]svcmodels.WorkflowEdgeSchema)
 	for _, e := range edges2 {
 		edges2Map[e.ID] = e
 	}
@@ -1185,7 +1186,7 @@ func compareEdges(edges1, edges2 []models.WorkflowEdgeSchema) map[string]interfa
 }
 
 // nodesEqual checks if two nodes are equal.
-func nodesEqual(n1, n2 models.WorkflowNodeSchema) bool {
+func nodesEqual(n1, n2 svcmodels.WorkflowNodeSchema) bool {
 	return n1.ID == n2.ID &&
 		n1.Name == n2.Name &&
 		n1.Type == n2.Type &&
@@ -1193,7 +1194,7 @@ func nodesEqual(n1, n2 models.WorkflowNodeSchema) bool {
 }
 
 // edgesEqual checks if two edges are equal.
-func edgesEqual(e1, e2 models.WorkflowEdgeSchema) bool {
+func edgesEqual(e1, e2 svcmodels.WorkflowEdgeSchema) bool {
 	return e1.ID == e2.ID &&
 		e1.Source == e2.Source &&
 		e1.Target == e2.Target &&
@@ -1202,7 +1203,7 @@ func edgesEqual(e1, e2 models.WorkflowEdgeSchema) bool {
 }
 
 // mapsEqual checks if two JSON maps are equal (simplified comparison).
-func mapsEqual(m1, m2 models.JSONMap) bool {
+func mapsEqual(m1, m2 svcmodels.JSONMap) bool {
 	if len(m1) != len(m2) {
 		return false
 	}
@@ -1229,7 +1230,7 @@ func (h *Handlers) GetAvailableEventTypes(c *gin.Context) {
 	publishedFromWorkflows := make(map[string]bool)
 	listenedFromWorkflows := make(map[string]bool)
 
-	var workflows []models.WorkflowDefinition
+	var workflows []svcmodels.WorkflowDefinition
 	if err := h.db.Where("status IN ?", []string{"active", "draft"}).Find(&workflows).Error; err == nil {
 		for _, wf := range workflows {
 			// 提取事件节点发布的事件类型

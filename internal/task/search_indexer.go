@@ -6,9 +6,9 @@ package task
 import (
 	"context"
 	"fmt"
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"strconv"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/utils"
@@ -124,7 +124,7 @@ func IndexUserData(db *gorm.DB, engine search2.Engine) error {
 	assistantOffset := 0
 	assistantBatchSize := 100 // Query 100 items each time
 	for {
-		var assistants []models.Agent
+		var assistants []svcmodels.Agent
 		if err := db.Offset(assistantOffset).Limit(assistantBatchSize).Find(&assistants).Error; err != nil {
 			logger.Error("Failed to query assistants", zap.Error(err))
 			break
@@ -169,7 +169,7 @@ func IndexUserData(db *gorm.DB, engine search2.Engine) error {
 	chatOffset := 0
 	chatBatchSize := 100
 	for {
-		var chatLogs []models.ChatSessionLog
+		var chatLogs []svcmodels.ChatSessionLog
 		if err := db.Where("(user_message IS NOT NULL AND user_message != '') OR (agent_message IS NOT NULL AND agent_message != '')").
 			Offset(chatOffset).Limit(chatBatchSize).Find(&chatLogs).Error; err != nil {
 			logger.Error("Failed to query chat logs", zap.Error(err))
@@ -223,7 +223,7 @@ func IndexUserData(db *gorm.DB, engine search2.Engine) error {
 	notificationOffset := 0
 	notificationBatchSize := 100
 	for {
-		var notifications []models.InternalNotification
+		var notifications []svcmodels.InternalNotification
 		if err := db.Where("title IS NOT NULL AND title != ''").
 			Offset(notificationOffset).Limit(notificationBatchSize).Find(&notifications).Error; err != nil {
 			logger.Error("Failed to query notifications", zap.Error(err))

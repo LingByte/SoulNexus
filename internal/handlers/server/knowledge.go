@@ -11,11 +11,13 @@
 //   - Markdown form of each document is uploaded to object storage; the URL is
 //     stored in KnowledgeDocument.TextURL for later viewing / editing.
 //   - Multi-tenancy is enforced by GroupID: every list/create/update/delete
-//     check `models.UserIsGroupMember`.
+//     check `svcmodels.UserIsGroupMember`.
 
 package server
 
 import (
+	"github.com/LingByte/SoulNexus/internal/models/auth"
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"bytes"
 	"context"
 	"crypto/md5"
@@ -34,7 +36,6 @@ import (
 	"time"
 
 	"github.com/LingByte/SoulNexus/internal/config"
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/knowledge"
 	"github.com/LingByte/SoulNexus/pkg/llm"
 	"github.com/LingByte/SoulNexus/pkg/logger"
@@ -73,13 +74,13 @@ func normalizeVec64InPlace(v []float64) {
 	}
 }
 
-func knowledgeProviderForLog(ns *models.KnowledgeNamespace) string {
+func knowledgeProviderForLog(ns *svcmodels.KnowledgeNamespace) string {
 	if ns == nil {
 		return ""
 	}
 	p := strings.TrimSpace(strings.ToLower(ns.VectorProvider))
 	if p == "" {
-		p = models.KnowledgeVectorProviderQdrant
+		p = svcmodels.KnowledgeVectorProviderQdrant
 	}
 	return p
 }
@@ -114,7 +115,7 @@ func knowledgeSearchFromEnv() (search.Engine, error) {
 	return knowledgeSearchEngine, knowledgeSearchErr
 }
 
-func knowledgeHandlerForNS(ns *models.KnowledgeNamespace, embedder knowledge.Embedder) (knowledge.KnowledgeHandler, error) {
+func knowledgeHandlerForNS(ns *svcmodels.KnowledgeNamespace, embedder knowledge.Embedder) (knowledge.KnowledgeHandler, error) {
 	if ns == nil {
 		return nil, errors.New("nil namespace")
 	}
@@ -288,12 +289,12 @@ func (h *Handlers) knowledgeDocFinalizeSuccess(docID int64, recordIDs []string, 
 	// When object storage did not yield a URL but we have markdown, persist a sentinel in text_url
 	// so APIs and operators see a non-empty marker (content lives in stored_markdown).
 	if textURL == "" && storedMarkdown != "" {
-		textURL = models.KnowledgeTextURLInline
+		textURL = svcmodels.KnowledgeTextURLInline
 	}
 	rawIDs, _ := json.Marshal(recordIDs)
 	updates := map[string]any{
 		"record_ids": string(rawIDs),
-		"status":     models.KnowledgeStatusActive,
+		"status":     svcmodels.KnowledgeStatusActive,
 	}
 	if textURL != "" {
 		updates["text_url"] = textURL
@@ -301,15 +302,15 @@ func (h *Handlers) knowledgeDocFinalizeSuccess(docID int64, recordIDs []string, 
 	if storedMarkdown != "" {
 		updates["stored_markdown"] = storedMarkdown
 	}
-	_ = h.db.Model(&models.KnowledgeDocument{}).Where("id = ?", docID).Updates(updates).Error
+	_ = h.db.Model(&svcmodels.KnowledgeDocument{}).Where("id = ?", docID).Updates(updates).Error
 }
 
 func (h *Handlers) knowledgeDocFinalizeFailed(docID int64) {
 	if h == nil || h.db == nil || docID == 0 {
 		return
 	}
-	_ = h.db.Model(&models.KnowledgeDocument{}).Where("id = ?", docID).
-		Update("status", models.KnowledgeStatusFailed).Error
+	_ = h.db.Model(&svcmodels.KnowledgeDocument{}).Where("id = ?", docID).
+		Update("status", svcmodels.KnowledgeStatusFailed).Error
 }
 
 // ============================================================================
@@ -366,13 +367,13 @@ type knowledgeDocumentCreateReq struct {
 // ============================================================================
 
 // knowledgeAuthAndScope ensures the user is logged in and returns (user, allowedGroupIDs).
-func (h *Handlers) knowledgeAuthAndScope(c *gin.Context) (*models.User, []uint, bool) {
-	user := models.CurrentUser(c)
+func (h *Handlers) knowledgeAuthAndScope(c *gin.Context) (*auth.User, []uint, bool) {
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "unauthorized", "User not logged in")
 		return nil, nil, false
 	}
-	gids, err := models.MemberGroupIDs(h.db, user.ID)
+	gids, err := svcmodels.MemberGroupIDs(h.db, user.ID)
 	if err != nil {
 		response.Fail(c, "list groups failed", err.Error())
 		return nil, nil, false
@@ -380,8 +381,8 @@ func (h *Handlers) knowledgeAuthAndScope(c *gin.Context) (*models.User, []uint, 
 	return user, gids, true
 }
 
-func (h *Handlers) knowledgeLoadNamespaceForUser(c *gin.Context, user *models.User, gids []uint, id int64) (*models.KnowledgeNamespace, bool) {
-	row, err := models.GetKnowledgeNamespace(h.db, id)
+func (h *Handlers) knowledgeLoadNamespaceForUser(c *gin.Context, user *auth.User, gids []uint, id int64) (*svcmodels.KnowledgeNamespace, bool) {
+	row, err := svcmodels.GetKnowledgeNamespace(h.db, id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.FailWithCode(c, 404, "not found", "knowledge base not found")
@@ -398,8 +399,8 @@ func (h *Handlers) knowledgeLoadNamespaceForUser(c *gin.Context, user *models.Us
 	return row, true
 }
 
-func (h *Handlers) knowledgeLoadDocumentForUser(c *gin.Context, user *models.User, gids []uint, id int64) (*models.KnowledgeDocument, bool) {
-	row, err := models.GetKnowledgeDocument(h.db, id)
+func (h *Handlers) knowledgeLoadDocumentForUser(c *gin.Context, user *auth.User, gids []uint, id int64) (*svcmodels.KnowledgeDocument, bool) {
+	row, err := svcmodels.GetKnowledgeDocument(h.db, id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.FailWithCode(c, 404, "not found", "document not found")
@@ -412,7 +413,7 @@ func (h *Handlers) knowledgeLoadDocumentForUser(c *gin.Context, user *models.Use
 		response.FailWithCode(c, 403, "forbidden", "no permission")
 		return nil, false
 	}
-	if strings.EqualFold(strings.TrimSpace(row.Status), models.KnowledgeStatusDeleted) && !user.HasAdminAccess() {
+	if strings.EqualFold(strings.TrimSpace(row.Status), svcmodels.KnowledgeStatusDeleted) && !user.HasAdminAccess() {
 		response.FailWithCode(c, 404, "not found", "document not found")
 		return nil, false
 	}
@@ -466,7 +467,7 @@ func clampPageSize(n int) int {
 
 func (h *Handlers) registerKnowledgeRoutes(api *gin.RouterGroup) {
 	ns := api.Group("/knowledge-namespaces")
-	ns.Use(models.AuthRequired)
+	ns.Use(auth.AuthRequired)
 	{
 		ns.GET("", h.knowledgeNamespacesListHandler)
 		ns.POST("", h.knowledgeNamespaceCreateHandler)
@@ -477,7 +478,7 @@ func (h *Handlers) registerKnowledgeRoutes(api *gin.RouterGroup) {
 		ns.DELETE("/:id", h.knowledgeNamespaceDeleteHandler)
 	}
 	docs := api.Group("/knowledge-documents")
-	docs.Use(models.AuthRequired)
+	docs.Use(auth.AuthRequired)
 	{
 		docs.GET("", h.knowledgeDocumentsListHandler)
 		docs.POST("", h.knowledgeDocumentCreateOrUpsertHandler)
@@ -504,14 +505,14 @@ func (h *Handlers) knowledgeNamespacesListHandler(c *gin.Context) {
 	statusRaw := strings.TrimSpace(c.Query("status"))
 	var status string
 	if statusRaw == "" {
-		status = models.KnowledgeStatusActive
+		status = svcmodels.KnowledgeStatusActive
 	} else if strings.EqualFold(statusRaw, "all") {
 		status = ""
 	} else {
 		status = statusRaw
 	}
 	keyword := strings.TrimSpace(c.Query("q"))
-	out, err := models.ListKnowledgeNamespaces(h.db, gids, status, keyword, page, pageSize)
+	out, err := svcmodels.ListKnowledgeNamespaces(h.db, gids, status, keyword, page, pageSize)
 	if err != nil {
 		response.Fail(c, "query failed", err.Error())
 		return
@@ -549,12 +550,12 @@ func (h *Handlers) knowledgeNamespaceCreateHandler(c *gin.Context) {
 		response.FailWithCode(c, 400, "namespace required", nil)
 		return
 	}
-	gid, err := models.ResolveWriteGroupID(h.db, user.ID, req.GroupID)
+	gid, err := svcmodels.ResolveWriteGroupID(h.db, user.ID, req.GroupID)
 	if err != nil {
 		response.Fail(c, "resolve group failed", err.Error())
 		return
 	}
-	vp := models.NormalizeVectorProvider(req.VectorProvider)
+	vp := svcmodels.NormalizeVectorProvider(req.VectorProvider)
 	var status string
 	if req.Status != nil {
 		status = strings.TrimSpace(*req.Status)
@@ -575,7 +576,7 @@ func (h *Handlers) knowledgeNamespaceCreateHandler(c *gin.Context) {
 	}
 	realDim := len(probe[0])
 
-	tmpNS := &models.KnowledgeNamespace{VectorProvider: vp, Namespace: strings.TrimSpace(req.Namespace)}
+	tmpNS := &svcmodels.KnowledgeNamespace{VectorProvider: vp, Namespace: strings.TrimSpace(req.Namespace)}
 	kh, err := knowledgeHandlerForNS(tmpNS, embedder)
 	if err != nil {
 		response.Fail(c, "vector backend unavailable", err.Error())
@@ -585,14 +586,14 @@ func (h *Handlers) knowledgeNamespaceCreateHandler(c *gin.Context) {
 		response.Fail(c, "vector backend ping failed", gin.H{"provider": vp, "error": err.Error()})
 		return
 	}
-	if vp == models.KnowledgeVectorProviderQdrant {
+	if vp == svcmodels.KnowledgeVectorProviderQdrant {
 		if err := kh.CreateNamespace(ctx, strings.TrimSpace(req.Namespace)); err != nil {
 			response.Fail(c, "create namespace failed (qdrant)", err.Error())
 			return
 		}
 	}
 
-	row, err := models.UpsertKnowledgeNamespace(h.db, gid, user.ID, 0, &models.KnowledgeNamespaceCreateUpdate{
+	row, err := svcmodels.UpsertKnowledgeNamespace(h.db, gid, user.ID, 0, &svcmodels.KnowledgeNamespaceCreateUpdate{
 		Namespace:      req.Namespace,
 		Name:           req.Name,
 		Description:    req.Description,
@@ -602,7 +603,7 @@ func (h *Handlers) knowledgeNamespaceCreateHandler(c *gin.Context) {
 		Status:         status,
 	})
 	if err != nil {
-		if vp == models.KnowledgeVectorProviderQdrant {
+		if vp == svcmodels.KnowledgeVectorProviderQdrant {
 			_ = kh.DeleteNamespace(context.Background(), strings.TrimSpace(req.Namespace))
 		}
 		response.Fail(c, "create failed", err.Error())
@@ -629,7 +630,7 @@ func (h *Handlers) knowledgeNamespaceUpdateHandler(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if !models.CanManageTenantResource(h.db, user.ID, existing.GroupID, existing.CreatedBy) {
+	if !svcmodels.CanManageTenantResource(h.db, user.ID, existing.GroupID, existing.CreatedBy) {
 		response.FailWithCode(c, 403, "forbidden", "no permission to update")
 		return
 	}
@@ -637,7 +638,7 @@ func (h *Handlers) knowledgeNamespaceUpdateHandler(c *gin.Context) {
 		response.FailWithCode(c, 400, "namespace immutable", "vector backend collection cannot be renamed")
 		return
 	}
-	if models.NormalizeVectorProvider(req.VectorProvider) != models.NormalizeVectorProvider(existing.VectorProvider) {
+	if svcmodels.NormalizeVectorProvider(req.VectorProvider) != svcmodels.NormalizeVectorProvider(existing.VectorProvider) {
 		response.FailWithCode(c, 400, "vector_provider immutable", nil)
 		return
 	}
@@ -649,7 +650,7 @@ func (h *Handlers) knowledgeNamespaceUpdateHandler(c *gin.Context) {
 	if req.Status != nil {
 		status = strings.TrimSpace(*req.Status)
 	}
-	row, err := models.UpsertKnowledgeNamespace(h.db, existing.GroupID, existing.CreatedBy, id, &models.KnowledgeNamespaceCreateUpdate{
+	row, err := svcmodels.UpsertKnowledgeNamespace(h.db, existing.GroupID, existing.CreatedBy, id, &svcmodels.KnowledgeNamespaceCreateUpdate{
 		Namespace:      req.Namespace,
 		Name:           req.Name,
 		Description:    req.Description,
@@ -678,7 +679,7 @@ func (h *Handlers) knowledgeNamespaceDeleteHandler(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if !models.CanManageTenantResource(h.db, user.ID, row.GroupID, row.CreatedBy) {
+	if !svcmodels.CanManageTenantResource(h.db, user.ID, row.GroupID, row.CreatedBy) {
 		response.FailWithCode(c, 403, "forbidden", "no permission to delete")
 		return
 	}
@@ -693,7 +694,7 @@ func (h *Handlers) knowledgeNamespaceDeleteHandler(c *gin.Context) {
 		response.Fail(c, "delete failed (vector backend)", err.Error())
 		return
 	}
-	if err := models.SoftDeleteKnowledgeNamespace(h.db, id); err != nil {
+	if err := svcmodels.SoftDeleteKnowledgeNamespace(h.db, id); err != nil {
 		response.Fail(c, "delete failed", err.Error())
 		return
 	}
@@ -710,13 +711,13 @@ func (h *Handlers) knowledgeDocumentCreateOrUpsertHandler(c *gin.Context) {
 		response.FailWithCode(c, 400, "bad request", err.Error())
 		return
 	}
-	gid, err := models.ResolveWriteGroupID(h.db, user.ID, req.GroupID)
+	gid, err := svcmodels.ResolveWriteGroupID(h.db, user.ID, req.GroupID)
 	if err != nil {
 		response.Fail(c, "resolve group failed", err.Error())
 		return
 	}
 	ns := strings.TrimSpace(req.Namespace)
-	if _, err := models.GetKnowledgeNamespaceByGroupAndNamespace(h.db, gid, ns); err != nil {
+	if _, err := svcmodels.GetKnowledgeNamespaceByGroupAndNamespace(h.db, gid, ns); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.FailWithCode(c, 404, "namespace not found", "create a knowledge base in this organization first")
 			return
@@ -728,7 +729,7 @@ func (h *Handlers) knowledgeDocumentCreateOrUpsertHandler(c *gin.Context) {
 	if req.Status != nil {
 		status = strings.TrimSpace(*req.Status)
 	}
-	row, err := models.UpsertKnowledgeDocument(h.db, gid, user.ID, 0, &models.KnowledgeDocumentUpsertReq{
+	row, err := svcmodels.UpsertKnowledgeDocument(h.db, gid, user.ID, 0, &svcmodels.KnowledgeDocumentUpsertReq{
 		Namespace: req.Namespace,
 		Title:     req.Title,
 		Source:    req.Source,
@@ -754,7 +755,7 @@ func (h *Handlers) knowledgeDocumentsListHandler(c *gin.Context) {
 	statusRaw := strings.TrimSpace(c.Query("status"))
 	var status string
 	if statusRaw == "" {
-		status = models.KnowledgeStatusActive
+		status = svcmodels.KnowledgeStatusActive
 	} else if strings.EqualFold(statusRaw, "all") {
 		status = ""
 	} else {
@@ -762,7 +763,7 @@ func (h *Handlers) knowledgeDocumentsListHandler(c *gin.Context) {
 	}
 	keyword := strings.TrimSpace(c.Query("q"))
 	excludeDeleted := !user.HasAdminAccess()
-	out, err := models.ListKnowledgeDocuments(h.db, gids, namespace, status, keyword, page, pageSize, excludeDeleted)
+	out, err := svcmodels.ListKnowledgeDocuments(h.db, gids, namespace, status, keyword, page, pageSize, excludeDeleted)
 	if err != nil {
 		response.Fail(c, "query failed", err.Error())
 		return
@@ -784,7 +785,7 @@ func (h *Handlers) knowledgeDocumentDetailHandler(c *gin.Context) {
 		return
 	}
 	out := gin.H{"document": row}
-	if nsRow, err := models.GetKnowledgeNamespaceByGroupAndNamespace(h.db, row.GroupID, row.Namespace); err == nil && nsRow != nil {
+	if nsRow, err := svcmodels.GetKnowledgeNamespaceByGroupAndNamespace(h.db, row.GroupID, row.Namespace); err == nil && nsRow != nil {
 		out["vectorProvider"] = nsRow.VectorProvider
 	}
 	response.Success(c, "ok", out)
@@ -803,7 +804,7 @@ func (h *Handlers) knowledgeDocumentUpdateHandler(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if !models.CanManageTenantResource(h.db, user.ID, doc.GroupID, doc.CreatedBy) {
+	if !svcmodels.CanManageTenantResource(h.db, user.ID, doc.GroupID, doc.CreatedBy) {
 		response.FailWithCode(c, 403, "forbidden", "no permission to update")
 		return
 	}
@@ -816,7 +817,7 @@ func (h *Handlers) knowledgeDocumentUpdateHandler(c *gin.Context) {
 	if req.Status != nil {
 		status = strings.TrimSpace(*req.Status)
 	}
-	row, err := models.UpsertKnowledgeDocument(h.db, doc.GroupID, doc.CreatedBy, id, &models.KnowledgeDocumentUpsertReq{
+	row, err := svcmodels.UpsertKnowledgeDocument(h.db, doc.GroupID, doc.CreatedBy, id, &svcmodels.KnowledgeDocumentUpsertReq{
 		Namespace: req.Namespace,
 		Title:     req.Title,
 		Source:    req.Source,
@@ -844,13 +845,13 @@ func (h *Handlers) knowledgeDocumentDeleteHandler(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if !models.CanManageTenantResource(h.db, user.ID, doc.GroupID, doc.CreatedBy) {
+	if !svcmodels.CanManageTenantResource(h.db, user.ID, doc.GroupID, doc.CreatedBy) {
 		response.FailWithCode(c, 403, "forbidden", "no permission to delete")
 		return
 	}
 	ids := parseRecordIDs(doc.RecordIDs)
 	if len(ids) > 0 {
-		nsRow, err := models.GetKnowledgeNamespaceByGroupAndNamespace(h.db, doc.GroupID, doc.Namespace)
+		nsRow, err := svcmodels.GetKnowledgeNamespaceByGroupAndNamespace(h.db, doc.GroupID, doc.Namespace)
 		if err != nil {
 			response.Fail(c, "load namespace failed", err.Error())
 			return
@@ -872,7 +873,7 @@ func (h *Handlers) knowledgeDocumentDeleteHandler(c *gin.Context) {
 			}
 		}
 	}
-	if err := models.SoftDeleteKnowledgeDocument(h.db, id); err != nil {
+	if err := svcmodels.SoftDeleteKnowledgeDocument(h.db, id); err != nil {
 		response.Fail(c, "delete failed", err.Error())
 		return
 	}
@@ -894,7 +895,7 @@ func (h *Handlers) knowledgeDocumentTextGetHandler(c *gin.Context) {
 	}
 	stored := strings.TrimSpace(doc.StoredMarkdown)
 	url := strings.TrimSpace(doc.TextURL)
-	if url == "" || models.IsKnowledgeInlineTextURL(url) {
+	if url == "" || svcmodels.IsKnowledgeInlineTextURL(url) {
 		response.Success(c, "ok", gin.H{"url": url, "markdown": stored})
 		return
 	}
@@ -943,7 +944,7 @@ func (h *Handlers) knowledgeDocumentTextPutHandler(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if !models.CanManageTenantResource(h.db, user.ID, doc.GroupID, doc.CreatedBy) {
+	if !svcmodels.CanManageTenantResource(h.db, user.ID, doc.GroupID, doc.CreatedBy) {
 		response.FailWithCode(c, 403, "forbidden", "no permission to edit")
 		return
 	}
@@ -957,7 +958,7 @@ func (h *Handlers) knowledgeDocumentTextPutHandler(c *gin.Context) {
 		response.FailWithCode(c, 400, "markdown required", nil)
 		return
 	}
-	nsRow, err := models.GetKnowledgeNamespaceByGroupAndNamespace(h.db, doc.GroupID, doc.Namespace)
+	nsRow, err := svcmodels.GetKnowledgeNamespaceByGroupAndNamespace(h.db, doc.GroupID, doc.Namespace)
 	if err != nil {
 		response.Fail(c, "load namespace failed", err.Error())
 		return
@@ -974,19 +975,19 @@ func (h *Handlers) knowledgeDocumentTextPutHandler(c *gin.Context) {
 		)
 	}
 	upd := map[string]any{
-		"status": models.KnowledgeStatusProcessing,
+		"status": svcmodels.KnowledgeStatusProcessing,
 	}
-	if textURL != "" && !models.IsKnowledgeInlineTextURL(textURL) {
+	if textURL != "" && !svcmodels.IsKnowledgeInlineTextURL(textURL) {
 		upd["text_url"] = textURL
 	} else {
-		upd["text_url"] = models.KnowledgeTextURLInline
+		upd["text_url"] = svcmodels.KnowledgeTextURLInline
 		upd["stored_markdown"] = mdText
 	}
-	_ = h.db.Model(&models.KnowledgeDocument{}).Where("id = ?", doc.ID).Updates(upd).Error
+	_ = h.db.Model(&svcmodels.KnowledgeDocument{}).Where("id = ?", doc.ID).Updates(upd).Error
 	doc.TextURL = textURL
-	doc.Status = models.KnowledgeStatusProcessing
+	doc.Status = svcmodels.KnowledgeStatusProcessing
 
-	go func(orgGID uint, ns models.KnowledgeNamespace, d models.KnowledgeDocument, md string) {
+	go func(orgGID uint, ns svcmodels.KnowledgeNamespace, d svcmodels.KnowledgeDocument, md string) {
 		ctx := context.Background()
 		if err := h.runKnowledgeTextPutJob(ctx, orgGID, ns, d, md); err != nil {
 			logger.Error("knowledge.text_put.job.failed", zap.Error(err), zap.Int64("doc_id", d.ID))
@@ -1013,7 +1014,7 @@ func (h *Handlers) knowledgeNamespaceUploadHandler(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if !models.CanManageTenantResource(h.db, user.ID, nsRow.GroupID, nsRow.CreatedBy) {
+	if !svcmodels.CanManageTenantResource(h.db, user.ID, nsRow.GroupID, nsRow.CreatedBy) {
 		response.FailWithCode(c, 403, "forbidden", "no permission to upload")
 		return
 	}
@@ -1036,20 +1037,20 @@ func (h *Handlers) knowledgeNamespaceUploadHandler(c *gin.Context) {
 	sum := md5.Sum(b)
 	fileHash := fmt.Sprintf("%x", sum[:])
 
-	docRow, err := models.UpsertKnowledgeDocument(h.db, nsRow.GroupID, user.ID, 0, &models.KnowledgeDocumentUpsertReq{
+	docRow, err := svcmodels.UpsertKnowledgeDocument(h.db, nsRow.GroupID, user.ID, 0, &svcmodels.KnowledgeDocumentUpsertReq{
 		Namespace: nsRow.Namespace,
 		Title:     fh.Filename,
 		Source:    "upload",
 		FileHash:  fileHash,
 		RecordIDs: "",
-		Status:    models.KnowledgeStatusProcessing,
+		Status:    svcmodels.KnowledgeStatusProcessing,
 	})
 	if err != nil {
 		response.Fail(c, "write document failed", err.Error())
 		return
 	}
 
-	go func(gid uint, ns models.KnowledgeNamespace, docID int64, fileName, fileHashStr string, content []byte) {
+	go func(gid uint, ns svcmodels.KnowledgeNamespace, docID int64, fileName, fileHashStr string, content []byte) {
 		ctx := context.Background()
 		if err := h.runKnowledgeUploadJob(ctx, gid, ns, docID, fileName, fileHashStr, content); err != nil {
 			logger.Error("knowledge.upload.job.failed", zap.Error(err), zap.Int64("doc_id", docID))
@@ -1076,11 +1077,11 @@ func (h *Handlers) knowledgeDocumentReuploadHandler(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if !models.CanManageTenantResource(h.db, user.ID, doc.GroupID, doc.CreatedBy) {
+	if !svcmodels.CanManageTenantResource(h.db, user.ID, doc.GroupID, doc.CreatedBy) {
 		response.FailWithCode(c, 403, "forbidden", "no permission to reupload")
 		return
 	}
-	nsRow, err := models.GetKnowledgeNamespaceByGroupAndNamespace(h.db, doc.GroupID, doc.Namespace)
+	nsRow, err := svcmodels.GetKnowledgeNamespaceByGroupAndNamespace(h.db, doc.GroupID, doc.Namespace)
 	if err != nil {
 		response.Fail(c, "load namespace failed", err.Error())
 		return
@@ -1105,21 +1106,21 @@ func (h *Handlers) knowledgeDocumentReuploadHandler(c *gin.Context) {
 	fileHash := fmt.Sprintf("%x", sum[:])
 	oldRecordIDs := doc.RecordIDs
 
-	_ = h.db.Model(&models.KnowledgeDocument{}).Where("id = ?", doc.ID).
+	_ = h.db.Model(&svcmodels.KnowledgeDocument{}).Where("id = ?", doc.ID).
 		Updates(map[string]any{
 			"title":      fh.Filename,
 			"file_hash":  fileHash,
 			"source":     "upload",
 			"record_ids": "",
-			"status":     models.KnowledgeStatusProcessing,
+			"status":     svcmodels.KnowledgeStatusProcessing,
 		}).Error
 	doc.Title = fh.Filename
 	doc.FileHash = fileHash
 	doc.Source = "upload"
 	doc.RecordIDs = ""
-	doc.Status = models.KnowledgeStatusProcessing
+	doc.Status = svcmodels.KnowledgeStatusProcessing
 
-	go func(gid uint, ns models.KnowledgeNamespace, d models.KnowledgeDocument, old, fileName, fileHashStr string, content []byte) {
+	go func(gid uint, ns svcmodels.KnowledgeNamespace, d svcmodels.KnowledgeDocument, old, fileName, fileHashStr string, content []byte) {
 		ctx := context.Background()
 		if err := h.runKnowledgeReuploadJob(ctx, gid, ns, d, old, fileName, fileHashStr, content); err != nil {
 			logger.Error("knowledge.reupload.job.failed", zap.Error(err), zap.Int64("doc_id", d.ID))
@@ -1164,7 +1165,7 @@ func (h *Handlers) knowledgeNamespaceRecallTestHandler(c *gin.Context) {
 		return
 	}
 
-	var docRow *models.KnowledgeDocument
+	var docRow *svcmodels.KnowledgeDocument
 	expected := map[string]struct{}{}
 	if req.DocID != nil && strings.TrimSpace(*req.DocID) != "" {
 		n, err := strconv.ParseInt(strings.TrimSpace(*req.DocID), 10, 64)
@@ -1172,7 +1173,7 @@ func (h *Handlers) knowledgeNamespaceRecallTestHandler(c *gin.Context) {
 			response.FailWithCode(c, 400, "invalid docId", *req.DocID)
 			return
 		}
-		d, err := models.GetKnowledgeDocument(h.db, n)
+		d, err := svcmodels.GetKnowledgeDocument(h.db, n)
 		if err != nil {
 			response.Fail(c, "query document failed", err.Error())
 			return
@@ -1373,7 +1374,7 @@ func (h *Handlers) knowledgeNamespaceRecallTestHandler(c *gin.Context) {
 // Background jobs (parsing + chunking + embedding + upsert)
 // ============================================================================
 
-func (h *Handlers) runKnowledgeUploadJob(ctx context.Context, groupID uint, ns models.KnowledgeNamespace, docID int64, fileName, fileHash string, content []byte) error {
+func (h *Handlers) runKnowledgeUploadJob(ctx context.Context, groupID uint, ns svcmodels.KnowledgeNamespace, docID int64, fileName, fileHash string, content []byte) error {
 	start := time.Now()
 	provider := knowledgeProviderForLog(&ns)
 	logger.Info("knowledge.upload.job.start",
@@ -1483,7 +1484,7 @@ func (h *Handlers) runKnowledgeUploadJob(ctx context.Context, groupID uint, ns m
 	return nil
 }
 
-func (h *Handlers) runKnowledgeReuploadJob(ctx context.Context, groupID uint, ns models.KnowledgeNamespace, doc models.KnowledgeDocument, oldRecordIDs, fileName, fileHash string, content []byte) error {
+func (h *Handlers) runKnowledgeReuploadJob(ctx context.Context, groupID uint, ns svcmodels.KnowledgeNamespace, doc svcmodels.KnowledgeDocument, oldRecordIDs, fileName, fileHash string, content []byte) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -1586,7 +1587,7 @@ func (h *Handlers) runKnowledgeReuploadJob(ctx context.Context, groupID uint, ns
 	return nil
 }
 
-func (h *Handlers) runKnowledgeTextPutJob(ctx context.Context, groupID uint, ns models.KnowledgeNamespace, doc models.KnowledgeDocument, mdText string) error {
+func (h *Handlers) runKnowledgeTextPutJob(ctx context.Context, groupID uint, ns svcmodels.KnowledgeNamespace, doc svcmodels.KnowledgeDocument, mdText string) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}

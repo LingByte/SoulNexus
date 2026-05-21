@@ -4,20 +4,20 @@
 package server
 
 import (
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"errors"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/gin-gonic/gin"
 )
 
 // llmChannelWriteReq 管理端创建/更新 LLM 渠道入参。
-// 与 LingVoice 兼容；字段含义见 models.LLMChannel。
+// 与 LingVoice 兼容；字段含义见 svcmodels.LLMChannel。
 type llmChannelWriteReq struct {
 	Protocol           string                 `json:"protocol"`
 	Type               int                    `json:"type"`
@@ -35,15 +35,15 @@ type llmChannelWriteReq struct {
 	Priority           *int64                 `json:"priority"`
 	AutoBan            *int                   `json:"auto_ban"`
 	Tag                *string                `json:"tag"`
-	ChannelInfo        *models.LLMChannelInfo `json:"channel_info"`
+	ChannelInfo        *svcmodels.LLMChannelInfo `json:"channel_info"`
 }
 
-func (req *llmChannelWriteReq) applyTo(row *models.LLMChannel) error {
+func (req *llmChannelWriteReq) applyTo(row *svcmodels.LLMChannel) error {
 	p := strings.ToLower(strings.TrimSpace(req.Protocol))
 	if p == "" {
-		p = models.LLMChannelProtocolOpenAI
+		p = svcmodels.LLMChannelProtocolOpenAI
 	}
-	if !models.IsLLMChannelProtocolKnown(p) {
+	if !svcmodels.IsLLMChannelProtocolKnown(p) {
 		return errors.New("unknown protocol")
 	}
 	row.Protocol = p
@@ -86,7 +86,7 @@ func maskLLMChannelKey(k string) string {
 
 func (h *Handlers) handleAdminListLLMChannels(c *gin.Context) {
 	page, pageSize := utils.ParsePagination(c)
-	q := h.db.Model(&models.LLMChannel{})
+	q := h.db.Model(&svcmodels.LLMChannel{})
 	if g := strings.TrimSpace(c.Query("group")); g != "" {
 		q = q.Where("`group` = ?", g)
 	}
@@ -107,7 +107,7 @@ func (h *Handlers) handleAdminListLLMChannels(c *gin.Context) {
 		response.Fail(c, "list channels failed", err)
 		return
 	}
-	var rows []models.LLMChannel
+	var rows []svcmodels.LLMChannel
 	if err := q.Order("priority DESC, id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&rows).Error; err != nil {
 		response.Fail(c, "list channels failed", err)
 		return
@@ -132,7 +132,7 @@ func (h *Handlers) handleAdminGetLLMChannel(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid id"))
 		return
 	}
-	var row models.LLMChannel
+	var row svcmodels.LLMChannel
 	if err := h.db.First(&row, id).Error; err != nil {
 		response.Fail(c, "channel not found", err)
 		return
@@ -146,7 +146,7 @@ func (h *Handlers) handleAdminCreateLLMChannel(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, err)
 		return
 	}
-	row := &models.LLMChannel{}
+	row := &svcmodels.LLMChannel{}
 	if err := req.applyTo(row); err != nil {
 		response.AbortWithJSONError(c, http.StatusBadRequest, err)
 		return
@@ -161,7 +161,7 @@ func (h *Handlers) handleAdminCreateLLMChannel(c *gin.Context) {
 		return
 	}
 	// 同步 abilities（基于 Models + Group）。
-	_ = models.SyncLLMAbilitiesFromChannel(h.db, row)
+	_ = svcmodels.SyncLLMAbilitiesFromChannel(h.db, row)
 	response.Success(c, "channel created", gin.H{"channel": row})
 }
 
@@ -171,7 +171,7 @@ func (h *Handlers) handleAdminUpdateLLMChannel(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid id"))
 		return
 	}
-	var row models.LLMChannel
+	var row svcmodels.LLMChannel
 	if err := h.db.First(&row, id).Error; err != nil {
 		response.Fail(c, "channel not found", err)
 		return
@@ -189,7 +189,7 @@ func (h *Handlers) handleAdminUpdateLLMChannel(c *gin.Context) {
 		response.Fail(c, "update channel failed", err)
 		return
 	}
-	_ = models.SyncLLMAbilitiesFromChannel(h.db, &row)
+	_ = svcmodels.SyncLLMAbilitiesFromChannel(h.db, &row)
 	response.Success(c, "channel updated", gin.H{"channel": row})
 }
 
@@ -199,11 +199,11 @@ func (h *Handlers) handleAdminDeleteLLMChannel(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid id"))
 		return
 	}
-	if err := h.db.Where("channel_id = ?", id).Delete(&models.LLMAbility{}).Error; err != nil {
+	if err := h.db.Where("channel_id = ?", id).Delete(&svcmodels.LLMAbility{}).Error; err != nil {
 		response.Fail(c, "delete abilities failed", err)
 		return
 	}
-	if err := h.db.Delete(&models.LLMChannel{}, id).Error; err != nil {
+	if err := h.db.Delete(&svcmodels.LLMChannel{}, id).Error; err != nil {
 		response.Fail(c, "delete channel failed", err)
 		return
 	}
@@ -218,12 +218,12 @@ func (h *Handlers) handleAdminSyncLLMChannelAbilities(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid id"))
 		return
 	}
-	var row models.LLMChannel
+	var row svcmodels.LLMChannel
 	if err := h.db.First(&row, id).Error; err != nil {
 		response.Fail(c, "channel not found", err)
 		return
 	}
-	if err := models.SyncLLMAbilitiesFromChannel(h.db, &row); err != nil {
+	if err := svcmodels.SyncLLMAbilitiesFromChannel(h.db, &row); err != nil {
 		response.Fail(c, "sync abilities failed", err)
 		return
 	}
@@ -232,7 +232,7 @@ func (h *Handlers) handleAdminSyncLLMChannelAbilities(c *gin.Context) {
 
 func (h *Handlers) handleAdminListLLMAbilities(c *gin.Context) {
 	page, pageSize := utils.ParsePagination(c)
-	q := h.db.Model(&models.LLMAbility{})
+	q := h.db.Model(&svcmodels.LLMAbility{})
 	if g := strings.TrimSpace(c.Query("group")); g != "" {
 		q = q.Where("`group` = ?", g)
 	}
@@ -254,7 +254,7 @@ func (h *Handlers) handleAdminListLLMAbilities(c *gin.Context) {
 		response.Fail(c, "list abilities failed", err)
 		return
 	}
-	var rows []models.LLMAbility
+	var rows []svcmodels.LLMAbility
 	if err := q.Order("priority DESC, model ASC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&rows).Error; err != nil {
 		response.Fail(c, "list abilities failed", err)
 		return
@@ -270,7 +270,7 @@ func (h *Handlers) handleAdminListLLMAbilities(c *gin.Context) {
 // handleAdminListLLMModelMetas GET /api/admin/llm-model-metas
 func (h *Handlers) handleAdminListLLMModelMetas(c *gin.Context) {
 	page, pageSize := utils.ParsePagination(c)
-	q := h.db.Model(&models.LLMModelMeta{})
+	q := h.db.Model(&svcmodels.LLMModelMeta{})
 	if v := strings.TrimSpace(c.Query("vendor")); v != "" {
 		q = q.Where("vendor = ?", v)
 	}
@@ -288,7 +288,7 @@ func (h *Handlers) handleAdminListLLMModelMetas(c *gin.Context) {
 		response.Fail(c, "list model metas failed", err)
 		return
 	}
-	var rows []models.LLMModelMeta
+	var rows []svcmodels.LLMModelMeta
 	if err := q.Order("sort_order DESC, id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&rows).Error; err != nil {
 		response.Fail(c, "list model metas failed", err)
 		return
@@ -303,7 +303,7 @@ func (h *Handlers) handleAdminListLLMModelMetas(c *gin.Context) {
 
 // handleAdminUpsertLLMModelMeta POST /api/admin/llm-model-metas (create or update by ID)
 func (h *Handlers) handleAdminUpsertLLMModelMeta(c *gin.Context) {
-	var row models.LLMModelMeta
+	var row svcmodels.LLMModelMeta
 	if err := c.ShouldBindJSON(&row); err != nil {
 		response.AbortWithJSONError(c, http.StatusBadRequest, err)
 		return
@@ -337,7 +337,7 @@ func (h *Handlers) handleAdminDeleteLLMModelMeta(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid id"))
 		return
 	}
-	if err := h.db.Delete(&models.LLMModelMeta{}, id).Error; err != nil {
+	if err := h.db.Delete(&svcmodels.LLMModelMeta{}, id).Error; err != nil {
 		response.Fail(c, "delete model meta failed", err)
 		return
 	}

@@ -4,11 +4,11 @@ package workflowdef
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"encoding/json"
 	"fmt"
 	"time"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	runtimewf "github.com/LingByte/SoulNexus/pkg/workflow"
 	"go.uber.org/zap"
@@ -72,7 +72,7 @@ type AgentTriggerConfig struct {
 }
 
 // ParseTriggerConfig 解析触发器配置
-func ParseTriggerConfig(def *models.WorkflowDefinition) (*WorkflowTriggerConfig, error) {
+func ParseTriggerConfig(def *svcmodels.WorkflowDefinition) (*WorkflowTriggerConfig, error) {
 	if def.Triggers == nil || len(def.Triggers) == 0 {
 		return &WorkflowTriggerConfig{}, nil
 	}
@@ -156,8 +156,8 @@ func NewWorkflowTriggerManager(db *gorm.DB) *WorkflowTriggerManager {
 }
 
 // TriggerWorkflow 触发工作流执行
-func (m *WorkflowTriggerManager) TriggerWorkflow(definitionID uint, parameters map[string]interface{}, triggerSource string) (*models.WorkflowInstance, error) {
-	var def models.WorkflowDefinition
+func (m *WorkflowTriggerManager) TriggerWorkflow(definitionID uint, parameters map[string]interface{}, triggerSource string) (*svcmodels.WorkflowInstance, error) {
+	var def svcmodels.WorkflowDefinition
 	if err := m.db.First(&def, definitionID).Error; err != nil {
 		return nil, fmt.Errorf("workflow definition not found: %w", err)
 	}
@@ -192,13 +192,13 @@ func (m *WorkflowTriggerManager) TriggerWorkflow(definitionID uint, parameters m
 
 	// 创建实例记录
 	now := time.Now()
-	instance := models.WorkflowInstance{
+	instance := svcmodels.WorkflowInstance{
 		DefinitionID:   def.ID,
 		DefinitionName: def.Name,
 		Status:         "running",
 		StartedAt:      &now,
-		ContextData:    make(models.JSONMap),
-		ResultData:     make(models.JSONMap),
+		ContextData:    make(svcmodels.JSONMap),
+		ResultData:     make(svcmodels.JSONMap),
 	}
 
 	if err := m.db.Create(&instance).Error; err != nil {
@@ -214,7 +214,7 @@ func (m *WorkflowTriggerManager) TriggerWorkflow(definitionID uint, parameters m
 
 	if execErr != nil {
 		instance.Status = "failed"
-		instance.ResultData = models.JSONMap{
+		instance.ResultData = svcmodels.JSONMap{
 			"error": execErr.Error(),
 		}
 		logger.Error("Workflow execution failed",
@@ -225,7 +225,7 @@ func (m *WorkflowTriggerManager) TriggerWorkflow(definitionID uint, parameters m
 		instance.Status = "completed"
 		if runtimeWf.Context != nil {
 			instance.ContextData = runtimeWf.Context.NodeData
-			instance.ResultData = models.JSONMap{
+			instance.ResultData = svcmodels.JSONMap{
 				"success": true,
 				"context": runtimeWf.Context.NodeData,
 			}
@@ -243,15 +243,15 @@ func (m *WorkflowTriggerManager) TriggerWorkflow(definitionID uint, parameters m
 }
 
 // GetActiveWorkflowsByEvent 根据事件类型获取需要触发的工作流
-func (m *WorkflowTriggerManager) GetActiveWorkflowsByEvent(eventType string) ([]models.WorkflowDefinition, error) {
-	var workflows []models.WorkflowDefinition
+func (m *WorkflowTriggerManager) GetActiveWorkflowsByEvent(eventType string) ([]svcmodels.WorkflowDefinition, error) {
+	var workflows []svcmodels.WorkflowDefinition
 
 	// 获取所有激活状态的工作流
 	if err := m.db.Where("status = ?", "active").Find(&workflows).Error; err != nil {
 		return nil, err
 	}
 
-	var result []models.WorkflowDefinition
+	var result []svcmodels.WorkflowDefinition
 	for _, wf := range workflows {
 		config, err := ParseTriggerConfig(&wf)
 		if err != nil {
@@ -270,14 +270,14 @@ func (m *WorkflowTriggerManager) GetActiveWorkflowsByEvent(eventType string) ([]
 }
 
 // GetScheduledWorkflows 获取所有需要定时执行的工作流
-func (m *WorkflowTriggerManager) GetScheduledWorkflows() ([]models.WorkflowDefinition, error) {
-	var workflows []models.WorkflowDefinition
+func (m *WorkflowTriggerManager) GetScheduledWorkflows() ([]svcmodels.WorkflowDefinition, error) {
+	var workflows []svcmodels.WorkflowDefinition
 
 	if err := m.db.Where("status = ?", "active").Find(&workflows).Error; err != nil {
 		return nil, err
 	}
 
-	var result []models.WorkflowDefinition
+	var result []svcmodels.WorkflowDefinition
 	for _, wf := range workflows {
 		config, err := ParseTriggerConfig(&wf)
 		if err != nil {

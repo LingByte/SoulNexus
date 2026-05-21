@@ -4,25 +4,26 @@ package server
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"github.com/LingByte/SoulNexus/internal/models/auth"
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"fmt"
 	"net/http"
 	"time"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/gin-gonic/gin"
 )
 
 // GetUnReadNotificationCount get user unread notification count
 func (h *Handlers) handleUnReadNotificationCount(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 
-	users, err := models.GetUserByEmail(h.db, user.Email)
+	users, err := auth.GetUserByEmail(h.db, user.Email)
 	if err != nil {
 		response.AbortWithStatus(c, http.StatusUnauthorized)
 		return
 	}
-	unreadNotificationCount, err := models.NewInternalNotificationService(h.db).GetUnreadNotificationsCount(users.ID)
+	unreadNotificationCount, err := svcmodels.NewInternalNotificationService(h.db).GetUnreadNotificationsCount(users.ID)
 	if err != nil {
 		response.AbortWithStatusJSON(c, http.StatusInternalServerError, err)
 		return
@@ -32,7 +33,7 @@ func (h *Handlers) handleUnReadNotificationCount(c *gin.Context) {
 
 // ListNotifications list user notifications
 func (h *Handlers) handleListNotifications(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User is not logged in.", nil)
 	}
@@ -62,7 +63,7 @@ func (h *Handlers) handleListNotifications(c *gin.Context) {
 		end, _ = time.Parse(layout, endStr)
 	}
 
-	service := models.NewInternalNotificationService(h.db)
+	service := svcmodels.NewInternalNotificationService(h.db)
 	notifications, total, totalUnread, totalRead, err := service.GetPaginatedNotifications(
 		user.ID,
 		pageInt,
@@ -89,11 +90,11 @@ func (h *Handlers) handleListNotifications(c *gin.Context) {
 
 // AllNotifications mark all notifications as read
 func (h *Handlers) handleAllNotifications(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User is not logged in.", nil)
 	}
-	err := models.NewInternalNotificationService(h.db).MarkAllAsRead(user.ID)
+	err := svcmodels.NewInternalNotificationService(h.db).MarkAllAsRead(user.ID)
 	if err != nil {
 		response.AbortWithStatusJSON(c, http.StatusInternalServerError, err)
 		return
@@ -103,7 +104,7 @@ func (h *Handlers) handleAllNotifications(c *gin.Context) {
 
 // handleMarkNotificationAsRead marks specified notification as read
 func (h *Handlers) handleMarkNotificationAsRead(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User is not logged in.", nil)
 		return
@@ -118,14 +119,14 @@ func (h *Handlers) handleMarkNotificationAsRead(c *gin.Context) {
 		return
 	}
 
-	_, err = models.NewInternalNotificationService(h.db).GetOne(user.ID, notificationID)
+	_, err = svcmodels.NewInternalNotificationService(h.db).GetOne(user.ID, notificationID)
 	if err != nil {
 		response.Fail(c, "You don't have permission to flag this message.", nil)
 		return
 	}
 
 	// Call service layer to mark as read
-	err = models.NewInternalNotificationService(h.db).MarkAsRead(notificationID)
+	err = svcmodels.NewInternalNotificationService(h.db).MarkAsRead(notificationID)
 	if err != nil {
 		response.AbortWithStatusJSON(c, http.StatusInternalServerError, err)
 		return
@@ -135,7 +136,7 @@ func (h *Handlers) handleMarkNotificationAsRead(c *gin.Context) {
 }
 
 func (h *Handlers) handleDeleteNotification(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User is not logged in.", nil)
 		return
@@ -146,7 +147,7 @@ func (h *Handlers) handleDeleteNotification(c *gin.Context) {
 		response.AbortWithStatusJSON(c, http.StatusBadRequest, err)
 		return
 	}
-	err = models.NewInternalNotificationService(h.db).Delete(user.ID, notificationID)
+	err = svcmodels.NewInternalNotificationService(h.db).Delete(user.ID, notificationID)
 	if err != nil {
 		response.AbortWithStatusJSON(c, http.StatusInternalServerError, err)
 		return
@@ -156,7 +157,7 @@ func (h *Handlers) handleDeleteNotification(c *gin.Context) {
 
 // handleBatchDeleteNotifications batch deletes notifications
 func (h *Handlers) handleBatchDeleteNotifications(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User is not logged in.", nil)
 		return
@@ -176,7 +177,7 @@ func (h *Handlers) handleBatchDeleteNotifications(c *gin.Context) {
 		return
 	}
 
-	service := models.NewInternalNotificationService(h.db)
+	service := svcmodels.NewInternalNotificationService(h.db)
 	deletedCount, err := service.BatchDelete(user.ID, request.IDs)
 	if err != nil {
 		response.AbortWithStatusJSON(c, http.StatusInternalServerError, err)
@@ -191,7 +192,7 @@ func (h *Handlers) handleBatchDeleteNotifications(c *gin.Context) {
 
 // handleGetAllNotificationIds gets all notification IDs (for select all functionality)
 func (h *Handlers) handleGetAllNotificationIds(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User is not logged in.", nil)
 		return
@@ -215,7 +216,7 @@ func (h *Handlers) handleGetAllNotificationIds(c *gin.Context) {
 		end, _ = time.Parse(layout, endStr)
 	}
 
-	service := models.NewInternalNotificationService(h.db)
+	service := svcmodels.NewInternalNotificationService(h.db)
 	ids, err := service.GetAllNotificationIds(user.ID, filterBy, title, content, start, end)
 	if err != nil {
 		response.AbortWithStatusJSON(c, http.StatusInternalServerError, err)

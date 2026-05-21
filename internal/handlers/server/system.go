@@ -4,6 +4,8 @@ package server
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"github.com/LingByte/SoulNexus/internal/models/auth"
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -13,7 +15,6 @@ import (
 	"time"
 
 	"github.com/LingByte/SoulNexus/internal/config"
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/stores"
@@ -68,8 +69,8 @@ func (h *Handlers) SystemInit(c *gin.Context) {
 
 	// Check if any enabled email notification channel exists in DB.
 	var enabledMailChannels int64
-	_ = h.db.Model(&models.NotificationChannel{}).
-		Where("type = ? AND enabled = ?", models.NotificationChannelTypeEmail, true).
+	_ = h.db.Model(&svcmodels.NotificationChannel{}).
+		Where("type = ? AND enabled = ?", svcmodels.NotificationChannelTypeEmail, true).
 		Count(&enabledMailChannels).Error
 	emailConfigured := enabledMailChannels > 0
 
@@ -379,39 +380,39 @@ func (h *Handlers) DashboardMetrics(c *gin.Context) {
 	var activeUsers int64
 
 	// PV：统计UsageRecord总数（今天和昨天）
-	h.db.Model(&models.UsageRecord{}).
+	h.db.Model(&svcmodels.UsageRecord{}).
 		Where("DATE(usage_time) = ?", today.Format("2006-01-02")).
 		Count(&todayPV)
-	h.db.Model(&models.UsageRecord{}).
+	h.db.Model(&svcmodels.UsageRecord{}).
 		Where("DATE(usage_time) = ?", yesterday.Format("2006-01-02")).
 		Count(&yesterdayPV)
 
 	// UV：统计独立用户数（今天和昨天）
 	var todayUserIDs []uint
 	var yesterdayUserIDs []uint
-	h.db.Model(&models.UsageRecord{}).
+	h.db.Model(&svcmodels.UsageRecord{}).
 		Where("DATE(usage_time) = ?", today.Format("2006-01-02")).
 		Distinct("user_id").
 		Pluck("user_id", &todayUserIDs)
 	todayUV = int64(len(todayUserIDs))
 
-	h.db.Model(&models.UsageRecord{}).
+	h.db.Model(&svcmodels.UsageRecord{}).
 		Where("DATE(usage_time) = ?", yesterday.Format("2006-01-02")).
 		Distinct("user_id").
 		Pluck("user_id", &yesterdayUserIDs)
 	yesterdayUV = int64(len(yesterdayUserIDs))
 
 	// API调用次数：统计UsageType为API的记录（今天和昨天）
-	h.db.Model(&models.UsageRecord{}).
-		Where("DATE(usage_time) = ? AND usage_type = ?", today.Format("2006-01-02"), models.UsageTypeAPI).
+	h.db.Model(&svcmodels.UsageRecord{}).
+		Where("DATE(usage_time) = ? AND usage_type = ?", today.Format("2006-01-02"), svcmodels.UsageTypeAPI).
 		Count(&todayAPICalls)
-	h.db.Model(&models.UsageRecord{}).
-		Where("DATE(usage_time) = ? AND usage_type = ?", yesterday.Format("2006-01-02"), models.UsageTypeAPI).
+	h.db.Model(&svcmodels.UsageRecord{}).
+		Where("DATE(usage_time) = ? AND usage_type = ?", yesterday.Format("2006-01-02"), svcmodels.UsageTypeAPI).
 		Count(&yesterdayAPICalls)
 
 	// 活跃用户：统计最近24小时内有活动的用户数
 	last24Hours := now.Add(-24 * time.Hour)
-	h.db.Model(&models.UsageRecord{}).
+	h.db.Model(&svcmodels.UsageRecord{}).
 		Where("usage_time >= ?", last24Hours).
 		Distinct("user_id").
 		Count(&activeUsers)
@@ -483,7 +484,7 @@ func (h *Handlers) UploadAudio(c *gin.Context) {
 	audioURL := strings.TrimSpace(st.PublicURL(storageKey))
 
 	// Record storage usage
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user != nil {
 		// 从middleware获取数据库连接
 		db, exists := c.Get("db")
@@ -498,7 +499,7 @@ func (h *Handlers) UploadAudio(c *gin.Context) {
 				}
 				// 如果没有提供凭证ID，尝试获取用户的第一个凭证
 				if credentialID == 0 {
-					credentials, err := models.GetUserCredentials(gormDB, user.ID)
+					credentials, err := svcmodels.GetUserCredentials(gormDB, user.ID)
 					if err == nil && len(credentials) > 0 {
 						credentialID = credentials[0].ID
 					}

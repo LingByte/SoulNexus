@@ -4,13 +4,13 @@ package middleware
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"github.com/LingByte/SoulNexus/internal/models/auth"
 	"fmt"
 	"net/http"
 	"strconv"
 	"sync"
 	"time"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -310,7 +310,7 @@ func RateLimitMiddleware() gin.HandlerFunc {
 		var userID uint = 0
 
 		// 尝试获取用户ID
-		if user := models.CurrentUser(c); user != nil {
+		if user := auth.CurrentUser(c); user != nil {
 			userID = user.ID
 		}
 

@@ -6,12 +6,12 @@
 package server
 
 import (
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"errors"
 	"net/http"
 	"strconv"
 	"strings"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/gin-gonic/gin"
@@ -47,7 +47,7 @@ func (req *speechChannelWriteReq) validate() error {
 }
 
 // applyToASR 将入参写入 ASRChannel；保留未指定字段。
-func (req *speechChannelWriteReq) applyToASR(row *models.ASRChannel) {
+func (req *speechChannelWriteReq) applyToASR(row *svcmodels.ASRChannel) {
 	row.Provider = req.Provider
 	row.Name = req.Name
 	row.Group = req.Group
@@ -62,7 +62,7 @@ func (req *speechChannelWriteReq) applyToASR(row *models.ASRChannel) {
 }
 
 // applyToTTS 将入参写入 TTSChannel；保留未指定字段。
-func (req *speechChannelWriteReq) applyToTTS(row *models.TTSChannel) {
+func (req *speechChannelWriteReq) applyToTTS(row *svcmodels.TTSChannel) {
 	row.Provider = req.Provider
 	row.Name = req.Name
 	row.Group = req.Group
@@ -80,7 +80,7 @@ func (req *speechChannelWriteReq) applyToTTS(row *models.TTSChannel) {
 
 func (h *Handlers) handleAdminListASRChannels(c *gin.Context) {
 	page, pageSize := utils.ParsePagination(c)
-	q := h.db.Model(&models.ASRChannel{})
+	q := h.db.Model(&svcmodels.ASRChannel{})
 	if g := strings.TrimSpace(c.Query("group")); g != "" {
 		q = q.Where("`group` = ?", g)
 	}
@@ -96,7 +96,7 @@ func (h *Handlers) handleAdminListASRChannels(c *gin.Context) {
 		response.Fail(c, "list asr channels failed", err)
 		return
 	}
-	var rows []models.ASRChannel
+	var rows []svcmodels.ASRChannel
 	if err := q.Order("sort_order DESC, id ASC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&rows).Error; err != nil {
 		response.Fail(c, "list asr channels failed", err)
 		return
@@ -115,7 +115,7 @@ func (h *Handlers) handleAdminGetASRChannel(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid id"))
 		return
 	}
-	var row models.ASRChannel
+	var row svcmodels.ASRChannel
 	if err := h.db.First(&row, id).Error; err != nil {
 		response.Fail(c, "asr channel not found", err)
 		return
@@ -134,7 +134,7 @@ func (h *Handlers) handleAdminCreateASRChannel(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, err)
 		return
 	}
-	row := &models.ASRChannel{Enabled: true}
+	row := &svcmodels.ASRChannel{Enabled: true}
 	req.applyToASR(row)
 	if err := h.db.Create(row).Error; err != nil {
 		response.Fail(c, "create asr channel failed", err)
@@ -149,7 +149,7 @@ func (h *Handlers) handleAdminUpdateASRChannel(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid id"))
 		return
 	}
-	var row models.ASRChannel
+	var row svcmodels.ASRChannel
 	if err := h.db.First(&row, id).Error; err != nil {
 		response.Fail(c, "asr channel not found", err)
 		return
@@ -178,7 +178,7 @@ func (h *Handlers) handleAdminDeleteASRChannel(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid id"))
 		return
 	}
-	if err := h.db.Delete(&models.ASRChannel{}, id).Error; err != nil {
+	if err := h.db.Delete(&svcmodels.ASRChannel{}, id).Error; err != nil {
 		response.Fail(c, "delete asr channel failed", err)
 		return
 	}
@@ -189,7 +189,7 @@ func (h *Handlers) handleAdminDeleteASRChannel(c *gin.Context) {
 
 func (h *Handlers) handleAdminListTTSChannels(c *gin.Context) {
 	page, pageSize := utils.ParsePagination(c)
-	q := h.db.Model(&models.TTSChannel{})
+	q := h.db.Model(&svcmodels.TTSChannel{})
 	if g := strings.TrimSpace(c.Query("group")); g != "" {
 		q = q.Where("`group` = ?", g)
 	}
@@ -205,7 +205,7 @@ func (h *Handlers) handleAdminListTTSChannels(c *gin.Context) {
 		response.Fail(c, "list tts channels failed", err)
 		return
 	}
-	var rows []models.TTSChannel
+	var rows []svcmodels.TTSChannel
 	if err := q.Order("sort_order DESC, id ASC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&rows).Error; err != nil {
 		response.Fail(c, "list tts channels failed", err)
 		return
@@ -224,7 +224,7 @@ func (h *Handlers) handleAdminGetTTSChannel(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid id"))
 		return
 	}
-	var row models.TTSChannel
+	var row svcmodels.TTSChannel
 	if err := h.db.First(&row, id).Error; err != nil {
 		response.Fail(c, "tts channel not found", err)
 		return
@@ -243,7 +243,7 @@ func (h *Handlers) handleAdminCreateTTSChannel(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, err)
 		return
 	}
-	row := &models.TTSChannel{Enabled: true}
+	row := &svcmodels.TTSChannel{Enabled: true}
 	req.applyToTTS(row)
 	if err := h.db.Create(row).Error; err != nil {
 		response.Fail(c, "create tts channel failed", err)
@@ -258,7 +258,7 @@ func (h *Handlers) handleAdminUpdateTTSChannel(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid id"))
 		return
 	}
-	var row models.TTSChannel
+	var row svcmodels.TTSChannel
 	if err := h.db.First(&row, id).Error; err != nil {
 		response.Fail(c, "tts channel not found", err)
 		return
@@ -287,7 +287,7 @@ func (h *Handlers) handleAdminDeleteTTSChannel(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid id"))
 		return
 	}
-	if err := h.db.Delete(&models.TTSChannel{}, id).Error; err != nil {
+	if err := h.db.Delete(&svcmodels.TTSChannel{}, id).Error; err != nil {
 		response.Fail(c, "delete tts channel failed", err)
 		return
 	}

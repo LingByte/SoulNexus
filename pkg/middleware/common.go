@@ -4,11 +4,11 @@ package middleware
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"github.com/LingByte/SoulNexus/internal/models/auth"
 	"errors"
 	"net/http"
 	"strings"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/utils"
@@ -139,7 +139,7 @@ func ApplySecurityMiddleware(r *gin.RouterGroup) {
 }
 
 func RequireAdmin(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("authorization required"))
 		return

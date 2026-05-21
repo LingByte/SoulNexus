@@ -32,6 +32,7 @@
 package server
 
 import (
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"context"
 	"encoding/json"
 	"errors"
@@ -41,7 +42,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/recognizer"
 	"github.com/LingByte/SoulNexus/pkg/synthesizer"
 	"github.com/gin-gonic/gin"
@@ -69,20 +69,20 @@ func relayResolveTokenForWS(c *gin.Context) string {
 }
 
 // relayAuthWS 校验 Token + type；失败时直接 400/401（升级前），或返回 nil。
-func (h *Handlers) relayAuthWS(c *gin.Context, want models.LLMTokenType) *models.LLMToken {
+func (h *Handlers) relayAuthWS(c *gin.Context, want svcmodels.LLMTokenType) *svcmodels.LLMToken {
 	key := relayResolveTokenForWS(c)
 	if key == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"type": "auth_error", "message": "missing API key"}})
 		return nil
 	}
-	tok, err := models.LookupActiveLLMToken(h.db, key)
+	tok, err := svcmodels.LookupActiveLLMToken(h.db, key)
 	if err != nil || tok == nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"type": "auth_error", "message": "invalid token"}})
 		return nil
 	}
 	got := tok.Type
 	if got == "" {
-		got = models.LLMTokenTypeLLM
+		got = svcmodels.LLMTokenTypeLLM
 	}
 	if got != want {
 		c.JSON(http.StatusForbidden, gin.H{"error": gin.H{
@@ -117,22 +117,22 @@ func wsSendBinary(conn *websocket.Conn, mu *sync.Mutex, data []byte) error {
 
 // handleRelaySpeechASRStream GET /v1/speech/asr/stream
 func (h *Handlers) handleRelaySpeechASRStream(c *gin.Context) {
-	tok := h.relayAuthWS(c, models.LLMTokenTypeASR)
+	tok := h.relayAuthWS(c, svcmodels.LLMTokenTypeASR)
 	if tok == nil {
 		return
 	}
 	// 选择渠道（升级前完成；失败可直接 503）。
-	body := models.SpeechASRTranscribeReq{
+	body := svcmodels.SpeechASRTranscribeReq{
 		Group:    strings.TrimSpace(c.Query("group")),
 		Provider: strings.TrimSpace(c.Query("provider")),
 		Format:   strings.TrimSpace(c.Query("format")),
 		Language: strings.TrimSpace(c.Query("language")),
 	}
-	ch, err := models.PickASRChannelForToken(h.db, tok, body.Group)
+	ch, err := svcmodels.PickASRChannelForToken(h.db, tok, body.Group)
 	if err != nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": gin.H{
 			"type":    "no_asr_channel",
-			"message": models.RelayNoSpeechChannelDetail(err, "ASR", body.Group),
+			"message": svcmodels.RelayNoSpeechChannelDetail(err, "ASR", body.Group),
 		}})
 		return
 	}
@@ -281,20 +281,20 @@ func (s *streamingTTSHandler) OnTimestamp(_ synthesizer.SentenceTimestamp) {}
 
 // handleRelaySpeechTTSStream GET /v1/speech/tts/stream
 func (h *Handlers) handleRelaySpeechTTSStream(c *gin.Context) {
-	tok := h.relayAuthWS(c, models.LLMTokenTypeTTS)
+	tok := h.relayAuthWS(c, svcmodels.LLMTokenTypeTTS)
 	if tok == nil {
 		return
 	}
-	body := models.SpeechTTSSynthesizeReq{
+	body := svcmodels.SpeechTTSSynthesizeReq{
 		Group:       strings.TrimSpace(c.Query("group")),
 		Voice:       strings.TrimSpace(c.Query("voice")),
 		AudioFormat: strings.TrimSpace(c.Query("audio_format")),
 	}
-	ch, err := models.PickTTSChannelForToken(h.db, tok, body.Group)
+	ch, err := svcmodels.PickTTSChannelForToken(h.db, tok, body.Group)
 	if err != nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": gin.H{
 			"type":    "no_tts_channel",
-			"message": models.RelayNoSpeechChannelDetail(err, "TTS", body.Group),
+			"message": svcmodels.RelayNoSpeechChannelDetail(err, "TTS", body.Group),
 		}})
 		return
 	}

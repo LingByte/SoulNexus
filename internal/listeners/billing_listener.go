@@ -11,7 +11,7 @@ import (
 
 // InitBillingListenerWithDB Initialize billing listener (with database connection)
 // Note: LLM usage recording is handled in llm_listener.go
-// Call usage recording is directly called in models.RecordCallUsage when call ends
+// Call usage recording is directly called in svcmodels.RecordCallUsage when call ends
 func InitBillingListenerWithDB(db *gorm.DB) {
 	// Currently billing records are integrated into other listeners and business logic
 	// Retain initialization function here for future expansion of other listening events

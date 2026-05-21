@@ -4,9 +4,10 @@ package listeners
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"github.com/LingByte/SoulNexus/internal/models/auth"
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"fmt"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/notification"
@@ -23,7 +24,7 @@ func InitUserListeners() {
 		if len(params) < 2 {
 			return
 		}
-		user, ok := sender.(*models.User)
+		user, ok := sender.(*auth.User)
 		if !ok {
 			return
 		}
@@ -35,7 +36,7 @@ func InitUserListeners() {
 
 		logger.Info("User registered successfully", zap.Uint("userId", user.ID), zap.String("email", user.Email))
 
-		if _, err := models.EnsurePersonalGroupForUser(db, user.ID); err != nil {
+		if _, err := svcmodels.EnsurePersonalGroupForUser(db, user.ID); err != nil {
 			logger.Error("EnsurePersonalGroupForUser failed", zap.Uint("userId", user.ID), zap.Error(err))
 		}
 
@@ -48,7 +49,7 @@ func InitUserListeners() {
 
 	// Handle after user login
 	utils.Sig().Connect(constants.SigUserLogin, func(sender any, params ...any) {
-		user, ok := sender.(*models.User)
+		user, ok := sender.(*auth.User)
 		if !ok {
 			return
 		}
@@ -58,7 +59,7 @@ func InitUserListeners() {
 		// Send login notification
 		go sendWelcomeEmail(user, params[0].(*gorm.DB))
 
-		models.NewInternalNotificationService(params[0].(*gorm.DB)).Send(user.ID,
+		svcmodels.NewInternalNotificationService(params[0].(*gorm.DB)).Send(user.ID,
 			"Welcome back",
 			"Dear "+user.EffectiveDisplayName()+", welcome back to SoulNexus AI voice platform! You have successfully logged into the system.")
 
@@ -71,7 +72,7 @@ func InitUserListeners() {
 		if len(params) < 1 {
 			return
 		}
-		user, ok := params[0].(*models.User)
+		user, ok := params[0].(*auth.User)
 		if !ok {
 			return
 		}
@@ -89,7 +90,7 @@ func InitUserListeners() {
 			logger.Warn("SigUserVerifyEmail: insufficient parameters", zap.Int("paramCount", len(params)))
 			return
 		}
-		user, ok := sender.(*models.User)
+		user, ok := sender.(*auth.User)
 		if !ok {
 			logger.Warn("SigUserVerifyEmail: invalid user type")
 			return
@@ -126,7 +127,7 @@ func InitUserListeners() {
 		if len(params) < 5 {
 			return
 		}
-		user, ok := params[0].(*models.User)
+		user, ok := params[0].(*auth.User)
 		if !ok {
 			return
 		}
@@ -160,7 +161,7 @@ func InitUserListeners() {
 			logger.Warn("SigUserNewDeviceLogin: insufficient parameters", zap.Int("paramCount", len(params)))
 			return
 		}
-		user, ok := sender.(*models.User)
+		user, ok := sender.(*auth.User)
 		if !ok {
 			logger.Warn("SigUserNewDeviceLogin: invalid user type")
 			return
@@ -186,7 +187,7 @@ func InitUserListeners() {
 }
 
 // sendWelcomeEmail sends welcome email
-func sendWelcomeEmail(user *models.User, db *gorm.DB) {
+func sendWelcomeEmail(user *auth.User, db *gorm.DB) {
 	if user.Profile.EmailNotifications {
 		mailer := notification.NewMailer(db, 0, user.ID, "")
 		err := mailer.SendWelcomeEmail(
@@ -204,7 +205,7 @@ func sendWelcomeEmail(user *models.User, db *gorm.DB) {
 }
 
 // sendEmailVerification sends email verification
-func sendEmailVerification(user *models.User, hash, clientIp, userAgent string, db *gorm.DB) {
+func sendEmailVerification(user *auth.User, hash, clientIp, userAgent string, db *gorm.DB) {
 	logger.Info("Starting email verification process",
 		zap.String("email", user.Email),
 		zap.String("hash", hash))
@@ -232,7 +233,7 @@ func sendEmailVerification(user *models.User, hash, clientIp, userAgent string, 
 }
 
 // sendPasswordResetEmail sends password reset email
-func sendPasswordResetEmail(user *models.User, hash, clientIp, userAgent string, db *gorm.DB) {
+func sendPasswordResetEmail(user *auth.User, hash, clientIp, userAgent string, db *gorm.DB) {
 	// Get site URL
 	siteURL := utils.GetValue(db, constants.KEY_SITE_URL)
 	if siteURL == "" {
@@ -252,7 +253,7 @@ func sendPasswordResetEmail(user *models.User, hash, clientIp, userAgent string,
 }
 
 // logUserEvent logs user events
-func logUserEvent(user *models.User, eventType, description string) {
+func logUserEvent(user *auth.User, eventType, description string) {
 	// Here you can log user events to database or logging system
 	logger.Info("User event recorded",
 		zap.Uint("userId", user.ID),
@@ -262,7 +263,7 @@ func logUserEvent(user *models.User, eventType, description string) {
 }
 
 // sendNewDeviceLoginAlert sends new device login alert email
-func sendNewDeviceLoginAlert(user *models.User, deviceInfo map[string]interface{}, db *gorm.DB) {
+func sendNewDeviceLoginAlert(user *auth.User, deviceInfo map[string]interface{}, db *gorm.DB) {
 	// Extract device information from the map
 	clientIP, _ := deviceInfo["clientIP"].(string)
 	location, _ := deviceInfo["location"].(string)

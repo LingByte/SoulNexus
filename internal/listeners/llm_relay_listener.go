@@ -6,9 +6,9 @@
 package listeners
 
 import (
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"time"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/llm"
 	"github.com/LingByte/SoulNexus/pkg/utils"
@@ -28,11 +28,11 @@ func InitLLMRelayListenerWithDB(db *gorm.DB) {
 			return
 		}
 		// 幂等：相同 RequestID 已写过即跳过
-		var existing models.LLMUsage
+		var existing svcmodels.LLMUsage
 		if err := db.Select("id").Where("request_id = ?", p.RequestID).First(&existing).Error; err == nil {
 			return
 		}
-		row := &models.LLMUsage{
+		row := &svcmodels.LLMUsage{
 			ID:              utils.SnowflakeUtil.GenID(),
 			RequestID:       p.RequestID,
 			UserID:          p.UserID,
@@ -73,13 +73,13 @@ func InitLLMRelayListenerWithDB(db *gorm.DB) {
 	})
 }
 
-func convertChannelAttempts(in []llm.UsageChannelAttempt) models.LLMUsageChannelAttempts {
+func convertChannelAttempts(in []llm.UsageChannelAttempt) svcmodels.LLMUsageChannelAttempts {
 	if len(in) == 0 {
 		return nil
 	}
-	out := make(models.LLMUsageChannelAttempts, 0, len(in))
+	out := make(svcmodels.LLMUsageChannelAttempts, 0, len(in))
 	for _, a := range in {
-		out = append(out, models.LLMUsageChannelAttempt{
+		out = append(out, svcmodels.LLMUsageChannelAttempt{
 			Order:        a.Order,
 			ChannelID:    a.ChannelID,
 			BaseURL:      a.BaseURL,
@@ -111,7 +111,7 @@ func upsertLLMUsageDaily(db *gorm.DB, userID, date string, tokens, quota int, su
 	if success {
 		successInc = 1
 	}
-	row := models.LLMUsageUserDaily{
+	row := svcmodels.LLMUsageUserDaily{
 		UserID: userID, StatDate: date,
 		RequestCount: 1, SuccessCount: int64(successInc),
 		TokenSum: int64(tokens), QuotaSum: int64(quota),
@@ -135,7 +135,7 @@ func upsertLLMUsageUMDaily(db *gorm.DB, userID, date, model string, tokens, quot
 	if success {
 		successInc = 1
 	}
-	row := models.LLMUsageUserModelDaily{
+	row := svcmodels.LLMUsageUserModelDaily{
 		UserID: userID, StatDate: date, Model: model,
 		RequestCount: 1, SuccessCount: int64(successInc),
 		TokenSum: int64(tokens), QuotaSum: int64(quota),

@@ -4,11 +4,11 @@
 package listeners
 
 import (
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"encoding/json"
 	"errors"
 	"strings"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/notification"
 	"github.com/LingByte/SoulNexus/pkg/notification/mail"
 	"gorm.io/gorm"
@@ -25,8 +25,8 @@ func EnabledMailConfigs(db *gorm.DB, orgID uint) ([]mail.MailConfig, error) {
 	if db == nil {
 		return nil, errors.New("nil db")
 	}
-	var rows []models.NotificationChannel
-	q := db.Where("type = ? AND enabled = ?", models.NotificationChannelTypeEmail, true)
+	var rows []svcmodels.NotificationChannel
+	q := db.Where("type = ? AND enabled = ?", svcmodels.NotificationChannelTypeEmail, true)
 	if orgID > 0 {
 		q = q.Where("org_id = ?", orgID)
 	} else {
@@ -61,9 +61,9 @@ func loadMailTemplate(db *gorm.DB, orgID uint, code, locale string) (string, str
 	if db == nil {
 		return "", "", errors.New("nil db")
 	}
-	tpl, err := models.GetMailTemplateByCode(db, orgID, code, locale)
+	tpl, err := svcmodels.GetMailTemplateByCode(db, orgID, code, locale)
 	if err != nil && orgID != 0 {
-		tpl, err = models.GetMailTemplateByCode(db, 0, code, locale)
+		tpl, err = svcmodels.GetMailTemplateByCode(db, 0, code, locale)
 	}
 	if err != nil {
 		return "", "", err

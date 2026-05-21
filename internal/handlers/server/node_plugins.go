@@ -4,12 +4,12 @@ package server
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/response"
 )
 
@@ -35,12 +35,12 @@ func (h *NodePluginHandler) CreatePlugin(c *gin.Context) {
 		Name        string                      `json:"name" binding:"required"`
 		DisplayName string                      `json:"displayName" binding:"required"`
 		Description string                      `json:"description"`
-		Category    models.NodePluginCategory   `json:"category" binding:"required"`
+		Category    svcmodels.NodePluginCategory   `json:"category" binding:"required"`
 		Icon        string                      `json:"icon"`
 		Color       string                      `json:"color"`
 		Tags        []string                    `json:"tags"`
-		Definition  models.NodePluginDefinition `json:"definition" binding:"required"`
-		Schema      models.NodePluginSchema     `json:"schema"`
+		Definition  svcmodels.NodePluginDefinition `json:"definition" binding:"required"`
+		Schema      svcmodels.NodePluginSchema     `json:"schema"`
 		Author      string                      `json:"author"`
 		Homepage    string                      `json:"homepage"`
 		Repository  string                      `json:"repository"`
@@ -56,13 +56,13 @@ func (h *NodePluginHandler) CreatePlugin(c *gin.Context) {
 	slug := generateSlug(req.Name)
 
 	// 检查slug是否已存在
-	var existingPlugin models.NodePlugin
+	var existingPlugin svcmodels.NodePlugin
 	if err := h.db.Where("slug = ?", slug).First(&existingPlugin).Error; err == nil {
 		response.Fail(c, "插件名称已存在", nil)
 		return
 	}
 
-	plugin := models.NodePlugin{
+	plugin := svcmodels.NodePlugin{
 		UserID:      userID,
 		Name:        req.Name,
 		Slug:        slug,
@@ -70,10 +70,10 @@ func (h *NodePluginHandler) CreatePlugin(c *gin.Context) {
 		Description: req.Description,
 		Category:    req.Category,
 		Version:     "1.0.0",
-		Status:      models.NodePluginStatusDraft,
+		Status:      svcmodels.NodePluginStatusDraft,
 		Icon:        req.Icon,
 		Color:       req.Color,
-		Tags:        models.StringArray(req.Tags),
+		Tags:        svcmodels.StringArray(req.Tags),
 		Definition:  req.Definition,
 		Schema:      req.Schema,
 		Author:      req.Author,
@@ -88,7 +88,7 @@ func (h *NodePluginHandler) CreatePlugin(c *gin.Context) {
 	}
 
 	// 创建初始版本
-	version := models.NodePluginVersion{
+	version := svcmodels.NodePluginVersion{
 		PluginID:   plugin.ID,
 		Version:    plugin.Version,
 		Definition: plugin.Definition,
@@ -128,7 +128,7 @@ func (h *NodePluginHandler) ListPlugins(c *gin.Context) {
 		req.PageSize = 20
 	}
 
-	query := h.db.Model(&models.NodePlugin{})
+	query := h.db.Model(&svcmodels.NodePlugin{})
 
 	// 过滤条件
 	if req.Category != "" {
@@ -138,7 +138,7 @@ func (h *NodePluginHandler) ListPlugins(c *gin.Context) {
 		query = query.Where("status = ?", req.Status)
 	} else {
 		// 默认只显示已发布的插件
-		query = query.Where("status = ?", models.NodePluginStatusPublished)
+		query = query.Where("status = ?", svcmodels.NodePluginStatusPublished)
 	}
 	if req.UserID != 0 {
 		query = query.Where("user_id = ?", req.UserID)
@@ -156,7 +156,7 @@ func (h *NodePluginHandler) ListPlugins(c *gin.Context) {
 	}
 
 	// 分页查询
-	var plugins []models.NodePlugin
+	var plugins []svcmodels.NodePlugin
 	offset := (req.Page - 1) * req.PageSize
 	if err := query.Offset(offset).Limit(req.PageSize).
 		Order("download_count DESC, star_count DESC, created_at DESC").
@@ -181,7 +181,7 @@ func (h *NodePluginHandler) GetPlugin(c *gin.Context) {
 		return
 	}
 
-	var plugin models.NodePlugin
+	var plugin svcmodels.NodePlugin
 	if err := h.db.Preload("Versions").Preload("Reviews.User").
 		First(&plugin, pluginID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -209,7 +209,7 @@ func (h *NodePluginHandler) UpdatePlugin(c *gin.Context) {
 		return
 	}
 
-	var plugin models.NodePlugin
+	var plugin svcmodels.NodePlugin
 	if err := h.db.First(&plugin, pluginID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			response.Fail(c, "插件不存在", nil)
@@ -228,12 +228,12 @@ func (h *NodePluginHandler) UpdatePlugin(c *gin.Context) {
 	var req struct {
 		DisplayName string                      `json:"displayName"`
 		Description string                      `json:"description"`
-		Category    models.NodePluginCategory   `json:"category"`
+		Category    svcmodels.NodePluginCategory   `json:"category"`
 		Icon        string                      `json:"icon"`
 		Color       string                      `json:"color"`
 		Tags        []string                    `json:"tags"`
-		Definition  models.NodePluginDefinition `json:"definition"`
-		Schema      models.NodePluginSchema     `json:"schema"`
+		Definition  svcmodels.NodePluginDefinition `json:"definition"`
+		Schema      svcmodels.NodePluginSchema     `json:"schema"`
 		Version     string                      `json:"version"`
 		ChangeLog   string                      `json:"changeLog"`
 		Author      string                      `json:"author"`
@@ -265,7 +265,7 @@ func (h *NodePluginHandler) UpdatePlugin(c *gin.Context) {
 		updates["color"] = req.Color
 	}
 	if len(req.Tags) > 0 {
-		updates["tags"] = models.StringArray(req.Tags)
+		updates["tags"] = svcmodels.StringArray(req.Tags)
 	}
 	if req.Author != "" {
 		updates["author"] = req.Author
@@ -287,7 +287,7 @@ func (h *NodePluginHandler) UpdatePlugin(c *gin.Context) {
 		updates["schema"] = req.Schema
 
 		// 创建新版本记录
-		version := models.NodePluginVersion{
+		version := svcmodels.NodePluginVersion{
 			PluginID:   plugin.ID,
 			Version:    req.Version,
 			Definition: req.Definition,
@@ -323,7 +323,7 @@ func (h *NodePluginHandler) PublishPlugin(c *gin.Context) {
 		return
 	}
 
-	var plugin models.NodePlugin
+	var plugin svcmodels.NodePlugin
 	if err := h.db.First(&plugin, pluginID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			response.Fail(c, "插件不存在", nil)
@@ -340,7 +340,7 @@ func (h *NodePluginHandler) PublishPlugin(c *gin.Context) {
 	}
 
 	// 更新状态为已发布
-	if err := h.db.Model(&plugin).Update("status", models.NodePluginStatusPublished).Error; err != nil {
+	if err := h.db.Model(&plugin).Update("status", svcmodels.NodePluginStatusPublished).Error; err != nil {
 		response.Fail(c, "发布失败: "+err.Error(), nil)
 		return
 	}
@@ -373,7 +373,7 @@ func (h *NodePluginHandler) InstallPlugin(c *gin.Context) {
 	}
 
 	// 检查插件是否存在
-	var plugin models.NodePlugin
+	var plugin svcmodels.NodePlugin
 	if err := h.db.First(&plugin, pluginID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			response.Fail(c, "插件不存在", nil)
@@ -384,7 +384,7 @@ func (h *NodePluginHandler) InstallPlugin(c *gin.Context) {
 	}
 
 	// 检查是否已安装
-	var existing models.NodePluginInstallation
+	var existing svcmodels.NodePluginInstallation
 	if err := h.db.Where("user_id = ? AND plugin_id = ?", userID, pluginID).
 		First(&existing).Error; err == nil {
 		response.Fail(c, "插件已安装", nil)
@@ -398,12 +398,12 @@ func (h *NodePluginHandler) InstallPlugin(c *gin.Context) {
 	}
 
 	// 创建安装记录
-	installation := models.NodePluginInstallation{
+	installation := svcmodels.NodePluginInstallation{
 		UserID:   userID,
 		PluginID: uint(pluginID),
 		Version:  version,
 		Status:   "active",
-		Config:   models.JSONMap(req.Config),
+		Config:   svcmodels.JSONMap(req.Config),
 	}
 
 	if err := h.db.Create(&installation).Error; err != nil {
@@ -431,7 +431,7 @@ func (h *NodePluginHandler) DeletePlugin(c *gin.Context) {
 		return
 	}
 
-	var plugin models.NodePlugin
+	var plugin svcmodels.NodePlugin
 	if err := h.db.First(&plugin, pluginID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			response.Fail(c, "插件不存在", nil)
@@ -456,21 +456,21 @@ func (h *NodePluginHandler) DeletePlugin(c *gin.Context) {
 	}()
 
 	// 删除相关的版本记录
-	if err := tx.Where("plugin_id = ?", pluginID).Delete(&models.NodePluginVersion{}).Error; err != nil {
+	if err := tx.Where("plugin_id = ?", pluginID).Delete(&svcmodels.NodePluginVersion{}).Error; err != nil {
 		tx.Rollback()
 		response.Fail(c, "删除版本记录失败: "+err.Error(), nil)
 		return
 	}
 
 	// 删除相关的评价记录
-	if err := tx.Where("plugin_id = ?", pluginID).Delete(&models.NodePluginReview{}).Error; err != nil {
+	if err := tx.Where("plugin_id = ?", pluginID).Delete(&svcmodels.NodePluginReview{}).Error; err != nil {
 		tx.Rollback()
 		response.Fail(c, "删除评价记录失败: "+err.Error(), nil)
 		return
 	}
 
 	// 删除相关的安装记录
-	if err := tx.Where("plugin_id = ?", pluginID).Delete(&models.NodePluginInstallation{}).Error; err != nil {
+	if err := tx.Where("plugin_id = ?", pluginID).Delete(&svcmodels.NodePluginInstallation{}).Error; err != nil {
 		tx.Rollback()
 		response.Fail(c, "删除安装记录失败: "+err.Error(), nil)
 		return
@@ -500,7 +500,7 @@ func (h *NodePluginHandler) ListInstalledPlugins(c *gin.Context) {
 		return
 	}
 
-	var installations []models.NodePluginInstallation
+	var installations []svcmodels.NodePluginInstallation
 	if err := h.db.Preload("Plugin").Where("user_id = ? AND status = ?", userID, "active").
 		Find(&installations).Error; err != nil {
 		response.Fail(c, "查询失败: "+err.Error(), nil)

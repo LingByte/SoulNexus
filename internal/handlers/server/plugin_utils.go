@@ -4,11 +4,11 @@ package server
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"github.com/LingByte/SoulNexus/internal/models/auth"
 	"regexp"
 	"strings"
 	"time"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/gin-gonic/gin"
 )
@@ -36,13 +36,13 @@ func generateSlug(name string) string {
 // getUserID 从上下文获取用户ID
 func getUserID(c *gin.Context) uint {
 	// 首先尝试从CurrentUser获取
-	if user := models.CurrentUser(c); user != nil {
+	if user := auth.CurrentUser(c); user != nil {
 		return user.ID
 	}
 
 	// 备用方法：直接从context获取
 	if userObj, exists := c.Get(constants.UserField); exists && userObj != nil {
-		if user, ok := userObj.(*models.User); ok {
+		if user, ok := userObj.(*auth.User); ok {
 			return user.ID
 		}
 	}

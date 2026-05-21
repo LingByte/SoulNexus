@@ -4,9 +4,9 @@ package server
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"strconv"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -29,9 +29,9 @@ func NewCallRecordingHandler(db *gorm.DB) *CallRecordingHandler {
 
 // CallRecordingDetailResponse 详细通话记录响应
 type CallRecordingDetailResponse struct {
-	*models.CallRecording
-	ConversationDetailsData *models.ConversationDetails `json:"conversationDetailsData,omitempty"`
-	TimingMetricsData       *models.TimingMetrics       `json:"timingMetricsData,omitempty"`
+	*svcmodels.CallRecording
+	ConversationDetailsData *svcmodels.ConversationDetails `json:"conversationDetailsData,omitempty"`
+	TimingMetricsData       *svcmodels.TimingMetrics       `json:"timingMetricsData,omitempty"`
 }
 
 // GetCallRecordings 获取通话记录列表
@@ -55,34 +55,34 @@ func (h *CallRecordingHandler) GetCallRecordings(c *gin.Context) {
 		pageSize = 20
 	}
 
-	var recordings []models.CallRecording
+	var recordings []svcmodels.CallRecording
 	var total int64
 	var err error
 
 	if agentID > 0 {
-		var ag models.Agent
+		var ag svcmodels.Agent
 		if err = h.db.First(&ag, agentID).Error; err != nil {
 			response.Fail(c, "助手不存在", nil)
 			return
 		}
-		if !models.UserIsGroupMember(h.db, userID, ag.GroupID) {
+		if !svcmodels.UserIsGroupMember(h.db, userID, ag.GroupID) {
 			response.Fail(c, "无权访问", nil)
 			return
 		}
-		recordings, total, err = models.GetCallRecordingsByAgent(h.db, ag.GroupID, uint(agentID), pageSize, (page-1)*pageSize)
+		recordings, total, err = svcmodels.GetCallRecordingsByAgent(h.db, ag.GroupID, uint(agentID), pageSize, (page-1)*pageSize)
 	} else if macAddress != "" {
-		dev, derr := models.GetDeviceByMacAddress(h.db, macAddress)
+		dev, derr := svcmodels.GetDeviceByMacAddress(h.db, macAddress)
 		if derr != nil || dev == nil {
 			response.Fail(c, "设备不存在", nil)
 			return
 		}
-		if !models.UserIsGroupMember(h.db, userID, dev.GroupID) {
+		if !svcmodels.UserIsGroupMember(h.db, userID, dev.GroupID) {
 			response.Fail(c, "无权访问", nil)
 			return
 		}
-		recordings, total, err = models.GetCallRecordingsByDevice(h.db, dev.GroupID, macAddress, pageSize, (page-1)*pageSize)
+		recordings, total, err = svcmodels.GetCallRecordingsByDevice(h.db, dev.GroupID, macAddress, pageSize, (page-1)*pageSize)
 	} else {
-		recordings, total, err = models.GetCallRecordingsByMemberUser(h.db, userID, pageSize, (page-1)*pageSize)
+		recordings, total, err = svcmodels.GetCallRecordingsByMemberUser(h.db, userID, pageSize, (page-1)*pageSize)
 	}
 
 	if err != nil {
@@ -114,12 +114,12 @@ func (h *CallRecordingHandler) GetCallRecordingDetail(c *gin.Context) {
 		return
 	}
 
-	groupIDs, err := models.MemberGroupIDs(h.db, userID)
+	groupIDs, err := svcmodels.MemberGroupIDs(h.db, userID)
 	if err != nil || len(groupIDs) == 0 {
 		response.Fail(c, "通话记录不存在", nil)
 		return
 	}
-	var recording models.CallRecording
+	var recording svcmodels.CallRecording
 	err = h.db.Where("id = ? AND group_id IN ?", recordingID, groupIDs).First(&recording).Error
 	if err != nil {
 		h.logger.Error("获取通话记录详情失败", zap.Error(err), zap.Uint("userID", userID), zap.Uint64("recordingID", recordingID))
@@ -154,12 +154,12 @@ func (h *CallRecordingHandler) DeleteCallRecording(c *gin.Context) {
 		return
 	}
 
-	groupIDs, err := models.MemberGroupIDs(h.db, userID)
+	groupIDs, err := svcmodels.MemberGroupIDs(h.db, userID)
 	if err != nil || len(groupIDs) == 0 {
 		response.Fail(c, "删除失败", nil)
 		return
 	}
-	err = h.db.Where("id = ? AND group_id IN ?", recordingID, groupIDs).Delete(&models.CallRecording{}).Error
+	err = h.db.Where("id = ? AND group_id IN ?", recordingID, groupIDs).Delete(&svcmodels.CallRecording{}).Error
 	if err != nil {
 		h.logger.Error("删除通话记录失败", zap.Error(err), zap.Uint("userID", userID), zap.Uint64("recordingID", recordingID))
 		response.Fail(c, "删除通话记录失败", nil)
@@ -181,14 +181,14 @@ func (h *CallRecordingHandler) GetCallRecordingStats(c *gin.Context) {
 	agentID, _ := strconv.Atoi(c.Query("agentId"))
 	macAddress := c.Query("macAddress")
 
-	groupIDs, err := models.MemberGroupIDs(h.db, userID)
+	groupIDs, err := svcmodels.MemberGroupIDs(h.db, userID)
 	if err != nil || len(groupIDs) == 0 {
 		response.Success(c, "获取成功", gin.H{"totalRecordings": int64(0)})
 		return
 	}
 
 	var totalRecordings int64
-	query := h.db.Model(&models.CallRecording{}).Where("group_id IN ?", groupIDs)
+	query := h.db.Model(&svcmodels.CallRecording{}).Where("group_id IN ?", groupIDs)
 
 	if agentID > 0 {
 		query = query.Where("agent_id = ?", agentID)

@@ -4,10 +4,11 @@ package server
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"github.com/LingByte/SoulNexus/internal/models/auth"
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"fmt"
 	"strconv"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/voiceclone"
 	"github.com/gin-gonic/gin"
@@ -56,14 +57,14 @@ func (h *Handlers) VolcengineSynthesize(c *gin.Context) {
 		return
 	}
 
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "Unauthorized", "User not logged in")
 		return
 	}
 
-	groupIDs, gerr := models.MemberGroupIDs(h.db, user.ID)
-	var clone models.VoiceClone
+	groupIDs, gerr := svcmodels.MemberGroupIDs(h.db, user.ID)
+	var clone svcmodels.VoiceClone
 	if gerr != nil || len(groupIDs) == 0 {
 		logrus.WithError(gerr).Warn("volcengine: no groups for user, synthesis will proceed without history")
 	} else if err := h.db.Where("group_id IN ? AND asset_id = ? AND provider = ? AND is_active = ?",
@@ -101,7 +102,7 @@ func (h *Handlers) VolcengineSynthesize(c *gin.Context) {
 	// If voice clone found, save synthesis history
 	if clone.ID > 0 {
 		// Record synthesis history
-		synthesis := &models.VoiceSynthesis{
+		synthesis := &svcmodels.VoiceSynthesis{
 			GroupID:      clone.GroupID,
 			CreatedBy:    user.ID,
 			VoiceCloneID: clone.ID,
@@ -187,7 +188,7 @@ func (h *Handlers) VolcengineQueryTask(c *gin.Context) {
 		return
 	}
 
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "Unauthorized", "User not logged in")
 		return
@@ -223,19 +224,19 @@ func (h *Handlers) VolcengineQueryTask(c *gin.Context) {
 	}
 
 	if trainStatus == 2 && status.AssetID != "" {
-		pg, perr := models.EnsurePersonalGroupForUser(h.db, user.ID)
+		pg, perr := svcmodels.EnsurePersonalGroupForUser(h.db, user.ID)
 		if perr != nil {
 			response.Fail(c, "Failed to create training task record", perr.Error())
 			return
 		}
-		var task models.VoiceTrainingTask
+		var task svcmodels.VoiceTrainingTask
 		if err := h.db.Where("group_id = ? AND task_id = ?", pg.ID, req.SpeakerID).First(&task).Error; err != nil {
-			task = models.VoiceTrainingTask{
+			task = svcmodels.VoiceTrainingTask{
 				GroupID:   pg.ID,
 				CreatedBy: user.ID,
 				TaskID:    req.SpeakerID,
 				TaskName:  fmt.Sprintf("Volcengine Voice %s", req.SpeakerID),
-				Status:    models.TrainingStatusSuccess,
+				Status:    svcmodels.TrainingStatusSuccess,
 				AssetID:   status.AssetID,
 				TrainVID:  status.TrainVID,
 			}
@@ -245,7 +246,7 @@ func (h *Handlers) VolcengineQueryTask(c *gin.Context) {
 			}
 		} else {
 			// Already exists, update status
-			task.Status = models.TrainingStatusSuccess
+			task.Status = svcmodels.TrainingStatusSuccess
 			task.AssetID = status.AssetID
 			task.TrainVID = status.TrainVID
 			if err := h.db.Save(&task).Error; err != nil {

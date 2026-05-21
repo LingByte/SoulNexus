@@ -4,6 +4,8 @@ package server
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"github.com/LingByte/SoulNexus/internal/models/auth"
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"encoding/csv"
 	"fmt"
 	"net/http"
@@ -13,14 +15,13 @@ import (
 	"time"
 
 	"github.com/LingByte/SoulNexus/internal/config"
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/gin-gonic/gin"
 )
 
 // GetUsageStatistics gets usage statistics
 func (h *Handlers) GetUsageStatistics(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User is not logged in.", nil)
 		return
@@ -75,14 +76,14 @@ func (h *Handlers) GetUsageStatistics(c *gin.Context) {
 			uid := uint(id)
 			groupID = &uid
 			// 验证用户是否有权限访问该组织
-			var group models.Group
+			var group svcmodels.Group
 			if err := h.db.Where("id = ?", uid).First(&group).Error; err != nil {
 				response.Fail(c, "organization not found", nil)
 				return
 			}
 			// 检查用户是否是组织成员或创建者
 			if group.CreatorID != user.ID {
-				var member models.GroupMember
+				var member svcmodels.GroupMember
 				if err := h.db.Where("group_id = ? AND user_id = ?", uid, user.ID).First(&member).Error; err != nil {
 					response.Fail(c, "insufficient permissions", "You are not a member of this organization")
 					return
@@ -92,7 +93,7 @@ func (h *Handlers) GetUsageStatistics(c *gin.Context) {
 	}
 
 	// Get statistics
-	stats, err := models.GetUsageStatistics(h.db, user.ID, startTime, endTime, credentialID, groupID)
+	stats, err := svcmodels.GetUsageStatistics(h.db, user.ID, startTime, endTime, credentialID, groupID)
 	if err != nil {
 		response.AbortWithStatusJSON(c, http.StatusInternalServerError, err)
 		return
@@ -103,7 +104,7 @@ func (h *Handlers) GetUsageStatistics(c *gin.Context) {
 
 // GetDailyUsageData gets usage data grouped by date
 func (h *Handlers) GetDailyUsageData(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User is not logged in.", nil)
 		return
@@ -156,14 +157,14 @@ func (h *Handlers) GetDailyUsageData(c *gin.Context) {
 			uid := uint(id)
 			groupID = &uid
 			// 验证用户是否有权限访问该组织
-			var group models.Group
+			var group svcmodels.Group
 			if err := h.db.Where("id = ?", uid).First(&group).Error; err != nil {
 				response.Fail(c, "organization not found", nil)
 				return
 			}
 			// 检查用户是否是组织成员或创建者
 			if group.CreatorID != user.ID {
-				var member models.GroupMember
+				var member svcmodels.GroupMember
 				if err := h.db.Where("group_id = ? AND user_id = ?", uid, user.ID).First(&member).Error; err != nil {
 					response.Fail(c, "insufficient permissions", "You are not a member of this organization")
 					return
@@ -173,7 +174,7 @@ func (h *Handlers) GetDailyUsageData(c *gin.Context) {
 	}
 
 	// Get daily usage data
-	dailyData, err := models.GetDailyUsageData(h.db, user.ID, startTime, endTime, credentialID, groupID)
+	dailyData, err := svcmodels.GetDailyUsageData(h.db, user.ID, startTime, endTime, credentialID, groupID)
 	if err != nil {
 		response.AbortWithStatusJSON(c, http.StatusInternalServerError, err)
 		return
@@ -184,7 +185,7 @@ func (h *Handlers) GetDailyUsageData(c *gin.Context) {
 
 // GetUsageRecords gets usage record list
 func (h *Handlers) GetUsageRecords(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User is not logged in.", nil)
 		return
@@ -199,14 +200,14 @@ func (h *Handlers) GetUsageRecords(c *gin.Context) {
 			uid := uint(id)
 			params["groupId"] = uid
 			// 验证用户是否有权限访问该组织
-			var group models.Group
+			var group svcmodels.Group
 			if err := h.db.Where("id = ?", uid).First(&group).Error; err != nil {
 				response.Fail(c, "organization not found", nil)
 				return
 			}
 			// 检查用户是否是组织成员或创建者
 			if group.CreatorID != user.ID {
-				var member models.GroupMember
+				var member svcmodels.GroupMember
 				if err := h.db.Where("group_id = ? AND user_id = ?", uid, user.ID).First(&member).Error; err != nil {
 					response.Fail(c, "insufficient permissions", "You are not a member of this organization")
 					return
@@ -236,7 +237,7 @@ func (h *Handlers) GetUsageRecords(c *gin.Context) {
 
 	// Usage type
 	if usageType := c.Query("usageType"); usageType != "" {
-		params["usageType"] = models.UsageType(usageType)
+		params["usageType"] = svcmodels.UsageType(usageType)
 	}
 
 	// Time range
@@ -259,7 +260,7 @@ func (h *Handlers) GetUsageRecords(c *gin.Context) {
 	}
 
 	// Get records
-	records, total, err := models.GetUsageRecords(h.db, user.ID, params)
+	records, total, err := svcmodels.GetUsageRecords(h.db, user.ID, params)
 	if err != nil {
 		response.AbortWithStatusJSON(c, http.StatusInternalServerError, err)
 		return
@@ -275,7 +276,7 @@ func (h *Handlers) GetUsageRecords(c *gin.Context) {
 
 // ExportUsageRecords exports usage records
 func (h *Handlers) ExportUsageRecords(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User is not logged in.", nil)
 		return
@@ -290,14 +291,14 @@ func (h *Handlers) ExportUsageRecords(c *gin.Context) {
 			uid := uint(id)
 			params["groupId"] = uid
 			// 验证用户是否有权限访问该组织
-			var group models.Group
+			var group svcmodels.Group
 			if err := h.db.Where("id = ?", uid).First(&group).Error; err != nil {
 				response.Fail(c, "organization not found", nil)
 				return
 			}
 			// 检查用户是否是组织成员或创建者
 			if group.CreatorID != user.ID {
-				var member models.GroupMember
+				var member svcmodels.GroupMember
 				if err := h.db.Where("group_id = ? AND user_id = ?", uid, user.ID).First(&member).Error; err != nil {
 					response.Fail(c, "insufficient permissions", "You are not a member of this organization")
 					return
@@ -321,7 +322,7 @@ func (h *Handlers) ExportUsageRecords(c *gin.Context) {
 
 	// Usage type
 	if usageType := c.Query("usageType"); usageType != "" {
-		params["usageType"] = models.UsageType(usageType)
+		params["usageType"] = svcmodels.UsageType(usageType)
 	}
 
 	// Time range
@@ -386,7 +387,7 @@ func (h *Handlers) ExportUsageRecords(c *gin.Context) {
 
 // GenerateBill generates bill
 func (h *Handlers) GenerateBill(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User is not logged in.", nil)
 		return
@@ -407,14 +408,14 @@ func (h *Handlers) GenerateBill(c *gin.Context) {
 
 	// 验证组织权限（如果提供了组织ID）
 	if req.GroupID != nil && *req.GroupID > 0 {
-		var group models.Group
+		var group svcmodels.Group
 		if err := h.db.Where("id = ?", *req.GroupID).First(&group).Error; err != nil {
 			response.Fail(c, "organization not found", nil)
 			return
 		}
 		// 检查用户是否是组织成员或创建者
 		if group.CreatorID != user.ID {
-			var member models.GroupMember
+			var member svcmodels.GroupMember
 			if err := h.db.Where("group_id = ? AND user_id = ?", *req.GroupID, user.ID).First(&member).Error; err != nil {
 				response.Fail(c, "insufficient permissions", "You are not a member of this organization")
 				return
@@ -443,7 +444,7 @@ func (h *Handlers) GenerateBill(c *gin.Context) {
 	}
 
 	// Generate bill
-	bill, err := models.GenerateBill(h.db, user.ID, req.CredentialID, req.GroupID, startTime, endTime, title)
+	bill, err := svcmodels.GenerateBill(h.db, user.ID, req.CredentialID, req.GroupID, startTime, endTime, title)
 	if err != nil {
 		response.AbortWithStatusJSON(c, http.StatusInternalServerError, err)
 		return
@@ -454,7 +455,7 @@ func (h *Handlers) GenerateBill(c *gin.Context) {
 
 // GetBills gets bill list
 func (h *Handlers) GetBills(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User is not logged in.", nil)
 		return
@@ -469,14 +470,14 @@ func (h *Handlers) GetBills(c *gin.Context) {
 			uid := uint(id)
 			params["groupId"] = uid
 			// 验证用户是否有权限访问该组织
-			var group models.Group
+			var group svcmodels.Group
 			if err := h.db.Where("id = ?", uid).First(&group).Error; err != nil {
 				response.Fail(c, "organization not found", nil)
 				return
 			}
 			// 检查用户是否是组织成员或创建者
 			if group.CreatorID != user.ID {
-				var member models.GroupMember
+				var member svcmodels.GroupMember
 				if err := h.db.Where("group_id = ? AND user_id = ?", uid, user.ID).First(&member).Error; err != nil {
 					response.Fail(c, "insufficient permissions", "You are not a member of this organization")
 					return
@@ -500,7 +501,7 @@ func (h *Handlers) GetBills(c *gin.Context) {
 
 	// Status
 	if status := c.Query("status"); status != "" {
-		params["status"] = models.BillStatus(status)
+		params["status"] = svcmodels.BillStatus(status)
 	}
 
 	// Time range
@@ -521,7 +522,7 @@ func (h *Handlers) GetBills(c *gin.Context) {
 	}
 
 	// Get bill list
-	bills, total, err := models.GetBills(h.db, user.ID, params)
+	bills, total, err := svcmodels.GetBills(h.db, user.ID, params)
 	if err != nil {
 		response.AbortWithStatusJSON(c, http.StatusInternalServerError, err)
 		return
@@ -537,7 +538,7 @@ func (h *Handlers) GetBills(c *gin.Context) {
 
 // GetBill gets a single bill
 func (h *Handlers) GetBill(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User is not logged in.", nil)
 		return
@@ -550,7 +551,7 @@ func (h *Handlers) GetBill(c *gin.Context) {
 		return
 	}
 
-	bill, err := models.GetBill(h.db, user.ID, uint(billID))
+	bill, err := svcmodels.GetBill(h.db, user.ID, uint(billID))
 	if err != nil {
 		response.AbortWithStatusJSON(c, http.StatusNotFound, err)
 		return
@@ -561,7 +562,7 @@ func (h *Handlers) GetBill(c *gin.Context) {
 
 // ExportBill exports bill
 func (h *Handlers) ExportBill(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User is not logged in.", nil)
 		return
@@ -575,7 +576,7 @@ func (h *Handlers) ExportBill(c *gin.Context) {
 	}
 
 	// 获取账单
-	bill, err := models.GetBill(h.db, user.ID, uint(billID))
+	bill, err := svcmodels.GetBill(h.db, user.ID, uint(billID))
 	if err != nil {
 		response.AbortWithStatusJSON(c, http.StatusNotFound, err)
 		return
@@ -612,12 +613,12 @@ func (h *Handlers) ExportBill(c *gin.Context) {
 	}
 
 	// 更新账单状态
-	bill.Status = models.BillStatusExported
+	bill.Status = svcmodels.BillStatusExported
 	now := time.Now()
 	bill.ExportedAt = &now
 	bill.ExportFormat = format
 	bill.ExportPath = filePath
-	models.UpdateBill(h.db, bill)
+	svcmodels.UpdateBill(h.db, bill)
 
 	// 生成下载文件名（使用UTF-8编码，避免中文文件名问题）
 	fileName := filepath.Base(filePath)
@@ -651,7 +652,7 @@ func (h *Handlers) exportUsageRecordsToExcel(userID uint, params map[string]inte
 // exportBillToExcel 导出账单为Excel（内部方法）
 // 注意：当前实现使用CSV格式，Excel可以打开CSV文件
 // 如需真正的Excel格式，可以添加github.com/xuri/excelize/v2库
-func (h *Handlers) exportBillToExcel(bill *models.Bill, exportPath string) (string, error) {
+func (h *Handlers) exportBillToExcel(bill *svcmodels.Bill, exportPath string) (string, error) {
 	// 获取账单对应的使用量记录
 	params := map[string]interface{}{
 		"startTime": bill.StartTime,
@@ -661,7 +662,7 @@ func (h *Handlers) exportBillToExcel(bill *models.Bill, exportPath string) (stri
 		params["credentialId"] = *bill.CredentialID
 	}
 
-	records, _, err := models.GetUsageRecords(h.db, bill.UserID, params)
+	records, _, err := svcmodels.GetUsageRecords(h.db, bill.UserID, params)
 	if err != nil {
 		return "", fmt.Errorf("failed to get usage records: %w", err)
 	}
@@ -682,7 +683,7 @@ func (h *Handlers) exportBillToExcel(bill *models.Bill, exportPath string) (stri
 
 // exportUsageRecords 导出使用量记录（内部方法）
 func (h *Handlers) exportUsageRecords(userID uint, params map[string]interface{}, format, exportPath string) (string, error) {
-	records, _, err := models.GetUsageRecords(h.db, userID, params)
+	records, _, err := svcmodels.GetUsageRecords(h.db, userID, params)
 	if err != nil {
 		return "", fmt.Errorf("failed to get usage records: %w", err)
 	}
@@ -702,7 +703,7 @@ func (h *Handlers) exportUsageRecords(userID uint, params map[string]interface{}
 }
 
 // exportBill 导出账单（内部方法）
-func (h *Handlers) exportBill(bill *models.Bill, format, exportPath string) (string, error) {
+func (h *Handlers) exportBill(bill *svcmodels.Bill, format, exportPath string) (string, error) {
 	// 获取账单对应的使用量记录
 	params := map[string]interface{}{
 		"startTime": bill.StartTime,
@@ -712,7 +713,7 @@ func (h *Handlers) exportBill(bill *models.Bill, format, exportPath string) (str
 		params["credentialId"] = *bill.CredentialID
 	}
 
-	records, _, err := models.GetUsageRecords(h.db, bill.UserID, params)
+	records, _, err := svcmodels.GetUsageRecords(h.db, bill.UserID, params)
 	if err != nil {
 		return "", fmt.Errorf("failed to get usage records: %w", err)
 	}
@@ -731,7 +732,7 @@ func (h *Handlers) exportBill(bill *models.Bill, format, exportPath string) (str
 }
 
 // exportRecordsToCSV 导出记录为CSV
-func (h *Handlers) exportRecordsToCSV(records []models.UsageRecord, filePath string) (string, error) {
+func (h *Handlers) exportRecordsToCSV(records []svcmodels.UsageRecord, filePath string) (string, error) {
 	file, err := os.Create(filePath)
 	if err != nil {
 		return "", fmt.Errorf("failed to create file: %w", err)
@@ -782,7 +783,7 @@ func (h *Handlers) exportRecordsToCSV(records []models.UsageRecord, filePath str
 }
 
 // exportBillToCSV 导出账单为CSV
-func (h *Handlers) exportBillToCSV(bill *models.Bill, records []models.UsageRecord, filePath string) (string, error) {
+func (h *Handlers) exportBillToCSV(bill *svcmodels.Bill, records []svcmodels.UsageRecord, filePath string) (string, error) {
 	file, err := os.Create(filePath)
 	if err != nil {
 		return "", fmt.Errorf("failed to create file: %w", err)
@@ -864,7 +865,7 @@ func (h *Handlers) formatUintPtr(ptr *uint) string {
 
 // UpdateBill 更新账单
 func (h *Handlers) UpdateBill(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User is not logged in.", nil)
 		return
@@ -878,7 +879,7 @@ func (h *Handlers) UpdateBill(c *gin.Context) {
 	}
 
 	// 获取账单
-	bill, err := models.GetBill(h.db, user.ID, uint(billID))
+	bill, err := svcmodels.GetBill(h.db, user.ID, uint(billID))
 	if err != nil {
 		response.AbortWithStatusJSON(c, http.StatusNotFound, err)
 		return
@@ -902,7 +903,7 @@ func (h *Handlers) UpdateBill(c *gin.Context) {
 		bill.Notes = req.Notes
 	}
 
-	if err := models.UpdateBill(h.db, bill); err != nil {
+	if err := svcmodels.UpdateBill(h.db, bill); err != nil {
 		response.AbortWithStatusJSON(c, http.StatusInternalServerError, err)
 		return
 	}
@@ -912,7 +913,7 @@ func (h *Handlers) UpdateBill(c *gin.Context) {
 
 // DeleteBill 删除账单
 func (h *Handlers) DeleteBill(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User is not logged in.", nil)
 		return
@@ -926,7 +927,7 @@ func (h *Handlers) DeleteBill(c *gin.Context) {
 	}
 
 	// 获取账单
-	bill, err := models.GetBill(h.db, user.ID, uint(billID))
+	bill, err := svcmodels.GetBill(h.db, user.ID, uint(billID))
 	if err != nil {
 		response.AbortWithStatusJSON(c, http.StatusNotFound, err)
 		return
@@ -943,7 +944,7 @@ func (h *Handlers) DeleteBill(c *gin.Context) {
 
 // ArchiveBill 归档账单
 func (h *Handlers) ArchiveBill(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User is not logged in.", nil)
 		return
@@ -957,15 +958,15 @@ func (h *Handlers) ArchiveBill(c *gin.Context) {
 	}
 
 	// 获取账单
-	bill, err := models.GetBill(h.db, user.ID, uint(billID))
+	bill, err := svcmodels.GetBill(h.db, user.ID, uint(billID))
 	if err != nil {
 		response.AbortWithStatusJSON(c, http.StatusNotFound, err)
 		return
 	}
 
 	// 更新状态为已归档
-	bill.Status = models.BillStatusArchived
-	if err := models.UpdateBill(h.db, bill); err != nil {
+	bill.Status = svcmodels.BillStatusArchived
+	if err := svcmodels.UpdateBill(h.db, bill); err != nil {
 		response.AbortWithStatusJSON(c, http.StatusInternalServerError, err)
 		return
 	}
@@ -975,7 +976,7 @@ func (h *Handlers) ArchiveBill(c *gin.Context) {
 
 // UpdateBillNotes 更新账单备注
 func (h *Handlers) UpdateBillNotes(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User is not logged in.", nil)
 		return
@@ -989,7 +990,7 @@ func (h *Handlers) UpdateBillNotes(c *gin.Context) {
 	}
 
 	// 获取账单
-	bill, err := models.GetBill(h.db, user.ID, uint(billID))
+	bill, err := svcmodels.GetBill(h.db, user.ID, uint(billID))
 	if err != nil {
 		response.AbortWithStatusJSON(c, http.StatusNotFound, err)
 		return
@@ -1006,7 +1007,7 @@ func (h *Handlers) UpdateBillNotes(c *gin.Context) {
 
 	// 更新备注
 	bill.Notes = req.Notes
-	if err := models.UpdateBill(h.db, bill); err != nil {
+	if err := svcmodels.UpdateBill(h.db, bill); err != nil {
 		response.AbortWithStatusJSON(c, http.StatusInternalServerError, err)
 		return
 	}

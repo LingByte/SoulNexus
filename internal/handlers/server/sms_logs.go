@@ -4,6 +4,7 @@
 package server
 
 import (
+	"github.com/LingByte/SoulNexus/internal/models/auth"
 	"context"
 	"errors"
 	"fmt"
@@ -11,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/LingByte/SoulNexus/internal/listeners"
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/notification/sms"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/utils"
@@ -20,7 +20,7 @@ import (
 )
 
 func (h *Handlers) handleListSMSLogs(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.AbortWithStatus(c, http.StatusUnauthorized)
 		return
@@ -72,7 +72,7 @@ func (h *Handlers) handleListSMSLogs(c *gin.Context) {
 }
 
 func (h *Handlers) handleGetSMSLogDetail(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.AbortWithStatus(c, http.StatusUnauthorized)
 		return
@@ -108,7 +108,7 @@ type smsSendBody struct {
 
 // handleAdminSendSMS 管理端调试用：通过当前 OrgID 启用渠道发送一条短信。
 func (h *Handlers) handleAdminSendSMS(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.AbortWithStatus(c, http.StatusUnauthorized)
 		return

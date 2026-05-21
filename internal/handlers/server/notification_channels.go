@@ -4,12 +4,13 @@
 package server
 
 import (
+	"github.com/LingByte/SoulNexus/internal/models/auth"
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/notification/mail"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/utils"
@@ -47,7 +48,7 @@ func (h *Handlers) handleListNotificationChannels(c *gin.Context) {
 	t := strings.TrimSpace(c.Query("type"))
 	orgID := notificationChannelOrgID(c)
 	scope := h.db.Where("org_id = ?", orgID)
-	out, err := models.ListNotificationChannels(scope, t, page, pageSize)
+	out, err := svcmodels.ListNotificationChannels(scope, t, page, pageSize)
 	if err != nil {
 		response.AbortWithStatusJSON(c, http.StatusInternalServerError, err)
 		return
@@ -69,7 +70,7 @@ func (h *Handlers) handleGetNotificationChannel(c *gin.Context) {
 		return
 	}
 	orgID := notificationChannelOrgID(c)
-	row, err := models.GetNotificationChannel(h.db.Where("org_id = ?", orgID), id)
+	row, err := svcmodels.GetNotificationChannel(h.db.Where("org_id = ?", orgID), id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.AbortWithStatus(c, http.StatusNotFound)
@@ -79,13 +80,13 @@ func (h *Handlers) handleGetNotificationChannel(c *gin.Context) {
 		return
 	}
 	out := gin.H{"channel": row}
-	if row.Type == models.NotificationChannelTypeEmail && strings.TrimSpace(row.ConfigJSON) != "" {
-		if vf, err := models.DecodeEmailChannelForm(row.ConfigJSON); err == nil {
+	if row.Type == svcmodels.NotificationChannelTypeEmail && strings.TrimSpace(row.ConfigJSON) != "" {
+		if vf, err := svcmodels.DecodeEmailChannelForm(row.ConfigJSON); err == nil {
 			out["emailForm"] = vf
 		}
 	}
-	if row.Type == models.NotificationChannelTypeSMS && strings.TrimSpace(row.ConfigJSON) != "" {
-		if vf, err := models.DecodeSMSChannelForm(row.ConfigJSON); err == nil {
+	if row.Type == svcmodels.NotificationChannelTypeSMS && strings.TrimSpace(row.ConfigJSON) != "" {
+		if vf, err := svcmodels.DecodeSMSChannelForm(row.ConfigJSON); err == nil {
 			out["smsForm"] = vf
 		}
 	}
@@ -103,10 +104,10 @@ func (h *Handlers) handleCreateNotificationChannel(c *gin.Context) {
 		response.FailWithCode(c, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	orgID := notificationChannelOrgID(c)
 	channelType := strings.ToLower(strings.TrimSpace(req.ChannelType))
-	row := models.NotificationChannel{
+	row := svcmodels.NotificationChannel{
 		OrgID:      orgID,
 		Type:       channelType,
 		Code:       fmt.Sprintf("%s-%d", strings.ToUpper(channelType[:1]), utils.SnowflakeUtil.NextID()),
@@ -141,7 +142,7 @@ func (h *Handlers) handleUpdateNotificationChannel(c *gin.Context) {
 		return
 	}
 	orgID := notificationChannelOrgID(c)
-	var row models.NotificationChannel
+	var row svcmodels.NotificationChannel
 	if err := h.db.Where("org_id = ?", orgID).First(&row, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.AbortWithStatus(c, http.StatusNotFound)
@@ -161,14 +162,14 @@ func (h *Handlers) handleUpdateNotificationChannel(c *gin.Context) {
 		return
 	}
 	switch channelType {
-	case models.NotificationChannelTypeEmail:
-		if merged, err := models.MergeEmailSecretsOnUpdate(row.ConfigJSON, cfgJSON); err == nil {
+	case svcmodels.NotificationChannelTypeEmail:
+		if merged, err := svcmodels.MergeEmailSecretsOnUpdate(row.ConfigJSON, cfgJSON); err == nil {
 			row.ConfigJSON = merged
 		} else {
 			row.ConfigJSON = cfgJSON
 		}
-	case models.NotificationChannelTypeSMS:
-		if merged, err := models.MergeSMSSecretsOnUpdate(row.ConfigJSON, cfgJSON); err == nil {
+	case svcmodels.NotificationChannelTypeSMS:
+		if merged, err := svcmodels.MergeSMSSecretsOnUpdate(row.ConfigJSON, cfgJSON); err == nil {
 			row.ConfigJSON = merged
 		} else {
 			row.ConfigJSON = cfgJSON
@@ -180,7 +181,7 @@ func (h *Handlers) handleUpdateNotificationChannel(c *gin.Context) {
 		row.Enabled = *req.Enabled
 	}
 	row.Remark = strings.TrimSpace(req.Remark)
-	if user := models.CurrentUser(c); user != nil {
+	if user := auth.CurrentUser(c); user != nil {
 		row.SetUpdateInfo(user.Email)
 	}
 	if err := h.db.Save(&row).Error; err != nil {
@@ -197,7 +198,7 @@ func (h *Handlers) handleDeleteNotificationChannel(c *gin.Context) {
 		return
 	}
 	orgID := notificationChannelOrgID(c)
-	res := h.db.Where("org_id = ?", orgID).Delete(&models.NotificationChannel{}, id)
+	res := h.db.Where("org_id = ?", orgID).Delete(&svcmodels.NotificationChannel{}, id)
 	if res.Error != nil {
 		response.AbortWithStatusJSON(c, http.StatusInternalServerError, res.Error)
 		return
@@ -212,16 +213,16 @@ func (h *Handlers) handleDeleteNotificationChannel(c *gin.Context) {
 // buildChannelConfig 把请求字段转换为 config_json。
 func buildChannelConfig(req NotificationChannelUpsertReq) (string, error) {
 	switch strings.ToLower(strings.TrimSpace(req.ChannelType)) {
-	case models.NotificationChannelTypeEmail:
+	case svcmodels.NotificationChannelTypeEmail:
 		switch strings.ToLower(strings.TrimSpace(req.Driver)) {
 		case mail.ProviderSMTP:
-			return models.BuildEmailChannelConfigJSON(
+			return svcmodels.BuildEmailChannelConfigJSON(
 				mail.ProviderSMTP, req.Name,
 				req.SMTPHost, req.SMTPPort, req.SMTPUsername, req.SMTPPassword, req.SMTPFrom, req.FromDisplayName,
 				"", "", "",
 			)
 		case mail.ProviderSendCloud:
-			return models.BuildEmailChannelConfigJSON(
+			return svcmodels.BuildEmailChannelConfigJSON(
 				mail.ProviderSendCloud, req.Name,
 				"", 0, "", "", "", req.FromDisplayName,
 				req.SendcloudAPIUser, req.SendcloudAPIKey, req.SendcloudFrom,
@@ -229,8 +230,8 @@ func buildChannelConfig(req NotificationChannelUpsertReq) (string, error) {
 		default:
 			return "", fmt.Errorf("未知邮件驱动: %q（仅支持 smtp / sendcloud）", req.Driver)
 		}
-	case models.NotificationChannelTypeSMS:
-		return models.BuildSMSChannelConfigJSON(req.SMSProvider, req.SMSConfig)
+	case svcmodels.NotificationChannelTypeSMS:
+		return svcmodels.BuildSMSChannelConfigJSON(req.SMSProvider, req.SMSConfig)
 	default:
 		return "", errors.New("未知 channelType")
 	}

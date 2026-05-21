@@ -4,9 +4,10 @@ package listeners
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"github.com/LingByte/SoulNexus/internal/models/auth"
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"fmt"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/utils"
@@ -16,7 +17,7 @@ import (
 
 func InitAgentListener() {
 	utils.Sig().Connect(constants.AgentCreate, func(sender any, params ...any) {
-		user, ok := sender.(*models.User)
+		user, ok := sender.(*auth.User)
 		if !ok {
 			return
 		}
@@ -26,7 +27,7 @@ func InitAgentListener() {
 			return
 		}
 
-		agent, ok := params[1].(*models.Agent)
+		agent, ok := params[1].(*svcmodels.Agent)
 		if !ok {
 			return
 		}
@@ -40,6 +41,6 @@ func InitAgentListener() {
 			"Go to the agent management page now to start using it!",
 			user.EffectiveDisplayName(), agent.Name, agent.Description)
 
-		models.NewInternalNotificationService(db).Send(user.ID, title, content)
+		svcmodels.NewInternalNotificationService(db).Send(user.ID, title, content)
 	})
 }

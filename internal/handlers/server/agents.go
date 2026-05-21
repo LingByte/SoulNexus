@@ -4,6 +4,9 @@ package server
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"github.com/LingByte/SoulNexus/internal/models/auth"
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
+	"github.com/LingByte/SoulNexus/internal/modelbase"
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
@@ -16,7 +19,6 @@ import (
 
 	"github.com/LingByte/SoulNexus"
 	"github.com/LingByte/SoulNexus/internal/config"
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/response"
@@ -46,32 +48,32 @@ func (h *Handlers) CreateAgent(c *gin.Context) {
 		return
 	}
 
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 
 	// If an organization ID is specified, verify that the user has permission to create a shared assistant in that organization
 	if input.GroupID != nil {
-		var group models.Group
+		var group svcmodels.Group
 		if err := h.db.First(&group, *input.GroupID).Error; err != nil {
 			response.Fail(c, "Organization does not exist", nil)
 			return
 		}
 		// Check if the user is the creator or administrator of the organization
 		if group.CreatorID != user.ID {
-			var member models.GroupMember
-			if err := h.db.Where("group_id = ? AND user_id = ? AND role = ?", *input.GroupID, user.ID, models.GroupRoleAdmin).First(&member).Error; err != nil {
+			var member svcmodels.GroupMember
+			if err := h.db.Where("group_id = ? AND user_id = ? AND role = ?", *input.GroupID, user.ID, modelbase.GroupRoleAdmin).First(&member).Error; err != nil {
 				response.Fail(c, "Insufficient permissions", "Only creators or administrators can create organization-shared assistants")
 				return
 			}
 		}
 	}
 
-	gid, err := models.ResolveWriteGroupID(h.db, user.ID, input.GroupID)
+	gid, err := svcmodels.ResolveWriteGroupID(h.db, user.ID, input.GroupID)
 	if err != nil {
 		response.Fail(c, "Failed to resolve organization", err.Error())
 		return
 	}
 
-	agent := models.Agent{
+	agent := svcmodels.Agent{
 		GroupID:      gid,
 		CreatedBy:    user.ID,
 		Name:         input.Name,
@@ -96,19 +98,19 @@ func (h *Handlers) CreateAgent(c *gin.Context) {
 
 // ListAgents lists agents for the current user (including org-shared).
 func (h *Handlers) ListAgents(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "unauthorized", "User not logged in")
 		return
 	}
-	var list []models.Agent
+	var list []svcmodels.Agent
 
-	groupIDs, err := models.MemberGroupIDs(h.db, user.ID)
+	groupIDs, err := svcmodels.MemberGroupIDs(h.db, user.ID)
 	if err != nil {
 		response.Fail(c, "select assistants failed", err.Error())
 		return
 	}
-	query := h.db.Model(&models.Agent{})
+	query := h.db.Model(&svcmodels.Agent{})
 	if len(groupIDs) == 0 {
 		response.Success(c, "select assistants successful", list)
 		return
@@ -125,18 +127,18 @@ func (h *Handlers) ListAgents(c *gin.Context) {
 
 // GetAgent returns a single agent
 func (h *Handlers) GetAgent(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "unauthorized", "User not logged in")
 		return
 	}
 	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
-	var assistant models.Agent
+	var assistant svcmodels.Agent
 	if err := h.db.First(&assistant, id).Error; err != nil {
 		response.Fail(c, "not found", "this assistant is not exist")
 		return
 	}
-	if !models.UserIsGroupMember(h.db, user.ID, assistant.GroupID) {
+	if !svcmodels.UserIsGroupMember(h.db, user.ID, assistant.GroupID) {
 		response.Fail(c, "permission denied", "you are not allowed to access this assistant")
 		return
 	}
@@ -145,7 +147,7 @@ func (h *Handlers) GetAgent(c *gin.Context) {
 
 // UpdateAgent updates an agent
 func (h *Handlers) UpdateAgent(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "unauthorized", "User not logged in")
 		return
@@ -188,13 +190,13 @@ func (h *Handlers) UpdateAgent(c *gin.Context) {
 		return
 	}
 
-	var assistant models.Agent
+	var assistant svcmodels.Agent
 	if err := h.db.First(&assistant, id).Error; err != nil {
 		response.Fail(c, "not found", "Assistant does not exist.")
 		return
 	}
 
-	if !models.CanManageTenantResource(h.db, user.ID, assistant.GroupID, assistant.CreatedBy) {
+	if !svcmodels.CanManageTenantResource(h.db, user.ID, assistant.GroupID, assistant.CreatedBy) {
 		response.Fail(c, "forbidden", "No permission to operate this assistant.")
 		return
 	}
@@ -256,7 +258,7 @@ func (h *Handlers) UpdateAgent(c *gin.Context) {
 
 	// Handle JS template ID - verify it exists if provided
 	if input.JsSourceId != "" {
-		_, err := models.GetJSTemplateByJsSourceID(h.db, input.JsSourceId)
+		_, err := svcmodels.GetJSTemplateByJsSourceID(h.db, input.JsSourceId)
 		if err != nil {
 			response.Fail(c, "Specified JS template does not exist", nil)
 			return
@@ -280,7 +282,7 @@ func (h *Handlers) UpdateAgent(c *gin.Context) {
 
 // DeleteAgent deletes an agent
 func (h *Handlers) DeleteAgent(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "unauthorized", "User not logged in")
 		return
@@ -288,13 +290,13 @@ func (h *Handlers) DeleteAgent(c *gin.Context) {
 
 	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
 
-	var assistant models.Agent
+	var assistant svcmodels.Agent
 	if err := h.db.First(&assistant, id).Error; err != nil {
 		response.Fail(c, "not found", "Assistant does not exist")
 		return
 	}
 
-	if !models.CanManageTenantResource(h.db, user.ID, assistant.GroupID, assistant.CreatedBy) {
+	if !svcmodels.CanManageTenantResource(h.db, user.ID, assistant.GroupID, assistant.CreatedBy) {
 		response.Fail(c, "forbidden", "No permission to delete this assistant")
 		return
 	}
@@ -309,7 +311,7 @@ func (h *Handlers) DeleteAgent(c *gin.Context) {
 
 func (h *Handlers) ServeVoiceSculptorLoaderJS(c *gin.Context) {
 	jsSourceID := c.Param("id")
-	var agent models.Agent
+	var agent svcmodels.Agent
 	err := h.db.Where("js_source_id = ?", jsSourceID).First(&agent).Error
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
@@ -331,10 +333,10 @@ func (h *Handlers) ServeVoiceSculptorLoaderJS(c *gin.Context) {
 	var templateContent string
 	if agent.JsSourceID != "" {
 		// Try to get the bound JS template
-		jsTemplate, err := models.GetJSTemplateByJsSourceID(h.db, agent.JsSourceID)
+		jsTemplate, err := svcmodels.GetJSTemplateByJsSourceID(h.db, agent.JsSourceID)
 		if err == nil && jsTemplate.Content != "" {
 			// 检查是否有灰度版本
-			activeVersion, err := models.GetActiveJSTemplateVersion(h.db, jsTemplate.ID)
+			activeVersion, err := svcmodels.GetActiveJSTemplateVersion(h.db, jsTemplate.ID)
 			if err == nil && activeVersion != nil && activeVersion.Grayscale > 0 {
 				// 使用灰度版本（根据用户ID或其他因素决定是否使用灰度版本）
 				// 这里简化处理：如果灰度>0，使用版本内容；否则使用模板内容

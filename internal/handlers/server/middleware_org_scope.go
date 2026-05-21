@@ -9,11 +9,12 @@
 package server
 
 import (
+	"github.com/LingByte/SoulNexus/internal/models/auth"
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"net/http"
 	"strconv"
 	"strings"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/gin-gonic/gin"
 )
 
@@ -42,13 +43,13 @@ func (h *Handlers) OrgScopeMiddleware() gin.HandlerFunc {
 			return
 		}
 		orgID := uint(v)
-		user := models.CurrentUser(c)
+		user := auth.CurrentUser(c)
 		if user == nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"type": "auth_error", "message": "authentication required for org scope"}})
 			c.Abort()
 			return
 		}
-		if !models.UserIsGroupMember(h.db, user.ID, orgID) {
+		if !svcmodels.UserIsGroupMember(h.db, user.ID, orgID) {
 			c.JSON(http.StatusForbidden, gin.H{"error": gin.H{"type": "forbidden", "message": "not a member of the target organization"}})
 			c.Abort()
 			return

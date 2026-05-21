@@ -4,6 +4,9 @@ package server
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"github.com/LingByte/SoulNexus/internal/models/auth"
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
+	"github.com/LingByte/SoulNexus/internal/modelbase"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,7 +17,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/notification"
@@ -30,14 +32,14 @@ type CreateGroupRequest struct {
 	Name       string                 `json:"name" binding:"required"`
 	Type       string                 `json:"type"`
 	Extra      string                 `json:"extra"`
-	Permission models.GroupPermission `json:"permission"`
+	Permission svcmodels.GroupPermission `json:"permission"`
 }
 
 type UpdateGroupRequest struct {
 	Name       string                 `json:"name"`
 	Type       string                 `json:"type"`
 	Extra      string                 `json:"extra"`
-	Permission models.GroupPermission `json:"permission"`
+	Permission svcmodels.GroupPermission `json:"permission"`
 }
 
 type InviteUserRequest struct {
@@ -57,9 +59,9 @@ type GroupResponse struct {
 	Type        string                 `json:"type"`
 	Extra       string                 `json:"extra,omitempty"`
 	Avatar      string                 `json:"avatar,omitempty"` // 组织头像URL
-	Permission  models.GroupPermission `json:"permission,omitempty"`
+	Permission  svcmodels.GroupPermission `json:"permission,omitempty"`
 	CreatorID   uint                   `json:"creatorId"`
-	Creator     *models.User           `json:"creator,omitempty"`
+	Creator     *auth.User           `json:"creator,omitempty"`
 	MemberCount int64                  `json:"memberCount"`
 	MyRole      string                 `json:"myRole,omitempty"`
 	Members     []GroupMemberResponse  `json:"members,omitempty"`
@@ -69,7 +71,7 @@ type GroupMemberResponse struct {
 	ID        uint        `json:"id"`
 	CreatedAt time.Time   `json:"createdAt"`
 	UserID    uint        `json:"userId"`
-	User      models.User `json:"user"`
+	User      auth.User `json:"user"`
 	GroupID   uint        `json:"groupId"`
 	Role      string      `json:"role"`
 }
@@ -79,18 +81,18 @@ type GroupInvitationResponse struct {
 	CreatedAt time.Time    `json:"createdAt"`
 	UpdatedAt time.Time    `json:"updatedAt"`
 	GroupID   uint         `json:"groupId"`
-	Group     models.Group `json:"group"`
+	Group     svcmodels.Group `json:"group"`
 	InviterID uint         `json:"inviterId"`
-	Inviter   models.User  `json:"inviter"`
+	Inviter   auth.User  `json:"inviter"`
 	InviteeID uint         `json:"inviteeId"`
-	Invitee   models.User  `json:"invitee"`
+	Invitee   auth.User  `json:"invitee"`
 	Status    string       `json:"status"`
 	ExpiresAt *time.Time   `json:"expiresAt,omitempty"`
 }
 
 // CreateGroup 创建组织
 func (h *Handlers) CreateGroup(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "未授权", "用户未登录")
 		return
@@ -102,15 +104,15 @@ func (h *Handlers) CreateGroup(c *gin.Context) {
 		return
 	}
 
-	if strings.TrimSpace(req.Type) == models.GroupTypePersonal {
+	if strings.TrimSpace(req.Type) == svcmodels.GroupTypePersonal {
 		response.Fail(c, "参数错误", "个人组织由系统自动创建，不能手动创建")
 		return
 	}
 	if strings.TrimSpace(req.Type) == "" {
-		req.Type = models.GroupTypeTeam
+		req.Type = svcmodels.GroupTypeTeam
 	}
 
-	group := models.Group{
+	group := svcmodels.Group{
 		Name:       req.Name,
 		Type:       req.Type,
 		Extra:      req.Extra,
@@ -124,10 +126,10 @@ func (h *Handlers) CreateGroup(c *gin.Context) {
 	}
 
 	// 自动将创建者添加为管理员
-	member := models.GroupMember{
+	member := svcmodels.GroupMember{
 		UserID:  user.ID,
 		GroupID: group.ID,
-		Role:    models.GroupRoleAdmin,
+		Role:    modelbase.GroupRoleAdmin,
 	}
 	if err := h.db.Create(&member).Error; err != nil {
 		// 如果创建成员失败，删除组织
@@ -140,22 +142,22 @@ func (h *Handlers) CreateGroup(c *gin.Context) {
 	h.db.Preload("Creator").First(&group, group.ID)
 
 	// 记录活动日志
-	h.logGroupActivity(group.ID, user.ID, models.ActionGroupCreated, models.ResourceTypeGroup, &group.ID, group.Name, nil, c.ClientIP())
+	h.logGroupActivity(group.ID, user.ID, svcmodels.ActionGroupCreated, svcmodels.ResourceTypeGroup, &group.ID, group.Name, nil, c.ClientIP())
 
 	response.Success(c, "创建组织成功", group)
 }
 
 // ListGroups 获取用户创建或加入的组织列表
 func (h *Handlers) ListGroups(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "未授权", "用户未登录")
 		return
 	}
 
-	var groups []models.Group
+	var groups []svcmodels.Group
 	// 查询用户创建或加入的组织
-	if err := h.db.Model(&models.Group{}).
+	if err := h.db.Model(&svcmodels.Group{}).
 		Joins("LEFT JOIN group_members ON groups.id = group_members.group_id").
 		Where("groups.creator_id = ? OR group_members.user_id = ?", user.ID, user.ID).
 		Group("groups.id").
@@ -170,15 +172,15 @@ func (h *Handlers) ListGroups(c *gin.Context) {
 	for _, group := range groups {
 		// 获取成员数量
 		var memberCount int64
-		h.db.Model(&models.GroupMember{}).Where("group_id = ?", group.ID).Count(&memberCount)
+		h.db.Model(&svcmodels.GroupMember{}).Where("group_id = ?", group.ID).Count(&memberCount)
 
 		// 获取当前用户在组织中的角色
 		var myRole string
 		if group.CreatorID == user.ID {
 			// 创建者默认是管理员
-			myRole = models.GroupRoleAdmin
+			myRole = modelbase.GroupRoleAdmin
 		} else {
-			var member models.GroupMember
+			var member svcmodels.GroupMember
 			if err := h.db.Where("group_id = ? AND user_id = ?", group.ID, user.ID).First(&member).Error; err == nil {
 				myRole = member.Role
 			}
@@ -205,7 +207,7 @@ func (h *Handlers) ListGroups(c *gin.Context) {
 
 // GetGroup 获取组织详情
 func (h *Handlers) GetGroup(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "未授权", "用户未登录")
 		return
@@ -217,7 +219,7 @@ func (h *Handlers) GetGroup(c *gin.Context) {
 		return
 	}
 
-	var group models.Group
+	var group svcmodels.Group
 	if err := h.db.Preload("Creator").First(&group, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, "组织不存在", nil)
@@ -228,7 +230,7 @@ func (h *Handlers) GetGroup(c *gin.Context) {
 	}
 
 	// 检查用户是否有权限查看（必须是创建者或成员）
-	var member models.GroupMember
+	var member svcmodels.GroupMember
 	if err := h.db.Where("group_id = ? AND user_id = ?", group.ID, user.ID).First(&member).Error; err != nil {
 		if group.CreatorID != user.ID {
 			response.Fail(c, "权限不足", "您不是该组织的成员")
@@ -237,7 +239,7 @@ func (h *Handlers) GetGroup(c *gin.Context) {
 	}
 
 	// 获取成员列表（重新查询以确保获取最新数据）
-	var members []models.GroupMember
+	var members []svcmodels.GroupMember
 	if err := h.db.Preload("User").Where("group_id = ?", group.ID).Find(&members).Error; err != nil {
 		response.Fail(c, "查询成员列表失败", err.Error())
 		return
@@ -245,12 +247,12 @@ func (h *Handlers) GetGroup(c *gin.Context) {
 
 	// 获取成员数量
 	var memberCount int64
-	h.db.Model(&models.GroupMember{}).Where("group_id = ?", group.ID).Count(&memberCount)
+	h.db.Model(&svcmodels.GroupMember{}).Where("group_id = ?", group.ID).Count(&memberCount)
 
 	// 获取当前用户角色
 	var myRole string
 	if group.CreatorID == user.ID {
-		myRole = models.GroupRoleAdmin
+		myRole = modelbase.GroupRoleAdmin
 	} else if err := h.db.Where("group_id = ? AND user_id = ?", group.ID, user.ID).First(&member).Error; err == nil {
 		myRole = member.Role
 	}
@@ -289,7 +291,7 @@ func (h *Handlers) GetGroup(c *gin.Context) {
 
 // UpdateGroup 更新组织信息
 func (h *Handlers) UpdateGroup(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "未授权", "用户未登录")
 		return
@@ -307,7 +309,7 @@ func (h *Handlers) UpdateGroup(c *gin.Context) {
 		return
 	}
 
-	var group models.Group
+	var group svcmodels.Group
 	if err := h.db.First(&group, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, "组织不存在", nil)
@@ -319,8 +321,8 @@ func (h *Handlers) UpdateGroup(c *gin.Context) {
 
 	// 检查权限：只有创建者或管理员可以更新
 	if group.CreatorID != user.ID {
-		var member models.GroupMember
-		if err := h.db.Where("group_id = ? AND user_id = ? AND role = ?", group.ID, user.ID, models.GroupRoleAdmin).First(&member).Error; err != nil {
+		var member svcmodels.GroupMember
+		if err := h.db.Where("group_id = ? AND user_id = ? AND role = ?", group.ID, user.ID, modelbase.GroupRoleAdmin).First(&member).Error; err != nil {
 			response.Fail(c, "权限不足", "只有创建者或管理员可以更新组织信息")
 			return
 		}
@@ -351,7 +353,7 @@ func (h *Handlers) UpdateGroup(c *gin.Context) {
 
 // DeleteGroup 删除组织
 func (h *Handlers) DeleteGroup(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "未授权", "用户未登录")
 		return
@@ -363,7 +365,7 @@ func (h *Handlers) DeleteGroup(c *gin.Context) {
 		return
 	}
 
-	var group models.Group
+	var group svcmodels.Group
 	if err := h.db.First(&group, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, "组织不存在", nil)
@@ -380,9 +382,9 @@ func (h *Handlers) DeleteGroup(c *gin.Context) {
 	}
 
 	// 删除组织成员
-	h.db.Where("group_id = ?", group.ID).Delete(&models.GroupMember{})
+	h.db.Where("group_id = ?", group.ID).Delete(&svcmodels.GroupMember{})
 	// 删除组织邀请
-	h.db.Where("group_id = ?", group.ID).Delete(&models.GroupInvitation{})
+	h.db.Where("group_id = ?", group.ID).Delete(&svcmodels.GroupInvitation{})
 	// 删除组织
 	if err := h.db.Delete(&group).Error; err != nil {
 		response.Fail(c, "删除失败", err.Error())
@@ -394,7 +396,7 @@ func (h *Handlers) DeleteGroup(c *gin.Context) {
 
 // SearchUsers 搜索用户（用于邀请）
 func (h *Handlers) SearchUsers(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "未授权", "用户未登录")
 		return
@@ -425,8 +427,8 @@ func (h *Handlers) SearchUsers(c *gin.Context) {
 	var rows []userSearchRow
 	q := h.db.Table("users").
 		Joins("LEFT JOIN user_profiles ON user_profiles.user_id = users.id").
-		Where("users.is_deleted = ?", models.SoftDeleteStatusActive).
-		Where("users.status = ?", models.UserStatusActive).
+		Where("users.is_deleted = ?", modelbase.SoftDeleteStatusActive).
+		Where("users.status = ?", auth.UserStatusActive).
 		Where("users.id != ?", user.ID).
 		Where(`user_profiles.display_name LIKE ? OR users.email LIKE ? OR user_profiles.first_name LIKE ? OR user_profiles.last_name LIKE ?`,
 			"%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%").
@@ -466,7 +468,7 @@ func (h *Handlers) SearchUsers(c *gin.Context) {
 
 // InviteUser 邀请用户加入组织
 func (h *Handlers) InviteUser(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "未授权", "用户未登录")
 		return
@@ -484,7 +486,7 @@ func (h *Handlers) InviteUser(c *gin.Context) {
 		return
 	}
 
-	var group models.Group
+	var group svcmodels.Group
 	if err := h.db.First(&group, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, "组织不存在", nil)
@@ -496,15 +498,15 @@ func (h *Handlers) InviteUser(c *gin.Context) {
 
 	// 检查权限：只有创建者或管理员可以邀请
 	if group.CreatorID != user.ID {
-		var member models.GroupMember
-		if err := h.db.Where("group_id = ? AND user_id = ? AND role = ?", group.ID, user.ID, models.GroupRoleAdmin).First(&member).Error; err != nil {
+		var member svcmodels.GroupMember
+		if err := h.db.Where("group_id = ? AND user_id = ? AND role = ?", group.ID, user.ID, modelbase.GroupRoleAdmin).First(&member).Error; err != nil {
 			response.Fail(c, "权限不足", "只有创建者或管理员可以邀请用户")
 			return
 		}
 	}
 
 	// 查找被邀请用户（含 profile，用于通知与邮件偏好）
-	invitee, err := models.GetUserByID(h.db, req.UserID)
+	invitee, err := auth.GetUserByID(h.db, req.UserID)
 	if err != nil || invitee == nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, "用户不存在", nil)
@@ -515,14 +517,14 @@ func (h *Handlers) InviteUser(c *gin.Context) {
 	}
 
 	// 检查用户是否已经是成员
-	var existingMember models.GroupMember
+	var existingMember svcmodels.GroupMember
 	if err := h.db.Where("group_id = ? AND user_id = ?", group.ID, invitee.ID).First(&existingMember).Error; err == nil {
 		response.Fail(c, "用户已是成员", nil)
 		return
 	}
 
 	// 检查是否已有待处理的邀请
-	var existingInvitation models.GroupInvitation
+	var existingInvitation svcmodels.GroupInvitation
 	if err := h.db.Where("group_id = ? AND invitee_id = ? AND status = ?", group.ID, invitee.ID, "pending").First(&existingInvitation).Error; err == nil {
 		response.Fail(c, "邀请已存在", "该用户已有待处理的邀请")
 		return
@@ -530,7 +532,7 @@ func (h *Handlers) InviteUser(c *gin.Context) {
 
 	// 创建邀请
 	expiresAt := time.Now().Add(7 * 24 * time.Hour) // 7天后过期
-	invitation := models.GroupInvitation{
+	invitation := svcmodels.GroupInvitation{
 		GroupID:   group.ID,
 		InviterID: user.ID,
 		InviteeID: invitee.ID,
@@ -548,7 +550,7 @@ func (h *Handlers) InviteUser(c *gin.Context) {
 
 	// 发送站内通知
 	go func() {
-		notificationService := models.NewInternalNotificationService(h.db)
+		notificationService := svcmodels.NewInternalNotificationService(h.db)
 		title := "组织邀请"
 		content := fmt.Sprintf("%s 邀请您加入组织「%s」",
 			user.EffectiveDisplayName(),
@@ -599,14 +601,14 @@ func (h *Handlers) InviteUser(c *gin.Context) {
 
 // ListInvitations 获取用户的邀请列表
 func (h *Handlers) ListInvitations(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "未授权", "用户未登录")
 		return
 	}
 
 	// 获取用户收到的邀请
-	var invitations []models.GroupInvitation
+	var invitations []svcmodels.GroupInvitation
 	if err := h.db.Where("invitee_id = ? AND status = ?", user.ID, "pending").
 		Preload("Group").
 		Preload("Inviter").
@@ -646,7 +648,7 @@ func (h *Handlers) ListInvitations(c *gin.Context) {
 
 // AcceptInvitation 接受邀请
 func (h *Handlers) AcceptInvitation(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "未授权", "用户未登录")
 		return
@@ -658,7 +660,7 @@ func (h *Handlers) AcceptInvitation(c *gin.Context) {
 		return
 	}
 
-	var invitation models.GroupInvitation
+	var invitation svcmodels.GroupInvitation
 	if err := h.db.Preload("Group").First(&invitation, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, "邀请不存在", nil)
@@ -687,7 +689,7 @@ func (h *Handlers) AcceptInvitation(c *gin.Context) {
 	}
 
 	// 检查用户是否已经是成员
-	var existingMember models.GroupMember
+	var existingMember svcmodels.GroupMember
 	if err := h.db.Where("group_id = ? AND user_id = ?", invitation.GroupID, user.ID).First(&existingMember).Error; err == nil {
 		// 用户已是成员，更新邀请状态
 		invitation.Status = "accepted"
@@ -697,10 +699,10 @@ func (h *Handlers) AcceptInvitation(c *gin.Context) {
 	}
 
 	// 创建成员记录
-	member := models.GroupMember{
+	member := svcmodels.GroupMember{
 		UserID:  user.ID,
 		GroupID: invitation.GroupID,
-		Role:    models.GroupRoleMember,
+		Role:    modelbase.GroupRoleMember,
 	}
 
 	if err := h.db.Create(&member).Error; err != nil {
@@ -717,7 +719,7 @@ func (h *Handlers) AcceptInvitation(c *gin.Context) {
 
 // RejectInvitation 拒绝邀请
 func (h *Handlers) RejectInvitation(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "未授权", "用户未登录")
 		return
@@ -729,7 +731,7 @@ func (h *Handlers) RejectInvitation(c *gin.Context) {
 		return
 	}
 
-	var invitation models.GroupInvitation
+	var invitation svcmodels.GroupInvitation
 	if err := h.db.First(&invitation, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, "邀请不存在", nil)
@@ -760,7 +762,7 @@ func (h *Handlers) RejectInvitation(c *gin.Context) {
 
 // LeaveGroup 离开组织
 func (h *Handlers) LeaveGroup(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "未授权", "用户未登录")
 		return
@@ -772,7 +774,7 @@ func (h *Handlers) LeaveGroup(c *gin.Context) {
 		return
 	}
 
-	var group models.Group
+	var group svcmodels.Group
 	if err := h.db.First(&group, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, "组织不存在", nil)
@@ -789,7 +791,7 @@ func (h *Handlers) LeaveGroup(c *gin.Context) {
 	}
 
 	// 删除成员记录
-	if err := h.db.Where("group_id = ? AND user_id = ?", group.ID, user.ID).Delete(&models.GroupMember{}).Error; err != nil {
+	if err := h.db.Where("group_id = ? AND user_id = ?", group.ID, user.ID).Delete(&svcmodels.GroupMember{}).Error; err != nil {
 		response.Fail(c, "离开组织失败", err.Error())
 		return
 	}
@@ -799,7 +801,7 @@ func (h *Handlers) LeaveGroup(c *gin.Context) {
 
 // RemoveMember 移除成员（仅管理员）
 func (h *Handlers) RemoveMember(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "未授权", "用户未登录")
 		return
@@ -817,7 +819,7 @@ func (h *Handlers) RemoveMember(c *gin.Context) {
 		return
 	}
 
-	var group models.Group
+	var group svcmodels.Group
 	if err := h.db.First(&group, groupID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, "组织不存在", nil)
@@ -829,8 +831,8 @@ func (h *Handlers) RemoveMember(c *gin.Context) {
 
 	// 检查权限：只有创建者或管理员可以移除成员
 	if group.CreatorID != user.ID {
-		var member models.GroupMember
-		if err := h.db.Where("group_id = ? AND user_id = ? AND role = ?", group.ID, user.ID, models.GroupRoleAdmin).First(&member).Error; err != nil {
+		var member svcmodels.GroupMember
+		if err := h.db.Where("group_id = ? AND user_id = ? AND role = ?", group.ID, user.ID, modelbase.GroupRoleAdmin).First(&member).Error; err != nil {
 			response.Fail(c, "权限不足", "只有创建者或管理员可以移除成员")
 			return
 		}
@@ -843,7 +845,7 @@ func (h *Handlers) RemoveMember(c *gin.Context) {
 	}
 
 	// 删除成员记录
-	if err := h.db.Where("group_id = ? AND user_id = ?", group.ID, memberID).Delete(&models.GroupMember{}).Error; err != nil {
+	if err := h.db.Where("group_id = ? AND user_id = ?", group.ID, memberID).Delete(&svcmodels.GroupMember{}).Error; err != nil {
 		response.Fail(c, "移除成员失败", err.Error())
 		return
 	}
@@ -853,7 +855,7 @@ func (h *Handlers) RemoveMember(c *gin.Context) {
 
 // UpdateMemberRole 更新成员角色（仅创建者或管理员）
 func (h *Handlers) UpdateMemberRole(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "未授权", "用户未登录")
 		return
@@ -880,12 +882,12 @@ func (h *Handlers) UpdateMemberRole(c *gin.Context) {
 	}
 
 	// 验证角色
-	if req.Role != models.GroupRoleAdmin && req.Role != models.GroupRoleMember {
+	if req.Role != modelbase.GroupRoleAdmin && req.Role != modelbase.GroupRoleMember {
 		response.Fail(c, "参数错误", "无效的角色")
 		return
 	}
 
-	var group models.Group
+	var group svcmodels.Group
 	if err := h.db.First(&group, groupID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, "组织不存在", nil)
@@ -897,8 +899,8 @@ func (h *Handlers) UpdateMemberRole(c *gin.Context) {
 
 	// 检查权限：只有创建者或管理员可以更新成员角色
 	if group.CreatorID != user.ID {
-		var adminMember models.GroupMember
-		if err := h.db.Where("group_id = ? AND user_id = ? AND role = ?", group.ID, user.ID, models.GroupRoleAdmin).First(&adminMember).Error; err != nil {
+		var adminMember svcmodels.GroupMember
+		if err := h.db.Where("group_id = ? AND user_id = ? AND role = ?", group.ID, user.ID, modelbase.GroupRoleAdmin).First(&adminMember).Error; err != nil {
 			response.Fail(c, "权限不足", "只有创建者或管理员可以更新成员角色")
 			return
 		}
@@ -911,7 +913,7 @@ func (h *Handlers) UpdateMemberRole(c *gin.Context) {
 	}
 
 	// 查找成员
-	var member models.GroupMember
+	var member svcmodels.GroupMember
 	if err := h.db.Where("group_id = ? AND id = ?", group.ID, memberID).First(&member).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, "成员不存在", nil)
@@ -933,7 +935,7 @@ func (h *Handlers) UpdateMemberRole(c *gin.Context) {
 
 // GetGroupSharedResources 获取组织共享的资源（助手和知识库）
 func (h *Handlers) GetGroupSharedResources(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "未授权", "用户未登录")
 		return
@@ -945,7 +947,7 @@ func (h *Handlers) GetGroupSharedResources(c *gin.Context) {
 		return
 	}
 
-	var group models.Group
+	var group svcmodels.Group
 	if err := h.db.First(&group, groupID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, "组织不存在", nil)
@@ -957,15 +959,15 @@ func (h *Handlers) GetGroupSharedResources(c *gin.Context) {
 
 	// 检查权限：只有创建者或管理员可以查看资源
 	if group.CreatorID != user.ID {
-		var member models.GroupMember
-		if err := h.db.Where("group_id = ? AND user_id = ? AND role = ?", group.ID, user.ID, models.GroupRoleAdmin).First(&member).Error; err != nil {
+		var member svcmodels.GroupMember
+		if err := h.db.Where("group_id = ? AND user_id = ? AND role = ?", group.ID, user.ID, modelbase.GroupRoleAdmin).First(&member).Error; err != nil {
 			response.Fail(c, "权限不足", "只有创建者或管理员可以查看组织资源")
 			return
 		}
 	}
 
 	// 查询组织共享的助手
-	var assistants []models.Agent
+	var assistants []svcmodels.Agent
 	if err := h.db.Where("group_id = ?", groupID).Order("created_at DESC").Find(&assistants).Error; err != nil {
 		response.Fail(c, "查询助手失败", err.Error())
 		return
@@ -981,7 +983,7 @@ func (h *Handlers) GetGroupSharedResources(c *gin.Context) {
 
 // UploadGroupAvatar 上传组织头像
 func (h *Handlers) UploadGroupAvatar(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "未授权", "用户未登录")
 		return
@@ -993,7 +995,7 @@ func (h *Handlers) UploadGroupAvatar(c *gin.Context) {
 		return
 	}
 
-	var group models.Group
+	var group svcmodels.Group
 	if err := h.db.First(&group, groupID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, "组织不存在", nil)
@@ -1005,8 +1007,8 @@ func (h *Handlers) UploadGroupAvatar(c *gin.Context) {
 
 	// 检查权限：只有创建者或管理员可以上传头像
 	if group.CreatorID != user.ID {
-		var member models.GroupMember
-		if err := h.db.Where("group_id = ? AND user_id = ? AND role = ?", group.ID, user.ID, models.GroupRoleAdmin).First(&member).Error; err != nil {
+		var member svcmodels.GroupMember
+		if err := h.db.Where("group_id = ? AND user_id = ? AND role = ?", group.ID, user.ID, modelbase.GroupRoleAdmin).First(&member).Error; err != nil {
 			response.Fail(c, "权限不足", "只有创建者或管理员可以上传组织头像")
 			return
 		}
@@ -1129,7 +1131,7 @@ func extractKeyFromURL(url string) string {
 
 // GetGroupStatistics 获取组织统计数据
 func (h *Handlers) GetGroupStatistics(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "未授权", "用户未登录")
 		return
@@ -1142,7 +1144,7 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 	}
 
 	// 检查用户是否有权限查看（必须是成员）
-	var group models.Group
+	var group svcmodels.Group
 	if err := h.db.First(&group, groupID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, "组织不存在", nil)
@@ -1153,7 +1155,7 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 	}
 
 	// 检查用户是否是成员
-	var member models.GroupMember
+	var member svcmodels.GroupMember
 	if err := h.db.Where("group_id = ? AND user_id = ?", group.ID, user.ID).First(&member).Error; err != nil {
 		if group.CreatorID != user.ID {
 			response.Fail(c, "权限不足", "您不是该组织的成员")
@@ -1183,38 +1185,38 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 
 		go func() {
 			defer wg.Done()
-			h.db.Model(&models.GroupMember{}).Where("group_id = ?", group.ID).Count(&result.memberCount)
+			h.db.Model(&svcmodels.GroupMember{}).Where("group_id = ?", group.ID).Count(&result.memberCount)
 		}()
 
 		go func() {
 			defer wg.Done()
-			h.db.Model(&models.Agent{}).Where("group_id = ?", group.ID).Count(&result.assistantCount)
+			h.db.Model(&svcmodels.Agent{}).Where("group_id = ?", group.ID).Count(&result.assistantCount)
 		}()
 
 		go func() {
 			defer wg.Done()
-			h.db.Model(&models.Device{}).Where("group_id = ?", group.ID).Count(&result.deviceCount)
+			h.db.Model(&svcmodels.Device{}).Where("group_id = ?", group.ID).Count(&result.deviceCount)
 		}()
 
 		go func() {
 			defer wg.Done()
-			h.db.Model(&models.JSTemplate{}).Where("group_id = ?", group.ID).Count(&result.jsTemplateCount)
+			h.db.Model(&svcmodels.JSTemplate{}).Where("group_id = ?", group.ID).Count(&result.jsTemplateCount)
 		}()
 
 		go func() {
 			defer wg.Done()
-			h.db.Model(&models.VoiceClone{}).Where("group_id = ?", group.ID).Count(&result.voiceCloneCount)
+			h.db.Model(&svcmodels.VoiceClone{}).Where("group_id = ?", group.ID).Count(&result.voiceCloneCount)
 		}()
 
 		go func() {
 			defer wg.Done()
-			h.db.Model(&models.WorkflowDefinition{}).Where("group_id = ?", group.ID).Count(&result.workflowCount)
+			h.db.Model(&svcmodels.WorkflowDefinition{}).Where("group_id = ?", group.ID).Count(&result.workflowCount)
 		}()
 
 		go func() {
 			defer wg.Done()
 			var ids []uint
-			h.db.Model(&models.Agent{}).Where("group_id = ?", group.ID).Pluck("id", &ids)
+			h.db.Model(&svcmodels.Agent{}).Where("group_id = ?", group.ID).Pluck("id", &ids)
 			result.assistantIDs = ids
 
 			// 统计通话记录数量（通过助手关联）
@@ -1223,7 +1225,7 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 				for _, id := range ids {
 					assistantIDsInt64 = append(assistantIDsInt64, int64(id))
 				}
-				h.db.Model(&models.ChatSessionLog{}).
+				h.db.Model(&svcmodels.ChatSessionLog{}).
 					Where("agent_id IN (?) AND chat_type = ?", assistantIDsInt64, "realtime").
 					Count(&result.callCount)
 			}
@@ -1277,9 +1279,9 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 				Count       int64
 				TotalTokens int64
 			}
-			h.db.Model(&models.UsageRecord{}).
+			h.db.Model(&svcmodels.UsageRecord{}).
 				Where("agent_id IN (?) AND usage_type = ? AND usage_time >= ? AND usage_time <= ?",
-					assistantIDsInt64, models.UsageTypeLLM, startTime, endTime).
+					assistantIDsInt64, svcmodels.UsageTypeLLM, startTime, endTime).
 				Select("COUNT(*) as count, COALESCE(SUM(total_tokens), 0) as total_tokens").
 				Scan(&llmStats)
 			billStats["totalLLMCalls"] = llmStats.Count
@@ -1293,9 +1295,9 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 				Count    int64
 				Duration int64
 			}
-			h.db.Model(&models.UsageRecord{}).
+			h.db.Model(&svcmodels.UsageRecord{}).
 				Where("agent_id IN (?) AND usage_type = ? AND usage_time >= ? AND usage_time <= ?",
-					assistantIDsInt64, models.UsageTypeCall, startTime, endTime).
+					assistantIDsInt64, svcmodels.UsageTypeCall, startTime, endTime).
 				Select("COUNT(*) as count, COALESCE(SUM(call_duration), 0) as duration").
 				Scan(&callStats)
 			billStats["totalCallCount"] = callStats.Count
@@ -1309,9 +1311,9 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 				Count    int64
 				Duration int64
 			}
-			h.db.Model(&models.UsageRecord{}).
+			h.db.Model(&svcmodels.UsageRecord{}).
 				Where("agent_id IN (?) AND usage_type = ? AND usage_time >= ? AND usage_time <= ?",
-					assistantIDsInt64, models.UsageTypeASR, startTime, endTime).
+					assistantIDsInt64, svcmodels.UsageTypeASR, startTime, endTime).
 				Select("COUNT(*) as count, COALESCE(SUM(audio_duration), 0) as duration").
 				Scan(&asrStats)
 			billStats["totalASRCount"] = asrStats.Count
@@ -1325,9 +1327,9 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 				Count    int64
 				Duration int64
 			}
-			h.db.Model(&models.UsageRecord{}).
+			h.db.Model(&svcmodels.UsageRecord{}).
 				Where("agent_id IN (?) AND usage_type = ? AND usage_time >= ? AND usage_time <= ?",
-					assistantIDsInt64, models.UsageTypeTTS, startTime, endTime).
+					assistantIDsInt64, svcmodels.UsageTypeTTS, startTime, endTime).
 				Select("COUNT(*) as count, COALESCE(SUM(audio_duration), 0) as duration").
 				Scan(&ttsStats)
 			billStats["totalTTSCount"] = ttsStats.Count
@@ -1340,9 +1342,9 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 			var apiStats struct {
 				Count int64
 			}
-			h.db.Model(&models.UsageRecord{}).
+			h.db.Model(&svcmodels.UsageRecord{}).
 				Where("agent_id IN (?) AND usage_type = ? AND usage_time >= ? AND usage_time <= ?",
-					assistantIDsInt64, models.UsageTypeAPI, startTime, endTime).
+					assistantIDsInt64, svcmodels.UsageTypeAPI, startTime, endTime).
 				Select("COUNT(*) as count").
 				Scan(&apiStats)
 			billStats["totalAPICalls"] = apiStats.Count
@@ -1375,9 +1377,9 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 			Count  int64
 			Tokens int64
 		}
-		h.db.Model(&models.UsageRecord{}).
+		h.db.Model(&svcmodels.UsageRecord{}).
 			Where("agent_id IN (?) AND usage_type = ? AND usage_time >= ? AND usage_time <= ?",
-				assistantIDsInt64, models.UsageTypeLLM, dayStart, dayEnd).
+				assistantIDsInt64, svcmodels.UsageTypeLLM, dayStart, dayEnd).
 			Select("DATE(usage_time) as date, COUNT(*) as count, COALESCE(SUM(total_tokens), 0) as tokens").
 			Group("DATE(usage_time)").
 			Scan(&llmDailyData)
@@ -1386,9 +1388,9 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 			Date  string
 			Count int64
 		}
-		h.db.Model(&models.UsageRecord{}).
+		h.db.Model(&svcmodels.UsageRecord{}).
 			Where("agent_id IN (?) AND usage_type = ? AND usage_time >= ? AND usage_time <= ?",
-				assistantIDsInt64, models.UsageTypeCall, dayStart, dayEnd).
+				assistantIDsInt64, svcmodels.UsageTypeCall, dayStart, dayEnd).
 			Select("DATE(usage_time) as date, COUNT(*) as count").
 			Group("DATE(usage_time)").
 			Scan(&callDailyData)
@@ -1451,7 +1453,7 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 	tableRows := [][]interface{}{}
 
 	// 助手数据
-	var assistants []models.Agent
+	var assistants []svcmodels.Agent
 	h.db.Where("group_id = ?", group.ID).Order("created_at DESC").Limit(5).Find(&assistants)
 	for _, a := range assistants {
 		tableRows = append(tableRows, []interface{}{
@@ -1464,7 +1466,7 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 	}
 
 	// 工作流数据
-	var workflows []models.WorkflowDefinition
+	var workflows []svcmodels.WorkflowDefinition
 	h.db.Where("group_id = ?", group.ID).Order("created_at DESC").Limit(3).Find(&workflows)
 	for _, w := range workflows {
 		tableRows = append(tableRows, []interface{}{
@@ -1485,7 +1487,7 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 	recentActivity := []map[string]interface{}{}
 
 	// 从助手表获取最近创建的活动
-	var recentAssistants []models.Agent
+	var recentAssistants []svcmodels.Agent
 	h.db.Where("group_id = ?", group.ID).Order("created_at DESC").Limit(3).Find(&recentAssistants)
 	for _, a := range recentAssistants {
 		recentActivity = append(recentActivity, map[string]interface{}{
@@ -1529,7 +1531,7 @@ func (h *Handlers) GetGroupStatistics(c *gin.Context) {
 
 // ArchiveGroup 归档组织
 func (h *Handlers) ArchiveGroup(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "未登录", nil)
 		return
@@ -1541,7 +1543,7 @@ func (h *Handlers) ArchiveGroup(c *gin.Context) {
 		return
 	}
 
-	var group models.Group
+	var group svcmodels.Group
 	if err := h.db.First(&group, groupID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, "组织不存在", nil)
@@ -1569,14 +1571,14 @@ func (h *Handlers) ArchiveGroup(c *gin.Context) {
 	}
 
 	// 记录日志
-	h.logGroupActivity(group.ID, user.ID, models.ActionGroupArchived, models.ResourceTypeGroup, &group.ID, group.Name, nil, c.ClientIP())
+	h.logGroupActivity(group.ID, user.ID, svcmodels.ActionGroupArchived, svcmodels.ResourceTypeGroup, &group.ID, group.Name, nil, c.ClientIP())
 
 	response.Success(c, "组织已归档", group)
 }
 
 // RestoreGroup 恢复归档的组织
 func (h *Handlers) RestoreGroup(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "未登录", nil)
 		return
@@ -1588,7 +1590,7 @@ func (h *Handlers) RestoreGroup(c *gin.Context) {
 		return
 	}
 
-	var group models.Group
+	var group svcmodels.Group
 	if err := h.db.First(&group, groupID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, "组织不存在", nil)
@@ -1615,14 +1617,14 @@ func (h *Handlers) RestoreGroup(c *gin.Context) {
 	}
 
 	// 记录日志
-	h.logGroupActivity(group.ID, user.ID, models.ActionGroupRestored, models.ResourceTypeGroup, &group.ID, group.Name, nil, c.ClientIP())
+	h.logGroupActivity(group.ID, user.ID, svcmodels.ActionGroupRestored, svcmodels.ResourceTypeGroup, &group.ID, group.Name, nil, c.ClientIP())
 
 	response.Success(c, "组织已恢复", group)
 }
 
 // CloneGroup 克隆组织
 func (h *Handlers) CloneGroup(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "未登录", nil)
 		return
@@ -1634,7 +1636,7 @@ func (h *Handlers) CloneGroup(c *gin.Context) {
 		return
 	}
 
-	var sourceGroup models.Group
+	var sourceGroup svcmodels.Group
 	if err := h.db.First(&sourceGroup, groupID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, "组织不存在", nil)
@@ -1645,19 +1647,19 @@ func (h *Handlers) CloneGroup(c *gin.Context) {
 	}
 
 	// 检查权限（只有创建者或管理员可以克隆）
-	var member models.GroupMember
+	var member svcmodels.GroupMember
 	if err := h.db.Where("group_id = ? AND user_id = ?", groupID, user.ID).First(&member).Error; err != nil {
 		response.Fail(c, "权限不足", "您不是该组织的成员")
 		return
 	}
 
-	if sourceGroup.CreatorID != user.ID && member.Role != models.GroupRoleAdmin {
+	if sourceGroup.CreatorID != user.ID && member.Role != modelbase.GroupRoleAdmin {
 		response.Fail(c, "权限不足", "只有创建者或管理员可以克隆组织")
 		return
 	}
 
 	// 创建新组织
-	newGroup := models.Group{
+	newGroup := svcmodels.Group{
 		Name:       sourceGroup.Name + " (副本)",
 		Type:       sourceGroup.Type,
 		Extra:      sourceGroup.Extra,
@@ -1672,10 +1674,10 @@ func (h *Handlers) CloneGroup(c *gin.Context) {
 	}
 
 	// 添加创建者为成员
-	newMember := models.GroupMember{
+	newMember := svcmodels.GroupMember{
 		UserID:  user.ID,
 		GroupID: newGroup.ID,
-		Role:    models.GroupRoleAdmin,
+		Role:    modelbase.GroupRoleAdmin,
 	}
 	h.db.Create(&newMember)
 
@@ -1684,14 +1686,14 @@ func (h *Handlers) CloneGroup(c *gin.Context) {
 		"source_group_id":   sourceGroup.ID,
 		"source_group_name": sourceGroup.Name,
 	}
-	h.logGroupActivity(newGroup.ID, user.ID, models.ActionGroupCloned, models.ResourceTypeGroup, &newGroup.ID, newGroup.Name, details, c.ClientIP())
+	h.logGroupActivity(newGroup.ID, user.ID, svcmodels.ActionGroupCloned, svcmodels.ResourceTypeGroup, &newGroup.ID, newGroup.Name, details, c.ClientIP())
 
 	response.Success(c, "组织克隆成功", newGroup)
 }
 
 // ExportGroup 导出组织数据
 func (h *Handlers) ExportGroup(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "未登录", nil)
 		return
@@ -1703,7 +1705,7 @@ func (h *Handlers) ExportGroup(c *gin.Context) {
 		return
 	}
 
-	var group models.Group
+	var group svcmodels.Group
 	if err := h.db.Preload("Creator").First(&group, groupID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, "组织不存在", nil)
@@ -1714,18 +1716,18 @@ func (h *Handlers) ExportGroup(c *gin.Context) {
 	}
 
 	// 检查权限
-	var member models.GroupMember
+	var member svcmodels.GroupMember
 	if err := h.db.Where("group_id = ? AND user_id = ?", groupID, user.ID).First(&member).Error; err != nil {
 		response.Fail(c, "权限不足", "您不是该组织的成员")
 		return
 	}
 
 	// 获取成员列表
-	var members []models.GroupMember
+	var members []svcmodels.GroupMember
 	h.db.Where("group_id = ?", groupID).Preload("User.Profile").Find(&members)
 
 	// 获取活动日志（最近100条）
-	var logs []models.GroupActivityLog
+	var logs []svcmodels.GroupActivityLog
 	h.db.Where("group_id = ?", groupID).
 		Preload("User.Profile").
 		Order("created_at DESC").
@@ -1774,7 +1776,7 @@ func (h *Handlers) ExportGroup(c *gin.Context) {
 	}
 
 	// 记录日志
-	h.logGroupActivity(group.ID, user.ID, models.ActionGroupExported, models.ResourceTypeGroup, &group.ID, group.Name, nil, c.ClientIP())
+	h.logGroupActivity(group.ID, user.ID, svcmodels.ActionGroupExported, svcmodels.ResourceTypeGroup, &group.ID, group.Name, nil, c.ClientIP())
 
 	// 返回JSON数据
 	c.Header("Content-Type", "application/json")
@@ -1784,7 +1786,7 @@ func (h *Handlers) ExportGroup(c *gin.Context) {
 
 // GetGroupActivityLogs 获取组织活动日志
 func (h *Handlers) GetGroupActivityLogs(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "未登录", nil)
 		return
@@ -1797,7 +1799,7 @@ func (h *Handlers) GetGroupActivityLogs(c *gin.Context) {
 	}
 
 	// 检查权限
-	var member models.GroupMember
+	var member svcmodels.GroupMember
 	if err := h.db.Where("group_id = ? AND user_id = ?", groupID, user.ID).First(&member).Error; err != nil {
 		response.Fail(c, "权限不足", "您不是该组织的成员")
 		return
@@ -1827,10 +1829,10 @@ func (h *Handlers) GetGroupActivityLogs(c *gin.Context) {
 
 	// 获取总数
 	var total int64
-	query.Model(&models.GroupActivityLog{}).Count(&total)
+	query.Model(&svcmodels.GroupActivityLog{}).Count(&total)
 
 	// 获取日志列表
-	var logs []models.GroupActivityLog
+	var logs []svcmodels.GroupActivityLog
 	if err := query.
 		Preload("User").
 		Order("created_at DESC").
@@ -1858,7 +1860,7 @@ func (h *Handlers) logGroupActivity(groupID uint, userID uint, action string, re
 		}
 	}
 
-	log := models.GroupActivityLog{
+	log := svcmodels.GroupActivityLog{
 		GroupID:      groupID,
 		UserID:       userID,
 		Action:       action,

@@ -4,12 +4,12 @@
 package server
 
 import (
+	"github.com/LingByte/SoulNexus/internal/models/auth"
 	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/notification/mail"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/utils"
@@ -21,7 +21,7 @@ import (
 //
 // 查询参数：page, pageSize/size, status, provider, channel_name, user_id (admin only)
 func (h *Handlers) handleListMailLogs(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.AbortWithStatus(c, http.StatusUnauthorized)
 		return
@@ -71,7 +71,7 @@ func (h *Handlers) handleListMailLogs(c *gin.Context) {
 
 // handleGetMailLogDetail returns a single log row.
 func (h *Handlers) handleGetMailLogDetail(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.AbortWithStatus(c, http.StatusUnauthorized)
 		return
@@ -99,7 +99,7 @@ func (h *Handlers) handleGetMailLogDetail(c *gin.Context) {
 
 // handleGetMailLogStats returns per-status counts for the current user (or all if admin & ?scope=all).
 func (h *Handlers) handleGetMailLogStats(c *gin.Context) {
-	user := models.CurrentUser(c)
+	user := auth.CurrentUser(c)
 	if user == nil {
 		response.AbortWithStatus(c, http.StatusUnauthorized)
 		return

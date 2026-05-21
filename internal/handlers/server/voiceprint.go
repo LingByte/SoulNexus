@@ -4,6 +4,7 @@ package server
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -17,7 +18,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/voiceprint"
 )
@@ -30,7 +30,7 @@ func (h *Handlers) GetVoiceprints(c *gin.Context) {
 		return
 	}
 
-	var voiceprints []models.Voiceprint
+	var voiceprints []svcmodels.Voiceprint
 	result := h.db.Where("agent_id = ?", assistantID).Find(&voiceprints)
 	if result.Error != nil {
 		response.Fail(c, "Failed to get voiceprints: "+result.Error.Error(), nil)
@@ -38,9 +38,9 @@ func (h *Handlers) GetVoiceprints(c *gin.Context) {
 	}
 
 	// 转换为响应格式
-	voiceprintResponses := make([]models.VoiceprintResponse, len(voiceprints))
+	voiceprintResponses := make([]svcmodels.VoiceprintResponse, len(voiceprints))
 	for i, vp := range voiceprints {
-		voiceprintResponses[i] = models.VoiceprintResponse{
+		voiceprintResponses[i] = svcmodels.VoiceprintResponse{
 			ID:          vp.ID,
 			SpeakerID:   vp.SpeakerID,
 			AgentID:     vp.AgentID,
@@ -51,7 +51,7 @@ func (h *Handlers) GetVoiceprints(c *gin.Context) {
 		}
 	}
 
-	response.Success(c, "Success", models.VoiceprintListResponse{
+	response.Success(c, "Success", svcmodels.VoiceprintListResponse{
 		Total:       len(voiceprintResponses),
 		Voiceprints: voiceprintResponses,
 	})
@@ -59,14 +59,14 @@ func (h *Handlers) GetVoiceprints(c *gin.Context) {
 
 // CreateVoiceprint 创建声纹记录
 func (h *Handlers) CreateVoiceprint(c *gin.Context) {
-	var req models.VoiceprintCreateRequest
+	var req svcmodels.VoiceprintCreateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Fail(c, "Invalid request: "+err.Error(), nil)
 		return
 	}
 
 	// 检查是否已存在相同的speaker_id和agent_id组合
-	var existingVoiceprint models.Voiceprint
+	var existingVoiceprint svcmodels.Voiceprint
 	result := h.db.Where("speaker_id = ? AND agent_id = ?", req.SpeakerID, req.AgentID).First(&existingVoiceprint)
 	if result.Error == nil {
 		response.Fail(c, "Voiceprint already exists for this speaker and assistant", nil)
@@ -74,7 +74,7 @@ func (h *Handlers) CreateVoiceprint(c *gin.Context) {
 	}
 
 	// 创建声纹记录
-	voiceprint := models.Voiceprint{
+	voiceprint := svcmodels.Voiceprint{
 		SpeakerID:     req.SpeakerID,
 		AgentID:       req.AgentID,
 		SpeakerName:   req.SpeakerName,
@@ -87,7 +87,7 @@ func (h *Handlers) CreateVoiceprint(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, "Voiceprint created successfully", models.VoiceprintResponse{
+	response.Success(c, "Voiceprint created successfully", svcmodels.VoiceprintResponse{
 		ID:          voiceprint.ID,
 		SpeakerID:   voiceprint.SpeakerID,
 		AgentID:     voiceprint.AgentID,
@@ -134,7 +134,7 @@ func (h *Handlers) RegisterVoiceprint(c *gin.Context) {
 	speakerID := fmt.Sprintf("speaker_%s_%d", assistantID, time.Now().UnixNano())
 
 	// 检查是否已存在相同姓名的声纹（在同一助手下）
-	var existingVoiceprint models.Voiceprint
+	var existingVoiceprint svcmodels.Voiceprint
 	result := h.db.Where("speaker_name = ? AND agent_id = ?", speakerName, assistantID).First(&existingVoiceprint)
 	if result.Error == nil {
 		response.Fail(c, "A voiceprint with this name already exists for this assistant", nil)
@@ -148,7 +148,7 @@ func (h *Handlers) RegisterVoiceprint(c *gin.Context) {
 	}
 
 	// Python服务注册成功后，在Go数据库中更新或创建记录
-	voiceprint := models.Voiceprint{
+	voiceprint := svcmodels.Voiceprint{
 		SpeakerID:     speakerID,
 		AgentID:       assistantID,
 		SpeakerName:   speakerName,
@@ -158,13 +158,13 @@ func (h *Handlers) RegisterVoiceprint(c *gin.Context) {
 
 	// 使用UPSERT操作：如果存在则更新，不存在则创建
 	if err := h.db.Where("speaker_id = ? AND agent_id = ?", speakerID, assistantID).
-		Assign(models.Voiceprint{SpeakerName: speakerName, Description: description}).
+		Assign(svcmodels.Voiceprint{SpeakerName: speakerName, Description: description}).
 		FirstOrCreate(&voiceprint).Error; err != nil {
 		response.Fail(c, "Failed to update voiceprint record: "+err.Error(), nil)
 		return
 	}
 
-	response.Success(c, "Voiceprint registered successfully", models.VoiceprintResponse{
+	response.Success(c, "Voiceprint registered successfully", svcmodels.VoiceprintResponse{
 		ID:          voiceprint.ID,
 		SpeakerID:   voiceprint.SpeakerID,
 		AgentID:     voiceprint.AgentID,
@@ -184,13 +184,13 @@ func (h *Handlers) UpdateVoiceprint(c *gin.Context) {
 		return
 	}
 
-	var req models.VoiceprintUpdateRequest
+	var req svcmodels.VoiceprintUpdateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Fail(c, "Invalid request: "+err.Error(), nil)
 		return
 	}
 
-	var voiceprint models.Voiceprint
+	var voiceprint svcmodels.Voiceprint
 	if err := h.db.First(&voiceprint, id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			response.Fail(c, "Voiceprint not found", nil)
@@ -219,7 +219,7 @@ func (h *Handlers) UpdateVoiceprint(c *gin.Context) {
 		}
 	}
 
-	response.Success(c, "Voiceprint updated successfully", models.VoiceprintResponse{
+	response.Success(c, "Voiceprint updated successfully", svcmodels.VoiceprintResponse{
 		ID:          voiceprint.ID,
 		SpeakerID:   voiceprint.SpeakerID,
 		AgentID:     voiceprint.AgentID,
@@ -239,7 +239,7 @@ func (h *Handlers) DeleteVoiceprint(c *gin.Context) {
 		return
 	}
 
-	var voiceprint models.Voiceprint
+	var voiceprint svcmodels.Voiceprint
 	if err := h.db.First(&voiceprint, id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			response.Fail(c, "Voiceprint not found", nil)
@@ -296,7 +296,7 @@ func (h *Handlers) VerifyVoiceprint(c *gin.Context) {
 	}
 
 	// 验证目标声纹是否存在
-	var targetVoiceprint models.Voiceprint
+	var targetVoiceprint svcmodels.Voiceprint
 	if err := h.db.Where("speaker_id = ? AND agent_id = ?", speakerID, assistantID).First(&targetVoiceprint).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			response.Fail(c, "Target voiceprint not found", nil)
@@ -307,7 +307,7 @@ func (h *Handlers) VerifyVoiceprint(c *gin.Context) {
 	}
 
 	// 获取该助手下的所有声纹记录（用于识别）
-	var voiceprints []models.Voiceprint
+	var voiceprints []svcmodels.Voiceprint
 	if err := h.db.Where("agent_id = ?", assistantID).Find(&voiceprints).Error; err != nil {
 		response.Fail(c, "Failed to get voiceprints: "+err.Error(), nil)
 		return
@@ -354,7 +354,7 @@ func (h *Handlers) VerifyVoiceprint(c *gin.Context) {
 	// 验证结果：需要同时满足识别为目标说话人且置信度足够高
 	verificationPassed := isTargetSpeaker && isMatch
 
-	response.Success(c, "Verification completed", models.VoiceprintVerifyResponse{
+	response.Success(c, "Verification completed", svcmodels.VoiceprintVerifyResponse{
 		TargetSpeakerID:     speakerID,
 		IdentifiedSpeakerID: identifiedSpeakerID,
 		Score:               score,
@@ -395,7 +395,7 @@ func (h *Handlers) IdentifyVoiceprint(c *gin.Context) {
 	}
 
 	// 获取该助手下的所有声纹记录
-	var voiceprints []models.Voiceprint
+	var voiceprints []svcmodels.Voiceprint
 	if err := h.db.Where("agent_id = ?", assistantID).Find(&voiceprints).Error; err != nil {
 		response.Fail(c, "Failed to get voiceprints: "+err.Error(), nil)
 		return
@@ -436,7 +436,7 @@ func (h *Handlers) IdentifyVoiceprint(c *gin.Context) {
 		confidence = "very_low"
 	}
 
-	response.Success(c, "Identification completed", models.VoiceprintIdentifyResponse{
+	response.Success(c, "Identification completed", svcmodels.VoiceprintIdentifyResponse{
 		SpeakerID:  speakerID,
 		Score:      score,
 		Confidence: confidence,

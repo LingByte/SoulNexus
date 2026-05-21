@@ -1,9 +1,9 @@
 package handlers
 
 import (
+	authmodel "github.com/LingByte/SoulNexus/internal/models/auth"
 	"github.com/LingByte/SoulNexus/cmd/bootstrap"
 	"github.com/LingByte/SoulNexus/internal/config"
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/middleware"
 	"github.com/LingByte/SoulNexus/pkg/utils"
@@ -61,7 +61,7 @@ func (h *Handlers) RegisterUserServiceRoutes(engine *gin.Engine) {
 // registerAuthAdminManagementRoutes registers user/role/permission/passkey and related
 // admin surfaces on the standalone auth service (cmd/auth).
 func (h *Handlers) registerAuthAdminManagementRoutes(r *gin.RouterGroup) {
-	adminGuard := []gin.HandlerFunc{models.AuthRequired, middleware.RequireAdmin}
+	adminGuard := []gin.HandlerFunc{authmodel.AuthRequired, middleware.RequireAdmin}
 
 	h.registerAccessAdminRoutes(r)
 
@@ -92,7 +92,7 @@ func (h *Handlers) registerAuthAdminManagementRoutes(r *gin.RouterGroup) {
 		oauthClients.DELETE("/:id", h.handleAdminDeleteOAuthClient)
 	}
 
-	mePasskeys := r.Group("me/passkeys", models.AuthRequired)
+	mePasskeys := r.Group("me/passkeys", authmodel.AuthRequired)
 	{
 		mePasskeys.GET("", h.handleMeListPasskeys)
 		mePasskeys.POST("/registration/begin", h.handleMePasskeyRegistrationBegin)
@@ -101,7 +101,7 @@ func (h *Handlers) registerAuthAdminManagementRoutes(r *gin.RouterGroup) {
 		mePasskeys.DELETE("/:id", h.handleMeDeletePasskey)
 	}
 
-	meTwoFA := r.Group("me/twofa", models.AuthRequired)
+	meTwoFA := r.Group("me/twofa", authmodel.AuthRequired)
 	{
 		meTwoFA.GET("/status", h.handleMeTwoFAStatus)
 		meTwoFA.POST("/backup-codes/regenerate", h.handleMeTwoFABackupCodesRegenerate)
@@ -121,7 +121,7 @@ func (h *Handlers) registerAuthAdminManagementRoutes(r *gin.RouterGroup) {
 }
 
 func (h *Handlers) registerAccessAdminRoutes(r *gin.RouterGroup) {
-	guard := []gin.HandlerFunc{models.AuthRequired, middleware.RequireAdmin, h.requireAccessManage}
+	guard := []gin.HandlerFunc{authmodel.AuthRequired, middleware.RequireAdmin, h.requireAccessManage}
 
 	perms := r.Group("admin/permissions", guard...)
 	{
@@ -173,8 +173,8 @@ func (h *Handlers) registerAuthRoutes(r *gin.RouterGroup) {
 		auth.GET("/wechat/config-check", h.handleWechatConfigCheck)
 		auth.GET("/wechat/login-code", h.handleWechatLoginCode)
 		auth.GET("/wechat/qrcode", h.handleWechatLoginCode)
-		auth.GET("/wechat/bind/code", models.AuthRequired, h.handleWechatBindCode)
-		auth.GET("/wechat/bind/status", models.AuthRequired, h.handleWechatBindStatus)
+		auth.GET("/wechat/bind/code", authmodel.AuthRequired, h.handleWechatBindCode)
+		auth.GET("/wechat/bind/status", authmodel.AuthRequired, h.handleWechatBindStatus)
 		auth.GET("/wechat/status", h.handleWechatLoginStatus)
 		auth.GET("/wechat/check-login/:sceneId", h.handleWechatCheckLogin)
 		auth.GET("/wechat/oauth/callback", h.handleWechatOAuthCallback)
@@ -187,60 +187,60 @@ func (h *Handlers) registerAuthRoutes(r *gin.RouterGroup) {
 		auth.POST("/oidc/exchange", h.handleOIDCExchange)
 
 		auth.GET("/logout", h.handleUserLogout)
-		auth.GET("/info", models.AuthRequired, h.handleUserInfo)
+		auth.GET("/info", authmodel.AuthRequired, h.handleUserInfo)
 
 		auth.GET("/reset-password", h.handleUserResetPasswordPage)
 		auth.POST("/reset-password", h.handleResetPassword)
 		auth.POST("/reset-password/confirm", h.handleResetPasswordConfirm)
-		auth.POST("/change-password", models.AuthRequired, h.handleChangePassword)
-		auth.POST("/change-password/email", models.AuthRequired, h.handleChangePasswordByEmail)
+		auth.POST("/change-password", authmodel.AuthRequired, h.handleChangePassword)
+		auth.POST("/change-password/email", authmodel.AuthRequired, h.handleChangePasswordByEmail)
 
-		auth.GET("/devices", models.AuthRequired, h.handleGetUserDevices)
-		auth.DELETE("/devices/:deviceId", models.AuthRequired, h.handleDeleteUserDevice)
-		auth.POST("/devices/trust", models.AuthRequired, h.handleTrustUserDevice)
-		auth.POST("/devices/untrust", models.AuthRequired, h.handleUntrustUserDevice)
+		auth.GET("/devices", authmodel.AuthRequired, h.handleGetUserDevices)
+		auth.DELETE("/devices/:deviceId", authmodel.AuthRequired, h.handleDeleteUserDevice)
+		auth.POST("/devices/trust", authmodel.AuthRequired, h.handleTrustUserDevice)
+		auth.POST("/devices/untrust", authmodel.AuthRequired, h.handleUntrustUserDevice)
 
 		auth.POST("/devices/verify", h.handleVerifyDeviceForLogin)
 		auth.POST("/devices/send-verification", h.handleSendDeviceVerificationCode)
 
 		auth.GET("/verify-email", h.handleVerifyEmail)
-		auth.POST("/send-email-verification", models.AuthRequired, h.handleSendEmailVerification)
+		auth.POST("/send-email-verification", authmodel.AuthRequired, h.handleSendEmailVerification)
 
-		auth.POST("/verify-phone", models.AuthRequired, h.handleVerifyPhone)
-		auth.POST("/send-phone-verification", models.AuthRequired, h.handleSendPhoneVerification)
+		auth.POST("/verify-phone", authmodel.AuthRequired, h.handleVerifyPhone)
+		auth.POST("/send-phone-verification", authmodel.AuthRequired, h.handleSendPhoneVerification)
 
-		auth.PUT("/update", models.AuthRequired, h.handleUserUpdate)
-		auth.PUT("/update/preferences", models.AuthRequired, h.handleUserUpdatePreferences)
-		auth.POST("/update/basic/info", models.AuthRequired, h.handleUserUpdateBasicInfo)
+		auth.PUT("/update", authmodel.AuthRequired, h.handleUserUpdate)
+		auth.PUT("/update/preferences", authmodel.AuthRequired, h.handleUserUpdatePreferences)
+		auth.POST("/update/basic/info", authmodel.AuthRequired, h.handleUserUpdateBasicInfo)
 
-		auth.PUT("/notification-settings", models.AuthRequired, h.handleUpdateNotificationSettings)
+		auth.PUT("/notification-settings", authmodel.AuthRequired, h.handleUpdateNotificationSettings)
 
-		auth.PUT("/user-preferences", models.AuthRequired, h.handleUpdateUserPreferences)
+		auth.PUT("/user-preferences", authmodel.AuthRequired, h.handleUpdateUserPreferences)
 
-		auth.GET("/stats", models.AuthRequired, h.handleGetUserStats)
+		auth.GET("/stats", authmodel.AuthRequired, h.handleGetUserStats)
 
-		auth.POST("/avatar/upload", models.AuthRequired, h.handleUploadAvatar)
+		auth.POST("/avatar/upload", authmodel.AuthRequired, h.handleUploadAvatar)
 
-		auth.POST("/two-factor/setup", models.AuthRequired, h.handleTwoFactorSetup)
-		auth.POST("/two-factor/enable", models.AuthRequired, h.handleTwoFactorEnable)
-		auth.POST("/two-factor/disable", models.AuthRequired, h.handleTwoFactorDisable)
-		auth.GET("/two-factor/status", models.AuthRequired, h.handleTwoFactorStatus)
+		auth.POST("/two-factor/setup", authmodel.AuthRequired, h.handleTwoFactorSetup)
+		auth.POST("/two-factor/enable", authmodel.AuthRequired, h.handleTwoFactorEnable)
+		auth.POST("/two-factor/disable", authmodel.AuthRequired, h.handleTwoFactorDisable)
+		auth.GET("/two-factor/status", authmodel.AuthRequired, h.handleTwoFactorStatus)
 
 		// 无密码 / Passkey 登录：discoverable，浏览器经 navigator.credentials.get 完成。
 		auth.POST("/passkey/begin", h.handleAuthPasskeyBegin)
 		auth.POST("/passkey/finish", h.handleAuthPasskeyFinish)
 
-		auth.GET("/activity", models.AuthRequired, h.handleGetUserActivity)
+		auth.GET("/activity", authmodel.AuthRequired, h.handleGetUserActivity)
 
 		auth.POST("/account-deletion/send-cancel-code", h.handleAccountDeletionSendCancelCode)
 		auth.POST("/account-deletion/cancel-by-email", h.handleAccountDeletionCancelByEmail)
 
-		auth.GET("/account-deletion/eligibility", models.AuthRequired, h.handleAccountDeletionEligibility)
-		auth.POST("/account-deletion/send-email-code", models.AuthRequired, h.handleAccountDeletionSendEmailCode)
-		auth.POST("/account-deletion/request", models.AuthRequired, h.handleAccountDeletionRequest)
-		auth.POST("/account-deletion/cancel", models.AuthRequired, h.handleAccountDeletionCancel)
-		auth.DELETE("/bindings/github", models.AuthRequired, h.handleUnbindGitHub)
-		auth.DELETE("/bindings/wechat", models.AuthRequired, h.handleUnbindWechat)
+		auth.GET("/account-deletion/eligibility", authmodel.AuthRequired, h.handleAccountDeletionEligibility)
+		auth.POST("/account-deletion/send-email-code", authmodel.AuthRequired, h.handleAccountDeletionSendEmailCode)
+		auth.POST("/account-deletion/request", authmodel.AuthRequired, h.handleAccountDeletionRequest)
+		auth.POST("/account-deletion/cancel", authmodel.AuthRequired, h.handleAccountDeletionCancel)
+		auth.DELETE("/bindings/github", authmodel.AuthRequired, h.handleUnbindGitHub)
+		auth.DELETE("/bindings/wechat", authmodel.AuthRequired, h.handleUnbindWechat)
 
 	}
 }
@@ -266,7 +266,7 @@ func (h *Handlers) JWKSHandler(c *gin.Context) {
 }
 
 func operatorEmail(c *gin.Context) string {
-	if cur := models.CurrentUser(c); cur != nil && cur.Email != "" {
+	if cur := authmodel.CurrentUser(c); cur != nil && cur.Email != "" {
 		return cur.Email
 	}
 	return "system"

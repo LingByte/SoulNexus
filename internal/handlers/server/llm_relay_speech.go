@@ -14,6 +14,7 @@
 package server
 
 import (
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"bytes"
 	"context"
 	"encoding/base64"
@@ -28,7 +29,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/recognizer"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/stores"
@@ -44,7 +44,7 @@ import (
 // 该函数把 /v1/audio/speech 与 /v1/speech/tts/synthesize 的上传逻辑合并：
 //   - keyOverride / filenameOverride 留空走默认（关 audio/{ts}.{ext}）
 //   - 文件名按 audioFormat 推导后缀，确保浏览器能直接播放
-func uploadTTSAudio(audio []byte, ch *models.TTSChannel, audioFormat, keyOverride, filenameOverride string) (publicURL, key, fname string, size int64, err error) {
+func uploadTTSAudio(audio []byte, ch *svcmodels.TTSChannel, audioFormat, keyOverride, filenameOverride string) (publicURL, key, fname string, size int64, err error) {
 	size = int64(len(audio))
 	ext := strings.TrimSpace(strings.ToLower(audioFormat))
 	if ext == "" {
@@ -82,7 +82,7 @@ func uploadTTSAudio(audio []byte, ch *models.TTSChannel, audioFormat, keyOverrid
 }
 
 const (
-	relaySpeechMaxAudioBytes = models.MaxRelayAudioFetchBytes
+	relaySpeechMaxAudioBytes = svcmodels.MaxRelayAudioFetchBytes
 	relayASRChunkBytes       = 8 * 1024
 	relayASRResultWait       = 120 * time.Second
 )
@@ -126,13 +126,13 @@ func fetchRelayAudioBytes(ctx context.Context, rawURL string) ([]byte, error) {
 
 // loadRelayASRAudio 解析 multipart 或 JSON 入参，返回 (body, audio, source, err)。
 // source ∈ {"upload","url","base64"}。multipart 字段：audio(file) / audio_url / audio_base64 / group / provider / format / language / extra(JSON)。
-func loadRelayASRAudio(c *gin.Context) (models.SpeechASRTranscribeReq, []byte, string, error) {
+func loadRelayASRAudio(c *gin.Context) (svcmodels.SpeechASRTranscribeReq, []byte, string, error) {
 	ct := strings.ToLower(strings.TrimSpace(c.ContentType()))
 	if strings.HasPrefix(ct, "multipart/form-data") {
 		if err := c.Request.ParseMultipartForm(int64(relaySpeechMaxAudioBytes)); err != nil {
-			return models.SpeechASRTranscribeReq{}, nil, "", fmt.Errorf("解析 multipart 失败: %w", err)
+			return svcmodels.SpeechASRTranscribeReq{}, nil, "", fmt.Errorf("解析 multipart 失败: %w", err)
 		}
-		var body models.SpeechASRTranscribeReq
+		var body svcmodels.SpeechASRTranscribeReq
 		body.Group = strings.TrimSpace(c.PostForm("group"))
 		body.Provider = strings.TrimSpace(c.PostForm("provider"))
 		body.Format = strings.TrimSpace(c.PostForm("format"))
@@ -201,7 +201,7 @@ func loadRelayASRAudio(c *gin.Context) (models.SpeechASRTranscribeReq, []byte, s
 	}
 
 	// JSON
-	var body models.SpeechASRTranscribeReq
+	var body svcmodels.SpeechASRTranscribeReq
 	if err := c.ShouldBindJSON(&body); err != nil {
 		return body, nil, "", err
 	}
@@ -338,7 +338,7 @@ func relayASRRecognizeOnce(ctx context.Context, provider string, merged map[stri
 }
 
 // buildASRMergedConfig 将渠道 config_json + 请求 extra/format 合并到 provider merged map。
-func buildASRMergedConfig(ch *models.ASRChannel, body *models.SpeechASRTranscribeReq) (string, map[string]interface{}, error) {
+func buildASRMergedConfig(ch *svcmodels.ASRChannel, body *svcmodels.SpeechASRTranscribeReq) (string, map[string]interface{}, error) {
 	provider := strings.TrimSpace(ch.Provider)
 	if p := strings.TrimSpace(body.Provider); p != "" {
 		provider = p
@@ -354,13 +354,13 @@ func buildASRMergedConfig(ch *models.ASRChannel, body *models.SpeechASRTranscrib
 			merged[k] = v
 		}
 	}
-	models.MergeASRTranscribeOptions(merged, body)
+	svcmodels.MergeASRTranscribeOptions(merged, body)
 	merged["provider"] = provKey
 	return provider, merged, nil
 }
 
 // buildTTSMergedConfig 将渠道 config_json + 请求 voice/audio_format/sample_rate/tts_options 合并。
-func buildTTSMergedConfig(ch *models.TTSChannel, body *models.SpeechTTSSynthesizeReq) (map[string]interface{}, error) {
+func buildTTSMergedConfig(ch *svcmodels.TTSChannel, body *svcmodels.SpeechTTSSynthesizeReq) (map[string]interface{}, error) {
 	provKey := strings.ToLower(strings.TrimSpace(ch.Provider))
 	merged := map[string]interface{}{"provider": provKey}
 	if cj := strings.TrimSpace(ch.ConfigJSON); cj != "" {
@@ -373,7 +373,7 @@ func buildTTSMergedConfig(ch *models.TTSChannel, body *models.SpeechTTSSynthesiz
 		}
 	}
 	if v := strings.TrimSpace(body.Voice); v != "" {
-		models.ApplyTTSVoiceToMergedMap(ch.Provider, v, merged)
+		svcmodels.ApplyTTSVoiceToMergedMap(ch.Provider, v, merged)
 	}
 	if af := strings.TrimSpace(body.AudioFormat); af != "" {
 		merged["format"] = af
@@ -426,12 +426,12 @@ func (t *ttsRelayBufferHandler) Bytes() []byte {
 }
 
 // recordSpeechUsage 写一条审计记录；任何错误都仅 logrus 记录，不影响主流程。
-func (h *Handlers) recordSpeechUsage(c *gin.Context, kind models.SpeechUsageKind, tok *models.LLMToken, ch interface {
+func (h *Handlers) recordSpeechUsage(c *gin.Context, kind svcmodels.SpeechUsageKind, tok *svcmodels.LLMToken, ch interface {
 	GetID() uint
 	GetProvider() string
 	GetGroup() string
 }, started time.Time, status int, success bool, errMsg string, audioBytes int64, textChars int, model string, reqSnap, respSnap any) {
-	row := models.SpeechUsage{
+	row := svcmodels.SpeechUsage{
 		Kind:       string(kind),
 		Status:     status,
 		Success:    success,
@@ -466,7 +466,7 @@ func (h *Handlers) recordSpeechUsage(c *gin.Context, kind models.SpeechUsageKind
 			row.RespSnap = truncRune(string(b), 4000)
 		}
 	}
-	_ = models.CreateSpeechUsage(h.db, &row)
+	_ = svcmodels.CreateSpeechUsage(h.db, &row)
 }
 
 func truncRune(s string, max int) string {
@@ -489,8 +489,8 @@ type channelIDProvider interface {
 
 // speechUsageBuilder 在 handler 主体内逐步填充字段，defer 时落库。
 type speechUsageBuilder struct {
-	kind       models.SpeechUsageKind
-	tok        *models.LLMToken
+	kind       svcmodels.SpeechUsageKind
+	tok        *svcmodels.LLMToken
 	ch         channelIDProvider
 	status     int
 	success    bool
@@ -520,7 +520,7 @@ func (h *Handlers) finishSpeechUsage(c *gin.Context, started time.Time, b *speec
 // 返回：{ text, provider, channel_id, group, audio_source, audio_bytes, message? }
 func (h *Handlers) handleRelaySpeechASRTranscribe(c *gin.Context) {
 	started := time.Now()
-	u := &speechUsageBuilder{kind: models.SpeechUsageKindASR}
+	u := &speechUsageBuilder{kind: svcmodels.SpeechUsageKindASR}
 	defer h.finishSpeechUsage(c, started, u)
 
 	tok, ok := relayTokenFromRequest(h.db, c)
@@ -530,7 +530,7 @@ func (h *Handlers) handleRelaySpeechASRTranscribe(c *gin.Context) {
 		return
 	}
 	u.tok = tok
-	if !requireTokenType(c, tok, models.LLMTokenTypeASR) {
+	if !requireTokenType(c, tok, svcmodels.LLMTokenTypeASR) {
 		u.status = http.StatusForbidden
 		u.errMsg = "token type mismatch"
 		return
@@ -548,12 +548,12 @@ func (h *Handlers) handleRelaySpeechASRTranscribe(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"type": "bad_request", "message": "音频内容为空"}})
 		return
 	}
-	ch, perr := models.PickASRChannelForToken(h.db, tok, body.Group)
+	ch, perr := svcmodels.PickASRChannelForToken(h.db, tok, body.Group)
 	if perr != nil {
 		u.status, u.errMsg = http.StatusServiceUnavailable, perr.Error()
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": gin.H{
 			"type":    "no_asr_channel",
-			"message": models.RelayNoSpeechChannelDetail(perr, "ASR", body.Group),
+			"message": svcmodels.RelayNoSpeechChannelDetail(perr, "ASR", body.Group),
 		}})
 		return
 	}
@@ -592,7 +592,7 @@ func (h *Handlers) handleRelaySpeechASRTranscribe(c *gin.Context) {
 // OpenAI Whisper 兼容（仅 multipart）。返回 { text } 或 { text, segments: [] }。
 func (h *Handlers) handleRelayOpenAIAudioTranscriptions(c *gin.Context) {
 	started := time.Now()
-	u := &speechUsageBuilder{kind: models.SpeechUsageKindASR}
+	u := &speechUsageBuilder{kind: svcmodels.SpeechUsageKindASR}
 	defer h.finishSpeechUsage(c, started, u)
 
 	tok, ok := relayTokenFromRequest(h.db, c)
@@ -601,7 +601,7 @@ func (h *Handlers) handleRelayOpenAIAudioTranscriptions(c *gin.Context) {
 		return
 	}
 	u.tok = tok
-	if !requireTokenType(c, tok, models.LLMTokenTypeASR) {
+	if !requireTokenType(c, tok, svcmodels.LLMTokenTypeASR) {
 		u.status, u.errMsg = http.StatusForbidden, "token type mismatch"
 		return
 	}
@@ -617,12 +617,12 @@ func (h *Handlers) handleRelayOpenAIAudioTranscriptions(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"type": "invalid_request_error", "message": "audio is empty"}})
 		return
 	}
-	ch, perr := models.PickASRChannelForToken(h.db, tok, body.Group)
+	ch, perr := svcmodels.PickASRChannelForToken(h.db, tok, body.Group)
 	if perr != nil {
 		u.status, u.errMsg = http.StatusServiceUnavailable, perr.Error()
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": gin.H{
 			"type":    "no_asr_channel",
-			"message": models.RelayNoSpeechChannelDetail(perr, "ASR", body.Group),
+			"message": svcmodels.RelayNoSpeechChannelDetail(perr, "ASR", body.Group),
 		}})
 		return
 	}
@@ -654,7 +654,7 @@ func (h *Handlers) handleRelayOpenAIAudioTranscriptions(c *gin.Context) {
 // 返回：JSON { format, provider, channel_id, group, audio_base64? | url? key bucket filename size }。
 func (h *Handlers) handleRelaySpeechTTSSynthesize(c *gin.Context) {
 	started := time.Now()
-	u := &speechUsageBuilder{kind: models.SpeechUsageKindTTS}
+	u := &speechUsageBuilder{kind: svcmodels.SpeechUsageKindTTS}
 	defer h.finishSpeechUsage(c, started, u)
 
 	tok, ok := relayTokenFromRequest(h.db, c)
@@ -663,11 +663,11 @@ func (h *Handlers) handleRelaySpeechTTSSynthesize(c *gin.Context) {
 		return
 	}
 	u.tok = tok
-	if !requireTokenType(c, tok, models.LLMTokenTypeTTS) {
+	if !requireTokenType(c, tok, svcmodels.LLMTokenTypeTTS) {
 		u.status, u.errMsg = http.StatusForbidden, "token type mismatch"
 		return
 	}
-	var body models.SpeechTTSSynthesizeReq
+	var body svcmodels.SpeechTTSSynthesizeReq
 	if err := c.ShouldBindJSON(&body); err != nil {
 		u.status, u.errMsg = http.StatusBadRequest, err.Error()
 		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"type": "bad_request", "message": err.Error()}})
@@ -681,13 +681,13 @@ func (h *Handlers) handleRelaySpeechTTSSynthesize(c *gin.Context) {
 	}
 	u.textChars = utf8.RuneCountInString(text)
 	u.reqSnap = gin.H{"group": body.Group, "voice": body.Voice, "audio_format": body.AudioFormat, "sample_rate": body.SampleRate, "text_chars": u.textChars, "response_type": body.ResponseType}
-	outMode := models.NormalizeRelayTTSResponseType(body.ResponseType, body.Output)
-	ch, perr := models.PickTTSChannelForToken(h.db, tok, body.Group)
+	outMode := svcmodels.NormalizeRelayTTSResponseType(body.ResponseType, body.Output)
+	ch, perr := svcmodels.PickTTSChannelForToken(h.db, tok, body.Group)
 	if perr != nil {
 		u.status, u.errMsg = http.StatusServiceUnavailable, perr.Error()
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": gin.H{
 			"type":    "no_tts_channel",
-			"message": models.RelayNoSpeechChannelDetail(perr, "TTS", body.Group),
+			"message": svcmodels.RelayNoSpeechChannelDetail(perr, "TTS", body.Group),
 		}})
 		return
 	}
@@ -797,7 +797,7 @@ type relayOpenAIAudioSpeechReq struct {
 
 func (h *Handlers) handleRelayOpenAIAudioSpeech(c *gin.Context) {
 	started := time.Now()
-	u := &speechUsageBuilder{kind: models.SpeechUsageKindTTS}
+	u := &speechUsageBuilder{kind: svcmodels.SpeechUsageKindTTS}
 	defer h.finishSpeechUsage(c, started, u)
 
 	tok, ok := relayTokenFromRequest(h.db, c)
@@ -806,7 +806,7 @@ func (h *Handlers) handleRelayOpenAIAudioSpeech(c *gin.Context) {
 		return
 	}
 	u.tok = tok
-	if !requireTokenType(c, tok, models.LLMTokenTypeTTS) {
+	if !requireTokenType(c, tok, svcmodels.LLMTokenTypeTTS) {
 		u.status, u.errMsg = http.StatusForbidden, "token type mismatch"
 		return
 	}
@@ -824,7 +824,7 @@ func (h *Handlers) handleRelayOpenAIAudioSpeech(c *gin.Context) {
 	}
 	u.model = req.Voice
 	u.textChars = utf8.RuneCountInString(text)
-	body := models.SpeechTTSSynthesizeReq{
+	body := svcmodels.SpeechTTSSynthesizeReq{
 		Group:       req.Group,
 		Text:        text,
 		Voice:       req.Voice,
@@ -834,15 +834,15 @@ func (h *Handlers) handleRelayOpenAIAudioSpeech(c *gin.Context) {
 		body.TTSOptions = map[string]interface{}{"speed": *req.Speed, "speedRatio": *req.Speed}
 	}
 	// 归一化输出模式：base64 默认，可显式指定 url。
-	outMode := models.NormalizeRelayTTSResponseType("", req.Output)
+	outMode := svcmodels.NormalizeRelayTTSResponseType("", req.Output)
 	requestID := utils.SnowflakeUtil.GenID()
 
-	ch, perr := models.PickTTSChannelForToken(h.db, tok, body.Group)
+	ch, perr := svcmodels.PickTTSChannelForToken(h.db, tok, body.Group)
 	if perr != nil {
 		u.status, u.errMsg = http.StatusServiceUnavailable, perr.Error()
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": gin.H{
 			"type":    "no_tts_channel",
-			"message": models.RelayNoSpeechChannelDetail(perr, "TTS", body.Group),
+			"message": svcmodels.RelayNoSpeechChannelDetail(perr, "TTS", body.Group),
 		}})
 		return
 	}

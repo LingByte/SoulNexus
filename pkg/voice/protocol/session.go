@@ -4,6 +4,8 @@ package protocol
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"github.com/LingByte/SoulNexus/internal/models/auth"
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"bytes"
 	"context"
 	"fmt"
@@ -12,7 +14,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/stores"
 	"github.com/LingByte/SoulNexus/pkg/synthesizer"
@@ -33,7 +34,7 @@ type HardwareSessionOption struct {
 	Conn                 *websocket.Conn
 	Logger               *zap.Logger
 	AgentID              uint
-	Credential           *models.UserCredential
+	Credential           *auth.UserCredential
 	LLMModel             string
 	SystemPrompt         string
 	MaxToken             int
@@ -73,9 +74,9 @@ type HardwareSession struct {
 	ttsServiceCache   map[string]synthesizer.SynthesisService // TTS service cache：speakerID -> service
 	db                *gorm.DB
 	voiceprintService *voiceprint.Service
-	callRecording     *models.CallRecording
+	callRecording     *svcmodels.CallRecording
 	recorder          *AudioRecorder
-	conversationTurns []models.ConversationTurn // 对话轮次列表
+	conversationTurns []svcmodels.ConversationTurn // 对话轮次列表
 	currentTurnID     int                       // 当前轮次ID
 	lastListenStartAt time.Time                 // 最近一次 listen start 时间（用于过滤重启后的脏 ASR 结果）
 	lastTriggerText   string                    // 最近一次触发 LLM 的文本（用于去重）
@@ -135,7 +136,7 @@ func NewHardwareSession(ctx context.Context, hardwareConfig *HardwareSessionOpti
 	// 如果指定了克隆音色ID，优先使用克隆音色
 	if hardwareConfig.VoiceCloneID != nil && *hardwareConfig.VoiceCloneID > 0 {
 		// 从数据库获取克隆音色信息
-		voiceClone, voiceCloneErr := models.GetVoiceCloneByID(hardwareConfig.DB, int64(*hardwareConfig.VoiceCloneID))
+		voiceClone, voiceCloneErr := svcmodels.GetVoiceCloneByID(hardwareConfig.DB, int64(*hardwareConfig.VoiceCloneID))
 		if voiceCloneErr == nil && voiceClone != nil {
 			// 创建克隆音色服务
 			cloneFactory := voiceclone.NewFactory()
@@ -256,7 +257,7 @@ func NewHardwareSession(ctx context.Context, hardwareConfig *HardwareSessionOpti
 		ttsServiceCache:   make(map[string]synthesizer.SynthesisService),
 		db:                hardwareConfig.DB,
 		voiceprintService: hardwareConfig.VoiceprintService,
-		callRecording: &models.CallRecording{
+		callRecording: &svcmodels.CallRecording{
 			GroupID:   hardwareConfig.Credential.GroupID,
 			CreatedBy: hardwareConfig.Credential.CreatedBy,
 			AgentID:   hardwareConfig.AgentID,
@@ -281,7 +282,7 @@ func NewHardwareSession(ctx context.Context, hardwareConfig *HardwareSessionOpti
 		session.callRecording.AddSpeaker(hardwareConfig.Speaker)
 	}
 	if hardwareConfig.DB != nil {
-		if err := models.CreateCallRecording(hardwareConfig.DB, session.callRecording); err != nil {
+		if err := svcmodels.CreateCallRecording(hardwareConfig.DB, session.callRecording); err != nil {
 			hardwareConfig.Logger.Error("[Session] 初始化时保存通话记录失败", zap.Error(err))
 		} else {
 			hardwareConfig.Logger.Info(fmt.Sprintf("[Session] 通话记录已创建 SessionID:%s, RecordingID:%d", sessionID, uint64(session.callRecording.ID)))
@@ -389,7 +390,7 @@ func (s *HardwareSession) Start() error {
 
 	// 设置设备在线状态为 true
 	if s.db != nil && s.config.MacAddress != "" {
-		if err := models.UpdateDeviceOnlineStatus(s.db, s.config.MacAddress, true); err != nil {
+		if err := svcmodels.UpdateDeviceOnlineStatus(s.db, s.config.MacAddress, true); err != nil {
 			s.logger.Warn("[Session] 更新设备在线状态失败", zap.Error(err), zap.String("macAddress", s.config.MacAddress))
 		} else {
 			s.logger.Info("[Session] 设备在线状态已更新为 true", zap.String("macAddress", s.config.MacAddress))
@@ -482,7 +483,7 @@ func (s *HardwareSession) Stop() error {
 
 	// 设置设备在线状态为 false
 	if db != nil && macAddress != "" {
-		if err := models.UpdateDeviceOnlineStatus(db, macAddress, false); err != nil {
+		if err := svcmodels.UpdateDeviceOnlineStatus(db, macAddress, false); err != nil {
 			s.logger.Warn("[Session] 更新设备在线状态失败", zap.Error(err), zap.String("macAddress", macAddress))
 		} else {
 			s.logger.Info("[Session] 设备在线状态已更新为 false", zap.String("macAddress", macAddress))
@@ -630,7 +631,7 @@ func (s *HardwareSession) logSessionError(errorType, errorLevel, errorCode, erro
 		deviceID = s.callRecording.DeviceID
 	}
 
-	if err := models.LogDeviceError(s.db, deviceID, s.config.MacAddress, errorType, errorLevel, errorCode, errorMsg, stackTrace, context); err != nil {
+	if err := svcmodels.LogDeviceError(s.db, deviceID, s.config.MacAddress, errorType, errorLevel, errorCode, errorMsg, stackTrace, context); err != nil {
 		s.logger.Error("[Session] 记录设备错误失败", zap.Error(err), zap.String("errorMsg", errorMsg))
 	} else {
 		s.logger.Info("[Session] 设备错误已记录", zap.String("errorType", errorType), zap.String("errorLevel", errorLevel), zap.String("errorMsg", errorMsg))
@@ -783,7 +784,7 @@ func (s *HardwareSession) recordUserInput(asrText string, asrStartTime, asrEndTi
 	// 计算 ASR 耗时
 	asrDuration := asrEndTime.Sub(asrStartTime).Milliseconds()
 
-	turn := models.ConversationTurn{
+	turn := svcmodels.ConversationTurn{
 		TurnID:       s.currentTurnID,
 		Timestamp:    now,
 		Type:         "user",
@@ -814,7 +815,7 @@ func (s *HardwareSession) recordAIResponse(llmResponse string, llmStartTime, llm
 	defer s.mu.Unlock()
 
 	s.currentTurnID++
-	turn := models.ConversationTurn{
+	turn := svcmodels.ConversationTurn{
 		TurnID:       s.currentTurnID,
 		Timestamp:    time.Now(),
 		Type:         "ai",
@@ -861,11 +862,11 @@ func (s *HardwareSession) saveConversationDetails() {
 	}
 
 	s.mu.RLock()
-	turns := make([]models.ConversationTurn, len(s.conversationTurns))
+	turns := make([]svcmodels.ConversationTurn, len(s.conversationTurns))
 	copy(turns, s.conversationTurns)
 	s.mu.RUnlock()
 
-	details := &models.ConversationDetails{
+	details := &svcmodels.ConversationDetails{
 		SessionID:  s.callRecording.SessionID,
 		StartTime:  s.callRecording.StartTime,
 		EndTime:    s.callRecording.EndTime,

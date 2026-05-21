@@ -4,13 +4,14 @@ package server
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"github.com/LingByte/SoulNexus/internal/models/auth"
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"errors"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/gin-gonic/gin"
@@ -21,7 +22,7 @@ type adminGroupUpdateReq struct {
 	Type       string                  `json:"type"`
 	Extra      string                  `json:"extra"`
 	IsArchived *bool                   `json:"isArchived"`
-	Permission *models.GroupPermission `json:"permission"`
+	Permission *svcmodels.GroupPermission `json:"permission"`
 }
 
 type adminCredentialStatusReq struct {
@@ -51,7 +52,7 @@ func (h *Handlers) handleAdminListGroups(c *gin.Context) {
 	groupType := strings.TrimSpace(c.Query("type"))
 	isArchivedRaw := strings.TrimSpace(c.Query("isArchived"))
 
-	query := h.db.Model(&models.Group{}).Preload("Creator")
+	query := h.db.Model(&svcmodels.Group{}).Preload("Creator")
 	if search != "" {
 		like := "%" + search + "%"
 		query = query.Where("name LIKE ? OR `type` LIKE ?", like, like)
@@ -71,20 +72,20 @@ func (h *Handlers) handleAdminListGroups(c *gin.Context) {
 		return
 	}
 
-	var groups []models.Group
+	var groups []svcmodels.Group
 	if err := query.Order("id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&groups).Error; err != nil {
 		response.Fail(c, "list groups failed", err)
 		return
 	}
 
 	type groupWithCount struct {
-		models.Group
+		svcmodels.Group
 		MemberCount int64 `json:"memberCount"`
 	}
 	result := make([]groupWithCount, 0, len(groups))
 	for _, g := range groups {
 		var memberCount int64
-		_ = h.db.Model(&models.GroupMember{}).Where("group_id = ?", g.ID).Count(&memberCount).Error
+		_ = h.db.Model(&svcmodels.GroupMember{}).Where("group_id = ?", g.ID).Count(&memberCount).Error
 		result = append(result, groupWithCount{
 			Group:       g,
 			MemberCount: memberCount,
@@ -106,7 +107,7 @@ func (h *Handlers) handleAdminGetGroup(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid group id"))
 		return
 	}
-	var group models.Group
+	var group svcmodels.Group
 	if err = h.db.Preload("Creator").First(&group, id).Error; err != nil {
 		response.Fail(c, "group not found", err)
 		return
@@ -125,7 +126,7 @@ func (h *Handlers) handleAdminUpdateGroup(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, err)
 		return
 	}
-	var group models.Group
+	var group svcmodels.Group
 	if err = h.db.First(&group, id).Error; err != nil {
 		response.Fail(c, "group not found", err)
 		return
@@ -166,7 +167,7 @@ func (h *Handlers) handleAdminDeleteGroup(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid group id"))
 		return
 	}
-	if err = h.db.Delete(&models.Group{}, id).Error; err != nil {
+	if err = h.db.Delete(&svcmodels.Group{}, id).Error; err != nil {
 		response.Fail(c, "delete group failed", err)
 		return
 	}
@@ -179,7 +180,7 @@ func (h *Handlers) handleAdminListCredentials(c *gin.Context) {
 	status := strings.TrimSpace(c.Query("status"))
 	userIDRaw := strings.TrimSpace(c.Query("user_id"))
 
-	query := h.db.Model(&models.UserCredential{})
+	query := h.db.Model(&auth.UserCredential{})
 	if search != "" {
 		like := "%" + search + "%"
 		query = query.Where("name LIKE ? OR api_key LIKE ? OR llm_provider LIKE ?", like, like, like)
@@ -198,7 +199,7 @@ func (h *Handlers) handleAdminListCredentials(c *gin.Context) {
 		response.Fail(c, "list credentials failed", err)
 		return
 	}
-	var creds []models.UserCredential
+	var creds []auth.UserCredential
 	if err := query.Order("id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&creds).Error; err != nil {
 		response.Fail(c, "list credentials failed", err)
 		return
@@ -218,7 +219,7 @@ func (h *Handlers) handleAdminGetCredential(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid credential id"))
 		return
 	}
-	var cred models.UserCredential
+	var cred auth.UserCredential
 	if err = h.db.First(&cred, id).Error; err != nil {
 		response.Fail(c, "credential not found", err)
 		return
@@ -237,26 +238,26 @@ func (h *Handlers) handleAdminUpdateCredentialStatus(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, err)
 		return
 	}
-	var cred models.UserCredential
+	var cred auth.UserCredential
 	if err = h.db.First(&cred, id).Error; err != nil {
 		response.Fail(c, "credential not found", err)
 		return
 	}
 
-	status := models.CredentialStatus(strings.TrimSpace(req.Status))
+	status := auth.CredentialStatus(strings.TrimSpace(req.Status))
 	updateVals := map[string]any{
 		"status": status,
 	}
 	switch status {
-	case models.CredentialStatusActive:
+	case auth.CredentialStatusActive:
 		updateVals["banned_at"] = nil
 		updateVals["banned_reason"] = ""
 		updateVals["banned_by"] = nil
-	case models.CredentialStatusBanned:
+	case auth.CredentialStatusBanned:
 		now := time.Now()
 		updateVals["banned_at"] = &now
 		updateVals["banned_reason"] = req.BannedReason
-	case models.CredentialStatusSuspended:
+	case auth.CredentialStatusSuspended:
 		// no extra fields
 	default:
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid credential status"))
@@ -315,7 +316,7 @@ func (h *Handlers) handleAdminDeleteCredential(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid credential id"))
 		return
 	}
-	if err = h.db.Delete(&models.UserCredential{}, id).Error; err != nil {
+	if err = h.db.Delete(&auth.UserCredential{}, id).Error; err != nil {
 		response.Fail(c, "delete credential failed", err)
 		return
 	}
@@ -329,7 +330,7 @@ func (h *Handlers) handleAdminListJSTemplates(c *gin.Context) {
 	templateType := strings.TrimSpace(c.Query("type"))
 	userIDRaw := strings.TrimSpace(c.Query("user_id"))
 
-	query := h.db.Model(&models.JSTemplate{})
+	query := h.db.Model(&svcmodels.JSTemplate{})
 	if search != "" {
 		like := "%" + search + "%"
 		query = query.Where("name LIKE ? OR js_source_id LIKE ?", like, like)
@@ -351,7 +352,7 @@ func (h *Handlers) handleAdminListJSTemplates(c *gin.Context) {
 		response.Fail(c, "list js templates failed", err)
 		return
 	}
-	var templates []models.JSTemplate
+	var templates []svcmodels.JSTemplate
 	if err := query.Order("id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&templates).Error; err != nil {
 		response.Fail(c, "list js templates failed", err)
 		return
@@ -371,7 +372,7 @@ func (h *Handlers) handleAdminGetJSTemplate(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid js template id"))
 		return
 	}
-	var template models.JSTemplate
+	var template svcmodels.JSTemplate
 	if err := h.db.Where("id = ?", id).First(&template).Error; err != nil {
 		response.Fail(c, "js template not found", err)
 		return
@@ -399,11 +400,11 @@ func (h *Handlers) handleAdminUpdateJSTemplate(c *gin.Context) {
 		return
 	}
 
-	if err := h.db.Model(&models.JSTemplate{}).Where("id = ?", id).Updates(req).Error; err != nil {
+	if err := h.db.Model(&svcmodels.JSTemplate{}).Where("id = ?", id).Updates(req).Error; err != nil {
 		response.Fail(c, "update js template failed", err)
 		return
 	}
-	var template models.JSTemplate
+	var template svcmodels.JSTemplate
 	_ = h.db.Where("id = ?", id).First(&template).Error
 	response.Success(c, "js template updated", template)
 }
@@ -414,7 +415,7 @@ func (h *Handlers) handleAdminDeleteJSTemplate(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid js template id"))
 		return
 	}
-	if err := h.db.Where("id = ?", id).Delete(&models.JSTemplate{}).Error; err != nil {
+	if err := h.db.Where("id = ?", id).Delete(&svcmodels.JSTemplate{}).Error; err != nil {
 		response.Fail(c, "delete js template failed", err)
 		return
 	}
@@ -428,7 +429,7 @@ func (h *Handlers) handleAdminListBills(c *gin.Context) {
 	userIDRaw := strings.TrimSpace(c.Query("user_id"))
 	groupIDRaw := strings.TrimSpace(c.Query("group_id"))
 
-	query := h.db.Model(&models.Bill{})
+	query := h.db.Model(&svcmodels.Bill{})
 	if status != "" {
 		query = query.Where("status = ?", status)
 	}
@@ -452,7 +453,7 @@ func (h *Handlers) handleAdminListBills(c *gin.Context) {
 		response.Fail(c, "list bills failed", err)
 		return
 	}
-	var bills []models.Bill
+	var bills []svcmodels.Bill
 	if err := query.Order("id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&bills).Error; err != nil {
 		response.Fail(c, "list bills failed", err)
 		return
@@ -472,7 +473,7 @@ func (h *Handlers) handleAdminGetBill(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid bill id"))
 		return
 	}
-	var bill models.Bill
+	var bill svcmodels.Bill
 	if err = h.db.First(&bill, id).Error; err != nil {
 		response.Fail(c, "bill not found", err)
 		return
@@ -509,11 +510,11 @@ func (h *Handlers) handleAdminUpdateBill(c *gin.Context) {
 		response.Success(c, "nothing changed", nil)
 		return
 	}
-	if err = h.db.Model(&models.Bill{}).Where("id = ?", id).Updates(updateVals).Error; err != nil {
+	if err = h.db.Model(&svcmodels.Bill{}).Where("id = ?", id).Updates(updateVals).Error; err != nil {
 		response.Fail(c, "update bill failed", err)
 		return
 	}
-	var bill models.Bill
+	var bill svcmodels.Bill
 	_ = h.db.First(&bill, id).Error
 	response.Success(c, "bill updated", bill)
 }
@@ -524,7 +525,7 @@ func (h *Handlers) handleAdminDeleteBill(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid bill id"))
 		return
 	}
-	if err = h.db.Delete(&models.Bill{}, id).Error; err != nil {
+	if err = h.db.Delete(&svcmodels.Bill{}, id).Error; err != nil {
 		response.Fail(c, "delete bill failed", err)
 		return
 	}
@@ -535,7 +536,7 @@ func (h *Handlers) handleAdminListAgents(c *gin.Context) {
 	page, pageSize := utils.ParsePagination(c)
 	search := strings.TrimSpace(c.Query("search"))
 
-	query := h.db.Model(&models.Agent{})
+	query := h.db.Model(&svcmodels.Agent{})
 	if search != "" {
 		like := "%" + search + "%"
 		query = query.Where("name LIKE ? OR description LIKE ? OR persona_tag LIKE ? OR llm_model LIKE ?", like, like, like, like)
@@ -547,7 +548,7 @@ func (h *Handlers) handleAdminListAgents(c *gin.Context) {
 		return
 	}
 
-	var assistants []models.Agent
+	var assistants []svcmodels.Agent
 	if err := query.Order("id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&assistants).Error; err != nil {
 		response.Fail(c, "list assistants failed", err)
 		return
@@ -567,7 +568,7 @@ func (h *Handlers) handleAdminGetAgent(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid assistant id"))
 		return
 	}
-	var assistant models.Agent
+	var assistant svcmodels.Agent
 	if err = h.db.First(&assistant, id).Error; err != nil {
 		response.Fail(c, "assistant not found", err)
 		return
@@ -586,7 +587,7 @@ func (h *Handlers) handleAdminUpdateAgent(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, err)
 		return
 	}
-	var assistant models.Agent
+	var assistant svcmodels.Agent
 	if err = h.db.First(&assistant, id).Error; err != nil {
 		response.Fail(c, "assistant not found", err)
 		return
@@ -638,7 +639,7 @@ func (h *Handlers) handleAdminDeleteAgent(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid assistant id"))
 		return
 	}
-	if err = h.db.Delete(&models.Agent{}, id).Error; err != nil {
+	if err = h.db.Delete(&svcmodels.Agent{}, id).Error; err != nil {
 		response.Fail(c, "delete assistant failed", err)
 		return
 	}
@@ -649,7 +650,7 @@ func (h *Handlers) handleAdminListChatSessions(c *gin.Context) {
 	page, pageSize := utils.ParsePagination(c)
 	search := strings.TrimSpace(c.Query("search"))
 
-	query := h.db.Model(&models.ChatSession{})
+	query := h.db.Model(&svcmodels.ChatSession{})
 	if search != "" {
 		like := "%" + search + "%"
 		query = query.Where("id LIKE ? OR user_id LIKE ? OR title LIKE ? OR provider LIKE ? OR model LIKE ?", like, like, like, like, like)
@@ -660,7 +661,7 @@ func (h *Handlers) handleAdminListChatSessions(c *gin.Context) {
 		response.Fail(c, "list chat sessions failed", err)
 		return
 	}
-	var items []models.ChatSession
+	var items []svcmodels.ChatSession
 	if err := query.Order("updated_at DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&items).Error; err != nil {
 		response.Fail(c, "list chat sessions failed", err)
 		return
@@ -678,7 +679,7 @@ func (h *Handlers) handleAdminListChatMessages(c *gin.Context) {
 	search := strings.TrimSpace(c.Query("search"))
 	sessionID := strings.TrimSpace(c.Query("session_id"))
 
-	query := h.db.Model(&models.ChatMessage{})
+	query := h.db.Model(&svcmodels.ChatMessage{})
 	if sessionID != "" {
 		query = query.Where("session_id = ?", sessionID)
 	}
@@ -691,7 +692,7 @@ func (h *Handlers) handleAdminListChatMessages(c *gin.Context) {
 		response.Fail(c, "list chat messages failed", err)
 		return
 	}
-	var items []models.ChatMessage
+	var items []svcmodels.ChatMessage
 	if err := query.Order("created_at DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&items).Error; err != nil {
 		response.Fail(c, "list chat messages failed", err)
 		return
@@ -710,7 +711,7 @@ func (h *Handlers) handleAdminListLLMUsage(c *gin.Context) {
 	sessionID := strings.TrimSpace(c.Query("session_id"))
 	success := strings.TrimSpace(c.Query("success"))
 
-	query := h.db.Model(&models.LLMUsage{})
+	query := h.db.Model(&svcmodels.LLMUsage{})
 	if sessionID != "" {
 		query = query.Where("session_id = ?", sessionID)
 	}
@@ -729,7 +730,7 @@ func (h *Handlers) handleAdminListLLMUsage(c *gin.Context) {
 		response.Fail(c, "list llm usage failed", err)
 		return
 	}
-	var items []models.LLMUsage
+	var items []svcmodels.LLMUsage
 	if err := query.Order("requested_at DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&items).Error; err != nil {
 		response.Fail(c, "list llm usage failed", err)
 		return

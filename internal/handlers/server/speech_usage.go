@@ -6,13 +6,14 @@
 package server
 
 import (
+	"github.com/LingByte/SoulNexus/internal/models/auth"
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"errors"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/gin-gonic/gin"
@@ -21,7 +22,7 @@ import (
 // handleAdminListSpeechUsage GET /api/admin/speech-usage
 func (h *Handlers) handleAdminListSpeechUsage(c *gin.Context) {
 	page, pageSize := utils.ParsePagination(c)
-	q := h.db.Model(&models.SpeechUsage{})
+	q := h.db.Model(&svcmodels.SpeechUsage{})
 	if k := strings.TrimSpace(c.Query("kind")); k != "" {
 		q = q.Where("kind = ?", k)
 	}
@@ -74,7 +75,7 @@ func (h *Handlers) handleAdminListSpeechUsage(c *gin.Context) {
 		response.Fail(c, "count speech usage failed", err)
 		return
 	}
-	var rows []models.SpeechUsage
+	var rows []svcmodels.SpeechUsage
 	if err := q.Order("created_at DESC, id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&rows).Error; err != nil {
 		response.Fail(c, "list speech usage failed", err)
 		return
@@ -94,7 +95,7 @@ func (h *Handlers) handleAdminGetSpeechUsage(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid id"))
 		return
 	}
-	var row models.SpeechUsage
+	var row svcmodels.SpeechUsage
 	if err := h.db.Where("id = ?", id).First(&row).Error; err != nil {
 		response.Fail(c, "speech usage not found", err)
 		return
@@ -130,19 +131,19 @@ func (h *Handlers) handleAdminSpeechUsageStats(c *gin.Context) {
 // handleMeListSpeechUsage GET /api/me/speech-usage
 // 用户视角：仅看自己的调用。
 func (h *Handlers) handleMeListSpeechUsage(c *gin.Context) {
-	u := models.CurrentUser(c)
+	u := auth.CurrentUser(c)
 	if u == nil {
 		response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("not authenticated"))
 		return
 	}
 	page, pageSize := utils.ParsePagination(c)
-	q := h.db.Model(&models.SpeechUsage{}).Where("user_id = ?", u.ID)
+	q := h.db.Model(&svcmodels.SpeechUsage{}).Where("user_id = ?", u.ID)
 	if k := strings.TrimSpace(c.Query("kind")); k != "" {
 		q = q.Where("kind = ?", k)
 	}
 	var total int64
 	_ = q.Count(&total).Error
-	var rows []models.SpeechUsage
+	var rows []svcmodels.SpeechUsage
 	if err := q.Order("created_at DESC, id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&rows).Error; err != nil {
 		response.Fail(c, "list speech usage failed", err)
 		return

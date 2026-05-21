@@ -4,18 +4,18 @@ package workflowdef
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"encoding/json"
 	"fmt"
 	"strconv"
 	"time"
 
-	"github.com/LingByte/SoulNexus/internal/models"
 	runtimewf "github.com/LingByte/SoulNexus/pkg/workflow"
 	"gorm.io/gorm"
 )
 
 // BuildRuntimeWorkflow converts a persisted workflow definition into an executable workflow instance.
-func BuildRuntimeWorkflow(def *models.WorkflowDefinition, db *gorm.DB) (*runtimewf.Workflow, error) {
+func BuildRuntimeWorkflow(def *svcmodels.WorkflowDefinition, db *gorm.DB) (*runtimewf.Workflow, error) {
 	if def == nil {
 		return nil, fmt.Errorf("workflow definition is nil")
 	}
@@ -124,7 +124,7 @@ func BuildRuntimeWorkflow(def *models.WorkflowDefinition, db *gorm.DB) (*runtime
 }
 
 // BuildRuntimeNode converts a single node definition into an executable node instance.
-func BuildRuntimeNode(nodeSchema *models.WorkflowNodeSchema, graph *models.WorkflowGraph) (runtimewf.ExecutableNode, error) {
+func BuildRuntimeNode(nodeSchema *svcmodels.WorkflowNodeSchema, graph *svcmodels.WorkflowGraph) (runtimewf.ExecutableNode, error) {
 	if nodeSchema == nil {
 		return nil, fmt.Errorf("node schema is nil")
 	}
@@ -382,16 +382,16 @@ func instantiateNode(base runtimewf.Node) (runtimewf.ExecutableNode, error) {
 }
 
 // AssignEdgeMetadata assigns edge-specific metadata to nodes (e.g., condition expressions, next node IDs)
-func AssignEdgeMetadata(node runtimewf.ExecutableNode, edge models.WorkflowEdgeSchema) {
+func AssignEdgeMetadata(node runtimewf.ExecutableNode, edge svcmodels.WorkflowEdgeSchema) {
 	if node == nil {
 		return
 	}
 	switch n := node.(type) {
 	case *runtimewf.GatewayNode:
 		switch edge.Type {
-		case models.WorkflowEdgeTypeTrue:
+		case svcmodels.WorkflowEdgeTypeTrue:
 			n.TrueNextNodeID = edge.Target
-		case models.WorkflowEdgeTypeFalse:
+		case svcmodels.WorkflowEdgeTypeFalse:
 			n.FalseNextNodeID = edge.Target
 		}
 		if edge.Condition != "" && n.Condition == "" {
@@ -400,12 +400,12 @@ func AssignEdgeMetadata(node runtimewf.ExecutableNode, edge models.WorkflowEdgeS
 	case *runtimewf.ConditionNode:
 		// ConditionNode is deprecated, but handle for backward compatibility
 		switch edge.Type {
-		case models.WorkflowEdgeTypeTrue:
+		case svcmodels.WorkflowEdgeTypeTrue:
 			if n.Properties == nil {
 				n.Properties = map[string]string{}
 			}
 			n.Properties["true_next"] = edge.Target
-		case models.WorkflowEdgeTypeFalse:
+		case svcmodels.WorkflowEdgeTypeFalse:
 			if n.Properties == nil {
 				n.Properties = map[string]string{}
 			}
@@ -417,7 +417,7 @@ func AssignEdgeMetadata(node runtimewf.ExecutableNode, edge models.WorkflowEdgeS
 	}
 }
 
-func toNativeMap(sm models.StringMap) map[string]string {
+func toNativeMap(sm svcmodels.StringMap) map[string]string {
 	if len(sm) == 0 {
 		return nil
 	}
