@@ -27,31 +27,6 @@ type refreshClaims struct {
 	jwt.RegisteredClaims
 }
 
-// SignRefreshToken issues a refresh JWT (distinct issuer from access).
-func SignRefreshToken(p RefreshPayload, secret string, ttl time.Duration) (string, error) {
-	if len(secret) < 8 {
-		return "", errors.New("jwt: refresh signing secret too short (min 8 bytes)")
-	}
-	if ttl <= 0 {
-		return "", errors.New("jwt: ttl must be positive")
-	}
-	now := time.Now()
-	claims := refreshClaims{
-		UserID: p.UserID,
-		Email:  p.Email,
-		Role:   p.Role,
-		RegisteredClaims: jwt.RegisteredClaims{
-			Issuer:    RefreshIssuer,
-			Subject:   fmt.Sprintf("refresh:%d", p.UserID),
-			IssuedAt:  jwt.NewNumericDate(now),
-			NotBefore: jwt.NewNumericDate(now.Add(-30 * time.Second)),
-			ExpiresAt: jwt.NewNumericDate(now.Add(ttl)),
-		},
-	}
-	t := jwt.NewWithClaims(jwt.SigningMethodHS256, &claims)
-	return t.SignedString([]byte(secret))
-}
-
 // SignRefreshTokenWithKey signs a refresh token using a KeyManager (RS256/ES256 with kid)
 func SignRefreshTokenWithKey(p RefreshPayload, keyManager *KeyManager, ttl time.Duration) (string, error) {
 	if keyManager == nil {
@@ -93,30 +68,6 @@ func SignRefreshTokenWithKey(p RefreshPayload, keyManager *KeyManager, ttl time.
 	token.Header["kid"] = keyPair.ID
 
 	return token.SignedString(keyPair.PrivateKey)
-}
-
-// ParseRefreshToken validates a refresh JWT.
-func ParseRefreshToken(tokenString, secret string) (*RefreshPayload, error) {
-	if tokenString == "" || len(secret) < 8 {
-		return nil, ErrInvalidToken
-	}
-	token, err := jwt.ParseWithClaims(tokenString, &refreshClaims{}, func(t *jwt.Token) (any, error) {
-		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method %q", t.Header["alg"])
-		}
-		return []byte(secret), nil
-	})
-	if err != nil || token == nil || !token.Valid {
-		return nil, ErrInvalidToken
-	}
-	rc, ok := token.Claims.(*refreshClaims)
-	if !ok {
-		return nil, ErrInvalidToken
-	}
-	if rc.Issuer != RefreshIssuer {
-		return nil, ErrInvalidToken
-	}
-	return &RefreshPayload{UserID: rc.UserID, Email: rc.Email, Role: rc.Role}, nil
 }
 
 // ParseRefreshTokenWithKey validates a refresh token using KeyManager (JWKS with kid)

@@ -4,13 +4,12 @@ package server
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
-	"github.com/LingByte/SoulNexus/internal/models/auth"
 	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
+	authv1 "github.com/LingByte/SoulNexus/internal/grpc/auth/pb/auth/v1"
 	"errors"
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/utils"
@@ -178,29 +177,14 @@ func (h *Handlers) handleAdminListCredentials(c *gin.Context) {
 	page, pageSize := utils.ParsePagination(c)
 	search := strings.TrimSpace(c.Query("search"))
 	status := strings.TrimSpace(c.Query("status"))
-	userIDRaw := strings.TrimSpace(c.Query("user_id"))
-
-	query := h.db.Model(&auth.UserCredential{})
-	if search != "" {
-		like := "%" + search + "%"
-		query = query.Where("name LIKE ? OR api_key LIKE ? OR llm_provider LIKE ?", like, like, like)
-	}
-	if status != "" {
-		query = query.Where("status = ?", status)
-	}
-	if userIDRaw != "" {
+	var filterUserID uint
+	if userIDRaw := strings.TrimSpace(c.Query("user_id")); userIDRaw != "" {
 		if uid, err := strconv.ParseUint(userIDRaw, 10, 64); err == nil {
-			query = query.Where("user_id = ?", uid)
+			filterUserID = uint(uid)
 		}
 	}
-
-	var total int64
-	if err := query.Count(&total).Error; err != nil {
-		response.Fail(c, "list credentials failed", err)
-		return
-	}
-	var creds []auth.UserCredential
-	if err := query.Order("id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&creds).Error; err != nil {
+	creds, total, err := h.rpc.Auth.AdminListCredentials(c.Request.Context(), page, pageSize, search, status, filterUserID)
+	if err != nil {
 		response.Fail(c, "list credentials failed", err)
 		return
 	}
@@ -219,8 +203,8 @@ func (h *Handlers) handleAdminGetCredential(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid credential id"))
 		return
 	}
-	var cred auth.UserCredential
-	if err = h.db.First(&cred, id).Error; err != nil {
+	cred, err := h.rpc.Auth.GetCredential(c.Request.Context(), uint(id))
+	if err != nil {
 		response.Fail(c, "credential not found", err)
 		return
 	}
@@ -238,75 +222,44 @@ func (h *Handlers) handleAdminUpdateCredentialStatus(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, err)
 		return
 	}
-	var cred auth.UserCredential
-	if err = h.db.First(&cred, id).Error; err != nil {
-		response.Fail(c, "credential not found", err)
+	status := strings.TrimSpace(req.Status)
+	if status == "" {
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("status is required"))
 		return
 	}
-
-	status := auth.CredentialStatus(strings.TrimSpace(req.Status))
-	updateVals := map[string]any{
-		"status": status,
-	}
-	switch status {
-	case auth.CredentialStatusActive:
-		updateVals["banned_at"] = nil
-		updateVals["banned_reason"] = ""
-		updateVals["banned_by"] = nil
-	case auth.CredentialStatusBanned:
-		now := time.Now()
-		updateVals["banned_at"] = &now
-		updateVals["banned_reason"] = req.BannedReason
-	case auth.CredentialStatusSuspended:
-		// no extra fields
-	default:
-		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid credential status"))
-		return
+	rpcReq := &authv1.UpdateCredentialStatusRequest{
+		Id:           id,
+		Status:       status,
+		BannedReason: req.BannedReason,
 	}
 	if req.ExpiresAt != nil {
-		raw := strings.TrimSpace(*req.ExpiresAt)
-		if raw == "" {
-			updateVals["expires_at"] = nil
-		} else {
-			var parsed time.Time
-			var parseErr error
-			if strings.Contains(raw, "T") {
-				parsed, parseErr = time.Parse(time.RFC3339, raw)
-			} else {
-				parsed, parseErr = time.ParseInLocation("2006-01-02 15:04:05", raw, time.Local)
-			}
-			if parseErr != nil {
-				response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid expiresAt format, expected 'YYYY-MM-DD HH:MM:SS' or RFC3339"))
-				return
-			}
-			updateVals["expires_at"] = &parsed
-		}
+		rpcReq.ExpiresAt = req.ExpiresAt
 	}
 	if req.TokenQuota != nil {
 		if *req.TokenQuota < 0 {
 			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("tokenQuota must be >= 0"))
 			return
 		}
-		updateVals["token_quota"] = *req.TokenQuota
+		rpcReq.TokenQuota = req.TokenQuota
 	}
 	if req.RequestQuota != nil {
 		if *req.RequestQuota < 0 {
 			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("requestQuota must be >= 0"))
 			return
 		}
-		updateVals["request_quota"] = *req.RequestQuota
+		rpcReq.RequestQuota = req.RequestQuota
 	}
 	if req.UseNativeQuota != nil {
-		updateVals["use_native_quota"] = *req.UseNativeQuota
+		rpcReq.UseNativeQuota = req.UseNativeQuota
 	}
 	if req.UnlimitedQuota != nil {
-		updateVals["unlimited_quota"] = *req.UnlimitedQuota
+		rpcReq.UnlimitedQuota = req.UnlimitedQuota
 	}
-	if err = h.db.Model(&cred).Updates(updateVals).Error; err != nil {
+	cred, err := h.rpc.Auth.UpdateCredentialStatus(c.Request.Context(), rpcReq)
+	if err != nil {
 		response.Fail(c, "update credential status failed", err)
 		return
 	}
-	_ = h.db.First(&cred, cred.ID).Error
 	response.Success(c, "credential status updated", cred)
 }
 
@@ -316,7 +269,7 @@ func (h *Handlers) handleAdminDeleteCredential(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid credential id"))
 		return
 	}
-	if err = h.db.Delete(&auth.UserCredential{}, id).Error; err != nil {
+	if err = h.rpc.Auth.DeleteCredential(c.Request.Context(), uint(id)); err != nil {
 		response.Fail(c, "delete credential failed", err)
 		return
 	}

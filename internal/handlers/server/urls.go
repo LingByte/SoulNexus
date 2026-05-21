@@ -5,6 +5,7 @@ package server
 
 import (
 	"github.com/LingByte/SoulNexus/internal/models/auth"
+	grpcclients "github.com/LingByte/SoulNexus/internal/grpc/clients"
 	"log"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 
 type Handlers struct {
 	db                *gorm.DB
+	rpc               *grpcclients.Bundle
 	wsHub             *websocket.Hub
 	searchHandler     *search.SearchHandlers
 	ipLocationService *utils.IPLocationService
@@ -32,7 +34,10 @@ func (h *Handlers) GetSearchHandler() *search.SearchHandlers {
 	return h.searchHandler
 }
 
-func NewHandlers(db *gorm.DB) *Handlers {
+func NewHandlers(db *gorm.DB, rpc *grpcclients.Bundle) *Handlers {
+	if rpc == nil || rpc.Auth == nil {
+		log.Fatal("grpc clients: Auth service client is required")
+	}
 	wsConfig := websocket.LoadConfigFromEnv()
 	wsHub := websocket.NewHub(wsConfig)
 	var searchHandler *search.SearchHandlers
@@ -87,6 +92,7 @@ func NewHandlers(db *gorm.DB) *Handlers {
 	ipLocationService := utils.NewIPLocationService(logger.Lg)
 	return &Handlers{
 		db:                db,
+		rpc:               rpc,
 		wsHub:             wsHub,
 		searchHandler:     searchHandler,
 		ipLocationService: ipLocationService,

@@ -55,13 +55,8 @@ func (h *Handlers) Chat(c *gin.Context) {
 		return
 	}
 
-	cred, err := auth.GetUserCredentialByApiSecretAndApiKey(h.db, req.ApiKey, req.ApiSecret)
-	if err != nil {
-		response.Fail(c, "Database error: "+err.Error(), nil)
-		return
-	}
-	if cred == nil {
-		response.Fail(c, "Secret or key is invalid or wrong. Please check again.", nil)
+	if _, err := h.resolveCredential(c.Request.Context(), req.ApiKey, req.ApiSecret); err != nil {
+		response.Fail(c, "Secret or key is invalid or wrong. Please check again.", err)
 		return
 	}
 }
@@ -402,13 +397,8 @@ func (h *Handlers) handleConnection(c *gin.Context) {
 		return
 	}
 
-	cred, err := auth.GetUserCredentialByApiSecretAndApiKey(h.db, apiKey, apiSecret)
+	cred, err := h.resolveCredential(c.Request.Context(), apiKey, apiSecret)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error: " + err.Error()})
-		c.Abort()
-		return
-	}
-	if cred == nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
 		c.Abort()
 		return

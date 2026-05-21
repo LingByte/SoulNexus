@@ -217,7 +217,7 @@ func (h *Handlers) openGetMe(c *gin.Context) {
 		response.AbortWithStatus(c, http.StatusUnauthorized)
 		return
 	}
-	user, err := auth.GetUserByID(h.db, ctxUser.ID)
+	user, err := h.rpc.Auth.GetUser(c.Request.Context(), ctxUser.ID)
 	if err != nil || user == nil {
 		response.AbortWithStatus(c, http.StatusUnauthorized)
 		return
@@ -643,7 +643,10 @@ func (h *Handlers) getCredentialFromCtx(c *gin.Context) *auth.UserCredential {
 	if apiKey == "" || apiSecret == "" {
 		return nil
 	}
-	cred, _ := auth.GetUserCredentialByApiSecretAndApiKey(h.db, apiKey, apiSecret)
+	cred, err := h.resolveCredential(c.Request.Context(), apiKey, apiSecret)
+	if err != nil {
+		return nil
+	}
 	return cred
 }
 

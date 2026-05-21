@@ -4,6 +4,8 @@ package server
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"context"
+
 	"github.com/LingByte/SoulNexus/internal/models/auth"
 	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"net/http"
@@ -43,7 +45,7 @@ type soulnexusHardwareSession struct {
 
 // resolveSoulnexusHardwareSession loads device + assistant + credential for a
 // hardware Device-Id (MAC). msg is a short Chinese message suitable for JSON / logs.
-func (h *Handlers) resolveSoulnexusHardwareSession(deviceID string) (*soulnexusHardwareSession, int, string) {
+func (h *Handlers) resolveSoulnexusHardwareSession(ctx context.Context, deviceID string) (*soulnexusHardwareSession, int, string) {
 	deviceID = strings.TrimSpace(deviceID)
 	if deviceID == "" {
 		return nil, http.StatusBadRequest, "缺少Device-Id参数"
@@ -69,7 +71,7 @@ func (h *Handlers) resolveSoulnexusHardwareSession(deviceID string) (*soulnexusH
 		return nil, http.StatusBadRequest, "助手未配置API凭证"
 	}
 
-	cred, err := auth.GetUserCredentialByApiSecretAndApiKey(h.db, assistant.ApiKey, assistant.ApiSecret)
+	cred, err := h.rpc.Auth.ResolveCredential(ctx, assistant.ApiKey, assistant.ApiSecret)
 	if err != nil {
 		return nil, http.StatusInternalServerError, "获取凭证失败: " + err.Error()
 	}
@@ -129,7 +131,7 @@ func (h *Handlers) HandleSoulnexusHardwareBinding(c *gin.Context) {
 		zap.String("deviceID", deviceID),
 		zap.String("path", c.Request.URL.Path))
 
-	sess, status, msg := h.resolveSoulnexusHardwareSession(deviceID)
+	sess, status, msg := h.resolveSoulnexusHardwareSession(c.Request.Context(), deviceID)
 	if sess == nil {
 		c.JSON(status, gin.H{
 			"code": 500,

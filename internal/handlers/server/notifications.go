@@ -17,13 +17,11 @@ import (
 // GetUnReadNotificationCount get user unread notification count
 func (h *Handlers) handleUnReadNotificationCount(c *gin.Context) {
 	user := auth.CurrentUser(c)
-
-	users, err := auth.GetUserByEmail(h.db, user.Email)
-	if err != nil {
+	if user == nil {
 		response.AbortWithStatus(c, http.StatusUnauthorized)
 		return
 	}
-	unreadNotificationCount, err := svcmodels.NewInternalNotificationService(h.db).GetUnreadNotificationsCount(users.ID)
+	unreadNotificationCount, err := svcmodels.NewInternalNotificationService(h.db).GetUnreadNotificationsCount(user.ID)
 	if err != nil {
 		response.AbortWithStatusJSON(c, http.StatusInternalServerError, err)
 		return
@@ -36,6 +34,7 @@ func (h *Handlers) handleListNotifications(c *gin.Context) {
 	user := auth.CurrentUser(c)
 	if user == nil {
 		response.Fail(c, "User is not logged in.", nil)
+		return
 	}
 	page := c.DefaultQuery("page", "1")
 	size := c.DefaultQuery("size", "10")
