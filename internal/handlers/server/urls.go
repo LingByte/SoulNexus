@@ -678,6 +678,12 @@ func (h *Handlers) registerAdminManagementRoutes(r *gin.RouterGroup) {
 		meSpeechUsage.GET("", auth.AuthRequired, h.handleMeListSpeechUsage)
 	}
 
+	meLLMUsage := r.Group("me/llm-usage", auth.AuthRequired)
+	{
+		meLLMUsage.GET("", h.handleMeListLLMUsage)
+		meLLMUsage.GET("/summary", h.handleMeLLMUsageSummary)
+	}
+
 	meLLMTokens := r.Group("me/llm-tokens", auth.AuthRequired, h.OrgScopeMiddleware())
 	{
 		meLLMTokens.GET("", h.handleMeListLLMTokens)

@@ -7,6 +7,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Bot,
+  Beaker,
   User as UserIcon,
   LogOut,
   Smartphone, // 设备管理图标
@@ -76,6 +77,7 @@ const Sidebar = () => {
   }
 
   const navigation = [
+    { name: t('nav.sidebar.playground'), href: '/playground', icon: Beaker },
     { name: t('nav.sidebar.smartAssistant'), href: '/voice-assistant', icon: Bot },
     { name: t('nav.sidebar.voiceTraining'), href: '/voice-training', icon: Settings },
     { name: t('nav.sidebar.knowledgeBase'), href: '/knowledge', icon: BookOpen },
@@ -89,7 +91,7 @@ const Sidebar = () => {
   const navigationSections = [
     {
       title: '核心功能',
-      items: navigation.filter((item) => ['/voice-assistant', '/voice-training', '/voiceprint-management', '/knowledge'].includes(item.href)),
+      items: navigation.filter((item) => ['/playground', '/voice-assistant', '/voice-training', '/voiceprint-management', '/knowledge'].includes(item.href)),
     },
     {
       title: '工作流',
@@ -103,7 +105,7 @@ const Sidebar = () => {
 
   const publicNavs = [t('nav.docs')]
   // 受保护页面名称
-  const privateNavs = [t('nav.sidebar.smartAssistant'), t('nav.sidebar.voiceTraining'), t('nav.sidebar.knowledgeBase'), t('voiceprint.title'), t('nav.sidebar.workflow'), t('nav.sidebar.pluginMarket'), t('nav.sidebar.jsTemplate'), t('nav.sidebar.deviceManagement')]
+  const privateNavs = [t('nav.sidebar.playground'), t('nav.sidebar.smartAssistant'), t('nav.sidebar.voiceTraining'), t('nav.sidebar.knowledgeBase'), t('voiceprint.title'), t('nav.sidebar.workflow'), t('nav.sidebar.pluginMarket'), t('nav.sidebar.jsTemplate'), t('nav.sidebar.deviceManagement')]
 
   const isActive = (path: string) => location.pathname === path
   const isExternalHref = (href: string) => href.startsWith('http')

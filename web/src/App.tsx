@@ -38,6 +38,7 @@ import Terms from '@/pages/Terms.tsx';
 import CookieConsent from '@/components/CookieConsent.tsx';
 import OIDCCallback from '@/pages/OIDCCallback.tsx';
 import AccountDeletionRequest from '@/pages/AccountDeletionRequest.tsx';
+import Playground from '@/pages/Playground.tsx';
 
 function AppRoutes() {
     const [showPerformanceMonitor, setShowPerformanceMonitor] = useState(false);
@@ -91,6 +92,13 @@ function AppRoutes() {
                         {/* Redirect old device-management URLs to new devices URLs */}
                         <Route path="/device-management" element={<Navigate to="/devices" replace />} />
                         <Route path="/device-management/:deviceId" element={<RedirectToDevices />} />
+                        <Route path="/playground" element={
+                            <ProtectedRoute>
+                                <Layout>
+                                    <Playground />
+                                </Layout>
+                            </ProtectedRoute>
+                        } />
                         <Route path="/assistants" element={
                             <ProtectedRoute>
                                 <Layout>
