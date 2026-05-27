@@ -26,6 +26,7 @@ import Billing from '@/pages/Billing.tsx'
 import NotificationCenter from '@/pages/NotificationCenter.tsx'
 import CredentialManager from '@/pages/CredentialManager.tsx'
 import LLMTokenManager from '@/pages/profile/LLMTokenManager.tsx'
+import LLMUsagePanel from '@/pages/profile/LLMUsagePanel.tsx'
 import TeamWorkspacePage from '@/pages/profile/TeamWorkspacePage.tsx'
 import ProfileAuditLogPanel from '@/pages/profile/ProfileAuditLogPanel.tsx'
 import { resolveDeviceVisualKind, type DeviceVisualKind } from '@/pages/profile/profileDeviceVisual'
@@ -66,6 +67,7 @@ const VALID_SECTIONS = new Set([
   'account-security',
   'credential',
   'llm-tokens',
+  'llm-usage',
   'notifications',
   'locale',
 ])
@@ -1539,6 +1541,7 @@ const Profile = () => {
                 {section === 'credential' && <CredentialManager />}
 
                 {section === 'llm-tokens' && <LLMTokenManager />}
+                {section === 'llm-usage' && <LLMUsagePanel />}
             </FadeIn>
 
       {/* 两步验证设置模态框 */}

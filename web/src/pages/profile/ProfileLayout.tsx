@@ -12,6 +12,7 @@ import {
   Smartphone,
   ArrowLeft,
   Sparkles,
+  Activity,
   ChevronRight,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
@@ -30,6 +31,7 @@ const nav = [
   { to: '/profile/account-security', label: '账号与绑定安全', icon: Shield },
   { to: '/profile/credential', label: 'API 密钥', icon: Key },
   { to: '/profile/llm-tokens', label: 'LLM Token', icon: Sparkles },
+  { to: '/profile/llm-usage', label: 'LLM 消耗', icon: Activity },
   { to: '/profile/notifications', label: '通知', icon: Bell },
   { to: '/profile/locale', label: '语言与时区', icon: Globe2 },
 ] as const
