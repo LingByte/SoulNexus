@@ -77,8 +77,13 @@ func (h *Handlers) handleMeListLLMUsage(c *gin.Context) {
 		return
 	}
 
+	publicItems := make([]meLLMUsagePublicRecord, 0, len(items))
+	for i := range items {
+		publicItems = append(publicItems, sanitizeLLMUsageForUser(&items[i]))
+	}
+
 	response.Success(c, "llm usage fetched", gin.H{
-		"items":    items,
+		"items":    publicItems,
 		"total":    total,
 		"page":     page,
 		"pageSize": pageSize,
@@ -150,6 +155,58 @@ func (h *Handlers) handleMeLLMUsageSummary(c *gin.Context) {
 		"summary":  row,
 		"by_model": byModel,
 	})
+}
+
+// meLLMUsagePublicRecord 用户可见字段（隐藏上游 Base URL、渠道路由等内部信息）。
+type meLLMUsagePublicRecord struct {
+	ID              string    `json:"id"`
+	RequestID       string    `json:"request_id"`
+	SessionID       string    `json:"session_id,omitempty"`
+	Model           string    `json:"model"`
+	RequestType     string    `json:"request_type"`
+	InputTokens     int       `json:"input_tokens"`
+	OutputTokens    int       `json:"output_tokens"`
+	TotalTokens     int       `json:"total_tokens"`
+	QuotaDelta      int       `json:"quota_delta"`
+	LatencyMs       int64     `json:"latency_ms,omitempty"`
+	TTFTMs          int64     `json:"ttft_ms,omitempty"`
+	TPS             float64   `json:"tps,omitempty"`
+	Success         bool      `json:"success"`
+	StatusCode      int       `json:"status_code,omitempty"`
+	ErrorCode       string    `json:"error_code,omitempty"`
+	ErrorMessage    string    `json:"error_message,omitempty"`
+	RequestContent  string    `json:"request_content,omitempty"`
+	ResponseContent string    `json:"response_content,omitempty"`
+	RequestedAt     time.Time `json:"requested_at"`
+	CompletedAt     time.Time `json:"completed_at,omitempty"`
+}
+
+func sanitizeLLMUsageForUser(u *svcmodels.LLMUsage) meLLMUsagePublicRecord {
+	if u == nil {
+		return meLLMUsagePublicRecord{}
+	}
+	return meLLMUsagePublicRecord{
+		ID:              u.ID,
+		RequestID:       u.RequestID,
+		SessionID:       u.SessionID,
+		Model:           u.Model,
+		RequestType:     u.RequestType,
+		InputTokens:     u.InputTokens,
+		OutputTokens:    u.OutputTokens,
+		TotalTokens:     u.TotalTokens,
+		QuotaDelta:      u.QuotaDelta,
+		LatencyMs:       u.LatencyMs,
+		TTFTMs:          u.TTFTMs,
+		TPS:             u.TPS,
+		Success:         u.Success,
+		StatusCode:      u.StatusCode,
+		ErrorCode:       u.ErrorCode,
+		ErrorMessage:    u.ErrorMessage,
+		RequestContent:  u.RequestContent,
+		ResponseContent: u.ResponseContent,
+		RequestedAt:     u.RequestedAt,
+		CompletedAt:     u.CompletedAt,
+	}
 }
 
 func parseBoolQuery(s string) (bool, error) {

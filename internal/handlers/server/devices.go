@@ -1037,8 +1037,8 @@ func (h *Handlers) AnalyzeCallRecording(c *gin.Context) {
 		}
 
 		// 根据 assistant 的 apiKey 和 apiSecret 获取 UserCredential
-		credential, err := h.rpc.Auth.ResolveCredential(c.Request.Context(), assistant.ApiKey, assistant.ApiSecret)
-		if err != nil || credential == nil {
+		credential, err := h.resolveCredential(c.Request.Context(), assistant.ApiKey, assistant.ApiSecret)
+		if err != nil {
 			logger.Error("获取用户凭证失败", zap.Error(err), zap.String("apiKey", assistant.ApiKey))
 			return
 		}

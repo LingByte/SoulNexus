@@ -22,7 +22,10 @@ export interface PlaygroundMetrics {
   output_tokens?: number
   total_tokens?: number
   latency_ms?: number
+  /** 首包（含推理流） */
   ttft_ms?: number
+  /** 正文首字 */
+  ttfc_ms?: number
   duration_ms?: number
 }
 

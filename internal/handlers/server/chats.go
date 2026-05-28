@@ -301,20 +301,10 @@ func (h *Handlers) getChatSessionLogByAgent(c *gin.Context) {
 		}
 	}
 
-	// 使用新会话表查询并在内存中过滤助手
-	allLogs, err := svcmodels.GetChatSessionLogs(h.db, user.ID, pageSizeInt*5, cursorID)
+	logs, err := svcmodels.GetChatSessionLogsByAgent(h.db, user.ID, agentID, pageSizeInt, cursorID)
 	if err != nil {
 		response.Fail(c, "Failed to fetch chat logs", err.Error())
 		return
-	}
-	logs := make([]svcmodels.ChatSessionLogSummary, 0, pageSizeInt)
-	for _, item := range allLogs {
-		if item.AgentID == agentID {
-			logs = append(logs, item)
-			if len(logs) >= pageSizeInt {
-				break
-			}
-		}
 	}
 
 	// 获取下一页的游标

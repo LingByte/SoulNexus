@@ -217,7 +217,8 @@ func parseOpenAISSELine(line []byte, cap *OpenAIStreamCapture, firstTokenRecorde
 		} `json:"usage"`
 		Choices []struct {
 			Delta struct {
-				Content string `json:"content"`
+				Content          string `json:"content"`
+				ReasoningContent string `json:"reasoning_content"`
 			} `json:"delta"`
 		} `json:"choices"`
 	}
@@ -242,11 +243,16 @@ func parseOpenAISSELine(line []byte, cap *OpenAIStreamCapture, firstTokenRecorde
 		}
 	}
 	for i := range chunk.Choices {
-		appendStreamCaptureText(&cap.assistantBuf, chunk.Choices[i].Delta.Content, maxRelayUsageBodyClip)
+		d := chunk.Choices[i].Delta
+		appendStreamCaptureText(&cap.assistantBuf, d.Content, maxRelayUsageBodyClip)
+		appendStreamCaptureText(&cap.assistantBuf, d.ReasoningContent, maxRelayUsageBodyClip)
 	}
-	if !*firstTokenRecorded && len(chunk.Choices) > 0 && strings.TrimSpace(chunk.Choices[0].Delta.Content) != "" {
-		cap.FirstTokenAtMs = time.Now().UnixMilli()
-		*firstTokenRecorded = true
+	if !*firstTokenRecorded && len(chunk.Choices) > 0 {
+		d := chunk.Choices[0].Delta
+		if strings.TrimSpace(d.Content) != "" || strings.TrimSpace(d.ReasoningContent) != "" {
+			cap.FirstTokenAtMs = time.Now().UnixMilli()
+			*firstTokenRecorded = true
+		}
 	}
 }
 

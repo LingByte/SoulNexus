@@ -36,7 +36,6 @@ type adminCredentialStatusReq struct {
 
 type adminAgentUpdateReq struct {
 	Name             string   `json:"name"`
-	Description      string   `json:"description"`
 	SystemPrompt     string   `json:"systemPrompt"`
 	Temperature      *float32 `json:"temperature"`
 	MaxTokens        *int     `json:"maxTokens"`
@@ -492,7 +491,7 @@ func (h *Handlers) handleAdminListAgents(c *gin.Context) {
 	query := h.db.Model(&svcmodels.Agent{})
 	if search != "" {
 		like := "%" + search + "%"
-		query = query.Where("name LIKE ? OR description LIKE ? OR persona_tag LIKE ? OR llm_model LIKE ?", like, like, like, like)
+		query = query.Where("name LIKE ? OR persona_tag LIKE ? OR llm_model LIKE ?", like, like, like)
 	}
 
 	var total int64
@@ -548,9 +547,6 @@ func (h *Handlers) handleAdminUpdateAgent(c *gin.Context) {
 	updateVals := map[string]any{}
 	if req.Name != "" {
 		updateVals["name"] = strings.TrimSpace(req.Name)
-	}
-	if req.Description != "" {
-		updateVals["description"] = strings.TrimSpace(req.Description)
 	}
 	if req.SystemPrompt != "" {
 		updateVals["system_prompt"] = req.SystemPrompt

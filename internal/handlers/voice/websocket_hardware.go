@@ -89,6 +89,10 @@ func (h *Handlers) mountXiaozhi(r gin.IRoutes) bool {
 			return false
 		}
 		srvCfg.SessionFactory = factory
+		if h.cfg.DB != nil {
+			srvCfg.SessionFactory = app.NewAgentAwareFactory(h.cfg.DB, factory, nil, app.VoiceLogger("xiaozhi"))
+			logger.Info("[xiaozhi] agent-aware TTS enabled (speaker/clone from payload + DB)")
+		}
 	}
 
 	if bindingClient != nil {

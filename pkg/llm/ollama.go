@@ -114,11 +114,11 @@ func (h *OllamaHandler) QueryWithOptions(text string, options *QueryOptions) (*Q
 
 	msgs := chatMessagesToMap(buildShortTermMessages(text, options))
 	body := map[string]any{
-		"model":       model,
-		"messages":    msgs,
-		"stream":      false,
-		"temperature": options.Temperature,
+		"model":    model,
+		"messages": msgs,
+		"stream":   false,
 	}
+	applyOpenAICompatGenParams(body, options)
 	raw, err := h.doChatCompletion(reqCtx, body)
 	if err != nil {
 		tracker.Error("OLLAMA_REQUEST_ERROR", err.Error())
@@ -225,11 +225,11 @@ func (h *OllamaHandler) QueryStream(text string, options *QueryOptions, callback
 
 	msgs := chatMessagesToMap(buildShortTermMessages(text, options))
 	body := map[string]any{
-		"model":       model,
-		"messages":    msgs,
-		"stream":      true,
-		"temperature": options.Temperature,
+		"model":    model,
+		"messages": msgs,
+		"stream":   true,
 	}
+	applyOpenAICompatGenParams(body, options)
 	b, _ := json.Marshal(body)
 	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, h.baseURL+"/chat/completions", bytes.NewReader(b))
 	if err != nil {

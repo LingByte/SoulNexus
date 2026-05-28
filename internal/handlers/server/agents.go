@@ -39,9 +39,8 @@ func hashString(s string) int {
 // CreateAgent create new agent
 func (h *Handlers) CreateAgent(c *gin.Context) {
 	var input struct {
-		Name        string `json:"name" binding:"required"`
-		Description string `json:"description"`
-		GroupID     *uint  `json:"groupId,omitempty"` // Organization ID, if set, creates a shared assistant for the organization
+		Name    string `json:"name" binding:"required"`
+		GroupID *uint  `json:"groupId,omitempty"` // Organization ID, if set, creates a shared assistant for the organization
 	}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		response.Fail(c, "Parameter error", nil)
@@ -77,7 +76,6 @@ func (h *Handlers) CreateAgent(c *gin.Context) {
 		GroupID:      gid,
 		CreatedBy:    user.ID,
 		Name:         input.Name,
-		Description:  input.Description,
 		SystemPrompt: "empty system prompt",
 		PersonaTag:   "mentor",
 		Temperature:  0.6,
@@ -164,7 +162,6 @@ func (h *Handlers) UpdateAgent(c *gin.Context) {
 
 	var input struct {
 		Name                 string   `json:"name"`
-		Description          string   `json:"description"`
 		SystemPrompt         string   `json:"systemPrompt"`
 		PersonaTag           string   `json:"persona_tag"`
 		Temperature          float32  `json:"temperature"`
@@ -209,9 +206,6 @@ func (h *Handlers) UpdateAgent(c *gin.Context) {
 	// Only update non-empty fields
 	if input.Name != "" {
 		updateData["name"] = input.Name
-	}
-	if input.Description != "" {
-		updateData["description"] = input.Description
 	}
 	if input.SystemPrompt != "" {
 		updateData["system_prompt"] = input.SystemPrompt
@@ -445,7 +439,6 @@ func (h *Handlers) ServeVoiceSculptorLoaderJS(c *gin.Context) {
 		Name           string
 		AgentID        int64
 		JsSourceID     string
-		Description    string
 		Speaker        string
 		TtsProvider    string
 		LLMModel       string
@@ -458,7 +451,6 @@ func (h *Handlers) ServeVoiceSculptorLoaderJS(c *gin.Context) {
 		Name:           agent.Name,
 		AgentID:        agent.ID,
 		JsSourceID:     agent.JsSourceID,
-		Description:    agent.Description,
 		Speaker:        agent.Speaker,
 		TtsProvider:    agent.TtsProvider,
 		LLMModel:       agent.LLMModel,

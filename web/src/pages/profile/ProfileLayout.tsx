@@ -36,6 +36,10 @@ const nav = [
   { to: '/profile/locale', label: '语言与时区', icon: Globe2 },
 ] as const
 
+/** 个人中心内容区统一边距，保证面包屑与各子页起始位置一致 */
+const PROFILE_CONTENT_PAD = 'px-3 py-2 sm:px-4 md:py-3 lg:px-5'
+const PROFILE_BREADCRUMB_MB = 'mb-2 shrink-0'
+
 const ProfileLayout = () => {
   const { logout } = useAuthStore()
   const { t } = useI18nStore()
@@ -50,14 +54,7 @@ const ProfileLayout = () => {
     return hit?.label ?? t('nav.sidebar.profile')
   }, [location.pathname, t])
 
-  const breadcrumbMb =
-    location.pathname === '/profile/user-devices'
-      ? 'mb-2 shrink-0'
-      : location.pathname === '/profile/personal'
-        ? 'mb-1.5 shrink-0'
-        : location.pathname === '/profile/credential' || location.pathname === '/profile/llm-tokens'
-          ? 'mb-2 shrink-0'
-          : 'mb-5'
+  const isPersonal = location.pathname === '/profile/personal'
 
   return (
     <div className="min-h-screen md:h-[calc(100dvh)] md:min-h-0 bg-slate-50 dark:bg-gray-950 flex flex-col">
@@ -132,22 +129,19 @@ const ProfileLayout = () => {
           <main
             className={cn(
               'min-h-0 flex-1',
-              location.pathname === '/profile/personal' ? 'overflow-hidden' : 'overflow-y-auto',
+              isPersonal ? 'overflow-hidden' : 'overflow-y-auto',
             )}
           >
             <div
               className={cn(
-                'mx-auto w-full max-w-none px-4 py-4 sm:px-6 md:py-6 lg:px-8',
-                location.pathname === '/profile/personal' &&
-                  'flex min-h-0 flex-1 flex-col px-4 py-2 sm:px-5 md:py-3 lg:px-6',
-                location.pathname === '/profile/user-devices' && 'py-3 md:py-4',
-                (location.pathname === '/profile/credential' || location.pathname === '/profile/llm-tokens') &&
-                  'px-3 py-2 sm:px-4 md:py-3 lg:px-5',
+                'mx-auto flex w-full max-w-none flex-col',
+                PROFILE_CONTENT_PAD,
+                isPersonal && 'min-h-0 flex-1',
               )}
             >
               <nav
                 aria-label="breadcrumb"
-                className={cn('text-sm text-slate-600 dark:text-gray-400', breadcrumbMb)}
+                className={cn('text-sm text-slate-600 dark:text-gray-400', PROFILE_BREADCRUMB_MB)}
               >
                 <ol className="flex flex-wrap items-center gap-1.5">
                   <li>
@@ -164,11 +158,7 @@ const ProfileLayout = () => {
                   </li>
                 </ol>
               </nav>
-              <div
-                className={cn(
-                  location.pathname === '/profile/personal' && 'flex min-h-0 flex-1 flex-col',
-                )}
-              >
+              <div className={cn(isPersonal && 'flex min-h-0 flex-1 flex-col')}>
                 <Outlet />
               </div>
             </div>

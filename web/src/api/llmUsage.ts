@@ -4,10 +4,7 @@ export interface LLMUsageRecord {
   id: string
   request_id: string
   session_id?: string
-  user_id: string
-  provider: string
   model: string
-  base_url?: string
   request_type: string
   input_tokens: number
   output_tokens: number
@@ -16,11 +13,13 @@ export interface LLMUsageRecord {
   latency_ms?: number
   ttft_ms?: number
   tps?: number
+  queue_time_ms?: number
   success: boolean
   status_code?: number
   error_code?: string
   error_message?: string
-  channel_id?: number
+  request_content?: string
+  response_content?: string
   requested_at: string
   completed_at?: string
 }
