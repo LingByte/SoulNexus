@@ -607,8 +607,7 @@ const GroupSettings: React.FC = () => {
                         className="p-4 border border-gray-200 dark:border-neutral-700 rounded-lg hover:border-purple-400 transition-colors cursor-pointer"
                         onClick={() => navigate(`/voice-assistant/${assistant.id}`)}
                       >
-                        <div className="font-medium text-gray-900 dark:text-gray-100 mb-1">{assistant.name}</div>
-                        <div className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2">{assistant.description}</div>
+                        <div className="font-medium text-gray-900 dark:text-gray-100">{assistant.name}</div>
                       </div>
                     ))}
                   </div>

@@ -27,6 +27,7 @@ import {
   type PlaygroundSettings,
 } from '@/lib/playground/types'
 import { getDefaultPlaygroundBaseUrl, runPlaygroundChat } from '@/lib/playground/client'
+import { formatApiError } from '@/lib/playground/formatError'
 
 function newId() {
   return `m_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
@@ -98,8 +99,16 @@ function MetricsDetailPanel({ metrics }: { metrics: PlaygroundMetrics }) {
       <div className="grid grid-cols-2 gap-1.5">
         <MetricCell label="总 Tokens" value={total != null ? String(total) : '—'} />
         <MetricCell
-          label="延迟"
+          label="总耗时"
           value={metrics.latency_ms != null ? `${metrics.latency_ms} ms` : '—'}
+        />
+        <MetricCell
+          label="首包"
+          value={metrics.ttft_ms != null ? `${metrics.ttft_ms} ms` : '—'}
+        />
+        <MetricCell
+          label="正文首字"
+          value={metrics.ttfc_ms != null ? `${metrics.ttfc_ms} ms` : '—'}
         />
         <MetricCell label="Prompt" value={metrics.input_tokens != null ? String(metrics.input_tokens) : '—'} />
         <MetricCell
@@ -109,11 +118,13 @@ function MetricsDetailPanel({ metrics }: { metrics: PlaygroundMetrics }) {
       </div>
       <div className="space-y-1 border-t border-border/60 pt-2 text-[11px]">
         <MetricRow label="模型" value={metrics.model || '—'} mono />
-        <MetricRow label="Provider" value={metrics.provider || '—'} mono />
-        <MetricRow
-          label="TTFT"
-          value={metrics.ttft_ms != null ? `${metrics.ttft_ms} ms` : '—'}
-        />
+        {metrics.ttft_ms != null &&
+        metrics.ttfc_ms != null &&
+        metrics.ttfc_ms - metrics.ttft_ms > 500 ? (
+          <p className="text-[10px] text-muted-foreground">
+            首包与正文间隔较大时，多为模型思考（thinking）阶段，属上游行为而非网关额外阻塞。
+          </p>
+        ) : null}
       </div>
     </div>
   )
@@ -124,6 +135,22 @@ function MetricCell({ label, value }: { label: string; value: string }) {
     <div className="rounded-md border border-border/80 bg-muted/30 p-1.5 dark:bg-neutral-900/40">
       <div className="text-[10px] text-muted-foreground">{label}</div>
       <div className="font-semibold tabular-nums text-foreground">{value}</div>
+    </div>
+  )
+}
+
+function PlaygroundErrorBlock({ raw }: { raw: string }) {
+  const { title, detail } = formatApiError(raw)
+  return (
+    <div className="min-w-0 max-w-full space-y-1.5">
+      {title ? (
+        <p className="text-[11px] font-medium text-red-600 dark:text-red-400 break-words">{title}</p>
+      ) : null}
+      <div className="max-h-36 overflow-auto rounded-md border border-red-200/80 bg-red-50/90 p-2 dark:border-red-900/50 dark:bg-red-950/40">
+        <p className="text-xs leading-relaxed text-red-700 dark:text-red-300 break-words whitespace-pre-wrap">
+          {detail}
+        </p>
+      </div>
     </div>
   )
 }
@@ -539,10 +566,7 @@ const Playground = () => {
             <Settings2 className={cn('h-4 w-4 transition-transform', settingsOpen && 'rotate-90')} />
           </Button>
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-sm font-semibold">API 演练场</h1>
-            <p className="truncate text-[11px] text-muted-foreground">
-              直连 Base URL，不写入平台会话 · 请使用 LLM Token 作为 API Key
-            </p>
+            <h1 className="truncate text-sm font-semibold">演练场</h1>
           </div>
           <Button
             variant="ghost"
@@ -562,9 +586,8 @@ const Playground = () => {
               className="flex h-full min-h-[12rem] flex-col items-center justify-center text-center text-muted-foreground"
             >
               <Beaker className="mb-3 h-10 w-10 opacity-30" />
-              <p className="text-sm font-medium text-foreground/80">开始调试公开 API</p>
               <p className="mt-1 max-w-md text-xs">
-                点击左上角齿轮打开参数面板，配置协议与 Key 后发送消息。
+                点击左上角齿轮打开参数面板进行配置
               </p>
             </motion.div>
           )}
@@ -578,16 +601,23 @@ const Playground = () => {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -8 }}
                   transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-                  className={cn('flex gap-3', m.role === 'user' ? 'justify-end' : 'justify-start')}
+                  className={cn(
+                    'flex min-w-0 gap-3',
+                    m.role === 'user' ? 'justify-end' : 'justify-start',
+                  )}
                 >
                   {m.role === 'assistant' && (
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 text-white shadow-sm">
-                      <Bot className="h-4 w-4" aria-hidden />
+                      {m.thinking && !m.content ? (
+                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                      ) : (
+                        <Bot className="h-4 w-4" aria-hidden />
+                      )}
                     </div>
                   )}
                   <div
                     className={cn(
-                      'max-w-[85%] rounded-2xl px-4 py-2.5 text-sm shadow-sm',
+                      'min-w-0 max-w-[min(85%,42rem)] rounded-2xl px-4 py-2.5 text-sm shadow-sm',
                       m.role === 'user'
                         ? 'bg-primary text-primary-foreground'
                         : 'border border-border bg-card text-foreground',
@@ -595,9 +625,7 @@ const Playground = () => {
                     )}
                   >
                     {m.error ? (
-                      <pre className="whitespace-pre-wrap text-xs text-red-600 dark:text-red-400">
-                        {m.error}
-                      </pre>
+                      <PlaygroundErrorBlock raw={m.error} />
                     ) : m.thinking && !m.content ? (
                       <span className="inline-flex items-center gap-2 text-muted-foreground">
                         <Loader2 className="h-4 w-4 animate-spin text-violet-500" />

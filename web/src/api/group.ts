@@ -183,8 +183,6 @@ export interface GroupSharedResources {
   agents: Array<{
     id: number
     name: string
-    description: string
-    icon: string
     createdAt: string
   }>
 }

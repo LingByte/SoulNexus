@@ -35,11 +35,10 @@ func InitAgentListener() {
 
 		title := "New Agent Created Successfully"
 		content := fmt.Sprintf("Dear %s, you have successfully created a new AI agent:\n\n"+
-			"Agent Name: %s\n"+
-			"Agent Description: %s\n\n"+
+			"Agent Name: %s\n\n"+
 			"You can further configure the agent on the agent management page.\n"+
 			"Go to the agent management page now to start using it!",
-			user.EffectiveDisplayName(), agent.Name, agent.Description)
+			user.EffectiveDisplayName(), agent.Name)
 
 		svcmodels.NewInternalNotificationService(db).Send(user.ID, title, content)
 	})

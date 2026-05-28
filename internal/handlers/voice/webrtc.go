@@ -33,10 +33,15 @@ func (h *Handlers) mountWebRTC(r gin.IRoutes) bool {
 		logger.Info(fmt.Sprintf("[webrtc] disabled: VOICE_DIALOG_WS is empty"))
 		return false
 	}
-	factory, err := app.NewWebRTCFactory()
+	baseFactory, err := app.NewWebRTCFactory()
 	if err != nil {
 		logger.Info(fmt.Sprintf("[webrtc] disabled: %v", err))
 		return false
+	}
+	sessionFactory := voicertc.SessionFactory(baseFactory)
+	if h.cfg.DB != nil {
+		sessionFactory = app.NewAgentAwareFactory(h.cfg.DB, baseFactory, nil, app.VoiceLogger("webrtc"))
+		logger.Info("[webrtc] agent-aware TTS enabled (speaker/clone from offer payload + DB)")
 	}
 	iceServers, err := voicertc.ParseICEServers(strings.TrimSpace(utils.GetEnv("WEBRTC_ICE_SERVERS")))
 	if err != nil {
@@ -45,7 +50,7 @@ func (h *Handlers) mountWebRTC(r gin.IRoutes) bool {
 	}
 	publicIPs := app.SplitCSV(utils.GetEnv("WEBRTC_PUBLIC_IPS"))
 	srv, err := voicertc.NewServer(voicertc.ServerConfig{
-		SessionFactory: factory,
+		SessionFactory: sessionFactory,
 		DialogWSURL:    dialogWS,
 		ICEServers:     iceServers,
 		Engine: voicertc.EngineConfig{

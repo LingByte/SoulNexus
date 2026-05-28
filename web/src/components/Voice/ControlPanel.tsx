@@ -7,6 +7,7 @@ import Button from '@/components/UI/Button';
 import { Switch } from '@/components/UI/Switch';
 import Card from '@/components/UI/Card';
 import CollapsibleSectionHeader from '@/components/UI/CollapsibleSectionHeader';
+import Textarea from '@/components/UI/Textarea';
 import { getVoiceOptions, VoiceOption } from '@/api/assistant';
 import { jsTemplateService, type JSTemplate } from '@/api/jsTemplate';
 import { highlightContent } from '@/utils/highlight';
@@ -40,9 +41,7 @@ interface ControlPanelProps {
 
     // 助手设置
     assistantName: string
-    assistantDescription: string
     onAssistantNameChange: (value: string) => void
-    onAssistantDescriptionChange: (value: string) => void
     // VAD 配置
     enableVAD?: boolean
     vadThreshold?: number
@@ -91,9 +90,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                                        jsSourceId = '',
                                                        onJsSourceIdChange,
                                                        assistantName,
-                                                       assistantDescription,
                                                        onAssistantNameChange,
-                                                       onAssistantDescriptionChange,
                                                        enableVAD = true,
                                                        vadThreshold = 500,
                                                        vadConsecutiveFrames = 2,
@@ -311,25 +308,24 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                     </div>
 
                                     {/* 系统提示词 */}
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('controlPanel.call.systemPrompt')}</label>
-                                        <div className="space-y-1">
-                      <textarea
-                          value={systemPrompt}
-                          onChange={(e) => onSystemPromptChange(e.target.value)}
-                          className="w-full p-2 text-sm border rounded-lg focus:ring-2 focus:ring-purple-500 dark:bg-neutral-700 dark:border-neutral-600"
-                          placeholder={t('controlPanel.call.systemPromptPlaceholder')}
-                          rows={3}
-                      />
-                                            {searchKeyword && systemPrompt && (
-                                                <div
-                                                    className="text-xs text-gray-400 p-2 bg-gray-50 dark:bg-neutral-800 rounded border"
-                                                    dangerouslySetInnerHTML={{
-                                                        __html: highlightContent(systemPrompt, searchKeyword, highlightFragments ?? undefined)
-                                                    }}
-                                                />
-                                            )}
-                                        </div>
+                                    <div className="space-y-1">
+                                        <Textarea
+                                            size="sm"
+                                            label={t('controlPanel.call.systemPrompt')}
+                                            value={systemPrompt}
+                                            onValueChange={onSystemPromptChange}
+                                            placeholder={t('controlPanel.call.systemPromptPlaceholder')}
+                                            rows={8}
+                                            textareaClassName="min-h-[10rem] text-sm leading-relaxed"
+                                        />
+                                        {searchKeyword && systemPrompt && (
+                                            <div
+                                                className="text-xs text-gray-400 p-2 bg-gray-50 dark:bg-neutral-800 rounded border"
+                                                dangerouslySetInnerHTML={{
+                                                    __html: highlightContent(systemPrompt, searchKeyword, highlightFragments ?? undefined)
+                                                }}
+                                            />
+                                        )}
                                     </div>
 
                                     {/* Temperature 控制 */}
@@ -433,27 +429,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                                         className="text-xs text-gray-400 mt-1"
                                                         dangerouslySetInnerHTML={{
                                                             __html: highlightContent(assistantName, searchKeyword, highlightFragments ?? undefined)
-                                                        }}
-                                                    />
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        <div className="space-y-2">
-                                            <label className="text-xs text-gray-500 dark:text-gray-400">{t('controlPanel.assistant.description')}</label>
-                                            <div className="space-y-1">
-                      <textarea
-                          value={assistantDescription}
-                          onChange={(e) => onAssistantDescriptionChange(e.target.value)}
-                          className="w-full p-2 text-sm border rounded-lg focus:ring-2 focus:ring-purple-500 dark:bg-neutral-700 dark:border-neutral-600 dark:text-gray-100"
-                          rows={2}
-                          placeholder={t('controlPanel.assistant.descriptionPlaceholder')}
-                      />
-                                                {searchKeyword && assistantDescription && (
-                                                    <div
-                                                        className="text-xs text-gray-400 p-2 bg-gray-50 dark:bg-neutral-800 rounded border"
-                                                        dangerouslySetInnerHTML={{
-                                                            __html: highlightContent(assistantDescription, searchKeyword, highlightFragments ?? undefined)
                                                         }}
                                                     />
                                                 )}
@@ -602,12 +577,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                 </motion.div>
 
                 {/* VAD 监测配置 */}
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.25 }}
-                    className="space-y-4"
-                >
+                <div className="space-y-4">
                     <CollapsibleSectionHeader
                         title={t('controlPanel.vad.title')}
                         icon={<Mic className="w-5 h-5" />}
@@ -624,7 +594,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                 transition={{ duration: 0.3, ease: 'easeInOut' }}
                                 className="overflow-hidden"
                             >
-                                <div className="space-y-4 pt-4">
+                                <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-neutral-700">
                                     {/* 启用 VAD 开关 */}
                                     <div className="space-y-2">
                                         <div className="flex items-center justify-between">
@@ -737,7 +707,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                             </motion.div>
                         )}
                     </AnimatePresence>
-                </motion.div>
+                </div>
 
                 {/* 应用接入 */}
                 <motion.div

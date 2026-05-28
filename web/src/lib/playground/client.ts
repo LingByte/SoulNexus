@@ -168,6 +168,7 @@ function buildMetrics(
   usage: PlaygroundMetrics | undefined,
   latencyMs: number,
   ttftMs?: number,
+  ttfcMs?: number,
 ): PlaygroundMetrics {
   const input = usage?.input_tokens ?? 0
   const output = usage?.output_tokens ?? 0
@@ -179,7 +180,8 @@ function buildMetrics(
     output_tokens: usage?.output_tokens,
     total_tokens: total,
     latency_ms: latencyMs,
-    ttft_ms: ttftMs ?? latencyMs,
+    ttft_ms: ttftMs,
+    ttfc_ms: ttfcMs,
     duration_ms: latencyMs,
   }
 }
@@ -220,6 +222,7 @@ async function consumeOpenAISSE(
         const choiceDelta = parsed.choices?.[0]?.delta
         const reasoning = choiceDelta?.reasoning_content
         if (reasoning) {
+          handlers.onFirstToken?.()
           handlers.onThinkingDelta?.(reasoning)
         }
         const delta = choiceDelta?.content
@@ -324,27 +327,34 @@ export async function runPlaygroundChat(
   if (!base) throw new Error('请填写 Base URL')
 
   const startedAt = performance.now()
-  let ttftMs: number | undefined
-  let sawFirstToken = false
+  let firstByteMs: number | undefined
+  let firstContentMs: number | undefined
+  let sawFirstByte = false
+  let sawFirstContent = false
+  const markFirstByte = () => {
+    if (sawFirstByte) return
+    sawFirstByte = true
+    firstByteMs = Math.round(performance.now() - startedAt)
+    handlers?.onFirstToken?.()
+  }
   const streamHandlers: StreamHandlers = {
     onDelta: (text) => {
-      if (!sawFirstToken) {
-        sawFirstToken = true
-        ttftMs = Math.round(performance.now() - startedAt)
-        handlers?.onFirstToken?.()
+      if (!sawFirstContent) {
+        sawFirstContent = true
+        firstContentMs = Math.round(performance.now() - startedAt)
+        markFirstByte()
       }
       handlers?.onDelta(text)
     },
-    onThinkingDelta: handlers?.onThinkingDelta,
-    onFirstToken: () => {
-      if (!sawFirstToken) {
-        sawFirstToken = true
-        ttftMs = Math.round(performance.now() - startedAt)
-      }
-      handlers?.onFirstToken?.()
+    onThinkingDelta: (text) => {
+      markFirstByte()
+      handlers?.onThinkingDelta?.(text)
     },
     onUsage: handlers?.onUsage,
-    onRaw: handlers?.onRaw,
+    onRaw: (chunk) => {
+      markFirstByte()
+      handlers?.onRaw?.(chunk)
+    },
   }
 
   if (settings.protocol === 'openai') {
@@ -364,7 +374,7 @@ export async function runPlaygroundChat(
       const latencyMs = Math.round(performance.now() - startedAt)
       return {
         content: out.content,
-        usage: buildMetrics(settings, res.headers, out.usage, latencyMs, ttftMs),
+        usage: buildMetrics(settings, res.headers, out.usage, latencyMs, firstByteMs, firstContentMs),
         raw: out.raw,
       }
     }
@@ -384,7 +394,7 @@ export async function runPlaygroundChat(
       : undefined
     return {
       content,
-      usage: buildMetrics(settings, res.headers, tokenUsage, latencyMs, latencyMs),
+      usage: buildMetrics(settings, res.headers, tokenUsage, latencyMs, latencyMs, latencyMs),
       raw,
     }
   }
@@ -405,7 +415,7 @@ export async function runPlaygroundChat(
     const latencyMs = Math.round(performance.now() - startedAt)
     return {
       content: out.content,
-      usage: buildMetrics(settings, res.headers, out.usage, latencyMs, ttftMs),
+      usage: buildMetrics(settings, res.headers, out.usage, latencyMs, firstByteMs, firstContentMs),
       raw: out.raw,
     }
   }
@@ -428,7 +438,7 @@ export async function runPlaygroundChat(
     : undefined
   return {
     content,
-    usage: buildMetrics(settings, res.headers, tokenUsage, latencyMs, latencyMs),
+    usage: buildMetrics(settings, res.headers, tokenUsage, latencyMs, latencyMs, latencyMs),
     raw,
   }
 }

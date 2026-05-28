@@ -170,11 +170,21 @@ func (h *AlibabaHandler) QueryWithOptions(text string, options *QueryOptions) (*
 	if strings.TrimSpace(shortTermPrompt) == "" {
 		shortTermPrompt = promptUser
 	}
+	params := map[string]any{}
+	if options.MaxTokens > 0 {
+		params["max_tokens"] = options.MaxTokens
+	}
+	if options.Temperature != 0 {
+		params["temperature"] = options.Temperature
+	}
+	if options.TopP != 0 {
+		params["top_p"] = options.TopP
+	}
 	reqBody := map[string]any{
 		"input": map[string]string{
 			"prompt": shortTermPrompt,
 		},
-		"parameters": map[string]any{},
+		"parameters": params,
 	}
 	b, err := json.Marshal(reqBody)
 	if err != nil {

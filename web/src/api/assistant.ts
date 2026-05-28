@@ -4,14 +4,12 @@ import { getApiBaseURL } from '@/config/apiConfig'
 // 助手创建表单
 export interface CreateAssistantForm {
   name: string
-  description?: string
   groupId?: number | null // 组织ID，如果设置则创建为组织共享的助手
 }
 
 // 助手更新表单
 export interface UpdateAssistantForm {
   name?: string
-  description?: string
   systemPrompt?: string
   persona_tag?: string
   temperature?: number
@@ -36,7 +34,6 @@ export interface Assistant {
   userId: number
   groupId?: number | null // 组织ID，如果设置则表示这是组织共享的助手
   name: string
-  description: string
   systemPrompt: string
   personaTag: string
   temperature: number
@@ -63,7 +60,6 @@ export interface AssistantListItem {
   userId?: number
   groupId?: number | null
   name: string
-  description: string
   jsSourceId?: string
   personaTag?: string
   temperature?: number

@@ -1,202 +1,105 @@
-import React, { useRef, useEffect, useState } from 'react'
+import React from 'react'
 import { motion } from 'framer-motion'
-import { Mic, PhoneOff } from 'lucide-react'
+import { Loader2, Mic, PhoneOff } from 'lucide-react'
 import { cn } from '@/utils/cn'
 
 interface VoiceBallProps {
   isCalling: boolean
+  isConnecting?: boolean
   onToggleCall: () => void
   className?: string
 }
 
+/** 侧边栏语音通话主按钮：纯视觉层，不单独申请麦克风（由通话流程统一管理）。 */
 const VoiceBall: React.FC<VoiceBallProps> = ({
   isCalling,
+  isConnecting = false,
   onToggleCall,
-  className = ''
+  className = '',
 }) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const audioContextRef = useRef<AudioContext | null>(null)
-  const analyserRef = useRef<AnalyserNode | null>(null)
-  const animationRef = useRef<number | null>(null)
-  const [audioStream, setAudioStream] = useState<MediaStream | null>(null)
-
-  // 初始化音频分析器
-  useEffect(() => {
-    if (isCalling) {
-      initAudioContext()
-    } else {
-      stopAudioContext()
-    }
-  }, [isCalling])
-
-  useEffect(() => {
-    return () => {
-      stopAudioContext()
-    }
-  }, [])
-
-  const initAudioContext = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      setAudioStream(stream)
-
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
-      const analyser = audioContext.createAnalyser()
-      analyser.fftSize = 256
-
-      const source = audioContext.createMediaStreamSource(stream)
-      source.connect(analyser)
-
-      audioContextRef.current = audioContext
-      analyserRef.current = analyser
-
-      drawWaveform()
-    } catch (err) {
-      console.error('麦克风访问失败:', err)
-    }
-  }
-
-  const stopAudioContext = () => {
-    // 停止音频流
-    if (audioStream) {
-      audioStream.getTracks().forEach(track => {
-        track.stop()
-        track.enabled = false
-      })
-      setAudioStream(null)
-    }
-
-    // 关闭音频上下文
-    if (audioContextRef.current) {
-      if (audioContextRef.current.state !== 'closed') {
-        audioContextRef.current.close()
-          .then(() => {
-            console.log('AudioContext成功关闭')
-          })
-          .catch(err => {
-            console.error('关闭AudioContext失败:', err)
-          })
-      }
-      audioContextRef.current = null
-    }
-
-    // 清理分析器引用
-    analyserRef.current = null
-
-    // 停止动画帧
-    if (animationRef.current) {
-      cancelAnimationFrame(animationRef.current)
-      animationRef.current = null
-    }
-  }
-
-  const drawWaveform = () => {
-    if (!canvasRef.current || !analyserRef.current) return
-
-    const canvas = canvasRef.current
-    const ctx = canvas.getContext('2d')
-    const analyser = analyserRef.current
-    const bufferLength = analyser.frequencyBinCount
-    const dataArray = new Uint8Array(bufferLength)
-
-    const draw = () => {
-      animationRef.current = requestAnimationFrame(draw)
-      analyser.getByteFrequencyData(dataArray)
-
-      // 清空画布
-      ctx!.clearRect(0, 0, canvas.width, canvas.height)
-
-      // 创建渐变背景
-      const gradient = ctx!.createLinearGradient(0, 0, canvas.width, canvas.height)
-      gradient.addColorStop(0, 'rgba(99, 102, 241, 0.1)')
-      gradient.addColorStop(1, 'rgba(168, 85, 247, 0.1)')
-      ctx!.fillStyle = gradient
-      ctx!.fillRect(0, 0, canvas.width, canvas.height)
-
-      // 绘制频率条
-      const barWidth = (canvas.width / bufferLength) * 2.5
-      let x = 0
-
-      for (let i = 0; i < bufferLength; i++) {
-        const barHeight = (dataArray[i] / 255) * canvas.height
-
-        // 创建条形渐变
-        const barGradient = ctx!.createLinearGradient(0, canvas.height, 0, canvas.height - barHeight)
-        barGradient.addColorStop(0, '#6366f1')
-        barGradient.addColorStop(1, '#a855f7')
-
-        ctx!.fillStyle = barGradient
-        ctx!.fillRect(
-          x,
-          canvas.height - barHeight,
-          barWidth,
-          barHeight
-        )
-
-        // 添加光晕效果
-        ctx!.shadowColor = 'rgba(168, 85, 247, 0.5)'
-        ctx!.shadowBlur = 10
-        ctx!.shadowOffsetX = 0
-        ctx!.shadowOffsetY = 0
-
-        x += barWidth + 2
-      }
-
-      // 绘制动态粒子
-      ctx!.shadowBlur = 15
-      dataArray.forEach((value, i) => {
-        if (i % 4 === 0 && value > 128) {
-          const size = (value / 255) * 8
-          ctx!.beginPath()
-          ctx!.arc(
-            Math.random() * canvas.width,
-            canvas.height - (value / 255) * canvas.height,
-            size,
-            0,
-            Math.PI * 2
-          )
-          ctx!.fillStyle = `hsla(${280 + (value / 255) * 40}, 80%, 70%, ${0.5 + (value / 255) * 0.5})`
-          ctx!.fill()
-        }
-      })
-
-      // 重置阴影
-      ctx!.shadowBlur = 0
-    }
-
-    draw()
-  }
+  const active = isCalling || isConnecting
 
   return (
-    <div className={cn('relative group', className)}>
-      <div className="absolute inset-0 bg-purple-300/40 blur-xl rounded-full animate-pulse"></div>
-      <div className="relative flex items-center justify-center h-32 w-32 mx-auto
-        bg-gradient-to-br from-purple-400 to-purple-600 rounded-full shadow-xl">
-        <canvas
-          ref={canvasRef}
-          className="absolute w-full h-full rounded-full"
-          width="128"
-          height="128"
-        />
-        <motion.button
-          onClick={onToggleCall}
+    <div className={cn('flex items-center justify-center', className)}>
+      <motion.button
+        type="button"
+        aria-label={isCalling ? '结束对话' : isConnecting ? '正在连接' : '开始语音对话'}
+        disabled={isConnecting}
+        onClick={onToggleCall}
+        className={cn(
+          'relative flex h-[6.25rem] w-[6.25rem] items-center justify-center rounded-full',
+          'transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
+          'focus-visible:ring-violet-400 focus-visible:ring-offset-white dark:focus-visible:ring-offset-neutral-800',
+          isCalling
+            ? 'bg-gradient-to-br from-rose-400 via-rose-500 to-red-600 shadow-xl shadow-rose-500/45'
+            : 'bg-gradient-to-br from-violet-500 via-fuchsia-500 to-indigo-600 shadow-lg shadow-violet-500/40',
+          !active && 'hover:scale-[1.03] hover:shadow-xl hover:shadow-violet-500/50',
+          isConnecting && 'cursor-wait opacity-95',
+        )}
+        whileTap={isConnecting ? undefined : { scale: 0.97 }}
+      >
+        {/* 外圈彩色光晕 */}
+        <span
           className={cn(
-            'p-4 rounded-full transition-all shadow-lg z-10 relative overflow-hidden',
+            'pointer-events-none absolute inset-[-6px] rounded-full opacity-70 blur-md',
             isCalling
-              ? 'bg-purple-500 hover:bg-purple-600 shadow-purple-400/50'
-              : 'bg-gradient-to-br from-purple-300 to-purple-500 hover:from-purple-400 hover:to-purple-600'
+              ? 'bg-gradient-to-br from-rose-400/60 to-orange-400/40'
+              : 'bg-gradient-to-br from-violet-400/70 via-fuchsia-400/50 to-cyan-400/40',
           )}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          <div className="absolute inset-0 bg-gradient-to-br from-white/30 to-transparent rounded-full" />
-          {isCalling ? (
-            <PhoneOff className="w-8 h-8 animate-pulse" />
+        />
+
+        {/* 待机：双层呼吸环 */}
+        {!active && (
+          <>
+            <motion.span
+              className="pointer-events-none absolute inset-[-2px] rounded-full border-2 border-violet-300/50 dark:border-violet-400/40"
+              animate={{ scale: [1, 1.14], opacity: [0.65, 0.2] }}
+              transition={{ duration: 2.4, repeat: Infinity, ease: 'easeOut' }}
+            />
+            <motion.span
+              className="pointer-events-none absolute inset-[-8px] rounded-full border border-fuchsia-300/35 dark:border-fuchsia-400/25"
+              animate={{ scale: [1, 1.1], opacity: [0.45, 0.12] }}
+              transition={{ duration: 2.4, repeat: Infinity, ease: 'easeOut', delay: 0.35 }}
+            />
+            <motion.span
+              className="pointer-events-none absolute inset-0 rounded-full bg-white/15"
+              animate={{ opacity: [0.25, 0.45, 0.25] }}
+              transition={{ duration: 2.8, repeat: Infinity, ease: 'easeInOut' }}
+            />
+          </>
+        )}
+
+        {/* 通话中：玫红扩散波纹 */}
+        {isCalling && (
+          <>
+            <motion.span
+              className="pointer-events-none absolute inset-0 rounded-full border-2 border-rose-200/70"
+              animate={{ scale: [1, 1.5], opacity: [0.6, 0] }}
+              transition={{ duration: 1.6, repeat: Infinity, ease: 'easeOut' }}
+            />
+            <motion.span
+              className="pointer-events-none absolute inset-0 rounded-full border border-orange-200/50"
+              animate={{ scale: [1, 1.32], opacity: [0.45, 0] }}
+              transition={{ duration: 1.6, repeat: Infinity, ease: 'easeOut', delay: 0.5 }}
+            />
+          </>
+        )}
+
+        {/* 连接中：旋转描边 */}
+        {isConnecting && (
+          <span className="pointer-events-none absolute inset-[-4px] rounded-full border-[3px] border-transparent border-t-white border-r-fuchsia-200/80 animate-spin" />
+        )}
+
+        <span className="relative z-10 flex items-center justify-center drop-shadow-md">
+          {isConnecting ? (
+            <Loader2 className="h-7 w-7 animate-spin" strokeWidth={2.25} />
+          ) : isCalling ? (
+            <PhoneOff className="h-7 w-7" strokeWidth={2.25} />
           ) : (
-            <Mic className="w-8 h-8 animate-bounce" />
+            <Mic className="h-7 w-7" strokeWidth={2.25} />
           )}
-        </motion.button>
-      </div>
+        </span>
+      </motion.button>
     </div>
   )
 }

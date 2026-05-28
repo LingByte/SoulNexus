@@ -19,6 +19,9 @@ import (
 
 var errStreamNoChannel = errors.New("no channel available")
 
+// maxStreamRelayFailoverHops 限制流式场景下顺序尝试的渠道数，避免失败渠道拖高首包延迟。
+const maxStreamRelayFailoverHops = 3
+
 // shouldFailoverFromStatus 仅在常见的"上游可重试"错误码上做 fallback：
 // 5xx + 429 + 408 视为可重试；其它一律 commit（避免误把客户端错误也试一遍）。
 func shouldFailoverFromStatus(status int) bool {
@@ -39,7 +42,12 @@ func RelayOpenAIStreamMulti(ctx context.Context, body []byte, accept string, cha
 	}
 	attempts := make([]UsageChannelAttempt, 0, len(channels))
 	var lastErr error
-	for i, ch := range channels {
+	limit := len(channels)
+	if limit > maxStreamRelayFailoverHops {
+		limit = maxStreamRelayFailoverHops
+	}
+	for i := 0; i < limit; i++ {
+		ch := channels[i]
 		t0 := time.Now()
 		bu := ch.baseURLString()
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, openAIChatCompletionsURL(ch.BaseURL), bytes.NewReader(body))
@@ -71,7 +79,7 @@ func RelayOpenAIStreamMulti(ctx context.Context, body []byte, accept string, cha
 			continue
 		}
 		// 上游错误：关闭并 fallback；只有最后一个 channel 才把错误体写回客户端。
-		if resp.StatusCode >= 400 && shouldFailoverFromStatus(resp.StatusCode) && i < len(channels)-1 {
+		if resp.StatusCode >= 400 && shouldFailoverFromStatus(resp.StatusCode) && i < limit-1 {
 			buf, _ := io.ReadAll(io.LimitReader(resp.Body, maxRelayAttemptErrBytes*4))
 			resp.Body.Close()
 			attempts = append(attempts, UsageChannelAttempt{
@@ -82,10 +90,10 @@ func RelayOpenAIStreamMulti(ctx context.Context, body []byte, accept string, cha
 			})
 			continue
 		}
-		// 提交该 channel：开始向客户端写
+		// 提交该 channel：开始向客户端写（StartedAtMs 从发起到上游起算，便于 TTFT 统计）
 		cap := &OpenAIStreamCapture{}
 		overall := time.Now()
-		cap.StartedAtMs = overall.UnixMilli()
+		cap.StartedAtMs = t0.UnixMilli()
 		cap.StatusCode = resp.StatusCode
 		CopyRelayResponseHeaders(w.Header(), resp.Header)
 		w.WriteHeader(resp.StatusCode)
@@ -138,7 +146,12 @@ func RelayAnthropicStreamMulti(ctx context.Context, body []byte, anthropicVersio
 	}
 	attempts := make([]UsageChannelAttempt, 0, len(channels))
 	var lastErr error
-	for i, ch := range channels {
+	limit := len(channels)
+	if limit > maxStreamRelayFailoverHops {
+		limit = maxStreamRelayFailoverHops
+	}
+	for i := 0; i < limit; i++ {
+		ch := channels[i]
 		t0 := time.Now()
 		bu := ch.baseURLString()
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, anthropicMessagesURL(ch.BaseURL), bytes.NewReader(body))
@@ -171,7 +184,7 @@ func RelayAnthropicStreamMulti(ctx context.Context, body []byte, anthropicVersio
 			lastErr = err
 			continue
 		}
-		if resp.StatusCode >= 400 && shouldFailoverFromStatus(resp.StatusCode) && i < len(channels)-1 {
+		if resp.StatusCode >= 400 && shouldFailoverFromStatus(resp.StatusCode) && i < limit-1 {
 			buf, _ := io.ReadAll(io.LimitReader(resp.Body, maxRelayAttemptErrBytes*4))
 			resp.Body.Close()
 			attempts = append(attempts, UsageChannelAttempt{
@@ -184,7 +197,7 @@ func RelayAnthropicStreamMulti(ctx context.Context, body []byte, anthropicVersio
 		}
 		cap := &AnthropicStreamCapture{}
 		overall := time.Now()
-		cap.StartedAtMs = overall.UnixMilli()
+		cap.StartedAtMs = t0.UnixMilli()
 		cap.StatusCode = resp.StatusCode
 		CopyRelayResponseHeaders(w.Header(), resp.Header)
 		w.WriteHeader(resp.StatusCode)

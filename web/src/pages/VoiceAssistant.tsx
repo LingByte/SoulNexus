@@ -33,10 +33,12 @@ import {
     getChatSessionLogsByAssistant
 } from '@/api/chat'
 import { getCredentialByKey } from '@/api/credential'
+import { cn } from '@/utils/cn'
 // 导入类型定义
 import type { Assistant, ChatMessage, VoiceChatSession, LineMode } from './VoiceAssistant/types'
 // 导入自定义 Hooks
 import { useVoiceAssistant } from '@/hooks/useVoiceAssistant'
+import { PcmUtteranceQueue } from '@/lib/voice/pcmStreamPlayer'
 /** cmd/voice `-http` 访问前缀，可包含反向代理路径前缀。 */
 function getCmdVoiceBase(): string {
     const raw = ((import.meta.env.VITE_CMD_VOICE_BASE as string | undefined) || 'http://127.0.0.1:7080').trim()
@@ -84,6 +86,7 @@ const VoiceAssistant = () => {
     const [chatHistory, setChatHistory] = useState<VoiceChatSession[]>([])
     const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
     const [loading, setLoading] = useState(true)
+    const [historyLoading, setHistoryLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
     // 获取搜索高亮信息
@@ -91,13 +94,9 @@ const VoiceAssistant = () => {
     const [isGlobalMuted, setIsGlobalMuted] = useState(false)
     const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
     const currentPlayingAudioRef = useRef<HTMLAudioElement | null>(null)
-    const currentTTSAudioSourceRef = useRef<AudioBufferSourceNode | null>(null) // 当前播放的TTS音频源
-    /** xiaozhi 多段 TTS：每段 tts:stop 入队顺序播，避免下一段 tts:start 打断上一段 */
-    const wsTTSQueueRef = useRef<Array<{
-        chunks: Uint8Array[]
-        format: { sampleRate?: number; channels?: number; bitDepth?: number }
-    }>>([])
-    const wsTTSPlayingRef = useRef(false)
+    /** xiaozhi 边收边播 + 多段 utterance 顺序队列 */
+    const pcmTTSQueueRef = useRef<PcmUtteranceQueue | null>(null)
+    const wsAudioContextRef = useRef<AudioContext | null>(null)
     const lastASRTextRef = useRef<string>('') // 上次已处理的ASR文本（用于去重）
     const lastLLMResponseRef = useRef<string>('') // 上次已处理的LLM回复（用于去重）
     const lastSelectedAgentRef = useRef<number | null>(null) // 防止重复选择同一个助手
@@ -194,7 +193,6 @@ const VoiceAssistant = () => {
 
     // 助手基本信息
     const [assistantName, setAssistantName] = useState('')
-    const [assistantDescription, setAssistantDescription] = useState('')
     // VAD 配置
     const [enableVAD, setEnableVAD] = useState(true)
     const [vadThreshold, setVadThreshold] = useState(500)
@@ -225,7 +223,6 @@ const VoiceAssistant = () => {
             if (currentAssistant) {
                 // 同步助手基础配置（包括图记忆开关和VAD配置）
                 setAssistantName(currentAssistant.name || '')
-                setAssistantDescription(currentAssistant.description || '')
                 // 同步 VAD 配置
                 if ((currentAssistant as any).enableVAD !== undefined) {
                     setEnableVAD((currentAssistant as any).enableVAD)
@@ -451,6 +448,7 @@ const VoiceAssistant = () => {
     const refreshChatHistory = useCallback(async (forAgentId?: number) => {
         const aid = forAgentId ?? agentId
         try {
+            setHistoryLoading(true)
             if (aid && aid > 0) {
                 const historyResponse = await getChatSessionLogsByAssistant(aid, { pageSize: 20 })
                 if (historyResponse.data && historyResponse.data.logs) {
@@ -471,6 +469,8 @@ const VoiceAssistant = () => {
             }
         } catch (err) {
             console.warn('刷新聊天记录失败:', err)
+        } finally {
+            setHistoryLoading(false)
         }
     }, [agentId])
 
@@ -574,173 +574,14 @@ const VoiceAssistant = () => {
 
     // 停止当前TTS播放
     const stopCurrentTTSPlayback = () => {
-        wsTTSQueueRef.current = []
-        wsTTSPlayingRef.current = false
-        // 停止AudioBufferSourceNode
-        if (currentTTSAudioSourceRef.current) {
-            try {
-                currentTTSAudioSourceRef.current.stop()
-                currentTTSAudioSourceRef.current.disconnect()
-                console.log('[WebSocket语音] 已停止当前TTS播放')
-            } catch (error) {
-                // 可能已经停止了，忽略错误
-                console.log('[WebSocket语音] 停止TTS播放:', error)
-            }
-            currentTTSAudioSourceRef.current = null
-        }
+        pcmTTSQueueRef.current?.stopAll()
+        pcmTTSQueueRef.current = null
 
-        // 停止Audio元素
         if (currentPlayingAudioRef.current) {
             currentPlayingAudioRef.current.pause()
             currentPlayingAudioRef.current.currentTime = 0
             currentPlayingAudioRef.current = null
         }
-    }
-
-    // xiaozhi 多段 TTS：顺序播放队列（不要在每段 tts:start 时 stop，否则会截断上一段 PCM）
-    const tryPlayNextWebSocketTTSQueue = (audioContext: AudioContext | null) => {
-        if (!audioContext || isGlobalMuted || wsTTSPlayingRef.current) {
-            return
-        }
-        const item = wsTTSQueueRef.current.shift()
-        if (!item || item.chunks.length === 0) {
-            if (wsTTSQueueRef.current.length > 0) {
-                tryPlayNextWebSocketTTSQueue(audioContext)
-            }
-            return
-        }
-        const audioBuffer = item.chunks
-        const format = item.format
-
-        wsTTSPlayingRef.current = true
-
-        const finishSegment = () => {
-            if (currentTTSAudioSourceRef.current) {
-                currentTTSAudioSourceRef.current = null
-            }
-            wsTTSPlayingRef.current = false
-            tryPlayNextWebSocketTTSQueue(audioContext)
-        }
-
-        try {
-            if (audioContext.state === 'suspended') {
-                void audioContext.resume().then(() => {
-                    console.log('[WebSocket语音] AudioContext已恢复')
-                }).catch(err => {
-                    console.error('[WebSocket语音] 恢复AudioContext失败:', err)
-                })
-            }
-
-            const totalLength = audioBuffer.reduce((sum, buf) => sum + buf.length, 0)
-            if (totalLength === 0) {
-                console.warn('[WebSocket语音] 音频数据为空')
-                finishSegment()
-                return
-            }
-
-            const mergedBuffer = new Uint8Array(totalLength)
-            let offset = 0
-            for (const buf of audioBuffer) {
-                mergedBuffer.set(buf, offset)
-                offset += buf.length
-            }
-
-            if (WS_AUDIO_DEBUG) {
-                console.log('[WebSocket语音] 合并音频数据，总长度:', totalLength, '格式:', format)
-            }
-
-            const sampleRate = format.sampleRate || 16000
-            const channels = format.channels || 1
-            const bitDepth = format.bitDepth || 16
-
-            const bytesPerSample = bitDepth / 8
-            const samples = Math.floor(mergedBuffer.length / bytesPerSample)
-
-            if (samples === 0) {
-                console.warn('[WebSocket语音] 样本数为0')
-                finishSegment()
-                return
-            }
-
-            const pcmData = new Int16Array(samples)
-            const view = new DataView(mergedBuffer.buffer, mergedBuffer.byteOffset, mergedBuffer.byteLength)
-            for (let i = 0; i < samples; i++) {
-                const byteOffset = i * bytesPerSample
-                if (bytesPerSample === 2) {
-                    pcmData[i] = view.getInt16(byteOffset, true)
-                } else if (bytesPerSample === 1) {
-                    pcmData[i] = (mergedBuffer[byteOffset] - 128) << 8
-                } else {
-                    console.warn('[WebSocket语音] 暂不支持的位深度:', bitDepth)
-                    finishSegment()
-                    return
-                }
-            }
-
-            const float32Data = new Float32Array(pcmData.length)
-            for (let i = 0; i < pcmData.length; i++) {
-                float32Data[i] = Math.max(-1, Math.min(1, pcmData[i] / 32768.0))
-            }
-
-            const samplesPerChannel = Math.floor(float32Data.length / channels)
-            if (samplesPerChannel === 0) {
-                console.warn('[WebSocket语音] 每声道样本数为0')
-                finishSegment()
-                return
-            }
-
-            const decodedBuffer = audioContext.createBuffer(channels, samplesPerChannel, sampleRate)
-
-            if (channels === 1) {
-                decodedBuffer.getChannelData(0).set(float32Data)
-            } else {
-                for (let ch = 0; ch < channels; ch++) {
-                    const channelData = decodedBuffer.getChannelData(ch)
-                    for (let i = 0; i < samplesPerChannel; i++) {
-                        channelData[i] = float32Data[i * channels + ch]
-                    }
-                }
-            }
-
-            const source = audioContext.createBufferSource()
-            source.buffer = decodedBuffer
-            source.connect(audioContext.destination)
-            currentTTSAudioSourceRef.current = source
-
-            source.onended = () => {
-                if (WS_AUDIO_DEBUG) {
-                    console.log('[WebSocket语音] TTS音频播放完成')
-                }
-                if (currentTTSAudioSourceRef.current === source) {
-                    currentTTSAudioSourceRef.current = null
-                }
-                wsTTSPlayingRef.current = false
-                tryPlayNextWebSocketTTSQueue(audioContext)
-            }
-
-            source.start(0)
-            if (WS_AUDIO_DEBUG) {
-                console.log('[WebSocket语音] 开始播放TTS音频流，时长:', (samplesPerChannel / sampleRate).toFixed(2), '秒')
-            }
-        } catch (error) {
-            console.error('[WebSocket语音] 播放TTS音频流失败:', error)
-            finishSegment()
-        }
-    }
-
-    const enqueueWebSocketTTSPlayback = (
-        audioBuffer: Uint8Array[],
-        format: { sampleRate?: number; channels?: number; bitDepth?: number },
-        audioContext: AudioContext | null
-    ) => {
-        if (isGlobalMuted || audioBuffer.length === 0 || !audioContext) {
-            if (WS_AUDIO_DEBUG) {
-                console.warn('[WebSocket语音] 跳过入队:', { isGlobalMuted, bufferLength: audioBuffer.length, hasContext: !!audioContext })
-            }
-            return
-        }
-        wsTTSQueueRef.current.push({ chunks: audioBuffer, format })
-        tryPlayNextWebSocketTTSQueue(audioContext)
     }
 
     // 连接WebSocket语音服务（通用模式，支持多服务商）
@@ -765,6 +606,8 @@ const VoiceAssistant = () => {
             agentId: String(agentId),
             language,
             speaker: selectedSpeaker,
+            ttsProvider: ttsProvider || undefined,
+            voiceCloneId: selectedVoiceCloneId ?? undefined,
         })
         const newSocket = new WebSocket(wsUrl)
 
@@ -813,12 +656,9 @@ const VoiceAssistant = () => {
             }
         }
 
-        // TTS音频流处理
-        let ttsAudioBuffer: Uint8Array[] = []
         let ttsAudioFormat: { sampleRate?: number; channels?: number; bitDepth?: number } = {}
         let isRecordingStarted = false // 标记是否已开始录音
         let isTTSActive = false // 标记是否在TTS播放状态
-        let audioContext: AudioContext | null = null
 
         newSocket.onmessage = async (event) => {
             // 处理二进制消息（TTS音频流）- 支持ArrayBuffer和Blob
@@ -829,11 +669,7 @@ const VoiceAssistant = () => {
                 }
                 // 只有在TTS激活状态时才累积音频数据
                 if (!isGlobalMuted && isTTSActive && ttsAudioFormat.sampleRate) {
-                    // 累积音频数据
-                    ttsAudioBuffer.push(new Uint8Array(event.data))
-                    if (WS_AUDIO_DEBUG) {
-                        console.log('[WebSocket语音] 累积音频数据，当前缓冲区大小:', ttsAudioBuffer.length)
-                    }
+                    pcmTTSQueueRef.current?.feed(new Uint8Array(event.data))
                 }
                 return
             }
@@ -846,10 +682,7 @@ const VoiceAssistant = () => {
                 // WebSocket的Blob消息在TTS激活状态下应该是音频数据
                 if (!isGlobalMuted && isTTSActive && ttsAudioFormat.sampleRate) {
                     const arrayBuffer = await event.data.arrayBuffer()
-                    ttsAudioBuffer.push(new Uint8Array(arrayBuffer))
-                    if (WS_AUDIO_DEBUG) {
-                        console.log('[WebSocket语音] 累积音频数据，当前缓冲区大小:', ttsAudioBuffer.length)
-                    }
+                    pcmTTSQueueRef.current?.feed(new Uint8Array(arrayBuffer))
                 } else {
                     // 如果不是TTS激活状态，尝试作为文本消息处理（但这种情况应该很少）
                     // 先检查是否是有效的文本（尝试读取前几个字节）
@@ -956,35 +789,27 @@ const VoiceAssistant = () => {
                             channels: audioParams.channels || 1,
                             bitDepth: audioParams.bit_depth || 16
                         }
-                        ttsAudioBuffer = []
-
-                        // 创建AudioContext用于播放
-                        if (!audioContext) {
-                            audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({
-                                sampleRate: ttsAudioFormat.sampleRate
+                        const sampleRate = ttsAudioFormat.sampleRate || 16000
+                        const channels = ttsAudioFormat.channels || 1
+                        const bitDepth = ttsAudioFormat.bitDepth || 16
+                        if (!wsAudioContextRef.current) {
+                            wsAudioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({
+                                sampleRate,
                             })
                         }
-                        // 确保AudioContext处于running状态
-                        if (audioContext.state === 'suspended') {
-                            audioContext.resume().catch(err => {
-                                console.error('[WebSocket语音] 恢复AudioContext失败:', err)
-                            })
+                        if (wsAudioContextRef.current.state === 'suspended') {
+                            void wsAudioContextRef.current.resume()
                         }
+                        if (!pcmTTSQueueRef.current) {
+                            pcmTTSQueueRef.current = new PcmUtteranceQueue(wsAudioContextRef.current)
+                        }
+                        pcmTTSQueueRef.current.beginUtterance({ sampleRate, channels, bitDepth })
                     } else if (data.state === 'stop') {
-                        // TTS结束，播放累积的音频
-                        console.log('[WebSocket语音] TTS结束，音频缓冲区大小:', ttsAudioBuffer.length)
-                        // 标记TTS为非激活状态（在播放前就标记，防止新的音频数据进入）
+                        console.log('[WebSocket语音] TTS段结束（边收边播）')
                         isTTSActive = false
-                        if (!isGlobalMuted && ttsAudioBuffer.length > 0 && ttsAudioFormat.sampleRate) {
-                            // 复制缓冲区（因为playTTSAudioStream会清空它）
-                            const audioDataToPlay = [...ttsAudioBuffer]
-                            ttsAudioBuffer = [] // 立即清空，防止重复播放
-                            enqueueWebSocketTTSPlayback(audioDataToPlay, ttsAudioFormat, audioContext)
-                        } else {
-                            // 如果没有音频数据，清空缓冲区
-                            ttsAudioBuffer = []
+                        if (!isGlobalMuted && ttsAudioFormat.sampleRate) {
+                            pcmTTSQueueRef.current?.endUtterance()
                         }
-                        // 重置音频格式（防止后续二进制消息被误认为是音频）
                         ttsAudioFormat = {}
 
                         // 恢复发送音频数据（TTS播放完成后，延迟500ms以确保TTS音频播放完成）
@@ -1299,6 +1124,10 @@ const VoiceAssistant = () => {
                         apiKey,
                         apiSecret,
                         agentId: String(agentId),
+                        language,
+                        speaker: selectedSpeaker,
+                        ttsProvider: ttsProvider || undefined,
+                        voiceCloneId: selectedVoiceCloneId ?? undefined,
                     },
                 }),
             })
@@ -1382,66 +1211,66 @@ const VoiceAssistant = () => {
                     localStorage.setItem('hasVisitedVoiceAssistant', 'true');
                 }
 
-                // 如果有特定的 agentId（从 URL 参数获取），优先直接加载该助手配置
-                // 这样可以更快地显示配置，而不是等待助手列表加载完成
+                // 并行加载：助手详情、列表、音色；历史记录不阻塞主界面
+                const loadTasks: Promise<void>[] = []
+
                 if (agentId && agentId > 0) {
-                    try {
-                        const response = await getAssistant(agentId)
-                        const detail = response.data
-                        if (detail) {
-                            // 使用 ?? 来判断，确保空字符串也能正确赋值
-                            setSystemPrompt(detail.systemPrompt ?? '')
-                            setSelectedSpeaker(detail.speaker !== undefined && detail.speaker !== null && detail.speaker !== '' ? detail.speaker : '101016')
-                            setLanguage(detail.language !== undefined && detail.language !== null && detail.language !== '' ? detail.language : 'zh-cn')
-                            setTemperature(detail.temperature ?? 0.6)
-                            setLlmModel(detail.llmModel ?? '')
-                            setMaxTokens(detail.maxTokens ?? 150)
-                            // 加载训练音色配置（从后端读取，不自动选择）
-                            if (detail.voiceCloneId !== null && detail.voiceCloneId !== undefined) {
-                                setSelectedVoiceCloneId(detail.voiceCloneId)
-                            } else {
-                                setSelectedVoiceCloneId(null)
-                            }
-                            // 加载API密钥配置（即使为空字符串也要设置）
-                            setApiKey(detail.apiKey ?? '')
-                            setApiSecret(detail.apiSecret ?? '')
-                            // 加载TTS提供商（即使为空字符串也要设置）
-                            setTtsProvider(detail.ttsProvider ?? undefined)
-                            // 加载助手基本信息
-                            setAssistantName(detail.name ?? '')
-                            setAssistantDescription(detail.description ?? '')
-                            // 加载 VAD 配置
-                            setEnableVAD(detail.enableVAD !== undefined ? detail.enableVAD : true)
-                            setVadThreshold(detail.vadThreshold ?? 500)
-                            setVadConsecutiveFrames(detail.vadConsecutiveFrames ?? 2)
-                            // 加载 JSON 输出配置
-                            setEnableJSONOutput(detail.enableJSONOutput !== undefined ? detail.enableJSONOutput : false)
-                            setJsSourceIdState(detail.jsSourceId ?? '')
-                        }
-                    } catch (err) {
-                        console.warn('加载助手配置失败:', err)
-                    }
+                    lastSelectedAgentRef.current = agentId
+                    loadTasks.push(
+                        getAssistant(agentId)
+                            .then((response) => {
+                                const detail = response.data
+                                if (!detail) return
+                                setSystemPrompt(detail.systemPrompt ?? '')
+                                setSelectedSpeaker(detail.speaker !== undefined && detail.speaker !== null && detail.speaker !== '' ? detail.speaker : '101016')
+                                setLanguage(detail.language !== undefined && detail.language !== null && detail.language !== '' ? detail.language : 'zh-cn')
+                                setTemperature(detail.temperature ?? 0.6)
+                                setLlmModel(detail.llmModel ?? '')
+                                setMaxTokens(detail.maxTokens ?? 150)
+                                if (detail.voiceCloneId !== null && detail.voiceCloneId !== undefined) {
+                                    setSelectedVoiceCloneId(detail.voiceCloneId)
+                                } else {
+                                    setSelectedVoiceCloneId(null)
+                                }
+                                setApiKey(detail.apiKey ?? '')
+                                setApiSecret(detail.apiSecret ?? '')
+                                setTtsProvider(detail.ttsProvider ?? undefined)
+                                setAssistantName(detail.name ?? '')
+                                setEnableVAD(detail.enableVAD !== undefined ? detail.enableVAD : true)
+                                setVadThreshold(detail.vadThreshold ?? 500)
+                                setVadConsecutiveFrames(detail.vadConsecutiveFrames ?? 2)
+                                setEnableJSONOutput(detail.enableJSONOutput !== undefined ? detail.enableJSONOutput : false)
+                                setJsSourceIdState(detail.jsSourceId ?? '')
+                            })
+                            .catch((err) => {
+                                console.warn('加载助手配置失败:', err)
+                            }),
+                    )
                 }
 
-                // 并行加载助手列表（用于侧边栏显示，不阻塞配置加载）
-                void getAssistantList().then(response => {
-                    setAssistants(response.data as Assistant[])
-                }).catch(err => {
-                    console.warn('获取助手列表失败:', err)
-                })
+                loadTasks.push(
+                    getAssistantList()
+                        .then((response) => {
+                            setAssistants(response.data as Assistant[])
+                        })
+                        .catch((err) => {
+                            console.warn('获取助手列表失败:', err)
+                        }),
+                )
 
-                await refreshChatHistory()
+                loadTasks.push(
+                    getVoiceClones()
+                        .then((response) => {
+                            setVoiceClones(response.data || [])
+                        })
+                        .catch((err) => {
+                            console.warn('获取音色列表失败:', err)
+                            setVoiceClones([])
+                        }),
+                )
 
-                // 获取音色列表（但不自动选择，等待从助手配置加载）
-                try {
-                    const response = await getVoiceClones()
-                    const list = response.data || []
-                    setVoiceClones(list)
-                    // 移除自动选择逻辑，训练音色应该从后端助手配置中读取
-                } catch (err) {
-                    console.warn('获取音色列表失败:', err)
-                    setVoiceClones([])
-                }
+                await Promise.all(loadTasks)
+                void refreshChatHistory()
             } catch (err) {
                 console.error('初始化数据失败:', err)
                 setError('加载数据失败')
@@ -1727,7 +1556,6 @@ const VoiceAssistant = () => {
                 setTtsProvider(detail.ttsProvider ?? undefined)
                 // 加载助手基本信息
                 setAssistantName(detail.name ?? '')
-                setAssistantDescription(detail.description ?? '')
                 // 加载 VAD 配置
                 setEnableVAD(detail.enableVAD !== undefined ? detail.enableVAD : true)
                 setVadThreshold(detail.vadThreshold ?? 500)
@@ -1763,7 +1591,7 @@ const VoiceAssistant = () => {
     }
 
     // 添加助手
-    const handleAddAssistant = async (assistant: { name: string; description: string }) => {
+    const handleAddAssistant = async (assistant: { name: string; groupId?: number | null }) => {
         try {
             await createAssistant(assistant)
 
@@ -1801,7 +1629,6 @@ const VoiceAssistant = () => {
                 // 合并两个请求为一个
                 const response = await updateAssistant(agentId, {
                     name: assistantName,
-                    description: assistantDescription,
                     systemPrompt,
                     persona_tag: assistants.find(a => a.id === agentId)?.name || '',
                     temperature: temperature,
@@ -1937,8 +1764,7 @@ const VoiceAssistant = () => {
                 <div
                     className="w-64 flex flex-col border-r dark:border-neutral-700 bg-white dark:bg-neutral-800 overflow-hidden">
                     {/* 语音球区域 */}
-                    <div className="p-4 border-b dark:border-neutral-700">
-                        {/* 线路选择 */}
+                    <div className="px-3 pt-3 pb-2 border-b dark:border-neutral-700">
                         <LineSelector
                             lineMode={lineMode}
                             onLineModeChange={setLineMode}
@@ -1947,10 +1773,14 @@ const VoiceAssistant = () => {
                         <div
                             ref={voiceBallRef}
                             data-highlighted={showOnboarding && highlightedElement === 'voice-ball' ? 'true' : 'false'}
-                            className={highlightedElement === 'voice-ball' ? 'ring-2 ring-blue-500 rounded-xl p-1' : ''}
+                            className={cn(
+                                'flex flex-col items-center py-8 my-2',
+                                highlightedElement === 'voice-ball' && 'ring-2 ring-blue-500 rounded-xl'
+                            )}
                         >
                             <VoiceBall
-                                isCalling={isCalling || isConnecting}
+                                isCalling={isCalling}
+                                isConnecting={isConnecting}
                                 onToggleCall={() => {
                                     return (isCalling || isConnecting) ? stopCall() : startCall()
                                 }}
@@ -1964,30 +1794,12 @@ const VoiceAssistant = () => {
                                 />
                             )}
                         </div>
-
-                        {/* 状态指示 */}
-                        <div className="mt-4 text-center">
-                            <h2 className={`text-lg font-bold transition-all duration-300 ${
-                                (isCalling || isConnecting) ? 'text-purple-600' : 'text-blue-500'
-                            }`}>
-                                {isCalling ? '通话中...' : isConnecting ? '连接中...' : '待机中'}
-                            </h2>
-                            <p className="text-xs text-gray-500 mt-1">
-                                {assistants.find(a => a.id === agentId)?.name || '未选择智能体'}
-                            </p>
-                            {isCalling && (
-                                <p className="text-sm text-purple-600 mt-2 font-mono">
-                                    {Math.floor(callDuration / 60).toString().padStart(2, '0')}:
-                                    {(callDuration % 60).toString().padStart(2, '0')}
-                                </p>
-                            )}
-                        </div>
                     </div>
 
                     {/* 历史会话列表 */}
                     <ChatHistory
                         chatHistory={chatHistory}
-                        loading={loading}
+                        loading={historyLoading}
                         error={error}
                         onSessionClick={handleSessionClick}
                     />
@@ -2100,9 +1912,7 @@ const VoiceAssistant = () => {
                                 onLlmModelChange={setLlmModel}
                                 onJsSourceIdChange={setJsSourceIdState}
                                 assistantName={assistantName}
-                                assistantDescription={assistantDescription}
                                 onAssistantNameChange={setAssistantName}
-                                onAssistantDescriptionChange={setAssistantDescription}
                                 enableVAD={enableVAD}
                                 vadThreshold={vadThreshold}
                                 vadConsecutiveFrames={vadConsecutiveFrames}

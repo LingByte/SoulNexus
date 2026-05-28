@@ -116,7 +116,7 @@ func (h *AnthropicHandler) QueryWithOptions(text string, options *QueryOptions) 
 	userMsgs := chatMessagesToAnthropic(chatMessages)
 	reqBody := map[string]any{
 		"model":       model,
-		"max_tokens":  max(256, options.MaxTokens),
+		"max_tokens":  anthropicOutputMaxTokens(options.MaxTokens),
 		"temperature": options.Temperature,
 		"messages":    userMsgs,
 	}
@@ -215,7 +215,7 @@ func (h *AnthropicHandler) QueryStream(text string, options *QueryOptions, callb
 	chatMessages := buildShortTermMessages(text, options)
 	reqBody := map[string]any{
 		"model":       model,
-		"max_tokens":  max(256, options.MaxTokens),
+		"max_tokens":  anthropicOutputMaxTokens(options.MaxTokens),
 		"temperature": options.Temperature,
 		"messages":    chatMessagesToAnthropic(chatMessages),
 		"stream":      true,

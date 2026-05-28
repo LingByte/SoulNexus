@@ -32,8 +32,7 @@ const Assistants: React.FC = () => {
     const k = keyword.trim().toLowerCase();
     if (!k) return assistants;
     return assistants.filter(a =>
-      (a.name || '').toLowerCase().includes(k) ||
-      (a.description || '').toLowerCase().includes(k),
+      (a.name || '').toLowerCase().includes(k),
     );
   }, [assistants, keyword]);
 
@@ -51,7 +50,7 @@ const Assistants: React.FC = () => {
     fetchAssistants();
   }, []);
 
-  const handleAddAssistant = async (assistant: { name: string; description: string; groupId?: number | null }) => {
+  const handleAddAssistant = async (assistant: { name: string; groupId?: number | null }) => {
     try {
       await createAssistant(assistant);
       await fetchAssistants();
@@ -239,10 +238,6 @@ const Assistants: React.FC = () => {
                       </div>
                     </div>
                   </div>
-
-                  <p className="mt-3 text-[13px] text-gray-600 dark:text-gray-400 leading-relaxed line-clamp-2 min-h-[2.5rem]">
-                    {assistant.description || t('assistants.noDescription')}
-                  </p>
 
                   {(assistant.personaTag || typeof assistant.temperature === 'number' || typeof assistant.maxTokens === 'number') && (
                     <div className="mt-3 flex items-center gap-1.5 flex-wrap">

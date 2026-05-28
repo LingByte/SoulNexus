@@ -18,10 +18,11 @@ const maxRelayAttemptErrBytes = 6000
 var relayUpstreamHTTPClient = &http.Client{
 	Timeout: 0,
 	Transport: &http.Transport{
-		MaxIdleConns:        64,
-		MaxIdleConnsPerHost: 16,
-		IdleConnTimeout:     90 * time.Second,
-		DisableCompression:  true,
+		MaxIdleConns:          64,
+		MaxIdleConnsPerHost:   16,
+		IdleConnTimeout:       90 * time.Second,
+		ResponseHeaderTimeout: 45 * time.Second,
+		DisableCompression:    true,
 	},
 }
 

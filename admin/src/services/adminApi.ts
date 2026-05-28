@@ -1171,7 +1171,6 @@ export interface AdminAssistant {
   userId: number
   groupId?: number
   name: string
-  description?: string
   systemPrompt?: string
   temperature?: number
   maxTokens?: number

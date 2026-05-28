@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import React, { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { ChevronDown, Search } from 'lucide-react'
 import { cn } from '@/utils/cn.ts'
 import { createPortal } from 'react-dom'
@@ -150,6 +150,24 @@ const SelectValue: React.FC<SelectValueProps> = ({ placeholder = '请选择', ch
   return <span className={cn('truncate', !value && 'text-gray-500')}>{displayValue}</span>
 }
 
+function collectSelectItemLabels(
+  nodes: ReactNode,
+  register: (value: string, label: string) => void,
+) {
+  React.Children.forEach(nodes, (child) => {
+    if (!React.isValidElement(child)) return
+    const props = child.props as SelectItemProps
+    if (props.value === undefined) return
+    const text =
+      typeof props.children === 'string'
+        ? props.children
+        : Array.isArray(props.children)
+          ? props.children.filter((c) => typeof c === 'string').join('')
+          : String(props.value)
+    register(props.value, text || props.value)
+  })
+}
+
 const SelectContent: React.FC<SelectContentProps> = ({
   children,
   className = '',
@@ -157,8 +175,12 @@ const SelectContent: React.FC<SelectContentProps> = ({
   searchPlaceholder = '搜索选项...',
   emptyText = '暂无匹配项',
 }) => {
-  const { isOpen, searchTerm, setSearchTerm } = useSelectContext()
+  const { isOpen, searchTerm, setSearchTerm, registerItemLabel } = useSelectContext()
   const { setPortalElement } = useSelectContext()
+
+  useLayoutEffect(() => {
+    collectSelectItemLabels(children, registerItemLabel)
+  }, [children, registerItemLabel])
   const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({})
   const [menuWidth, setMenuWidth] = useState<number>(0)
   const anchorRef = useRef<HTMLDivElement>(null)

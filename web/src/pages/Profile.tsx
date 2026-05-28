@@ -957,44 +957,21 @@ const Profile = () => {
         )}
 
                 {section === 'locale' && (
-                  <Card>
-                    <div className="p-6 space-y-6">
-                      <div>
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">语言、时区与外观</h3>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                          设置界面语言、默认时区与外观模式；保存后写入账户。外观模式保存后立即应用到本机。
-                        </p>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-4">
+                    <p className="text-xs text-slate-500 dark:text-gray-400">
+                      设置界面语言、默认时区与外观模式；保存后写入账户，外观模式会立即应用到本机。
+                    </p>
+                    <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-950">
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            {t('profile.timezone')}
-                          </label>
-                          <Select
-                            value={formData.timezone}
-                            onValueChange={(v) => setFormData((prev) => ({ ...prev, timezone: v }))}
-                          >
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder={t('profile.timezone')} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="Asia/Shanghai">Asia/Shanghai</SelectItem>
-                              <SelectItem value="Asia/Tokyo">Asia/Tokyo</SelectItem>
-                              <SelectItem value="America/New_York">America/New_York</SelectItem>
-                              <SelectItem value="Europe/London">Europe/London</SelectItem>
-                              <SelectItem value="UTC">UTC</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          <p className="mb-1.5 text-sm font-medium text-slate-700 dark:text-gray-300">
                             {t('profile.language')}
-                          </label>
+                          </p>
                           <Select
                             value={formData.locale}
                             onValueChange={(v) => setFormData((prev) => ({ ...prev, locale: v }))}
                           >
-                            <SelectTrigger className="w-full">
+                            <SelectTrigger className="h-9 w-full text-sm">
                               <SelectValue placeholder={t('profile.language')} />
                             </SelectTrigger>
                             <SelectContent>
@@ -1006,19 +983,37 @@ const Profile = () => {
                             </SelectContent>
                           </Select>
                         </div>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          <p className="mb-1.5 text-sm font-medium text-slate-700 dark:text-gray-300">
+                            {t('profile.timezone')}
+                          </p>
+                          <Select
+                            value={formData.timezone}
+                            onValueChange={(v) => setFormData((prev) => ({ ...prev, timezone: v }))}
+                          >
+                            <SelectTrigger className="h-9 w-full text-sm">
+                              <SelectValue placeholder={t('profile.timezone')} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Asia/Shanghai">Asia/Shanghai (UTC+8)</SelectItem>
+                              <SelectItem value="Asia/Tokyo">Asia/Tokyo (UTC+9)</SelectItem>
+                              <SelectItem value="America/New_York">America/New_York</SelectItem>
+                              <SelectItem value="Europe/London">Europe/London</SelectItem>
+                              <SelectItem value="UTC">UTC</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="sm:col-span-2">
+                          <p className="mb-1.5 text-sm font-medium text-slate-700 dark:text-gray-300">
                             外观模式
-                          </label>
+                          </p>
                           <Select
                             value={formData.themeMode}
                             onValueChange={(v) =>
                               setFormData((prev) => ({ ...prev, themeMode: v as ThemeMode }))
                             }
                           >
-                            <SelectTrigger className="w-full">
+                            <SelectTrigger className="h-9 w-full text-sm">
                               <SelectValue placeholder="外观模式" />
                             </SelectTrigger>
                             <SelectContent>
@@ -1029,11 +1024,19 @@ const Profile = () => {
                           </Select>
                         </div>
                       </div>
-                      <Button variant="primary" size="sm" onClick={() => void handleSave()} disabled={isLoading} leftIcon={<Save className="w-4 h-4" />}>
-                        {isLoading ? t('profile.saving') : t('profile.save')}
-                      </Button>
+                      <div className="mt-4 flex justify-end border-t border-slate-100 pt-4 dark:border-neutral-800">
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => void handleSave()}
+                          disabled={isLoading}
+                          leftIcon={<Save className="h-4 w-4" />}
+                        >
+                          {isLoading ? t('profile.saving') : t('profile.save')}
+                        </Button>
+                      </div>
                     </div>
-                  </Card>
+                  </div>
                 )}
 
                 {/* 账号、第三方绑定与安全 — 各块标题与分栏样式统一 */}

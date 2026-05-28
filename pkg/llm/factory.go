@@ -51,6 +51,9 @@ func NewProviderHandler(ctx context.Context, provider string, llmOptions *LLMOpt
 	case ProviderOllama:
 		return NewOllamaHandler(ctx, &opts)
 	case ProviderAlibaba:
+		if dashscopeCompatibleMode(opts.BaseURL) {
+			return newOpenAICompatibleHandler(ctx, &opts, LLM_ALIBABA)
+		}
 		return NewAlibabaHandler(ctx, &opts)
 	case ProviderAnthropic:
 		return NewAnthropicHandler(ctx, &opts)

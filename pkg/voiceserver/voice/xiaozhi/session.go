@@ -21,6 +21,7 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/asr"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/gateway"
+	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/sessionctx"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/recorder"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/tts"
 	"github.com/LingByte/SoulNexus/pkg/realtime"
@@ -210,6 +211,13 @@ func (s *Server) Handle(w http.ResponseWriter, r *http.Request) {
 		}
 		cfg.DialogWSURL = merged
 	}
+
+	if payloadRaw != "" {
+		if spec := sessionctx.ParseDialogPayload([]byte(payloadRaw)); spec != nil {
+			sessionctx.DefaultRegistry.Put(callID, spec)
+		}
+	}
+	defer sessionctx.DefaultRegistry.Delete(callID)
 
 	sess := newSession(cfg, conn, callID, deviceID, macAddr)
 	sess.run(r.Context())
