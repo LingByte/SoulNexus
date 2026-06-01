@@ -188,6 +188,17 @@ func MakeSTTReply(sessionID, text string) []byte {
 	return b
 }
 
+// MakeLLMReply pushes the assistant's text to browser / hardware clients
+// that render a chat transcript alongside audio (VoiceAssistant page expects
+// {"type":"llm_response","text":...}).
+func MakeLLMReply(text string) []byte {
+	b, _ := json.Marshal(map[string]interface{}{
+		"type": "llm_response",
+		"text": text,
+	})
+	return b
+}
+
 // MakeTTSStateReply signals the start / stop of a TTS playback span.
 // codec ("opus" or "pcm") tells the firmware how to decode the binary
 // frames that follow until the matching stop. TTS start uses 60 ms frames

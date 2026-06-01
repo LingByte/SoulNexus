@@ -121,8 +121,8 @@ func buildVoiceConfig() *VoiceServerConfig {
 
 		TTSPrewarm:                  voiceBool("VOICE_TTS_PREWARM", false),
 		BargeIn:                     voiceBool("VOICE_BARGE_IN", true),
-		BargeInThreshold:            voiceFloat("VOICE_BARGE_IN_THRESHOLD", 1500),
-		BargeInFrames:               voiceInt("VOICE_BARGE_IN_FRAMES", 2),
+		BargeInThreshold:            voiceFloat("VOICE_BARGE_IN_THRESHOLD", 4500),
+		BargeInFrames:               voiceInt("VOICE_BARGE_IN_FRAMES", 5),
 		Denoise:                     voiceBool("VOICE_DENOISE", false),
 		ASRSentenceFilter:           voiceBool("VOICE_ASR_SENTENCE_FILTER", false),
 		ASRSentenceFilterSimilarity: voiceFloat("VOICE_ASR_SENTENCE_FILTER_SIMILARITY", 0.85),
