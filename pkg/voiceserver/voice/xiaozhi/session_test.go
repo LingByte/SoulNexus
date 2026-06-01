@@ -28,11 +28,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/recognizer"
 	voicetts "github.com/LingByte/SoulNexus/pkg/voiceserver/voice/tts"
 
 	"github.com/gorilla/websocket"
+	"go.uber.org/zap"
 )
+
+func TestMain(m *testing.M) {
+	_ = logger.Init(&logger.LogConfig{Level: "error"}, "test")
+	m.Run()
+}
 
 // ----- Stub recognizer -----
 
@@ -221,6 +228,7 @@ func TestXiaozhi_EndToEnd_PCMRoundTrip(t *testing.T) {
 		SessionFactory: stubFactory{},
 		DialogWSURL:    dialogWS,
 		CallIDPrefix:   "xz-test",
+		Logger:         zap.NewNop(),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -256,6 +264,9 @@ func TestXiaozhi_EndToEnd_PCMRoundTrip(t *testing.T) {
 	}
 	if !strings.Contains(joined, `"type":"stt"`) {
 		t.Errorf("device missing stt push:\n%s", joined)
+	}
+	if !strings.Contains(joined, `"type":"llm_response"`) {
+		t.Errorf("device missing llm_response push:\n%s", joined)
 	}
 	if !strings.Contains(joined, `"state":"start"`) {
 		t.Errorf("device missing tts:start envelope:\n%s", joined)

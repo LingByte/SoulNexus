@@ -282,6 +282,11 @@ type session struct {
 	// double-firing it from OnTurn.
 	ttsActive atomic.Bool
 
+	// turnLLMText accumulates segmented tts.speak chunks for the current
+	// dialog turn so we can emit one llm_response when the turn completes.
+	// Written only from the gateway tts worker goroutine.
+	turnLLMText string
+
 	// persister is built from cfg.PersisterFactory at hello time and
 	// used through the call lifecycle. nil = persistence disabled.
 	persister gateway.SessionPersister
@@ -528,10 +533,17 @@ func (s *session) handleHello(ctx context.Context, raw []byte) {
 			s.writeText(MakeTTSStateReplyFrames(s.sessionID, "start", s.outFormat, s.ttsWireFrameMs))
 		},
 		OnTurn: func(t gateway.TurnEvent) {
+			if t.LLMText != "" {
+				s.turnLLMText += t.LLMText
+			}
 			if !t.MoreSpeaksQueued {
 				if s.ttsActive.CompareAndSwap(true, false) {
 					s.writeText(MakeTTSStateReply(s.sessionID, "stop", s.outFormat))
 				}
+				if full := strings.TrimSpace(s.turnLLMText); full != "" {
+					s.writeText(MakeLLMReply(full))
+				}
+				s.turnLLMText = ""
 			}
 			if s.persister != nil {
 				s.persister.OnTurn(context.Background(), t)
@@ -674,6 +686,14 @@ func (s *session) handleAudio(ctx context.Context, frame []byte) {
 		return
 	}
 	if s.asrPipe == nil || !s.listening.Load() {
+		return
+	}
+	// ESP32 / hardware keeps streaming mic frames during TTS playback.
+	// Speaker echo into the mic false-triggers server-side VAD barge-in
+	// and cuts the AI mid-sentence. Match the browser client: don't feed
+	// uplink PCM into ASR while we're inside a tts:start…tts:stop span.
+	// Device-initiated interrupt still works via handleAbort().
+	if s.ttsActive.Load() {
 		return
 	}
 	var pcm []byte
