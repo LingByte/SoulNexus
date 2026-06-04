@@ -613,3 +613,17 @@
     transform: translateY(0);
   }
 }
+
+/* ArcoDesign Select 下拉菜单样式修复 */
+.arco-select-popup {
+  z-index: 9999 !important;
+}
+
+.arco-select-view {
+  cursor: pointer;
+}
+
+.arco-select-view-single {
+  min-height: 32px;
+  padding: 4px 12px;
+}
