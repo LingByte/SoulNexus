@@ -11,10 +11,9 @@ import VoiceTrainingVolcengine from "@/pages/VoiceTraining/VoiceTrainingVolcengi
 import DevErrorHandler from "@/components/Dev/DevErrorHandler.tsx";
 import GlobalSearch from "@/components/UI/GlobalSearch.tsx";
 import NotificationContainer from "@/components/UI/NotificationContainer.tsx";
-import { ToastProvider } from "@/components/UI/ToastContainer.tsx";
+import DSProvider from "@/ds/Provider.tsx";
 import Profile from "@/pages/Profile.tsx";
 import ProfileLayout from '@/pages/profile/ProfileLayout.tsx';
-import AnimationShowcase from "@/pages/AnimationShowcase.tsx";
 import Layout from "@/components/Layout/Layout.tsx";
 import ResetPassword from "@/pages/ResetPassword.tsx";
 import ProtectedRoute from "@/components/Auth/ProtectedRoute.tsx";
@@ -132,13 +131,6 @@ function AppRoutes() {
                             <ProtectedRoute>
                                 <Layout>
                                     <VoiceTrainingVolcengine />
-                                </Layout>
-                            </ProtectedRoute>
-                        } />
-                        <Route path="/animate" element={
-                            <ProtectedRoute>
-                                <Layout>
-                                    <AnimationShowcase />
                                 </Layout>
                             </ProtectedRoute>
                         } />
@@ -312,11 +304,11 @@ function AppRoutes() {
 function App() {
     return (
         <ErrorBoundary>
-            <ToastProvider>
+            <DSProvider>
                 <Router>
                     <AppRoutes />
                 </Router>
-            </ToastProvider>
+            </DSProvider>
         </ErrorBoundary>
     );
 }

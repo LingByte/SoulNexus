@@ -4,8 +4,6 @@ package handlers
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
-	authmodel "github.com/LingByte/SoulNexus/internal/models/auth"
-	"github.com/LingByte/SoulNexus/internal/modelbase"
 	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
@@ -30,6 +28,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/LingByte/SoulNexus/internal/models"
+	authmodel "github.com/LingByte/SoulNexus/internal/models/auth"
 
 	SoulNexus "github.com/LingByte/SoulNexus"
 	"github.com/LingByte/SoulNexus/internal/config"
@@ -760,7 +761,7 @@ func (h *Handlers) finishWechatSessionSuccess(c *gin.Context, session *wechatLog
 		return nil, errors.New("wechat user is not bound")
 	}
 	var wxFresh authmodel.User
-	if err := h.db.Where("id = ? AND is_deleted = ?", user.ID, modelbase.SoftDeleteStatusActive).First(&wxFresh).Error; err == nil && authmodel.AccountDeletionPending(&wxFresh) {
+	if err := h.db.Where("id = ? AND is_deleted = ?", user.ID, models.SoftDeleteStatusActive).First(&wxFresh).Error; err == nil && authmodel.AccountDeletionPending(&wxFresh) {
 		effective := ""
 		if wxFresh.AccountDeletionEffectiveAt != nil {
 			effective = wxFresh.AccountDeletionEffectiveAt.UTC().Format(time.RFC3339)
@@ -1006,7 +1007,7 @@ func oidcUserFromContextOrSession(c *gin.Context) *authmodel.User {
 		return nil
 	}
 	return &authmodel.User{
-		BaseModel: modelbase.BaseModel{ID: uid},
+		BaseModel: models.BaseModel{ID: uid},
 		Status:    authmodel.UserStatusActive,
 	}
 }
@@ -1173,7 +1174,7 @@ func (h *Handlers) processOIDCTokenReq(c *gin.Context, req oidcTokenReq) {
 		return
 	}
 	var oidcFresh authmodel.User
-	if err := h.db.Where("id = ? AND is_deleted = ?", user.ID, modelbase.SoftDeleteStatusActive).First(&oidcFresh).Error; err == nil && authmodel.AccountDeletionPending(&oidcFresh) {
+	if err := h.db.Where("id = ? AND is_deleted = ?", user.ID, models.SoftDeleteStatusActive).First(&oidcFresh).Error; err == nil && authmodel.AccountDeletionPending(&oidcFresh) {
 		effective := ""
 		if oidcFresh.AccountDeletionEffectiveAt != nil {
 			effective = oidcFresh.AccountDeletionEffectiveAt.UTC().Format(time.RFC3339)
@@ -1229,7 +1230,7 @@ func (h *Handlers) handleRefreshToken(c *gin.Context) {
 		return
 	}
 	user := &authmodel.User{
-		BaseModel: modelbase.BaseModel{ID: payload.UserID},
+		BaseModel: models.BaseModel{ID: payload.UserID},
 		Email:     payload.Email,
 		RoleSlugs: authmodel.RoleSlugsFromJWTClaim(payload.Role),
 		Status:    authmodel.UserStatusActive,
@@ -1432,7 +1433,7 @@ func (h *Handlers) handleGitHubCallback(c *gin.Context) {
 		}
 	}
 	var ghFresh authmodel.User
-	if err := h.db.Where("id = ? AND is_deleted = ?", user.ID, modelbase.SoftDeleteStatusActive).First(&ghFresh).Error; err == nil && authmodel.AccountDeletionPending(&ghFresh) {
+	if err := h.db.Where("id = ? AND is_deleted = ?", user.ID, models.SoftDeleteStatusActive).First(&ghFresh).Error; err == nil && authmodel.AccountDeletionPending(&ghFresh) {
 		c.Redirect(http.StatusFound, revokeAccountDeletionBrowserURL(c, user.Email))
 		return
 	}

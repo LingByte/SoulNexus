@@ -12,8 +12,8 @@ import Card, { CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import Badge from '@/components/UI/Badge'
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/UI/Select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/UI/Tabs'
-import FadeIn from '@/components/Animations/FadeIn'
-import LoadingAnimation from '@/components/Animations/LoadingAnimation'
+import FadeIn from '@/components/FadeIn.tsx'
+import LoadingAnimation from '@/components/LoadingAnimation.tsx'
 import { showAlert } from '@/utils/notification'
 import {
   getUsageStatistics,

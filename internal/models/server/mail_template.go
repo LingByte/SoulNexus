@@ -2,20 +2,20 @@
 // SPDX-License-Identifier: AGPL-3.0
 
 package svcmodels
-import (
 
+import (
 	"errors"
 	"regexp"
 	"sort"
 	"strings"
 
+	"github.com/LingByte/SoulNexus/internal/models"
 	"gorm.io/gorm"
-	"github.com/LingByte/SoulNexus/internal/modelbase"
 )
 
 // MailTemplate 可持久化的邮件模板，供发信侧渲染主题/正文（占位符 {{Name}} 由业务层注入）。
 type MailTemplate struct {
-	modelbase.BaseModel
+	models.BaseModel
 	OrgID       uint   `json:"orgId" gorm:"uniqueIndex:idx_mail_tpl_org_code_locale;not null;default:0;comment:tenant id (0=system)"`
 	Code        string `json:"code" gorm:"uniqueIndex:idx_mail_tpl_org_code_locale;size:64;not null;comment:模板编码"`
 	Name        string `json:"name" gorm:"size:128;not null;comment:模板名称"`

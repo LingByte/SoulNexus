@@ -7,7 +7,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/LingByte/SoulNexus/internal/modelbase"
+	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/utils"
@@ -20,7 +20,7 @@ func UserFromAccessPayload(p *utils.AccessPayload) *User {
 		return nil
 	}
 	return &User{
-		BaseModel:      modelbase.BaseModel{ID: p.UserID},
+		BaseModel:      models.BaseModel{ID: p.UserID},
 		Email:          p.Email,
 		RoleSlugs:      RoleSlugsFromJWTClaim(p.Role),
 		PermissionKeys: append([]string(nil), p.Perms...),

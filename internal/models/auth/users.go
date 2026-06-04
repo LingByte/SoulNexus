@@ -1,16 +1,16 @@
 package auth
+
 // Copyright (c) 2026 LingByte. All rights reserved.
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
-
-
 	"errors"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/LingByte/SoulNexus/internal/config"
+	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/response"
@@ -19,8 +19,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
-	"github.com/LingByte/SoulNexus/internal/modelbase"
-	)
+)
 
 // 用户来源（注册 / 创建渠道）
 const (
@@ -188,7 +187,7 @@ func NormalizeThemeMode(s string) string {
 // User is the authentication and account row (users table). Presentation, prefs,
 // and extended fields live in UserProfile (JSON field `profile`).
 type User struct {
-	modelbase.BaseModel
+	models.BaseModel
 	Email                      string      `json:"email" gorm:"size:128;uniqueIndex"`
 	Password                   string      `json:"-" gorm:"size:128"`
 	Status                     string      `json:"status" gorm:"size:32;index;default:'active';comment:Account status"`
@@ -196,22 +195,22 @@ type User struct {
 	LastLoginIP                string      `json:"-" gorm:"size:128"`
 	Source                     string      `json:"source" gorm:"size:64;index"`
 	AuthToken                  string      `json:"token,omitempty" gorm:"-"`
-	EmailVerified              bool        `json:"emailVerified" gorm:"default:false"`           // 邮箱已验证
-	PhoneVerified              bool        `json:"phoneVerified" gorm:"default:false"`           // 手机已验证
-	TwoFactorEnabled           bool        `json:"twoFactorEnabled" gorm:"default:false"`        // 双因素认证
-	TwoFactorSecret            string      `json:"-" gorm:"size:128"`                            // 双因素认证密钥
-	EmailVerifyToken           string      `json:"-" gorm:"size:128"`                            // 邮箱验证令牌
-	PhoneVerifyToken           string      `json:"-" gorm:"size:128"`                            // 手机验证令牌
-	PasswordResetToken         string      `json:"-" gorm:"size:128"`                            // 密码重置令牌
-	PasswordResetExpires       *time.Time  `json:"-"`                                            // 密码重置过期时间
-	EmailVerifyExpires         *time.Time  `json:"-"`                                            // 邮箱验证过期时间
-	LoginCount                 int         `json:"loginCount" gorm:"default:0"`                  // 登录次数
-	LastPasswordChange         *time.Time  `json:"lastPasswordChange,omitempty"` // 最后密码修改时间
+	EmailVerified              bool        `json:"emailVerified" gorm:"default:false"`    // 邮箱已验证
+	PhoneVerified              bool        `json:"phoneVerified" gorm:"default:false"`    // 手机已验证
+	TwoFactorEnabled           bool        `json:"twoFactorEnabled" gorm:"default:false"` // 双因素认证
+	TwoFactorSecret            string      `json:"-" gorm:"size:128"`                     // 双因素认证密钥
+	EmailVerifyToken           string      `json:"-" gorm:"size:128"`                     // 邮箱验证令牌
+	PhoneVerifyToken           string      `json:"-" gorm:"size:128"`                     // 手机验证令牌
+	PasswordResetToken         string      `json:"-" gorm:"size:128"`                     // 密码重置令牌
+	PasswordResetExpires       *time.Time  `json:"-"`                                     // 密码重置过期时间
+	EmailVerifyExpires         *time.Time  `json:"-"`                                     // 邮箱验证过期时间
+	LoginCount                 int         `json:"loginCount" gorm:"default:0"`           // 登录次数
+	LastPasswordChange         *time.Time  `json:"lastPasswordChange,omitempty"`          // 最后密码修改时间
 	Phone                      string      `json:"phone,omitempty" gorm:"size:64;index"`
 	AccountDeletionRequestedAt *time.Time  `json:"accountDeletionRequestedAt,omitempty"`
 	AccountDeletionEffectiveAt *time.Time  `json:"accountDeletionEffectiveAt,omitempty" gorm:"index"`
-	Locale   string `json:"locale,omitempty" gorm:"column:preferred_locale;size:32"`
-	Timezone string `json:"timezone,omitempty" gorm:"column:preferred_timezone;size:128"`
+	Locale                     string      `json:"locale,omitempty" gorm:"column:preferred_locale;size:32"`
+	Timezone                   string      `json:"timezone,omitempty" gorm:"column:preferred_timezone;size:128"`
 	ThemeMode                  string      `json:"themeMode,omitempty" gorm:"size:16"` // light | dark | system
 	Profile                    UserProfile `json:"profile,omitempty" gorm:"foreignKey:UserID"`
 	RoleSlugs                  []string    `json:"roleSlugs,omitempty" gorm:"-"`
@@ -338,7 +337,7 @@ func scopeUserWithProfile(db *gorm.DB) *gorm.DB {
 func GetUserByUID(db *gorm.DB, userID uint) (*User, error) {
 	var val User
 	tbl := constants.USER_TABLE_NAME
-	err := scopeUserWithProfile(db).Where(tbl+".id = ? AND "+tbl+".status = ? AND "+tbl+".is_deleted = ?", userID, UserStatusActive, modelbase.SoftDeleteStatusActive).First(&val).Error
+	err := scopeUserWithProfile(db).Where(tbl+".id = ? AND "+tbl+".status = ? AND "+tbl+".is_deleted = ?", userID, UserStatusActive, models.SoftDeleteStatusActive).First(&val).Error
 	if err != nil {
 		return nil, err
 	}
@@ -349,7 +348,7 @@ func GetUserByUID(db *gorm.DB, userID uint) (*User, error) {
 func GetUserByID(db *gorm.DB, userID uint) (*User, error) {
 	var u User
 	tbl := constants.USER_TABLE_NAME
-	err := scopeUserWithProfile(db).Where(tbl+".id = ? AND "+tbl+".is_deleted = ?", userID, modelbase.SoftDeleteStatusActive).First(&u).Error
+	err := scopeUserWithProfile(db).Where(tbl+".id = ? AND "+tbl+".is_deleted = ?", userID, models.SoftDeleteStatusActive).First(&u).Error
 	if err != nil {
 		return nil, err
 	}
@@ -441,7 +440,7 @@ func CreateUserByEmailWithMeta(db *gorm.DB, username, display, email, password, 
 	}
 
 	user := User{
-		BaseModel: modelbase.BaseModel{},
+		BaseModel: models.BaseModel{},
 		Email:     email,
 		Password:  HashPassword(password),
 		Status:    status,
@@ -489,7 +488,7 @@ func CreateUserWithMeta(db *gorm.DB, email, password, source, status string) (*U
 		status = UserStatusActive
 	}
 	user := User{
-		BaseModel: modelbase.BaseModel{},
+		BaseModel: models.BaseModel{},
 		Email:     email,
 		Password:  HashPassword(password),
 		Status:    status,
@@ -906,4 +905,3 @@ func IncrementLoginCount(db *gorm.DB, user *User) error {
 	user.LoginCount++
 	return nil
 }
-

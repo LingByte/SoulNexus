@@ -4,9 +4,6 @@ package server
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
-	"github.com/LingByte/SoulNexus/internal/models/auth"
-	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
-	"github.com/LingByte/SoulNexus/internal/modelbase"
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
@@ -16,6 +13,10 @@ import (
 	"strconv"
 	"text/template"
 	"time"
+
+	"github.com/LingByte/SoulNexus/internal/models"
+	"github.com/LingByte/SoulNexus/internal/models/auth"
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 
 	"github.com/LingByte/SoulNexus"
 	"github.com/LingByte/SoulNexus/internal/config"
@@ -59,7 +60,7 @@ func (h *Handlers) CreateAgent(c *gin.Context) {
 		// Check if the user is the creator or administrator of the organization
 		if group.CreatorID != user.ID {
 			var member svcmodels.GroupMember
-			if err := h.db.Where("group_id = ? AND user_id = ? AND role = ?", *input.GroupID, user.ID, modelbase.GroupRoleAdmin).First(&member).Error; err != nil {
+			if err := h.db.Where("group_id = ? AND user_id = ? AND role = ?", *input.GroupID, user.ID, models.GroupRoleAdmin).First(&member).Error; err != nil {
 				response.Fail(c, "Insufficient permissions", "Only creators or administrators can create organization-shared assistants")
 				return
 			}

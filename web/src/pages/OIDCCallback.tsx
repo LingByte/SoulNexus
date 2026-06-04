@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import LoadingAnimation from '@/components/Animations/LoadingAnimation'
+import LoadingAnimation from '@/components/LoadingAnimation.tsx'
 import { useAuthStore } from '@/stores/authStore'
 import { showAlert } from '@/utils/notification'
 import { exchangeOIDCCode, resolveNextPathFromState } from '@/utils/sso'

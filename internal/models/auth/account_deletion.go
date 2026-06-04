@@ -1,10 +1,9 @@
 package auth
+
 // Copyright (c) 2026 LingByte. All rights reserved.
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
-
-
 	"errors"
 	"fmt"
 	"os"
@@ -12,9 +11,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/LingByte/SoulNexus/internal/models"
 	"gorm.io/gorm"
-	"github.com/LingByte/SoulNexus/internal/modelbase"
-	)
+)
 
 // DefaultAccountDeletionCooldown 默认冷静期 72 小时（3 天），可通过环境变量 ACCOUNT_DELETION_COOLDOWN_HOURS 覆盖。
 func DefaultAccountDeletionCooldown() time.Duration {
@@ -32,7 +31,7 @@ func AccountDeletionPending(user *User) bool {
 	if user == nil || user.AccountDeletionEffectiveAt == nil {
 		return false
 	}
-	return time.Now().Before(*user.AccountDeletionEffectiveAt) && user.IsDeleted == modelbase.SoftDeleteStatusActive
+	return time.Now().Before(*user.AccountDeletionEffectiveAt) && user.IsDeleted == models.SoftDeleteStatusActive
 }
 
 // ThirdPartyBindings 是否仍绑定 GitHub / 微信。
@@ -101,7 +100,7 @@ func ScheduleAccountDeletion(db *gorm.DB, userID uint, operator string) error {
 		"account_deletion_effective_at": &effective,
 		"update_by":                     operator,
 	}
-	return db.Model(&User{}).Where("id = ? AND is_deleted = ?", userID, modelbase.SoftDeleteStatusActive).Updates(vals).Error
+	return db.Model(&User{}).Where("id = ? AND is_deleted = ?", userID, models.SoftDeleteStatusActive).Updates(vals).Error
 }
 
 // CancelAccountDeletion 用户主动撤回注销申请。
@@ -111,14 +110,14 @@ func CancelAccountDeletion(db *gorm.DB, userID uint, operator string) error {
 		"account_deletion_effective_at": nil,
 		"update_by":                     operator,
 	}
-	return db.Model(&User{}).Where("id = ? AND is_deleted = ?", userID, modelbase.SoftDeleteStatusActive).Updates(vals).Error
+	return db.Model(&User{}).Where("id = ? AND is_deleted = ?", userID, models.SoftDeleteStatusActive).Updates(vals).Error
 }
 
 // ListUsersDueForAccountDeletion 冷静期已结束、待执行永久注销的用户。
 func ListUsersDueForAccountDeletion(db *gorm.DB, before time.Time) ([]User, error) {
 	var list []User
 	err := db.Where("account_deletion_effective_at IS NOT NULL AND account_deletion_effective_at <= ?", before).
-		Where("is_deleted = ? AND status = ?", modelbase.SoftDeleteStatusActive, UserStatusActive).
+		Where("is_deleted = ? AND status = ?", models.SoftDeleteStatusActive, UserStatusActive).
 		Find(&list).Error
 	return list, err
 }
@@ -130,7 +129,7 @@ func FinalizeAccountDeletion(db *gorm.DB, userID uint, operator string) error {
 		if err := tx.Where("id = ?", userID).First(&u).Error; err != nil {
 			return err
 		}
-		if u.IsDeleted == modelbase.SoftDeleteStatusDeleted {
+		if u.IsDeleted == models.SoftDeleteStatusDeleted {
 			return nil
 		}
 		if u.AccountDeletionEffectiveAt == nil || u.AccountDeletionEffectiveAt.After(time.Now()) {
@@ -175,7 +174,7 @@ func FinalizeAccountDeletion(db *gorm.DB, userID uint, operator string) error {
 			"email_verified":                false,
 			"phone_verified":                false,
 			"status":                        UserStatusBanned,
-			"is_deleted":                    modelbase.SoftDeleteStatusDeleted,
+			"is_deleted":                    models.SoftDeleteStatusDeleted,
 			"account_deletion_requested_at": nil,
 			"account_deletion_effective_at": nil,
 			"update_by":                     operator,

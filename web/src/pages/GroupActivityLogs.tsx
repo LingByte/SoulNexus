@@ -5,7 +5,7 @@ import { showAlert } from '@/utils/notification';
 import { useI18nStore } from '@/stores/i18nStore';
 import { ArrowLeft, Clock, User, RefreshCw } from 'lucide-react';
 import Button from '@/components/UI/Button';
-import LoadingAnimation from '@/components/Animations/LoadingAnimation';
+import LoadingAnimation from '@/components/LoadingAnimation.tsx';
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/UI/Select';
 import { cn } from '@/utils/cn';
 

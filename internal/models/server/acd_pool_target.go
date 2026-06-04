@@ -1,13 +1,13 @@
 package svcmodels
-import (
 
+import (
 	"context"
 	"strings"
 	"time"
 
+	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"gorm.io/gorm"
-	"github.com/LingByte/SoulNexus/internal/modelbase"
 )
 
 // ACD pool route types (single table for SIP accounts and Web/WebRTC seats).
@@ -42,7 +42,7 @@ const (
 // SIP rows: internal TargetValue = sip_users.username; trunk = dial string + trunk host fields.
 // Web rows: TargetValue usually empty; WebSeat handoff when this row wins over SIP rows by Weight.
 type ACDPoolTarget struct {
-	modelbase.BaseModel
+	models.BaseModel
 	Name                  string     `json:"name" gorm:"size:128"`                               // optional admin label
 	RouteType             string     `json:"routeType" gorm:"size:16;not null;index"`            // RouteType is ACDPoolRouteTypeSIP or ACDPoolRouteTypeWeb.
 	TargetValue           string     `json:"targetValue" gorm:"size:256"`                        // TargetValue: sip internal → sip_users.username; sip trunk → dial digits / URI; web → usually empty.
@@ -152,7 +152,7 @@ func ValidateACDTrunkCreateUpdate(routeType, sipSource, targetValue, trunkHost s
 
 // ActiveACDPoolTargets is the non-deleted scope.
 func ActiveACDPoolTargets(db *gorm.DB) *gorm.DB {
-	return db.Model(&ACDPoolTarget{}).Where("is_deleted = ?", modelbase.SoftDeleteStatusActive)
+	return db.Model(&ACDPoolTarget{}).Where("is_deleted = ?", models.SoftDeleteStatusActive)
 }
 
 // ListACDPoolTargetsPage lists active targets; routeType empty skips filter.
@@ -192,13 +192,13 @@ func ReloadACDPoolTargetByID(db *gorm.DB, id uint) (ACDPoolTarget, error) {
 // SoftDeleteACDPoolTargetByID soft-deletes an active row.
 func SoftDeleteACDPoolTargetByID(db *gorm.DB, id uint, updateBy string) (int64, error) {
 	u := map[string]any{
-		"is_deleted": modelbase.SoftDeleteStatusDeleted,
+		"is_deleted": models.SoftDeleteStatusDeleted,
 		"updated_at": time.Now(),
 	}
 	if updateBy != "" {
 		u["update_by"] = updateBy
 	}
-	res := db.Model(&ACDPoolTarget{}).Where("id = ? AND is_deleted = ?", id, modelbase.SoftDeleteStatusActive).Updates(u)
+	res := db.Model(&ACDPoolTarget{}).Where("id = ? AND is_deleted = ?", id, models.SoftDeleteStatusActive).Updates(u)
 	return res.RowsAffected, res.Error
 }
 
@@ -318,7 +318,7 @@ func PickEligibleACDPoolTargetForTransfer(ctx context.Context, db *gorm.DB) (ACD
 	var row ACDPoolTarget
 	err := db.WithContext(ctx).
 		Where("is_deleted = ? AND weight > ? AND work_state = ? AND route_type IN ?",
-			modelbase.SoftDeleteStatusActive, 0, ACDWorkStateAvailable,
+			models.SoftDeleteStatusActive, 0, ACDWorkStateAvailable,
 			[]string{ACDPoolRouteTypeSIP, ACDPoolRouteTypeWeb}).
 		Where("(route_type != ? OR (web_seat_last_seen_at IS NOT NULL AND web_seat_last_seen_at > ?))",
 			ACDPoolRouteTypeWeb, freshWebSince).
@@ -347,14 +347,14 @@ func SoftDeleteACDPoolTargetsByIDs(ctx context.Context, db *gorm.DB, ids []uint,
 		return 0, nil
 	}
 	u := map[string]any{
-		"is_deleted": modelbase.SoftDeleteStatusDeleted,
+		"is_deleted": models.SoftDeleteStatusDeleted,
 		"updated_at": time.Now(),
 	}
 	if s := strings.TrimSpace(updateBy); s != "" {
 		u["update_by"] = s
 	}
 	res := db.WithContext(ctx).Model(&ACDPoolTarget{}).
-		Where("id IN ? AND is_deleted = ?", ids, modelbase.SoftDeleteStatusActive).
+		Where("id IN ? AND is_deleted = ?", ids, models.SoftDeleteStatusActive).
 		Updates(u)
 	return res.RowsAffected, res.Error
 }

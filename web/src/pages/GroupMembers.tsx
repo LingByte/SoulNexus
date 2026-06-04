@@ -15,7 +15,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useI18nStore } from '@/stores/i18nStore';
 import { X, UserPlus, Trash2, Crown, Shield, Search, ArrowLeft, ChevronDown, CheckSquare, Square } from 'lucide-react';
 import Button from '@/components/UI/Button';
-import LoadingAnimation from '@/components/Animations/LoadingAnimation';
+import LoadingAnimation from '@/components/LoadingAnimation.tsx';
 
 const GroupMembers: React.FC = () => {
   const { t } = useI18nStore();

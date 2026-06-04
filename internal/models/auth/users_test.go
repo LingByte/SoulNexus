@@ -1,23 +1,22 @@
 package auth
+
 // Copyright (c) 2026 LingByte. All rights reserved.
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
-
-
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/LingByte/SoulNexus/internal/models"
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	gormsqlite "gorm.io/driver/sqlite"
 	"gorm.io/gorm"
-	"github.com/LingByte/SoulNexus/internal/modelbase"
-	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
-	)
+)
 
 // setupTestDBWithSilentLogger opens an in-memory SQLite DB and migrates the given models (shared by *_test.go files in this package).
 func setupTestDBWithSilentLogger(t *testing.T, models ...interface{}) *gorm.DB {
@@ -31,7 +30,7 @@ func setupTestDBWithSilentLogger(t *testing.T, models ...interface{}) *gorm.DB {
 func ensureMinimalRoleForTests(t *testing.T, db *gorm.DB) {
 	t.Helper()
 	var n int64
-	require.NoError(t, db.Model(&Role{}).Where("is_deleted = ?", modelbase.SoftDeleteStatusActive).Count(&n).Error)
+	require.NoError(t, db.Model(&Role{}).Where("is_deleted = ?", models.SoftDeleteStatusActive).Count(&n).Error)
 	if n > 0 {
 		return
 	}
@@ -589,11 +588,11 @@ func TestGetUserByAPIKey(t *testing.T) {
 
 	gid := ensureTestTeamGroup(t, db, user.ID)
 	credential := &UserCredential{
-		GroupID:    gid,
-		CreatedBy:  user.ID,
-		APIKey:     "test-api-key",
-		APISecret:  "test-api-secret",
-		Name:       "Test App",
+		GroupID:   gid,
+		CreatedBy: user.ID,
+		APIKey:    "test-api-key",
+		APISecret: "test-api-secret",
+		Name:      "Test App",
 	}
 	err = db.Create(credential).Error
 	require.NoError(t, err)

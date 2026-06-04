@@ -4,11 +4,12 @@ package bootstrap
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
-	"github.com/LingByte/SoulNexus/internal/models/auth"
-	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
-	"github.com/LingByte/SoulNexus/internal/modelbase"
 	"strconv"
 	"time"
+
+	"github.com/LingByte/SoulNexus/internal/models"
+	"github.com/LingByte/SoulNexus/internal/models/auth"
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 
 	SoulNexus "github.com/LingByte/SoulNexus"
 	"github.com/LingByte/SoulNexus/internal/config"
@@ -191,7 +192,7 @@ func (s *SeedService) seedConfigs() error {
 // seedMinimalRolesIfEmpty inserts one generic role when the table is empty so sign-up / seed users can satisfy user_roles.
 func (s *SeedService) seedMinimalRolesIfEmpty() error {
 	var n int64
-	if err := s.db.Model(&auth.Role{}).Where("is_deleted = ?", modelbase.SoftDeleteStatusActive).Count(&n).Error; err != nil {
+	if err := s.db.Model(&auth.Role{}).Where("is_deleted = ?", models.SoftDeleteStatusActive).Count(&n).Error; err != nil {
 		return err
 	}
 	if n > 0 {
@@ -209,7 +210,7 @@ func (s *SeedService) seedBootstrapRBAC() error {
 	permIDs := make([]uint, 0, len(permDefs))
 	for _, def := range permDefs {
 		var p auth.Permission
-		err := s.db.Where("`key` = ? AND is_deleted = ?", def.Key, modelbase.SoftDeleteStatusActive).First(&p).Error
+		err := s.db.Where("`key` = ? AND is_deleted = ?", def.Key, models.SoftDeleteStatusActive).First(&p).Error
 		if err != nil {
 			if err := s.db.Create(&def).Error; err != nil {
 				return err
@@ -221,7 +222,7 @@ func (s *SeedService) seedBootstrapRBAC() error {
 	}
 
 	var adminRole auth.Role
-	err := s.db.Where("slug = ? AND is_deleted = ?", "admin", modelbase.SoftDeleteStatusActive).First(&adminRole).Error
+	err := s.db.Where("slug = ? AND is_deleted = ?", "admin", models.SoftDeleteStatusActive).First(&adminRole).Error
 	if err != nil {
 		adminRole = auth.Role{Name: "Administrator", Slug: "admin", Description: "Full admin access", IsSystem: true}
 		if err := s.db.Create(&adminRole).Error; err != nil {

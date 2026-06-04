@@ -11,7 +11,7 @@ import Card from '@/components/UI/Card'
 import Badge from '@/components/UI/Badge'
 import Input from '@/components/UI/Input'
 import EmptyState from '@/components/UI/EmptyState'
-import { useToast } from '@/components/UI/ToastContainer'
+import { showAlert } from '@/utils/alert'
 import { useI18nStore } from '@/stores/i18nStore'
 import { cn } from '@/utils/cn'
 import { listKnowledgeNamespaces, type KnowledgeNamespaceRow } from '@/api/knowledge'
@@ -47,7 +47,6 @@ function KnowledgeCardSkeleton() {
 const KnowledgeListPage: React.FC = () => {
   const { t } = useI18nStore()
   const navigate = useNavigate()
-  const { error: toastError } = useToast()
   const [rows, setRows] = useState<KnowledgeNamespaceRow[]>([])
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
@@ -68,18 +67,18 @@ const KnowledgeListPage: React.FC = () => {
         q: q.trim() || undefined,
       })
       if (res.code !== 200) {
-        toastError(t('knowledge.pageTitle'), res.msg || 'load failed')
+        showAlert(res.msg || 'load failed', 'error', t('knowledge.pageTitle'))
         return
       }
       const d = res.data
       setRows(d?.list || [])
       setTotal(d?.total || 0)
     } catch (e: unknown) {
-      toastError(t('knowledge.pageTitle'), (e as { msg?: string })?.msg || String(e))
+      showAlert((e as { msg?: string })?.msg || String(e), 'error', t('knowledge.pageTitle'))
     } finally {
       setLoading(false)
     }
-  }, [page, pageSize, statusFilter, q, toastError, t])
+  }, [page, pageSize, statusFilter, q, t])
 
   useEffect(() => {
     void load()

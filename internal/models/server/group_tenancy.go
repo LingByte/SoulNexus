@@ -1,16 +1,16 @@
 package svcmodels
+
 // Copyright (c) 2026 LingByte. All rights reserved.
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"github.com/LingByte/SoulNexus/internal/models"
 	auth "github.com/LingByte/SoulNexus/internal/models/auth"
-
 
 	"errors"
 	"fmt"
 
 	"gorm.io/gorm"
-	"github.com/LingByte/SoulNexus/internal/modelbase"
 )
 
 // Organization types: each user gets one personal org by default; teams are shared orgs.
@@ -49,7 +49,7 @@ func UserIsGroupAdmin(db *gorm.DB, userID, groupID uint) bool {
 		return true
 	}
 	var m GroupMember
-	err := db.Where("group_id = ? AND user_id = ? AND role = ?", groupID, userID, modelbase.GroupRoleAdmin).First(&m).Error
+	err := db.Where("group_id = ? AND user_id = ? AND role = ?", groupID, userID, models.GroupRoleAdmin).First(&m).Error
 	return err == nil
 }
 
@@ -106,7 +106,7 @@ func EnsurePersonalGroupForUser(db *gorm.DB, userID uint) (*Group, error) {
 	member := GroupMember{
 		UserID:  userID,
 		GroupID: g.ID,
-		Role:    modelbase.GroupRoleAdmin,
+		Role:    models.GroupRoleAdmin,
 	}
 	if err := db.Create(&member).Error; err != nil {
 		_ = db.Delete(&g)

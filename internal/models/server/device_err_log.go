@@ -1,21 +1,21 @@
 package svcmodels
+
 // Copyright (c) 2026 LingByte. All rights reserved.
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
-
 	"encoding/json"
 	"time"
 
+	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
-	"github.com/LingByte/SoulNexus/internal/modelbase"
 )
 
 // DeviceErrorLog 设备错误日志表
 type DeviceErrorLog struct {
-	modelbase.BaseModel
+	models.BaseModel
 	DeviceID   string         `json:"deviceId" gorm:"size:64;index;not null"` // 设备ID (MAC地址)
 	MacAddress string         `json:"macAddress" gorm:"size:64;index"`        // MAC地址
 	ErrorType  string         `json:"errorType" gorm:"size:64;index"`         // 错误类型

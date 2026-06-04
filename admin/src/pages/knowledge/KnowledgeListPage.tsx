@@ -86,10 +86,7 @@ const KnowledgeListPage = () => {
       setGroups([])
     }
     form.resetFields()
-    form.setFieldsValue({
-      vectorProvider: 'qdrant',
-      embedModel: '',
-    })
+    form.setFieldsValue({})
     setCreateOpen(true)
   }
 
@@ -101,8 +98,6 @@ const KnowledgeListPage = () => {
         namespace: String(v.namespace || '').trim(),
         name: String(v.name || '').trim(),
         description: v.description ? String(v.description) : undefined,
-        vectorProvider: v.vectorProvider || 'qdrant',
-        embedModel: String(v.embedModel || '').trim(),
         groupId: v.groupId ? Number(v.groupId) : undefined,
       })
       Message.success('创建成功')
@@ -263,12 +258,6 @@ const KnowledgeListPage = () => {
           </FormItem>
           <FormItem label="描述" field="description">
             <Input.TextArea placeholder="可选" autoSize={{ minRows: 2, maxRows: 4 }} />
-          </FormItem>
-          <FormItem label="向量后端" field="vectorProvider" initialValue="qdrant">
-            <Select options={[{ label: 'Qdrant', value: 'qdrant' }, { label: 'Milvus', value: 'milvus' }]} />
-          </FormItem>
-          <FormItem label="嵌入模型名" field="embedModel" rules={[{ required: true, message: '必填' }]} extra="与 EMBED_MODEL 对齐">
-            <Input placeholder="例如 bge-m3" />
           </FormItem>
         </Form>
       </Drawer>

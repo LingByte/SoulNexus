@@ -7,7 +7,7 @@ import Button from '@/components/UI/Button'
 import Input from '@/components/UI/Input'
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/UI/Select'
 import { useI18nStore } from '@/stores/i18nStore'
-import { useToast } from '@/components/UI/ToastContainer'
+import { showAlert } from '@/utils/alert'
 import { getGroupList, type Group } from '@/api/group'
 import { createKnowledgeNamespace, type KnowledgeNamespaceRow } from '@/api/knowledge'
 
@@ -19,15 +19,12 @@ type Props = {
 
 const KnowledgeCreateDrawer: React.FC<Props> = ({ open, onClose, onCreated }) => {
   const { t } = useI18nStore()
-  const { success: toastSuccess, error: toastError } = useToast()
   const [enter, setEnter] = useState(false)
   const [busy, setBusy] = useState(false)
   const [groups, setGroups] = useState<Group[]>([])
   const [formNs, setFormNs] = useState('')
   const [formName, setFormName] = useState('')
   const [formDesc, setFormDesc] = useState('')
-  const [formBackend, setFormBackend] = useState('qdrant')
-  const [formEmbed, setFormEmbed] = useState('')
   const [formGroupId, setFormGroupId] = useState('')
 
   useEffect(() => {
@@ -51,9 +48,8 @@ const KnowledgeCreateDrawer: React.FC<Props> = ({ open, onClose, onCreated }) =>
   const submit = async () => {
     const ns = formNs.trim()
     const name = formName.trim()
-    const embed = formEmbed.trim()
-    if (!ns || !name || !embed) {
-      toastError(t('knowledge.create'), 'namespace / name / embed model required')
+    if (!ns || !name) {
+      showAlert('namespace / name required', 'error', t('knowledge.create'))
       return
     }
     setBusy(true)
@@ -62,8 +58,6 @@ const KnowledgeCreateDrawer: React.FC<Props> = ({ open, onClose, onCreated }) =>
         namespace: ns,
         name,
         description: formDesc.trim() || undefined,
-        vectorProvider: formBackend,
-        embedModel: embed,
       }
       if (formGroupId) {
         const gid = parseInt(formGroupId, 10)
@@ -71,19 +65,18 @@ const KnowledgeCreateDrawer: React.FC<Props> = ({ open, onClose, onCreated }) =>
       }
       const res = await createKnowledgeNamespace(body)
       if (res.code !== 200 || !res.data) {
-        toastError(t('knowledge.create'), res.msg || 'failed')
+        showAlert(res.msg || 'failed', 'error', t('knowledge.create'))
         return
       }
-      toastSuccess(t('knowledge.create'), res.msg || 'ok')
+      showAlert(res.msg || 'ok', 'success', t('knowledge.create'))
       onCreated(res.data)
       setFormNs('')
       setFormName('')
       setFormDesc('')
-      setFormEmbed('')
       setFormGroupId('')
       close()
     } catch (e: unknown) {
-      toastError(t('knowledge.create'), (e as { msg?: string })?.msg || String(e))
+      showAlert((e as { msg?: string })?.msg || String(e), 'error', t('knowledge.create'))
     } finally {
       setBusy(false)
     }
@@ -133,22 +126,6 @@ const KnowledgeCreateDrawer: React.FC<Props> = ({ open, onClose, onCreated }) =>
           <div>
             <label className="mb-1 block text-xs font-medium text-muted-foreground">{t('knowledge.fieldDesc')}</label>
             <textarea value={formDesc} onChange={(e) => setFormDesc(e.target.value)} rows={2} className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm" />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">{t('knowledge.fieldBackend')}</label>
-            <Select value={formBackend} onValueChange={setFormBackend}>
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="qdrant">Qdrant</SelectItem>
-                <SelectItem value="milvus">Milvus</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">{t('knowledge.fieldEmbed')}</label>
-            <Input value={formEmbed} onChange={(e) => setFormEmbed(e.target.value)} className="font-mono text-sm" />
           </div>
         </div>
         <div className="flex justify-end gap-2 border-t border-border p-4">

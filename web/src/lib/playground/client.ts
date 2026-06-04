@@ -196,7 +196,7 @@ async function consumeOpenAISSE(
   let buffer = ''
   let content = ''
   let raw = ''
-  let usage: StreamHandlers['onUsage'] extends (u: infer U) => void ? U : undefined
+  let usage: { input_tokens: number | undefined; output_tokens: number | undefined; total_tokens: number | undefined }
 
   while (true) {
     const { done, value } = await reader.read()

@@ -4,7 +4,8 @@ package main
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
-	"github.com/LingByte/SoulNexus/internal/modelbase"
+	"github.com/LingByte/SoulNexus/internal/models"
+
 	"context"
 	"flag"
 	"fmt"
@@ -153,15 +154,20 @@ func main() {
 	if authGRPC == "" {
 		authGRPC = "127.0.0.1:7075"
 	}
+	var rpcClients *grpcclients.Bundle
 	authClient, err := grpcclients.DialAuth(context.Background(), authGRPC)
 	if err != nil {
-		logger.Error("auth gRPC client dial failed", zap.String("addr", authGRPC), zap.Error(err))
-		return
+		logger.Warn("auth gRPC client unavailable; API key resolution via auth service disabled",
+			zap.String("addr", authGRPC),
+			zap.Error(err),
+		)
+		rpcClients = &grpcclients.Bundle{}
+	} else {
+		rpcClients = &grpcclients.Bundle{Auth: authClient}
+		defer rpcClients.Close()
+		rpcClients.InstallAPIKeyUserResolver()
+		logger.Info("auth gRPC client connected", zap.String("addr", authGRPC))
 	}
-	rpcClients := &grpcclients.Bundle{Auth: authClient}
-	defer rpcClients.Close()
-	rpcClients.InstallAPIKeyUserResolver()
-	logger.Info("auth gRPC client connected", zap.String("addr", authGRPC))
 
 	app := NewSoulNexusService(db, rpcClients)
 
@@ -268,7 +274,7 @@ func main() {
 	}
 
 	// 21. Emit system initialization signal
-	utils.Sig().Emit(modelbase.SigInitSystemConfig, nil)
+	utils.Sig().Emit(models.SigInitSystemConfig, nil)
 
 	// 21.5. Start Workflow Event Listener and Scheduler
 	eventListener := workflowdef.NewWorkflowEventListener(db)
