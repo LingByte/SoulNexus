@@ -6,13 +6,17 @@ interface PageContainerProps {
   className?: string
   maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'full'
   padding?: 'none' | 'sm' | 'md' | 'lg'
+  fullHeight?: boolean
+  scrollable?: boolean
 }
 
 const PageContainer = ({
   children,
   className,
   maxWidth = 'xl',
-  padding = 'none'
+  padding = 'md',
+  fullHeight = false,
+  scrollable = false
 }: PageContainerProps) => {
   const maxWidthClasses = {
     sm: 'max-w-2xl',
@@ -25,16 +29,18 @@ const PageContainer = ({
 
   const paddingClasses = {
     none: '',
-    sm: 'px-4 py-6',
-    md: 'px-6 py-8',
-    lg: 'px-8 py-12'
+    sm: 'px-4 py-6 sm:px-6',
+    md: 'px-4 py-6 sm:px-6 lg:px-8',
+    lg: 'px-6 py-8 sm:px-8 lg:px-10'
   }
 
   return (
     <div className={cn(
-      'mx-auto',
+      'mx-auto w-full',
       maxWidthClasses[maxWidth],
       paddingClasses[padding],
+      fullHeight && 'h-full flex flex-col',
+      scrollable && 'overflow-y-auto',
       className
     )}>
       {children}
