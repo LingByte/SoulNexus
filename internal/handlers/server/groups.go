@@ -4,9 +4,6 @@ package server
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
-	"github.com/LingByte/SoulNexus/internal/models/auth"
-	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
-	"github.com/LingByte/SoulNexus/internal/modelbase"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,6 +13,10 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/LingByte/SoulNexus/internal/models"
+	"github.com/LingByte/SoulNexus/internal/models/auth"
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/logger"
@@ -29,16 +30,16 @@ import (
 )
 
 type CreateGroupRequest struct {
-	Name       string                 `json:"name" binding:"required"`
-	Type       string                 `json:"type"`
-	Extra      string                 `json:"extra"`
+	Name       string                    `json:"name" binding:"required"`
+	Type       string                    `json:"type"`
+	Extra      string                    `json:"extra"`
 	Permission svcmodels.GroupPermission `json:"permission"`
 }
 
 type UpdateGroupRequest struct {
-	Name       string                 `json:"name"`
-	Type       string                 `json:"type"`
-	Extra      string                 `json:"extra"`
+	Name       string                    `json:"name"`
+	Type       string                    `json:"type"`
+	Extra      string                    `json:"extra"`
 	Permission svcmodels.GroupPermission `json:"permission"`
 }
 
@@ -52,42 +53,42 @@ type SearchUsersRequest struct {
 }
 
 type GroupResponse struct {
-	ID          uint                   `json:"id"`
-	CreatedAt   time.Time              `json:"createdAt"`
-	UpdatedAt   time.Time              `json:"updatedAt"`
-	Name        string                 `json:"name"`
-	Type        string                 `json:"type"`
-	Extra       string                 `json:"extra,omitempty"`
-	Avatar      string                 `json:"avatar,omitempty"` // 组织头像URL
+	ID          uint                      `json:"id"`
+	CreatedAt   time.Time                 `json:"createdAt"`
+	UpdatedAt   time.Time                 `json:"updatedAt"`
+	Name        string                    `json:"name"`
+	Type        string                    `json:"type"`
+	Extra       string                    `json:"extra,omitempty"`
+	Avatar      string                    `json:"avatar,omitempty"` // 组织头像URL
 	Permission  svcmodels.GroupPermission `json:"permission,omitempty"`
-	CreatorID   uint                   `json:"creatorId"`
-	Creator     *auth.User           `json:"creator,omitempty"`
-	MemberCount int64                  `json:"memberCount"`
-	MyRole      string                 `json:"myRole,omitempty"`
-	Members     []GroupMemberResponse  `json:"members,omitempty"`
+	CreatorID   uint                      `json:"creatorId"`
+	Creator     *auth.User                `json:"creator,omitempty"`
+	MemberCount int64                     `json:"memberCount"`
+	MyRole      string                    `json:"myRole,omitempty"`
+	Members     []GroupMemberResponse     `json:"members,omitempty"`
 }
 
 type GroupMemberResponse struct {
-	ID        uint        `json:"id"`
-	CreatedAt time.Time   `json:"createdAt"`
-	UserID    uint        `json:"userId"`
+	ID        uint      `json:"id"`
+	CreatedAt time.Time `json:"createdAt"`
+	UserID    uint      `json:"userId"`
 	User      auth.User `json:"user"`
-	GroupID   uint        `json:"groupId"`
-	Role      string      `json:"role"`
+	GroupID   uint      `json:"groupId"`
+	Role      string    `json:"role"`
 }
 
 type GroupInvitationResponse struct {
-	ID        uint         `json:"id"`
-	CreatedAt time.Time    `json:"createdAt"`
-	UpdatedAt time.Time    `json:"updatedAt"`
-	GroupID   uint         `json:"groupId"`
+	ID        uint            `json:"id"`
+	CreatedAt time.Time       `json:"createdAt"`
+	UpdatedAt time.Time       `json:"updatedAt"`
+	GroupID   uint            `json:"groupId"`
 	Group     svcmodels.Group `json:"group"`
-	InviterID uint         `json:"inviterId"`
-	Inviter   auth.User  `json:"inviter"`
-	InviteeID uint         `json:"inviteeId"`
-	Invitee   auth.User  `json:"invitee"`
-	Status    string       `json:"status"`
-	ExpiresAt *time.Time   `json:"expiresAt,omitempty"`
+	InviterID uint            `json:"inviterId"`
+	Inviter   auth.User       `json:"inviter"`
+	InviteeID uint            `json:"inviteeId"`
+	Invitee   auth.User       `json:"invitee"`
+	Status    string          `json:"status"`
+	ExpiresAt *time.Time      `json:"expiresAt,omitempty"`
 }
 
 // CreateGroup 创建组织
@@ -129,7 +130,7 @@ func (h *Handlers) CreateGroup(c *gin.Context) {
 	member := svcmodels.GroupMember{
 		UserID:  user.ID,
 		GroupID: group.ID,
-		Role:    modelbase.GroupRoleAdmin,
+		Role:    models.GroupRoleAdmin,
 	}
 	if err := h.db.Create(&member).Error; err != nil {
 		// 如果创建成员失败，删除组织
@@ -178,7 +179,7 @@ func (h *Handlers) ListGroups(c *gin.Context) {
 		var myRole string
 		if group.CreatorID == user.ID {
 			// 创建者默认是管理员
-			myRole = modelbase.GroupRoleAdmin
+			myRole = models.GroupRoleAdmin
 		} else {
 			var member svcmodels.GroupMember
 			if err := h.db.Where("group_id = ? AND user_id = ?", group.ID, user.ID).First(&member).Error; err == nil {
@@ -252,7 +253,7 @@ func (h *Handlers) GetGroup(c *gin.Context) {
 	// 获取当前用户角色
 	var myRole string
 	if group.CreatorID == user.ID {
-		myRole = modelbase.GroupRoleAdmin
+		myRole = models.GroupRoleAdmin
 	} else if err := h.db.Where("group_id = ? AND user_id = ?", group.ID, user.ID).First(&member).Error; err == nil {
 		myRole = member.Role
 	}
@@ -322,7 +323,7 @@ func (h *Handlers) UpdateGroup(c *gin.Context) {
 	// 检查权限：只有创建者或管理员可以更新
 	if group.CreatorID != user.ID {
 		var member svcmodels.GroupMember
-		if err := h.db.Where("group_id = ? AND user_id = ? AND role = ?", group.ID, user.ID, modelbase.GroupRoleAdmin).First(&member).Error; err != nil {
+		if err := h.db.Where("group_id = ? AND user_id = ? AND role = ?", group.ID, user.ID, models.GroupRoleAdmin).First(&member).Error; err != nil {
 			response.Fail(c, "权限不足", "只有创建者或管理员可以更新组织信息")
 			return
 		}
@@ -427,7 +428,7 @@ func (h *Handlers) SearchUsers(c *gin.Context) {
 	var rows []userSearchRow
 	q := h.db.Table("users").
 		Joins("LEFT JOIN user_profiles ON user_profiles.user_id = users.id").
-		Where("users.is_deleted = ?", modelbase.SoftDeleteStatusActive).
+		Where("users.is_deleted = ?", models.SoftDeleteStatusActive).
 		Where("users.status = ?", auth.UserStatusActive).
 		Where("users.id != ?", user.ID).
 		Where(`user_profiles.display_name LIKE ? OR users.email LIKE ? OR user_profiles.first_name LIKE ? OR user_profiles.last_name LIKE ?`,
@@ -499,7 +500,7 @@ func (h *Handlers) InviteUser(c *gin.Context) {
 	// 检查权限：只有创建者或管理员可以邀请
 	if group.CreatorID != user.ID {
 		var member svcmodels.GroupMember
-		if err := h.db.Where("group_id = ? AND user_id = ? AND role = ?", group.ID, user.ID, modelbase.GroupRoleAdmin).First(&member).Error; err != nil {
+		if err := h.db.Where("group_id = ? AND user_id = ? AND role = ?", group.ID, user.ID, models.GroupRoleAdmin).First(&member).Error; err != nil {
 			response.Fail(c, "权限不足", "只有创建者或管理员可以邀请用户")
 			return
 		}
@@ -702,7 +703,7 @@ func (h *Handlers) AcceptInvitation(c *gin.Context) {
 	member := svcmodels.GroupMember{
 		UserID:  user.ID,
 		GroupID: invitation.GroupID,
-		Role:    modelbase.GroupRoleMember,
+		Role:    models.GroupRoleMember,
 	}
 
 	if err := h.db.Create(&member).Error; err != nil {
@@ -832,7 +833,7 @@ func (h *Handlers) RemoveMember(c *gin.Context) {
 	// 检查权限：只有创建者或管理员可以移除成员
 	if group.CreatorID != user.ID {
 		var member svcmodels.GroupMember
-		if err := h.db.Where("group_id = ? AND user_id = ? AND role = ?", group.ID, user.ID, modelbase.GroupRoleAdmin).First(&member).Error; err != nil {
+		if err := h.db.Where("group_id = ? AND user_id = ? AND role = ?", group.ID, user.ID, models.GroupRoleAdmin).First(&member).Error; err != nil {
 			response.Fail(c, "权限不足", "只有创建者或管理员可以移除成员")
 			return
 		}
@@ -882,7 +883,7 @@ func (h *Handlers) UpdateMemberRole(c *gin.Context) {
 	}
 
 	// 验证角色
-	if req.Role != modelbase.GroupRoleAdmin && req.Role != modelbase.GroupRoleMember {
+	if req.Role != models.GroupRoleAdmin && req.Role != models.GroupRoleMember {
 		response.Fail(c, "参数错误", "无效的角色")
 		return
 	}
@@ -900,7 +901,7 @@ func (h *Handlers) UpdateMemberRole(c *gin.Context) {
 	// 检查权限：只有创建者或管理员可以更新成员角色
 	if group.CreatorID != user.ID {
 		var adminMember svcmodels.GroupMember
-		if err := h.db.Where("group_id = ? AND user_id = ? AND role = ?", group.ID, user.ID, modelbase.GroupRoleAdmin).First(&adminMember).Error; err != nil {
+		if err := h.db.Where("group_id = ? AND user_id = ? AND role = ?", group.ID, user.ID, models.GroupRoleAdmin).First(&adminMember).Error; err != nil {
 			response.Fail(c, "权限不足", "只有创建者或管理员可以更新成员角色")
 			return
 		}
@@ -960,7 +961,7 @@ func (h *Handlers) GetGroupSharedResources(c *gin.Context) {
 	// 检查权限：只有创建者或管理员可以查看资源
 	if group.CreatorID != user.ID {
 		var member svcmodels.GroupMember
-		if err := h.db.Where("group_id = ? AND user_id = ? AND role = ?", group.ID, user.ID, modelbase.GroupRoleAdmin).First(&member).Error; err != nil {
+		if err := h.db.Where("group_id = ? AND user_id = ? AND role = ?", group.ID, user.ID, models.GroupRoleAdmin).First(&member).Error; err != nil {
 			response.Fail(c, "权限不足", "只有创建者或管理员可以查看组织资源")
 			return
 		}
@@ -1008,7 +1009,7 @@ func (h *Handlers) UploadGroupAvatar(c *gin.Context) {
 	// 检查权限：只有创建者或管理员可以上传头像
 	if group.CreatorID != user.ID {
 		var member svcmodels.GroupMember
-		if err := h.db.Where("group_id = ? AND user_id = ? AND role = ?", group.ID, user.ID, modelbase.GroupRoleAdmin).First(&member).Error; err != nil {
+		if err := h.db.Where("group_id = ? AND user_id = ? AND role = ?", group.ID, user.ID, models.GroupRoleAdmin).First(&member).Error; err != nil {
 			response.Fail(c, "权限不足", "只有创建者或管理员可以上传组织头像")
 			return
 		}
@@ -1653,7 +1654,7 @@ func (h *Handlers) CloneGroup(c *gin.Context) {
 		return
 	}
 
-	if sourceGroup.CreatorID != user.ID && member.Role != modelbase.GroupRoleAdmin {
+	if sourceGroup.CreatorID != user.ID && member.Role != models.GroupRoleAdmin {
 		response.Fail(c, "权限不足", "只有创建者或管理员可以克隆组织")
 		return
 	}
@@ -1677,7 +1678,7 @@ func (h *Handlers) CloneGroup(c *gin.Context) {
 	newMember := svcmodels.GroupMember{
 		UserID:  user.ID,
 		GroupID: newGroup.ID,
-		Role:    modelbase.GroupRoleAdmin,
+		Role:    models.GroupRoleAdmin,
 	}
 	h.db.Create(&newMember)
 

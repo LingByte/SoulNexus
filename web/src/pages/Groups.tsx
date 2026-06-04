@@ -21,7 +21,7 @@ import { Users, Plus, X, UserPlus, LogOut, Trash2, Check, XCircle, Crown, Shield
 import Button from '@/components/UI/Button';
 import ConfirmDialog from '@/components/UI/ConfirmDialog';
 import { useI18nStore } from '@/stores/i18nStore';
-import LoadingAnimation from '@/components/Animations/LoadingAnimation';
+import LoadingAnimation from '@/components/LoadingAnimation.tsx';
 import CollapsibleSectionHeader from '@/components/UI/CollapsibleSectionHeader';
 
 const Groups: React.FC = () => {

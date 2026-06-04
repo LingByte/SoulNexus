@@ -2,16 +2,16 @@
 // SPDX-License-Identifier: AGPL-3.0
 
 package svcmodels
-import (
 
+import (
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 
+	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/notification/mail"
 	"gorm.io/gorm"
-	"github.com/LingByte/SoulNexus/internal/modelbase"
 )
 
 // 通知渠道类型常量
@@ -23,7 +23,7 @@ const (
 // NotificationChannel 描述一种可配置的通知出口（邮件 / 短信 等）。
 // 同一 OrgID 下 Code 唯一，Type+SortOrder 决定多渠道排序。
 type NotificationChannel struct {
-	modelbase.BaseModel
+	models.BaseModel
 	OrgID      uint   `json:"orgId" gorm:"uniqueIndex:idx_notify_org_code;not null;default:0;comment:tenant id (0=system)"`
 	Type       string `json:"type" gorm:"size:32;not null;index:idx_notify_ch_type_sort,priority:1;comment:渠道类型"`
 	Code       string `json:"code,omitempty" gorm:"size:64;uniqueIndex:idx_notify_org_code;comment:渠道编码"`

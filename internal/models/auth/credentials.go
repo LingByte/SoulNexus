@@ -1,19 +1,19 @@
 package auth
+
 // Copyright (c) 2026 LingByte. All rights reserved.
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
-
 	"database/sql/driver"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
 
+	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
-	"github.com/LingByte/SoulNexus/internal/modelbase"
 )
 
 type UserCredentialRequest struct {
@@ -72,7 +72,7 @@ func (pc *ProviderConfig) Scan(value interface{}) error {
 }
 
 type UserCredential struct {
-	modelbase.BaseModel
+	models.BaseModel
 	GroupID        uint             `gorm:"index;not null" json:"groupId"`
 	CreatedBy      uint             `gorm:"index" json:"createdBy"`
 	Name           string           `json:"name"`                                                      // 应用名称 or 用途备注
@@ -366,4 +366,3 @@ func ReleaseReservedCredits(db *gorm.DB, credentialID uint, amount int64) error 
 		Where("id = ? AND credits_hold >= ?", credentialID, amount).
 		UpdateColumn("credits_hold", gorm.Expr("credits_hold - ?", amount)).Error
 }
-

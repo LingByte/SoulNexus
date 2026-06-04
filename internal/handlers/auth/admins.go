@@ -1,12 +1,13 @@
 package handlers
 
 import (
-	authmodel "github.com/LingByte/SoulNexus/internal/models/auth"
-	"github.com/LingByte/SoulNexus/internal/modelbase"
 	"errors"
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/LingByte/SoulNexus/internal/models"
+	authmodel "github.com/LingByte/SoulNexus/internal/models/auth"
 
 	"github.com/LingByte/SoulNexus/pkg/middleware"
 	"github.com/LingByte/SoulNexus/pkg/response"
@@ -71,7 +72,7 @@ func roleSlugExists(db *gorm.DB, slug string) bool {
 		return false
 	}
 	var cnt int64
-	if err := db.Model(&authmodel.Role{}).Where("slug = ? AND is_deleted = ?", slug, modelbase.SoftDeleteStatusActive).Count(&cnt).Error; err != nil {
+	if err := db.Model(&authmodel.Role{}).Where("slug = ? AND is_deleted = ?", slug, models.SoftDeleteStatusActive).Count(&cnt).Error; err != nil {
 		return false
 	}
 	return cnt > 0
@@ -87,7 +88,7 @@ func (h *Handlers) handleAdminListUsers(c *gin.Context) {
 
 	query := h.db.Model(&authmodel.User{}).
 		Joins("LEFT JOIN user_profiles ON user_profiles.user_id = users.id").
-		Where("users.is_deleted = ?", modelbase.SoftDeleteStatusActive)
+		Where("users.is_deleted = ?", models.SoftDeleteStatusActive)
 	if search != "" {
 		like := "%" + search + "%"
 		query = query.Where("users.email LIKE ? OR user_profiles.display_name LIKE ? OR user_profiles.first_name LIKE ? OR user_profiles.last_name LIKE ?",
@@ -95,7 +96,7 @@ func (h *Handlers) handleAdminListUsers(c *gin.Context) {
 	}
 	if roleFilter != "" && roleSlugExists(h.db, roleFilter) {
 		query = query.Joins("INNER JOIN user_roles ur ON ur.user_id = users.id").
-			Joins("INNER JOIN roles r ON r.id = ur.role_id AND r.is_deleted = ?", modelbase.SoftDeleteStatusActive).
+			Joins("INNER JOIN roles r ON r.id = ur.role_id AND r.is_deleted = ?", models.SoftDeleteStatusActive).
 			Where("r.slug = ?", roleFilter)
 	}
 	if statusQuery != "" {
@@ -148,7 +149,7 @@ func (h *Handlers) handleAdminGetUser(c *gin.Context) {
 		return
 	}
 	var user authmodel.User
-	if err = h.db.Where("id = ? AND is_deleted = ?", id, modelbase.SoftDeleteStatusActive).First(&user).Error; err != nil {
+	if err = h.db.Where("id = ? AND is_deleted = ?", id, models.SoftDeleteStatusActive).First(&user).Error; err != nil {
 		response.Fail(c, "user not found", err)
 		return
 	}
@@ -261,7 +262,7 @@ func (h *Handlers) handleAdminUpdateUser(c *gin.Context) {
 	}
 
 	var user authmodel.User
-	if err = h.db.Where("id = ? AND is_deleted = ?", id, modelbase.SoftDeleteStatusActive).First(&user).Error; err != nil {
+	if err = h.db.Where("id = ? AND is_deleted = ?", id, models.SoftDeleteStatusActive).First(&user).Error; err != nil {
 		response.Fail(c, "user not found", err)
 		return
 	}
@@ -382,8 +383,8 @@ func (h *Handlers) handleAdminDeleteUser(c *gin.Context) {
 			operator = "system"
 		}
 	}
-	if err = h.db.Model(&authmodel.User{}).Where("id = ? AND is_deleted = ?", id, modelbase.SoftDeleteStatusActive).
-		Updates(map[string]any{"is_deleted": modelbase.SoftDeleteStatusDeleted, "status": authmodel.UserStatusBanned, "update_by": operator}).Error; err != nil {
+	if err = h.db.Model(&authmodel.User{}).Where("id = ? AND is_deleted = ?", id, models.SoftDeleteStatusActive).
+		Updates(map[string]any{"is_deleted": models.SoftDeleteStatusDeleted, "status": authmodel.UserStatusBanned, "update_by": operator}).Error; err != nil {
 		response.Fail(c, "delete user failed", err)
 		return
 	}
@@ -870,4 +871,3 @@ func (h *Handlers) handleAdminDeleteOAuthClient(c *gin.Context) {
 	}
 	response.Success(c, "oauth client deleted", nil)
 }
-

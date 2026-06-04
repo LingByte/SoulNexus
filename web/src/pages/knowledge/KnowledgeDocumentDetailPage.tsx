@@ -10,7 +10,7 @@ import Button from '@/components/UI/Button'
 import Card from '@/components/UI/Card'
 import Badge from '@/components/UI/Badge'
 import MarkdownPreview from '@/components/UI/MarkdownPreview'
-import { useToast } from '@/components/UI/ToastContainer'
+import { showAlert } from '@/utils/alert'
 import { useI18nStore } from '@/stores/i18nStore'
 import {
   getKnowledgeDocument,
@@ -35,7 +35,6 @@ const KnowledgeDocumentDetailPage: React.FC = () => {
   const [searchParams] = useSearchParams()
   const nsId = searchParams.get('ns') || ''
   const { t } = useI18nStore()
-  const { success: toastSuccess, error: toastError } = useToast()
   const uploadRef = useRef<HTMLInputElement>(null)
 
   const [doc, setDoc] = useState<KnowledgeDocumentRow | null>(null)
@@ -52,7 +51,7 @@ const KnowledgeDocumentDetailPage: React.FC = () => {
     try {
       const dRes = await getKnowledgeDocument(docId)
       if (dRes.code !== 200 || !dRes.data?.document) {
-        toastError(t('knowledge.docs'), dRes.msg || 'not found')
+        showAlert(dRes.msg || 'not found', 'error', t('knowledge.docs'))
         setDoc(null)
         return
       }
@@ -64,12 +63,12 @@ const KnowledgeDocumentDetailPage: React.FC = () => {
       const fromRow = (row.storedMarkdown || '').trim()
       setMd(fromApi || fromRow)
     } catch (e: unknown) {
-      toastError(t('knowledge.docs'), (e as { msg?: string })?.msg || String(e))
+      showAlert((e as { msg?: string })?.msg || String(e), 'error', t('knowledge.docs'))
       setDoc(null)
     } finally {
       setLoading(false)
     }
-  }, [docId, toastError, t])
+  }, [docId, t])
 
   useEffect(() => {
     void loadAll()
@@ -81,14 +80,14 @@ const KnowledgeDocumentDetailPage: React.FC = () => {
     try {
       const res = await putKnowledgeDocumentText(docId, md)
       if (res.code !== 200) {
-        toastError(t('knowledge.saveMarkdown'), res.msg || 'failed')
+        showAlert(res.msg || 'failed', 'error', t('knowledge.saveMarkdown'))
         return
       }
-      toastSuccess(t('knowledge.saveMarkdown'), res.msg || 'ok')
+      showAlert(res.msg || 'ok', 'success', t('knowledge.saveMarkdown'))
       setEditMode(false)
       void loadAll()
     } catch (e: unknown) {
-      toastError(t('knowledge.saveMarkdown'), (e as { msg?: string })?.msg || String(e))
+      showAlert((e as { msg?: string })?.msg || String(e), 'error', t('knowledge.saveMarkdown'))
     } finally {
       setSaving(false)
     }
@@ -98,10 +97,10 @@ const KnowledgeDocumentDetailPage: React.FC = () => {
     if (!doc || !window.confirm(`${t('knowledge.deleteDoc')}?`)) return
     const res = await deleteKnowledgeDocument(doc.id)
     if (res.code !== 200) {
-      toastError(t('knowledge.deleteDoc'), res.msg || 'failed')
+      showAlert(res.msg || 'failed', 'error', t('knowledge.deleteDoc'))
       return
     }
-    toastSuccess(t('knowledge.deleteDoc'), res.msg || 'ok')
+    showAlert(res.msg || 'ok', 'success', t('knowledge.deleteDoc'))
     window.location.href = backHref
   }
 
@@ -109,10 +108,10 @@ const KnowledgeDocumentDetailPage: React.FC = () => {
     if (!doc) return
     const res = await reuploadKnowledgeDocument(doc.id, f)
     if (res.code !== 200) {
-      toastError(t('knowledge.reupload'), res.msg || 'failed')
+      showAlert(res.msg || 'failed', 'error', t('knowledge.reupload'))
       return
     }
-    toastSuccess(t('knowledge.reupload'), res.msg || 'ok')
+    showAlert(res.msg || 'ok', 'success', t('knowledge.reupload'))
     void loadAll()
   }
 

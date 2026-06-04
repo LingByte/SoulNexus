@@ -1,10 +1,11 @@
 package svcmodels
+
 // Copyright (c) 2026 LingByte. All rights reserved.
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"github.com/LingByte/SoulNexus/internal/models"
 	auth "github.com/LingByte/SoulNexus/internal/models/auth"
-
 
 	"testing"
 
@@ -12,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
-	"github.com/LingByte/SoulNexus/internal/modelbase"
 )
 
 func setupWorkflowPluginTestDB(t *testing.T) *gorm.DB {
@@ -42,7 +42,7 @@ func createTestUserForWorkflowPlugin(t *testing.T, db *gorm.DB) *auth.User {
 func createTestGroupWithAdmin(t *testing.T, db *gorm.DB, user *auth.User) *Group {
 	g := &Group{Name: "Test Org", Type: GroupTypeTeam, CreatorID: user.ID}
 	require.NoError(t, db.Create(g).Error)
-	require.NoError(t, db.Create(&GroupMember{UserID: user.ID, GroupID: g.ID, Role: modelbase.GroupRoleAdmin}).Error)
+	require.NoError(t, db.Create(&GroupMember{UserID: user.ID, GroupID: g.ID, Role: models.GroupRoleAdmin}).Error)
 	return g
 }
 
@@ -425,7 +425,7 @@ func TestWorkflowPluginInstallation_CRUD(t *testing.T) {
 	}
 	err := db.Create(installer).Error
 	require.NoError(t, err)
-	require.NoError(t, db.Create(&GroupMember{UserID: installer.ID, GroupID: workflow.GroupID, Role: modelbase.GroupRoleMember}).Error)
+	require.NoError(t, db.Create(&GroupMember{UserID: installer.ID, GroupID: workflow.GroupID, Role: models.GroupRoleMember}).Error)
 
 	// 创建工作流插件
 	plugin := &WorkflowPlugin{
@@ -447,8 +447,8 @@ func TestWorkflowPluginInstallation_CRUD(t *testing.T) {
 		GroupID:   workflow.GroupID,
 		CreatedBy: installer.ID,
 		PluginID:  plugin.ID,
-		Version:  "1.0.0",
-		Status:   "active",
+		Version:   "1.0.0",
+		Status:    "active",
 		Config: JSONMap{
 			"apiEndpoint": "https://api.example.com",
 			"timeout":     30,
@@ -699,7 +699,7 @@ func TestWorkflowPlugin_WithGroup(t *testing.T) {
 	}
 	err := db.Create(group).Error
 	require.NoError(t, err)
-	require.NoError(t, db.Create(&GroupMember{UserID: user.ID, GroupID: group.ID, Role: modelbase.GroupRoleAdmin}).Error)
+	require.NoError(t, db.Create(&GroupMember{UserID: user.ID, GroupID: group.ID, Role: models.GroupRoleAdmin}).Error)
 
 	// 创建组织的工作流插件
 	plugin := &WorkflowPlugin{

@@ -13,7 +13,7 @@ import { useDebounce } from '@/hooks/useDebounce'
 import { validateJavaScript } from '@/utils/jsValidator'
 import { getApiBaseURL } from '@/config/apiConfig'
 import MarkdownPreview from '@/components/UI/MarkdownPreview.tsx'
-import LoadingAnimation from '@/components/Animations/LoadingAnimation'
+import LoadingAnimation from '@/components/LoadingAnimation.tsx'
 import CollapsibleSectionHeader from '@/components/UI/CollapsibleSectionHeader'
 
 // 懒加载Monaco Editor，优化首次加载性能

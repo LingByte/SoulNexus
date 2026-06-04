@@ -2393,7 +2393,7 @@ const WorkflowForm: React.FC<WorkflowFormProps> = ({ workflow, onSave, onCancel,
         <Button variant="outline" onClick={onCancel} disabled={saving}>
           取消
         </Button>
-        <Button variant="primary" type="submit" loading={saving} disabled={saving}>
+        <Button variant="primary" loading={saving} disabled={saving}>
           保存
         </Button>
       </div>

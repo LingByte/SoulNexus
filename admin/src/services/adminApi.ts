@@ -1886,8 +1886,6 @@ export const createKnowledgeNamespace = async (body: {
   namespace: string
   name: string
   description?: string
-  vectorProvider?: string
-  embedModel: string
   groupId?: number
   status?: string
 }): Promise<KnowledgeNamespaceRow> => {

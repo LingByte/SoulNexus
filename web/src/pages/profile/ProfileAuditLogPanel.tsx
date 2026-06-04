@@ -4,7 +4,7 @@ import { getUserActivity, type ActivityLog } from '@/api/profile'
 import Button from '@/components/UI/Button'
 import Input from '@/components/UI/Input'
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/UI/Select'
-import LoadingAnimation from '@/components/Animations/LoadingAnimation'
+import LoadingAnimation from '@/components/LoadingAnimation.tsx'
 
 function formatDateInput(d: Date) {
   const y = d.getFullYear()

@@ -1,13 +1,15 @@
 package auth
 
-import "github.com/LingByte/SoulNexus/internal/modelbase"
+import (
+	"github.com/LingByte/SoulNexus/internal/models"
+)
 
 // Copyright (c) 2026 LingByte. All rights reserved.
 // SPDX-License-Identifier: AGPL-3.0
 
 // Role 角色（如 superadmin / admin / user）。
 type Role struct {
-	modelbase.BaseModel
+	models.BaseModel
 	Name        string       `json:"name" gorm:"size:128;not null"`
 	Slug        string       `json:"slug" gorm:"size:64;uniqueIndex;not null"`
 	Description string       `json:"description" gorm:"size:512"`

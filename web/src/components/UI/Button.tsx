@@ -1,12 +1,13 @@
-import {ButtonHTMLAttributes, forwardRef} from 'react'
+import {forwardRef} from 'react'
 import {motion} from 'framer-motion'
+import {Button as ArcoButton, ButtonProps as ArcoButtonProps} from '@arco-design/web-react'
 import {cn} from '@/utils/cn.ts'
 // @ts-ignore
 import {getCurrentTheme, getThemeClasses} from '@/utils/themeAdapter.ts'
 // @ts-ignore
 import {playClickSound, playHoverSound} from '@/utils/audioEffects.ts'
 
-interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+interface ButtonProps extends Omit<ArcoButtonProps, 'type' | 'size' | 'loading'> {
     variant?: 'default' | 'primary' | 'secondary' | 'outline' | 'ghost' | 'destructive' | 'success' | 'warning'
     size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'icon'
     loading?: boolean
@@ -40,6 +41,28 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         // 获取当前主题
         const currentTheme = getCurrentTheme()
         const themeClasses = getThemeClasses(currentTheme, 'primary')
+
+        // 映射variant到Arco Design的type
+        const variantToArcoType = {
+            default: 'primary',
+            primary: 'primary',
+            secondary: 'secondary',
+            outline: 'outline',
+            ghost: 'text',
+            destructive: 'primary',
+            success: 'primary',
+            warning: 'primary',
+        }
+
+        // 映射size到Arco Design的size
+        const sizeToArcoSize = {
+            xs: 'small',
+            sm: 'small',
+            md: 'middle',
+            lg: 'large',
+            xl: 'large',
+            icon: 'large',
+        }
 
         const variantClasses = {
             default: `${themeClasses.bg} ${themeClasses.text} ${themeClasses.hover} focus:ring-${themeClasses.ring} shadow-sm hover:shadow-lg active:shadow-md`,
@@ -100,90 +123,93 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         }
 
         const iconSize = iconSizeClasses[size]
+        const arcoType = variantToArcoType[variant]
+        const arcoSize = sizeToArcoSize[size]
 
         const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
             if (enableAudio && !disabled && !loading) {
                 playClickSound()
             }
-            onClick?.(e)
+            onClick?.(e as any)
         }
 
         const handleMouseEnter = (e: React.MouseEvent<HTMLButtonElement>) => {
             if (enableAudio && !disabled && !loading) {
                 playHoverSound()
             }
-            onMouseEnter?.(e)
+            onMouseEnter?.(e as any)
         }
 
         return (
-            <motion.button
-                ref={ref}
-                className={cn(
-                    baseClasses,
-                    variantClasses[variant],
-                    sizeClasses[size],
-                    fullWidth && 'w-full',
-                    className
-                )}
-                disabled={disabled || loading}
+            <motion.div
                 variants={animationVariants[animation]}
                 whileHover={disabled || loading ? {} : (animationVariants[animation] as any).hover}
                 whileTap={disabled || loading ? {} : (animationVariants[animation] as any).tap}
                 transition={{duration: 0.2, ease: "easeOut"}}
-                onClick={handleClick}
-                onMouseEnter={handleMouseEnter}
-                {...(props as any)}
+                className={cn(fullWidth && 'w-full')}
             >
-                <motion.div
-                    className="absolute inset-0 bg-white/20 rounded-inherit"
-                    initial={{scale: 0, opacity: 0}}
-                    whileTap={{scale: 1, opacity: 1}}
-                    transition={{duration: 0.3}}
-                />
-
-                <div
+                <ArcoButton
+                    ref={ref}
+                    type={arcoType as any}
+                    size={arcoSize as any}
+                    loading={loading}
+                    disabled={disabled || loading}
                     className={cn(
-                        'relative z-[1] flex min-w-0 flex-row flex-nowrap items-center justify-center gap-2',
-                        fullWidth && 'w-full min-w-0'
+                        baseClasses,
+                        variantClasses[variant],
+                        sizeClasses[size],
+                        fullWidth && 'w-full',
+                        '[&:hover]:!bg-inherit [&:hover]:!text-inherit [&:hover]:!border-inherit',
+                        className
                     )}
+                    onClick={handleClick}
+                    onMouseEnter={handleMouseEnter}
+                    {...(props as any)}
                 >
-                    {loading && (
-                        <motion.div
-                            animate={{rotate: 360}}
-                            transition={{duration: 1, repeat: Infinity, ease: 'linear'}}
-                            className={cn('flex-shrink-0 rounded-full border-2 border-current border-t-transparent', iconSize)}
-                        />
-                    )}
-                    {!loading && leftIcon && (
-                        <motion.span
-                            className={cn('inline-flex flex-shrink-0 items-center justify-center', iconSize)}
-                            whileHover={{scale: 1.1}}
-                            transition={{duration: 0.2}}
-                        >
-                            {leftIcon}
-                        </motion.span>
-                    )}
-                    {children != null && children !== false && (
-                        <motion.span
-                            className="inline-flex min-w-0 max-w-full flex-row flex-nowrap items-center justify-center gap-1.5 whitespace-nowrap [&_svg]:shrink-0"
-                            initial={{opacity: 0, y: 10}}
-                            animate={{opacity: 1, y: 0}}
-                            transition={{duration: 0.3, delay: 0.1}}
-                        >
-                            {children}
-                        </motion.span>
-                    )}
-                    {!loading && rightIcon && (
-                        <motion.span
-                            className={cn('inline-flex flex-shrink-0 items-center justify-center', iconSize)}
-                            whileHover={{scale: 1.1, x: 2}}
-                            transition={{duration: 0.2}}
-                        >
-                            {rightIcon}
-                        </motion.span>
-                    )}
-                </div>
-            </motion.button>
+                    <motion.div
+                        className="absolute inset-0 bg-white/20 rounded-inherit"
+                        initial={{scale: 0, opacity: 0}}
+                        whileTap={{scale: 1, opacity: 1}}
+                        transition={{duration: 0.3}}
+                    />
+
+                    <div
+                        className={cn(
+                            'relative z-[1] flex min-w-0 flex-row flex-nowrap items-center justify-center gap-2',
+                            fullWidth && 'w-full min-w-0'
+                        )}
+                    >
+                        {!loading && leftIcon && (
+                            <motion.span
+                                className={cn('inline-flex flex-shrink-0 items-center justify-center', iconSize)}
+                                whileHover={{scale: 1.1}}
+                                transition={{duration: 0.2}}
+                            >
+                                {leftIcon}
+                            </motion.span>
+                        )}
+                        {children != null && children !== false && (
+                            <motion.span
+                                className="inline-flex min-w-0 max-w-full flex-row flex-nowrap items-center justify-center gap-1.5 whitespace-nowrap [&_svg]:shrink-0"
+                                initial={{opacity: 0, y: 10}}
+                                animate={{opacity: 1, y: 0}}
+                                transition={{duration: 0.3, delay: 0.1}}
+                            >
+                                {children}
+                            </motion.span>
+                        )}
+                        {!loading && rightIcon && (
+                            <motion.span
+                                className={cn('inline-flex flex-shrink-0 items-center justify-center', iconSize)}
+                                whileHover={{scale: 1.1, x: 2}}
+                                transition={{duration: 0.2}}
+                            >
+                                {rightIcon}
+                            </motion.span>
+                        )}
+                    </div>
+                </ArcoButton>
+            </motion.div>
         )
     }
 )

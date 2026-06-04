@@ -2,11 +2,13 @@
 // SPDX-License-Identifier: AGPL-3.0
 
 package svcmodels
+
 import (
 	"errors"
 	"strings"
 	"time"
 
+	"github.com/LingByte/SoulNexus/internal/config"
 	"gorm.io/gorm"
 )
 
@@ -32,7 +34,7 @@ func IsKnowledgeInlineTextURL(s string) bool {
 	return strings.TrimSpace(s) == KnowledgeTextURLInline
 }
 
-// NormalizeVectorProvider canonicalises the vector backend name; defaults to Qdrant.
+// NormalizeVectorProvider canonicalises a stored vector backend name (legacy rows).
 func NormalizeVectorProvider(s string) string {
 	v := strings.TrimSpace(strings.ToLower(s))
 	switch v {
@@ -158,14 +160,13 @@ func GetKnowledgeNamespaceByGroupAndNamespace(db *gorm.DB, groupID uint, namespa
 }
 
 // KnowledgeNamespaceCreateUpdate 创建/更新参数。
+// Vector backend and embed model come from process env (knowledgecfg), not from the caller.
 type KnowledgeNamespaceCreateUpdate struct {
-	Namespace      string
-	Name           string
-	Description    string
-	VectorProvider string
-	EmbedModel     string
-	VectorDim      int
-	Status         string
+	Namespace   string
+	Name        string
+	Description string
+	VectorDim   int
+	Status      string
 }
 
 // UpsertKnowledgeNamespace creates or updates a namespace within a group.
@@ -185,13 +186,10 @@ func UpsertKnowledgeNamespace(db *gorm.DB, groupID uint, createdBy uint, id int6
 	if name == "" {
 		return nil, errors.New("name is required")
 	}
-	vp := NormalizeVectorProvider(req.VectorProvider)
-	if vp != KnowledgeVectorProviderQdrant && vp != KnowledgeVectorProviderMilvus {
-		return nil, errors.New("vector_provider must be qdrant or milvus")
-	}
-	embedModel := strings.TrimSpace(req.EmbedModel)
+	vp := NormalizeVectorProvider(config.VectorProviderFromEnv())
+	embedModel := config.EmbedModelFromEnv()
 	if embedModel == "" {
-		return nil, errors.New("embed_model is required")
+		return nil, errors.New("embed model not configured (set EMBED_MODEL)")
 	}
 	if req.VectorDim <= 0 {
 		return nil, errors.New("vector_dim must be > 0")
@@ -278,11 +276,11 @@ type KnowledgeDocument struct {
 	Source   string `json:"source" gorm:"type:varchar(128);comment:upload|url|api|..."`
 	FileHash string `json:"fileHash" gorm:"type:varchar(64);index;not null;uniqueIndex:idx_kd_group_ns_filehash"`
 
-	TextURL   string `json:"textUrl,omitempty" gorm:"type:text;comment:markdown text URL in object storage"`
+	TextURL string `json:"textUrl,omitempty" gorm:"type:text;comment:markdown text URL in object storage"`
 	// StoredMarkdown holds full markdown when LingStorage upload failed or URL is unavailable (GET /text fallback).
 	StoredMarkdown string `json:"storedMarkdown,omitempty" gorm:"type:longtext;comment:fallback markdown when text_url empty or fetch fails"`
 	RecordIDs      string `json:"recordIds" gorm:"type:text;comment:related vector ids (csv or json)"`
-	Status    string `json:"status" gorm:"type:varchar(20);index;not null;default:'active'"`
+	Status         string `json:"status" gorm:"type:varchar(20);index;not null;default:'active'"`
 
 	CreatedAt time.Time `json:"createdAt" gorm:"autoCreateTime"`
 	UpdatedAt time.Time `json:"updatedAt" gorm:"autoUpdateTime"`

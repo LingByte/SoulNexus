@@ -1,16 +1,16 @@
 package svcmodels
+
 // Copyright (c) 2026 LingByte. All rights reserved.
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
-
 	"encoding/json"
 	"strings"
 	"time"
 
+	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"gorm.io/gorm"
-	"github.com/LingByte/SoulNexus/internal/modelbase"
 )
 
 // CreateCallRecording 创建通话录音记录
@@ -87,7 +87,7 @@ func GetCallRecordingsByMemberUser(db *gorm.DB, userID uint, limit, offset int) 
 
 // CallRecording 通话录音表
 type CallRecording struct {
-	modelbase.BaseModel
+	models.BaseModel
 	GroupID                 uint       `json:"groupId" gorm:"index;not null"`
 	CreatedBy               uint       `json:"createdBy" gorm:"index"`
 	AgentID                 uint       `json:"agentId" gorm:"column:agent_id;index;not null"`

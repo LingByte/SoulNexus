@@ -1,11 +1,12 @@
 package handlers
 
 import (
-	authmodel "github.com/LingByte/SoulNexus/internal/models/auth"
-	"github.com/LingByte/SoulNexus/internal/modelbase"
 	"errors"
 	"net/http"
 	"strconv"
+
+	"github.com/LingByte/SoulNexus/internal/models"
+	authmodel "github.com/LingByte/SoulNexus/internal/models/auth"
 
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/gin-gonic/gin"
@@ -31,8 +32,8 @@ func (h *Handlers) handleAdminGetUserAccess(c *gin.Context) {
 	}
 	var roles []authmodel.Role
 	if len(roleIDs) > 0 {
-		_ = h.db.Where("id IN ? AND is_deleted = ?", roleIDs, modelbase.SoftDeleteStatusActive).
-			Preload("Permissions", "is_deleted = ?", modelbase.SoftDeleteStatusActive).
+		_ = h.db.Where("id IN ? AND is_deleted = ?", roleIDs, models.SoftDeleteStatusActive).
+			Preload("Permissions", "is_deleted = ?", models.SoftDeleteStatusActive).
 			Order("slug ASC").
 			Find(&roles).Error
 	}
@@ -44,7 +45,7 @@ func (h *Handlers) handleAdminGetUserAccess(c *gin.Context) {
 	}
 	var extraPerms []authmodel.Permission
 	if len(pids) > 0 {
-		_ = h.db.Where("id IN ? AND is_deleted = ?", pids, modelbase.SoftDeleteStatusActive).
+		_ = h.db.Where("id IN ? AND is_deleted = ?", pids, models.SoftDeleteStatusActive).
 			Order("`key` ASC").
 			Find(&extraPerms).Error
 	}
@@ -84,7 +85,7 @@ func (h *Handlers) handleAdminSetUserAccess(c *gin.Context) {
 		return
 	}
 	var u authmodel.User
-	if err = h.db.Where("id = ? AND is_deleted = ?", id, modelbase.SoftDeleteStatusActive).First(&u).Error; err != nil {
+	if err = h.db.Where("id = ? AND is_deleted = ?", id, models.SoftDeleteStatusActive).First(&u).Error; err != nil {
 		response.Fail(c, "user not found", err)
 		return
 	}
@@ -100,7 +101,7 @@ func (h *Handlers) handleAdminSetUserAccess(c *gin.Context) {
 			continue
 		}
 		var cnt int64
-		if err = tx.Model(&authmodel.Role{}).Where("id = ? AND is_deleted = ?", rid, modelbase.SoftDeleteStatusActive).Count(&cnt).Error; err != nil || cnt == 0 {
+		if err = tx.Model(&authmodel.Role{}).Where("id = ? AND is_deleted = ?", rid, models.SoftDeleteStatusActive).Count(&cnt).Error; err != nil || cnt == 0 {
 			tx.Rollback()
 			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid role id"))
 			return
@@ -122,7 +123,7 @@ func (h *Handlers) handleAdminSetUserAccess(c *gin.Context) {
 			continue
 		}
 		var cnt int64
-		if err = tx.Model(&authmodel.Permission{}).Where("id = ? AND is_deleted = ?", pid, modelbase.SoftDeleteStatusActive).Count(&cnt).Error; err != nil || cnt == 0 {
+		if err = tx.Model(&authmodel.Permission{}).Where("id = ? AND is_deleted = ?", pid, models.SoftDeleteStatusActive).Count(&cnt).Error; err != nil || cnt == 0 {
 			tx.Rollback()
 			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid permission id"))
 			return

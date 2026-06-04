@@ -1,6 +1,8 @@
 package auth
 
-import "github.com/LingByte/SoulNexus/internal/modelbase"
+import (
+	"github.com/LingByte/SoulNexus/internal/models"
+)
 
 // Copyright (c) 2026 LingByte. All rights reserved.
 // SPDX-License-Identifier: AGPL-3.0
@@ -14,7 +16,7 @@ const (
 
 // Permission 表示一条可授权的权限点。
 type Permission struct {
-	modelbase.BaseModel
+	models.BaseModel
 	Key         string `json:"key" gorm:"size:128;uniqueIndex;not null"`
 	Name        string `json:"name" gorm:"size:128;not null"`
 	Description string `json:"description" gorm:"size:512"`

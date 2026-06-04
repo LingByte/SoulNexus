@@ -1,6 +1,6 @@
 import { ReactNode, useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import LoadingAnimation from '@/components/Animations/LoadingAnimation'
+import LoadingAnimation from '@/components/LoadingAnimation.tsx'
 import { useAuthStore } from '@/stores/authStore'
 import { beginSSOLogin } from '@/utils/sso'
 import {

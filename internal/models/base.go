@@ -1,4 +1,4 @@
-package modelbase
+package models
 
 // Copyright (c) 2026 LingByte. All rights reserved.
 // SPDX-License-Identifier: AGPL-3.0
@@ -10,9 +10,9 @@ import (
 )
 
 const (
-	GroupRoleAdmin          = "admin"
-	GroupRoleMember         = "member"
-	SigInitSystemConfig     = "system.init"
+	GroupRoleAdmin               = "admin"
+	GroupRoleMember              = "member"
+	SigInitSystemConfig          = "system.init"
 	SoftDeleteStatusActive  int8 = 0
 	SoftDeleteStatusDeleted int8 = 1
 )
