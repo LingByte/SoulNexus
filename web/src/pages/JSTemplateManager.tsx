@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { Select as ArcoSelect } from '@arco-design/web-react'
 import { useI18nStore } from '@/stores/i18nStore'
 import PageHeader from '@/components/Layout/PageHeader.tsx'
+import PageLoadingScreen from '@/components/PageLoadingScreen.tsx'
 import Card, { CardFooter, CardHeader, CardTitle } from '@/components/UI/Card.tsx'
 import Button from '@/components/UI/Button.tsx'
 import Input from '@/components/UI/Input.tsx'
@@ -868,7 +869,7 @@ const JSTemplateManager = () => {
                                 <Suspense fallback={
                                     <div className="h-full flex items-center justify-center bg-slate-900">
                                         <div className="text-center">
-                                            <div className="animate-spin rounded-full h-8 w-8 border-4 border-slate-700 border-t-blue-500 mx-auto mb-3"></div>
+                                            <LoadingAnimation type="spinner" size="md" className="mb-3" />
                                             <p className="text-sm text-slate-400">加载代码编辑器...</p>
                                         </div>
                                     </div>
@@ -970,7 +971,7 @@ const JSTemplateManager = () => {
                                     <Suspense fallback={
                                         <div className="h-full flex items-center justify-center bg-slate-50 dark:bg-slate-800">
                                             <div className="text-center">
-                                                <div className="animate-spin rounded-full h-8 w-8 border-4 border-slate-200 dark:border-slate-700 border-t-green-500 mx-auto mb-3"></div>
+                                                <LoadingAnimation type="spinner" size="md" className="mb-3" />
                                                 <p className="text-sm text-slate-600 dark:text-slate-400">加载Markdown编辑器...</p>
                                             </div>
                                         </div>
