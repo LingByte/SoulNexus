@@ -7,6 +7,7 @@ import Input from '@/components/UI/Input'
 import Modal, { ModalContent, ModalHeader, ModalTitle } from '@/components/UI/Modal'
 import VoiceprintDeleteConfirm from '@/components/Voice/VoiceprintDeleteConfirm'
 import CollapsibleSectionHeader from '@/components/UI/CollapsibleSectionHeader'
+import PageHeader from '@/components/Layout/PageHeader'
 import { showAlert } from '@/utils/notification'
 import { getSystemInit, SystemInitInfo } from '@/api/system'
 import { getAssistantList, AssistantListItem } from '@/api/assistant'
@@ -297,9 +298,15 @@ const VoiceprintManagement = () => {
   const selectedAssistant = assistants.find(a => String(a.id) === selectedAssistantId)
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
+    <div className="flex flex-col h-full">
+      <PageHeader 
+        title={t('voiceprint.title')}
+        icon={<Mic className="w-5 h-5" />}
+      />
+      <div className="flex-1 overflow-auto">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="space-y-6"
       >
@@ -1079,6 +1086,8 @@ const VoiceprintManagement = () => {
           loading={isDeletingVoiceprint}
         />
       )}
+        </div>
+      </div>
     </div>
   )
 }
