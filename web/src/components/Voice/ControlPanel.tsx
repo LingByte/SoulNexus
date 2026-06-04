@@ -210,8 +210,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                 <div className="space-y-4 pt-4">
                                     <div className="space-y-2">
                                         <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('controlPanel.api.apiKey')}</label>
-                                        <Input
-                                            type="text"
+                                        <Input size="large" className="!h-10 !text-base" type="text"
                                             value={apiKey}
                                             onChange={(v) => onApiKeyChange(v)}
                                             placeholder={t('controlPanel.api.apiKeyPlaceholder')}
@@ -220,8 +219,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
 
                                     <div className="space-y-2">
                                         <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('controlPanel.api.apiSecret')}</label>
-                                        <Input
-                                            type="password"
+                                        <Input size="large" className="!h-10 !text-base" type="password"
                                             value={apiSecret}
                                             onChange={(v) => onApiSecretChange(v)}
                                             placeholder={t('controlPanel.api.apiSecretPlaceholder')}
@@ -292,12 +290,12 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                     {/* 系统提示词 */}
                                     <div className="space-y-1">
                                         <label className="text-base font-medium">{t('controlPanel.call.systemPrompt')}</label>
-                                        <Input.TextArea
+                                        <Input.TextArea 
+                                            className="!text-base min-h-[10rem] text-lg leading-relaxed"
                                             value={systemPrompt}
                                             onChange={onSystemPromptChange}
                                             placeholder={t('controlPanel.call.systemPromptPlaceholder')}
                                             rows={8}
-                                            className="min-h-[10rem] text-lg leading-relaxed"
                                         />
                                         {searchKeyword && systemPrompt && (
                                             <div
