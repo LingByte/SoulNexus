@@ -2,7 +2,7 @@ import React, { useMemo } from 'react'
 import { Select as ArcoSelect, SelectProps as ArcoSelectProps } from '@arco-design/web-react'
 import { cn } from '@/utils/cn.ts'
 
-interface SelectProps extends Omit<ArcoSelectProps, 'children'> {
+interface SelectProps extends Omit<ArcoSelectProps, 'onChange'> {
   value?: string
   onValueChange?: (value: string) => void
   children?: React.ReactNode
@@ -68,14 +68,14 @@ const Select = React.forwardRef<any, SelectProps>(
       <ArcoSelect
         ref={ref}
         value={value}
-        onChange={onValueChange}
+        onChange={(val: string) => onValueChange?.(val)}
         disabled={disabled}
         allowClear
         showSearch={searchable}
         filterOption={searchable}
         placeholder={searchPlaceholder}
         notFoundContent={emptyText}
-        options={arcoOptions || undefined}
+        options={arcoOptions}
         className={cn('w-full', className)}
         style={{
           '--color-primary': PURPLE_PRIMARY,
