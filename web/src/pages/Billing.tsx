@@ -13,7 +13,7 @@ import Card, { CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import Badge from '@/components/UI/Badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/UI/Tabs'
 import FadeIn from '@/components/FadeIn.tsx'
-import LoadingAnimation from '@/components/LoadingAnimation.tsx'
+import ContentLoadingSpinner from '@/components/ContentLoadingSpinner.tsx'
 import { showAlert } from '@/utils/notification'
 import {
   getUsageStatistics,
@@ -630,9 +630,7 @@ const Billing = () => {
         {/* 统计概览 */}
         <TabsContent value="statistics" className="space-y-6">
           {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <LoadingAnimation type="spinner" size="lg" />
-            </div>
+            <ContentLoadingSpinner size="lg" />
           ) : statistics ? (
             <>
               {/* 统计卡片 */}
@@ -756,9 +754,7 @@ const Billing = () => {
           </div>
           
           {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <LoadingAnimation type="spinner" size="lg" />
-            </div>
+            <ContentLoadingSpinner size="lg" />
           ) : usageRecords.length > 0 ? (
             <>
               <Card>
@@ -847,9 +843,7 @@ const Billing = () => {
         
         <TabsContent value="bills" className="space-y-4 mt-3">
           {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <LoadingAnimation type="spinner" size="lg" />
-            </div>
+            <ContentLoadingSpinner size="lg" />
           ) : bills.length > 0 ? (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
