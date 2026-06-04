@@ -278,44 +278,36 @@ const DeviceManagement: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen dark:bg-neutral-900 flex flex-col">
-            <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col">
-                <CollapsibleSectionHeader
-                    title={t('device.title')}
-                    icon={<Smartphone className="w-4 h-4 text-primary" />}
-                    expanded
-                    onToggle={() => {}}
-                    showChevron={false}
-                    clickable={false}
-                    compact
-                    titleSize="lg"
-                    withDivider
-                    className="mb-6"
-                    rightContent={(
-                        <div className="flex gap-2">
-                            <Button
-                                onClick={() => setShowBindModal(true)}
-                                variant="primary"
-                                size="sm"
-                                leftIcon={<Key className="w-3.5 h-3.5" />}
-                            >
-                                {t('device.bindDevice')}
-                            </Button>
-                            <Button
-                                onClick={() => setShowAddModal(true)}
-                                variant="secondary"
-                                size="sm"
-                                leftIcon={<Plus className="w-3.5 h-3.5" />}
-                            >
-                                {t('device.manualAddDevice')}
-                            </Button>
-                        </div>
-                    )}
-                />
+        <div className="flex flex-col h-full dark:bg-neutral-900">
+            <PageHeader 
+                title={t('device.title')}
+                actions={
+                    <div className="flex gap-2">
+                        <Button
+                            onClick={() => setShowBindModal(true)}
+                            variant="primary"
+                            size="sm"
+                            leftIcon={<Key className="w-3.5 h-3.5" />}
+                        >
+                            {t('device.bindDevice')}
+                        </Button>
+                        <Button
+                            onClick={() => setShowAddModal(true)}
+                            variant="secondary"
+                            size="sm"
+                            leftIcon={<Plus className="w-3.5 h-3.5" />}
+                        >
+                            {t('device.manualAddDevice')}
+                        </Button>
+                    </div>
+                }
+            />
 
-                {/* 助手选择 - 使用按钮组 */}
-                {assistants.length > 0 ? (
-                    <div className="w-full">
+            <div className="flex-1 overflow-auto">
+                <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col">
+                    {/* 助手选择 - 使用按钮组 */}
+                    {assistants.length > 0 ? (
+                        <div className="w-full">
                         <div className="flex flex-wrap gap-2 mb-6">
                             {assistants.map(assistant => (
                                 <Button
@@ -705,6 +697,7 @@ const DeviceManagement: React.FC = () => {
                     cancelText={t('device.cancel')}
                     type="danger"
                 />
+                </div>
             </div>
         </div>
     );
