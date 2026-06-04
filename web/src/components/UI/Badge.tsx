@@ -1,6 +1,5 @@
 import { ReactNode } from 'react'
 import { motion } from 'framer-motion'
-import { Tag } from '@arco-design/web-react'
 import { cn } from '@/utils/cn.ts'
 
 interface BadgeProps {
@@ -27,12 +26,7 @@ const Badge = ({
   onClick,
   animation = 'scale',
   delay = 0,
-  closable = false,
-  onClose
 }: BadgeProps) => {
-  // 深紫色主题
-  const PURPLE_PRIMARY = '#6d28d9'
-  
   const sizeClasses = {
     xs: 'px-1.5 py-1 text-xs',
     sm: 'px-2 py-1.5 text-xs',
