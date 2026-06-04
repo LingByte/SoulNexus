@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Input as ArcoInput } from '@arco-design/web-react'
 import {
   Beaker,
   Bot,
@@ -13,6 +12,7 @@ import {
 import { cn } from '@/utils/cn'
 import Button from '@/components/UI/Button'
 import Input from '@/components/UI/Input'
+import Textarea from '@/components/UI/Textarea'
 import Switch from '@/components/UI/Switch'
 import MarkdownPreview from '@/components/UI/MarkdownPreview'
 import CollapsibleSectionHeader from '@/components/UI/CollapsibleSectionHeader'
@@ -374,14 +374,13 @@ const Playground = () => {
                   value={settings.model}
                   onValueChange={(v) => patchSettings({ model: v })}
                 />
-                <div className="space-y-1">
-                  <label className="text-sm font-medium">system（系统提示）</label>
-                  <ArcoInput.TextArea
-                    rows={3}
-                    value={settings.systemPrompt}
-                    onChange={(v: string) => patchSettings({ systemPrompt: v })}
-                  />
-                </div>
+                <Textarea
+                  size="sm"
+                  label="system（系统提示）"
+                  rows={3}
+                  value={settings.systemPrompt}
+                  onValueChange={(v) => patchSettings({ systemPrompt: v })}
+                />
               </SettingsSection>
 
               <SettingsSection title="采样与长度">
@@ -536,16 +535,15 @@ const Playground = () => {
                     onCheckedChange={(v) => patchSettings({ showRaw: v })}
                   />
                 </div>
-                <div className="space-y-1">
-                  <label className="text-sm font-medium">extra JSON（合并进请求体）</label>
-                  <ArcoInput.TextArea
-                    rows={4}
-                    value={settings.extraJson}
-                    onChange={(v: string) => patchSettings({ extraJson: v })}
-                    placeholder='{"top_k": 20}'
-                    className="font-mono text-[11px]"
-                  />
-                </div>
+                <Textarea
+                  size="sm"
+                  label="extra JSON（合并进请求体）"
+                  rows={4}
+                  value={settings.extraJson}
+                  onValueChange={(v) => patchSettings({ extraJson: v })}
+                  placeholder='{"top_k": 20}'
+                  className="font-mono text-[11px]"
+                />
               </SettingsSection>
             </div>
           </motion.aside>
@@ -713,10 +711,14 @@ const Playground = () => {
           className="shrink-0 border-t border-border bg-background/80 p-3 backdrop-blur"
         >
           <div className="mx-auto flex max-w-3xl gap-2">
-            <ArcoInput.TextArea
+            <Textarea
+              size="sm"
               rows={1}
               value={input}
-              onChange={setInput}
+              onValueChange={setInput}
+              onChange={(v: string) => {
+                // Handle onKeyDown separately
+              }}
               onKeyDown={(e: any) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault()
@@ -724,7 +726,8 @@ const Playground = () => {
                 }
               }}
               placeholder="输入消息，Enter 发送，Shift+Enter 换行"
-              className="flex-1 max-h-32 min-h-[2.75rem] resize-none rounded-xl"
+              wrapperClassName="flex-1"
+              className="max-h-32 min-h-[2.75rem] resize-none rounded-xl"
             />
             <Button
               variant="primary"
