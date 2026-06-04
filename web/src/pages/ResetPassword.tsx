@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Lock, Eye, EyeOff, CheckCircle, AlertTriangle } from 'lucide-react'
+import { Input as ArcoInput } from '@arco-design/web-react'
 import Button from '../components/UI/Button'
-import Input from '../components/UI/Input'
 import Card, { CardContent, CardHeader, CardTitle } from '../components/UI/Card'
 import PasswordStrength from '../components/Auth/PasswordStrength'
 import { resetPasswordConfirm } from '../api/auth'
@@ -177,14 +177,14 @@ const ResetPassword = () => {
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
-                <Input
-                  label={t('resetPassword.newPassword')}
+                <label className="block text-sm font-medium mb-2">{t('resetPassword.newPassword')}</label>
+                <ArcoInput
                   type={showPassword ? 'text' : 'password'}
                   placeholder={t('resetPassword.newPasswordPlaceholder')}
                   value={formData.password}
-                  onChange={(e) => handleInputChange('password', e.target.value)}
-                  leftIcon={<Lock className="w-5 h-5" />}
-                  rightIcon={
+                  onChange={(val) => handleInputChange('password', val)}
+                  prefix={<Lock className="w-5 h-5" />}
+                  suffix={
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
@@ -198,24 +198,26 @@ const ResetPassword = () => {
                 <PasswordStrength password={formData.password} />
               </div>
 
-              <Input
-                label={t('resetPassword.confirmPassword')}
-                type={showConfirmPassword ? 'text' : 'password'}
-                placeholder={t('resetPassword.confirmPasswordPlaceholder')}
-                value={formData.confirmPassword}
-                onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
-                leftIcon={<Lock className="w-5 h-5" />}
-                rightIcon={
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
-                  >
-                    {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
-                }
-                required
-              />
+              <div>
+                <label className="block text-sm font-medium mb-2">{t('resetPassword.confirmPassword')}</label>
+                <ArcoInput
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  placeholder={t('resetPassword.confirmPasswordPlaceholder')}
+                  value={formData.confirmPassword}
+                  onChange={(val) => handleInputChange('confirmPassword', val)}
+                  prefix={<Lock className="w-5 h-5" />}
+                  suffix={
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
+                    >
+                      {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  }
+                  required
+                />
+              </div>
 
               <Button
                 type="submit"
