@@ -855,7 +855,7 @@ const Profile = () => {
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-3 md:gap-x-4 md:gap-y-4">
                       <div>
                         <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">{t('profile.displayName')}</label>
-                        <ArcoInput size="large" className="!h-10 !text-base" value={formData.displayName}
+                        <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.displayName}
                           onChange={(val) => setFormData((prev) => ({ ...prev, displayName: val }))}
                           disabled={!isEditing}
                           prefix={<User />}
@@ -865,7 +865,7 @@ const Profile = () => {
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">{t('profile.firstName')}</label>
-                        <ArcoInput size="large" className="!h-10 !text-base" value={formData.firstName}
+                        <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.firstName}
                           onChange={(val) => setFormData((prev) => ({ ...prev, firstName: val }))}
                           disabled={!isEditing}
                           prefix={<User />}
@@ -875,7 +875,7 @@ const Profile = () => {
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">{t('profile.lastName')}</label>
-                        <ArcoInput size="large" className="!h-10 !text-base" value={formData.lastName}
+                        <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.lastName}
                           onChange={(val) => setFormData((prev) => ({ ...prev, lastName: val }))}
                           disabled={!isEditing}
                           prefix={<User />}
@@ -903,7 +903,7 @@ const Profile = () => {
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">{t('profile.email')}</label>
-                        <ArcoInput size="large" className="!h-10 !text-base" type="email"
+                        <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" type="email"
                           value={formData.email}
                           onChange={(val) => setFormData((prev) => ({ ...prev, email: val }))}
                           disabled={!isEditing}
@@ -914,7 +914,7 @@ const Profile = () => {
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">{t('profile.phone')}</label>
-                        <ArcoInput size="large" className="!h-10 !text-base" value={formData.phone}
+                        <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.phone}
                           onChange={(val) => setFormData((prev) => ({ ...prev, phone: val }))}
                           disabled={!isEditing}
                           prefix={<Phone />}
@@ -924,7 +924,7 @@ const Profile = () => {
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">城市</label>
-                        <ArcoInput size="large" className="!h-10 !text-base" className="!h-10 !text-base" value={formData.city}
+                        <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.city}
                           onChange={(val) => setFormData((prev) => ({ ...prev, city: val }))}
                           disabled={!isEditing}
                           placeholder="请输入所在城市"
@@ -933,7 +933,7 @@ const Profile = () => {
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">地区</label>
-                        <ArcoInput size="large" className="!h-10 !text-base" className="!h-10 !text-base" value={formData.region}
+                        <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.region}
                           onChange={(val) => setFormData((prev) => ({ ...prev, region: val }))}
                           disabled={!isEditing}
                           placeholder="请输入所在地区"
@@ -942,7 +942,7 @@ const Profile = () => {
                       </div>
                       <div className="col-span-full">
                         <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">{t('profile.bio')}</label>
-                        <ArcoInput size="large" className="!h-10 !text-base" value={formData.extra}
+                        <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.extra}
                           onChange={(val) => setFormData((prev) => ({ ...prev, extra: val }))}
                           disabled={!isEditing}
                           prefix={<Heart />}
@@ -1241,7 +1241,7 @@ const Profile = () => {
                               {passwordChangeMethod === 'password' ? (
                                 <div>
                                   <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">当前密码</label>
-                                  <ArcoInput size="large" className="!h-10 !text-base" type={showCurrentPassword ? 'text' : 'password'}
+                                  <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" type={showCurrentPassword ? 'text' : 'password'}
                                     value={passwordData.currentPassword}
                                     onChange={(val) =>
                                       setPasswordData((prev) => ({ ...prev, currentPassword: val }))
@@ -1265,7 +1265,7 @@ const Profile = () => {
                                   <label className="block text-xs font-medium text-slate-600 dark:text-gray-400">邮箱验证码</label>
                                   <div className="flex gap-2">
                                     <div className="min-w-0 flex-1">
-                                      <ArcoInput size="large" className="!h-10 !text-base" type="text"
+                                      <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" type="text"
                                         value={emailCode}
                                         onChange={(val) => setEmailCode(val)}
                                         prefix={<Mail />}
@@ -1289,7 +1289,7 @@ const Profile = () => {
                               <div className="mt-2 space-y-2">
                                 <div>
                                   <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">新密码</label>
-                                  <ArcoInput size="large" className="!h-10 !text-base" type={showNewPassword ? 'text' : 'password'}
+                                  <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" type={showNewPassword ? 'text' : 'password'}
                                     value={passwordData.newPassword}
                                     onChange={(val) => setPasswordData((prev) => ({ ...prev, newPassword: val }))}
                                     prefix={<Lock />}
@@ -1308,7 +1308,7 @@ const Profile = () => {
                                 </div>
                                 <div>
                                   <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">确认新密码</label>
-                                  <ArcoInput size="large" className="!h-10 !text-base" type={showConfirmPassword ? 'text' : 'password'}
+                                  <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" type={showConfirmPassword ? 'text' : 'password'}
                                     value={passwordData.confirmPassword}
                                     onChange={(val) =>
                                       setPasswordData((prev) => ({ ...prev, confirmPassword: val }))

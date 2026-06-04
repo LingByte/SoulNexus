@@ -627,3 +627,22 @@
   min-height: 32px;
   padding: 4px 12px;
 }
+
+/* ArcoDesign Input 样式修复 */
+.arco-input::placeholder {
+  font-size: 1rem !important;
+  line-height: 1.5rem !important;
+}
+
+.arco-input {
+  font-size: 1rem !important;
+  line-height: 1.5rem !important;
+}
+
+.arco-input-wrapper {
+  height: 2.5rem !important;
+}
+
+.arco-textarea::placeholder {
+  font-size: 1rem !important;
+}

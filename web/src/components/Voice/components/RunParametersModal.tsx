@@ -69,7 +69,7 @@ export const RunParametersModal: React.FC<RunParametersModalProps> = ({
           <div className="space-y-3">
             {startNode!.inputs.map((input, idx) => (
               <div key={idx}>
-                <ArcoInput size="large" className="!h-10 !text-base" className="!h-10 !text-base" label={input || `参数 ${idx + 1}`}
+                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" label={input || `参数 ${idx + 1}`}
                   size="sm"
                   value={parameters[input] || ''}
                   onChange={(e) => onParameterChange(input, e.target.value)}
