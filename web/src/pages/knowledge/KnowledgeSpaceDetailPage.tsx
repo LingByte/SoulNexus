@@ -9,7 +9,7 @@ import PageContainer from '@/components/Layout/PageContainer'
 import Button from '@/components/UI/Button'
 import Card from '@/components/UI/Card'
 import Badge from '@/components/UI/Badge'
-import Input from '@/components/UI/Input'
+import { Input as ArcoInput } from '@arco-design/web-react'
 import { showAlert } from '@/utils/alert'
 import { useI18nStore } from '@/stores/i18nStore'
 import {
@@ -244,7 +244,7 @@ const KnowledgeSpaceDetailPage: React.FC = () => {
         {tab === 'docs' && (
           <Card className="overflow-hidden border-border/80">
             <div className="flex flex-wrap gap-2 border-b border-border p-3">
-              <Input
+              <ArcoInput
                 value={docQInput}
                 onChange={(e) => setDocQInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && setDocQ(docQInput.trim())}
@@ -294,11 +294,11 @@ const KnowledgeSpaceDetailPage: React.FC = () => {
             <div className="flex flex-wrap gap-4">
               <div>
                 <label className="mb-1 block text-xs text-muted-foreground">{t('knowledge.topK')}</label>
-                <Input type="number" value={String(recallTopK)} onChange={(e) => setRecallTopK(parseInt(e.target.value, 10) || 5)} className="w-24" />
+                <ArcoInput type="number" value={String(recallTopK)} onChange={(e) => setRecallTopK(parseInt(e.target.value, 10) || 5)} className="w-24" />
               </div>
               <div>
                 <label className="mb-1 block text-xs text-muted-foreground">{t('knowledge.minScore')}</label>
-                <Input type="number" step={0.05} value={String(recallMin)} onChange={(e) => setRecallMin(parseFloat(e.target.value) || 0)} className="w-24" />
+                <ArcoInput type="number" step={0.05} value={String(recallMin)} onChange={(e) => setRecallMin(parseFloat(e.target.value) || 0)} className="w-24" />
               </div>
             </div>
             <Button variant="primary" size="sm" onClick={() => void runRecall()} loading={recallBusy}>

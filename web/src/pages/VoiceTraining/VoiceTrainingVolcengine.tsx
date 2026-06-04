@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { showAlert } from '@/utils/notification'
 import { useI18nStore } from '@/stores/i18nStore'
 import Card, { CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/UI/Card'
-import Input from '@/components/UI/Input'
+import { Input as ArcoInput } from '@arco-design/web-react'
 import Button from '@/components/UI/Button'
 import { Select as ArcoSelect } from '@arco-design/web-react'
 import FileUpload from '@/components/UI/FileUpload'
@@ -376,14 +376,14 @@ const VoiceTrainingVolcengine: React.FC = () => {
                     <CardContent className="pt-6">
                         <div className="space-y-4">
                             <FormField label="App ID" required>
-                                <Input
+                                <ArcoInput
                                     value={configForm.app_id}
                                     onChange={(e) => setConfigForm({ ...configForm, app_id: e.target.value })}
                                     placeholder="请输入 App ID"
                                 />
                             </FormField>
                             <FormField label="Token" required>
-                                <Input
+                                <ArcoInput
                                     type="password"
                                     value={configForm.token}
                                     onChange={(e) => setConfigForm({ ...configForm, token: e.target.value })}
@@ -391,28 +391,28 @@ const VoiceTrainingVolcengine: React.FC = () => {
                                 />
                             </FormField>
                             <FormField label="Cluster">
-                                <Input
+                                <ArcoInput
                                     value={configForm.cluster}
                                     onChange={(e) => setConfigForm({ ...configForm, cluster: e.target.value })}
                                     placeholder="volcano_icl"
                                 />
                             </FormField>
                             <FormField label="Voice Type">
-                                <Input
+                                <ArcoInput
                                     value={configForm.voice_type}
                                     onChange={(e) => setConfigForm({ ...configForm, voice_type: e.target.value })}
                                     placeholder="请输入音色类型"
                                 />
                             </FormField>
                             <FormField label="Encoding">
-                                <Input
+                                <ArcoInput
                                     value={configForm.encoding}
                                     onChange={(e) => setConfigForm({ ...configForm, encoding: e.target.value })}
                                     placeholder="pcm"
                                 />
                             </FormField>
                             <FormField label="Frame Duration">
-                                <Input
+                                <ArcoInput
                                     value={configForm.frame_duration}
                                     onChange={(e) => setConfigForm({ ...configForm, frame_duration: e.target.value })}
                                     placeholder="20ms"
@@ -498,7 +498,7 @@ const VoiceTrainingVolcengine: React.FC = () => {
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 <FormField label={t('voiceTraining.volcengine.speakerId')} required>
-                                    <Input
+                                    <ArcoInput
                                         value={speakerId}
                                         onValueChange={setSpeakerId}
                                         placeholder={t('voiceTraining.volcengine.speakerIdPlaceholder')}
@@ -576,7 +576,7 @@ const VoiceTrainingVolcengine: React.FC = () => {
                                         </Select>
                                     </FormField>
                                     <FormField label={t('voiceTraining.synthesizeText')} required>
-                                        <Input
+                                        <ArcoInput
                                             value={synthesisText}
                                             onValueChange={setSynthesisText}
                                             placeholder={t('voiceTraining.synthesizeTextPlaceholder')}

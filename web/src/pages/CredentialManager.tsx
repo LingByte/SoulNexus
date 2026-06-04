@@ -8,7 +8,7 @@ import {
 import { useAuthStore } from '../stores/authStore'
 import { useI18nStore } from '../stores/i18nStore'
 import Button from '../components/UI/Button'
-import Input from '../components/UI/Input'
+import { Input as ArcoInput } from '@arco-design/web-react'
 import AutocompleteInput from '../components/UI/AutocompleteInput'
 import Card from '../components/UI/Card'
 import Badge from '../components/UI/Badge'
@@ -577,7 +577,7 @@ const CredentialManager = () => {
                           <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700 pb-1.5">
                             {t('credential.generalSettings')}
                           </h4>
-                          <Input
+                          <ArcoInput
                             label={t('credential.keyName')}
                             value={form.name}
                             onChange={(e) => handleFormChange("name", e.target.value)}
@@ -609,7 +609,7 @@ const CredentialManager = () => {
                               placeholder={t('credential.providerPlaceholder')}
                               helperText={t('credential.providerHelper')}
                             />
-                            <Input
+                            <ArcoInput
                               label={
                                 isCozeProvider(form.llmProvider) ? 'Coze API Token' : 
                                 (isOllamaProvider(form.llmProvider) || isLMStudioProvider(form.llmProvider)) ? 'API Key (可选)' :
@@ -634,7 +634,7 @@ const CredentialManager = () => {
                             />
                             {isCozeProvider(form.llmProvider) ? (
                               <>
-                                <Input
+                                <ArcoInput
                                   label="Bot ID"
                                   value={form.llmApiUrl}
                                   onChange={(e) => handleFormChange("llmApiUrl", e.target.value)}
@@ -642,7 +642,7 @@ const CredentialManager = () => {
                                   placeholder="请输入 Coze Bot ID"
                                   helperText="在 Coze 平台上创建的智能体 Bot ID（必需）"
                                 />
-                                <Input
+                                <ArcoInput
                                   label="User ID（可选）"
                                   value={cozeConfig.userId}
                                   onChange={(e) => setCozeConfig(prev => ({ ...prev, userId: e.target.value }))}
@@ -650,7 +650,7 @@ const CredentialManager = () => {
                                   placeholder="自定义 User ID（留空则自动生成）"
                                   helperText="如果不填写，将自动使用 user_{您的用户ID} 格式"
                                 />
-                                <Input
+                                <ArcoInput
                                   label="Base URL（可选）"
                                   value={cozeConfig.baseUrl}
                                   onChange={(e) => setCozeConfig(prev => ({ ...prev, baseUrl: e.target.value }))}
@@ -660,7 +660,7 @@ const CredentialManager = () => {
                                 />
                               </>
                             ) : (
-                              <Input
+                              <ArcoInput
                                 label={t('credential.apiUrl')}
                                 value={form.llmApiUrl}
                                 onChange={(e) => handleFormChange("llmApiUrl", e.target.value)}
@@ -765,7 +765,7 @@ const CredentialManager = () => {
                               <Button size="sm" variant="outline" onClick={() => handleFormChange("expiresAt", DATE_NEVER)}>1970-01-01 07:59:59</Button>
                               <Button size="sm" variant="ghost" onClick={() => handleFormChange("expiresAt", "")}>清空</Button>
                             </div>
-                            <Input
+                            <ArcoInput
                               label="过期时间"
                               value={form.expiresAt || ""}
                               onChange={(e) => handleFormChange("expiresAt", e.target.value)}
@@ -790,13 +790,13 @@ const CredentialManager = () => {
                               />
                               <span>无限额度</span>
                             </label>
-                            <Input
+                            <ArcoInput
                               label="设置令牌可用额度"
                               type="number"
                               value={String(form.tokenQuota ?? 0)}
                               onChange={(e) => setForm(prev => ({ ...prev, tokenQuota: Number(e.target.value || 0) }))}
                             />
-                            <Input
+                            <ArcoInput
                               label="设置令牌可用数量"
                               type="number"
                               value={String(form.requestQuota ?? 0)}

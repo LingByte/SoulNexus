@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import { Mic, Users, Shield, Save, Plus, Trash2, User, Volume2, Bot, AlertCircle, Play, TestTube, Edit2 } from 'lucide-react'
 import Card, { CardContent, CardHeader, CardTitle } from '@/components/UI/Card'
 import Button from '@/components/UI/Button'
-import Input from '@/components/UI/Input'
+import { Input as ArcoInput } from '@arco-design/web-react'
 import Modal, { ModalContent, ModalHeader, ModalTitle } from '@/components/UI/Modal'
 import VoiceprintDeleteConfirm from '@/components/Voice/VoiceprintDeleteConfirm'
 import CollapsibleSectionHeader from '@/components/UI/CollapsibleSectionHeader'
@@ -568,7 +568,7 @@ const VoiceprintManagement = () => {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 说话人姓名 <span className="text-red-500">*</span>
               </label>
-              <Input
+              <ArcoInput
                 type="text"
                 value={newSpeaker.name}
                 onChange={(e) => setNewSpeaker(prev => ({ ...prev, name: e.target.value }))}
@@ -1007,7 +1007,7 @@ const VoiceprintManagement = () => {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     说话人姓名 <span className="text-red-500">*</span>
                   </label>
-                  <Input
+                  <ArcoInput
                     type="text"
                     value={editingSpeaker.name}
                     onChange={(e) => setEditingSpeaker(prev => ({ ...prev, name: e.target.value }))}

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { FileText, Search, RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react'
 import { getUserActivity, type ActivityLog } from '@/api/profile'
 import Button from '@/components/UI/Button'
-import Input from '@/components/UI/Input'
+import { Input as ArcoInput } from '@arco-design/web-react'
 import { Select as ArcoSelect } from '@arco-design/web-react'
 import LoadingAnimation from '@/components/LoadingAnimation.tsx'
 
@@ -154,11 +154,11 @@ const ProfileAuditLogPanel = ({ userId }: ProfileAuditLogPanelProps) => {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-gray-400">事件时间（起）</label>
-            <Input type="date" value={draft.start} onChange={(e) => setDraft((d) => ({ ...d, start: e.target.value }))} className="h-9" />
+            <ArcoInput type="date" value={draft.start} onChange={(e) => setDraft((d) => ({ ...d, start: e.target.value }))} className="h-9" />
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-gray-400">事件时间（止）</label>
-            <Input type="date" value={draft.end} onChange={(e) => setDraft((d) => ({ ...d, end: e.target.value }))} className="h-9" />
+            <ArcoInput type="date" value={draft.end} onChange={(e) => setDraft((d) => ({ ...d, end: e.target.value }))} className="h-9" />
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-gray-400">服务名称</label>

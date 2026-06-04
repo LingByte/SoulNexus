@@ -19,7 +19,7 @@ import {
 import Button from '@/components/UI/Button'
 import Card from '@/components/UI/Card'
 import Badge from '@/components/UI/Badge'
-import Input from '@/components/UI/Input'
+import { Input as ArcoInput } from '@arco-design/web-react'
 import Modal from '@/components/UI/Modal'
 import PageHeader from '@/components/Layout/PageHeader'
 import EmptyState from '@/components/UI/EmptyState'
@@ -1072,7 +1072,7 @@ const WorkflowManager: React.FC = () => {
                           <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                             工作流名称
                           </label>
-                          <Input
+                          <ArcoInput
                             size="sm"
                             value={selectedWorkflow.name}
                             readOnly
@@ -1142,7 +1142,7 @@ const WorkflowManager: React.FC = () => {
                             {inputParameters.map((param, index) => (
                               <div key={index} className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg">
                                 <div className="grid grid-cols-2 gap-2 mb-2">
-                                  <Input
+                                  <ArcoInput
                                     size="sm"
                                     placeholder="参数名"
                                     value={param.name}
@@ -1168,7 +1168,7 @@ const WorkflowManager: React.FC = () => {
                                     <option value="array">数组</option>
                                   </select>
                                 </div>
-                                <Input
+                                <ArcoInput
                                   size="sm"
                                   placeholder="描述"
                                   value={param.description}
@@ -1227,7 +1227,7 @@ const WorkflowManager: React.FC = () => {
                             {outputParameters.map((param, index) => (
                               <div key={index} className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg">
                                 <div className="grid grid-cols-2 gap-2 mb-2">
-                                  <Input
+                                  <ArcoInput
                                     size="sm"
                                     placeholder="参数名"
                                     value={param.name}
@@ -1253,7 +1253,7 @@ const WorkflowManager: React.FC = () => {
                                     <option value="array">数组</option>
                                   </select>
                                 </div>
-                                <Input
+                                <ArcoInput
                                   size="sm"
                                   placeholder="描述"
                                   value={param.description}
@@ -1629,7 +1629,7 @@ const WorkflowManager: React.FC = () => {
         <Card className="mb-6" padding="md">
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1">
-              <Input
+              <ArcoInput
                 placeholder="搜索工作流..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -1977,7 +1977,7 @@ const TriggerConfigPanel: React.FC<TriggerConfigPanelProps> = ({
             {safeTriggerConfig.api?.public && (
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <Input
+                  <ArcoInput
                     type={apiKeyVisible ? 'text' : 'password'}
                     value={safeTriggerConfig.api?.apiKey || ''}
                     onChange={(e) => onUpdate({
@@ -2110,7 +2110,7 @@ const TriggerConfigPanel: React.FC<TriggerConfigPanelProps> = ({
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Cron 表达式
               </label>
-              <Input
+              <ArcoInput
                 value={safeTriggerConfig.schedule?.cronExpr || ''}
                 onChange={(e) => onUpdate({
                   ...safeTriggerConfig,
@@ -2162,7 +2162,7 @@ const TriggerConfigPanel: React.FC<TriggerConfigPanelProps> = ({
                 Webhook URL
               </label>
               <div className="flex items-center gap-2">
-                <Input
+                <ArcoInput
                   value={getWebhookURL()}
                   readOnly
                   className="flex-1"
@@ -2183,7 +2183,7 @@ const TriggerConfigPanel: React.FC<TriggerConfigPanelProps> = ({
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Webhook 密钥（可选，用于验证）
               </label>
-              <Input
+              <ArcoInput
                 type="password"
                 value={safeTriggerConfig.webhook?.secret || ''}
                 onChange={(e) => onUpdate({
@@ -2331,13 +2331,13 @@ const WorkflowForm: React.FC<WorkflowFormProps> = ({ workflow, onSave, onCancel,
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <Input
+      <ArcoInput
         label="名称"
         value={formData.name}
         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
         required
       />
-      <Input
+      <ArcoInput
         label="Slug"
         value={formData.slug}
         onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
@@ -2369,7 +2369,7 @@ const WorkflowForm: React.FC<WorkflowFormProps> = ({ workflow, onSave, onCancel,
           <option value="archived">归档</option>
         </select>
       </div>
-      <Input
+      <ArcoInput
         label="标签 (逗号分隔)"
         value={formData.tags}
         onChange={(e) => setFormData({ ...formData, tags: e.target.value })}

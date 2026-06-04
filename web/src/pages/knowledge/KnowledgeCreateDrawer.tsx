@@ -4,7 +4,7 @@
 import React, { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 import Button from '@/components/UI/Button'
-import Input from '@/components/UI/Input'
+import { Input as ArcoInput } from '@arco-design/web-react'
 import { Select as ArcoSelect } from '@arco-design/web-react'
 import { useI18nStore } from '@/stores/i18nStore'
 import { showAlert } from '@/utils/alert'
@@ -117,11 +117,11 @@ const KnowledgeCreateDrawer: React.FC<Props> = ({ open, onClose, onCreated }) =>
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-muted-foreground">{t('knowledge.fieldNamespace')}</label>
-            <Input value={formNs} onChange={(e) => setFormNs(e.target.value)} className="font-mono text-sm" />
+            <ArcoInput value={formNs} onChange={(e) => setFormNs(e.target.value)} className="font-mono text-sm" />
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-muted-foreground">{t('knowledge.fieldName')}</label>
-            <Input value={formName} onChange={(e) => setFormName(e.target.value)} />
+            <ArcoInput value={formName} onChange={(e) => setFormName(e.target.value)} />
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-muted-foreground">{t('knowledge.fieldDesc')}</label>

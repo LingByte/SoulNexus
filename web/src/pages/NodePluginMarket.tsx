@@ -26,7 +26,7 @@ import {
 } from 'lucide-react'
 
 import Button from '@/components/UI/Button'
-import Input from '@/components/UI/Input'
+import { Input as ArcoInput } from '@arco-design/web-react'
 import Card from '@/components/UI/Card'
 import Badge from '@/components/UI/Badge'
 import Modal from '@/components/UI/Modal'
@@ -473,7 +473,7 @@ const NodePluginMarket: React.FC = () => {
         <div className="flex flex-col sm:flex-row gap-4 mb-6">
           {/* 搜索框 */}
           <div className="flex-1">
-            <Input
+            <ArcoInput
               placeholder="搜索插件..."
               value={searchKeyword}
               onChange={(e) => setSearchKeyword(e.target.value)}
@@ -839,17 +839,17 @@ const EditPluginModal: React.FC<{
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium mb-2">显示名称 *</label>
-          <Input
+          <ArcoInput
             value={formData.displayName}
-            onChange={(e) => setFormData({...formData, displayName: e.target.value})}
+            onChange={(val) => setFormData({...formData, displayName: val})}
             placeholder="插件显示名称"
           />
         </div>
         <div>
           <label className="block text-sm font-medium mb-2">版本</label>
-          <Input
+          <ArcoInput
             value={formData.version}
-            onChange={(e) => setFormData({...formData, version: e.target.value})}
+            onChange={(val) => setFormData({...formData, version: val})}
             placeholder="1.0.0"
           />
         </div>
@@ -859,7 +859,7 @@ const EditPluginModal: React.FC<{
         <label className="block text-sm font-medium mb-2">描述 *</label>
         <textarea
           value={formData.description}
-          onChange={(e) => setFormData({...formData, description: e.target.value})}
+          onChange={(val) => setFormData({...formData, description: val})}
           placeholder="插件功能描述..."
           className="w-full px-3 py-2 border border-gray-300 rounded-lg resize-none h-20"
         />
@@ -887,7 +887,7 @@ const EditPluginModal: React.FC<{
           <input
             type="color"
             value={formData.color}
-            onChange={(e) => setFormData({...formData, color: e.target.value})}
+            onChange={(val) => setFormData({...formData, color: val})}
             className="w-full h-10 border border-gray-300 rounded-lg"
           />
         </div>
@@ -895,9 +895,9 @@ const EditPluginModal: React.FC<{
 
       <div>
         <label className="block text-sm font-medium mb-2">标签</label>
-        <Input
+        <ArcoInput
           value={formData.tags}
-          onChange={(e) => setFormData({...formData, tags: e.target.value})}
+          onChange={(val) => setFormData({...formData, tags: val})}
           placeholder="标签1, 标签2, 标签3"
         />
         <p className="text-xs text-gray-500 mt-1">用逗号分隔多个标签</p>
@@ -906,25 +906,25 @@ const EditPluginModal: React.FC<{
       <div className="grid grid-cols-3 gap-4">
         <div>
           <label className="block text-sm font-medium mb-2">作者</label>
-          <Input
+          <ArcoInput
             value={formData.author}
-            onChange={(e) => setFormData({...formData, author: e.target.value})}
+            onChange={(val) => setFormData({...formData, author: val})}
             placeholder="作者名称"
           />
         </div>
         <div>
           <label className="block text-sm font-medium mb-2">主页</label>
-          <Input
+          <ArcoInput
             value={formData.homepage}
-            onChange={(e) => setFormData({...formData, homepage: e.target.value})}
+            onChange={(val) => setFormData({...formData, homepage: val})}
             placeholder="https://..."
           />
         </div>
         <div>
           <label className="block text-sm font-medium mb-2">仓库</label>
-          <Input
+          <ArcoInput
             value={formData.repository}
-            onChange={(e) => setFormData({...formData, repository: e.target.value})}
+            onChange={(val) => setFormData({...formData, repository: val})}
             placeholder="https://github.com/..."
           />
         </div>
@@ -934,7 +934,7 @@ const EditPluginModal: React.FC<{
         <label className="block text-sm font-medium mb-2">更新日志</label>
         <textarea
           value={formData.changeLog}
-          onChange={(e) => setFormData({...formData, changeLog: e.target.value})}
+          onChange={(val) => setFormData({...formData, changeLog: val})}
           placeholder="本次更新的内容..."
           className="w-full px-3 py-2 border border-gray-300 rounded-lg resize-none h-16"
         />
@@ -969,7 +969,7 @@ const EditPluginModal: React.FC<{
             {(formData.inputSchema?.parameters || []).map((param: any, index: number) => (
               <div key={index} className="p-3 border border-gray-200 rounded-lg">
                 <div className="grid grid-cols-2 gap-2 mb-2">
-                  <Input
+                  <ArcoInput
                     placeholder="参数名"
                     value={param.name}
                     onChange={(e) => {
@@ -1000,7 +1000,7 @@ const EditPluginModal: React.FC<{
                     <option value="array">数组</option>
                   </select>
                 </div>
-                <Input
+                <ArcoInput
                   placeholder="描述"
                   value={param.description}
                   onChange={(e) => {
@@ -1075,7 +1075,7 @@ const EditPluginModal: React.FC<{
             {(formData.outputSchema?.parameters || []).map((param: any, index: number) => (
               <div key={index} className="p-3 border border-gray-200 rounded-lg">
                 <div className="grid grid-cols-2 gap-2 mb-2">
-                  <Input
+                  <ArcoInput
                     placeholder="参数名"
                     value={param.name}
                     onChange={(e) => {
@@ -1106,7 +1106,7 @@ const EditPluginModal: React.FC<{
                     <option value="array">数组</option>
                   </select>
                 </div>
-                <Input
+                <ArcoInput
                   placeholder="描述"
                   value={param.description}
                   onChange={(e) => {
@@ -1498,18 +1498,18 @@ const PublishWorkflowModal: React.FC<{
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium mb-2">插件名称 *</label>
-          <Input
+          <ArcoInput
             value={formData.name}
-            onChange={(e) => setFormData({...formData, name: e.target.value})}
+            onChange={(val) => setFormData({...formData, name: val})}
             placeholder="my-awesome-workflow"
             disabled={publishMode === 'version'}
           />
         </div>
         <div>
           <label className="block text-sm font-medium mb-2">显示名称 *</label>
-          <Input
+          <ArcoInput
             value={formData.displayName}
-            onChange={(e) => setFormData({...formData, displayName: e.target.value})}
+            onChange={(val) => setFormData({...formData, displayName: val})}
             placeholder="我的超棒工作流"
           />
         </div>
@@ -1519,7 +1519,7 @@ const PublishWorkflowModal: React.FC<{
         <label className="block text-sm font-medium mb-2">描述 *</label>
         <textarea
           value={formData.description}
-          onChange={(e) => setFormData({...formData, description: e.target.value})}
+          onChange={(val) => setFormData({...formData, description: val})}
           placeholder="工作流功能描述..."
           className="w-full px-3 py-2 border border-gray-300 rounded-lg resize-none h-20"
         />
@@ -1547,7 +1547,7 @@ const PublishWorkflowModal: React.FC<{
           <input
             type="color"
             value={formData.color}
-            onChange={(e) => setFormData({...formData, color: e.target.value})}
+            onChange={(val) => setFormData({...formData, color: val})}
             className="w-full h-10 border border-gray-300 rounded-lg"
           />
         </div>
@@ -1556,9 +1556,9 @@ const PublishWorkflowModal: React.FC<{
       {publishMode === 'version' && (
         <div>
           <label className="block text-sm font-medium mb-2">版本号 *</label>
-          <Input
+          <ArcoInput
             value={formData.version}
-            onChange={(e) => setFormData({...formData, version: e.target.value})}
+            onChange={(val) => setFormData({...formData, version: val})}
             placeholder="1.0.1"
           />
           <p className="text-xs text-gray-500 mt-1">格式: major.minor.patch (如: 1.0.1)</p>
@@ -1567,9 +1567,9 @@ const PublishWorkflowModal: React.FC<{
 
       <div>
         <label className="block text-sm font-medium mb-2">标签</label>
-        <Input
+        <ArcoInput
           value={formData.tags}
-          onChange={(e) => setFormData({...formData, tags: e.target.value})}
+          onChange={(val) => setFormData({...formData, tags: val})}
           placeholder="标签1, 标签2, 标签3"
         />
         <p className="text-xs text-gray-500 mt-1">用逗号分隔多个标签</p>
@@ -1578,25 +1578,25 @@ const PublishWorkflowModal: React.FC<{
       <div className="grid grid-cols-3 gap-4">
         <div>
           <label className="block text-sm font-medium mb-2">作者</label>
-          <Input
+          <ArcoInput
             value={formData.author}
-            onChange={(e) => setFormData({...formData, author: e.target.value})}
+            onChange={(val) => setFormData({...formData, author: val})}
             placeholder="作者名称"
           />
         </div>
         <div>
           <label className="block text-sm font-medium mb-2">主页</label>
-          <Input
+          <ArcoInput
             value={formData.homepage}
-            onChange={(e) => setFormData({...formData, homepage: e.target.value})}
+            onChange={(val) => setFormData({...formData, homepage: val})}
             placeholder="https://..."
           />
         </div>
         <div>
           <label className="block text-sm font-medium mb-2">仓库</label>
-          <Input
+          <ArcoInput
             value={formData.repository}
-            onChange={(e) => setFormData({...formData, repository: e.target.value})}
+            onChange={(val) => setFormData({...formData, repository: val})}
             placeholder="https://github.com/..."
           />
         </div>
@@ -1638,7 +1638,7 @@ const PublishWorkflowModal: React.FC<{
             {(formData.inputSchema?.parameters || []).map((param, index) => (
               <div key={index} className="p-3 border border-gray-200 rounded-lg">
                 <div className="grid grid-cols-2 gap-2 mb-2">
-                  <Input
+                  <ArcoInput
                     placeholder="参数名"
                     value={param.name}
                     onChange={(e) => {
@@ -1669,7 +1669,7 @@ const PublishWorkflowModal: React.FC<{
                     <option value="array">数组</option>
                   </select>
                 </div>
-                <Input
+                <ArcoInput
                   placeholder="描述"
                   value={param.description}
                   onChange={(e) => {
@@ -1744,7 +1744,7 @@ const PublishWorkflowModal: React.FC<{
             {(formData.outputSchema?.parameters || []).map((param, index) => (
               <div key={index} className="p-3 border border-gray-200 rounded-lg">
                 <div className="grid grid-cols-2 gap-2 mb-2">
-                  <Input
+                  <ArcoInput
                     placeholder="参数名"
                     value={param.name}
                     onChange={(e) => {
@@ -1775,7 +1775,7 @@ const PublishWorkflowModal: React.FC<{
                     <option value="array">数组</option>
                   </select>
                 </div>
-                <Input
+                <ArcoInput
                   placeholder="描述"
                   value={param.description}
                   onChange={(e) => {

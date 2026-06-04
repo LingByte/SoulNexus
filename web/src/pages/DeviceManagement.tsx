@@ -33,7 +33,7 @@ import {
     Eye
 } from 'lucide-react';
 import Button from '@/components/UI/Button';
-import Input from '@/components/UI/Input';
+import { Input as ArcoInput } from '@arco-design/web-react';
 import Modal from '@/components/UI/Modal';
 import Card from '@/components/UI/Card';
 import ConfirmDialog from '@/components/UI/ConfirmDialog';
@@ -526,7 +526,7 @@ const DeviceManagement: React.FC = () => {
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                 {t('device.bindModal.activationCode')}
                             </label>
-                            <Input
+                            <ArcoInput
                                 type="text"
                                 value={activationCode}
                                 onChange={(e) => setActivationCode(e.target.value)}
@@ -573,7 +573,7 @@ const DeviceManagement: React.FC = () => {
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                 {t('device.addModal.macAddress')} <span className="text-red-500">*</span>
                             </label>
-                            <Input
+                            <ArcoInput
                                 type="text"
                                 value={addForm.macAddress}
                                 onChange={(e) => setAddForm({ ...addForm, macAddress: e.target.value })}
@@ -585,7 +585,7 @@ const DeviceManagement: React.FC = () => {
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                 {t('device.addModal.board')} <span className="text-red-500">*</span>
                             </label>
-                            <Input
+                            <ArcoInput
                                 type="text"
                                 value={addForm.board}
                                 onChange={(e) => setAddForm({ ...addForm, board: e.target.value })}
@@ -597,7 +597,7 @@ const DeviceManagement: React.FC = () => {
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                 {t('device.addModal.appVersion')}
                             </label>
-                            <Input
+                            <ArcoInput
                                 type="text"
                                 value={addForm.appVersion}
                                 onChange={(e) => setAddForm({ ...addForm, appVersion: e.target.value })}
@@ -638,7 +638,7 @@ const DeviceManagement: React.FC = () => {
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                     {t('device.alias')}
                                 </label>
-                                <Input
+                                <ArcoInput
                                     type="text"
                                     value={editForm.alias}
                                     onChange={(e) => setEditForm({ ...editForm, alias: e.target.value })}

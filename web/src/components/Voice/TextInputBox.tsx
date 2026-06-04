@@ -1,5 +1,5 @@
 import React from 'react'
-import Input from '@/components/UI/Input'
+import { Input as ArcoInput } from '@arco-design/web-react'
 import Button from '@/components/UI/Button'
 import { Select as ArcoSelect } from '@arco-design/web-react'
 import { Paperclip, X } from 'lucide-react'
@@ -84,7 +84,7 @@ const TextInputBox: React.FC<TextInputBoxProps> = ({
               ]}
             />
           )}
-          <Input
+          <ArcoInput
             ref={inputRef}
             value={inputValue}
             onChange={(e) => onInputChange(e.target.value)}
