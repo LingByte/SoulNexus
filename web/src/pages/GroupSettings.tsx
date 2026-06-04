@@ -321,12 +321,13 @@ const GroupSettings: React.FC = () => {
           <AlertTriangle className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
           <div className="text-gray-400 text-lg mb-2">{t('groupSettings.insufficientPermissions')}</div>
           <div className="text-gray-500 text-sm mb-6">{t('groupSettings.insufficientPermissionsDesc')}</div>
-          <button
+          <Button
             onClick={() => navigate('/profile/teams')}
-            className="px-6 py-3 rounded-lg bg-purple-600 text-white hover:bg-purple-700 transition-colors"
+            variant="primary"
+            size="lg"
           >
             {t('groupSettings.backToList')}
-          </button>
+          </Button>
         </div>
       </div>
     );
