@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Card from '@/components/UI/Card'
 import Button from '@/components/UI/Button'
-import Input from '@/components/UI/Input'
+import { Input as ArcoInput } from '@arco-design/web-react'
 import { showAlert } from '@/utils/notification'
 import {
   getAccountDeletionEligibility,
@@ -182,7 +182,7 @@ const AccountDeletionRequest = () => {
             )}
 
             <div className="space-y-3 pt-2">
-              <Input
+              <ArcoInput
                 label="登录密码"
                 type="password"
                 value={password}
@@ -191,7 +191,7 @@ const AccountDeletionRequest = () => {
               />
               <div className="flex gap-2 items-end">
                 <div className="flex-1">
-                  <Input
+                  <ArcoInput
                     label="邮箱验证码"
                     value={emailCode}
                     onChange={(e) => setEmailCode(e.target.value)}

@@ -1,6 +1,6 @@
 import React from 'react'
 import { Select as ArcoSelect } from '@arco-design/web-react'
-import Input from '../UI/Input'
+import { Input as ArcoInput } from '@arco-design/web-react'
 import { ProviderConfig, ProviderField } from '../../config/providerConfig'
 import { Info } from 'lucide-react'
 
@@ -69,7 +69,7 @@ const ProviderConfigForm: React.FC<ProviderConfigFormProps> = ({
       case 'password':
         return (
           <div key={field.key} className="space-y-1">
-            <Input
+            <ArcoInput
               label={field.label}
               type="password"
               value={value}
@@ -108,7 +108,7 @@ const ProviderConfigForm: React.FC<ProviderConfigFormProps> = ({
       default:
         return (
           <div key={field.key} className="space-y-1">
-            <Input
+            <ArcoInput
               label={field.label}
               type="text"
               value={value}

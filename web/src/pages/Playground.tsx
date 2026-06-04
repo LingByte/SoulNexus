@@ -12,7 +12,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/utils/cn'
 import Button from '@/components/UI/Button'
-import Input from '@/components/UI/Input'
+import { Input as ArcoInput } from '@arco-design/web-react'
 import Textarea from '@/components/UI/Textarea'
 import Switch from '@/components/UI/Switch'
 import MarkdownPreview from '@/components/UI/MarkdownPreview'
@@ -326,7 +326,7 @@ const Playground = () => {
                     { label: 'Anthropic (/v1/messages)', value: 'anthropic' }
                   ]}
                 />
-                <Input
+                <ArcoInput
                   size="sm"
                   label="Base URL"
                   value={settings.baseUrl}
@@ -336,7 +336,7 @@ const Playground = () => {
                 <Button variant="ghost" size="sm" className="w-full text-xs" onClick={usePlatformGateway}>
                   使用本平台 /v1 网关
                 </Button>
-                <Input
+                <ArcoInput
                   size="sm"
                   type="password"
                   label="API Key"
@@ -347,13 +347,13 @@ const Playground = () => {
                 />
                 {settings.protocol === 'anthropic' && (
                   <>
-                    <Input
+                    <ArcoInput
                       size="sm"
                       label="anthropic-version"
                       value={settings.anthropicVersion}
                       onValueChange={(v) => patchSettings({ anthropicVersion: v })}
                     />
-                    <Input
+                    <ArcoInput
                       size="sm"
                       label="anthropic-beta（可选）"
                       value={settings.anthropicBeta}
@@ -365,7 +365,7 @@ const Playground = () => {
               </SettingsSection>
 
               <SettingsSection title="模型">
-                <Input
+                <ArcoInput
                   size="sm"
                   label="model"
                   value={settings.model}
@@ -382,28 +382,28 @@ const Playground = () => {
 
               <SettingsSection title="采样与长度">
                 <div className="grid grid-cols-2 gap-2">
-                  <Input
+                  <ArcoInput
                     size="sm"
                     type="number"
                     label="max_tokens"
                     value={String(settings.maxTokens)}
                     onValueChange={(v) => patchSettings({ maxTokens: Number(v) || 0 })}
                   />
-                  <Input
+                  <ArcoInput
                     size="sm"
                     type="number"
                     label="temperature"
                     value={String(settings.temperature)}
                     onValueChange={(v) => patchSettings({ temperature: Number(v) })}
                   />
-                  <Input
+                  <ArcoInput
                     size="sm"
                     type="number"
                     label="top_p"
                     value={String(settings.topP)}
                     onValueChange={(v) => patchSettings({ topP: Number(v) })}
                   />
-                  <Input
+                  <ArcoInput
                     size="sm"
                     type="number"
                     label="n"
@@ -412,14 +412,14 @@ const Playground = () => {
                   />
                   {settings.protocol === 'openai' && (
                     <>
-                      <Input
+                      <ArcoInput
                         size="sm"
                         type="number"
                         label="presence_penalty"
                         value={String(settings.presencePenalty)}
                         onValueChange={(v) => patchSettings({ presencePenalty: Number(v) })}
                       />
-                      <Input
+                      <ArcoInput
                         size="sm"
                         type="number"
                         label="frequency_penalty"
@@ -429,7 +429,7 @@ const Playground = () => {
                     </>
                   )}
                 </div>
-                <Input
+                <ArcoInput
                   size="sm"
                   label="stop（逗号分隔）"
                   value={settings.stopSequences}
@@ -437,7 +437,7 @@ const Playground = () => {
                 />
                 {settings.protocol === 'openai' && (
                   <>
-                    <Input
+                    <ArcoInput
                       size="sm"
                       label="seed"
                       value={settings.seed}
@@ -460,7 +460,7 @@ const Playground = () => {
                         ]}
                       />
                     </div>
-                    <Input
+                    <ArcoInput
                       size="sm"
                       label="user（可选）"
                       value={settings.user}
@@ -481,7 +481,7 @@ const Playground = () => {
                         onCheckedChange={(v) => patchSettings({ enableThinking: v })}
                       />
                     </div>
-                    <Input
+                    <ArcoInput
                       size="sm"
                       type="number"
                       label="thinking_budget"
@@ -499,7 +499,7 @@ const Playground = () => {
                         onCheckedChange={(v) => patchSettings({ anthropicThinkingEnabled: v })}
                       />
                     </div>
-                    <Input
+                    <ArcoInput
                       size="sm"
                       type="number"
                       label="budget_tokens"

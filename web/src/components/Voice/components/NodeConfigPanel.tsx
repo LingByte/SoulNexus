@@ -2,7 +2,7 @@ import React, { Suspense } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, AlertCircle, Package, Maximize2, Minimize2 } from 'lucide-react'
 import Button from '@/components/UI/Button'
-import Input from '@/components/UI/Input'
+import { Input as ArcoInput } from '@arco-design/web-react'
 import type { WorkflowNode } from '../types'
 
 // Lazy load Monaco editor
@@ -107,7 +107,7 @@ export const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({
                   <div className="w-1 h-4 rounded-full" style={{ backgroundColor: nodeConfig.color || '#64748b' }} />
                   基本信息
                 </h4>
-                <Input
+                <ArcoInput
                   label="节点名称"
                   size="sm"
                   value={node.data.label}
@@ -198,7 +198,7 @@ const NodeTypeConfig: React.FC<NodeTypeConfigProps> = ({
 
           <div className="space-y-3">
             <div className="flex gap-2">
-              <Input
+              <ArcoInput
                 value={newParam}
                 onChange={(e) => setNewParam(e.target.value)}
                 onKeyPress={(e) => {
@@ -268,7 +268,7 @@ const NodeTypeConfig: React.FC<NodeTypeConfigProps> = ({
 
           <div className="space-y-3">
             <div className="flex gap-2">
-              <Input
+              <ArcoInput
                 value={newParam}
                 onChange={(e) => setNewParam(e.target.value)}
                 onKeyPress={(e) => {
@@ -578,7 +578,7 @@ const TaskNodeConfig: React.FC<{
               <option value="DELETE">DELETE</option>
             </select>
           </div>
-          <Input
+          <ArcoInput
             label="请求 URL"
             size="sm"
             value={node.data.config?.url || ''}
@@ -586,7 +586,7 @@ const TaskNodeConfig: React.FC<{
             placeholder="https://api.example.com/data"
             helperText={'支持模板变量：{{variable}} 或 {{context.key}}'}
           />
-          <Input
+          <ArcoInput
             label="超时时间"
             size="sm"
             type="text"
@@ -692,7 +692,7 @@ const TaskNodeConfig: React.FC<{
       {/* 延迟任务配置 */}
       {taskType === 'delay' && (
         <div className="space-y-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-          <Input
+          <ArcoInput
             label="延迟时间"
             size="sm"
             type="text"
@@ -722,7 +722,7 @@ const TaskNodeConfig: React.FC<{
               <option value="error">Error</option>
             </select>
           </div>
-          <Input
+          <ArcoInput
             label="日志消息"
             size="sm"
             value={node.data.config?.message || ''}
@@ -887,7 +887,7 @@ const AIChatNodeConfig: React.FC<{
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           模型
         </label>
-        <Input
+        <ArcoInput
           size="sm"
           value={node.data.config?.model || 'gpt-4'}
           onChange={(e) => onConfigChange({ ...(node.data.config || {}), model: e.target.value })}
@@ -907,7 +907,7 @@ const WaitNodeConfig: React.FC<{
 }> = ({ node, onConfigChange }) => {
   return (
     <div className="space-y-4">
-      <Input
+      <ArcoInput
         label="等待时长 (毫秒)"
         size="sm"
         type="number"
@@ -915,7 +915,7 @@ const WaitNodeConfig: React.FC<{
         value={node.data.config?.duration?.toString() || '5000'}
         onChange={(e) => onConfigChange({ ...(node.data.config || {}), duration: parseInt(e.target.value) || 5000 })}
       />
-      <Input
+      <ArcoInput
         label="等待事件"
         size="sm"
         value={node.data.config?.untilEvent || ''}
