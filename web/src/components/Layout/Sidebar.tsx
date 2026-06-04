@@ -143,8 +143,8 @@ const Sidebar = () => {
             </Button>
           </div>
         ) : (
-          <div className="h-14 flex items-center px-3 relative">
-            <Link to="/" className="flex items-center gap-2 min-w-0 pr-10">
+          <div className="h-14 flex items-center justify-between px-3 gap-2">
+            <Link to="/" className="flex items-center gap-2 min-w-0">
               <img src="/SoulMy.png" alt="SoulNexus Logo" className="w-8 h-8 rounded shrink-0" />
               <span className="relative inline-block text-sm font-extrabold tracking-wider truncate">
                 <span className="block">{t('brand.name')}</span>
@@ -159,7 +159,7 @@ const Sidebar = () => {
               onClick={() => setIsCollapsed(true)}
               title={t('theme.collapse')}
               aria-label={t('theme.collapse')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 p-0"
+              className="w-7 h-7 p-0 shrink-0"
             >
               <ChevronLeft className="w-4 h-4" />
             </Button>
