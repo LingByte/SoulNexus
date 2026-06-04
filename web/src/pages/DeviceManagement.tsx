@@ -531,7 +531,6 @@ const DeviceManagement: React.FC = () => {
                                 onChange={(e) => setActivationCode(e.target.value)}
                                 placeholder={t('device.bindModal.activationCodePlaceholder')}
                                 maxLength={6}
-                                className="w-full"
                             />
                             <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
                                 {t('device.bindModal.activationCodeDesc')}
@@ -576,7 +575,6 @@ const DeviceManagement: React.FC = () => {
                                 value={addForm.macAddress}
                                 onChange={(e) => setAddForm({ ...addForm, macAddress: e.target.value })}
                                 placeholder={t('device.addModal.macAddressPlaceholder')}
-                                className="w-full font-mono"
                             />
                         </div>
                         <div>
@@ -587,7 +585,6 @@ const DeviceManagement: React.FC = () => {
                                 value={addForm.board}
                                 onChange={(e) => setAddForm({ ...addForm, board: e.target.value })}
                                 placeholder={t('device.addModal.boardPlaceholder')}
-                                className="w-full"
                             />
                         </div>
                         <div>
@@ -598,7 +595,6 @@ const DeviceManagement: React.FC = () => {
                                 value={addForm.appVersion}
                                 onChange={(e) => setAddForm({ ...addForm, appVersion: e.target.value })}
                                 placeholder={t('device.addModal.appVersionPlaceholder')}
-                                className="w-full"
                             />
                         </div>
                         <div className="flex justify-end gap-2">
@@ -638,7 +634,6 @@ const DeviceManagement: React.FC = () => {
                                     value={editForm.alias}
                                     onChange={(e) => setEditForm({ ...editForm, alias: e.target.value })}
                                     placeholder={t('device.editModal.aliasPlaceholder')}
-                                    className="w-full"
                                 />
                             </div>
                             <div>

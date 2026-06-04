@@ -182,7 +182,7 @@ const ResetPassword = () => {
                   placeholder={t('resetPassword.newPasswordPlaceholder')}
                   value={formData.password}
                   onChange={(val) => handleInputChange('password', val)}
-                  prefix={<Lock className="w-5 h-5" />}
+                  prefix={<Lock />}
                   suffix={
                     <button
                       type="button"
@@ -203,7 +203,7 @@ const ResetPassword = () => {
                   placeholder={t('resetPassword.confirmPasswordPlaceholder')}
                   value={formData.confirmPassword}
                   onChange={(val) => handleInputChange('confirmPassword', val)}
-                  prefix={<Lock className="w-5 h-5" />}
+                  prefix={<Lock />}
                   suffix={
                     <button
                       type="button"

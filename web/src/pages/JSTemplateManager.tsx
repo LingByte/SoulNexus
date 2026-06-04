@@ -458,7 +458,6 @@ const JSTemplateManager = () => {
                                 <ArcoInput size="large" className="!h-10 !text-base" placeholder={t('jsTemplate.searchPlaceholder')}
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="pl-10 h-9 bg-white/80 dark:bg-slate-700/80 border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                                 />
                             </div>
                         </div>
@@ -700,7 +699,6 @@ const JSTemplateManager = () => {
                                                 <ArcoInput size="large" className="!h-10 !text-base" placeholder={t('jsTemplate.templateNamePlaceholder')}
                                                     value={newTemplate.name}
                                                     onChange={(e) => setNewTemplate({ ...newTemplate, name: e.target.value })}
-                                                    className="h-9 bg-white/80 dark:bg-slate-700/80 border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                                                 />
                                             </div>
 

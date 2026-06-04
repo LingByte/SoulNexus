@@ -90,7 +90,6 @@ const TextInputBox: React.FC<TextInputBoxProps> = ({
             placeholder={isWaitingForResponse ? "正在处理中..." : textMode === 'text' ? "输入文本进行文本对话..." : "输入文本直接发送"}
             size="md"
             disabled={isWaitingForResponse}
-            className="shadow-lg border-purple-200 dark:border-purple-800 focus:ring-purple-300 dark:focus:ring-purple-700 flex-1"
             onKeyDown={onEnter}
           />
           <Button

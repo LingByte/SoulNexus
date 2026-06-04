@@ -858,7 +858,7 @@ const Profile = () => {
                         <ArcoInput size="large" className="!h-10 !text-base" value={formData.displayName}
                           onChange={(val) => setFormData((prev) => ({ ...prev, displayName: val }))}
                           disabled={!isEditing}
-                          prefix={<User className="h-3.5 w-3.5" />}
+                          prefix={<User />}
                           placeholder={t('profile.displayNamePlaceholder')}
                           size="large"
                         />
@@ -868,7 +868,7 @@ const Profile = () => {
                         <ArcoInput size="large" className="!h-10 !text-base" value={formData.firstName}
                           onChange={(val) => setFormData((prev) => ({ ...prev, firstName: val }))}
                           disabled={!isEditing}
-                          prefix={<User className="h-3.5 w-3.5" />}
+                          prefix={<User />}
                           placeholder={t('profile.firstNamePlaceholder')}
                           size="large"
                         />
@@ -878,7 +878,7 @@ const Profile = () => {
                         <ArcoInput size="large" className="!h-10 !text-base" value={formData.lastName}
                           onChange={(val) => setFormData((prev) => ({ ...prev, lastName: val }))}
                           disabled={!isEditing}
-                          prefix={<User className="h-3.5 w-3.5" />}
+                          prefix={<User />}
                           placeholder={t('profile.lastNamePlaceholder')}
                           size="large"
                         />
@@ -907,7 +907,7 @@ const Profile = () => {
                           value={formData.email}
                           onChange={(val) => setFormData((prev) => ({ ...prev, email: val }))}
                           disabled={!isEditing}
-                          prefix={<Mail className="h-3.5 w-3.5" />}
+                          prefix={<Mail />}
                           placeholder={t('profile.emailPlaceholder')}
                           size="large"
                         />
@@ -917,14 +917,14 @@ const Profile = () => {
                         <ArcoInput size="large" className="!h-10 !text-base" value={formData.phone}
                           onChange={(val) => setFormData((prev) => ({ ...prev, phone: val }))}
                           disabled={!isEditing}
-                          prefix={<Phone className="h-3.5 w-3.5" />}
+                          prefix={<Phone />}
                           placeholder={t('profile.phonePlaceholder')}
                           size="large"
                         />
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">城市</label>
-                        <ArcoInput size="large" className="!h-10 !text-base" value={formData.city}
+                        <ArcoInput size="large" className="!h-10 !text-base" className="!h-10 !text-base" value={formData.city}
                           onChange={(val) => setFormData((prev) => ({ ...prev, city: val }))}
                           disabled={!isEditing}
                           placeholder="请输入所在城市"
@@ -933,7 +933,7 @@ const Profile = () => {
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">地区</label>
-                        <ArcoInput size="large" className="!h-10 !text-base" value={formData.region}
+                        <ArcoInput size="large" className="!h-10 !text-base" className="!h-10 !text-base" value={formData.region}
                           onChange={(val) => setFormData((prev) => ({ ...prev, region: val }))}
                           disabled={!isEditing}
                           placeholder="请输入所在地区"
@@ -945,7 +945,7 @@ const Profile = () => {
                         <ArcoInput size="large" className="!h-10 !text-base" value={formData.extra}
                           onChange={(val) => setFormData((prev) => ({ ...prev, extra: val }))}
                           disabled={!isEditing}
-                          prefix={<Heart className="h-3.5 w-3.5" />}
+                          prefix={<Heart />}
                           placeholder={t('profile.bioPlaceholder')}
                         />
                       </div>
@@ -1246,7 +1246,7 @@ const Profile = () => {
                                     onChange={(val) =>
                                       setPasswordData((prev) => ({ ...prev, currentPassword: val }))
                                     }
-                                    prefix={<Lock className="h-3.5 w-3.5" />}
+                                    prefix={<Lock />}
                                     suffix={
                                       <button
                                         type="button"
@@ -1268,7 +1268,7 @@ const Profile = () => {
                                       <ArcoInput size="large" className="!h-10 !text-base" type="text"
                                         value={emailCode}
                                         onChange={(val) => setEmailCode(val)}
-                                        prefix={<Mail className="h-3.5 w-3.5" />}
+                                        prefix={<Mail />}
                                         placeholder="请输入邮箱验证码"
                                         size="large"
                                       />
@@ -1292,7 +1292,7 @@ const Profile = () => {
                                   <ArcoInput size="large" className="!h-10 !text-base" type={showNewPassword ? 'text' : 'password'}
                                     value={passwordData.newPassword}
                                     onChange={(val) => setPasswordData((prev) => ({ ...prev, newPassword: val }))}
-                                    prefix={<Lock className="h-3.5 w-3.5" />}
+                                    prefix={<Lock />}
                                     suffix={
                                       <button
                                         type="button"
@@ -1313,7 +1313,7 @@ const Profile = () => {
                                     onChange={(val) =>
                                       setPasswordData((prev) => ({ ...prev, confirmPassword: val }))
                                     }
-                                    prefix={<Lock className="h-3.5 w-3.5" />}
+                                    prefix={<Lock />}
                                     suffix={
                                       <button
                                         type="button"
