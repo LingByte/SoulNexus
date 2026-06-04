@@ -568,8 +568,7 @@ const VoiceprintManagement = () => {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 说话人姓名 <span className="text-red-500">*</span>
               </label>
-              <ArcoInput
-                type="text"
+              <ArcoInput size="large" type="text"
                 value={newSpeaker.name}
                 onChange={(e) => setNewSpeaker(prev => ({ ...prev, name: e.target.value }))}
                 placeholder="输入说话人的姓名，如：张三"
@@ -1007,8 +1006,7 @@ const VoiceprintManagement = () => {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     说话人姓名 <span className="text-red-500">*</span>
                   </label>
-                  <ArcoInput
-                    type="text"
+                  <ArcoInput size="large" type="text"
                     value={editingSpeaker.name}
                     onChange={(e) => setEditingSpeaker(prev => ({ ...prev, name: e.target.value }))}
                     placeholder="输入说话人的姓名"

@@ -117,11 +117,11 @@ const KnowledgeCreateDrawer: React.FC<Props> = ({ open, onClose, onCreated }) =>
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-muted-foreground">{t('knowledge.fieldNamespace')}</label>
-            <ArcoInput value={formNs} onChange={(e) => setFormNs(e.target.value)} className="font-mono text-sm" />
+            <ArcoInput size="large" value={formNs} onChange={(e) => setFormNs(e.target.value)} className="font-mono text-sm" />
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-muted-foreground">{t('knowledge.fieldName')}</label>
-            <ArcoInput value={formName} onChange={(e) => setFormName(e.target.value)} />
+            <ArcoInput size="large" value={formName} onChange={(e) => setFormName(e.target.value)} />
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-muted-foreground">{t('knowledge.fieldDesc')}</label>

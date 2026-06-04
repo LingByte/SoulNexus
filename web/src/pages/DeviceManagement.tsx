@@ -526,8 +526,7 @@ const DeviceManagement: React.FC = () => {
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                 {t('device.bindModal.activationCode')}
                             </label>
-                            <ArcoInput
-                                type="text"
+                            <ArcoInput size="large" type="text"
                                 value={activationCode}
                                 onChange={(e) => setActivationCode(e.target.value)}
                                 placeholder={t('device.bindModal.activationCodePlaceholder')}
@@ -573,8 +572,7 @@ const DeviceManagement: React.FC = () => {
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                 {t('device.addModal.macAddress')} <span className="text-red-500">*</span>
                             </label>
-                            <ArcoInput
-                                type="text"
+                            <ArcoInput size="large" type="text"
                                 value={addForm.macAddress}
                                 onChange={(e) => setAddForm({ ...addForm, macAddress: e.target.value })}
                                 placeholder={t('device.addModal.macAddressPlaceholder')}
@@ -585,8 +583,7 @@ const DeviceManagement: React.FC = () => {
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                 {t('device.addModal.board')} <span className="text-red-500">*</span>
                             </label>
-                            <ArcoInput
-                                type="text"
+                            <ArcoInput size="large" type="text"
                                 value={addForm.board}
                                 onChange={(e) => setAddForm({ ...addForm, board: e.target.value })}
                                 placeholder={t('device.addModal.boardPlaceholder')}
@@ -597,8 +594,7 @@ const DeviceManagement: React.FC = () => {
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                 {t('device.addModal.appVersion')}
                             </label>
-                            <ArcoInput
-                                type="text"
+                            <ArcoInput size="large" type="text"
                                 value={addForm.appVersion}
                                 onChange={(e) => setAddForm({ ...addForm, appVersion: e.target.value })}
                                 placeholder={t('device.addModal.appVersionPlaceholder')}
@@ -638,8 +634,7 @@ const DeviceManagement: React.FC = () => {
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                     {t('device.alias')}
                                 </label>
-                                <ArcoInput
-                                    type="text"
+                                <ArcoInput size="large" type="text"
                                     value={editForm.alias}
                                     onChange={(e) => setEditForm({ ...editForm, alias: e.target.value })}
                                     placeholder={t('device.editModal.aliasPlaceholder')}
