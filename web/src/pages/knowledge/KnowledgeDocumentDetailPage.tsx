@@ -10,6 +10,7 @@ import Button from '@/components/UI/Button'
 import Card from '@/components/UI/Card'
 import Badge from '@/components/UI/Badge'
 import MarkdownPreview from '@/components/UI/MarkdownPreview'
+import ConfirmDialog from '@/components/UI/ConfirmDialog'
 import { showAlert } from '@/utils/alert'
 import { useI18nStore } from '@/stores/i18nStore'
 import {
@@ -42,6 +43,8 @@ const KnowledgeDocumentDetailPage: React.FC = () => {
   const [editMode, setEditMode] = useState(false)
   const [md, setMd] = useState('')
   const [saving, setSaving] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const backHref = nsId ? `/knowledge/ns/${nsId}` : '/knowledge'
 
@@ -94,14 +97,20 @@ const KnowledgeDocumentDetailPage: React.FC = () => {
   }
 
   const onDelete = async () => {
-    if (!doc || !window.confirm(`${t('knowledge.deleteDoc')}?`)) return
-    const res = await deleteKnowledgeDocument(doc.id)
-    if (res.code !== 200) {
-      showAlert(res.msg || 'failed', 'error', t('knowledge.deleteDoc'))
-      return
+    if (!doc) return
+    setDeleting(true)
+    try {
+      const res = await deleteKnowledgeDocument(doc.id)
+      if (res.code !== 200) {
+        showAlert(res.msg || 'failed', 'error', t('knowledge.deleteDoc'))
+        return
+      }
+      showAlert(res.msg || 'ok', 'success', t('knowledge.deleteDoc'))
+      window.location.href = backHref
+    } finally {
+      setDeleting(false)
+      setShowDeleteConfirm(false)
     }
-    showAlert(res.msg || 'ok', 'success', t('knowledge.deleteDoc'))
-    window.location.href = backHref
   }
 
   const onReupload = async (f: File) => {
@@ -167,7 +176,7 @@ const KnowledgeDocumentDetailPage: React.FC = () => {
             <Button variant="outline" size="sm" type="button" onClick={() => setEditMode((e) => !e)}>
               {t('knowledge.editMarkdown')}
             </Button>
-            <Button variant="destructive" size="sm" type="button" onClick={() => void onDelete()} leftIcon={<Trash2 className="h-4 w-4" />}>
+            <Button variant="destructive" size="sm" type="button" onClick={() => setShowDeleteConfirm(true)} leftIcon={<Trash2 className="h-4 w-4" />}>
               {t('knowledge.deleteDoc')}
             </Button>
           </div>
@@ -200,6 +209,17 @@ const KnowledgeDocumentDetailPage: React.FC = () => {
           )}
         </Card>
       </PageContainer>
+      <ConfirmDialog
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={() => void onDelete()}
+        title={t('knowledge.deleteDoc')}
+        message={`${t('knowledge.deleteDoc')}?`}
+        confirmText={t('common.delete')}
+        cancelText={t('common.cancel')}
+        type="danger"
+        loading={deleting}
+      />
     </>
   )
 }
