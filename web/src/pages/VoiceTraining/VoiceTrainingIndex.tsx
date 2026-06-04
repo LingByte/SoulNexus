@@ -3,35 +3,27 @@ import { useNavigate } from 'react-router-dom'
 import { useI18nStore } from '@/stores/i18nStore'
 import Card, { CardHeader, CardTitle, CardDescription, CardContent } from '@/components/UI/Card'
 import Button from '@/components/UI/Button'
-import { Sparkles, Zap, Mic, ArrowRight } from 'lucide-react'
-import CollapsibleSectionHeader from '@/components/UI/CollapsibleSectionHeader'
+import PageHeader from '@/components/Layout/PageHeader'
+import { Sparkles, Zap, ArrowRight } from 'lucide-react'
 
 const VoiceTrainingIndex: React.FC = () => {
     const { t } = useI18nStore()
     const navigate = useNavigate()
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50/30 to-blue-50/20 dark:from-neutral-900 dark:via-neutral-800 dark:to-neutral-900">
+        <div className="flex flex-col h-full bg-gradient-to-br from-slate-50 via-purple-50/30 to-blue-50/20 dark:from-neutral-900 dark:via-neutral-800 dark:to-neutral-900">
             {/* 背景装饰 */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
                 <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-300/20 rounded-full blur-3xl"></div>
                 <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-blue-300/20 rounded-full blur-3xl"></div>
             </div>
             
-            <div className="container mx-auto px-2 py-8 relative z-10">
-                {/* 页面头部 */}
-                <div className="mb-6">
-                    <CollapsibleSectionHeader
-                        title="Voice Cloning Platform"
-                        icon={<Mic className="w-4 h-4 text-purple-500" />}
-                        expanded={true}
-                        onToggle={() => {}}
-                        showChevron={false}
-                        clickable={false}
-                        compact
-                        withDivider
-                    />
-                </div>
+            <PageHeader 
+                title="Voice Cloning Platform"
+            />
+
+            <div className="flex-1 overflow-auto">
+                <div className="container mx-auto px-2 py-8 relative z-10">
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
                     {/* 讯飞星火 */}
@@ -141,6 +133,7 @@ const VoiceTrainingIndex: React.FC = () => {
                             </Button>
                         </CardContent>
                     </Card>
+                </div>
                 </div>
             </div>
         </div>

@@ -6,6 +6,7 @@ import { showAlert } from '@/utils/notification';
 import { useI18nStore } from '@/stores/i18nStore';
 import { Bot, Users, Zap, Plus, Sparkles, Rocket, Wand2, Search } from 'lucide-react';
 import Button from '@/components/UI/Button';
+import PageHeader from '@/components/Layout/PageHeader';
 import { motion } from 'framer-motion';
 
 // 根据 id 稳定生成渐变色，避免每次渲染跳色。
@@ -64,15 +65,12 @@ const Assistants: React.FC = () => {
   const fmtDate = (iso?: string) => (iso ? iso.slice(0, 10) : '');
 
   return (
-    <div className="min-h-screen dark:bg-neutral-900 flex flex-col">
-      <div className="max-w-6xl w-full mx-auto px-4 pt-8 pb-10 flex flex-col">
-        {/* 页面顶部：标题 + 搜索 + 新建 */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
-          <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100 tracking-tight">
-            {t('assistants.title')}
-          </h1>
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <div className="relative flex-1 sm:flex-none sm:w-64">
+    <div className="flex flex-col h-full dark:bg-neutral-900">
+      <PageHeader 
+        title={t('assistants.title')}
+        actions={
+          <div className="flex items-center gap-2">
+            <div className="relative w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
                 value={keyword}
@@ -90,7 +88,11 @@ const Assistants: React.FC = () => {
               {t('assistants.add')}
             </Button>
           </div>
-        </div>
+        }
+      />
+
+      <div className="flex-1 overflow-auto">
+        <div className="max-w-6xl w-full mx-auto px-4 pt-8 pb-10 flex flex-col">
         <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {(filtered?.length === 0) && (assistants.length === 0) && (
             <motion.div 
@@ -275,6 +277,7 @@ const Assistants: React.FC = () => {
               {t('assistants.noMatch') || '没有匹配的智能体'}
             </div>
           )}
+        </div>
         </div>
       </div>
       <AddAssistantModal isOpen={showAddModal} onClose={() => setShowAddModal(false)} onAdd={handleAddAssistant} />
