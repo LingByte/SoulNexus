@@ -10,10 +10,6 @@ export interface KnowledgeNamespaceRow {
   namespace: string
   name: string
   description?: string
-  vectorProvider: string
-  embedModel: string
-  vectorDim: number
-  status: string
   createdAt?: string
   updatedAt?: string
 }
@@ -37,7 +33,6 @@ export interface KnowledgeDocumentRow {
   textUrl?: string
   storedMarkdown?: string
   recordIds?: string
-  status: string
   createdAt?: string
   updatedAt?: string
 }

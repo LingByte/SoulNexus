@@ -9,25 +9,13 @@ import PageContainer from '@/components/Layout/PageContainer'
 import PageHeader from '@/components/Layout/PageHeader'
 import Button from '@/components/UI/Button'
 import Card from '@/components/UI/Card'
-import Badge from '@/components/UI/Badge'
 import { Input as ArcoInput } from '@arco-design/web-react'
 import EmptyState from '@/components/UI/EmptyState'
 import { showAlert } from '@/utils/alert'
 import { useI18nStore } from '@/stores/i18nStore'
-import { cn } from '@/utils/cn'
 import { listKnowledgeNamespaces, type KnowledgeNamespaceRow } from '@/api/knowledge'
 import KnowledgeCreateDrawer from '@/pages/knowledge/KnowledgeCreateDrawer'
 
-type StatusFilter = 'all' | 'active' | 'processing' | 'failed' | 'deleted'
-
-function statusVariant(s: string): 'success' | 'warning' | 'error' | 'muted' | 'default' {
-  const v = (s || '').toLowerCase()
-  if (v === 'active') return 'success'
-  if (v === 'processing') return 'warning'
-  if (v === 'failed') return 'error'
-  if (v === 'deleted') return 'muted'
-  return 'default'
-}
 
 function KnowledgeCardSkeleton() {
   return (
@@ -53,7 +41,6 @@ const KnowledgeListPage: React.FC = () => {
   const [page, setPage] = useState(1)
   const [pageSize] = useState(30)
   const [total, setTotal] = useState(0)
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('active')
   const [qInput, setQInput] = useState('')
   const [q, setQ] = useState('')
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -64,7 +51,6 @@ const KnowledgeListPage: React.FC = () => {
       const res = await listKnowledgeNamespaces({
         page,
         pageSize,
-        status: statusFilter === 'all' ? 'all' : statusFilter,
         q: q.trim() || undefined,
       })
       if (res.code !== 200) {
@@ -79,7 +65,7 @@ const KnowledgeListPage: React.FC = () => {
     } finally {
       setLoading(false)
     }
-  }, [page, pageSize, statusFilter, q, t])
+  }, [page, pageSize, q, t])
 
   useEffect(() => {
     void load()
@@ -125,32 +111,6 @@ const KnowledgeListPage: React.FC = () => {
               <Button variant="secondary" size="sm" onClick={() => { setPage(1); setQ(qInput.trim()) }}>
                 {t('knowledge.search')}
               </Button>
-              <div className="flex flex-wrap gap-1.5">
-                {(['all', 'active', 'processing', 'failed', 'deleted'] as StatusFilter[]).map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => {
-                      setStatusFilter(s)
-                      setPage(1)
-                    }}
-                    className={cn(
-                      'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
-                      statusFilter === s ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80',
-                    )}
-                  >
-                    {s === 'all'
-                      ? t('knowledge.statusAll')
-                      : s === 'active'
-                        ? t('knowledge.statusActive')
-                        : s === 'processing'
-                          ? t('knowledge.statusProcessing')
-                          : s === 'failed'
-                            ? t('knowledge.statusFailed')
-                            : t('knowledge.statusDeleted')}
-                  </button>
-                ))}
-              </div>
             </div>
           </div>
         </Card>
@@ -194,21 +154,6 @@ const KnowledgeListPage: React.FC = () => {
                     {r.description ? (
                       <p className="mt-2 line-clamp-2 pl-11 text-xs text-muted-foreground/90">{r.description}</p>
                     ) : null}
-                    <div className="mt-auto flex flex-wrap items-end justify-between gap-2 border-t border-border/50 pt-4">
-                      <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
-                        <span className="rounded-md bg-muted/90 px-2 py-0.5 font-mono font-medium tabular-nums">{r.vectorDim}d</span>
-                        <span
-                          className="max-w-[10rem] truncate rounded-md bg-muted/60 px-2 py-0.5 font-mono"
-                          title={r.embedModel}
-                        >
-                          {r.embedModel}
-                        </span>
-                        <span className="hidden rounded-md bg-muted/40 px-2 py-0.5 uppercase sm:inline">{r.vectorProvider}</span>
-                      </div>
-                      <Badge variant={statusVariant(r.status)} className="shrink-0">
-                        {r.status}
-                      </Badge>
-                    </div>
                   </div>
                 </Card>
               </Link>

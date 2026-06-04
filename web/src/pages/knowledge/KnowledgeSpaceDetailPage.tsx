@@ -8,7 +8,6 @@ import { PageSEO } from '@/components/SEO/PageSEO'
 import PageContainer from '@/components/Layout/PageContainer'
 import Button from '@/components/UI/Button'
 import Card from '@/components/UI/Card'
-import Badge from '@/components/UI/Badge'
 import { Input as ArcoInput } from '@arco-design/web-react'
 import { showAlert } from '@/utils/alert'
 import { useI18nStore } from '@/stores/i18nStore'
@@ -21,15 +20,6 @@ import {
   type KnowledgeNamespaceRow,
   type KnowledgeDocumentRow,
 } from '@/api/knowledge'
-
-function statusVariant(s: string): 'success' | 'warning' | 'error' | 'muted' | 'default' {
-  const v = (s || '').toLowerCase()
-  if (v === 'active') return 'success'
-  if (v === 'processing') return 'warning'
-  if (v === 'failed') return 'error'
-  if (v === 'deleted') return 'muted'
-  return 'default'
-}
 
 const KnowledgeSpaceDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
@@ -200,26 +190,6 @@ const KnowledgeSpaceDetailPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="mb-6 grid gap-3 sm:grid-cols-4">
-          <Card className="border-border/60 p-3 text-sm">
-            <div className="text-muted-foreground">{t('knowledge.dimension')}</div>
-            <div className="mt-1 font-semibold">{ns.vectorDim}</div>
-          </Card>
-          <Card className="border-border/60 p-3 text-sm">
-            <div className="text-muted-foreground">{t('knowledge.embedModel')}</div>
-            <div className="mt-1 truncate">{ns.embedModel}</div>
-          </Card>
-          <Card className="border-border/60 p-3 text-sm">
-            <div className="text-muted-foreground">Backend</div>
-            <div className="mt-1 font-mono text-xs">{ns.vectorProvider}</div>
-          </Card>
-          <Card className="border-border/60 p-3 text-sm">
-            <div className="text-muted-foreground">{t('knowledge.status')}</div>
-            <div className="mt-1">
-              <Badge variant={statusVariant(ns.status)}>{ns.status}</Badge>
-            </div>
-          </Card>
-        </div>
 
         <div className="mb-4 flex gap-1 rounded-lg border border-border bg-muted/30 p-1">
           <button
@@ -271,7 +241,6 @@ const KnowledgeSpaceDetailPage: React.FC = () => {
                           {(d.fileHash?.length ?? 0) > 12 ? `${d.fileHash.slice(0, 12)}…` : d.fileHash}
                         </div>
                       </div>
-                      <Badge variant={statusVariant(d.status)}>{d.status}</Badge>
                     </Link>
                   </li>
                 ))}

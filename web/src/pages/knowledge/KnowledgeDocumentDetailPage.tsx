@@ -8,7 +8,6 @@ import { PageSEO } from '@/components/SEO/PageSEO'
 import PageContainer from '@/components/Layout/PageContainer'
 import Button from '@/components/UI/Button'
 import Card from '@/components/UI/Card'
-import Badge from '@/components/UI/Badge'
 import MarkdownPreview from '@/components/UI/MarkdownPreview'
 import ConfirmDialog from '@/components/UI/ConfirmDialog'
 import { showAlert } from '@/utils/alert'
@@ -22,14 +21,6 @@ import {
   type KnowledgeDocumentRow,
 } from '@/api/knowledge'
 
-function statusVariant(s: string): 'success' | 'warning' | 'error' | 'muted' | 'default' {
-  const v = (s || '').toLowerCase()
-  if (v === 'active') return 'success'
-  if (v === 'processing') return 'warning'
-  if (v === 'failed') return 'error'
-  if (v === 'deleted') return 'muted'
-  return 'default'
-}
 
 const KnowledgeDocumentDetailPage: React.FC = () => {
   const { docId } = useParams<{ docId: string }>()
@@ -159,7 +150,6 @@ const KnowledgeDocumentDetailPage: React.FC = () => {
             <p className="mt-1 font-mono text-xs text-muted-foreground">{doc.namespace}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant={statusVariant(doc.status)}>{doc.status}</Badge>
             <input
               ref={uploadRef}
               type="file"
