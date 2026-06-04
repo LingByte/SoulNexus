@@ -178,8 +178,7 @@ const ResetPassword = () => {
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
                 <label className="block text-sm font-medium mb-2">{t('resetPassword.newPassword')}</label>
-                <ArcoInput
-                  type={showPassword ? 'text' : 'password'}
+                <ArcoInput size="large" type={showPassword ? 'text' : 'password'}
                   placeholder={t('resetPassword.newPasswordPlaceholder')}
                   value={formData.password}
                   onChange={(val) => handleInputChange('password', val)}
@@ -200,8 +199,7 @@ const ResetPassword = () => {
 
               <div>
                 <label className="block text-sm font-medium mb-2">{t('resetPassword.confirmPassword')}</label>
-                <ArcoInput
-                  type={showConfirmPassword ? 'text' : 'password'}
+                <ArcoInput size="large" type={showConfirmPassword ? 'text' : 'password'}
                   placeholder={t('resetPassword.confirmPasswordPlaceholder')}
                   value={formData.confirmPassword}
                   onChange={(val) => handleInputChange('confirmPassword', val)}
