@@ -86,7 +86,7 @@ const TextInputBox: React.FC<TextInputBoxProps> = ({
           )}
           <ArcoInput 
             size="large" 
-            className="!h-10 !text-base"
+            className="!h-10 !text-base ![&::placeholder]:text-base"
             value={inputValue}
             onChange={(val) => onInputChange(val)}
             placeholder={isWaitingForResponse ? "正在处理中..." : textMode === 'text' ? "输入文本进行文本对话..." : "输入文本直接发送"}

@@ -110,15 +110,15 @@ const KnowledgeListPage: React.FC = () => {
           <PageContainer maxWidth="full" padding="md" className="pb-16">
             <Card variant="outlined" padding="md" className="mb-6 border-border/80 shadow-sm">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-            <div className="relative min-w-0 flex-1">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <div className="flex-1">
               <ArcoInput 
                 size="large" 
-                className="!h-10 !text-base pl-8" 
+                className="!h-10 !text-base ![&::placeholder]:text-base" 
                 value={qInput}
-                onChange={(e) => setQInput(e.target.value)}
+                onChange={(val) => setQInput(val)}
                 onKeyDown={(e) => e.key === 'Enter' && (setPage(1), setQ(qInput.trim()))}
                 placeholder={t('knowledge.searchPlaceholder')}
+                prefix={<Search className="h-4 w-4 text-muted-foreground" />}
               />
             </div>
             <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
