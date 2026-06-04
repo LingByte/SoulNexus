@@ -69,7 +69,7 @@ const ProviderConfigForm: React.FC<ProviderConfigFormProps> = ({
       case 'password':
         return (
           <div key={field.key} className="space-y-1">
-            <ArcoInput size="large" label={field.label}
+            <ArcoInput size="large" className="!h-10 !text-base" label={field.label}
               type="password"
               value={value}
               onChange={(e) => onChange(fieldKey, e.target.value)}
@@ -107,7 +107,7 @@ const ProviderConfigForm: React.FC<ProviderConfigFormProps> = ({
       default:
         return (
           <div key={field.key} className="space-y-1">
-            <ArcoInput size="large" label={field.label}
+            <ArcoInput size="large" className="!h-10 !text-base" label={field.label}
               type="text"
               value={value}
               onChange={(e) => onChange(fieldKey, e.target.value)}
