@@ -11,7 +11,6 @@ import VoiceTrainingVolcengine from "@/pages/VoiceTraining/VoiceTrainingVolcengi
 import DevErrorHandler from "@/components/Dev/DevErrorHandler.tsx";
 import GlobalSearch from "@/components/UI/GlobalSearch.tsx";
 import NotificationContainer from "@/components/UI/NotificationContainer.tsx";
-import DSProvider from "@/ds/Provider.tsx";
 import Profile from "@/pages/Profile.tsx";
 import ProfileLayout from '@/pages/profile/ProfileLayout.tsx';
 import Layout from "@/components/Layout/Layout.tsx";
@@ -304,11 +303,9 @@ function AppRoutes() {
 function App() {
     return (
         <ErrorBoundary>
-            <DSProvider>
-                <Router>
-                    <AppRoutes />
-                </Router>
-            </DSProvider>
+            <Router>
+                <AppRoutes />
+            </Router>
         </ErrorBoundary>
     );
 }
