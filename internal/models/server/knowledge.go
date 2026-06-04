@@ -56,10 +56,10 @@ type KnowledgeNamespace struct {
 	Namespace      string `json:"namespace" gorm:"type:varchar(128);uniqueIndex:idx_kn_group_ns;not null;comment:vector backend collection name"`
 	Name           string `json:"name" gorm:"type:varchar(255);not null;comment:display name"`
 	Description    string `json:"description" gorm:"type:text"`
-	VectorProvider string `json:"vectorProvider" gorm:"type:varchar(32);not null;default:'qdrant';index;comment:qdrant|milvus"`
-	EmbedModel     string `json:"embedModel" gorm:"type:varchar(64);not null;comment:embedding model"`
-	VectorDim      int    `json:"vectorDim" gorm:"not null;comment:embedding dim"`
-	Status         string `json:"status" gorm:"type:varchar(20);index;not null;default:'active'"`
+	VectorProvider string `json:"-" gorm:"type:varchar(32);not null;default:'qdrant';index;comment:qdrant|milvus"`
+	EmbedModel     string `json:"-" gorm:"type:varchar(64);not null;comment:embedding model"`
+	VectorDim      int    `json:"-" gorm:"not null;comment:embedding dim"`
+	Status         string `json:"-" gorm:"type:varchar(20);index;not null;default:'active'"`
 
 	CreatedAt time.Time `json:"createdAt" gorm:"autoCreateTime"`
 	UpdatedAt time.Time `json:"updatedAt" gorm:"autoUpdateTime"`
@@ -280,7 +280,7 @@ type KnowledgeDocument struct {
 	// StoredMarkdown holds full markdown when LingStorage upload failed or URL is unavailable (GET /text fallback).
 	StoredMarkdown string `json:"storedMarkdown,omitempty" gorm:"type:longtext;comment:fallback markdown when text_url empty or fetch fails"`
 	RecordIDs      string `json:"recordIds" gorm:"type:text;comment:related vector ids (csv or json)"`
-	Status         string `json:"status" gorm:"type:varchar(20);index;not null;default:'active'"`
+	Status         string `json:"-" gorm:"type:varchar(20);index;not null;default:'active'"`
 
 	CreatedAt time.Time `json:"createdAt" gorm:"autoCreateTime"`
 	UpdatedAt time.Time `json:"updatedAt" gorm:"autoUpdateTime"`
