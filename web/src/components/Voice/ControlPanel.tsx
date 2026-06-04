@@ -1,13 +1,13 @@
 import React, {useEffect, useState} from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Key, Settings, AppWindow, RefreshCw, ArrowRight, Mic } from 'lucide-react';
+import { Input } from '@arco-design/web-react';
 import { cn } from '@/utils/cn';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/UI/Select';
 import Button from '@/components/UI/Button';
 import { Switch } from '@/components/UI/Switch';
 import Card from '@/components/UI/Card';
 import CollapsibleSectionHeader from '@/components/UI/CollapsibleSectionHeader';
-import Textarea from '@/components/UI/Textarea';
 import { getVoiceOptions, VoiceOption } from '@/api/assistant';
 import { jsTemplateService, type JSTemplate } from '@/api/jsTemplate';
 import { highlightContent } from '@/utils/highlight';
@@ -309,14 +309,13 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
 
                                     {/* 系统提示词 */}
                                     <div className="space-y-1">
-                                        <Textarea
-                                            size="sm"
-                                            label={t('controlPanel.call.systemPrompt')}
+                                        <label className="text-sm font-medium">{t('controlPanel.call.systemPrompt')}</label>
+                                        <Input.TextArea
                                             value={systemPrompt}
-                                            onValueChange={onSystemPromptChange}
+                                            onChange={onSystemPromptChange}
                                             placeholder={t('controlPanel.call.systemPromptPlaceholder')}
                                             rows={8}
-                                            textareaClassName="min-h-[10rem] text-sm leading-relaxed"
+                                            className="min-h-[10rem] text-sm leading-relaxed"
                                         />
                                         {searchKeyword && systemPrompt && (
                                             <div
