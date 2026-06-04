@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Select as ArcoSelect } from '@arco-design/web-react'
+import { Select as ArcoSelect, Input as ArcoInput } from '@arco-design/web-react'
 import { 
   FileText, Download, RefreshCw, Brain, Mic, Volume2,
   Globe, Plus, Eye, ChevronLeft, ChevronRight,
@@ -8,7 +8,6 @@ import {
 } from 'lucide-react'
 import { useI18nStore } from '@/stores/i18nStore'
 import Button from '@/components/UI/Button'
-import Input from '@/components/UI/Input'
 import Card, { CardContent, CardDescription, CardHeader, CardTitle } from '@/components/UI/Card'
 import Badge from '@/components/UI/Badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/UI/Tabs'
@@ -519,20 +518,20 @@ const Billing = () => {
                 <>
                   <div className="min-w-[140px]">
                     <label className="text-xs text-muted-foreground mb-1 block">{t('billing.filter.startDate')}</label>
-                    <Input
+                    <ArcoInput
                       type="date"
                       className="h-9 text-sm"
                       value={startDate}
-                      onChange={(e) => setStartDate(e.target.value)}
+                      onChange={(val) => setStartDate(val)}
                     />
                   </div>
                   <div className="min-w-[140px]">
                     <label className="text-xs text-muted-foreground mb-1 block">{t('billing.filter.endDate')}</label>
-                    <Input
+                    <ArcoInput
                       type="date"
                       className="h-9 text-sm"
                       value={endDate}
-                      onChange={(e) => setEndDate(e.target.value)}
+                      onChange={(val) => setEndDate(val)}
                     />
                   </div>
                 </>
@@ -962,25 +961,25 @@ const Billing = () => {
             <CardContent className="space-y-4">
               <div>
                 <label className="text-sm font-medium mb-2 block">{t('billing.filter.startDate')}</label>
-                <Input
+                <ArcoInput
                   type="date"
                   value={generateBillForm.startTime}
-                  onChange={(e) => setGenerateBillForm({ ...generateBillForm, startTime: e.target.value })}
+                  onChange={(val) => setGenerateBillForm({ ...generateBillForm, startTime: val })}
                 />
               </div>
               <div>
                 <label className="text-sm font-medium mb-2 block">{t('billing.filter.endDate')}</label>
-                <Input
+                <ArcoInput
                   type="date"
                   value={generateBillForm.endTime}
-                  onChange={(e) => setGenerateBillForm({ ...generateBillForm, endTime: e.target.value })}
+                  onChange={(val) => setGenerateBillForm({ ...generateBillForm, endTime: val })}
                 />
               </div>
               <div>
                 <label className="text-sm font-medium mb-2 block">{t('billing.generate.billTitle')}</label>
-                <Input
+                <ArcoInput
                   value={generateBillForm.title || ''}
-                  onChange={(e) => setGenerateBillForm({ ...generateBillForm, title: e.target.value })}
+                  onChange={(val) => setGenerateBillForm({ ...generateBillForm, title: val })}
                   placeholder={t('billing.generate.billTitlePlaceholder')}
                 />
               </div>
