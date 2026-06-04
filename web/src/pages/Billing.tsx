@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
+import { Select as ArcoSelect } from '@arco-design/web-react'
 import { 
   FileText, Download, RefreshCw, Brain, Mic, Volume2,
   Globe, Plus, Eye, ChevronLeft, ChevronRight,
@@ -10,7 +11,6 @@ import Button from '@/components/UI/Button'
 import Input from '@/components/UI/Input'
 import Card, { CardContent, CardDescription, CardHeader, CardTitle } from '@/components/UI/Card'
 import Badge from '@/components/UI/Badge'
-import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/UI/Select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/UI/Tabs'
 import FadeIn from '@/components/FadeIn.tsx'
 import LoadingAnimation from '@/components/LoadingAnimation.tsx'
@@ -36,6 +36,15 @@ import UsageCharts from '@/components/Billing/UsageCharts'
 import { fetchUserCredentials, type Credential } from '@/api/credential'
 import { useAuthStore } from '@/stores/authStore'
 import { getGroupList, type Group } from '@/api/group'
+
+// 为了兼容旧的 Select 代码，创建包装器
+const Select = ({ children, onValueChange, ...props }: any) => (
+  <ArcoSelect {...props} onChange={onValueChange} />
+)
+const SelectTrigger = ({ children, ...props }: any) => <>{children}</>
+const SelectValue = ({ children, ...props }: any) => <>{children}</>
+const SelectContent = ({ children, ...props }: any) => <>{children}</>
+const SelectItem = ({ children, value, ...props }: any) => <>{children}</>
 
 const Billing = () => {
   const { t } = useI18nStore()

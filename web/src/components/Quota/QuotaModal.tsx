@@ -3,7 +3,7 @@ import { createGroupQuota, updateGroupQuota, type GroupQuota, type QuotaType, ty
 import { showAlert } from '@/utils/notification';
 import { X } from 'lucide-react';
 import Button from '@/components/UI/Button';
-import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/UI/Select';
+import { Select as ArcoSelect } from '@arco-design/web-react';
 
 const quotaTypes: QuotaType[] = ['api_calls', 'storage', 'llm_tokens'];
 

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { Select as ArcoSelect } from '@arco-design/web-react'
 import {
   User, Mail, Camera, Save, Edit3, X, Lock, Eye, EyeOff,
   Phone, Heart,
@@ -9,10 +10,8 @@ import { useI18nStore } from '../stores/i18nStore'
 import { useThemeStore, type ThemeMode } from '../stores/themeStore'
 import Button from '../components/UI/Button'
 import Input from '../components/UI/Input'
-import Card from '../components/UI/Card'
 import Badge from '../components/UI/Badge'
 import Switch from '../components/UI/Switch'
-import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '../components/UI/Select'
 import FadeIn from '../components/FadeIn.tsx'
 import LoadingAnimation from '../components/LoadingAnimation.tsx'
 import { showAlert } from '../utils/notification'
@@ -886,21 +885,19 @@ const Profile = () => {
                         <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-gray-400">
                           {t('profile.gender')}
                         </label>
-                        <Select
+                        <ArcoSelect
                           value={formData.gender}
-                          onValueChange={(v) => setFormData((prev) => ({ ...prev, gender: v }))}
+                          onChange={(v) => setFormData((prev) => ({ ...prev, gender: v }))}
                           disabled={!isEditing}
-                        >
-                          <SelectTrigger className="h-9 w-full text-sm">
-                            <SelectValue placeholder={t('profile.genderSelect')} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="">{t('profile.genderSelect')}</SelectItem>
-                            <SelectItem value="male">{t('profile.gender.male')}</SelectItem>
-                            <SelectItem value="female">{t('profile.gender.female')}</SelectItem>
-                            <SelectItem value="other">{t('profile.gender.other')}</SelectItem>
-                          </SelectContent>
-                        </Select>
+                          className="h-9 w-full text-sm"
+                          placeholder={t('profile.genderSelect')}
+                          options={[
+                            { label: t('profile.genderSelect'), value: '' },
+                            { label: t('profile.gender.male'), value: 'male' },
+                            { label: t('profile.gender.female'), value: 'female' },
+                            { label: t('profile.gender.other'), value: 'other' }
+                          ]}
+                        />
                       </div>
                       <Input
                         size="sm"
@@ -967,61 +964,55 @@ const Profile = () => {
                           <p className="mb-1.5 text-sm font-medium text-slate-700 dark:text-gray-300">
                             {t('profile.language')}
                           </p>
-                          <Select
+                          <ArcoSelect
                             value={formData.locale}
-                            onValueChange={(v) => setFormData((prev) => ({ ...prev, locale: v }))}
-                          >
-                            <SelectTrigger className="h-9 w-full text-sm">
-                              <SelectValue placeholder={t('profile.language')} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="zh">简体中文</SelectItem>
-                              <SelectItem value="zh-TW">繁體中文</SelectItem>
-                              <SelectItem value="en">English</SelectItem>
-                              <SelectItem value="ja">日本語</SelectItem>
-                              <SelectItem value="fr">Français</SelectItem>
-                            </SelectContent>
-                          </Select>
+                            onChange={(v) => setFormData((prev) => ({ ...prev, locale: v }))}
+                            className="h-9 w-full text-sm"
+                            placeholder={t('profile.language')}
+                            options={[
+                              { label: '简体中文', value: 'zh' },
+                              { label: '繁體中文', value: 'zh-TW' },
+                              { label: 'English', value: 'en' },
+                              { label: '日本語', value: 'ja' },
+                              { label: 'Français', value: 'fr' }
+                            ]}
+                          />
                         </div>
                         <div>
                           <p className="mb-1.5 text-sm font-medium text-slate-700 dark:text-gray-300">
                             {t('profile.timezone')}
                           </p>
-                          <Select
+                          <ArcoSelect
                             value={formData.timezone}
-                            onValueChange={(v) => setFormData((prev) => ({ ...prev, timezone: v }))}
-                          >
-                            <SelectTrigger className="h-9 w-full text-sm">
-                              <SelectValue placeholder={t('profile.timezone')} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="Asia/Shanghai">Asia/Shanghai (UTC+8)</SelectItem>
-                              <SelectItem value="Asia/Tokyo">Asia/Tokyo (UTC+9)</SelectItem>
-                              <SelectItem value="America/New_York">America/New_York</SelectItem>
-                              <SelectItem value="Europe/London">Europe/London</SelectItem>
-                              <SelectItem value="UTC">UTC</SelectItem>
-                            </SelectContent>
-                          </Select>
+                            onChange={(v) => setFormData((prev) => ({ ...prev, timezone: v }))}
+                            className="h-9 w-full text-sm"
+                            placeholder={t('profile.timezone')}
+                            options={[
+                              { label: 'Asia/Shanghai (UTC+8)', value: 'Asia/Shanghai' },
+                              { label: 'Asia/Tokyo (UTC+9)', value: 'Asia/Tokyo' },
+                              { label: 'America/New_York', value: 'America/New_York' },
+                              { label: 'Europe/London', value: 'Europe/London' },
+                              { label: 'UTC', value: 'UTC' }
+                            ]}
+                          />
                         </div>
                         <div className="sm:col-span-2">
                           <p className="mb-1.5 text-sm font-medium text-slate-700 dark:text-gray-300">
                             外观模式
                           </p>
-                          <Select
+                          <ArcoSelect
                             value={formData.themeMode}
-                            onValueChange={(v) =>
+                            onChange={(v) =>
                               setFormData((prev) => ({ ...prev, themeMode: v as ThemeMode }))
                             }
-                          >
-                            <SelectTrigger className="h-9 w-full text-sm">
-                              <SelectValue placeholder="外观模式" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="system">跟随系统</SelectItem>
-                              <SelectItem value="light">浅色</SelectItem>
-                              <SelectItem value="dark">深色</SelectItem>
-                            </SelectContent>
-                          </Select>
+                            className="h-9 w-full text-sm"
+                            placeholder="外观模式"
+                            options={[
+                              { label: '跟随系统', value: 'system' },
+                              { label: '浅色', value: 'light' },
+                              { label: '深色', value: 'dark' }
+                            ]}
+                          />
                         </div>
                       </div>
                       <div className="mt-4 flex justify-end border-t border-slate-100 pt-4 dark:border-neutral-800">

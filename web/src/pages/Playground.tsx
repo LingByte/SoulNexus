@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
+import { Select as ArcoSelect } from '@arco-design/web-react'
 import {
   Beaker,
   Bot,
@@ -16,7 +17,6 @@ import Textarea from '@/components/UI/Textarea'
 import Switch from '@/components/UI/Switch'
 import MarkdownPreview from '@/components/UI/MarkdownPreview'
 import CollapsibleSectionHeader from '@/components/UI/CollapsibleSectionHeader'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/UI/Select'
 import { showAlert } from '@/utils/notification'
 import { useAuthStore } from '@/stores/authStore'
 import {
@@ -315,20 +315,17 @@ const Playground = () => {
             </div>
             <div className="flex-1 overflow-y-auto custom-scrollbar">
               <SettingsSection title="连接" defaultOpen>
-                <Select
+                <ArcoSelect
                   value={settings.protocol}
-                  onValueChange={(v) =>
+                  onChange={(v) =>
                     patchSettings({ protocol: v as PlaygroundSettings['protocol'] })
                   }
-                >
-                  <SelectTrigger className="h-9 w-full text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="openai">OpenAI 兼容 (/v1/chat/completions)</SelectItem>
-                    <SelectItem value="anthropic">Anthropic (/v1/messages)</SelectItem>
-                  </SelectContent>
-                </Select>
+                  className="h-9 w-full text-xs"
+                  options={[
+                    { label: 'OpenAI 兼容 (/v1/chat/completions)', value: 'openai' },
+                    { label: 'Anthropic (/v1/messages)', value: 'anthropic' }
+                  ]}
+                />
                 <Input
                   size="sm"
                   label="Base URL"
@@ -448,23 +445,20 @@ const Playground = () => {
                     />
                     <div>
                       <p className="mb-1.5 text-sm font-medium text-foreground">response_format</p>
-                      <Select
+                      <ArcoSelect
                         value={settings.responseFormat || 'default'}
-                        onValueChange={(v) =>
+                        onChange={(v) =>
                           patchSettings({
                             responseFormat:
                               v === 'default' ? '' : (v as PlaygroundSettings['responseFormat']),
                           })
                         }
-                      >
-                        <SelectTrigger className="h-9 w-full text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="default">默认 text</SelectItem>
-                          <SelectItem value="json_object">json_object</SelectItem>
-                        </SelectContent>
-                      </Select>
+                        className="h-9 w-full text-xs"
+                        options={[
+                          { label: '默认 text', value: 'default' },
+                          { label: 'json_object', value: 'json_object' }
+                        ]}
+                      />
                     </div>
                     <Input
                       size="sm"

@@ -1,9 +1,8 @@
 import React, {useEffect, useState} from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Key, Settings, AppWindow, RefreshCw, ArrowRight, Mic } from 'lucide-react';
-import { Input } from '@arco-design/web-react';
+import { Input, Select as ArcoSelect } from '@arco-design/web-react';
 import { cn } from '@/utils/cn';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/UI/Select';
 import Button from '@/components/UI/Button';
 import { Switch } from '@/components/UI/Switch';
 import Card from '@/components/UI/Card';
@@ -211,22 +210,20 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                 <div className="space-y-4 pt-4">
                                     <div className="space-y-2">
                                         <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('controlPanel.api.apiKey')}</label>
-                                        <input
+                                        <Input
                                             type="text"
                                             value={apiKey}
-                                            onChange={(e) => onApiKeyChange(e.target.value)}
-                                            className="w-full p-2 text-sm border rounded-lg focus:ring-2 focus:ring-purple-500 dark:bg-neutral-700 dark:border-neutral-600"
+                                            onChange={(v) => onApiKeyChange(v)}
                                             placeholder={t('controlPanel.api.apiKeyPlaceholder')}
                                         />
                                     </div>
 
                                     <div className="space-y-2">
                                         <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('controlPanel.api.apiSecret')}</label>
-                                        <input
+                                        <Input
                                             type="password"
                                             value={apiSecret}
-                                            onChange={(e) => onApiSecretChange(e.target.value)}
-                                            className="w-full p-2 text-sm border rounded-lg focus:ring-2 focus:ring-purple-500 dark:bg-neutral-700 dark:border-neutral-600"
+                                            onChange={(v) => onApiSecretChange(v)}
                                             placeholder={t('controlPanel.api.apiSecretPlaceholder')}
                                         />
                                     </div>
@@ -275,31 +272,16 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                                 {t('controlPanel.call.loadingVoices')}
                                             </div>
                                         ) : voiceOptions.length > 0 ? (
-                                            <Select
+                                            <ArcoSelect
                                                 value={selectedSpeaker}
-                                                onValueChange={onSpeakerChange}
+                                                onChange={onSpeakerChange}
                                                 className="w-full"
-                                            >
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder={t('controlPanel.call.speakerPlaceholder')}>
-                                                        {voiceOptions.find(v => v.id === selectedSpeaker)
-                                                            ? `${voiceOptions.find(v => v.id === selectedSpeaker)?.name} - ${voiceOptions.find(v => v.id === selectedSpeaker)?.description}`
-                                                            : t('controlPanel.call.speakerPlaceholder')}
-                                                    </SelectValue>
-                                                </SelectTrigger>
-                                                <SelectContent searchable searchPlaceholder="搜索音色">
-                                                    {voiceOptions.map(voice => (
-                                                        <SelectItem key={voice.id} value={voice.id}>
-                                                            <div className="flex flex-col">
-                                                                <span className="font-medium">{voice.name}</span>
-                                                                <span className="text-xs text-gray-500 dark:text-gray-400">
-                                  {voice.description} · {voice.type}
-                                </span>
-                                                            </div>
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
+                                                placeholder={t('controlPanel.call.speakerPlaceholder')}
+                                                options={voiceOptions.map(voice => ({
+                                                    label: `${voice.name} - ${voice.description}`,
+                                                    value: voice.id
+                                                }))}
+                                            />
                                         ) : (
                                             <div className="w-full p-3 text-sm text-gray-500 dark:text-gray-400 text-center border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800">
                                                 {ttsProvider ? t('controlPanel.call.noVoices', { provider: ttsProvider }) : t('controlPanel.call.noProvider')}
@@ -309,13 +291,13 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
 
                                     {/* 系统提示词 */}
                                     <div className="space-y-1">
-                                        <label className="text-sm font-medium">{t('controlPanel.call.systemPrompt')}</label>
+                                        <label className="text-base font-medium">{t('controlPanel.call.systemPrompt')}</label>
                                         <Input.TextArea
                                             value={systemPrompt}
                                             onChange={onSystemPromptChange}
                                             placeholder={t('controlPanel.call.systemPromptPlaceholder')}
                                             rows={8}
-                                            className="min-h-[10rem] text-sm leading-relaxed"
+                                            className="min-h-[10rem] text-lg leading-relaxed"
                                         />
                                         {searchKeyword && systemPrompt && (
                                             <div
@@ -438,27 +420,16 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                             <label className="text-xs text-gray-500 dark:text-gray-400">
                                                 {t('controlPanel.assistant.jsTemplate')}
                                             </label>
-                                            <Select
+                                            <ArcoSelect
                                                 value={jsSourceId || ''}
-                                                onValueChange={(value) => onJsSourceIdChange?.(value)}
+                                                onChange={(value) => onJsSourceIdChange?.(value)}
                                                 className="w-full"
-                                            >
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder={t('controlPanel.assistant.jsTemplatePlaceholder')}>
-                                                        {jsSourceId
-                                                            ? jsTemplates.find(tpl => tpl.jsSourceId === jsSourceId)?.name || jsSourceId
-                                                            : t('controlPanel.assistant.jsTemplateDefault')}
-                                                    </SelectValue>
-                                                </SelectTrigger>
-                                                <SelectContent searchable searchPlaceholder="搜索模板">
-                                                    <SelectItem value="">{t('controlPanel.assistant.jsTemplateDefault')}</SelectItem>
-                                                    {jsTemplates.map((tpl) => (
-                                                        <SelectItem key={tpl.id} value={tpl.jsSourceId}>
-                                                            {tpl.name}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
+                                                placeholder={t('controlPanel.assistant.jsTemplatePlaceholder')}
+                                                options={[
+                                                    { label: t('controlPanel.assistant.jsTemplateDefault'), value: '' },
+                                                    ...jsTemplates.map(tpl => ({ label: tpl.name, value: tpl.jsSourceId }))
+                                                ]}
+                                            />
                                             <p className="text-xs text-gray-500 dark:text-gray-400">
                                                 {t('controlPanel.assistant.jsTemplateHint')}
                                             </p>
@@ -518,32 +489,16 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                     <div className="space-y-2 mb-6">
                                         <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('controlPanel.voiceClone.select')}</label>
                                         <div className="flex items-center gap-2 mb-10">
-                                            <Select
+                                            <ArcoSelect
                                                 className="flex-1"
                                                 value={selectedVoiceCloneId?.toString() ?? ''}
-                                                onValueChange={(value) => onVoiceCloneChange(value === '' ? null : Number(value) || null)}
-                                            >
-                                                <SelectTrigger className="flex-1 shadow-sm">
-                                                    <SelectValue placeholder={t('controlPanel.voiceClone.select')}>
-                                                        {selectedVoiceCloneId === null
-                                                            ? t('controlPanel.voiceClone.none')
-                                                            : selectedVoiceCloneId ?
-                                                                voiceClones.find(vc => vc.id === selectedVoiceCloneId)?.voice_name || t('controlPanel.voiceClone.unknown')
-                                                                : t('controlPanel.voiceClone.select')
-                                                        }
-                                                    </SelectValue>
-                                                </SelectTrigger>
-                                                <SelectContent searchable searchPlaceholder="搜索训练音色">
-                                                    <SelectItem key="none" value="">
-                                                        {t('controlPanel.voiceClone.none')}
-                                                    </SelectItem>
-                                                    {voiceClones.map(vc => (
-                                                        <SelectItem key={vc.id} value={vc.id.toString()}>
-                                                            {vc.voice_name}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
+                                                onChange={(value) => onVoiceCloneChange(value === '' ? null : Number(value) || null)}
+                                                placeholder={t('controlPanel.voiceClone.select')}
+                                                options={[
+                                                    { label: t('controlPanel.voiceClone.none'), value: '' },
+                                                    ...voiceClones.map(vc => ({ label: vc.voice_name, value: vc.id.toString() }))
+                                                ]}
+                                            />
                                         </div>
                                         <div className="flex space-x-2 mt-6 mb-6">
                                             <Button

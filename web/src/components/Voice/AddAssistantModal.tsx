@@ -6,7 +6,7 @@ import { getGroupList, type Group } from '@/api/group'
 import { useAuthStore } from '@/stores/authStore'
 import { useI18nStore } from '@/stores/i18nStore'
 import Button from '@/components/UI/Button'
-import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/UI/Select'
+import { Select as ArcoSelect } from '@arco-design/web-react'
 
 interface AddAssistantModalProps {
   isOpen: boolean
