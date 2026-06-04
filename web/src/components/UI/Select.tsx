@@ -75,14 +75,14 @@ const Select = React.forwardRef<any, SelectProps>(
         filterOption={searchable}
         placeholder={searchPlaceholder}
         notFoundContent={emptyText}
-        options={arcoOptions}
+        options={arcoOptions || undefined}
         className={cn('w-full', className)}
         style={{
           '--color-primary': PURPLE_PRIMARY,
         } as React.CSSProperties}
         {...props}
       >
-        {children}
+        {!arcoOptions && children}
       </ArcoSelect>
     )
   }
