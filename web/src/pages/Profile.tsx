@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Select as ArcoSelect } from '@arco-design/web-react'
+import { Select as ArcoSelect, Input as ArcoInput } from '@arco-design/web-react'
 import {
   User, Mail, Camera, Save, Edit3, X, Lock, Eye, EyeOff,
   Phone, Heart,
@@ -9,7 +9,6 @@ import { useAuthStore } from '../stores/authStore'
 import { useI18nStore } from '../stores/i18nStore'
 import { useThemeStore, type ThemeMode } from '../stores/themeStore'
 import Button from '../components/UI/Button'
-import Input from '../components/UI/Input'
 import Badge from '../components/UI/Badge'
 import Switch from '../components/UI/Switch'
 import FadeIn from '../components/FadeIn.tsx'
@@ -854,33 +853,39 @@ const Profile = () => {
 
                   <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-3 sm:p-4 lg:max-h-full lg:overflow-y-auto lg:p-6">
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-3 md:gap-x-4 md:gap-y-4">
-                      <Input
-                        size="sm"
-                        label={t('profile.displayName')}
-                        value={formData.displayName}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, displayName: e.target.value }))}
-                        disabled={!isEditing}
-                        leftIcon={<User className="h-3.5 w-3.5" />}
-                        placeholder={t('profile.displayNamePlaceholder')}
-                      />
-                      <Input
-                        size="sm"
-                        label={t('profile.firstName')}
-                        value={formData.firstName}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, firstName: e.target.value }))}
-                        disabled={!isEditing}
-                        leftIcon={<User className="h-3.5 w-3.5" />}
-                        placeholder={t('profile.firstNamePlaceholder')}
-                      />
-                      <Input
-                        size="sm"
-                        label={t('profile.lastName')}
-                        value={formData.lastName}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, lastName: e.target.value }))}
-                        disabled={!isEditing}
-                        leftIcon={<User className="h-3.5 w-3.5" />}
-                        placeholder={t('profile.lastNamePlaceholder')}
-                      />
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">{t('profile.displayName')}</label>
+                        <ArcoInput
+                          value={formData.displayName}
+                          onChange={(val) => setFormData((prev) => ({ ...prev, displayName: val }))}
+                          disabled={!isEditing}
+                          prefix={<User className="h-3.5 w-3.5" />}
+                          placeholder={t('profile.displayNamePlaceholder')}
+                          size="small"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">{t('profile.firstName')}</label>
+                        <ArcoInput
+                          value={formData.firstName}
+                          onChange={(val) => setFormData((prev) => ({ ...prev, firstName: val }))}
+                          disabled={!isEditing}
+                          prefix={<User className="h-3.5 w-3.5" />}
+                          placeholder={t('profile.firstNamePlaceholder')}
+                          size="small"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">{t('profile.lastName')}</label>
+                        <ArcoInput
+                          value={formData.lastName}
+                          onChange={(val) => setFormData((prev) => ({ ...prev, lastName: val }))}
+                          disabled={!isEditing}
+                          prefix={<User className="h-3.5 w-3.5" />}
+                          placeholder={t('profile.lastNamePlaceholder')}
+                          size="small"
+                        />
+                      </div>
                       <div>
                         <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-gray-400">
                           {t('profile.gender')}
@@ -899,49 +904,56 @@ const Profile = () => {
                           ]}
                         />
                       </div>
-                      <Input
-                        size="sm"
-                        label={t('profile.email')}
-                        type="email"
-                        value={formData.email}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
-                        disabled={!isEditing}
-                        leftIcon={<Mail className="h-3.5 w-3.5" />}
-                        placeholder={t('profile.emailPlaceholder')}
-                      />
-                      <Input
-                        size="sm"
-                        label={t('profile.phone')}
-                        value={formData.phone}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, phone: e.target.value }))}
-                        disabled={!isEditing}
-                        leftIcon={<Phone className="h-3.5 w-3.5" />}
-                        placeholder={t('profile.phonePlaceholder')}
-                      />
-                      <Input
-                        size="sm"
-                        label="城市"
-                        value={formData.city}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, city: e.target.value }))}
-                        disabled={!isEditing}
-                        placeholder="请输入所在城市"
-                      />
-                      <Input
-                        size="sm"
-                        label="地区"
-                        value={formData.region}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, region: e.target.value }))}
-                        disabled={!isEditing}
-                        placeholder="请输入所在地区"
-                      />
-                      <div className="col-span-full">
-                        <Input
-                          size="sm"
-                          label={t('profile.bio')}
-                          value={formData.extra}
-                          onChange={(e) => setFormData((prev) => ({ ...prev, extra: e.target.value }))}
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">{t('profile.email')}</label>
+                        <ArcoInput
+                          type="email"
+                          value={formData.email}
+                          onChange={(val) => setFormData((prev) => ({ ...prev, email: val }))}
                           disabled={!isEditing}
-                          leftIcon={<Heart className="h-3.5 w-3.5" />}
+                          prefix={<Mail className="h-3.5 w-3.5" />}
+                          placeholder={t('profile.emailPlaceholder')}
+                          size="small"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">{t('profile.phone')}</label>
+                        <ArcoInput
+                          value={formData.phone}
+                          onChange={(val) => setFormData((prev) => ({ ...prev, phone: val }))}
+                          disabled={!isEditing}
+                          prefix={<Phone className="h-3.5 w-3.5" />}
+                          placeholder={t('profile.phonePlaceholder')}
+                          size="small"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">城市</label>
+                        <ArcoInput
+                          value={formData.city}
+                          onChange={(val) => setFormData((prev) => ({ ...prev, city: val }))}
+                          disabled={!isEditing}
+                          placeholder="请输入所在城市"
+                          size="small"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">地区</label>
+                        <ArcoInput
+                          value={formData.region}
+                          onChange={(val) => setFormData((prev) => ({ ...prev, region: val }))}
+                          disabled={!isEditing}
+                          placeholder="请输入所在地区"
+                          size="small"
+                        />
+                      </div>
+                      <div className="col-span-full">
+                        <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">{t('profile.bio')}</label>
+                        <ArcoInput
+                          value={formData.extra}
+                          onChange={(val) => setFormData((prev) => ({ ...prev, extra: val }))}
+                          disabled={!isEditing}
+                          prefix={<Heart className="h-3.5 w-3.5" />}
                           placeholder={t('profile.bioPlaceholder')}
                         />
                       </div>
@@ -1235,39 +1247,40 @@ const Profile = () => {
                                 </div>
                               </div>
                               {passwordChangeMethod === 'password' ? (
-                                <Input
-                                  size="sm"
-                                  label="当前密码"
-                                  type={showCurrentPassword ? 'text' : 'password'}
-                                  value={passwordData.currentPassword}
-                                  onChange={(e) =>
-                                    setPasswordData((prev) => ({ ...prev, currentPassword: e.target.value }))
-                                  }
-                                  leftIcon={<Lock className="h-3.5 w-3.5" />}
-                                  rightIcon={
-                                    <button
-                                      type="button"
-                                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                                      className="text-slate-400 hover:text-slate-600 dark:hover:text-gray-300"
-                                    >
-                                      {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                    </button>
-                                  }
-                                  placeholder="请输入当前密码"
-                                />
+                                <div>
+                                  <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">当前密码</label>
+                                  <ArcoInput
+                                    type={showCurrentPassword ? 'text' : 'password'}
+                                    value={passwordData.currentPassword}
+                                    onChange={(val) =>
+                                      setPasswordData((prev) => ({ ...prev, currentPassword: val }))
+                                    }
+                                    prefix={<Lock className="h-3.5 w-3.5" />}
+                                    suffix={
+                                      <button
+                                        type="button"
+                                        onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                                        className="text-slate-400 hover:text-slate-600 dark:hover:text-gray-300"
+                                      >
+                                        {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                      </button>
+                                    }
+                                    placeholder="请输入当前密码"
+                                    size="small"
+                                  />
+                                </div>
                               ) : (
                                 <div className="space-y-2">
                                   <label className="block text-xs font-medium text-slate-600 dark:text-gray-400">邮箱验证码</label>
                                   <div className="flex gap-2">
                                     <div className="min-w-0 flex-1">
-                                      <Input
-                                        size="sm"
-                                        label=""
+                                      <ArcoInput
                                         type="text"
                                         value={emailCode}
-                                        onChange={(e) => setEmailCode(e.target.value)}
-                                        leftIcon={<Mail className="h-3.5 w-3.5" />}
+                                        onChange={(val) => setEmailCode(val)}
+                                        prefix={<Mail className="h-3.5 w-3.5" />}
                                         placeholder="请输入邮箱验证码"
+                                        size="small"
                                       />
                                     </div>
                                     <Button
@@ -1284,44 +1297,48 @@ const Profile = () => {
                                 </div>
                               )}
                               <div className="mt-2 space-y-2">
-                                <Input
-                                  size="sm"
-                                  label="新密码"
-                                  type={showNewPassword ? 'text' : 'password'}
-                                  value={passwordData.newPassword}
-                                  onChange={(e) => setPasswordData((prev) => ({ ...prev, newPassword: e.target.value }))}
-                                  leftIcon={<Lock className="h-3.5 w-3.5" />}
-                                  rightIcon={
-                                    <button
-                                      type="button"
-                                      onClick={() => setShowNewPassword(!showNewPassword)}
-                                      className="text-slate-400 hover:text-slate-600 dark:hover:text-gray-300"
-                                    >
-                                      {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                    </button>
-                                  }
-                                  placeholder="请输入新密码"
-                                />
-                                <Input
-                                  size="sm"
-                                  label="确认新密码"
-                                  type={showConfirmPassword ? 'text' : 'password'}
-                                  value={passwordData.confirmPassword}
-                                  onChange={(e) =>
-                                    setPasswordData((prev) => ({ ...prev, confirmPassword: e.target.value }))
-                                  }
-                                  leftIcon={<Lock className="h-3.5 w-3.5" />}
-                                  rightIcon={
-                                    <button
-                                      type="button"
-                                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                                      className="text-slate-400 hover:text-slate-600 dark:hover:text-gray-300"
-                                    >
-                                      {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                <div>
+                                  <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">新密码</label>
+                                  <ArcoInput
+                                    type={showNewPassword ? 'text' : 'password'}
+                                    value={passwordData.newPassword}
+                                    onChange={(val) => setPasswordData((prev) => ({ ...prev, newPassword: val }))}
+                                    prefix={<Lock className="h-3.5 w-3.5" />}
+                                    suffix={
+                                      <button
+                                        type="button"
+                                        onClick={() => setShowNewPassword(!showNewPassword)}
+                                        className="text-slate-400 hover:text-slate-600 dark:hover:text-gray-300"
+                                      >
+                                        {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                      </button>
+                                    }
+                                    placeholder="请输入新密码"
+                                    size="small"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">确认新密码</label>
+                                  <ArcoInput
+                                    type={showConfirmPassword ? 'text' : 'password'}
+                                    value={passwordData.confirmPassword}
+                                    onChange={(val) =>
+                                      setPasswordData((prev) => ({ ...prev, confirmPassword: val }))
+                                    }
+                                    prefix={<Lock className="h-3.5 w-3.5" />}
+                                    suffix={
+                                      <button
+                                        type="button"
+                                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                        className="text-slate-400 hover:text-slate-600 dark:hover:text-gray-300"
+                                      >
+                                        {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                                     </button>
                                   }
                                   placeholder="请再次输入新密码"
+                                  size="small"
                                 />
+                                </div>
                               </div>
                               <div className="mt-3 flex gap-2">
                                 <Button
