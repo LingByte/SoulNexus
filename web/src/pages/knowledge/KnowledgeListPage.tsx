@@ -112,7 +112,7 @@ const KnowledgeListPage: React.FC = () => {
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
             <div className="relative min-w-0 flex-1">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <ArcoInput size="large" value={qInput}
+              <ArcoInput size="large" className="!h-10 !text-base" value={qInput}
                 onChange={(e) => setQInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && (setPage(1), setQ(qInput.trim()))}
                 placeholder={t('knowledge.searchPlaceholder')}

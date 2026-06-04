@@ -107,7 +107,7 @@ export const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({
                   <div className="w-1 h-4 rounded-full" style={{ backgroundColor: nodeConfig.color || '#64748b' }} />
                   基本信息
                 </h4>
-                <ArcoInput size="large" label="节点名称"
+                <ArcoInput size="large" className="!h-10 !text-base" label="节点名称"
                   size="sm"
                   value={node.data.label}
                   onChange={(e) => onNodeLabelChange(e.target.value)}
@@ -197,7 +197,7 @@ const NodeTypeConfig: React.FC<NodeTypeConfigProps> = ({
 
           <div className="space-y-3">
             <div className="flex gap-2">
-              <ArcoInput size="large" value={newParam}
+              <ArcoInput size="large" className="!h-10 !text-base" value={newParam}
                 onChange={(e) => setNewParam(e.target.value)}
                 onKeyPress={(e) => {
                   if (e.key === 'Enter' && newParam.trim()) {
@@ -266,7 +266,7 @@ const NodeTypeConfig: React.FC<NodeTypeConfigProps> = ({
 
           <div className="space-y-3">
             <div className="flex gap-2">
-              <ArcoInput size="large" value={newParam}
+              <ArcoInput size="large" className="!h-10 !text-base" value={newParam}
                 onChange={(e) => setNewParam(e.target.value)}
                 onKeyPress={(e) => {
                   if (e.key === 'Enter' && newParam.trim()) {
@@ -575,14 +575,14 @@ const TaskNodeConfig: React.FC<{
               <option value="DELETE">DELETE</option>
             </select>
           </div>
-          <ArcoInput size="large" label="请求 URL"
+          <ArcoInput size="large" className="!h-10 !text-base" label="请求 URL"
             size="sm"
             value={node.data.config?.url || ''}
             onChange={(e) => onConfigChange({ ...(node.data.config || {}), url: e.target.value })}
             placeholder="https://api.example.com/data"
             helperText={'支持模板变量：{{variable}} 或 {{context.key}}'}
           />
-          <ArcoInput size="large" label="超时时间"
+          <ArcoInput size="large" className="!h-10 !text-base" label="超时时间"
             size="sm"
             type="text"
             value={node.data.config?.timeout || '10s'}
@@ -687,7 +687,7 @@ const TaskNodeConfig: React.FC<{
       {/* 延迟任务配置 */}
       {taskType === 'delay' && (
         <div className="space-y-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-          <ArcoInput size="large" label="延迟时间"
+          <ArcoInput size="large" className="!h-10 !text-base" label="延迟时间"
             size="sm"
             type="text"
             value={node.data.config?.duration || '1s'}
@@ -716,7 +716,7 @@ const TaskNodeConfig: React.FC<{
               <option value="error">Error</option>
             </select>
           </div>
-          <ArcoInput size="large" label="日志消息"
+          <ArcoInput size="large" className="!h-10 !text-base" label="日志消息"
             size="sm"
             value={node.data.config?.message || ''}
             onChange={(e) => onConfigChange({ ...(node.data.config || {}), message: e.target.value })}
@@ -880,7 +880,7 @@ const AIChatNodeConfig: React.FC<{
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           模型
         </label>
-        <ArcoInput size="large" size="sm"
+        <ArcoInput size="large" className="!h-10 !text-base" size="sm"
           value={node.data.config?.model || 'gpt-4'}
           onChange={(e) => onConfigChange({ ...(node.data.config || {}), model: e.target.value })}
           placeholder="gpt-4"
@@ -899,14 +899,14 @@ const WaitNodeConfig: React.FC<{
 }> = ({ node, onConfigChange }) => {
   return (
     <div className="space-y-4">
-      <ArcoInput size="large" label="等待时长 (毫秒)"
+      <ArcoInput size="large" className="!h-10 !text-base" label="等待时长 (毫秒)"
         size="sm"
         type="number"
         min="0"
         value={node.data.config?.duration?.toString() || '5000'}
         onChange={(e) => onConfigChange({ ...(node.data.config || {}), duration: parseInt(e.target.value) || 5000 })}
       />
-      <ArcoInput size="large" label="等待事件"
+      <ArcoInput size="large" className="!h-10 !text-base" label="等待事件"
         size="sm"
         value={node.data.config?.untilEvent || ''}
         onChange={(e) => onConfigChange({ ...(node.data.config || {}), untilEvent: e.target.value })}

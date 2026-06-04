@@ -260,7 +260,7 @@ const LLMTokenManager = () => {
         <div className="p-4 space-y-3">
           <div>
             <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">名称</label>
-            <ArcoInput size="large" value={name} onChange={(e) => setName(e.target.value)} placeholder="便于识别用途" />
+            <ArcoInput size="large" className="!h-10 !text-base" value={name} onChange={(e) => setName(e.target.value)} placeholder="便于识别用途" />
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">类型</label>
@@ -291,7 +291,7 @@ const LLMTokenManager = () => {
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">分组 group</label>
-            <ArcoInput size="large" value={group} onChange={(e) => setGroup(e.target.value)} placeholder="default" />
+            <ArcoInput size="large" className="!h-10 !text-base" value={group} onChange={(e) => setGroup(e.target.value)} placeholder="default" />
             <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">决定路由到哪一批 abilities / 语音渠道，由管理员预先配置。</p>
           </div>
           <div>

@@ -154,11 +154,11 @@ const ProfileAuditLogPanel = ({ userId }: ProfileAuditLogPanelProps) => {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-gray-400">事件时间（起）</label>
-            <ArcoInput size="large" type="date" value={draft.start} onChange={(e) => setDraft((d) => ({ ...d, start: e.target.value }))} className="h-9" />
+            <ArcoInput size="large" className="!h-10 !text-base" type="date" value={draft.start} onChange={(e) => setDraft((d) => ({ ...d, start: e.target.value }))} className="h-9" />
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-gray-400">事件时间（止）</label>
-            <ArcoInput size="large" type="date" value={draft.end} onChange={(e) => setDraft((d) => ({ ...d, end: e.target.value }))} className="h-9" />
+            <ArcoInput size="large" className="!h-10 !text-base" type="date" value={draft.end} onChange={(e) => setDraft((d) => ({ ...d, end: e.target.value }))} className="h-9" />
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-gray-400">服务名称</label>
