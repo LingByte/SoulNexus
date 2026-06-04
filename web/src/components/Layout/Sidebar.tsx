@@ -131,15 +131,16 @@ const Sidebar = () => {
             >
               <img src="/SoulMy.png" alt="" className="w-9 h-9 rounded" />
             </Link>
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => setIsCollapsed(false)}
-              className="inline-flex items-center justify-center w-8 h-8 rounded-full hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
               title={t('theme.expand')}
               aria-label={t('theme.expand')}
+              className="w-8 h-8 p-0"
             >
               <ChevronRight className="w-4 h-4" />
-            </button>
+            </Button>
           </div>
         ) : (
           <div className="h-14 flex items-center px-3 relative">
@@ -152,15 +153,16 @@ const Sidebar = () => {
                 </span>
               </span>
             </Link>
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => setIsCollapsed(true)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-7 h-7 rounded-full hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
               title={t('theme.collapse')}
               aria-label={t('theme.collapse')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 p-0"
             >
               <ChevronLeft className="w-4 h-4" />
-            </button>
+            </Button>
           </div>
         )}
       </div>
@@ -311,9 +313,10 @@ const Sidebar = () => {
                 }, 280)
               }}
             >
-              <button
+              <Button
                 ref={buttonRef}
-                className={`flex items-center w-full p-1 rounded hover:bg-accent transition-colors group text-muted-foreground hover:text-foreground ${isCollapsed ? 'justify-center' : ''}`}
+                variant="ghost"
+                className={`flex items-center w-full p-1 ${isCollapsed ? 'justify-center' : ''}`}
                 onClick={() => setShowDropdown((open) => !open)}
               >
                 <img
@@ -324,7 +327,7 @@ const Sidebar = () => {
                 {!isCollapsed && (
                   <span className="text-sm font-medium truncate max-w-[80px]">{user.displayName}</span>
                 )}
-              </button>
+              </Button>
               {showDropdown && !isCollapsed && (
                 <div 
                   ref={dropdownRef}
@@ -422,17 +425,19 @@ const Sidebar = () => {
           <div className="flex items-center gap-2">
             {isAuthenticated && user ? (
               <div className="relative" ref={mobileDropdownRef}>
-                <button
+                <Button
                   ref={mobileButtonRef}
+                  variant="ghost"
+                  size="sm"
                   onClick={() => setShowDropdown(!showDropdown)}
-                  className="flex items-center gap-2 p-1 rounded hover:bg-accent transition-colors"
+                  className="flex items-center gap-2 p-1"
                 >
                   <img
                     src={user.avatar || `https://ui-avatars.com/api/?name=${user.displayName || 'U'}&background=0ea5e9&color=fff`}
                     alt={user.displayName}
                     className="w-8 h-8 rounded-full"
                   />
-                </button>
+                </Button>
                 {showDropdown && (
                   <div className="absolute right-0 top-full mt-2 w-40 bg-popover rounded-md shadow-lg border z-50">
                     <div className="flex flex-col p-2">
