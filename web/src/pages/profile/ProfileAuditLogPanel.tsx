@@ -3,7 +3,7 @@ import { FileText, Search, RotateCcw, ChevronLeft, ChevronRight } from 'lucide-r
 import { getUserActivity, type ActivityLog } from '@/api/profile'
 import Button from '@/components/UI/Button'
 import Input from '@/components/UI/Input'
-import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/UI/Select'
+import { Select as ArcoSelect } from '@arco-design/web-react'
 import LoadingAnimation from '@/components/LoadingAnimation.tsx'
 
 function formatDateInput(d: Date) {
@@ -162,18 +162,13 @@ const ProfileAuditLogPanel = ({ userId }: ProfileAuditLogPanelProps) => {
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-gray-400">服务名称</label>
-            <Select value={draft.service} onValueChange={(v) => setDraft((d) => ({ ...d, service: v }))} className="w-full">
-              <SelectTrigger className="h-9">
-                <SelectValue placeholder="请选择服务" />
-              </SelectTrigger>
-              <SelectContent searchable searchPlaceholder="搜索服务...">
-                {SERVICE_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>
-                    {o.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <ArcoSelect 
+              value={draft.service} 
+              onChange={(v) => setDraft((d) => ({ ...d, service: v }))} 
+              className="w-full"
+              placeholder="请选择服务"
+              options={SERVICE_OPTIONS}
+            />
           </div>
         </div>
         <div className="mt-4 flex flex-wrap gap-2">

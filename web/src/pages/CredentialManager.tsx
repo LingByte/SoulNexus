@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { Select as ArcoSelect } from '@arco-design/web-react'
 import { 
   Key, Plus, Trash2, Download, 
   Settings, CheckCircle,
@@ -23,7 +24,6 @@ import {
 } from '../api/credential'
 import { motion, AnimatePresence } from 'framer-motion'
 import ProviderConfigForm from '../components/Credential/ProviderConfigForm'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/UI/Select'
 import { 
   getTTSProviderConfig, 
   getASRProviderConfig,
@@ -693,25 +693,19 @@ const CredentialManager = () => {
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                               {t('credential.serviceProvider')}
                             </label>
-                            <Select
+                            <ArcoSelect
                               value={asrProvider}
-                              onValueChange={(value) => {
+                              onChange={(value) => {
                                 setAsrProvider(value)
                                 setAsrConfigFields({})
                               }}
-                            >
-                              <SelectTrigger className="w-full">
-                                <SelectValue placeholder={t('credential.selectProvider')} />
-                              </SelectTrigger>
-                              <SelectContent searchable searchPlaceholder="搜索ASR服务商">
-                                <SelectItem value="">{t('credential.selectProvider')}</SelectItem>
-                                {getASRProviderOptions().map((opt) => (
-                                  <SelectItem key={opt.value} value={opt.value}>
-                                    {opt.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                              className="w-full"
+                              placeholder={t('credential.selectProvider')}
+                              options={[
+                                { label: t('credential.selectProvider'), value: '' },
+                                ...getASRProviderOptions()
+                              ]}
+                            />
                           </div>
                           <ProviderConfigForm
                             provider={asrProvider}
@@ -733,25 +727,19 @@ const CredentialManager = () => {
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                               {t('credential.serviceProvider')}
                             </label>
-                            <Select
+                            <ArcoSelect
                               value={ttsProvider}
-                              onValueChange={(value) => {
+                              onChange={(value) => {
                                 setTtsProvider(value)
                                 setTtsConfigFields({})
                               }}
-                            >
-                              <SelectTrigger className="w-full">
-                                <SelectValue placeholder={t('credential.selectProvider')} />
-                              </SelectTrigger>
-                              <SelectContent searchable searchPlaceholder="搜索TTS服务商">
-                                <SelectItem value="">{t('credential.selectProvider')}</SelectItem>
-                                {getTTSProviderOptions().map((opt) => (
-                                  <SelectItem key={opt.value} value={opt.value}>
-                                    {opt.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                              className="w-full"
+                              placeholder={t('credential.selectProvider')}
+                              options={[
+                                { label: t('credential.selectProvider'), value: '' },
+                                ...getTTSProviderOptions()
+                              ]}
+                            />
                           </div>
                           <ProviderConfigForm
                             provider={ttsProvider}

@@ -37,7 +37,7 @@ import Input from '@/components/UI/Input';
 import Modal from '@/components/UI/Modal';
 import Card from '@/components/UI/Card';
 import ConfirmDialog from '@/components/UI/ConfirmDialog';
-import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/UI/Select';
+import { Select as ArcoSelect } from '@arco-design/web-react';
 import EmptyState from '@/components/UI/EmptyState';
 import Badge from '@/components/UI/Badge';
 import CollapsibleSectionHeader from '@/components/UI/CollapsibleSectionHeader';

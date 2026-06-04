@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AlertTriangle, CheckCircle2, AlertCircle, Info, X, Filter, RefreshCw } from 'lucide-react';
 import Badge from '@/components/UI/Badge';
-import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/UI/Select';
+import { Select as ArcoSelect } from '@arco-design/web-react';
 import { resolveDeviceError } from '@/api/device';
 import { showAlert } from '@/utils/notification';
 

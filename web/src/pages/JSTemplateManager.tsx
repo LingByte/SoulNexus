@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef, Suspense, lazy } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
+import { Select as ArcoSelect } from '@arco-design/web-react'
 import { useI18nStore } from '@/stores/i18nStore'
 import Card, { CardFooter, CardHeader, CardTitle } from '@/components/UI/Card.tsx'
 import Button from '@/components/UI/Button.tsx'
 import Input from '@/components/UI/Input.tsx'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/UI/Select.tsx'
 import { jsTemplateService, JSTemplate, CreateJSTemplateForm } from '@/api/jsTemplate'
 import { ArrowLeft, Plus, Code, Eye, AlertCircle, Maximize2, Minimize2, FileText } from 'lucide-react'
 import { showAlert } from '@/utils/notification'
@@ -496,20 +496,16 @@ const JSTemplateManager = () => {
                         </div>
                         <div className="flex items-center gap-3">
                             <div className="text-sm">{t('jsTemplate.filterType')}</div>
-                            <Select value={filterType} onValueChange={(value: string) => setFilterType(value as 'all' | 'default' | 'custom')}>
-                                <SelectTrigger className="w-32 h-9 bg-white/80 dark:bg-slate-700/80 border-slate-200 dark:border-slate-600 rounded-lg">
-                                    <SelectValue>
-                                        {filterType === 'all' && t('jsTemplate.filter.all')}
-                                        {filterType === 'default' && t('jsTemplate.filter.default')}
-                                        {filterType === 'custom' && t('jsTemplate.filter.custom')}
-                                    </SelectValue>
-                                </SelectTrigger>
-                                <SelectContent className="z-50 max-h-48 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">
-                                    <SelectItem value="all">{t('jsTemplate.filter.all')}</SelectItem>
-                                    <SelectItem value="default">{t('jsTemplate.filter.default')}</SelectItem>
-                                    <SelectItem value="custom">{t('jsTemplate.filter.custom')}</SelectItem>
-                                </SelectContent>
-                            </Select>
+                            <ArcoSelect 
+                              value={filterType} 
+                              onChange={(value: string) => setFilterType(value as 'all' | 'default' | 'custom')}
+                              className="w-32 h-9"
+                              options={[
+                                { label: t('jsTemplate.filter.all'), value: 'all' },
+                                { label: t('jsTemplate.filter.default'), value: 'default' },
+                                { label: t('jsTemplate.filter.custom'), value: 'custom' }
+                              ]}
+                            />
                         </div>
                     </div>
                 </div>
