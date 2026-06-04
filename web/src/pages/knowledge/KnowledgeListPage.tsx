@@ -6,6 +6,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { BookOpen, ChevronRight, Layers, Plus, RefreshCw, Search } from 'lucide-react'
 import { PageSEO } from '@/components/SEO/PageSEO'
 import PageContainer from '@/components/Layout/PageContainer'
+import PageHeader from '@/components/Layout/PageHeader'
 import Button from '@/components/UI/Button'
 import Card from '@/components/UI/Card'
 import Badge from '@/components/UI/Badge'
@@ -90,23 +91,24 @@ const KnowledgeListPage: React.FC = () => {
   return (
     <>
       <PageSEO title={`${t('knowledge.pageTitle')} · ${site}`} description={t('knowledge.listSubtitle')} />
-      <PageContainer maxWidth="full" padding="md" className="pb-16">
-        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight">{t('knowledge.pageTitle')}</h1>
-            <p className="mt-0.5 text-sm text-muted-foreground">{t('knowledge.listSubtitle')}</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={() => void load()} leftIcon={<RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />}>
-              {t('knowledge.refresh')}
-            </Button>
-            <Button variant="primary" size="sm" onClick={() => setDrawerOpen(true)} leftIcon={<Plus className="h-4 w-4" />}>
-              {t('knowledge.newBase')}
-            </Button>
-          </div>
-        </div>
+      <div className="flex flex-col h-full">
+        <PageHeader 
+          title={t('knowledge.pageTitle')}
+          actions={
+            <>
+              <Button variant="outline" size="sm" onClick={() => void load()} leftIcon={<RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />}>
+                {t('knowledge.refresh')}
+              </Button>
+              <Button variant="primary" size="sm" onClick={() => setDrawerOpen(true)} leftIcon={<Plus className="h-4 w-4" />}>
+                {t('knowledge.newBase')}
+              </Button>
+            </>
+          }
+        />
 
-        <Card variant="outlined" padding="md" className="mb-6 border-border/80 shadow-sm">
+        <div className="flex-1 overflow-auto">
+          <PageContainer maxWidth="full" padding="md" className="pb-16">
+            <Card variant="outlined" padding="md" className="mb-6 border-border/80 shadow-sm">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
             <div className="relative min-w-0 flex-1">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -226,7 +228,9 @@ const KnowledgeListPage: React.FC = () => {
             </Button>
           </Card>
         )}
-      </PageContainer>
+          </PageContainer>
+        </div>
+      </div>
 
       <KnowledgeCreateDrawer
         open={drawerOpen}
