@@ -248,7 +248,6 @@ const KnowledgeSpaceDetailPage: React.FC = () => {
                 onChange={(e) => setDocQInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && setDocQ(docQInput.trim())}
                 placeholder={t('knowledge.docSearchPlaceholder')}
-                className="max-w-md flex-1"
               />
               <Button variant="secondary" size="sm" type="button" onClick={() => setDocQ(docQInput.trim())}>
                 {t('knowledge.search')}
@@ -293,11 +292,11 @@ const KnowledgeSpaceDetailPage: React.FC = () => {
             <div className="flex flex-wrap gap-4">
               <div>
                 <label className="mb-1 block text-xs text-muted-foreground">{t('knowledge.topK')}</label>
-                <ArcoInput size="large" className="!h-10 !text-base" type="number" value={String(recallTopK)} onChange={(e) => setRecallTopK(parseInt(e.target.value, 10) || 5)} className="w-24" />
+                <ArcoInput size="large" className="!h-10 !text-base" type="number" value={String(recallTopK)} onChange={(e) => setRecallTopK(parseInt(e.target.value, 10) || 5)} />
               </div>
               <div>
                 <label className="mb-1 block text-xs text-muted-foreground">{t('knowledge.minScore')}</label>
-                <ArcoInput size="large" className="!h-10 !text-base" type="number" step={0.05} value={String(recallMin)} onChange={(e) => setRecallMin(parseFloat(e.target.value) || 0)} className="w-24" />
+                <ArcoInput size="large" className="!h-10 !text-base" type="number" step={0.05} value={String(recallMin)} onChange={(e) => setRecallMin(parseFloat(e.target.value) || 0)} />
               </div>
             </div>
             <Button variant="primary" size="sm" onClick={() => void runRecall()} loading={recallBusy}>

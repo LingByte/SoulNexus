@@ -182,7 +182,7 @@ const AccountDeletionRequest = () => {
             )}
 
             <div className="space-y-3 pt-2">
-              <ArcoInput size="large" className="!h-10 !text-base" label="登录密码"
+              <ArcoInput size="large" className="!h-10 !text-base" className="!h-10 !text-base" label="登录密码"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -190,7 +190,7 @@ const AccountDeletionRequest = () => {
               />
               <div className="flex gap-2 items-end">
                 <div className="flex-1">
-                  <ArcoInput size="large" className="!h-10 !text-base" label="邮箱验证码"
+                  <ArcoInput size="large" className="!h-10 !text-base" className="!h-10 !text-base" label="邮箱验证码"
                     value={emailCode}
                     onChange={(e) => setEmailCode(e.target.value)}
                     placeholder="6 位数字"

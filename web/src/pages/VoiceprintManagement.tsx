@@ -572,7 +572,6 @@ const VoiceprintManagement = () => {
                 value={newSpeaker.name}
                 onChange={(e) => setNewSpeaker(prev => ({ ...prev, name: e.target.value }))}
                 placeholder="输入说话人的姓名，如：张三"
-                className="w-full"
               />
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 系统将自动为该说话人生成唯一标识符
@@ -1010,7 +1009,6 @@ const VoiceprintManagement = () => {
                     value={editingSpeaker.name}
                     onChange={(e) => setEditingSpeaker(prev => ({ ...prev, name: e.target.value }))}
                     placeholder="输入说话人的姓名"
-                    className="w-full"
                   />
                 </div>
 

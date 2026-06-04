@@ -518,16 +518,16 @@ const Billing = () => {
                 <>
                   <div className="min-w-[140px]">
                     <label className="text-xs text-muted-foreground mb-1 block">{t('billing.filter.startDate')}</label>
-                    <ArcoInput size="large" className="!h-10 !text-base" type="date"
-                      className="h-9 text-sm"
+                    <ArcoInput size="large" className="!h-10 !text-base" className="!h-10 !text-base h-9 text-sm" type="date"
+                      
                       value={startDate}
                       onChange={(val) => setStartDate(val)}
                     />
                   </div>
                   <div className="min-w-[140px]">
                     <label className="text-xs text-muted-foreground mb-1 block">{t('billing.filter.endDate')}</label>
-                    <ArcoInput size="large" className="!h-10 !text-base" type="date"
-                      className="h-9 text-sm"
+                    <ArcoInput size="large" className="!h-10 !text-base" className="!h-10 !text-base h-9 text-sm" type="date"
+                      
                       value={endDate}
                       onChange={(val) => setEndDate(val)}
                     />
@@ -959,21 +959,21 @@ const Billing = () => {
             <CardContent className="space-y-4">
               <div>
                 <label className="text-sm font-medium mb-2 block">{t('billing.filter.startDate')}</label>
-                <ArcoInput size="large" className="!h-10 !text-base" type="date"
+                <ArcoInput size="large" className="!h-10 !text-base" className="!h-10 !text-base" type="date"
                   value={generateBillForm.startTime}
                   onChange={(val) => setGenerateBillForm({ ...generateBillForm, startTime: val })}
                 />
               </div>
               <div>
                 <label className="text-sm font-medium mb-2 block">{t('billing.filter.endDate')}</label>
-                <ArcoInput size="large" className="!h-10 !text-base" type="date"
+                <ArcoInput size="large" className="!h-10 !text-base" className="!h-10 !text-base" type="date"
                   value={generateBillForm.endTime}
                   onChange={(val) => setGenerateBillForm({ ...generateBillForm, endTime: val })}
                 />
               </div>
               <div>
                 <label className="text-sm font-medium mb-2 block">{t('billing.generate.billTitle')}</label>
-                <ArcoInput size="large" className="!h-10 !text-base" value={generateBillForm.title || ''}
+                <ArcoInput size="large" className="!h-10 !text-base" className="!h-10 !text-base" value={generateBillForm.title || ''}
                   onChange={(val) => setGenerateBillForm({ ...generateBillForm, title: val })}
                   placeholder={t('billing.generate.billTitlePlaceholder')}
                 />
