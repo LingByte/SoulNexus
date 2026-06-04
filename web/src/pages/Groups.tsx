@@ -277,20 +277,21 @@ const Groups: React.FC = () => {
                   group.avatar ||
                   `https://ui-avatars.com/api/?name=${encodeURIComponent(group.name)}&background=6366f1&color=fff&size=32`;
                 return (
-                  <button
+                  <Button
                     key={group.id}
-                    type="button"
+                    variant="ghost"
+                    size="icon"
                     title={group.name}
                     onClick={() => {
                       setCurrentOrganization(group.id);
                       prefetch.prefetchOverview(group.id);
                     }}
-                    className={`relative flex-shrink-0 w-9 h-9 rounded-lg overflow-hidden transition-all ${
+                    className={`relative flex-shrink-0 rounded-lg overflow-hidden ${
                       isSelected ? 'ring-2 ring-sky-500 ring-offset-2 ring-offset-white dark:ring-offset-neutral-900' : 'opacity-80 hover:opacity-100 hover:ring-2 hover:ring-gray-300 dark:hover:ring-neutral-600'
                     }`}
                   >
                     <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
-                  </button>
+                  </Button>
                 );
               })}
             </div>
@@ -562,16 +563,17 @@ const Groups: React.FC = () => {
           <div className="bg-white dark:bg-neutral-800 rounded-xl p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{t('groups.inviteModal.title')}</h2>
-              <button
+              <Button
+                variant="ghost"
+                size="icon"
                 onClick={() => {
                   setShowInviteModal(null);
                   setSearchKeyword('');
                   setSearchResults([]);
                 }}
-                className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
               >
                 <X className="w-6 h-6" />
-              </button>
+              </Button>
             </div>
             <div className="relative mb-4">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />

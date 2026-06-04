@@ -4,6 +4,7 @@ import { showAlert } from '@/utils/notification'
 import { Settings } from 'lucide-react'
 import { useSearchHighlight } from '@/hooks/useSearchHighlight'
 import { useI18nStore } from '@/stores/i18nStore'
+import Button from '@/components/UI/Button'
 // 导入语音助手组件
 import VoiceBall from '@/components/Voice/VoiceBall'
 import ChatHistory from '@/components/Voice/ChatHistory'
@@ -1869,9 +1870,10 @@ const VoiceAssistant = () => {
                 >
                     {/* 折叠按钮 */}
                     <div className="p-2 border-b dark:border-neutral-700">
-                        <button
+                        <Button
                             onClick={() => setIsControlPanelCollapsed(!isControlPanelCollapsed)}
-                            className="w-full p-2 hover:bg-gray-100 dark:hover:bg-neutral-700 rounded-lg transition-colors"
+                            variant="ghost"
+                            className="w-full"
                             title={`${isControlPanelCollapsed ? '展开控制面板' : '折叠控制面板'} (Ctrl+2)`}
                         >
                             <div className="flex items-center justify-center">
@@ -1887,7 +1889,7 @@ const VoiceAssistant = () => {
                                     </svg>
                                 )}
                             </div>
-                        </button>
+                        </Button>
                     </div>
 
                     {/* 控制面板内容 */}
