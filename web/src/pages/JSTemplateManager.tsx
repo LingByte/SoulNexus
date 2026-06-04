@@ -430,53 +430,21 @@ const JSTemplateManager = () => {
     }, [newTemplate.content, isCreating, isEditing])
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
-            {/* 页面头部 */}
-            <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border-b border-gray-200/50 dark:border-slate-700/50 sticky top-0 z-40">
-                <div className="max-w-7xl mx-auto px-4 py-3">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                            <Button
-                                onClick={() => navigate(-1)}
-                                variant="outline"
-                                size="sm"
-                                leftIcon={<ArrowLeft className="w-4 h-4" />}
-                                className="border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500 transition-all duration-200"
-                            >
-                                {t('jsTemplate.back')}
-                            </Button>
-                            <div className="h-8 w-px bg-slate-300 dark:bg-slate-600"></div>
-                            <div className="w-full">
-                                <CollapsibleSectionHeader
-                                    title={t('jsTemplate.title')}
-                                    icon={<Code className="w-4 h-4 text-primary" />}
-                                    expanded
-                                    onToggle={() => {}}
-                                    showChevron={false}
-                                    clickable={false}
-                                    compact
-                                    titleSize="lg"
-                                    withDivider
-                                />
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <div className="text-right">
-                                <div className="text-sm font-medium">
-                                    {t('jsTemplate.templateCount', { count: filteredTemplates.length })}
-                                </div>
-                            </div>
-                            <Button
-                                onClick={handleCreateTemplate}
-                                leftIcon={<Plus className="w-4 h-4" />}
-                                className="px-4 py-2.5 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 font-medium"
-                            >
-                                {t('jsTemplate.create')}
-                            </Button>
-                        </div>
-                    </div>
-                </div>
-            </div>
+        <div className="flex flex-col h-full bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
+            <PageHeader 
+                title={t('jsTemplate.title')}
+                actions={
+                    <Button
+                        onClick={handleCreateTemplate}
+                        leftIcon={<Plus className="w-4 h-4" />}
+                        size="sm"
+                    >
+                        {t('jsTemplate.create')}
+                    </Button>
+                }
+            />
+
+            <div className="flex-1 overflow-auto">
 
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
                 {/* 搜索和过滤栏 */}
@@ -1077,6 +1045,7 @@ const JSTemplateManager = () => {
                     </>
                 )}
             </AnimatePresence>
+            </div>
         </div>
     )
 }

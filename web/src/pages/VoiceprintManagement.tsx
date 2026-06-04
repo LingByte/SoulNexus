@@ -301,7 +301,6 @@ const VoiceprintManagement = () => {
     <div className="flex flex-col h-full">
       <PageHeader 
         title={t('voiceprint.title')}
-        icon={<Mic className="w-5 h-5" />}
       />
       <div className="flex-1 overflow-auto">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -310,20 +309,6 @@ const VoiceprintManagement = () => {
         animate={{ opacity: 1, y: 0 }}
         className="space-y-6"
       >
-        {/* 页面标题 */}
-        <CollapsibleSectionHeader
-          title={t('voiceprint.title')}
-          icon={<Mic className="w-4 h-4 text-primary" />}
-          expanded
-          onToggle={() => {}}
-          showChevron={false}
-          clickable={false}
-          compact
-          titleSize="lg"
-          withDivider
-          className="mb-6"
-        />
-
         {/* 智能体选择器 - 使用按钮组样式 */}
         {assistants.length > 0 ? (
           <div className="w-full">
