@@ -8,6 +8,7 @@ import { Bot, Users, Zap, Plus, Sparkles, Rocket, Wand2, Search } from 'lucide-r
 import Button from '@/components/UI/Button';
 import PageHeader from '@/components/Layout/PageHeader';
 import { motion } from 'framer-motion';
+import { Input as ArcoInput } from '@arco-design/web-react';
 
 // 根据 id 稳定生成渐变色，避免每次渲染跳色。
 const GRADIENT_POOL = [
@@ -70,13 +71,14 @@ const Assistants: React.FC = () => {
         title={t('assistants.title')}
         actions={
           <div className="flex items-center gap-2">
-            <div className="relative w-64">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
+            <div className="w-64">
+              <ArcoInput
+                size="large"
+                className="!h-10 !text-base"
                 value={keyword}
-                onChange={(e) => setKeyword(e.target.value)}
+                onChange={(val) => setKeyword(val)}
                 placeholder={t('assistants.searchPlaceholder') || '搜索智能体'}
-                className="w-full pl-9 pr-3 py-2 text-sm dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/60 transition-colors"
+                prefix={<Search className="h-4 w-4 text-muted-foreground" />}
               />
             </div>
             <Button
