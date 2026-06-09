@@ -7,7 +7,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/LingByte/SoulNexus/pkg/synthesizer"
+	"github.com/LingByte/lingllm/synthesizer"
 )
 
 // Service is the minimal streaming TTS contract the Pipeline consumes.
@@ -32,15 +32,15 @@ func (f ServiceFunc) SynthesizeStream(ctx context.Context, text string, onPCMChu
 	return f(ctx, text, onPCMChunk)
 }
 
-// FromSynthesisService wraps a pkg/synthesizer.SynthesisService so it can be
-// fed into the Pipeline. The upstream service emits `synthesizer.SynthesisHandler`
+// FromSynthesisService wraps a pkg/synthesizer.AudioSynthesisEngine so it can be
+// fed into the Pipeline. The upstream service emits `synthesizer.AudioSynthesisHandler`
 // callbacks on every chunk; we forward OnMessage → onPCMChunk.
 //
 // Note: the underlying service is expected to produce PCM16LE mono at a
 // sample rate the caller has already configured (e.g. via NewQcloudTTSConfig
 // with format="pcm" and the desired rate). The Pipeline can resample on the
 // downstream side if it differs from the output bridge.
-func FromSynthesisService(svc synthesizer.SynthesisService) Service {
+func FromSynthesisService(svc synthesizer.AudioSynthesisEngine) Service {
 	if svc == nil {
 		return nil
 	}
@@ -48,7 +48,7 @@ func FromSynthesisService(svc synthesizer.SynthesisService) Service {
 }
 
 type synthesisAdapter struct {
-	svc synthesizer.SynthesisService
+	svc synthesizer.AudioSynthesisEngine
 }
 
 func (a *synthesisAdapter) SynthesizeStream(ctx context.Context, text string, onPCMChunk func([]byte) error) error {
@@ -59,7 +59,7 @@ func (a *synthesisAdapter) SynthesizeStream(ctx context.Context, text string, on
 	return a.svc.Synthesize(ctx, h, text)
 }
 
-// streamHandler adapts a push-callback into synthesizer.SynthesisHandler.
+// streamHandler adapts a push-callback into synthesizer.AudioSynthesisHandler.
 type streamHandler struct {
 	fn  func([]byte) error
 	err error

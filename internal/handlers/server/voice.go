@@ -27,7 +27,7 @@ import (
 	parser2 "github.com/LingByte/SoulNexus/pkg/parser"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/stores"
-	"github.com/LingByte/SoulNexus/pkg/synthesizer"
+	"github.com/LingByte/lingllm/synthesizer"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/LingByte/SoulNexus/pkg/voiceclone"
 	"github.com/gin-gonic/gin"
@@ -2277,7 +2277,7 @@ func (h *Handlers) processAudioAsyncV2(ctx context.Context, credential *auth.Use
 		}
 	}
 
-	ttsService, err := synthesizer.NewSynthesisServiceFromCredential(ttsConfig)
+	ttsService, err := synthesizer.NewAudioSynthesisEngineFromCredential(ttsConfig)
 	if err != nil {
 		fmt.Printf("[V2] 无法创建TTS服务: %v\n", err)
 		audioCacheMutex.Lock()

@@ -8,8 +8,8 @@ import (
 	"io"
 	"time"
 
-	"github.com/LingByte/SoulNexus/pkg/media"
-	"github.com/LingByte/SoulNexus/pkg/synthesizer"
+	"github.com/LingByte/lingllm/media"
+	"github.com/LingByte/lingllm/synthesizer"
 )
 
 // Provider 语音克隆服务提供商
@@ -132,7 +132,7 @@ type VoiceCloneService interface {
 	SynthesizeToStorage(ctx context.Context, req *SynthesizeRequest, storageKey string) (string, error)
 }
 
-// VoiceCloneSynthesisService 实现 synthesizer.SynthesisService 接口的适配器
+// VoiceCloneSynthesisService 实现 synthesizer.AudioSynthesisEngine 接口的适配器
 // 用于在硬件通话中使用克隆音色
 type VoiceCloneSynthesisService struct {
 	cloneService VoiceCloneService
@@ -176,8 +176,8 @@ func (v *VoiceCloneSynthesisService) CacheKey(text string) string {
 	return "voiceclone_" + v.assetID + "_" + text
 }
 
-// Synthesize 实现 synthesizer.SynthesisService 接口
-func (v *VoiceCloneSynthesisService) Synthesize(ctx context.Context, handler synthesizer.SynthesisHandler, text string) error {
+// Synthesize 实现 synthesizer.AudioSynthesisEngine 接口
+func (v *VoiceCloneSynthesisService) Synthesize(ctx context.Context, handler synthesizer.AudioSynthesisHandler, text string) error {
 	// 创建适配器处理器，用于处理采样率转换
 	adapterHandler := &synthesisHandlerAdapter{
 		handler:          handler,
@@ -200,10 +200,10 @@ func (v *VoiceCloneSynthesisService) Close() error {
 	return nil
 }
 
-// synthesisHandlerAdapter 适配器，将 voiceclone.SynthesisHandler 转换为 synthesizer.SynthesisHandler
+// synthesisHandlerAdapter 适配器，将 voiceclone.SynthesisHandler 转换为 synthesizer.AudioSynthesisHandler
 // 同时处理采样率转换（从 24kHz 到 16kHz）
 type synthesisHandlerAdapter struct {
-	handler          synthesizer.SynthesisHandler
+	handler          synthesizer.AudioSynthesisHandler
 	sourceSampleRate int
 	targetSampleRate int
 	resampler        media.SampleRateConverter

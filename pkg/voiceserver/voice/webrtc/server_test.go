@@ -28,7 +28,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LingByte/SoulNexus/pkg/recognizer"
+	"github.com/LingByte/lingllm/recognizer"
 	voicetts "github.com/LingByte/SoulNexus/pkg/voiceserver/voice/tts"
 
 	pionwebrtc "github.com/pion/webrtc/v4"
@@ -39,7 +39,7 @@ import (
 // down on the first OnTrack which is fine for this test scope.
 type stubFactory struct{}
 
-func (stubFactory) NewASR(_ context.Context, _ string) (recognizer.TranscribeService, int, error) {
+func (stubFactory) NewASR(_ context.Context, _ string) (recognizer.SpeechRecognitionEngine, int, error) {
 	return nil, 16000, errSkipASR
 }
 func (stubFactory) TTS(_ context.Context, _ string) (voicetts.Service, int, error) {

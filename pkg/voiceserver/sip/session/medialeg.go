@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/LingByte/SoulNexus/pkg/media"
-	"github.com/LingByte/SoulNexus/pkg/media/encoder"
+	"github.com/LingByte/lingllm/media"
+	"github.com/LingByte/lingllm/media/encoder"
 	siprtp "github.com/LingByte/SoulNexus/pkg/voiceserver/sip/rtp"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/sip/sdp"
 )

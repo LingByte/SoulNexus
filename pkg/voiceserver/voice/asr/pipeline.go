@@ -12,8 +12,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/LingByte/SoulNexus/pkg/media"
-	"github.com/LingByte/SoulNexus/pkg/recognizer"
+	"github.com/LingByte/lingllm/media"
+	"github.com/LingByte/lingllm/recognizer"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/vad"
 	"go.uber.org/zap"
 )
@@ -31,7 +31,7 @@ type ErrorCallback func(err error, fatal bool)
 // Options configures a Pipeline.
 type Options struct {
 	// ASR is the underlying recognizer. Required.
-	ASR recognizer.TranscribeService
+	ASR recognizer.SpeechRecognitionEngine
 
 	// InputSampleRate is the sample rate of PCM16 bytes handed to ProcessPCM.
 	// 0 means "same as SampleRate" (no resample).

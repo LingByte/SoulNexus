@@ -32,10 +32,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/LingByte/SoulNexus/pkg/recognizer"
+	"github.com/LingByte/lingllm/recognizer"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/sessionctx"
-	"github.com/LingByte/SoulNexus/pkg/media"
-	"github.com/LingByte/SoulNexus/pkg/media/encoder"
+	"github.com/LingByte/lingllm/media"
+	"github.com/LingByte/lingllm/media/encoder"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/asr"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/gateway"
@@ -53,7 +53,7 @@ import (
 // SessionFactory is the same shape as in pkg/voice/xiaozhi — one
 // recognizer per call, optionally-shared TTS service.
 type SessionFactory interface {
-	NewASR(ctx context.Context, callID string) (svc recognizer.TranscribeService, sampleRate int, err error)
+	NewASR(ctx context.Context, callID string) (svc recognizer.SpeechRecognitionEngine, sampleRate int, err error)
 	TTS(ctx context.Context, callID string) (svc tts.Service, sampleRate int, err error)
 }
 

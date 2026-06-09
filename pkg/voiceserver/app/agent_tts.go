@@ -14,8 +14,8 @@ import (
 	"github.com/LingByte/SoulNexus/internal/models/auth"
 	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"github.com/LingByte/SoulNexus/pkg/logger"
-	"github.com/LingByte/SoulNexus/pkg/recognizer"
-	"github.com/LingByte/SoulNexus/pkg/synthesizer"
+	"github.com/LingByte/lingllm/recognizer"
+	"github.com/LingByte/lingllm/synthesizer"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/sessionctx"
 	voicetts "github.com/LingByte/SoulNexus/pkg/voiceserver/voice/tts"
 	"github.com/LingByte/SoulNexus/pkg/voiceclone"
@@ -36,7 +36,7 @@ type AgentAwareFactory struct {
 }
 
 type pipelineFactory interface {
-	NewASR(ctx context.Context, callID string) (recognizer.TranscribeService, int, error)
+	NewASR(ctx context.Context, callID string) (recognizer.SpeechRecognitionEngine, int, error)
 	TTS(ctx context.Context, callID string) (voicetts.Service, int, error)
 }
 
@@ -61,7 +61,7 @@ func NewAgentAwareFactory(db *gorm.DB, base pipelineFactory, reg *sessionctx.TTS
 	}
 }
 
-func (f *AgentAwareFactory) NewASR(ctx context.Context, callID string) (recognizer.TranscribeService, int, error) {
+func (f *AgentAwareFactory) NewASR(ctx context.Context, callID string) (recognizer.SpeechRecognitionEngine, int, error) {
 	return f.Base.NewASR(ctx, callID)
 }
 
@@ -108,7 +108,7 @@ func (f *AgentAwareFactory) Release(callID string) {
 	f.mu.Unlock()
 }
 
-func buildSynthesisServiceFromDialog(ctx context.Context, db *gorm.DB, spec *sessionctx.DialogPayload, log *zap.Logger) (synthesizer.SynthesisService, int, error) {
+func buildSynthesisServiceFromDialog(ctx context.Context, db *gorm.DB, spec *sessionctx.DialogPayload, log *zap.Logger) (synthesizer.AudioSynthesisEngine, int, error) {
 	_ = ctx
 	cred, err := auth.GetUserCredentialByApiSecretAndApiKey(db, strings.TrimSpace(spec.APIKey), strings.TrimSpace(spec.APISecret))
 	if err != nil {
@@ -172,7 +172,7 @@ func buildSynthesisServiceFromDialog(ctx context.Context, db *gorm.DB, spec *ses
 		ttsConfig["language"] = lang
 	}
 
-	svc, err := synthesizer.NewSynthesisServiceFromCredential(ttsConfig)
+	svc, err := synthesizer.NewAudioSynthesisEngineFromCredential(ttsConfig)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -180,7 +180,7 @@ func buildSynthesisServiceFromDialog(ctx context.Context, db *gorm.DB, spec *ses
 	return svc, 16000, nil
 }
 
-func buildVoiceCloneSynthesis(db *gorm.DB, cred *auth.UserCredential, voiceCloneID int64, log *zap.Logger) (synthesizer.SynthesisService, error) {
+func buildVoiceCloneSynthesis(db *gorm.DB, cred *auth.UserCredential, voiceCloneID int64, log *zap.Logger) (synthesizer.AudioSynthesisEngine, error) {
 	voiceClone, err := svcmodels.GetVoiceCloneByID(db, voiceCloneID)
 	if err != nil || voiceClone == nil {
 		return nil, fmt.Errorf("voice clone %d: %w", voiceCloneID, err)

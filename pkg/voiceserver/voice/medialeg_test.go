@@ -10,20 +10,20 @@ import (
 	siprtp "github.com/LingByte/SoulNexus/pkg/voiceserver/sip/rtp"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/sip/sdp"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/sip/session"
-	"github.com/LingByte/SoulNexus/pkg/recognizer"
+	"github.com/LingByte/lingllm/recognizer"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/tts"
 )
 
-// fakeASR satisfies recognizer.TranscribeService without any network.
+// fakeASR satisfies recognizer.SpeechRecognitionEngine without any network.
 type fakeASR struct {
 	mu       sync.Mutex
-	tr       recognizer.TranscribeResult
-	er       recognizer.ProcessError
+	tr       recognizer.SpeechRecognitionResult
+	er       recognizer.RecognitionError
 	conn     int32
 	sent     int32
 }
 
-func (f *fakeASR) Init(tr recognizer.TranscribeResult, er recognizer.ProcessError) {
+func (f *fakeASR) Init(tr recognizer.SpeechRecognitionResult, er recognizer.RecognitionError) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.tr, f.er = tr, er

@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/LingByte/SoulNexus/pkg/logger"
-	"github.com/LingByte/SoulNexus/pkg/media"
+	"github.com/LingByte/lingllm/media"
 	"go.uber.org/zap"
 )
 

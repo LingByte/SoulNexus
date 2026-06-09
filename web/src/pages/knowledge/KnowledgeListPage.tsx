@@ -15,6 +15,7 @@ import { showAlert } from '@/utils/alert'
 import { useI18nStore } from '@/stores/i18nStore'
 import { listKnowledgeNamespaces, type KnowledgeNamespaceRow } from '@/api/knowledge'
 import KnowledgeCreateDrawer from '@/pages/knowledge/KnowledgeCreateDrawer'
+import { cn } from '@/utils/cn'
 
 
 function KnowledgeCardSkeleton() {

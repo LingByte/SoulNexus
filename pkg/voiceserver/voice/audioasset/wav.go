@@ -24,7 +24,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/LingByte/SoulNexus/pkg/media"
+	"github.com/LingByte/lingllm/media"
 )
 
 // LoadWAVAsPCM16Mono reads a PCM WAV file from disk and returns mono

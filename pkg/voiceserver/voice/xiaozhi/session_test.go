@@ -29,7 +29,7 @@ import (
 	"time"
 
 	"github.com/LingByte/SoulNexus/pkg/logger"
-	"github.com/LingByte/SoulNexus/pkg/recognizer"
+	"github.com/LingByte/lingllm/recognizer"
 	voicetts "github.com/LingByte/SoulNexus/pkg/voiceserver/voice/tts"
 
 	"github.com/gorilla/websocket"
@@ -45,12 +45,12 @@ func TestMain(m *testing.M) {
 
 type stubASR struct {
 	mu     sync.Mutex
-	tr     recognizer.TranscribeResult
+	tr     recognizer.SpeechRecognitionResult
 	fired  bool
 	active bool
 }
 
-func (a *stubASR) Init(tr recognizer.TranscribeResult, _ recognizer.ProcessError) {
+func (a *stubASR) Init(tr recognizer.SpeechRecognitionResult, _ recognizer.RecognitionError) {
 	a.mu.Lock()
 	a.tr = tr
 	a.mu.Unlock()
@@ -94,7 +94,7 @@ func (stubTTS) SampleRate() int { return 16000 }
 
 type stubFactory struct{}
 
-func (stubFactory) NewASR(_ context.Context, _ string) (recognizer.TranscribeService, int, error) {
+func (stubFactory) NewASR(_ context.Context, _ string) (recognizer.SpeechRecognitionEngine, int, error) {
 	return &stubASR{}, 16000, nil
 }
 func (stubFactory) TTS(_ context.Context, _ string) (voicetts.Service, int, error) {

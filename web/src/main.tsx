@@ -3,7 +3,6 @@ import ReactDOM from 'react-dom/client'
 import App from '@/App.tsx'
 import './index.css'
 import '@arco-design/web-react/dist/css/arco.css'
-import '@arco-design/mobile-react/dist/style.css'
 import { applyStoredThemeBeforeReact } from '@/stores/themeStore'
 
 applyStoredThemeBeforeReact()

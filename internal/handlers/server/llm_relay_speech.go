@@ -29,10 +29,10 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/LingByte/SoulNexus/pkg/recognizer"
+	"github.com/LingByte/lingllm/recognizer"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/stores"
-	"github.com/LingByte/SoulNexus/pkg/synthesizer"
+	"github.com/LingByte/lingllm/synthesizer"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/LingByte/SoulNexus/pkg/utils/ssrf"
 	"github.com/gin-gonic/gin"
@@ -699,7 +699,7 @@ func (h *Handlers) handleRelaySpeechTTSSynthesize(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"type": "channel_config", "message": mErr.Error()}})
 		return
 	}
-	svc, err := synthesizer.NewSynthesisServiceFromCredential(merged)
+	svc, err := synthesizer.NewAudioSynthesisEngineFromCredential(merged)
 	if err != nil {
 		u.status, u.errMsg = http.StatusBadRequest, err.Error()
 		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"type": "tts_init_failed", "message": err.Error()}})
@@ -853,7 +853,7 @@ func (h *Handlers) handleRelayOpenAIAudioSpeech(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"type": "channel_config", "message": mErr.Error()}})
 		return
 	}
-	svc, err := synthesizer.NewSynthesisServiceFromCredential(merged)
+	svc, err := synthesizer.NewAudioSynthesisEngineFromCredential(merged)
 	if err != nil {
 		u.status, u.errMsg = http.StatusBadRequest, err.Error()
 		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"type": "tts_init_failed", "message": err.Error()}})
