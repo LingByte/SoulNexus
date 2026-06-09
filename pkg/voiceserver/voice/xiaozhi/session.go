@@ -15,9 +15,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/LingByte/SoulNexus/pkg/media"
-	"github.com/LingByte/SoulNexus/pkg/media/encoder"
-	"github.com/LingByte/SoulNexus/pkg/recognizer"
+	"github.com/LingByte/lingllm/media"
+	"github.com/LingByte/lingllm/media/encoder"
+	"github.com/LingByte/lingllm/recognizer"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/asr"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/gateway"
@@ -39,7 +39,7 @@ import (
 // pointer across sessions is fine and recommended.
 type SessionFactory interface {
 	// NewASR returns a fresh recognizer + the rate it expects PCM16 in.
-	NewASR(ctx context.Context, callID string) (svc recognizer.TranscribeService, sampleRate int, err error)
+	NewASR(ctx context.Context, callID string) (svc recognizer.SpeechRecognitionEngine, sampleRate int, err error)
 	// TTS returns the (possibly shared) streaming TTS service that produces
 	// PCM16 at sampleRate. Channels is always 1.
 	TTS(ctx context.Context, callID string) (svc tts.Service, sampleRate int, err error)

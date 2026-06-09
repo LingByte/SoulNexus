@@ -3,7 +3,7 @@ package bridge
 import (
 	"testing"
 
-	"github.com/LingByte/SoulNexus/pkg/media"
+	"github.com/LingByte/lingllm/media"
 )
 
 func TestCanRawDatagramRelay(t *testing.T) {

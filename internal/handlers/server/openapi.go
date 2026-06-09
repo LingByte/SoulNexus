@@ -20,10 +20,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/LingByte/SoulNexus/pkg/recognizer"
+	"github.com/LingByte/lingllm/recognizer"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/stores"
-	"github.com/LingByte/SoulNexus/pkg/synthesizer"
+	"github.com/LingByte/lingllm/synthesizer"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	gonanoid "github.com/matoous/go-nanoid"
@@ -284,7 +284,7 @@ func (h *Handlers) openTTS(c *gin.Context) {
 		return
 	}
 
-	svc, err := synthesizer.NewSynthesisServiceFromCredential(synthesizer.TTSCredentialConfig(cred.TtsConfig))
+	svc, err := synthesizer.NewAudioSynthesisEngineFromCredential(synthesizer.TTSCredentialConfig(cred.TtsConfig))
 	if err != nil {
 		response.Fail(c, "初始化 TTS 失败", err.Error())
 		return
@@ -549,7 +549,7 @@ func (h *Handlers) openWSTTS(c *gin.Context) {
 	}
 	_ = conn.WriteJSON(gin.H{"type": "ready", "codec": "pcm"})
 
-	svc, err := synthesizer.NewSynthesisServiceFromCredential(synthesizer.TTSCredentialConfig(cred.TtsConfig))
+	svc, err := synthesizer.NewAudioSynthesisEngineFromCredential(synthesizer.TTSCredentialConfig(cred.TtsConfig))
 	if err != nil {
 		_ = conn.WriteJSON(gin.H{"type": "error", "message": err.Error()})
 		return

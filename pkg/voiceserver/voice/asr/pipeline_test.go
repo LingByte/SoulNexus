@@ -7,14 +7,14 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/LingByte/SoulNexus/pkg/recognizer"
+	"github.com/LingByte/lingllm/recognizer"
 )
 
-// fakeASR implements recognizer.TranscribeService.
+// fakeASR implements recognizer.SpeechRecognitionEngine.
 type fakeASR struct {
 	mu                 sync.Mutex
-	tr                 recognizer.TranscribeResult
-	er                 recognizer.ProcessError
+	tr                 recognizer.SpeechRecognitionResult
+	er                 recognizer.RecognitionError
 	connCalls          int32
 	sentBytes          int32
 	endCalled          int32
@@ -27,7 +27,7 @@ type fakeASR struct {
 	active             bool
 }
 
-func (f *fakeASR) Init(tr recognizer.TranscribeResult, er recognizer.ProcessError) {
+func (f *fakeASR) Init(tr recognizer.SpeechRecognitionResult, er recognizer.RecognitionError) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.tr = tr

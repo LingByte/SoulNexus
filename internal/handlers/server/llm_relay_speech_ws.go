@@ -42,8 +42,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/LingByte/SoulNexus/pkg/recognizer"
-	"github.com/LingByte/SoulNexus/pkg/synthesizer"
+	"github.com/LingByte/lingllm/recognizer"
+	"github.com/LingByte/lingllm/synthesizer"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
@@ -303,7 +303,7 @@ func (h *Handlers) handleRelaySpeechTTSStream(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"type": "channel_config", "message": mErr.Error()}})
 		return
 	}
-	svc, err := synthesizer.NewSynthesisServiceFromCredential(merged)
+	svc, err := synthesizer.NewAudioSynthesisEngineFromCredential(merged)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"type": "tts_init_failed", "message": err.Error()}})
 		return

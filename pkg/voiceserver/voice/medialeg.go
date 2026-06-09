@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	"github.com/LingByte/SoulNexus/pkg/media"
-	"github.com/LingByte/SoulNexus/pkg/recognizer"
+	"github.com/LingByte/lingllm/media"
+	"github.com/LingByte/lingllm/recognizer"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/sip/session"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/asr"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/tts"
@@ -20,7 +20,7 @@ import (
 // one call. Either side can be left nil.
 type AttachConfig struct {
 	// ASR
-	ASR            recognizer.TranscribeService
+	ASR            recognizer.SpeechRecognitionEngine
 	ASRSampleRate  int           // e.g. 16000 or 8000
 	OnTranscript   asr.TextCallback
 	OnASRError     asr.ErrorCallback

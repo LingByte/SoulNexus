@@ -12,7 +12,6 @@ import (
 
 // Config 声纹识别服务配置
 type Config struct {
-	// 服务基础配置
 	Enabled             bool          `env:"VOICEPRINT_ENABLED" mapstructure:"enabled"`
 	BaseURL             string        `env:"VOICEPRINT_BASE_URL" mapstructure:"base_url"`
 	APIKey              string        `env:"VOICEPRINT_API_KEY" mapstructure:"api_key"`
@@ -30,7 +29,6 @@ type Config struct {
 
 // DefaultConfig 返回默认配置，从环境变量读取
 func DefaultConfig() *Config {
-	// 读取环境变量，如果不存在则使用默认值
 	enabled := utils.GetEnv("VOICEPRINT_ENABLED") == "true"
 	baseURL := utils.GetEnv("VOICEPRINT_BASE_URL")
 	if baseURL == "" {

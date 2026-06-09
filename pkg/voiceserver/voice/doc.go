@@ -9,7 +9,7 @@
 // Design goals
 //
 //   1. Zero coupling to any concrete ASR/TTS vendor — the vendor is injected
-//      via the recognizer.TranscribeService and synthesizer.SynthesisService
+//      via the recognizer.SpeechRecognitionEngine and synthesizer.AudioSynthesisEngine
 //      (or the narrower voice/tts.Service) interfaces.
 //   2. Pure PCM16 mono bridge: callers decide input/output sample rates, the
 //      pipelines resample internally via pkg/media.ResamplePCM.

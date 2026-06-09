@@ -9,7 +9,7 @@ import (
 	"fmt"
 
 	"github.com/LingByte/SoulNexus/pkg/logger"
-	"github.com/LingByte/SoulNexus/pkg/media"
+	"github.com/LingByte/lingllm/media"
 	"github.com/LingByte/SoulNexus/pkg/realtime"
 	"go.uber.org/zap"
 )

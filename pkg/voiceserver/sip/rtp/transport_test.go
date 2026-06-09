@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/LingByte/SoulNexus/pkg/logger"
-	"github.com/LingByte/SoulNexus/pkg/media"
+	"github.com/LingByte/lingllm/media"
 )
 
 // This test verifies an end-to-end path:

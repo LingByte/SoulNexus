@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/LingByte/SoulNexus/pkg/synthesizer"
+	"github.com/LingByte/lingllm/synthesizer"
 	"go.uber.org/zap"
 )
 
@@ -19,13 +19,13 @@ type TTSService interface {
 	SynthesizeStream(text string, callback func([]byte) error) error
 }
 
-// TTSServiceAdapter 将现有的 synthesizer.SynthesisService 适配为 stream.TTSService
+// TTSServiceAdapter 将现有的 synthesizer.AudioSynthesisEngine 适配为 stream.TTSService
 type TTSServiceAdapter struct {
-	service synthesizer.SynthesisService
+	service synthesizer.AudioSynthesisEngine
 }
 
 // NewTTSServiceAdapter 创建 TTS 服务适配器
-func NewTTSServiceAdapter(service synthesizer.SynthesisService) TTSService {
+func NewTTSServiceAdapter(service synthesizer.AudioSynthesisEngine) TTSService {
 	return &TTSServiceAdapter{
 		service: service,
 	}
@@ -48,7 +48,7 @@ func (a *TTSServiceAdapter) SynthesizeStream(text string, callback func([]byte) 
 	return nil
 }
 
-// streamHandler 实现 synthesizer.SynthesisHandler 接口
+// streamHandler 实现 synthesizer.AudioSynthesisHandler 接口
 type streamHandler struct {
 	callback func([]byte) error
 }
