@@ -1,10 +1,8 @@
 import React, {useEffect, useState} from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Key, Settings, AppWindow, RefreshCw, ArrowRight, Mic } from 'lucide-react';
-import { Input, Select as ArcoSelect } from '@arco-design/web-react';
+import { Input, Select as ArcoSelect, Slider, InputNumber, Switch as ArcoSwitch, Button as ArcoButton } from '@arco-design/web-react';
 import { cn } from '@/utils/cn';
-import Button from '@/components/UI/Button';
-import { Switch } from '@/components/UI/Switch';
 import Card from '@/components/UI/Card';
 import CollapsibleSectionHeader from '@/components/UI/CollapsibleSectionHeader';
 import { getVoiceOptions, VoiceOption } from '@/api/assistant';
@@ -314,28 +312,25 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                             <span className="text-gray-500">{t('controlPanel.call.temperatureLabel')}</span>
                                             <span className="font-medium text-purple-600">{temperature.toFixed(1)}</span>
                                         </div>
-                                        <input
-                                            type="range"
-                                            min="0"
-                                            max="1.5"
-                                            step="0.1"
+                                        <Slider
+                                            min={0}
+                                            max={1.5}
+                                            step={0.1}
                                             value={temperature}
-                                            onChange={(e) => onTemperatureChange(parseFloat(e.target.value))}
-                                            className="w-full"
+                                            onChange={(v) => onTemperatureChange(v as number)}
                                         />
                                     </div>
 
                                     {/* Max Tokens 控制 */}
                                     <div className="space-y-2">
                                         <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('controlPanel.call.maxTokens')}</label>
-                                        <input
-                                            type="number"
-                                            min="10"
-                                            max="2048"
-                                            step="10"
+                                        <InputNumber
+                                            min={10}
+                                            max={2048}
+                                            step={10}
                                             value={maxTokens}
-                                            onChange={(e) => onMaxTokensChange(parseInt(e.target.value))}
-                                            className="w-full p-2 text-sm border rounded-lg focus:ring-2 focus:ring-purple-500 dark:bg-neutral-700 dark:border-neutral-600"
+                                            onChange={(v) => onMaxTokensChange(v ?? 512)}
+                                            className="w-full"
                                             placeholder={t('controlPanel.call.maxTokensPlaceholder')}
                                         />
                                     </div>
@@ -343,11 +338,11 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                     {/* LLM 模型设置 */}
                                     <div className="space-y-2">
                                         <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('controlPanel.call.llmModel')}</label>
-                                        <input
-                                            type="text"
+                                        <Input
+                                            size="large"
+                                            className="!h-10 !text-base"
                                             value={llmModel}
-                                            onChange={(e) => onLlmModelChange(e.target.value)}
-                                            className="w-full p-2 text-sm border rounded-lg focus:ring-2 focus:ring-purple-500 dark:bg-neutral-700 dark:border-neutral-600"
+                                            onChange={(v) => onLlmModelChange(v)}
                                             placeholder={t('controlPanel.call.llmModelPlaceholder')}
                                         />
                                         <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -393,25 +388,21 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
 
                                         <div className="space-y-2">
                                             <label className="text-xs text-gray-500 dark:text-gray-400">{t('controlPanel.assistant.name')}</label>
-                                            <div
-                                                className={`w-full p-2 text-sm border rounded-lg focus-within:ring-2 focus-within:ring-purple-500 dark:bg-neutral-700 dark:border-neutral-600 dark:text-gray-100 ${highlightResultId?.startsWith('assistant_') ? 'ring-2 ring-yellow-400' : ''}`}
-                                            >
-                                                <input
-                                                    type="text"
-                                                    value={assistantName}
-                                                    onChange={(e) => onAssistantNameChange(e.target.value)}
-                                                    className="w-full bg-transparent border-none outline-none"
-                                                    placeholder={t('controlPanel.assistant.namePlaceholder')}
+                                            <Input
+                                                size="large"
+                                                className={`!h-10 !text-base ${highlightResultId?.startsWith('assistant_') ? 'border-yellow-400' : ''}`}
+                                                value={assistantName}
+                                                onChange={(v) => onAssistantNameChange(v)}
+                                                placeholder={t('controlPanel.assistant.namePlaceholder')}
+                                            />
+                                            {searchKeyword && (
+                                                <div
+                                                    className="text-xs text-gray-400 mt-1"
+                                                    dangerouslySetInnerHTML={{
+                                                        __html: highlightContent(assistantName, searchKeyword, highlightFragments ?? undefined)
+                                                    }}
                                                 />
-                                                {searchKeyword && (
-                                                    <div
-                                                        className="text-xs text-gray-400 mt-1"
-                                                        dangerouslySetInnerHTML={{
-                                                            __html: highlightContent(assistantName, searchKeyword, highlightFragments ?? undefined)
-                                                        }}
-                                                    />
-                                                )}
-                                            </div>
+                                            )}
                                         </div>
 
                                         <div className="space-y-2">
@@ -435,25 +426,25 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                     </div>
 
                                     <div className="flex justify-between pt-4 border-t dark:border-neutral-700 gap-3">
-                                        <Button
+                                        <ArcoButton
                                             onClick={onDeleteAssistant}
-                                            variant="destructive"
-                                            size="md"
+                                            type="primary"
+                                            status="danger"
                                             className="flex-1"
                                         >
                                             {t('controlPanel.assistant.delete')}
-                                        </Button>
-                                        <Button
+                                        </ArcoButton>
+                                        <ArcoButton
                                             onClick={onSaveSettings}
-                                            variant="success"
-                                            size="md"
+                                            type="primary"
+                                            status="success"
                                             loading={isSavingSettings}
                                             disabled={isSavingSettings}
-                                            leftIcon={<Settings className="w-4 h-4" />}
                                             className="flex-1"
                                         >
+                                            <Settings className="w-4 h-4 inline mr-1" />
                                             {isSavingSettings ? t('controlPanel.assistant.saving') : t('controlPanel.assistant.save')}
-                                        </Button>
+                                        </ArcoButton>
                                     </div>
                                 </div>
                             </motion.div>
@@ -499,24 +490,20 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                             />
                                         </div>
                                         <div className="flex space-x-2 mt-6 mb-6">
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
+                                            <ArcoButton
+                                                type="outline"
+                                                size="small"
                                                 onClick={onRefreshVoiceClones}
-                                                leftIcon={<RefreshCw className="w-3 h-3" />}
-                                                className="shadow-sm hover:shadow-md"
                                             >
-                                                {t('controlPanel.voiceClone.refresh')}
-                                            </Button>
-                                            <Button
-                                                variant="primary"
-                                                size="sm"
+                                                <RefreshCw className="w-3 h-3 inline mr-1" />{t('controlPanel.voiceClone.refresh')}
+                                            </ArcoButton>
+                                            <ArcoButton
+                                                type="primary"
+                                                size="small"
                                                 onClick={onNavigateToVoiceTraining}
-                                                leftIcon={<ArrowRight className="w-3 h-3" />}
-                                                className="shadow-sm hover:shadow-md"
                                             >
-                                                {t('controlPanel.voiceClone.training')}
-                                            </Button>
+                                                <ArrowRight className="w-3 h-3 inline mr-1" />{t('controlPanel.voiceClone.training')}
+                                            </ArcoButton>
                                         </div>
                                         <p className="text-xs text-gray-500 dark:text-gray-400">
                                             {t('controlPanel.voiceClone.hint')}
@@ -559,15 +546,9 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                                 </p>
                                             </div>
                                             <div className="ml-4 flex-shrink-0">
-                                                <Switch
+                                                <ArcoSwitch
                                                     checked={enableVAD}
-                                                    onCheckedChange={(checked) => {
-                                                        if (onEnableVADChange) {
-                                                            onEnableVADChange(checked)
-                                                        }
-                                                    }}
-                                                    size="md"
-                                                    className="flex-shrink-0"
+                                                    onChange={(checked: boolean) => onEnableVADChange?.(checked)}
                                                 />
                                             </div>
                                         </div>
@@ -584,18 +565,12 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                                     <span className="text-gray-500">{t('controlPanel.vad.thresholdLabel')}</span>
                                                     <span className="font-medium text-purple-600">{vadThreshold}</span>
                                                 </div>
-                                                <input
-                                                    type="range"
-                                                    min="100"
-                                                    max="5000"
-                                                    step="50"
+                                                <Slider
+                                                    min={100}
+                                                    max={5000}
+                                                    step={50}
                                                     value={vadThreshold}
-                                                    onChange={(e) => {
-                                                        if (onVADThresholdChange) {
-                                                            onVADThresholdChange(parseFloat(e.target.value))
-                                                        }
-                                                    }}
-                                                    className="w-full"
+                                                    onChange={(v) => onVADThresholdChange?.(v as number)}
                                                     disabled={!enableVAD}
                                                 />
                                                 <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -608,18 +583,13 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
                                                     {t('controlPanel.vad.consecutiveFrames')}
                                                 </label>
-                                                <input
-                                                    type="number"
-                                                    min="1"
-                                                    max="10"
-                                                    step="1"
+                                                <InputNumber
+                                                    min={1}
+                                                    max={10}
+                                                    step={1}
                                                     value={vadConsecutiveFrames}
-                                                    onChange={(e) => {
-                                                        if (onVADConsecutiveFramesChange) {
-                                                            onVADConsecutiveFramesChange(parseInt(e.target.value) || 2)
-                                                        }
-                                                    }}
-                                                    className="w-full p-2 text-sm border rounded-lg focus:ring-2 focus:ring-purple-500 dark:bg-neutral-700 dark:border-neutral-600"
+                                                    onChange={(v) => onVADConsecutiveFramesChange?.(v ?? 2)}
+                                                    className="w-full"
                                                     placeholder="2"
                                                     disabled={!enableVAD}
                                                 />
@@ -642,15 +612,9 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                                 </p>
                                             </div>
                                             <div className="ml-4 flex-shrink-0">
-                                                <Switch
+                                                <ArcoSwitch
                                                     checked={enableJSONOutput}
-                                                    onCheckedChange={(checked) => {
-                                                        if (onEnableJSONOutputChange) {
-                                                            onEnableJSONOutputChange(checked)
-                                                        }
-                                                    }}
-                                                    size="md"
-                                                    className="flex-shrink-0"
+                                                    onChange={(checked: boolean) => onEnableJSONOutputChange?.(checked)}
                                                 />
                                             </div>
                                         </div>

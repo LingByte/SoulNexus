@@ -4,7 +4,7 @@ import { showAlert } from '@/utils/notification'
 import { Settings } from 'lucide-react'
 import { useSearchHighlight } from '@/hooks/useSearchHighlight'
 import { useI18nStore } from '@/stores/i18nStore'
-import Button from '@/components/UI/Button'
+import { Drawer } from '@arco-design/web-react'
 // 导入语音助手组件
 import VoiceBall from '@/components/Voice/VoiceBall'
 import ChatHistory from '@/components/Voice/ChatHistory'
@@ -495,7 +495,7 @@ const VoiceAssistant = () => {
         temperature,
         maxTokens,
         updateAIMessage,
-        onAfterTextExchangeSuccess: refreshChatHistory,
+        onAfterTextExchangeSuccess: undefined,
     })
 
     // 处理引导下一步
@@ -1820,6 +1820,7 @@ const VoiceAssistant = () => {
                             isGlobalMuted={isGlobalMuted}
                             onMuteToggle={setIsGlobalMuted}
                             onNewSession={startNewSession}
+                            onSettingsClick={() => setIsControlPanelCollapsed(false)}
                             assistantName={assistants.find(a => a.id === agentId)?.name}
                         />
                         {showOnboarding && highlightedElement === 'chat-area' && (
@@ -1860,116 +1861,92 @@ const VoiceAssistant = () => {
                     </div>
                 </main>
 
-                {/* 右侧控制面板 */}
-                <div
-                    ref={controlPanelRef}
-                    data-highlighted={showOnboarding && highlightedElement === 'control-panel' ? 'true' : 'false'}
-                    className={`transition-all duration-300 ease-in-out ${
-                        isControlPanelCollapsed ? 'w-12' : 'w-[28rem]'
-                    } flex flex-col border-l dark:border-neutral-700 bg-white dark:bg-neutral-800 overflow-hidden`}
+                {/* 控制面板 Drawer */}
+                <Drawer
+                    width={480}
+                    title="配置面板"
+                    visible={!isControlPanelCollapsed}
+                    onCancel={() => setIsControlPanelCollapsed(true)}
+                    footer={null}
+                    placement="right"
                 >
-                    {/* 折叠按钮 */}
-                    <div className="p-2 border-b dark:border-neutral-700">
-                        <Button
-                            onClick={() => setIsControlPanelCollapsed(!isControlPanelCollapsed)}
-                            variant="ghost"
-                            className="w-full"
-                            title={`${isControlPanelCollapsed ? '展开控制面板' : '折叠控制面板'} (Ctrl+2)`}
-                        >
-                            <div className="flex items-center justify-center">
-                                {isControlPanelCollapsed ? (
-                                    <svg className="w-5 h-5 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor"
-                                         viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/>
-                                    </svg>
-                                ) : (
-                                    <svg className="w-5 h-5 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor"
-                                         viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/>
-                                    </svg>
+                    <div
+                        ref={controlPanelRef}
+                        data-highlighted={showOnboarding && highlightedElement === 'control-panel' ? 'true' : 'false'}
+                    >
+                        {agentId !== 0 ? (
+                            <div className={showOnboarding && highlightedElement === 'control-panel' ? 'border-2 border-blue-500 rounded' : ''}>
+                                <ControlPanel
+                                    apiKey={apiKey}
+                                    apiSecret={apiSecret}
+                                    onApiKeyChange={setApiKey}
+                                    onApiSecretChange={setApiSecret}
+                                    ttsProvider={ttsProvider}
+                                    selectedSpeaker={selectedSpeaker}
+                                    systemPrompt={systemPrompt}
+                                    temperature={temperature}
+                                    maxTokens={maxTokens}
+                                    llmModel={llmModel}
+                                    jsSourceId={jsSourceIdState}
+                                    onSpeakerChange={setSelectedSpeaker}
+                                    onSystemPromptChange={setSystemPrompt}
+                                    onTemperatureChange={setTemperature}
+                                    onMaxTokensChange={setMaxTokens}
+                                    onLlmModelChange={setLlmModel}
+                                    onJsSourceIdChange={setJsSourceIdState}
+                                    assistantName={assistantName}
+                                    onAssistantNameChange={setAssistantName}
+                                    enableVAD={enableVAD}
+                                    vadThreshold={vadThreshold}
+                                    vadConsecutiveFrames={vadConsecutiveFrames}
+                                    onEnableVADChange={setEnableVAD}
+                                    onVADThresholdChange={setVadThreshold}
+                                    onVADConsecutiveFramesChange={setVadConsecutiveFrames}
+                                    enableJSONOutput={enableJSONOutput}
+                                    onEnableJSONOutputChange={setEnableJSONOutput}
+                                    onSaveSettings={handleSaveSettings}
+                                    isSavingSettings={isSavingSettings}
+                                    onDeleteAssistant={() => setShowDeleteConfirm(true)}
+                                    searchKeyword={searchKeyword}
+                                    highlightFragments={highlightFragments}
+                                    highlightResultId={highlightResultId}
+                                    onMethodClick={handleMethodClick}
+                                    selectedVoiceCloneId={selectedVoiceCloneId}
+                                    onVoiceCloneChange={setSelectedVoiceCloneId}
+                                    voiceClones={voiceClones}
+                                    onRefreshVoiceClones={async () => {
+                                        try {
+                                            const response = await getVoiceClones()
+                                            const list = response.data || []
+                                            setVoiceClones(list)
+                                            showAlert('音色已刷新', 'success')
+                                        } catch (err: any) {
+                                            console.error('刷新音色失败:', err)
+                                            showAlert(err?.msg || err?.message || '刷新音色失败', 'error')
+                                        }
+                                    }}
+                                    onNavigateToVoiceTraining={() => navigate('/voice-training')}
+                                />
+                                {showOnboarding && highlightedElement === 'control-panel' && (
+                                    <GuideTooltip
+                                        text={onboardingSteps[onboardingStep].text}
+                                        position={onboardingSteps[onboardingStep].position as any}
+                                        onNext={handleNextStep}
+                                        onClose={handleSkipOnboarding}
+                                    />
                                 )}
                             </div>
-                        </Button>
-                    </div>
-
-                    {/* 控制面板内容 */}
-                    {!isControlPanelCollapsed && agentId !== 0 && (
-                        <div className={`flex-1 overflow-y-auto custom-scrollbar ${showOnboarding && highlightedElement === 'control-panel' ? 'border-2 border-blue-500' : ''}`}>
-                            <ControlPanel
-                                apiKey={apiKey}
-                                apiSecret={apiSecret}
-                                onApiKeyChange={setApiKey}
-                                onApiSecretChange={setApiSecret}
-                                ttsProvider={ttsProvider}
-                                selectedSpeaker={selectedSpeaker}
-                                systemPrompt={systemPrompt}
-                                temperature={temperature}
-                                maxTokens={maxTokens}
-                                llmModel={llmModel}
-                                jsSourceId={jsSourceIdState}
-                                onSpeakerChange={setSelectedSpeaker}
-                                onSystemPromptChange={setSystemPrompt}
-                                onTemperatureChange={setTemperature}
-                                onMaxTokensChange={setMaxTokens}
-                                onLlmModelChange={setLlmModel}
-                                onJsSourceIdChange={setJsSourceIdState}
-                                assistantName={assistantName}
-                                onAssistantNameChange={setAssistantName}
-                                enableVAD={enableVAD}
-                                vadThreshold={vadThreshold}
-                                vadConsecutiveFrames={vadConsecutiveFrames}
-                                onEnableVADChange={setEnableVAD}
-                                onVADThresholdChange={setVadThreshold}
-                                onVADConsecutiveFramesChange={setVadConsecutiveFrames}
-                                enableJSONOutput={enableJSONOutput}
-                                onEnableJSONOutputChange={setEnableJSONOutput}
-                                onSaveSettings={handleSaveSettings}
-                                isSavingSettings={isSavingSettings}
-                                onDeleteAssistant={() => setShowDeleteConfirm(true)}
-                                searchKeyword={searchKeyword}
-                                highlightFragments={highlightFragments}
-                                highlightResultId={highlightResultId}
-                                onMethodClick={handleMethodClick}
-                                // 添加训练音色相关配置
-                                selectedVoiceCloneId={selectedVoiceCloneId}
-                                onVoiceCloneChange={setSelectedVoiceCloneId}
-                                voiceClones={voiceClones}
-                                onRefreshVoiceClones={async () => {
-                                    try {
-                                        const response = await getVoiceClones()
-                                        const list = response.data || []
-                                        setVoiceClones(list)
-                                        // 移除自动选择逻辑，训练音色应该从后端助手配置中读取
-                                        showAlert('音色已刷新', 'success')
-                                    } catch (err: any) {
-                                        console.error('刷新音色失败:', err)
-                                        showAlert(err?.msg || err?.message || '刷新音色失败', 'error')
-                                    }
-                                }}
-                                onNavigateToVoiceTraining={() => navigate('/voice-training')}
-                            />
-                            {showOnboarding && highlightedElement === 'control-panel' && (
-                                <GuideTooltip
-                                    text={onboardingSteps[onboardingStep].text}
-                                    position={onboardingSteps[onboardingStep].position as any}
-                                    onNext={handleNextStep}
-                                    onClose={handleSkipOnboarding}
-                                />
-                            )}
-                        </div>
-                    )}
-
-                    {/* 未选择助手时的提示 */}
-                    {!isControlPanelCollapsed && agentId === 0 && (
-                        <div className="flex-1 flex items-center justify-center p-6">
-                            <div className="text-center text-gray-500 dark:text-gray-400">
-                                <Settings className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                                <p className="text-lg font-medium mb-2">请先选择一个助手</p>
-                                <p className="text-sm">选择助手后可以配置相关参数</p>
+                        ) : (
+                            <div className="flex items-center justify-center p-6">
+                                <div className="text-center text-gray-500 dark:text-gray-400">
+                                    <Settings className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                                    <p className="text-lg font-medium mb-2">请先选择一个助手</p>
+                                    <p className="text-sm">选择助手后可以配置相关参数</p>
+                                </div>
                             </div>
-                        </div>
-                    )}
-                </div>
+                        )}
+                    </div>
+                </Drawer>
 
             </div>
 
