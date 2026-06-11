@@ -92,7 +92,7 @@ const NotificationCenter = () => {
   )
 
   return (
-    <div className="max-w-4xl mx-auto py-6 px-4 space-y-3">
+    <div className="w-full space-y-3">
       {/* Stats + Filter */}
       <div className="flex flex-wrap items-center gap-3 justify-between">
         <div className="flex items-center gap-2 flex-wrap">
@@ -200,7 +200,7 @@ const NotificationCenter = () => {
 
       {/* Detail Drawer */}
       <Drawer visible={!!selectedNotification} title={selectedNotification?.title || ''}
-        onClose={() => setSelectedNotification(null)} width={400} footer={null}>
+        onClose={() => setSelectedNotification(null)} width={400} closable maskClosable>
         {selectedNotification && (
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-sm text-gray-500">
