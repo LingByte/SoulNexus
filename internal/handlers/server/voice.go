@@ -1475,6 +1475,9 @@ func (h *Handlers) OneShotText(c *gin.Context) {
 			// 如果请求没传 voiceCloneId，从 agent 模型读取
 			if req.VoiceCloneID == 0 && assistant.VoiceCloneID != nil && *assistant.VoiceCloneID > 0 {
 				req.VoiceCloneID = *assistant.VoiceCloneID
+				fmt.Printf("[OneShotText] 从agent读取voiceCloneId=%d, agentID=%d\n", req.VoiceCloneID, req.AgentID)
+			} else {
+				fmt.Printf("[OneShotText] voiceCloneId=%d, agentID=%d, agentVoiceCloneID=%v\n", req.VoiceCloneID, req.AgentID, assistant.VoiceCloneID)
 			}
 			}
 		}
@@ -1959,8 +1962,10 @@ func (h *Handlers) processAudioAsyncV2(ctx context.Context, credential *auth.Use
 	}
 
 	// 如果使用了训练音色，优先使用训练音色（通过 voiceclone 服务）
+	fmt.Printf("[V2] voiceCloneID=%d, userID=%d\n", voiceCloneID, userID)
 	if voiceCloneID > 0 {
 		groupIDs, _ := svcmodels.MemberGroupIDs(h.db, userID)
+		fmt.Printf("[V2] groupIDs=%v\n", groupIDs)
 		var clone svcmodels.VoiceClone
 		if err := h.db.Where("group_id IN ? AND id = ? AND is_active = ?", groupIDs, voiceCloneID, true).
 			First(&clone).Error; err != nil {
