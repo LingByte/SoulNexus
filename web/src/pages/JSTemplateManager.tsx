@@ -1,10 +1,9 @@
 import { useState, useEffect, useRef, Suspense, lazy } from 'react'
 import { Input as ArcoInput, Select as ArcoSelect, Drawer, Tag, Modal } from '@arco-design/web-react'
 import { useI18nStore } from '@/stores/i18nStore'
-import Card, { CardHeader, CardTitle, CardContent } from '@/components/UI/Card.tsx'
 import Button from '@/components/UI/Button.tsx'
 import { jsTemplateService, JSTemplate, CreateJSTemplateForm } from '@/api/jsTemplate'
-import { Plus, Code, Eye, AlertCircle, Maximize2, Minimize2, FileText, Trash2, Edit3, Search } from 'lucide-react'
+import { Plus, Code, Eye, AlertCircle, Maximize2, Minimize2, FileText, Trash2, Edit3 } from 'lucide-react'
 import { showAlert } from '@/utils/notification'
 import { useDebounce } from '@/hooks/useDebounce'
 import { validateJavaScript } from '@/utils/jsValidator'
@@ -207,19 +206,16 @@ const JSTemplateManager = () => {
 
             {/* Create/Edit Drawer */}
             <Drawer visible={isDrawerOpen} title={isEditing ? t('jsTemplate.editModal.title') : t('jsTemplate.createModal.title')}
-                onClose={handleCancelCreate} width="100%" footer={null} placement="right"
-                extra={
-                    <Button size="sm" type="primary" onClick={handleSaveNewTemplate}
-                        disabled={!newTemplate.name || !newTemplate.content || !!validationError}>
-                        {isEditing ? t('jsTemplate.update') : t('jsTemplate.saveTemplate')}
-                    </Button>
-                }>
+                onCancel={handleCancelCreate} width={800} footer={null} placement="right">
                 <div className="flex h-[calc(100vh-56px)]">
                     {/* Left: Preview */}
                     <div className="w-1/2 border-r border-gray-200 dark:border-gray-700 flex flex-col">
-                        <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center gap-2">
-                            <Eye className="w-4 h-4 text-gray-400" />
-                            <span className="text-sm font-medium">{t('jsTemplate.preview.label')}</span>
+                        <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
+                            <span className="text-sm font-medium flex items-center gap-2"><Eye className="w-4 h-4 text-gray-400" />{t('jsTemplate.preview.label')}</span>
+                            <Button size="sm" variant="primary" onClick={handleSaveNewTemplate}
+                                disabled={!newTemplate.name || !newTemplate.content || !!validationError}>
+                                {isEditing ? t('jsTemplate.update') : t('jsTemplate.saveTemplate')}
+                            </Button>
                         </div>
                         <div className="flex-1 p-3 overflow-hidden">
                             <iframe ref={iframeRef} className="w-full h-full border border-gray-200 dark:border-gray-700 rounded-lg" title="Preview" sandbox="allow-scripts allow-same-origin" />
