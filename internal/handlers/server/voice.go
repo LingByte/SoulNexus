@@ -22,14 +22,13 @@ import (
 	"time"
 
 	"github.com/LingByte/SoulNexus/internal/config"
-	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/llm"
 	parser2 "github.com/LingByte/SoulNexus/pkg/parser"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/stores"
 	"github.com/LingByte/lingllm/synthesizer"
 	"github.com/LingByte/SoulNexus/pkg/utils"
-	"github.com/LingByte/SoulNexus/pkg/voiceclone"
+	"github.com/LingByte/lingllm/voiceclone"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
@@ -280,11 +279,14 @@ func (h *Handlers) CreateTrainingTask(c *gin.Context) {
 		req.Language = svcmodels.LanguageChinese
 	}
 
-	// 1) 调用讯飞创建任务（使用 voiceclone）
-	factory := voiceclone.NewFactory()
-	service, err := factory.CreateServiceFromEnv(voiceclone.ProviderXunfei)
+	// 1) 调用火山引擎创建任务（使用 lingllm voiceclone）
+	f := voiceclone.NewFactory()
+	service, err := f.CreateService(&voiceclone.Config{
+		Provider: voiceclone.ProviderVolcengine,
+		Options:  h.getVolcengineCloneConfig(),
+	})
 	if err != nil {
-		response.Fail(c, "初始化讯飞服务失败", err.Error())
+		response.Fail(c, "初始化火山引擎服务失败", err.Error())
 		return
 	}
 
@@ -297,7 +299,7 @@ func (h *Handlers) CreateTrainingTask(c *gin.Context) {
 	createResp, err := service.CreateTask(c.Request.Context(), createReq)
 	if err != nil {
 		// 记录详细错误信息用于调试
-		fmt.Printf("讯飞创建任务失败: %v\n", err)
+		fmt.Printf("火山引擎创建任务失败: %v\n", err)
 
 		// 检查是否是训练次数不足的错误
 		errMsg := err.Error()
@@ -317,9 +319,6 @@ func (h *Handlers) CreateTrainingTask(c *gin.Context) {
 	}
 
 	taskID := createResp.TaskID
-
-	// 2) 保存配置到数据库（如果配置了）
-	h.saveVoiceCloneConfig("xunfei")
 
 	pg, err := svcmodels.EnsurePersonalGroupForUser(h.db, user.ID)
 	if err != nil {
@@ -345,73 +344,6 @@ func (h *Handlers) CreateTrainingTask(c *gin.Context) {
 	}
 
 	response.Success(c, "创建训练任务成功", task)
-}
-
-// saveVoiceCloneConfig 保存音色克隆配置到数据库
-func (h *Handlers) saveVoiceCloneConfig(provider string) {
-	var configKey string
-	var config map[string]interface{}
-
-	switch provider {
-	case "xunfei":
-		configKey = constants.KEY_VOICE_CLONE_XUNFEI_CONFIG
-		config = map[string]interface{}{
-			"app_id":        utils.GetEnv("XUNFEI_APP_ID"),
-			"api_key":       utils.GetEnv("XUNFEI_API_KEY"),
-			"base_url":      utils.GetEnv("XUNFEI_BASE_URL"),
-			"ws_app_id":     utils.GetEnv("XUNFEI_WS_APP_ID"),
-			"ws_api_key":    utils.GetEnv("XUNFEI_WS_API_KEY"),
-			"ws_api_secret": utils.GetEnv("XUNFEI_WS_API_SECRET"),
-		}
-		if config["base_url"] == "" {
-			config["base_url"] = "http://opentrain.xfyousheng.com"
-		}
-	case "volcengine":
-		configKey = constants.KEY_VOICE_CLONE_VOLCENGINE_CONFIG
-		config = map[string]interface{}{
-			"app_id":         utils.GetEnv("VOLCENGINE_CLONE_APP_ID"),
-			"token":          utils.GetEnv("VOLCENGINE_CLONE_TOKEN"),
-			"cluster":        utils.GetEnv("VOLCENGINE_CLONE_CLUSTER"),
-			"voice_type":     utils.GetEnv("VOLCENGINE_CLONE_VOICE_TYPE"),
-			"encoding":       utils.GetEnv("VOLCENGINE_CLONE_ENCODING"),
-			"frame_duration": utils.GetEnv("VOLCENGINE_CLONE_FRAME_DURATION"),
-		}
-		if config["cluster"] == "" {
-			config["cluster"] = "volcano_icl"
-		}
-		if sampleRate := utils.GetIntEnv("VOLCENGINE_CLONE_SAMPLE_RATE"); sampleRate > 0 {
-			config["sample_rate"] = sampleRate
-		}
-		if bitDepth := utils.GetIntEnv("VOLCENGINE_CLONE_BIT_DEPTH"); bitDepth > 0 {
-			config["bit_depth"] = bitDepth
-		}
-		if channels := utils.GetIntEnv("VOLCENGINE_CLONE_CHANNELS"); channels > 0 {
-			config["channels"] = channels
-		}
-		if speedRatio := utils.GetFloatEnv("VOLCENGINE_CLONE_SPEED_RATIO"); speedRatio > 0 {
-			config["speed_ratio"] = speedRatio
-		}
-		if trainingTimes := utils.GetIntEnv("VOLCENGINE_CLONE_TRAINING_TIMES"); trainingTimes > 0 {
-			config["training_times"] = trainingTimes
-		}
-	default:
-		return
-	}
-
-	// 检查配置是否有效
-	if !h.isConfigValid(provider, config) {
-		return
-	}
-
-	// 序列化为 JSON
-	configJSON, err := json.Marshal(config)
-	if err != nil {
-		logrus.WithError(err).Warn("Failed to marshal voice clone config")
-		return
-	}
-
-	// 保存到数据库
-	utils.SetValue(h.db, configKey, string(configJSON), "json", true, true)
 }
 
 // SubmitAudio 提交音频文件
@@ -475,11 +407,14 @@ func (h *Handlers) SubmitAudio(c *gin.Context) {
 		return
 	}
 
-	// 2) 调用讯飞提交音频（使用 voiceclone）
-	factory := voiceclone.NewFactory()
-	service, err := factory.CreateServiceFromEnv(voiceclone.ProviderXunfei)
+	// 2) 调用火山引擎提交音频（使用 lingllm voiceclone）
+	f := voiceclone.NewFactory()
+	service, err := f.CreateService(&voiceclone.Config{
+		Provider: voiceclone.ProviderVolcengine,
+		Options:  h.getVolcengineCloneConfig(),
+	})
 	if err != nil {
-		response.Fail(c, "初始化讯飞服务失败", err.Error())
+		response.Fail(c, "初始化火山引擎服务失败", err.Error())
 		return
 	}
 
@@ -535,11 +470,14 @@ func (h *Handlers) QueryTaskStatus(c *gin.Context) {
 		return
 	}
 
-	// 2) 查询讯飞状态（使用 voiceclone）
-	factory := voiceclone.NewFactory()
-	service, err := factory.CreateServiceFromEnv(voiceclone.ProviderXunfei)
+	// 2) 查询火山引擎状态（使用 lingllm voiceclone）
+	f := voiceclone.NewFactory()
+	service, err := f.CreateService(&voiceclone.Config{
+		Provider: voiceclone.ProviderVolcengine,
+		Options:  h.getVolcengineCloneConfig(),
+	})
 	if err != nil {
-		response.Fail(c, "初始化讯飞服务失败", err.Error())
+		response.Fail(c, "初始化火山引擎服务失败", err.Error())
 		return
 	}
 
@@ -567,7 +505,7 @@ func (h *Handlers) QueryTaskStatus(c *gin.Context) {
 
 	task.Status = trainStatus
 	task.TrainVID = status.TrainVID
-	task.AssetID = status.AssetID // xunfei 返回的音色ID
+	task.AssetID = status.AssetID // 火山引擎返回的音色ID
 	task.FailedReason = status.FailedDesc
 	if err := h.db.Save(&task).Error; err != nil {
 		response.Fail(c, "更新任务状态失败", err.Error())
@@ -576,7 +514,7 @@ func (h *Handlers) QueryTaskStatus(c *gin.Context) {
 
 	// 4) 如果训练成功，落表VoiceClone
 	if trainStatus == svcmodels.TrainingStatusSuccess && status.AssetID != "" {
-		if err := h.upsertVoiceClone(c.Request.Context(), user.ID, &task, status.AssetID, status.TrainVID, "xunfei"); err != nil {
+		if err := h.upsertVoiceClone(c.Request.Context(), user.ID, &task, status.AssetID, status.TrainVID, "volcengine"); err != nil {
 			response.Fail(c, "创建音色记录失败", err.Error())
 			return
 		}
@@ -688,25 +626,56 @@ func (h *Handlers) SynthesizeWithVoice(c *gin.Context) {
 		return
 	}
 
-	// 2) 调用讯飞合成（使用 voiceclone）
-	factory := voiceclone.NewFactory()
-	service, err := factory.CreateServiceFromEnv(voiceclone.ProviderXunfei)
-	if err != nil {
-		response.Fail(c, "初始化讯飞服务失败", err.Error())
-		return
-	}
-
-	// 使用正确的 AssetID（从数据库查询到的音色ID）
-	synthesizeReq := &voiceclone.SynthesizeRequest{
-		AssetID:  clone.AssetID, // 使用训练得到的音色ID（从数据库查询）
-		Text:     req.Text,
-		Language: req.Language,
-	}
-
-	// 添加调试日志
+	// 2) 调用合成（使用 lingllm synthesizer）
 	fmt.Printf("[SynthesizeWithVoice] VoiceCloneID=%d, AssetID=%s, VoiceName=%s\n",
 		req.VoiceCloneID, clone.AssetID, clone.VoiceName)
-	audioURL, err := service.SynthesizeToStorage(c.Request.Context(), synthesizeReq, req.StorageKey)
+
+	var engine synthesizer.AudioSynthesisEngine
+	var err error
+	switch strings.ToLower(clone.Provider) {
+	case "volcengine":
+		cfg := h.getVolcengineCloneConfig()
+		engine, err = synthesizer.NewVolcengineCloneEngine(synthesizer.VolcengineCloneOption{
+			AppID:       cfg["app_id"].(string),
+			AccessToken: cfg["token"].(string),
+			Cluster:     cfg["cluster"].(string),
+			AssetID:     clone.AssetID,
+			Rate:        16000,
+			SourceRate:  24000,
+			Streaming:   true,
+		})
+	default:
+		response.Fail(c, "不支持的音色克隆提供商", "只支持 volcengine")
+	}
+	if err != nil {
+		response.Fail(c, "初始化合成服务失败", err.Error())
+		return
+	}
+	defer engine.Close()
+
+	var audioBuf []byte
+	collector := &audioCollector{onMessage: func(data []byte) { audioBuf = append(audioBuf, data...) }}
+	if err := engine.Synthesize(c.Request.Context(), collector, req.Text); err != nil {
+		response.Fail(c, "语音合成失败", err.Error())
+		return
+	}
+	sampleRate := engine.Format().SampleRate
+	if sampleRate == 0 {
+		sampleRate = 16000
+	}
+	wavData := pcmToWAV(audioBuf, sampleRate, 1, 16)
+	storageKey := req.StorageKey
+	if strings.HasSuffix(storageKey, ".pcm") {
+		storageKey = strings.TrimSuffix(storageKey, ".pcm") + ".wav"
+	} else if !strings.HasSuffix(storageKey, ".wav") {
+		storageKey = storageKey + ".wav"
+	}
+	st := stores.Default()
+	if err := st.Write(storageKey, bytes.NewReader(wavData)); err != nil {
+		response.Fail(c, "保存音频失败", err.Error())
+		return
+	}
+	audioURL := strings.TrimSpace(st.PublicURL(storageKey))
 	if err != nil {
 		response.Fail(c, "语音合成失败", err.Error())
 		return
@@ -1379,79 +1348,6 @@ func (h *Handlers) DeleteVoiceClone(c *gin.Context) {
 	response.Success(c, "删除音色成功", nil)
 }
 
-// GetTrainingTexts 获取训练文本
-func (h *Handlers) GetTrainingTexts(c *gin.Context) {
-	// 获取文本ID参数
-	textIDStr := c.DefaultQuery("textId", "5001")
-	textID, err := strconv.ParseInt(textIDStr, 10, 64)
-	if err != nil {
-		response.Fail(c, "文本ID格式错误", err.Error())
-		return
-	}
-
-	// 1) 先查库
-	var text svcmodels.VoiceTrainingText
-	if err := h.db.Where("text_id = ? AND is_active = ?", textID, true).
-		First(&text).Error; err == nil {
-		// 查询关联的段落
-		var segments []svcmodels.VoiceTrainingTextSegment
-		h.db.Where("text_id = ?", text.ID).Find(&segments)
-		text.TextSegments = segments
-		response.Success(c, "获取训练文本成功", text)
-		return
-	}
-
-	// 2) 查讯飞（使用 voiceclone）
-	factory := voiceclone.NewFactory()
-	service, err := factory.CreateServiceFromEnv(voiceclone.ProviderXunfei)
-	if err != nil {
-		response.Fail(c, "初始化讯飞服务失败", err.Error())
-		return
-	}
-
-	xfText, err := service.GetTrainingTexts(c.Request.Context(), textID)
-	if err != nil {
-		response.Fail(c, "获取训练文本失败", err.Error())
-		return
-	}
-
-	// 3) 保存主表
-	text = svcmodels.VoiceTrainingText{
-		TextID:   xfText.TextID,
-		TextName: xfText.TextName,
-		Language: svcmodels.LanguageChinese,
-		IsActive: true,
-	}
-	if err := h.db.Create(&text).Error; err != nil {
-		response.Fail(c, "保存训练文本失败", err.Error())
-		return
-	}
-
-	// 4) 保存段落
-	for _, seg := range xfText.Segments {
-		segRow := svcmodels.VoiceTrainingTextSegment{
-			TextID:  text.ID,
-			SegID:   fmt.Sprintf("%v", seg.SegID),
-			SegText: seg.SegText,
-		}
-		if err := h.db.Create(&segRow).Error; err != nil {
-			response.Fail(c, "保存文本段落失败", err.Error())
-			return
-		}
-	}
-
-	// 5) 重新加载返回
-	if err := h.db.First(&text, text.ID).Error; err != nil {
-		response.Fail(c, "加载训练文本失败", err.Error())
-		return
-	}
-	// 加载关联的段落
-	var segments []svcmodels.VoiceTrainingTextSegment
-	h.db.Where("text_id = ?", text.ID).Find(&segments)
-	text.TextSegments = segments
-	response.Success(c, "获取训练文本成功", text)
-}
-
 // upsertVoiceClone 如果不存在则创建，存在则更新
 func (h *Handlers) upsertVoiceClone(ctx context.Context, userID uint, task *svcmodels.VoiceTrainingTask, assetID, trainVID, provider string) error {
 	var existing svcmodels.VoiceClone
@@ -2070,48 +1966,42 @@ func (h *Handlers) processAudioAsyncV2(ctx context.Context, credential *auth.Use
 			fmt.Printf("[V2] 音色克隆未训练完成: VoiceCloneID=%d\n", voiceCloneID)
 			// 如果音色未训练完成，继续使用普通TTS合成
 		} else {
-			// 2) 根据 provider 创建相应的 voiceclone 服务
-			factory := voiceclone.NewFactory()
-			var voiceCloneService voiceclone.VoiceCloneService
-			var err error
+			// 2) 根据 provider 创建 synthesizer 引擎
+			var cloneEngine synthesizer.AudioSynthesisEngine
 
 			switch strings.ToLower(clone.Provider) {
-			case "xunfei":
-				voiceCloneService, err = factory.CreateServiceFromEnv(voiceclone.ProviderXunfei)
 			case "volcengine":
-				voiceCloneService, err = factory.CreateServiceFromEnv(voiceclone.ProviderVolcengine)
+				cfg := h.getVolcengineCloneConfig()
+				cloneEngine, err = synthesizer.NewVolcengineCloneEngine(synthesizer.VolcengineCloneOption{
+					AppID:       cfg["app_id"].(string),
+					AccessToken: cfg["token"].(string),
+					Cluster:     cfg["cluster"].(string),
+					AssetID:     clone.AssetID,
+					Rate:        16000,
+					SourceRate:  24000,
+					Streaming:   true,
+				})
 			default:
 				fmt.Printf("[V2] 不支持的音色克隆提供商: %s\n", clone.Provider)
 				err = fmt.Errorf("unsupported voice clone provider: %s", clone.Provider)
 			}
 
 			if err != nil {
-				fmt.Printf("[V2] 创建音色克隆服务失败: %v\n", err)
-				// 如果创建服务失败，继续使用普通TTS合成
+				fmt.Printf("[V2] 创建克隆引擎失败: %v\n", err)
 			} else {
-				// 3) 调用音色克隆流式合成接口
-				synthesizeReq := &voiceclone.SynthesizeRequest{
-					AssetID:  clone.AssetID,
-					Text:     text,
-					Language: language,
-				}
+				defer cloneEngine.Close()
 
-				fmt.Printf("[V2] 使用音色克隆流式合成: VoiceCloneID=%d, AssetID=%s, Provider=%s\n",
+				fmt.Printf("[V2] 使用克隆引擎合成: VoiceCloneID=%d, AssetID=%s, Provider=%s\n",
 					voiceCloneID, clone.AssetID, clone.Provider)
 
-				// 确定采样率（用于后续处理）
-				var sampleRate int
-				if strings.ToLower(clone.Provider) == "xunfei" {
-					sampleRate = 24000 // 讯飞默认 24000Hz
-				} else {
-					sampleRate = 8000 // 火山引擎默认 8000Hz
+				sampleRate := cloneEngine.Format().SampleRate
+				if sampleRate == 0 {
+					sampleRate = 16000
 				}
 
-				// 创建音频收集器（流式处理）
 				var audioData []byte
 				audioMu := sync.Mutex{}
-
-				handler := &voiceCloneAudioCollector{
+				collector := &audioCollector{
 					onMessage: func(data []byte) {
 						audioMu.Lock()
 						audioData = append(audioData, data...)
@@ -2119,43 +2009,26 @@ func (h *Handlers) processAudioAsyncV2(ctx context.Context, credential *auth.Use
 					},
 				}
 
-				// 使用流式合成
-				err := voiceCloneService.SynthesizeStream(ctx, synthesizeReq, handler)
-				if err != nil {
-					fmt.Printf("[V2] 音色克隆流式合成失败: %v\n", err)
-					// 如果合成失败，继续使用普通TTS合成
+				if err := cloneEngine.Synthesize(ctx, collector, text); err != nil {
+					fmt.Printf("[V2] 克隆引擎合成失败: %v\n", err)
 				} else {
 					audioMu.Lock()
 					collectedAudio := audioData
 					audioMu.Unlock()
 
 					if len(collectedAudio) == 0 {
-						fmt.Printf("[V2] 音色克隆音频数据为空\n")
+						fmt.Printf("[V2] 克隆引擎音频数据为空\n")
 						audioCacheMutex.Lock()
-						audioProcessingCache[requestID] = AudioProcessResult{
-							Status:   "failed",
-							Text:     text,
-							AudioURL: "",
-						}
+						audioProcessingCache[requestID] = AudioProcessResult{Status: "failed", Text: text}
 						audioCacheMutex.Unlock()
 						return
 					}
 
-					// 4) 处理音频格式（注意采样率等参数）
-					// 默认声道数和位深度
-					channels := 1
-					bitDepth := 16
-
-					// 创建带WAV头的音频数据
-					wavData, err := h.createWAVFile(collectedAudio, sampleRate, channels, bitDepth)
+					wavData, err := h.createWAVFile(collectedAudio, sampleRate, 1, 16)
 					if err != nil {
 						fmt.Printf("[V2] 创建WAV文件失败: %v\n", err)
 						audioCacheMutex.Lock()
-						audioProcessingCache[requestID] = AudioProcessResult{
-							Status:   "failed",
-							Text:     text,
-							AudioURL: "",
-						}
+						audioProcessingCache[requestID] = AudioProcessResult{Status: "failed", Text: text}
 						audioCacheMutex.Unlock()
 						return
 					}
@@ -2165,25 +2038,17 @@ func (h *Handlers) processAudioAsyncV2(ctx context.Context, credential *auth.Use
 					if err := st.Write(ttsKey, bytes.NewReader(wavData)); err != nil {
 						fmt.Printf("[V2] 保存音频失败: %v\n", err)
 						audioCacheMutex.Lock()
-						audioProcessingCache[requestID] = AudioProcessResult{
-							Status:   "failed",
-							Text:     text,
-							AudioURL: "",
-						}
+						audioProcessingCache[requestID] = AudioProcessResult{Status: "failed", Text: text}
 						audioCacheMutex.Unlock()
 						return
 					}
 
-					// 获取音频URL
 					ttsAudioURL := strings.TrimSpace(st.PublicURL(ttsKey))
-
-					// 更新音色使用统计
 					clone.UsageCount++
 					now := time.Now()
 					clone.LastUsedAt = &now
 					h.db.Save(&clone)
 
-					// 将音频URL存储到缓存中
 					audioCacheMutex.Lock()
 					audioProcessingCache[requestID] = AudioProcessResult{
 						Status:   "completed",
@@ -2192,7 +2057,7 @@ func (h *Handlers) processAudioAsyncV2(ctx context.Context, credential *auth.Use
 					}
 					audioCacheMutex.Unlock()
 
-					fmt.Printf("[V2] 音色克隆流式音频合成完成: %s (SampleRate=%d, AudioSize=%d)\n", ttsAudioURL, sampleRate, len(collectedAudio))
+					fmt.Printf("[V2] 克隆引擎合成完成: %s (SampleRate=%d, AudioSize=%d)\n", ttsAudioURL, sampleRate, len(collectedAudio))
 					return
 				}
 			}
@@ -2388,21 +2253,6 @@ func (h *Handlers) processAudioAsyncV2(ctx context.Context, credential *auth.Use
 	ttsService.Close()
 }
 
-// voiceCloneAudioCollector 音色克隆音频收集器，实现 voiceclone.SynthesisHandler 接口
-type voiceCloneAudioCollector struct {
-	onMessage func([]byte)
-}
-
-func (a *voiceCloneAudioCollector) OnMessage(data []byte) {
-	if a.onMessage != nil {
-		a.onMessage(data)
-	}
-}
-
-func (a *voiceCloneAudioCollector) OnTimestamp(timestamp voiceclone.SentenceTimestamp) {
-	// 时间戳信息暂时不处理
-}
-
 // audioCollector 音频收集器，实现 SynthesisHandler 接口
 type audioCollector struct {
 	onMessage func([]byte)
@@ -2416,6 +2266,25 @@ func (a *audioCollector) OnMessage(data []byte) {
 
 func (a *audioCollector) OnTimestamp(timestamp synthesizer.SentenceTimestamp) {
 	// 暂不处理时间戳
+}
+
+func pcmToWAV(pcm []byte, sampleRate, channels, bitDepth int) []byte {
+	dataSize := len(pcm)
+	h := make([]byte, 44)
+	copy(h[0:4], "RIFF")
+	binary.LittleEndian.PutUint32(h[4:8], uint32(36+dataSize))
+	copy(h[8:12], "WAVE")
+	copy(h[12:16], "fmt ")
+	binary.LittleEndian.PutUint32(h[16:20], 16)
+	binary.LittleEndian.PutUint16(h[20:22], 1)
+	binary.LittleEndian.PutUint16(h[22:24], uint16(channels))
+	binary.LittleEndian.PutUint32(h[24:28], uint32(sampleRate))
+	binary.LittleEndian.PutUint32(h[28:32], uint32(sampleRate*channels*bitDepth/8))
+	binary.LittleEndian.PutUint16(h[32:34], uint16(channels*bitDepth/8))
+	binary.LittleEndian.PutUint16(h[34:36], uint16(bitDepth))
+	copy(h[36:40], "data")
+	binary.LittleEndian.PutUint32(h[40:44], uint32(dataSize))
+	return append(h, pcm...)
 }
 
 // createWAVFile 将PCM音频数据转换为WAV格式（添加WAV文件头）

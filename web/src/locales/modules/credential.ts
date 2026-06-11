@@ -62,7 +62,7 @@ export const credential: Record<Language, Record<string, string>> = {
     'credential.appId': 'App ID',
     'credential.appIdPlaceholder': '应用ID',
     'credential.apiSecretPlaceholder': 'API密钥',
-    'credential.cloneProviderPlaceholder': '如：xunfei, baidu（暂时支持文本输入）',
+    'credential.cloneProviderPlaceholder': '如：volcengine, baidu（暂时支持文本输入）',
 
     // Credential Messages
     'credential.messages.fetchFailed': '获取凭证失败',
@@ -141,7 +141,7 @@ export const credential: Record<Language, Record<string, string>> = {
     'credential.appId': 'App ID',
     'credential.appIdPlaceholder': 'Application ID',
     'credential.apiSecretPlaceholder': 'API Secret',
-    'credential.cloneProviderPlaceholder': 'Such as: xunfei, baidu (currently supports text input)',
+    'credential.cloneProviderPlaceholder': 'Such as: volcengine, baidu (currently supports text input)',
 
     // Credential Messages
     'credential.messages.fetchFailed': 'Failed to fetch credentials',
@@ -220,7 +220,7 @@ export const credential: Record<Language, Record<string, string>> = {
     'credential.appId': 'App ID',
     'credential.appIdPlaceholder': 'アプリケーションID',
     'credential.apiSecretPlaceholder': 'APIシークレット',
-    'credential.cloneProviderPlaceholder': '例：xunfei, baidu（現在テキスト入力をサポート）',
+    'credential.cloneProviderPlaceholder': '例：volcengine, baidu（現在テキスト入力をサポート）',
 
     // 認証情報メッセージ
     'credential.messages.fetchFailed': '認証情報の取得に失敗しました',

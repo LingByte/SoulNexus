@@ -22,7 +22,6 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/voice/sessions"
 	"github.com/LingByte/SoulNexus/pkg/voice/stream"
 	"github.com/LingByte/SoulNexus/pkg/voice/tools"
-	"github.com/LingByte/SoulNexus/pkg/voiceclone"
 	"github.com/LingByte/SoulNexus/pkg/voiceprint"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
@@ -138,54 +137,33 @@ func NewHardwareSession(ctx context.Context, hardwareConfig *HardwareSessionOpti
 		// 从数据库获取克隆音色信息
 		voiceClone, voiceCloneErr := svcmodels.GetVoiceCloneByID(hardwareConfig.DB, int64(*hardwareConfig.VoiceCloneID))
 		if voiceCloneErr == nil && voiceClone != nil {
-			// 创建克隆音色服务
-			cloneFactory := voiceclone.NewFactory()
-			cloneConfig := &voiceclone.Config{
-				Provider: voiceclone.Provider(voiceClone.Provider),
-				Options:  make(map[string]interface{}),
+			var cloneErr error
+			appID := ""
+			if hardwareConfig.Credential.TtsConfig != nil {
+				if v, ok := hardwareConfig.Credential.TtsConfig["appId"].(string); ok {
+					appID = v
+				}
 			}
-
-			// 根据提供商类型和凭证设置配置
-			if voiceClone.Provider == "xunfei" {
-				// 从凭证中获取讯飞配置
-				if hardwareConfig.Credential.AsrConfig != nil {
-					if appID, ok := hardwareConfig.Credential.AsrConfig["appId"].(string); ok {
-						cloneConfig.Options["app_id"] = appID
-					}
-				}
-				// 从凭证中获取 API Key
-				cloneConfig.Options["api_key"] = hardwareConfig.Credential.LLMApiKey
-				// 从环境变量获取 WebSocket 配置（这些是全局配置）
-				if wsAppID := os.Getenv("XUNFEI_WS_APP_ID"); wsAppID != "" {
-					cloneConfig.Options["ws_app_id"] = wsAppID
-				}
-				if wsAPIKey := os.Getenv("XUNFEI_WS_API_KEY"); wsAPIKey != "" {
-					cloneConfig.Options["ws_api_key"] = wsAPIKey
-				}
-				if wsAPISecret := os.Getenv("XUNFEI_WS_API_SECRET"); wsAPISecret != "" {
-					cloneConfig.Options["ws_api_secret"] = wsAPISecret
-				}
-			} else if voiceClone.Provider == "volcengine" {
-				// 从凭证中获取火山引擎配置
-				if hardwareConfig.Credential.TtsConfig != nil {
-					if appID, ok := hardwareConfig.Credential.TtsConfig["appId"].(string); ok {
-						cloneConfig.Options["app_id"] = appID
-					}
-				}
-				// 从凭证中获取 Token
-				cloneConfig.Options["token"] = hardwareConfig.Credential.LLMApiKey
+			cluster := os.Getenv("VOLCENGINE_CLONE_CLUSTER")
+			if cluster == "" {
+				cluster = "volcano_icl"
 			}
+			ttsService, cloneErr = synthesizer.NewVolcengineCloneEngine(synthesizer.VolcengineCloneOption{
+				AppID:       appID,
+				AccessToken: hardwareConfig.Credential.LLMApiKey,
+				Cluster:     cluster,
+				AssetID:     voiceClone.AssetID,
+				Rate:        16000,
+				SourceRate:  24000,
+				Streaming:   true,
+			})
 
-			cloneService, cloneErr := cloneFactory.CreateService(cloneConfig)
-			if cloneErr == nil && cloneService != nil {
-				// 使用克隆音色服务
-				ttsService = voiceclone.NewVoiceCloneSynthesisService(cloneService, voiceClone.AssetID)
+			if cloneErr == nil && ttsService != nil {
 				hardwareConfig.Logger.Info("[Session] 使用克隆音色进行TTS合成",
 					zap.Int("voiceCloneID", *hardwareConfig.VoiceCloneID),
 					zap.String("provider", voiceClone.Provider),
 					zap.String("assetID", voiceClone.AssetID))
 			} else {
-				// 克隆音色创建失败，降级到普通TTS
 				hardwareConfig.Logger.Warn("[Session] 克隆音色服务创建失败，降级到普通TTS",
 					zap.Int("voiceCloneID", *hardwareConfig.VoiceCloneID),
 					zap.String("provider", voiceClone.Provider),
@@ -193,14 +171,12 @@ func NewHardwareSession(ctx context.Context, hardwareConfig *HardwareSessionOpti
 				ttsService, err = synthesizer.NewAudioSynthesisEngineFromCredential(ttsConfig)
 			}
 		} else {
-			// 克隆音色不存在，降级到普通TTS
 			hardwareConfig.Logger.Warn("[Session] 克隆音色不存在，降级到普通TTS",
 				zap.Int("voiceCloneID", *hardwareConfig.VoiceCloneID),
 				zap.Error(voiceCloneErr))
 			ttsService, err = synthesizer.NewAudioSynthesisEngineFromCredential(ttsConfig)
 		}
 	} else {
-		// 没有指定克隆音色，使用普通TTS
 		ttsService, err = synthesizer.NewAudioSynthesisEngineFromCredential(ttsConfig)
 	}
 

@@ -2,6 +2,7 @@ import { useState, useRef } from 'react'
 import { Upload, X, File, Image, FileText } from 'lucide-react'
 import { cn } from '@/utils/cn.ts'
 import { showAlert } from '@/utils/notification.ts'
+import { useI18nStore } from '@/stores/i18nStore'
 
 interface FileUploadProps {
   onFileSelect: (files: File[]) => void
@@ -13,6 +14,7 @@ interface FileUploadProps {
   label?: string
   error?: string
   disabled?: boolean
+  hint?: string
 }
 
 interface FileWithPreview extends File {
@@ -29,8 +31,10 @@ const FileUpload = ({
   className,
   label,
   error,
-  disabled = false
+  disabled = false,
+  hint,
 }: FileUploadProps) => {
+  const { t } = useI18nStore()
   const [files, setFiles] = useState<FileWithPreview[]>([])
   const [dragActive, setDragActive] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -172,14 +176,18 @@ const FileUpload = ({
                 disabled && 'cursor-not-allowed'
               )}
             >
-              点击上传
+              {t('fileUpload.clickToUpload')}
             </button>
             <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
-              或拖拽文件到此处
+              {t('fileUpload.orDragDrop')}
             </p>
-            <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-1">
-              最大 {maxSize}MB，最多 {maxFiles} 个文件
-            </p>
+            {hint ? (
+              <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">{hint}</p>
+            ) : (
+              <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-1">
+                {t('fileUpload.maxSize', { size: maxSize, count: maxFiles })}
+              </p>
+            )}
           </div>
         </div>
       </div>

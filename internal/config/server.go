@@ -90,15 +90,7 @@ type LLMConfig struct {
 
 // VoiceConfig voice service configuration
 type VoiceConfig struct {
-	Xunfei     XunfeiVoiceConfig `mapstructure:"xunfei"`
-	Voiceprint VoiceprintConfig  `mapstructure:"voiceprint"`
-}
-
-// XunfeiVoiceConfig Xunfei voice configuration
-type XunfeiVoiceConfig struct {
-	WSAppId     string `env:"XUNFEI_WS_APP_ID"`
-	WSAPIKey    string `env:"XUNFEI_WS_API_KEY"`
-	WSAPISecret string `env:"XUNFEI_WS_API_SECRET"`
+	Voiceprint VoiceprintConfig `mapstructure:"voiceprint"`
 }
 
 // VoiceprintConfig Voiceprint service configuration
@@ -198,11 +190,6 @@ func buildGlobalConfig() error {
 				ShortTermMessageLimit:   getIntOrDefault("LLM_SHORT_TERM_MESSAGE_LIMIT", 20),
 			},
 			Voice: VoiceConfig{
-				Xunfei: XunfeiVoiceConfig{
-					WSAppId:     getStringOrDefault("XUNFEI_WS_APP_ID", ""),
-					WSAPIKey:    getStringOrDefault("XUNFEI_WS_API_KEY", ""),
-					WSAPISecret: getStringOrDefault("XUNFEI_WS_API_SECRET", ""),
-				},
 				Voiceprint: VoiceprintConfig{
 					Enabled:             getBoolOrDefault("VOICEPRINT_ENABLED", false),
 					BaseURL:             getStringOrDefault("VOICEPRINT_BASE_URL", "http://localhost:8005"),

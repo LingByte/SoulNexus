@@ -4,52 +4,87 @@ package server
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
-	"github.com/LingByte/SoulNexus/internal/models/auth"
-	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
+	"bytes"
 	"fmt"
 	"strconv"
+	"strings"
 
+	"github.com/LingByte/SoulNexus/internal/models/auth"
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"github.com/LingByte/SoulNexus/pkg/response"
-	"github.com/LingByte/SoulNexus/pkg/voiceclone"
+	"github.com/LingByte/SoulNexus/pkg/stores"
+	"github.com/LingByte/SoulNexus/pkg/utils"
+	"github.com/LingByte/lingllm/synthesizer"
+	"github.com/LingByte/lingllm/voiceclone"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 )
 
-// VolcengineTTSRequest represents Volcengine TTS request
 type VolcengineTTSRequest struct {
-	AssetID  string `json:"assetId" binding:"required"` // speaker_id
+	AssetID  string `json:"assetId" binding:"required"`
 	Text     string `json:"text" binding:"required"`
 	Language string `json:"language" binding:"required"`
-	Key      string `json:"key,omitempty"` // Optional, specify storage path
+	Key      string `json:"key,omitempty"`
 }
 
-// VolcengineTTSResponse represents Volcengine TTS response
 type VolcengineTTSResponse struct {
 	URL string `json:"url"`
 }
 
-// VolcengineSubmitAudioRequest represents submit audio request
 type VolcengineSubmitAudioRequest struct {
-	SpeakerID string `form:"speakerId" binding:"required"` // speaker_id from console
+	SpeakerID string `form:"speakerId" binding:"required"`
 	Language  string `form:"language" binding:"required"`
 }
 
-// VolcengineQueryTaskRequest represents query task request
 type VolcengineQueryTaskRequest struct {
-	SpeakerID string `json:"speakerId" binding:"required"` // speaker_id
+	SpeakerID string `json:"speakerId" binding:"required"`
 }
 
-// VolcengineQueryTaskResponse represents query task response
 type VolcengineQueryTaskResponse struct {
 	SpeakerID  string `json:"speakerId"`
-	Status     int    `json:"status"`     // 0=NotFound, 1=Training, 2=Success, 3=Failed, 4=Active
-	TrainVID   string `json:"trainVid"`   // Training version
-	AssetID    string `json:"assetId"`    // Voice ID (same as speaker_id)
-	FailedDesc string `json:"failedDesc"` // Failure reason
-	CreateTime int64  `json:"createTime"` // Creation time
+	Status     int    `json:"status"`
+	TrainVID   string `json:"trainVid"`
+	AssetID    string `json:"assetId"`
+	FailedDesc string `json:"failedDesc"`
+	CreateTime int64  `json:"createTime"`
 }
 
-// VolcengineSynthesize handles Volcengine voice synthesis
+func (h *Handlers) getVolcengineCloneConfig() map[string]interface{} {
+	cfg := map[string]interface{}{
+		"app_id":  utils.GetEnv("VOLCENGINE_CLONE_APP_ID"),
+		"token":   utils.GetEnv("VOLCENGINE_CLONE_TOKEN"),
+		"cluster": utils.GetEnv("VOLCENGINE_CLONE_CLUSTER"),
+	}
+	if cfg["cluster"] == "" {
+		cfg["cluster"] = "volcano_icl"
+	}
+	if v := utils.GetEnv("VOLCENGINE_CLONE_VOICE_TYPE"); v != "" {
+		cfg["voice_type"] = v
+	}
+	if v := utils.GetEnv("VOLCENGINE_CLONE_ENCODING"); v != "" {
+		cfg["encoding"] = v
+	}
+	if v := utils.GetEnv("VOLCENGINE_CLONE_FRAME_DURATION"); v != "" {
+		cfg["frame_duration"] = v
+	}
+	if v := utils.GetIntEnv("VOLCENGINE_CLONE_SAMPLE_RATE"); v > 0 {
+		cfg["sample_rate"] = v
+	}
+	if v := utils.GetIntEnv("VOLCENGINE_CLONE_BIT_DEPTH"); v > 0 {
+		cfg["bit_depth"] = v
+	}
+	if v := utils.GetIntEnv("VOLCENGINE_CLONE_CHANNELS"); v > 0 {
+		cfg["channels"] = v
+	}
+	if v := utils.GetFloatEnv("VOLCENGINE_CLONE_SPEED_RATIO"); v > 0 {
+		cfg["speed_ratio"] = v
+	}
+	if v := utils.GetIntEnv("VOLCENGINE_CLONE_TRAINING_TIMES"); v > 0 {
+		cfg["training_times"] = v
+	}
+	return cfg
+}
+
 func (h *Handlers) VolcengineSynthesize(c *gin.Context) {
 	var req VolcengineTTSRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -66,42 +101,61 @@ func (h *Handlers) VolcengineSynthesize(c *gin.Context) {
 	groupIDs, gerr := svcmodels.MemberGroupIDs(h.db, user.ID)
 	var clone svcmodels.VoiceClone
 	if gerr != nil || len(groupIDs) == 0 {
-		logrus.WithError(gerr).Warn("volcengine: no groups for user, synthesis will proceed without history")
+		logrus.WithError(gerr).Warn("volcengine: no groups for user")
 	} else if err := h.db.Where("group_id IN ? AND asset_id = ? AND provider = ? AND is_active = ?",
 		groupIDs, req.AssetID, "volcengine", true).First(&clone).Error; err != nil {
-		// If voice clone not found, still allow synthesis but don't save history
-		logrus.WithError(err).Warn("volcengine: voice clone not found, synthesis will proceed without history")
+		logrus.WithError(err).Warn("volcengine: voice clone not found")
 	}
 
-	// Generate storage path (use .wav format for browser playback)
 	key := req.Key
 	if key == "" {
-		// Generate relative storage key, let storage layer decide external prefix
 		key = "volcengine/" + req.AssetID + "_" + strconv.FormatInt(int64(len(req.Text)), 10)
 	}
 
-	// Call Volcengine synthesis (using voiceclone)
-	factory := voiceclone.NewFactory()
-	service, err := factory.CreateServiceFromEnv(voiceclone.ProviderVolcengine)
-	if err != nil {
-		response.Fail(c, "Failed to initialize Volcengine service", err.Error())
-		return
+	cfg := h.getVolcengineCloneConfig()
+	appID, _ := cfg["app_id"].(string)
+	token, _ := cfg["token"].(string)
+	cluster, _ := cfg["cluster"].(string)
+	if cluster == "" {
+		cluster = "volcano_icl"
 	}
 
-	synthesizeReq := &voiceclone.SynthesizeRequest{
-		AssetID:  req.AssetID, // Use speaker_id
-		Text:     req.Text,
-		Language: req.Language,
-	}
-	url, err := service.SynthesizeToStorage(c.Request.Context(), synthesizeReq, key)
+	engine, err := synthesizer.NewVolcengineCloneEngine(synthesizer.VolcengineCloneOption{
+		AppID:       appID,
+		AccessToken: token,
+		Cluster:     cluster,
+		AssetID:     req.AssetID,
+		Rate:        16000,
+		SourceRate:  24000,
+		Streaming:   true,
+	})
 	if err != nil {
+		response.Fail(c, "Failed to initialize Volcengine clone engine", err.Error())
+		return
+	}
+	defer engine.Close()
+
+	var audioBuf []byte
+	collector := &audioCollector{onMessage: func(data []byte) { audioBuf = append(audioBuf, data...) }}
+	if err := engine.Synthesize(c.Request.Context(), collector, req.Text); err != nil {
 		response.Fail(c, "Voice synthesis failed", err.Error())
 		return
 	}
 
-	// If voice clone found, save synthesis history
+	wavData := pcmToWAV(audioBuf, 16000, 1, 16)
+	if strings.HasSuffix(key, ".pcm") {
+		key = strings.TrimSuffix(key, ".pcm") + ".wav"
+	} else if !strings.HasSuffix(key, ".wav") {
+		key = key + ".wav"
+	}
+	st := stores.Default()
+	if err := st.Write(key, bytes.NewReader(wavData)); err != nil {
+		response.Fail(c, "Failed to save audio", err.Error())
+		return
+	}
+	url := strings.TrimSpace(st.PublicURL(key))
+
 	if clone.ID > 0 {
-		// Record synthesis history
 		synthesis := &svcmodels.VoiceSynthesis{
 			GroupID:      clone.GroupID,
 			CreatedBy:    user.ID,
@@ -113,21 +167,15 @@ func (h *Handlers) VolcengineSynthesize(c *gin.Context) {
 		}
 		if err := h.db.Create(synthesis).Error; err != nil {
 			logrus.WithError(err).Error("volcengine: failed to save synthesis history")
-			// Don't return error for history save failure, synthesis already succeeded
 		} else {
-			// Update voice clone usage statistics
 			clone.IncrementUsage()
-			if err := h.db.Save(&clone).Error; err != nil {
-				logrus.WithError(err).Error("volcengine: failed to update voice clone usage")
-			}
+			h.db.Save(&clone)
 		}
 	}
 
 	response.Success(c, "Voice synthesis successful", VolcengineTTSResponse{URL: url})
 }
 
-// VolcengineSubmitAudio submits audio file for training
-// Note: speaker_id needs to be obtained from Volcengine console
 func (h *Handlers) VolcengineSubmitAudio(c *gin.Context) {
 	var req VolcengineSubmitAudioRequest
 	if err := c.ShouldBind(&req); err != nil {
@@ -135,14 +183,11 @@ func (h *Handlers) VolcengineSubmitAudio(c *gin.Context) {
 		return
 	}
 
-	// Get uploaded file
 	file, err := c.FormFile("audio")
 	if err != nil {
 		response.Fail(c, "Failed to get audio file", err.Error())
 		return
 	}
-
-	// Open file
 	src, err := file.Open()
 	if err != nil {
 		response.Fail(c, "Failed to open audio file", err.Error())
@@ -150,37 +195,32 @@ func (h *Handlers) VolcengineSubmitAudio(c *gin.Context) {
 	}
 	defer src.Close()
 
-	// Submit audio (using voiceclone)
-	factory := voiceclone.NewFactory()
-	service, err := factory.CreateServiceFromEnv(voiceclone.ProviderVolcengine)
+	cfg := h.getVolcengineCloneConfig()
+	f := voiceclone.NewFactory()
+	service, err := f.CreateService(&voiceclone.Config{
+		Provider: voiceclone.ProviderVolcengine,
+		Options:  cfg,
+	})
 	if err != nil {
 		response.Fail(c, "Failed to initialize Volcengine service", err.Error())
 		return
 	}
 
-	submitReq := &voiceclone.SubmitAudioRequest{
-		TaskID:    req.SpeakerID, // Use speaker_id as TaskID
-		TextID:    0,             // Not needed for Volcengine
-		TextSegID: 0,             // Not needed for Volcengine
+	err = service.SubmitAudio(c.Request.Context(), &voiceclone.SubmitAudioRequest{
+		TaskID:    req.SpeakerID,
 		AudioFile: src,
 		Language:  req.Language,
-	}
-	err = service.SubmitAudio(c.Request.Context(), submitReq)
+	})
 	if err != nil {
 		response.Fail(c, "Failed to submit audio", err.Error())
 		return
 	}
 
-	// Save configuration to database (if configured)
-	h.saveVoiceCloneConfig("volcengine")
-
 	response.Success(c, "Audio submitted successfully", map[string]interface{}{
 		"speakerId": req.SpeakerID,
-		"message":   "Audio submitted, please use speaker_id to query training status",
 	})
 }
 
-// VolcengineQueryTask queries task status
 func (h *Handlers) VolcengineQueryTask(c *gin.Context) {
 	var req VolcengineQueryTaskRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -194,9 +234,12 @@ func (h *Handlers) VolcengineQueryTask(c *gin.Context) {
 		return
 	}
 
-	// Query task status (using voiceclone)
-	factory := voiceclone.NewFactory()
-	service, err := factory.CreateServiceFromEnv(voiceclone.ProviderVolcengine)
+	cfg := h.getVolcengineCloneConfig()
+	f := voiceclone.NewFactory()
+	service, err := f.CreateService(&voiceclone.Config{
+		Provider: voiceclone.ProviderVolcengine,
+		Options:  cfg,
+	})
 	if err != nil {
 		response.Fail(c, "Failed to initialize Volcengine service", err.Error())
 		return
@@ -208,17 +251,16 @@ func (h *Handlers) VolcengineQueryTask(c *gin.Context) {
 		return
 	}
 
-	// Convert status code
 	var trainStatus int
 	switch status.Status {
 	case voiceclone.TrainingStatusInProgress:
-		trainStatus = 1 // Training
+		trainStatus = 1
 	case voiceclone.TrainingStatusSuccess:
-		trainStatus = 2 // Success
+		trainStatus = 2
 	case voiceclone.TrainingStatusFailed:
-		trainStatus = 3 // Failed
+		trainStatus = 3
 	case voiceclone.TrainingStatusQueued:
-		trainStatus = 0 // NotFound/Queued
+		trainStatus = 0
 	default:
 		trainStatus = 0
 	}
@@ -240,33 +282,21 @@ func (h *Handlers) VolcengineQueryTask(c *gin.Context) {
 				AssetID:   status.AssetID,
 				TrainVID:  status.TrainVID,
 			}
-			if err := h.db.Create(&task).Error; err != nil {
-				response.Fail(c, "Failed to create training task record", err.Error())
-				return
-			}
+			h.db.Create(&task)
 		} else {
-			// Already exists, update status
 			task.Status = svcmodels.TrainingStatusSuccess
 			task.AssetID = status.AssetID
 			task.TrainVID = status.TrainVID
-			if err := h.db.Save(&task).Error; err != nil {
-				response.Fail(c, "Failed to update training task record", err.Error())
-				return
-			}
+			h.db.Save(&task)
 		}
-
-		// Use upsertVoiceClone to save voice record
-		if err := h.upsertVoiceClone(c.Request.Context(), user.ID, &task, status.AssetID, status.TrainVID, "volcengine"); err != nil {
-			response.Fail(c, "Failed to create voice record", err.Error())
-			return
-		}
+		h.upsertVoiceClone(c.Request.Context(), user.ID, &task, status.AssetID, status.TrainVID, "volcengine")
 	}
 
 	response.Success(c, "Query task status successful", VolcengineQueryTaskResponse{
 		SpeakerID:  status.TaskID,
 		Status:     trainStatus,
 		TrainVID:   status.TrainVID,
-		AssetID:    status.AssetID, // speaker_id is asset_id
+		AssetID:    status.AssetID,
 		FailedDesc: status.FailedDesc,
 		CreateTime: status.CreatedAt.UnixMilli(),
 	})

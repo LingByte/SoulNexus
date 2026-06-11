@@ -45,8 +45,6 @@ func ServerEntities() []any {
 		&svcmodels.VoiceClone{},
 		&svcmodels.Voiceprint{},
 		&svcmodels.VoiceSynthesis{},
-		&svcmodels.VoiceTrainingText{},
-		&svcmodels.VoiceTrainingTextSegment{},
 		&middleware.OperationLog{},
 		&svcmodels.JSTemplate{},
 		&svcmodels.JSTemplateVersion{},

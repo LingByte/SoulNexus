@@ -86,6 +86,10 @@ export const common: Record<Language, Record<string, string>> = {
     'products.backHome': '返回首页',
     'products.heroTitle': '产品目录',
     'products.heroSubtitle': '语音、通信与数据管理相关方案，点击进入详情了解能力与接入方式。',
+
+    'fileUpload.clickToUpload': '点击上传',
+    'fileUpload.orDragDrop': '或拖拽文件到此处',
+    'fileUpload.maxSize': '最大 {size}MB，最多 {count} 个文件',
   },
   en: {
     // Brand
@@ -173,6 +177,10 @@ export const common: Record<Language, Record<string, string>> = {
     'products.heroTitle': 'Our products',
     'products.heroSubtitle':
       'Solutions for voice, communication, and data—open a product to see capabilities and how to integrate.',
+
+    'fileUpload.clickToUpload': 'Click to upload',
+    'fileUpload.orDragDrop': 'or drag and drop',
+    'fileUpload.maxSize': 'Max {size}MB, up to {count} files',
   },
   ja: {
     // ブランド
@@ -259,5 +267,9 @@ export const common: Record<Language, Record<string, string>> = {
     'products.backHome': 'ホームへ戻る',
     'products.heroTitle': '製品一覧',
     'products.heroSubtitle': '音声・通信・データ管理に関するソリューションです。詳細で機能と連携方法をご確認ください。',
+
+    'fileUpload.clickToUpload': 'クリックしてアップロード',
+    'fileUpload.orDragDrop': 'またはファイルをここにドラッグ',
+    'fileUpload.maxSize': '最大{size}MB、最大{count}ファイル',
   }
 }

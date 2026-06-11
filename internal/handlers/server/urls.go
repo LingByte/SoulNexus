@@ -181,7 +181,6 @@ func (h *Handlers) Register(engine *gin.Engine) {
 	h.registerKnowledgeRoutes(r)
 	h.registerChatRoutes(r)
 	h.registerCredentialsRoutes(r)
-	h.registerXunfeiTTSRoutes(r)
 	h.registerVolcengineTTSRoutes(r)
 	h.registerVoiceTrainingRoutes(r)
 	h.registerJSTemplateRoutes(r)
@@ -298,21 +297,6 @@ func (h *Handlers) registerWebSocketRoutes(r *gin.RouterGroup) {
 	}
 }
 
-// registerXunfeiTTSRoutes 注册讯飞TTS路由
-func (h *Handlers) registerXunfeiTTSRoutes(r *gin.RouterGroup) {
-	xunfei := r.Group("/xunfei")
-	xunfei.Use(auth.AuthRequired)
-	{
-		xunfei.POST("/synthesize", h.XunfeiSynthesize)
-
-		xunfei.POST("/task/create", h.XunfeiCreateTask)
-		xunfei.POST("/task/submit-audio", h.XunfeiSubmitAudio)
-		xunfei.POST("/task/query", h.XunfeiQueryTask)
-
-		xunfei.GET("/training-texts", h.XunfeiGetTrainingTexts)
-	}
-}
-
 // registerVolcengineTTSRoutes 注册火山引擎TTS路由
 func (h *Handlers) registerVolcengineTTSRoutes(r *gin.RouterGroup) {
 	volcengine := r.Group("/volcengine")
@@ -351,8 +335,6 @@ func (h *Handlers) registerVoiceTrainingRoutes(r *gin.RouterGroup) {
 
 		voice.GET("/synthesis/history", h.GetSynthesisHistory)
 		voice.POST("/synthesis/delete", h.DeleteSynthesisRecord)
-
-		voice.GET("/training-texts", h.GetTrainingTexts)
 
 		voice.POST("/oneshot_text", h.OneShotText)
 
@@ -535,8 +517,6 @@ func (h *Handlers) registerSystemRoutes(r *gin.RouterGroup) {
 		system.GET("/dashboard/metrics", auth.AuthRequired, h.DashboardMetrics)
 
 		system.GET("/init", h.SystemInit)
-
-		system.POST("/voice-clone/config", auth.AuthRequired, h.SaveVoiceCloneConfig)
 
 		system.POST("/voiceprint/config", auth.AuthRequired, h.SaveVoiceprintConfig)
 

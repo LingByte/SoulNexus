@@ -18,13 +18,10 @@ import (
 	"github.com/LingByte/lingllm/synthesizer"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/sessionctx"
 	voicetts "github.com/LingByte/SoulNexus/pkg/voiceserver/voice/tts"
-	"github.com/LingByte/SoulNexus/pkg/voiceclone"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
-// AgentAwareFactory wraps a pipeline SessionFactory and builds per-call TTS from
-// SoulNexus agent + credential (same rules as pkg/voice/protocol session).
 type AgentAwareFactory struct {
 	DB       *gorm.DB
 	Base     pipelineFactory
@@ -185,40 +182,30 @@ func buildVoiceCloneSynthesis(db *gorm.DB, cred *auth.UserCredential, voiceClone
 	if err != nil || voiceClone == nil {
 		return nil, fmt.Errorf("voice clone %d: %w", voiceCloneID, err)
 	}
-	cloneFactory := voiceclone.NewFactory()
-	cloneConfig := &voiceclone.Config{
-		Provider: voiceclone.Provider(voiceClone.Provider),
-		Options:  make(map[string]interface{}),
+
+	appID := ""
+	if cred.TtsConfig != nil {
+		if v, ok := cred.TtsConfig["appId"].(string); ok {
+			appID = v
+		}
 	}
-	switch voiceClone.Provider {
-	case "xunfei":
-		if cred.AsrConfig != nil {
-			if appID, ok := cred.AsrConfig["appId"].(string); ok {
-				cloneConfig.Options["app_id"] = appID
-			}
-		}
-		cloneConfig.Options["api_key"] = cred.LLMApiKey
-		if wsAppID := os.Getenv("XUNFEI_WS_APP_ID"); wsAppID != "" {
-			cloneConfig.Options["ws_app_id"] = wsAppID
-		}
-		if wsAPIKey := os.Getenv("XUNFEI_WS_API_KEY"); wsAPIKey != "" {
-			cloneConfig.Options["ws_api_key"] = wsAPIKey
-		}
-		if wsAPISecret := os.Getenv("XUNFEI_WS_API_SECRET"); wsAPISecret != "" {
-			cloneConfig.Options["ws_api_secret"] = wsAPISecret
-		}
-	case "volcengine":
-		if cred.TtsConfig != nil {
-			if appID, ok := cred.TtsConfig["appId"].(string); ok {
-				cloneConfig.Options["app_id"] = appID
-			}
-		}
-		cloneConfig.Options["token"] = cred.LLMApiKey
+	token := cred.LLMApiKey
+	cluster := os.Getenv("VOLCENGINE_CLONE_CLUSTER")
+	if cluster == "" {
+		cluster = "volcano_icl"
 	}
-	cloneService, err := cloneFactory.CreateService(cloneConfig)
+	engine, err := synthesizer.NewVolcengineCloneEngine(synthesizer.VolcengineCloneOption{
+		AppID:       appID,
+		AccessToken: token,
+		Cluster:     cluster,
+		AssetID:     voiceClone.AssetID,
+		Rate:        16000,
+		SourceRate:  24000,
+		Streaming:   true,
+	})
 	if err != nil {
 		return nil, err
 	}
-	log.Info("[agent-tts] using voice clone", zap.Int64("id", voiceCloneID), zap.String("provider", voiceClone.Provider))
-	return voiceclone.NewVoiceCloneSynthesisService(cloneService, voiceClone.AssetID), nil
+	log.Info("[agent-tts] using volcengine voice clone", zap.Int64("id", voiceCloneID), zap.String("assetID", voiceClone.AssetID))
+	return engine, nil
 }

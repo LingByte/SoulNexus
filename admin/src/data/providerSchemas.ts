@@ -5,9 +5,10 @@
 // **provider 字段的取值必须严格等于后端 pkg/recognizer (ASR) 与 pkg/synthesizer (TTS) 中的注册名**，
 // 后端不做任何归一化映射（不再有 tencent_tts → tencent 这种隐式映射）。
 //
-// - ASR: 见 pkg/recognizer/factory.go Vendor 常量（qcloud / aliyun / xunfei_mul / funasr / whisper / baidu / google / aws / volcengine / qiniu / local …）
-// - TTS: 见 pkg/synthesizer/synthesis.go NewSynthesisServiceFromCredential 中 switch 的 case
-//        （qcloud | tencent / xunfei / qiniu / baidu / azure / openai / elevenlabs / minimax / volcengine / fishaudio / fishspeech / local …）
+// - ASR: 见 pkg/recognizer/factory.go Vendor 常量（qcloud / aliyun / funasr / whisper / baidu / google / aws / volcengine / qiniu / local …）
+//        讯飞（xunfei_mul）需 WebSocket + HMAC 签名，schema 见上方 xunfei_asr。
+// - TTS: 见 pkg/synthesizer/factory.go Vendor 常量
+//        （qcloud | tencent / volcengine / qiniu / baidu / azure / openai / elevenlabs / minimax / fishaudio / fishspeech / local …）
 //
 // 字段说明：
 //   - field.name 落到 channel.config_json 的 key；保持后端 snake_case / camelCase 风格
@@ -227,16 +228,6 @@ export const TTS_PROVIDERS: ProviderSchema[] = [
       { name: 'app_id', label: 'AppID', type: 'string', required: true },
       { name: 'secret_id', label: 'SecretId', type: 'string', required: true, secret: true },
       { name: 'secret_key', label: 'SecretKey', type: 'password', required: true, secret: true },
-    ],
-  },
-  {
-    provider: 'xunfei',
-    label: '科大讯飞 · 在线语音合成',
-    docs: 'https://www.xfyun.cn/doc/tts/online_tts/API.html',
-    fields: [
-      { name: 'app_id', label: 'AppID', type: 'string', required: true },
-      { name: 'api_key', label: 'APIKey', type: 'password', required: true, secret: true },
-      { name: 'api_secret', label: 'APISecret', type: 'password', required: true, secret: true },
     ],
   },
   {
