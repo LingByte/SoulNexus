@@ -1598,6 +1598,7 @@ func (h *Handlers) OneShotText(c *gin.Context) {
 	// 这里不再需要手动保存，避免重复记录
 
 	// 5. 异步处理音频合成（使用pkg/synthesis）
+	fmt.Printf("[OneShotText] voiceCloneId=%d, speaker=%s, language=%s\n", req.VoiceCloneID, req.Speaker, req.Language)
 	go h.processAudioAsyncV2(context.Background(), credential, user.ID, llmResponse, req.Language, req.Speaker, req.VoiceCloneID, requestId)
 }
 
