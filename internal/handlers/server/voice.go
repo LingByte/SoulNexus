@@ -1475,9 +1475,10 @@ func (h *Handlers) OneShotText(c *gin.Context) {
 			// 如果请求没传 voiceCloneId，从 agent 模型读取
 			if req.VoiceCloneID == 0 && assistant.VoiceCloneID != nil && *assistant.VoiceCloneID > 0 {
 				req.VoiceCloneID = *assistant.VoiceCloneID
-				fmt.Printf("[OneShotText] 从agent读取voiceCloneId=%d, agentID=%d\n", req.VoiceCloneID, req.AgentID)
-			} else {
-				fmt.Printf("[OneShotText] voiceCloneId=%d, agentID=%d, agentVoiceCloneID=%v\n", req.VoiceCloneID, req.AgentID, assistant.VoiceCloneID)
+			}
+			// 如果请求没传 speaker，从 agent 模型读取
+			if req.Speaker == "" && assistant.Speaker != "" {
+				req.Speaker = assistant.Speaker
 			}
 			}
 		}
