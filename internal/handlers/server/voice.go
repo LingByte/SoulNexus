@@ -1472,6 +1472,11 @@ func (h *Handlers) OneShotText(c *gin.Context) {
 				if assistant.LLMModel != "" {
 					llmModel = assistant.LLMModel
 				}
+				// 如果请求没传 voiceCloneId，从 agent 模型读取
+				if req.VoiceCloneID == 0 && assistant.VoiceCloneID != nil && *assistant.VoiceCloneID > 0 {
+					req.VoiceCloneID = *assistant.VoiceCloneID
+					fmt.Printf("[OneShotText] 从agent读取voiceCloneId=%d\n", req.VoiceCloneID)
+				}
 			}
 		}
 
