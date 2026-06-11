@@ -151,67 +151,57 @@ const JSTemplateManager = () => {
                     </Button>
                 </div>
 
-                {/* Editor Body: Left Form + Right Preview+Code */}
+                {/* Editor Body: Left Code + Right Form+Preview */}
                 <div className="flex-1 flex overflow-hidden">
-                    {/* Left: Form */}
-                    <div className="w-64 border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 space-y-4 overflow-y-auto shrink-0">
-                        <div>
-                            <label className="text-xs font-medium text-gray-500 mb-1 block">{t('jsTemplate.templateName')}</label>
-                            <ArcoInput placeholder={t('jsTemplate.templateNamePlaceholder')} value={newTemplate.name}
-                                onChange={(e) => setNewTemplate({ ...newTemplate, name: e })} />
+                    {/* Left: Code Editor */}
+                    <div className="flex-1 flex flex-col overflow-hidden border-r border-gray-200 dark:border-gray-800">
+                        <div className="px-3 py-2 flex items-center gap-2 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 shrink-0">
+                            <Code className="w-3.5 h-3.5 text-gray-400" />
+                            <span className="text-xs font-medium">JavaScript</span>
+                            <span className="ml-auto text-xs text-gray-400">{newTemplate.content.length} chars</span>
+                            <button onClick={() => setIsCodeEditorFullscreen(!isCodeEditorFullscreen)}
+                                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-gray-400 hover:text-gray-600">
+                                {isCodeEditorFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+                            </button>
                         </div>
-                        <div>
-                            <label className="text-xs font-medium text-gray-500 mb-1 block">{t('jsTemplate.usage')}</label>
-                            <ArcoInput placeholder={t('jsTemplate.usage')} value={newTemplate.usage}
-                                onChange={(e) => setNewTemplate({ ...newTemplate, usage: e })} />
+                        <div className="flex-1 overflow-hidden">
+                            <Suspense fallback={<div className="flex items-center justify-center h-full text-gray-400 text-xs">Loading editor...</div>}>
+                                <MonacoEditor height="100%" language="javascript" value={newTemplate.content}
+                                    onChange={(v) => setNewTemplate({ ...newTemplate, content: v || '' })}
+                                    options={{ minimap: { enabled: false }, scrollBeyondLastLine: false, fontSize: 13, lineNumbers: 'on', wordWrap: 'on', automaticLayout: true, theme: 'vs-dark', tabSize: 2 }} />
+                            </Suspense>
                         </div>
                         {validationError && (
-                            <div className="p-2 bg-red-50 dark:bg-red-900/20 rounded-lg flex items-start gap-2">
-                                <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                            <div className="px-3 py-1.5 bg-red-50 dark:bg-red-900/20 border-t border-red-200 dark:border-red-800 flex items-center gap-2 shrink-0">
+                                <AlertCircle className="w-3.5 h-3.5 text-red-500" />
                                 <span className="text-xs text-red-600 dark:text-red-400">{validationError}</span>
                             </div>
                         )}
-                        <div className="pt-2 border-t border-gray-100 dark:border-gray-800">
-                            <button onClick={() => setIsCodeEditorFullscreen(!isCodeEditorFullscreen)}
-                                className="flex items-center gap-2 text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
-                                {isCodeEditorFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-                                {isCodeEditorFullscreen ? 'Exit Fullscreen' : 'Fullscreen Editor'}
-                            </button>
-                        </div>
                     </div>
 
-                    {/* Right: Preview + Code Editor */}
-                    <div className="flex-1 flex flex-col overflow-hidden">
+                    {/* Right: Form + Preview */}
+                    <div className="w-80 flex flex-col overflow-y-auto shrink-0 bg-white dark:bg-gray-900">
+                        <div className="p-4 space-y-4">
+                            <div>
+                                <label className="text-xs font-medium text-gray-500 mb-1 block">{t('jsTemplate.templateName')}</label>
+                                <ArcoInput placeholder={t('jsTemplate.templateNamePlaceholder')} value={newTemplate.name}
+                                    onChange={(e) => setNewTemplate({ ...newTemplate, name: e })} />
+                            </div>
+                            <div>
+                                <label className="text-xs font-medium text-gray-500 mb-1 block">{t('jsTemplate.usage')}</label>
+                                <ArcoInput placeholder={t('jsTemplate.usage')} value={newTemplate.usage}
+                                    onChange={(e) => setNewTemplate({ ...newTemplate, usage: e })} />
+                            </div>
+                        </div>
                         {/* Preview */}
-                        <div className="h-1/2 border-b border-gray-200 dark:border-gray-800 flex flex-col">
-                            <div className="px-3 py-2 flex items-center gap-2 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 shrink-0">
+                        <div className="border-t border-gray-200 dark:border-gray-800 flex flex-col flex-1 min-h-0">
+                            <div className="px-4 py-2 flex items-center gap-2 border-b border-gray-100 dark:border-gray-800 shrink-0">
                                 <Eye className="w-3.5 h-3.5 text-gray-400" />
                                 <span className="text-xs font-medium">{t('jsTemplate.preview.label')}</span>
                             </div>
-                            <div className="flex-1 p-2 overflow-hidden bg-white dark:bg-gray-950">
+                            <div className="flex-1 p-3 overflow-hidden">
                                 <iframe ref={iframeRef} className="w-full h-full border border-gray-200 dark:border-gray-700 rounded" title="Preview" sandbox="allow-scripts allow-same-origin" />
                             </div>
-                        </div>
-                        {/* Code Editor */}
-                        <div className="flex-1 flex flex-col overflow-hidden relative">
-                            <div className="px-3 py-2 flex items-center gap-2 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 shrink-0">
-                                <Code className="w-3.5 h-3.5 text-gray-400" />
-                                <span className="text-xs font-medium">JavaScript</span>
-                                <span className="ml-auto text-xs text-gray-400">{newTemplate.content.length} chars</span>
-                            </div>
-                            <div className="flex-1 overflow-hidden">
-                                <Suspense fallback={<div className="flex items-center justify-center h-full text-gray-400 text-xs">Loading editor...</div>}>
-                                    <MonacoEditor height="100%" language="javascript" value={newTemplate.content}
-                                        onChange={(v) => setNewTemplate({ ...newTemplate, content: v || '' })}
-                                        options={{ minimap: { enabled: false }, scrollBeyondLastLine: false, fontSize: 13, lineNumbers: 'on', wordWrap: 'on', automaticLayout: true, theme: 'vs-dark', tabSize: 2 }} />
-                                </Suspense>
-                            </div>
-                            {validationError && (
-                                <div className="px-3 py-1.5 bg-red-50 dark:bg-red-900/20 border-t border-red-200 dark:border-red-800 flex items-center gap-2 shrink-0">
-                                    <AlertCircle className="w-3.5 h-3.5 text-red-500" />
-                                    <span className="text-xs text-red-600 dark:text-red-400">{validationError}</span>
-                                </div>
-                            )}
                         </div>
                     </div>
                 </div>
