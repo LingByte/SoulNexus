@@ -26,7 +26,7 @@ const NotificationCenter = () => {
   const { searchKeyword, highlightFragments, highlightResultId } = useSearchHighlight()
 
   const {
-    notifications, isLoading, total, totalUnread, totalRead,
+    notifications, isLoading, total, totalUnread, totalRead, totalPages,
     fetchNotifications, markAllAsRead, markAsRead, deleteNotification,
     batchDeleteNotifications, getAllNotificationIds
   } = useNotificationStore()
