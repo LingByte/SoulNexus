@@ -2095,12 +2095,9 @@ func (h *Handlers) processAudioAsyncV2(ctx context.Context, credential *auth.Use
 		}
 	}
 
-	// 设置音色类型（如果未在配置中设置）
-	if _, exists := ttsConfig["voiceType"]; !exists && voiceType != "" {
+	// 设置音色类型：speaker 优先级最高，始终覆盖配置中的值
+	if voiceType != "" {
 		ttsConfig["voiceType"] = voiceType
-	}
-	// 兼容字段名
-	if _, exists := ttsConfig["voice_type"]; !exists && voiceType != "" {
 		ttsConfig["voice_type"] = voiceType
 	}
 
