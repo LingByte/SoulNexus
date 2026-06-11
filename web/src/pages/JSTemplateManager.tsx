@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef, Suspense, lazy } from 'react'
-import { Input as ArcoInput, Select as ArcoSelect, Drawer, Tag, Modal } from '@arco-design/web-react'
+import { Input as ArcoInput, Select as ArcoSelect, Modal, Tag } from '@arco-design/web-react'
 import { useI18nStore } from '@/stores/i18nStore'
 import Button from '@/components/UI/Button.tsx'
 import { jsTemplateService, JSTemplate, CreateJSTemplateForm } from '@/api/jsTemplate'
-import { Plus, Code, Eye, AlertCircle, Maximize2, Minimize2, FileText, Trash2, Edit3 } from 'lucide-react'
+import { Plus, Code, Eye, AlertCircle, Maximize2, Minimize2, FileText, Trash2, Edit3, ArrowLeft } from 'lucide-react'
 import { showAlert } from '@/utils/notification'
 import { useDebounce } from '@/hooks/useDebounce'
 import { validateJavaScript } from '@/utils/jsValidator'
@@ -128,8 +128,150 @@ const JSTemplateManager = () => {
 
     const handleCancelCreate = () => { setIsCreating(false); setIsEditing(false); setEditingTemplate(null); setValidationError(null); setNewTemplate({ name: '', type: 'custom', content: '', usage: '' }) }
 
-    const isDrawerOpen = isCreating || isEditing
+    const isEditorOpen = isCreating || isEditing
 
+    // ==================== Editor Page (Full Screen) ====================
+    if (isEditorOpen) {
+        return (
+            <div className="w-full h-full flex flex-col bg-gray-50 dark:bg-gray-950">
+                {/* Editor Header */}
+                <div className="flex items-center justify-between px-4 py-2.5 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 shrink-0">
+                    <div className="flex items-center gap-3">
+                        <button onClick={handleCancelCreate} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
+                            <ArrowLeft className="w-4 h-4" />
+                        </button>
+                        <div>
+                            <h2 className="text-sm font-semibold">{isEditing ? t('jsTemplate.editModal.title') : t('jsTemplate.createModal.title')}</h2>
+                            <p className="text-xs text-gray-400">{isEditing ? t('jsTemplate.editModal.desc') : t('jsTemplate.createModal.desc')}</p>
+                        </div>
+                    </div>
+                    <Button size="sm" variant="primary" onClick={handleSaveNewTemplate}
+                        disabled={!newTemplate.name || !newTemplate.content || !!validationError}>
+                        {isEditing ? t('jsTemplate.update') : t('jsTemplate.saveTemplate')}
+                    </Button>
+                </div>
+
+                {/* Editor Body: Left Form + Right Preview+Code */}
+                <div className="flex-1 flex overflow-hidden">
+                    {/* Left: Form */}
+                    <div className="w-64 border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 space-y-4 overflow-y-auto shrink-0">
+                        <div>
+                            <label className="text-xs font-medium text-gray-500 mb-1 block">{t('jsTemplate.templateName')}</label>
+                            <ArcoInput placeholder={t('jsTemplate.templateNamePlaceholder')} value={newTemplate.name}
+                                onChange={(e) => setNewTemplate({ ...newTemplate, name: e })} />
+                        </div>
+                        <div>
+                            <label className="text-xs font-medium text-gray-500 mb-1 block">{t('jsTemplate.usage')}</label>
+                            <ArcoInput placeholder={t('jsTemplate.usage')} value={newTemplate.usage}
+                                onChange={(e) => setNewTemplate({ ...newTemplate, usage: e })} />
+                        </div>
+                        {validationError && (
+                            <div className="p-2 bg-red-50 dark:bg-red-900/20 rounded-lg flex items-start gap-2">
+                                <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                                <span className="text-xs text-red-600 dark:text-red-400">{validationError}</span>
+                            </div>
+                        )}
+                        <div className="pt-2 border-t border-gray-100 dark:border-gray-800">
+                            <button onClick={() => setIsCodeEditorFullscreen(!isCodeEditorFullscreen)}
+                                className="flex items-center gap-2 text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                                {isCodeEditorFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+                                {isCodeEditorFullscreen ? 'Exit Fullscreen' : 'Fullscreen Editor'}
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Right: Preview + Code Editor */}
+                    <div className="flex-1 flex flex-col overflow-hidden">
+                        {/* Preview */}
+                        <div className="h-[40%] border-b border-gray-200 dark:border-gray-800 flex flex-col">
+                            <div className="px-3 py-2 flex items-center gap-2 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 shrink-0">
+                                <Eye className="w-3.5 h-3.5 text-gray-400" />
+                                <span className="text-xs font-medium">{t('jsTemplate.preview.label')}</span>
+                            </div>
+                            <div className="flex-1 p-2 overflow-hidden bg-white dark:bg-gray-950">
+                                <iframe ref={iframeRef} className="w-full h-full border border-gray-200 dark:border-gray-700 rounded" title="Preview" sandbox="allow-scripts allow-same-origin" />
+                            </div>
+                        </div>
+                        {/* Code Editor */}
+                        <div className="flex-1 flex flex-col overflow-hidden relative">
+                            <div className="px-3 py-2 flex items-center gap-2 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 shrink-0">
+                                <Code className="w-3.5 h-3.5 text-gray-400" />
+                                <span className="text-xs font-medium">JavaScript</span>
+                                <span className="ml-auto text-xs text-gray-400">{newTemplate.content.length} chars</span>
+                            </div>
+                            <div className="flex-1 overflow-hidden">
+                                <Suspense fallback={<div className="flex items-center justify-center h-full text-gray-400 text-xs">Loading editor...</div>}>
+                                    <MonacoEditor height="100%" language="javascript" value={newTemplate.content}
+                                        onChange={(v) => setNewTemplate({ ...newTemplate, content: v || '' })}
+                                        options={{ minimap: { enabled: false }, scrollBeyondLastLine: false, fontSize: 13, lineNumbers: 'on', wordWrap: 'on', automaticLayout: true, theme: 'vs-dark', tabSize: 2 }} />
+                                </Suspense>
+                            </div>
+                            {validationError && (
+                                <div className="px-3 py-1.5 bg-red-50 dark:bg-red-900/20 border-t border-red-200 dark:border-red-800 flex items-center gap-2 shrink-0">
+                                    <AlertCircle className="w-3.5 h-3.5 text-red-500" />
+                                    <span className="text-xs text-red-600 dark:text-red-400">{validationError}</span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Code Editor Fullscreen */}
+                {isCodeEditorFullscreen && (
+                    <div className="fixed inset-0 z-50 bg-gray-900 flex flex-col">
+                        <div className="h-10 bg-gray-800 border-b border-gray-700 flex items-center justify-between px-4 shrink-0">
+                            <span className="text-xs text-gray-300">{newTemplate.name || 'Untitled'} — JavaScript</span>
+                            <div className="flex items-center gap-2">
+                                {validationError ? (
+                                    <span className="text-xs text-red-400 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{validationError}</span>
+                                ) : (
+                                    <span className="text-xs text-green-400">OK</span>
+                                )}
+                                <button onClick={() => setIsCodeEditorFullscreen(false)} className="p-1 hover:bg-gray-700 rounded text-gray-400 hover:text-white">
+                                    <Minimize2 className="w-4 h-4" />
+                                </button>
+                            </div>
+                        </div>
+                        <div className="flex-1">
+                            <MonacoEditor height="100%" language="javascript" value={newTemplate.content}
+                                onChange={(v) => setNewTemplate({ ...newTemplate, content: v || '' })} theme="vs-dark"
+                                options={{ minimap: { enabled: true }, scrollBeyondLastLine: false, fontSize: 13, lineNumbers: 'on', wordWrap: 'on', automaticLayout: true, tabSize: 2, mouseWheelZoom: true, smoothScrolling: true }} />
+                        </div>
+                    </div>
+                )}
+
+                {/* Markdown Editor Fullscreen */}
+                {isMarkdownEditorFullscreen && (
+                    <div className="fixed inset-0 z-50 bg-white dark:bg-gray-900 flex">
+                        <div className="w-1/2 flex flex-col border-r border-gray-200 dark:border-gray-700">
+                            <div className="h-10 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-4 shrink-0">
+                                <span className="text-xs font-medium flex items-center gap-2"><FileText className="w-3.5 h-3.5" />Markdown</span>
+                                <button onClick={() => setIsMarkdownEditorFullscreen(false)} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-gray-400">
+                                    <Minimize2 className="w-4 h-4" />
+                                </button>
+                            </div>
+                            <div className="flex-1">
+                                <MonacoEditor height="100%" language="markdown" value={newTemplate.usage}
+                                    onChange={(v) => setNewTemplate({ ...newTemplate, usage: v || '' })} theme="vs-light"
+                                    options={{ minimap: { enabled: false }, scrollBeyondLastLine: false, fontSize: 13, lineNumbers: 'on', wordWrap: 'on', automaticLayout: true, tabSize: 2 }} />
+                            </div>
+                        </div>
+                        <div className="w-1/2 flex flex-col">
+                            <div className="h-10 border-b border-gray-200 dark:border-gray-700 flex items-center px-4 shrink-0">
+                                <span className="text-xs font-medium flex items-center gap-2"><Eye className="w-3.5 h-3.5" />Preview</span>
+                            </div>
+                            <div className="flex-1 overflow-y-auto p-6">
+                                {newTemplate.usage ? <MarkdownPreview content={newTemplate.usage} className="prose prose-sm max-w-none" />
+                                    : <div className="text-gray-400 text-xs text-center py-16">Markdown content</div>}
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+        )
+    }
+
+    // ==================== List Page ====================
     return (
         <div className="w-full flex flex-col h-full">
             {/* Header */}
@@ -203,103 +345,6 @@ const JSTemplateManager = () => {
                     </div>
                 )}
             </div>
-
-            {/* Create/Edit Drawer */}
-            <Drawer visible={isDrawerOpen} title={isEditing ? t('jsTemplate.editModal.title') : t('jsTemplate.createModal.title')}
-                onCancel={handleCancelCreate} width={800} footer={null} placement="right">
-                <div className="flex h-[calc(100vh-56px)]">
-                    {/* Left: Preview */}
-                    <div className="w-1/2 border-r border-gray-200 dark:border-gray-700 flex flex-col">
-                        <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
-                            <span className="text-sm font-medium flex items-center gap-2"><Eye className="w-4 h-4 text-gray-400" />{t('jsTemplate.preview.label')}</span>
-                            <Button size="sm" variant="primary" onClick={handleSaveNewTemplate}
-                                disabled={!newTemplate.name || !newTemplate.content || !!validationError}>
-                                {isEditing ? t('jsTemplate.update') : t('jsTemplate.saveTemplate')}
-                            </Button>
-                        </div>
-                        <div className="flex-1 p-3 overflow-hidden">
-                            <iframe ref={iframeRef} className="w-full h-full border border-gray-200 dark:border-gray-700 rounded-lg" title="Preview" sandbox="allow-scripts allow-same-origin" />
-                        </div>
-                    </div>
-
-                    {/* Right: Editor */}
-                    <div className="w-1/2 flex flex-col overflow-hidden">
-                        <div className="p-4 space-y-3 border-b border-gray-100 dark:border-gray-800">
-                            <ArcoInput placeholder={t('jsTemplate.templateNamePlaceholder')} value={newTemplate.name}
-                                onChange={(e) => setNewTemplate({ ...newTemplate, name: e })} />
-                            <ArcoInput placeholder={t('jsTemplate.usage')} value={newTemplate.usage}
-                                onChange={(e) => setNewTemplate({ ...newTemplate, usage: e })} />
-                        </div>
-                        <div className="flex-1 overflow-hidden relative">
-                            <div className="absolute top-2 right-2 z-10 flex gap-1">
-                                <button onClick={() => setIsCodeEditorFullscreen(!isCodeEditorFullscreen)}
-                                    className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-400">
-                                    {isCodeEditorFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-                                </button>
-                            </div>
-                            <Suspense fallback={<div className="flex items-center justify-center h-full text-gray-400 text-sm">Loading...</div>}>
-                                <MonacoEditor height="100%" language="javascript" value={newTemplate.content}
-                                    onChange={(v) => setNewTemplate({ ...newTemplate, content: v || '' })}
-                                    options={{ minimap: { enabled: false }, scrollBeyondLastLine: false, fontSize: 13, lineNumbers: 'on', wordWrap: 'on', automaticLayout: true, theme: 'vs-dark', tabSize: 2 }} />
-                            </Suspense>
-                            {validationError && (
-                                <div className="absolute bottom-0 left-0 right-0 bg-red-50 dark:bg-red-900/30 border-t border-red-200 dark:border-red-800 px-3 py-2 flex items-start gap-2">
-                                    <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-                                    <span className="text-xs text-red-600 dark:text-red-400">{validationError}</span>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            </Drawer>
-
-            {/* Code Editor Fullscreen */}
-            {isCodeEditorFullscreen && isDrawerOpen && (
-                <div className="fixed inset-0 z-50 bg-gray-900 flex flex-col">
-                    <div className="h-12 bg-gray-800 border-b border-gray-700 flex items-center justify-between px-4 shrink-0">
-                        <span className="text-sm text-gray-300">{newTemplate.name || 'Untitled'} — JavaScript</span>
-                        <div className="flex items-center gap-2">
-                            {validationError ? (
-                                <span className="text-xs text-red-400 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{validationError}</span>
-                            ) : (
-                                <span className="text-xs text-green-400">OK</span>
-                            )}
-                            <Button size="sm" variant="ghost" onClick={() => setIsCodeEditorFullscreen(false)} leftIcon={<Minimize2 className="w-3.5 h-3.5" />}>Exit</Button>
-                        </div>
-                    </div>
-                    <div className="flex-1">
-                        <MonacoEditor height="100%" language="javascript" value={newTemplate.content}
-                            onChange={(v) => setNewTemplate({ ...newTemplate, content: v || '' })} theme="vs-dark"
-                            options={{ minimap: { enabled: true }, scrollBeyondLastLine: false, fontSize: 13, lineNumbers: 'on', wordWrap: 'on', automaticLayout: true, tabSize: 2, mouseWheelZoom: true, smoothScrolling: true }} />
-                    </div>
-                </div>
-            )}
-
-            {/* Markdown Editor Fullscreen */}
-            {isMarkdownEditorFullscreen && isDrawerOpen && (
-                <div className="fixed inset-0 z-50 bg-white dark:bg-gray-900 flex">
-                    <div className="w-1/2 flex flex-col border-r border-gray-200 dark:border-gray-700">
-                        <div className="h-12 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-4 shrink-0">
-                            <span className="text-sm font-medium flex items-center gap-2"><FileText className="w-4 h-4" />Markdown</span>
-                            <Button size="sm" variant="ghost" onClick={() => setIsMarkdownEditorFullscreen(false)} leftIcon={<Minimize2 className="w-3.5 h-3.5" />}>Exit</Button>
-                        </div>
-                        <div className="flex-1">
-                            <MonacoEditor height="100%" language="markdown" value={newTemplate.usage}
-                                onChange={(v) => setNewTemplate({ ...newTemplate, usage: v || '' })} theme="vs-light"
-                                options={{ minimap: { enabled: false }, scrollBeyondLastLine: false, fontSize: 13, lineNumbers: 'on', wordWrap: 'on', automaticLayout: true, tabSize: 2 }} />
-                        </div>
-                    </div>
-                    <div className="w-1/2 flex flex-col">
-                        <div className="h-12 border-b border-gray-200 dark:border-gray-700 flex items-center px-4 shrink-0">
-                            <span className="text-sm font-medium flex items-center gap-2"><Eye className="w-4 h-4" />Preview</span>
-                        </div>
-                        <div className="flex-1 overflow-y-auto p-6">
-                            {newTemplate.usage ? <MarkdownPreview content={newTemplate.usage} className="prose prose-sm max-w-none" />
-                                : <div className="text-gray-400 text-sm text-center py-16">Markdown content</div>}
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     )
 }
