@@ -121,15 +121,14 @@ export const useVoiceAssistant = (options: UseVoiceAssistantOptions) => {
         language,
         sessionId: sessionId || `text_${Date.now()}`,
         systemPrompt,
-        // 根据是否使用训练音色选择speaker或voiceCloneId（仅语音模式需要）
-        ...(textMode === 'voice' && (selectedVoiceCloneId ? { voiceCloneId: selectedVoiceCloneId } : { speaker: selectedSpeaker })),
+        // 音色由后端从 agent 模型读取，前端不传
+        ...(textMode === 'voice' && { speaker: selectedSpeaker }),
         // 传递 temperature 和 maxTokens
         ...(temperature !== undefined && { temperature }),
         ...(maxTokens !== undefined && { maxTokens }),
         ...(attachmentContent && { attachmentContent }),
         ...(attachmentName && { attachmentName }),
       }
-      console.log('[useVoiceAssistant] requestData:', JSON.stringify(requestData, null, 2))
 
       if (textMode === 'text') {
         // 纯文本模式：使用普通查询
