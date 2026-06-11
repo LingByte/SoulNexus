@@ -1072,7 +1072,7 @@ const WorkflowManager: React.FC = () => {
                           <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                             工作流名称
                           </label>
-                          <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" size="sm"
+                          <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" size="sm"
                             value={selectedWorkflow.name}
                             readOnly
                           />
@@ -1141,7 +1141,7 @@ const WorkflowManager: React.FC = () => {
                             {inputParameters.map((param, index) => (
                               <div key={index} className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg">
                                 <div className="grid grid-cols-2 gap-2 mb-2">
-                                  <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" size="sm"
+                                  <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" size="sm"
                                     placeholder="参数名"
                                     value={param.name}
                                     onChange={(e) => {
@@ -1166,7 +1166,7 @@ const WorkflowManager: React.FC = () => {
                                     <option value="array">数组</option>
                                   </select>
                                 </div>
-                                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" size="sm"
+                                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" size="sm"
                                   placeholder="描述"
                                   value={param.description}
                                   onChange={(e) => {
@@ -1224,7 +1224,7 @@ const WorkflowManager: React.FC = () => {
                             {outputParameters.map((param, index) => (
                               <div key={index} className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg">
                                 <div className="grid grid-cols-2 gap-2 mb-2">
-                                  <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" size="sm"
+                                  <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" size="sm"
                                     placeholder="参数名"
                                     value={param.name}
                                     onChange={(e) => {
@@ -1249,7 +1249,7 @@ const WorkflowManager: React.FC = () => {
                                     <option value="array">数组</option>
                                   </select>
                                 </div>
-                                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" size="sm"
+                                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" size="sm"
                                   placeholder="描述"
                                   value={param.description}
                                   onChange={(e) => {
@@ -2102,7 +2102,7 @@ const TriggerConfigPanel: React.FC<TriggerConfigPanelProps> = ({
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Cron 表达式
               </label>
-              <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={safeTriggerConfig.schedule?.cronExpr || ''}
+              <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" value={safeTriggerConfig.schedule?.cronExpr || ''}
                 onChange={(e) => onUpdate({
                   ...safeTriggerConfig,
                   schedule: {
@@ -2173,7 +2173,7 @@ const TriggerConfigPanel: React.FC<TriggerConfigPanelProps> = ({
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Webhook 密钥（可选，用于验证）
               </label>
-              <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" type="password"
+              <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" type="password"
                 value={safeTriggerConfig.webhook?.secret || ''}
                 onChange={(e) => onUpdate({
                   ...safeTriggerConfig,
@@ -2320,12 +2320,12 @@ const WorkflowForm: React.FC<WorkflowFormProps> = ({ workflow, onSave, onCancel,
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" label="名称"
+      <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" label="名称"
         value={formData.name}
         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
         required
       />
-      <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" label="Slug"
+      <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" label="Slug"
         value={formData.slug}
         onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
         required
@@ -2356,7 +2356,7 @@ const WorkflowForm: React.FC<WorkflowFormProps> = ({ workflow, onSave, onCancel,
           <option value="archived">归档</option>
         </select>
       </div>
-      <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" label="标签 (逗号分隔)"
+      <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" label="标签 (逗号分隔)"
         value={formData.tags}
         onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
         helperText="使用逗号分隔多个标签"
