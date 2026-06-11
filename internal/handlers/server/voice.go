@@ -1457,40 +1457,41 @@ func (h *Handlers) OneShotText(c *gin.Context) {
 		}
 	}
 
+	// 读取 agent 配置（始终读取，不依赖 LLM 配置）
+	var assistant svcmodels.Agent
+	if req.AgentID > 0 {
+		if err := h.db.First(&assistant, req.AgentID).Error; err != nil {
+			response.Fail(c, "Agent不存在", err.Error())
+			return
+		}
+		// 从 agent 读取 voiceCloneId
+		if req.VoiceCloneID == 0 && assistant.VoiceCloneID != nil && *assistant.VoiceCloneID > 0 {
+			req.VoiceCloneID = *assistant.VoiceCloneID
+		}
+		// 从 agent 读取 speaker
+		if req.Speaker == "" && assistant.Speaker != "" {
+			req.Speaker = assistant.Speaker
+		}
+	}
+
+	// 校验：必须有 speaker 或 voiceCloneId
+	if req.Speaker == "" && req.VoiceCloneID == 0 {
+		response.Fail(c, "音色未配置", "请在智能体设置中配置 Speaker 或训练音色")
+		return
+	}
+
 	// 2. 调用LLM处理文本
 	var llmResponse string
 	if credential.LLMProvider != "" && credential.LLMApiURL != "" {
-		llmBaseURL := credential.LLMApiURL
-		if llmBaseURL == "" {
-			llmBaseURL = utils.GetEnv("LLM_BASE_URL")
-		}
-		// 获取模型和参数，优先级：Assistant配置 > 环境变量 > 默认值
-		var assistant svcmodels.Agent
+		// 从 agent 读取模型
 		llmModel := ""
-		if req.AgentID > 0 {
-			if err := h.db.First(&assistant, req.AgentID).Error; err == nil {
-				if assistant.LLMModel != "" {
-					llmModel = assistant.LLMModel
-				}
-			// 如果请求没传 voiceCloneId，从 agent 模型读取
-			if req.VoiceCloneID == 0 && assistant.VoiceCloneID != nil && *assistant.VoiceCloneID > 0 {
-				req.VoiceCloneID = *assistant.VoiceCloneID
-			}
-			// 如果请求没传 speaker，从 agent 模型读取
-			if req.Speaker == "" && assistant.Speaker != "" {
-				req.Speaker = assistant.Speaker
-			}
-			}
+		if assistant.LLMModel != "" {
+			llmModel = assistant.LLMModel
 		}
-
-		// 如果Assistant没有配置模型，使用环境变量
+		// 校验：必须有模型
 		if llmModel == "" {
-			llmModel = utils.GetEnv("LLM_MODEL")
-		}
-
-		// 如果环境变量也没有，使用默认值
-		if llmModel == "" {
-			llmModel = "deepseek-v3.1" // 最终默认值
+			response.Fail(c, "LLM模型未配置", "请在智能体设置中配置 LLM 模型")
+			return
 		}
 
 		// 优先使用请求中的 temperature 和 maxTokens，如果没有则从 assistant 中读取
@@ -1499,13 +1500,9 @@ func (h *Handlers) OneShotText(c *gin.Context) {
 
 		if req.Temperature > 0 {
 			temp = &req.Temperature
-		} else if req.AgentID > 0 {
-			// 从 assistant 中读取
-			if assistant.Temperature > 0 {
-				temp = &assistant.Temperature
-			}
+		} else if assistant.Temperature > 0 {
+			temp = &assistant.Temperature
 		}
-		// 如果还是没有，使用默认值
 		if temp == nil {
 			defaultTemp := float32(0.7)
 			temp = &defaultTemp
@@ -1513,11 +1510,8 @@ func (h *Handlers) OneShotText(c *gin.Context) {
 
 		if req.MaxTokens > 0 {
 			maxTokens = &req.MaxTokens
-		} else if req.AgentID > 0 {
-			// 从 assistant 中读取
-			if assistant.MaxTokens > 0 {
-				maxTokens = &assistant.MaxTokens
-			}
+		} else if assistant.MaxTokens > 0 {
+			maxTokens = &assistant.MaxTokens
 		}
 
 		// 构建系统提示词，如果设置了 maxTokens，添加回复长度指导
@@ -1590,8 +1584,9 @@ func (h *Handlers) OneShotText(c *gin.Context) {
 			return
 		}
 	} else {
-		// 如果没有配置LLM，直接返回原文本
-		llmResponse = req.Text
+		// LLM未配置，直接返回错误
+		response.Fail(c, "LLM未配置", "请在凭证中配置 LLM 服务")
+		return
 	}
 
 	// 3. 立即返回文本，异步处理音频
@@ -1963,10 +1958,8 @@ func (h *Handlers) processAudioAsyncV2(ctx context.Context, credential *auth.Use
 	}
 
 	// 如果使用了训练音色，优先使用训练音色（通过 voiceclone 服务）
-	fmt.Printf("[V2] voiceCloneID=%d, userID=%d\n", voiceCloneID, userID)
 	if voiceCloneID > 0 {
 		groupIDs, _ := svcmodels.MemberGroupIDs(h.db, userID)
-		fmt.Printf("[V2] groupIDs=%v\n", groupIDs)
 		var clone svcmodels.VoiceClone
 		if err := h.db.Where("group_id IN ? AND id = ? AND is_active = ?", groupIDs, voiceCloneID, true).
 			First(&clone).Error; err != nil {
