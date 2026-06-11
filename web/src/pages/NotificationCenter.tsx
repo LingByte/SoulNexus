@@ -1,628 +1,233 @@
 import { useState, useEffect } from 'react'
-import {
-    Bell,
-    Check,
-    Trash2,
-    MoreVertical,
-    AlertCircle,
-    Info,
-    CheckCircle,
-    XCircle,
-    Clock,
-    Eye,
-    EyeOff,
-    Search,
-} from 'lucide-react'
 import { useNotificationStore } from '@/stores/notificationStore'
 import { useAuthStore } from '@/stores/authStore'
 import { useI18nStore } from '@/stores/i18nStore'
+import { Input as ArcoInput, Pagination, Drawer, Checkbox, Tag } from '@arco-design/web-react'
 import Button from '@/components/UI/Button'
-import Card, { CardContent } from '@/components/UI/Card'
 import Badge from '@/components/UI/Badge'
 import { showAlert } from '@/utils/notification'
 import { formatDistanceToNow } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
 import { highlightContent } from '@/utils/highlight'
 import { useSearchHighlight } from '@/hooks/useSearchHighlight'
+import { Bell, Check, Trash2, AlertCircle, Info, CheckCircle, XCircle, Clock } from 'lucide-react'
 
 const NotificationCenter = () => {
   const { t } = useI18nStore()
   const [filter, setFilter] = useState<'all' | 'unread' | 'read'>('all')
-  const [showActions, setShowActions] = useState<string | null>(null)
-  const [showDrawer, setShowDrawer] = useState(false)
-  const [selectedNotification, setSelectedNotification] = useState<any | null>(null)
-  const [drawerEntering, setDrawerEntering] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize] = useState(10)
-  const [sortBy] = useState<'newest' | 'oldest'>('newest')
   const [selectedIds, setSelectedIds] = useState<number[]>([])
   const [isSelectMode, setIsSelectMode] = useState(false)
-  const [startTime] = useState('')
-  const [endTime] = useState('')
+  const [selectedNotification, setSelectedNotification] = useState<any | null>(null)
 
   const { isAuthenticated } = useAuthStore()
   const { searchKeyword, highlightFragments, highlightResultId } = useSearchHighlight()
-  
-  // 从 URL 参数中获取搜索关键词，并设置到搜索框
-  useEffect(() => {
-    if (searchKeyword) {
-      setSearchQuery(searchKeyword)
-    }
-  }, [searchKeyword])
-  const { 
-    notifications, 
-    isLoading, 
-    total, 
-    totalUnread, 
-    totalRead,
-    currentPage: _storeCurrentPage,
-    totalPages,
-    fetchNotifications,
-    markAllAsRead,
-    markAsRead,
-    deleteNotification,
-    batchDeleteNotifications,
-    getAllNotificationIds
+
+  const {
+    notifications, isLoading, total, totalUnread, totalRead,
+    fetchNotifications, markAllAsRead, markAsRead, deleteNotification,
+    batchDeleteNotifications, getAllNotificationIds
   } = useNotificationStore()
 
-  // 加载通知数据
   const loadNotifications = () => {
-    const params = {
-      page: currentPage,
-      size: pageSize,
+    fetchNotifications({
+      page: currentPage, size: pageSize,
       filter: filter === 'all' ? undefined : filter,
-      title: searchQuery || undefined,
-      sort: sortBy,
-      start_time: startTime || undefined,
-      end_time: endTime || undefined,
-    }
-    fetchNotifications(params)
+      title: searchQuery || undefined, sort: 'newest',
+    })
   }
 
-  // 修正副作用触发逻辑
-  useEffect(() => {
-    if (isAuthenticated) {
-      setCurrentPage(1)
-    }
-  }, [filter, searchQuery, sortBy, startTime, endTime, isAuthenticated])
+  useEffect(() => { if (isAuthenticated) setCurrentPage(1) }, [filter, searchQuery, isAuthenticated])
+  useEffect(() => { if (isAuthenticated) loadNotifications() }, [currentPage, isAuthenticated, filter, searchQuery])
 
-  useEffect(() => {
-    if (isAuthenticated) {
-      loadNotifications()
-    }
-    // eslint-disable-next-line
-  }, [currentPage, isAuthenticated, filter, searchQuery, sortBy, startTime, endTime])
+  const refresh = () => { loadNotifications(); setSelectedIds([]); setIsSelectMode(false) }
 
-  // 刷新数据
-  const refreshNotifications = () => {
-    loadNotifications()
-    setSelectedIds([])
-    setIsSelectMode(false)
-  }
+  const handleMarkAllAsRead = async () => { await markAllAsRead(); showAlert(t('notification.messages.markAllReadSuccess'), 'success'); refresh() }
+  const handleMarkAsRead = async (id: string) => { await markAsRead(id); refresh() }
+  const handleDelete = async (id: string) => { await deleteNotification(id); showAlert(t('notification.messages.deleteSuccess'), 'success'); refresh() }
 
-  const handleMarkAllAsRead = async () => {
-    await markAllAsRead()
-    showAlert(t('notification.messages.markAllReadSuccess'), 'success')
-    refreshNotifications()
-  }
-
-  const handleMarkAsRead = async (id: string) => {
-    await markAsRead(id)
-    setShowActions(null)
-    refreshNotifications()
-  }
-
-  const handleDelete = async (id: string) => {
-    await deleteNotification(id)
-    setShowActions(null)
-    showAlert(t('notification.messages.deleteSuccess'), 'success')
-    refreshNotifications()
-  }
-
-  // 多选相关函数
   const handleSelectAll = async () => {
-    if (selectedIds.length > 0) {
-      // 如果已有选中项，则清空选择
-      setSelectedIds([])
-    } else {
-      // 获取所有通知ID（根据当前筛选条件）
-      const params = {
-        filter: filter === 'all' ? undefined : filter,
-        title: searchQuery || undefined,
-        start_time: startTime || undefined,
-        end_time: endTime || undefined,
-      }
-      const allIds = await getAllNotificationIds(params)
+    if (selectedIds.length > 0) { setSelectedIds([]) }
+    else {
+      const allIds = await getAllNotificationIds({ filter: filter === 'all' ? undefined : filter, title: searchQuery || undefined })
       setSelectedIds(allIds)
     }
   }
 
-  const handleSelectNotification = (id: number) => {
-    setSelectedIds(prev => 
-      prev.includes(id) 
-        ? prev.filter(selectedId => selectedId !== id)
-        : [...prev, id]
-    )
-  }
+  const toggleSelect = (id: number) => setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
 
   const handleBatchDelete = async () => {
-    if (selectedIds.length === 0) return
-    
+    if (!selectedIds.length) return
     await batchDeleteNotifications(selectedIds)
     showAlert(t('notification.messages.batchDeleteSuccess').replace('{count}', String(selectedIds.length)), 'success')
-    setSelectedIds([])
-    setIsSelectMode(false)
-    refreshNotifications()
+    setSelectedIds([]); setIsSelectMode(false); refresh()
   }
 
   const handleBatchMarkAsRead = async () => {
-    if (selectedIds.length === 0) return
-    
-    for (const id of selectedIds) {
-      await markAsRead(id.toString())
-    }
+    if (!selectedIds.length) return
+    for (const id of selectedIds) await markAsRead(id.toString())
     showAlert(t('notification.messages.batchMarkReadSuccess').replace('{count}', String(selectedIds.length)), 'success')
-    setSelectedIds([])
-    setIsSelectMode(false)
-    refreshNotifications()
+    setSelectedIds([]); setIsSelectMode(false); refresh()
   }
 
-  const openDrawer = async (notification: any) => {
-    setSelectedNotification(notification)
-    setShowDrawer(true)
-    // 下一帧触发进入动画
-    setTimeout(() => setDrawerEntering(true), 0)
-    if (!notification.read) {
-      await handleMarkAsRead(notification.id.toString())
-    }
-  }
-
-  const closeDrawer = () => {
-    setDrawerEntering(false)
-    setTimeout(() => {
-      setShowDrawer(false)
-      setSelectedNotification(null)
-    }, 200)
-  }
-
-  const getNotificationIcon = (type?: string, isRead?: boolean) => {
-    const iconClass = `w-4 h-4 ${isRead ? 'text-muted-foreground' : 'text-foreground'}`
-
+  const getIcon = (type?: string) => {
+    const cls = 'w-4 h-4'
     switch (type) {
-      case 'success':
-        return <CheckCircle className={iconClass} />
-      case 'warning':
-        return <AlertCircle className={iconClass} />
-      case 'error':
-        return <XCircle className={iconClass} />
-      default:
-        return <Info className={iconClass} />
+      case 'success': return <CheckCircle className={`${cls} text-green-500`} />
+      case 'warning': return <AlertCircle className={`${cls} text-yellow-500`} />
+      case 'error': return <XCircle className={`${cls} text-red-500`} />
+      default: return <Info className={`${cls} text-blue-500`} />
     }
   }
 
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Card className="w-full max-w-md">
-          <CardContent className="text-center py-12 px-8">
-            <div className="w-16 h-16 bg-muted rounded-lg flex items-center justify-center mx-auto mb-6">
-              <Bell className="w-8 h-8 text-muted-foreground" />
-            </div>
-            <h2 className="text-xl font-semibold mb-3">
-              {t('notification.pleaseLogin')}
-            </h2>
-            <p className="text-muted-foreground">
-              {t('notification.loginDesc')}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
-  return (
-    <div className="flex flex-col gap-3 w-full min-h-0">
-      <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 justify-between">
-          <div className="flex flex-wrap items-center gap-2 min-w-0">
-            <span className="inline-flex items-center gap-1 rounded-md bg-blue-500/10 text-blue-700 dark:text-blue-300 px-2 py-1 text-xs">
-              <Bell className="w-3 h-3 shrink-0" />
-              {t('notification.total')} <strong>{total}</strong>
-            </span>
-            <span className="inline-flex items-center gap-1 rounded-md bg-orange-500/10 text-orange-700 dark:text-orange-300 px-2 py-1 text-xs">
-              <EyeOff className="w-3 h-3 shrink-0" />
-              {t('notification.unread')} <strong>{totalUnread}</strong>
-            </span>
-            <span className="inline-flex items-center gap-1 rounded-md bg-green-500/10 text-green-700 dark:text-green-300 px-2 py-1 text-xs">
-              <Eye className="w-3 h-3 shrink-0" />
-              {t('notification.read')} <strong>{totalRead}</strong>
-            </span>
-            <div className="inline-flex rounded-lg border border-border bg-muted/40 p-0.5">
-              {([
-                { key: 'all' as const, label: t('notification.all') },
-                { key: 'unread' as const, label: t('notification.unread') },
-                { key: 'read' as const, label: t('notification.read') },
-              ]).map((item) => (
-                <button
-                  key={item.key}
-                  type="button"
-                  onClick={() => setFilter(item.key)}
-                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                    filter === item.key ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-            {isSelectMode && notifications.length > 0 && (
-              <label className="inline-flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={selectedIds.length > 0}
-                  onChange={handleSelectAll}
-                  className="w-3.5 h-3.5 text-primary bg-background border-input rounded"
-                />
-                <span>
-                  {selectedIds.length === 0 ? t('notification.selectAll') : `已选择 ${selectedIds.length} 项`}
-                </span>
-              </label>
-            )}
-          </div>
-          <div className="relative w-full sm:w-56 md:w-64 shrink-0">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-            <input
-              type="search"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="搜索标题"
-              className="w-full h-9 pl-9 pr-3 text-sm rounded-md border border-input bg-background"
-            />
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-1.5">
-          <Button variant="outline" size="sm" onClick={refreshNotifications} disabled={isLoading} className="h-8 px-2 text-xs">
-            {t('notification.refresh')}
-          </Button>
-          {!isSelectMode ? (
-            <>
-              <Button variant="outline" size="sm" onClick={() => setIsSelectMode(true)} className="h-8 px-2 text-xs">
-                {t('notification.select')}
-              </Button>
-              {totalUnread > 0 && (
-                <Button variant="default" size="sm" onClick={handleMarkAllAsRead} className="h-8 px-2 text-xs">
-                  {t('notification.markAllRead')}
-                </Button>
-              )}
-            </>
-          ) : (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setIsSelectMode(false)
-                  setSelectedIds([])
-                }}
-                className="h-8 px-2 text-xs"
-              >
-                {t('notification.cancel')}
-              </Button>
-              {selectedIds.length > 0 && (
-                <>
-                  <Button variant="outline" size="sm" onClick={handleBatchMarkAsRead} className="h-8 px-2 text-xs">
-                    {t('notification.markRead')} ({selectedIds.length})
-                  </Button>
-                  <Button variant="destructive" size="sm" onClick={handleBatchDelete} className="h-8 px-2 text-xs">
-                    {t('notification.delete')} ({selectedIds.length})
-                  </Button>
-                </>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between text-xs text-muted-foreground px-0.5">
-        <span>
-          {filter === 'all'
-            ? t('notification.allNotifications')
-            : filter === 'unread'
-              ? t('notification.unreadNotifications')
-              : t('notification.readNotifications')}
-        </span>
-        <span>{t('notification.totalCount').replace('{count}', String(notifications?.length || 0))}</span>
-      </div>
-
-      <div className="flex-1 min-h-[320px] rounded-lg border border-border bg-card/20 overflow-hidden flex flex-col">
-          <div className="flex-1 overflow-y-auto min-h-0">
-            {notifications.length === 0 ? (
-              <div className="flex items-center justify-center py-16 px-4">
-                <div className="text-center">
-                  <div className="w-14 h-14 bg-muted/50 rounded-full flex items-center justify-center mx-auto mb-3">
-                    <Bell className="w-7 h-7 text-muted-foreground" />
-                  </div>
-                  <h3 className="text-base font-medium mb-1">
-                    {filter === 'all' ? t('notification.empty.all') :
-                     filter === 'unread' ? t('notification.empty.unread') : t('notification.empty.read')}
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    {filter === 'all' ? t('notification.emptyDesc.all') :
-                     filter === 'unread' ? t('notification.emptyDesc.unread') : t('notification.emptyDesc.read')}
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="p-2">
-                {notifications.map((notification) => (
-  <div
-    key={notification.id}
-    className={`group mb-1 p-2 rounded-lg border transition-all duration-200 hover:shadow-sm ${
-      !notification.read 
-        ? 'bg-primary/5 border-primary/20' 
-        : 'bg-card/30 hover:bg-card/50 border-border'
-    } ${selectedIds.includes(notification.id) ? 'ring-2 ring-primary' : ''}`}
-  >
-    <div className="flex items-center space-x-3"> {/* 👈 改成 items-center 垂直居中 */}
-      {isSelectMode && (
-        <input
-          type="checkbox"
-          checked={selectedIds.includes(notification.id)}
-          onChange={() => handleSelectNotification(notification.id)}
-          onClick={(e) => e.stopPropagation()}
-          className="w-4 h-4 text-primary bg-background border-input rounded focus:ring-2 focus:ring-ring mt-0.5"
-        />
-      )}
-      
-      {/* 通知图标 */}
-      <div className={`flex-shrink-0 w-6 h-6 rounded-md flex items-center justify-center ${
-        !notification.read 
-          ? 'bg-primary/15 text-primary' 
-          : 'bg-muted/60 text-muted-foreground'
-      }`}>
-        {getNotificationIcon(notification.type, notification.read)}
-      </div>
-      
-      {/* 通知内容 - 标题、标签、时间 全部在同一行 */}
-      <div 
-        className={`flex-1 min-w-0 ${!isSelectMode ? 'cursor-pointer' : ''}`}
-        onClick={() => !isSelectMode && openDrawer(notification)}
-      >
-        {/* 👀 关键：一行布局：标题 + 标签 + 时间 + 更多按钮 */}
-        <div className="flex items-center justify-between gap-2 min-w-0">
-          {/* 左侧：标题 + 标签 */}
-          <div className="flex items-center space-x-2 min-w-0">
-            <h4 
-              className={`font-medium text-sm truncate ${
-                !notification.read ? 'text-foreground' : 'text-muted-foreground'
-              } ${highlightResultId === `notification_${notification.id}` ? 'ring-2 ring-yellow-400 rounded px-1' : ''}`}
-              dangerouslySetInnerHTML={{
-                __html: highlightContent(
-                  notification.title,
-                  searchKeyword,
-                  highlightFragments || undefined
-                )
-              }}
-            />
-            
-            {/* 状态标签 */}
-            <div className="flex items-center space-x-1 flex-shrink-0">
-              {!notification.read && (
-                <Badge className="h-3 px-1 text-[9px] bg-primary text-primary-foreground">
-                  未读
-                </Badge>
-              )}
-              {notification.type && (
-                <Badge variant="outline" className="h-3 px-1 text-[9px] border-muted-foreground/40 text-muted-foreground">
-                  {notification.type}
-                </Badge>
-              )}
-            </div>
-          </div>
-
-          {/* 右侧：时间 + 更多按钮 */}
-          <div className="flex items-center space-x-1 flex-shrink-0">
-            <div className="flex items-center space-x-1 text-xs text-muted-foreground whitespace-nowrap">
-              <Clock className="w-3 h-3" />
-              <span>
-                {notification.created_at ? formatDistanceToNow(new Date(notification.created_at), {
-                  addSuffix: true,
-                  locale: zhCN
-                }) : t('notification.unknownTime')}
-              </span>
-            </div>
-            
-            {/* 操作按钮 */}
-            <div className="relative" onClick={(e) => e.stopPropagation()}>
-              <button
-                onClick={() => setShowActions(
-                  showActions === notification.id.toString() ? null : notification.id.toString()
-                )}
-                className="p-1 text-muted-foreground hover:text-foreground rounded hover:bg-accent/50 transition-all duration-200 opacity-0 group-hover:opacity-100"
-              >
-                <MoreVertical className="w-3.5 h-3.5" />
-              </button>
-
-              {showActions === notification.id.toString() && (
-                <div className="absolute right-0 top-full mt-1 w-28 bg-popover rounded-lg shadow-lg border z-10 overflow-hidden">
-                  <div className="py-1">
-                    {!notification.read && (
-                      <button
-                        onClick={() => handleMarkAsRead(notification.id.toString())}
-                        className="flex items-center w-full px-2 py-1.5 text-xs text-foreground hover:bg-accent transition-colors"
-                      >
-                        <Check className="w-3 h-3 mr-1.5" />
-                        {t('notification.markAsRead')}
-                      </button>
-                    )}
-                    <button
-                      onClick={() => handleDelete(notification.id.toString())}
-                      className="flex items-center w-full px-2 py-1.5 text-xs text-destructive hover:bg-destructive/10 transition-colors"
-                    >
-                      <Trash2 className="w-3 h-3 mr-1.5" />
-                      {t('notification.delete')}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+  if (!isAuthenticated) return (
+    <div className="flex items-center justify-center h-[60vh]">
+      <div className="text-center">
+        <Bell className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+        <p className="text-gray-500">{t('notification.pleaseLogin')}</p>
       </div>
     </div>
-  </div>
-))}
-              </div>
-            )}
+  )
+
+  return (
+    <div className="max-w-4xl mx-auto py-6 px-4 space-y-3">
+      {/* Stats + Filter */}
+      <div className="flex flex-wrap items-center gap-3 justify-between">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Tag color="blue" className="text-xs">{t('notification.total')} {total}</Tag>
+          <Tag color="orange" className="text-xs">{t('notification.unread')} {totalUnread}</Tag>
+          <Tag color="green" className="text-xs">{t('notification.read')} {totalRead}</Tag>
+          <div className="flex gap-0.5 p-0.5 bg-gray-100 dark:bg-gray-800 rounded-lg ml-2">
+            {(['all', 'unread', 'read'] as const).map(f => (
+              <button key={f} onClick={() => setFilter(f)}
+                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
+                  filter === f ? 'bg-white dark:bg-gray-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                }`}>
+                {t(`notification.${f === 'all' ? 'all' : f}`)}
+              </button>
+            ))}
           </div>
-
-          {totalPages > 1 && (
-            <div className="flex-shrink-0 border-t border-border bg-muted/20 px-3 py-2">
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-                <div className="text-sm text-muted-foreground">
-                  {t('notification.totalCount').replace('{count}', String(total))}
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                    disabled={currentPage === 1 || isLoading}
-                    className="h-8 px-3"
-                  >
-                    {t('notification.previousPage')}
-                  </Button>
-
-                  <div className="flex items-center space-x-1">
-                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                      let pageNum;
-                      if (totalPages <= 5) {
-                        pageNum = i + 1;
-                      } else if (currentPage <= 3) {
-                        pageNum = i + 1;
-                      } else if (currentPage >= totalPages - 2) {
-                        pageNum = totalPages - 4 + i;
-                      } else {
-                        pageNum = currentPage - 2 + i;
-                      }
-
-                      return (
-                        <button
-                          key={pageNum}
-                          onClick={() => setCurrentPage(pageNum)}
-                          disabled={isLoading}
-                          className={`w-7 h-7 rounded-md text-xs font-medium transition-colors ${
-                            currentPage === pageNum
-                              ? 'bg-primary text-primary-foreground'
-                              : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
-                          } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        >
-                          {pageNum}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                    disabled={currentPage === totalPages || isLoading}
-                    className="h-8 px-3"
-                  >
-                    {t('notification.nextPage')}
-                  </Button>
-                </div>
-              </div>
-            </div>
+          {isSelectMode && (
+            <Checkbox checked={selectedIds.length > 0} onChange={handleSelectAll}>
+              <span className="text-xs">{selectedIds.length === 0 ? t('notification.selectAll') : `${t('notification.selected')} ${selectedIds.length}`}</span>
+            </Checkbox>
           )}
+        </div>
+        <ArcoInput.Search placeholder={t('notification.searchPlaceholder')} value={searchQuery} onChange={setSearchQuery} className="w-48" />
       </div>
 
-      {/* 详情抽屉 */}
-      {showDrawer && selectedNotification && (
-        <div className="fixed inset-0 z-40">
-          <div className={`absolute inset-0 bg-black/30 transition-opacity duration-200 ${drawerEntering ? 'opacity-100' : 'opacity-0'}`} onClick={closeDrawer} />
-          <div className={`absolute right-0 top-0 h-full w-full sm:w-[380px] max-w-full bg-background border-l shadow-xl flex flex-col transform transition-transform duration-200 ease-out ${drawerEntering ? 'translate-x-0' : 'translate-x-full'}`}>
-            <div className="px-4 py-3 border-b flex items-center justify-between">
-              <div className="flex items-center space-x-2 min-w-0">
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
-                  !selectedNotification.read ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
-                }`}>
-                  {getNotificationIcon(selectedNotification.type, selectedNotification.read)}
-                </div>
-                <h2 
-                  className="text-sm font-semibold truncate" 
-                  title={selectedNotification.title}
-                  dangerouslySetInnerHTML={{
-                    __html: highlightContent(
-                      selectedNotification.title,
-                      searchKeyword,
-                      highlightFragments || undefined
-                    )
-                  }}
-                />
-              </div>
-              <button className="text-sm text-muted-foreground hover:text-foreground" onClick={closeDrawer}>{t('notification.close')}</button>
-            </div>
-            <div className="p-4 flex-1 overflow-auto">
-              <div className="border rounded-md p-3">
-                {/* 标题 */}
-                <div className="mb-2">
-                  <div className="text-[11px] text-muted-foreground mb-0.5">{t('notification.title')}</div>
-                  <div 
-                    className="text-sm font-semibold break-words leading-snug"
-                    dangerouslySetInnerHTML={{
-                      __html: highlightContent(
-                        selectedNotification.title,
-                        searchKeyword,
-                        highlightFragments || undefined
-                      )
-                    }}
-                  />
-                </div>
+      {/* Actions */}
+      <div className="flex items-center gap-1.5">
+        <Button variant="outline" size="sm" onClick={refresh} loading={isLoading}>{t('notification.refresh')}</Button>
+        {!isSelectMode ? (
+          <>
+            <Button variant="outline" size="sm" onClick={() => setIsSelectMode(true)}>{t('notification.select')}</Button>
+            {totalUnread > 0 && <Button variant="primary" size="sm" onClick={handleMarkAllAsRead}>{t('notification.markAllRead')}</Button>}
+          </>
+        ) : (
+          <>
+            <Button variant="outline" size="sm" onClick={() => { setIsSelectMode(false); setSelectedIds([]) }}>{t('notification.cancel')}</Button>
+            {selectedIds.length > 0 && (
+              <>
+                <Button variant="outline" size="sm" onClick={handleBatchMarkAsRead}>{t('notification.markRead')} ({selectedIds.length})</Button>
+                <Button variant="destructive" size="sm" onClick={handleBatchDelete}>{t('notification.delete')} ({selectedIds.length})</Button>
+              </>
+            )}
+          </>
+        )}
+      </div>
 
-                {/* 时间 */}
-                <div className="mb-2">
-                  <div className="text-[11px] text-muted-foreground mb-0.5">{t('notification.time')}</div>
-                  <div className="text-[11px] text-muted-foreground flex items-center space-x-1 leading-none">
-                    <Clock className="w-3 h-3" />
-                    <span>
-                      {selectedNotification.created_at ? formatDistanceToNow(new Date(selectedNotification.created_at), {
-                        addSuffix: true,
-                        locale: zhCN
-                      }) : t('notification.unknownTime')}
-                    </span>
+      {/* Notification List */}
+      <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+        {notifications.length === 0 ? (
+          <div className="text-center py-16 text-gray-400">
+            <Bell className="w-10 h-10 mx-auto mb-2 opacity-40" />
+            <p className="text-sm">{t(`notification.empty.${filter}`)}</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-100 dark:divide-gray-800">
+            {notifications.map(n => (
+              <div key={n.id} onClick={() => !isSelectMode && setSelectedNotification(n)}
+                className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors ${
+                  !n.read ? 'bg-blue-50/50 dark:bg-blue-900/10 hover:bg-blue-50' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                } ${selectedIds.includes(n.id) ? 'bg-blue-100 dark:bg-blue-900/20' : ''}`}>
+                {isSelectMode && (
+                  <Checkbox checked={selectedIds.includes(n.id)} onClick={e => e.stopPropagation()}
+                    onChange={() => toggleSelect(n.id)} />
+                )}
+                <div className="shrink-0">{getIcon(n.type)}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-sm truncate ${!n.read ? 'font-medium' : 'text-gray-500'}`}
+                      dangerouslySetInnerHTML={{ __html: highlightContent(n.title, searchKeyword, highlightFragments || undefined) }} />
+                    {!n.read && <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-blue-500" />}
                   </div>
                 </div>
-
-                {/* 内容 */}
-                <div>
-                  <div className="text-[11px] text-muted-foreground mb-0.5">{t('notification.content')}</div>
-                  <div 
-                    className="text-sm whitespace-pre-wrap break-words leading-relaxed"
-                    dangerouslySetInnerHTML={{
-                      __html: highlightContent(
-                        selectedNotification.content || t('notification.noContent'),
-                        searchKeyword,
-                        highlightFragments || undefined
-                      )
-                    }}
-                  />
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-xs text-gray-400 whitespace-nowrap flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    {n.created_at ? formatDistanceToNow(new Date(n.created_at), { addSuffix: true, locale: zhCN }) : ''}
+                  </span>
+                  {!isSelectMode && (
+                    <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {!n.read && (
+                        <button onClick={e => { e.stopPropagation(); handleMarkAsRead(n.id.toString()) }}
+                          className="p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-green-500">
+                          <Check className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      <button onClick={e => { e.stopPropagation(); handleDelete(n.id.toString()) }}
+                        className="p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-red-500">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
-            </div>
-            <div className="p-3 border-t flex items-center justify-end space-x-2">
-              {!selectedNotification.read && (
-                <Button size="sm" onClick={async () => { await handleMarkAsRead(selectedNotification.id.toString()); closeDrawer() }}>{t('notification.markAsRead')}</Button>
-              )}
-              <Button variant="outline" size="sm" onClick={closeDrawer}>{t('notification.done')}</Button>
-            </div>
+            ))}
           </div>
+        )}
+      </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex justify-center">
+          <Pagination current={currentPage} total={total} pageSize={pageSize} onChange={setCurrentPage} size="small" />
         </div>
       )}
+
+      {/* Detail Drawer */}
+      <Drawer visible={!!selectedNotification} title={selectedNotification?.title || ''}
+        onClose={() => setSelectedNotification(null)} width={400} footer={null}>
+        {selectedNotification && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 text-sm text-gray-500">
+              <Clock className="w-4 h-4" />
+              {selectedNotification.created_at ? formatDistanceToNow(new Date(selectedNotification.created_at), { addSuffix: true, locale: zhCN }) : ''}
+            </div>
+            <div className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+              <div className="text-xs text-gray-400 mb-1">{t('notification.title')}</div>
+              <div className="text-sm font-medium break-words"
+                dangerouslySetInnerHTML={{ __html: highlightContent(selectedNotification.title, searchKeyword, highlightFragments || undefined) }} />
+            </div>
+            <div className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+              <div className="text-xs text-gray-400 mb-1">{t('notification.content')}</div>
+              <div className="text-sm whitespace-pre-wrap break-words leading-relaxed"
+                dangerouslySetInnerHTML={{ __html: highlightContent(selectedNotification.content || t('notification.noContent'), searchKeyword, highlightFragments || undefined) }} />
+            </div>
+            <div className="flex justify-end gap-2">
+              {!selectedNotification.read && (
+                <Button size="sm" onClick={async () => { await handleMarkAsRead(selectedNotification.id.toString()); setSelectedNotification(null) }}>
+                  {t('notification.markAsRead')}
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={() => setSelectedNotification(null)}>{t('notification.done')}</Button>
+            </div>
+          </div>
+        )}
+      </Drawer>
     </div>
   )
 }

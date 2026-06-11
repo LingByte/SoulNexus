@@ -640,18 +640,15 @@ const DeviceManagement: React.FC = () => {
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                     {t('device.editModal.autoUpdateLabel')}
                                 </label>
-                                <Select
+                                <ArcoSelect
                                     value={String(editForm.autoUpdate)}
-                                    onValueChange={(value) => setEditForm({ ...editForm, autoUpdate: parseInt(value) })}
-                                >
-                                    <SelectTrigger className="w-full">
-                                        <SelectValue placeholder={t('device.editModal.autoUpdateLabel')} />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="1">{t('device.enabled')}</SelectItem>
-                                        <SelectItem value="0">{t('device.disabled')}</SelectItem>
-                                    </SelectContent>
-                                </Select>
+                                    onChange={(value) => setEditForm({ ...editForm, autoUpdate: parseInt(value) })}
+                                    placeholder={t('device.editModal.autoUpdateLabel')}
+                                    options={[
+                                        { label: t('device.enabled'), value: '1' },
+                                        { label: t('device.disabled'), value: '0' }
+                                    ]}
+                                />
                             </div>
                             <div className="flex justify-end gap-2">
                                 <Button
