@@ -129,6 +129,7 @@ export const useVoiceAssistant = (options: UseVoiceAssistantOptions) => {
         ...(attachmentContent && { attachmentContent }),
         ...(attachmentName && { attachmentName }),
       }
+      console.log('[useVoiceAssistant] requestData:', JSON.stringify(requestData, null, 2))
 
       if (textMode === 'text') {
         // 纯文本模式：使用普通查询

@@ -6,7 +6,7 @@ import { Input as ArcoInput } from '@arco-design/web-react'
 import Button from '@/components/UI/Button'
 import FileUpload from '@/components/UI/FileUpload'
 import FormField from '@/components/Forms/FormField'
-import { RefreshCw, Play, Pause, Trash2, Zap, Mic, Square, Upload } from 'lucide-react'
+import { RefreshCw, Play, Pause, Trash2, Zap, Mic, Square, Upload, Download } from 'lucide-react'
 import { get, post } from '@/utils/request'
 import { getSystemInit } from '@/api/system'
 import { getApiBaseURL } from '@/config/apiConfig'
@@ -219,6 +219,19 @@ const VoiceTrainingVolcengine: React.FC = () => {
         catch (err: any) { showAlert(err?.message || t('voiceTraining.messages.deleteFailed'), 'error') }
     }
 
+    const downloadAudio = (audioUrl: string, text: string) => {
+        let fullUrl = audioUrl
+        if (audioUrl.startsWith('/media/') || audioUrl.startsWith('/uploads/')) {
+            fullUrl = `${getApiBaseURL().replace('/api', '')}${audioUrl}`
+        } else if (audioUrl.startsWith('/') && !audioUrl.startsWith('http')) {
+            fullUrl = `${window.location.origin}${audioUrl}`
+        }
+        const a = document.createElement('a')
+        a.href = fullUrl
+        a.download = `${text.slice(0, 30) || 'audio'}.wav`
+        a.click()
+    }
+
     const getStatusText = (s: number) => ({
         0: t('voiceTraining.volcengine.status.notFound'),
         1: t('voiceTraining.volcengine.status.training'),
@@ -304,7 +317,7 @@ const VoiceTrainingVolcengine: React.FC = () => {
                                         {t('voiceTraining.volcengine.record.start')}
                                     </Button>
                                 ) : (
-                                    <Button onClick={stopRecording} variant="danger" leftIcon={<Square className="w-4 h-4" />}>
+                                    <Button onClick={stopRecording} variant="destructive" leftIcon={<Square className="w-4 h-4" />}>
                                         {formatTime(recordingTime)}
                                     </Button>
                                 )}
@@ -441,10 +454,16 @@ const VoiceTrainingVolcengine: React.FC = () => {
                                         </div>
                                         <div className="flex items-center gap-0.5 shrink-0">
                                             {record.audioUrl && (
-                                                <Button variant="ghost" size="sm"
-                                                    onClick={() => playingAudio === record.audioUrl ? stopAudio() : playAudio(record.audioUrl)}
-                                                    leftIcon={playingAudio === record.audioUrl ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}>
-                                                </Button>
+                                                <>
+                                                    <Button variant="ghost" size="sm"
+                                                        onClick={() => playingAudio === record.audioUrl ? stopAudio() : playAudio(record.audioUrl)}
+                                                        leftIcon={playingAudio === record.audioUrl ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}>
+                                                    </Button>
+                                                    <Button variant="ghost" size="sm"
+                                                        onClick={() => downloadAudio(record.audioUrl, record.text)}
+                                                        leftIcon={<Download className="w-3.5 h-3.5" />}>
+                                                    </Button>
+                                                </>
                                             )}
                                             <Button variant="ghost" size="sm"
                                                 onClick={() => deleteSynthesisRecord(record.id)}

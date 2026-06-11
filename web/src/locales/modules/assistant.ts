@@ -4,6 +4,7 @@ export const assistant: Record<Language, Record<string, string>> = {
   zh: {
     // Assistants 页面
     'assistants.title': '智能体列表',
+    'assistants.searchPlaceholder': '搜索智能体...',
     'assistants.add': '添加智能体',
     'assistants.empty': '暂无智能体',
     'assistants.manageTools': '管理工具',
@@ -115,6 +116,7 @@ export const assistant: Record<Language, Record<string, string>> = {
   en: {
     // Assistants Page
     'assistants.title': 'Agent List',
+    'assistants.searchPlaceholder': 'Search agents...',
     'assistants.add': 'Add Agent',
     'assistants.empty': 'No agents',
     'assistants.manageTools': 'Manage Tools',
@@ -230,6 +232,7 @@ export const assistant: Record<Language, Record<string, string>> = {
   ja: {
     // エージェントページ
     'assistants.title': 'スマートエージェント一覧',
+    'assistants.searchPlaceholder': 'エージェントを検索...',
     'assistants.add': 'エージェントを追加',
     'assistants.empty': 'エージェントなし',
     'assistants.manageTools': 'ツール管理',
