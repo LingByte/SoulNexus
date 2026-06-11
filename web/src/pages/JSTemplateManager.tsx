@@ -183,7 +183,7 @@ const JSTemplateManager = () => {
                     {/* Right: Preview + Code Editor */}
                     <div className="flex-1 flex flex-col overflow-hidden">
                         {/* Preview */}
-                        <div className="h-[40%] border-b border-gray-200 dark:border-gray-800 flex flex-col">
+                        <div className="h-1/2 border-b border-gray-200 dark:border-gray-800 flex flex-col">
                             <div className="px-3 py-2 flex items-center gap-2 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 shrink-0">
                                 <Eye className="w-3.5 h-3.5 text-gray-400" />
                                 <span className="text-xs font-medium">{t('jsTemplate.preview.label')}</span>
