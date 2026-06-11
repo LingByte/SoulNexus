@@ -759,7 +759,7 @@ const CredentialManager = () => {
                               <Button size="sm" variant="outline" onClick={() => handleFormChange("expiresAt", DATE_NEVER)}>1970-01-01 07:59:59</Button>
                               <Button size="sm" variant="ghost" onClick={() => handleFormChange("expiresAt", "")}>清空</Button>
                             </div>
-                            <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" label="过期时间"
+                            <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" label="过期时间"
                               value={form.expiresAt || ""}
                               onChange={(e) => handleFormChange("expiresAt", e.target.value)}
                               placeholder="YYYY-MM-DD HH:MM:SS"
@@ -783,12 +783,12 @@ const CredentialManager = () => {
                               />
                               <span>无限额度</span>
                             </label>
-                            <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" label="设置令牌可用额度"
+                            <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" label="设置令牌可用额度"
                               type="number"
                               value={String(form.tokenQuota ?? 0)}
                               onChange={(e) => setForm(prev => ({ ...prev, tokenQuota: Number(e.target.value || 0) }))}
                             />
-                            <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" label="设置令牌可用数量"
+                            <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" label="设置令牌可用数量"
                               type="number"
                               value={String(form.requestQuota ?? 0)}
                               onChange={(e) => setForm(prev => ({ ...prev, requestQuota: Number(e.target.value || 0) }))}

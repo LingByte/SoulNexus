@@ -838,14 +838,14 @@ const EditPluginModal: React.FC<{
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium mb-2">显示名称 *</label>
-          <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.displayName}
+          <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.displayName}
             onChange={(val) => setFormData({...formData, displayName: val})}
             placeholder="插件显示名称"
           />
         </div>
         <div>
           <label className="block text-sm font-medium mb-2">版本</label>
-          <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.version}
+          <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.version}
             onChange={(val) => setFormData({...formData, version: val})}
             placeholder="1.0.0"
           />
@@ -892,7 +892,7 @@ const EditPluginModal: React.FC<{
 
       <div>
         <label className="block text-sm font-medium mb-2">标签</label>
-        <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.tags}
+        <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.tags}
           onChange={(val) => setFormData({...formData, tags: val})}
           placeholder="标签1, 标签2, 标签3"
         />
@@ -902,21 +902,21 @@ const EditPluginModal: React.FC<{
       <div className="grid grid-cols-3 gap-4">
         <div>
           <label className="block text-sm font-medium mb-2">作者</label>
-          <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.author}
+          <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.author}
             onChange={(val) => setFormData({...formData, author: val})}
             placeholder="作者名称"
           />
         </div>
         <div>
           <label className="block text-sm font-medium mb-2">主页</label>
-          <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.homepage}
+          <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.homepage}
             onChange={(val) => setFormData({...formData, homepage: val})}
             placeholder="https://..."
           />
         </div>
         <div>
           <label className="block text-sm font-medium mb-2">仓库</label>
-          <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.repository}
+          <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.repository}
             onChange={(val) => setFormData({...formData, repository: val})}
             placeholder="https://github.com/..."
           />
@@ -962,7 +962,7 @@ const EditPluginModal: React.FC<{
             {(formData.inputSchema?.parameters || []).map((param: any, index: number) => (
               <div key={index} className="p-3 border border-gray-200 rounded-lg">
                 <div className="grid grid-cols-2 gap-2 mb-2">
-                  <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" placeholder="参数名"
+                  <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" placeholder="参数名"
                     value={param.name}
                     onChange={(e) => {
                       const newParams = [...formData.inputSchema.parameters]
@@ -992,7 +992,7 @@ const EditPluginModal: React.FC<{
                     <option value="array">数组</option>
                   </select>
                 </div>
-                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" placeholder="描述"
+                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" placeholder="描述"
                   value={param.description}
                   onChange={(e) => {
                     const newParams = [...formData.inputSchema.parameters]
@@ -1066,7 +1066,7 @@ const EditPluginModal: React.FC<{
             {(formData.outputSchema?.parameters || []).map((param: any, index: number) => (
               <div key={index} className="p-3 border border-gray-200 rounded-lg">
                 <div className="grid grid-cols-2 gap-2 mb-2">
-                  <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" placeholder="参数名"
+                  <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" placeholder="参数名"
                     value={param.name}
                     onChange={(e) => {
                       const newParams = [...formData.outputSchema.parameters]
@@ -1096,7 +1096,7 @@ const EditPluginModal: React.FC<{
                     <option value="array">数组</option>
                   </select>
                 </div>
-                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" placeholder="描述"
+                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" placeholder="描述"
                   value={param.description}
                   onChange={(e) => {
                     const newParams = [...formData.outputSchema.parameters]
@@ -1487,7 +1487,7 @@ const PublishWorkflowModal: React.FC<{
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium mb-2">插件名称 *</label>
-          <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.name}
+          <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.name}
             onChange={(val) => setFormData({...formData, name: val})}
             placeholder="my-awesome-workflow"
             disabled={publishMode === 'version'}
@@ -1495,7 +1495,7 @@ const PublishWorkflowModal: React.FC<{
         </div>
         <div>
           <label className="block text-sm font-medium mb-2">显示名称 *</label>
-          <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.displayName}
+          <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.displayName}
             onChange={(val) => setFormData({...formData, displayName: val})}
             placeholder="我的超棒工作流"
           />
@@ -1543,7 +1543,7 @@ const PublishWorkflowModal: React.FC<{
       {publishMode === 'version' && (
         <div>
           <label className="block text-sm font-medium mb-2">版本号 *</label>
-          <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.version}
+          <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.version}
             onChange={(val) => setFormData({...formData, version: val})}
             placeholder="1.0.1"
           />
@@ -1553,7 +1553,7 @@ const PublishWorkflowModal: React.FC<{
 
       <div>
         <label className="block text-sm font-medium mb-2">标签</label>
-        <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.tags}
+        <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.tags}
           onChange={(val) => setFormData({...formData, tags: val})}
           placeholder="标签1, 标签2, 标签3"
         />
@@ -1563,21 +1563,21 @@ const PublishWorkflowModal: React.FC<{
       <div className="grid grid-cols-3 gap-4">
         <div>
           <label className="block text-sm font-medium mb-2">作者</label>
-          <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.author}
+          <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.author}
             onChange={(val) => setFormData({...formData, author: val})}
             placeholder="作者名称"
           />
         </div>
         <div>
           <label className="block text-sm font-medium mb-2">主页</label>
-          <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.homepage}
+          <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.homepage}
             onChange={(val) => setFormData({...formData, homepage: val})}
             placeholder="https://..."
           />
         </div>
         <div>
           <label className="block text-sm font-medium mb-2">仓库</label>
-          <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.repository}
+          <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.repository}
             onChange={(val) => setFormData({...formData, repository: val})}
             placeholder="https://github.com/..."
           />
@@ -1620,7 +1620,7 @@ const PublishWorkflowModal: React.FC<{
             {(formData.inputSchema?.parameters || []).map((param, index) => (
               <div key={index} className="p-3 border border-gray-200 rounded-lg">
                 <div className="grid grid-cols-2 gap-2 mb-2">
-                  <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" placeholder="参数名"
+                  <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" placeholder="参数名"
                     value={param.name}
                     onChange={(e) => {
                       const newParams = [...formData.inputSchema.parameters]
@@ -1650,7 +1650,7 @@ const PublishWorkflowModal: React.FC<{
                     <option value="array">数组</option>
                   </select>
                 </div>
-                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" placeholder="描述"
+                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" placeholder="描述"
                   value={param.description}
                   onChange={(e) => {
                     const newParams = [...formData.inputSchema.parameters]
@@ -1724,7 +1724,7 @@ const PublishWorkflowModal: React.FC<{
             {(formData.outputSchema?.parameters || []).map((param, index) => (
               <div key={index} className="p-3 border border-gray-200 rounded-lg">
                 <div className="grid grid-cols-2 gap-2 mb-2">
-                  <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" placeholder="参数名"
+                  <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" placeholder="参数名"
                     value={param.name}
                     onChange={(e) => {
                       const newParams = [...formData.outputSchema.parameters]
@@ -1754,7 +1754,7 @@ const PublishWorkflowModal: React.FC<{
                     <option value="array">数组</option>
                   </select>
                 </div>
-                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" placeholder="描述"
+                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" placeholder="描述"
                   value={param.description}
                   onChange={(e) => {
                     const newParams = [...formData.outputSchema.parameters]

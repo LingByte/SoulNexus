@@ -924,7 +924,7 @@ const Profile = () => {
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">城市</label>
-                        <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.city}
+                        <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.city}
                           onChange={(val) => setFormData((prev) => ({ ...prev, city: val }))}
                           disabled={!isEditing}
                           placeholder="请输入所在城市"
@@ -933,7 +933,7 @@ const Profile = () => {
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">地区</label>
-                        <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.region}
+                        <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.region}
                           onChange={(val) => setFormData((prev) => ({ ...prev, region: val }))}
                           disabled={!isEditing}
                           placeholder="请输入所在地区"
