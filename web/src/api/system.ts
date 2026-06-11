@@ -38,17 +38,6 @@ export interface SystemInitInfo {
     configured: boolean
   }
   voiceClone: {
-    xunfei: {
-      configured: boolean
-      config?: {
-        app_id?: string
-        api_key?: string
-        base_url?: string
-        ws_app_id?: string
-        ws_api_key?: string
-        ws_api_secret?: string
-      }
-    }
     volcengine: {
       configured: boolean
       config?: {
@@ -90,7 +79,7 @@ export const getSystemInit = async (): Promise<ApiResponse<SystemInitInfo>> => {
 
 // 保存音色克隆配置
 export interface SaveVoiceCloneConfigRequest {
-  provider: 'xunfei' | 'volcengine'
+  provider: 'volcengine'
   config: Record<string, any>
 }
 

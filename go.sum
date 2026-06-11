@@ -23,8 +23,8 @@ github.com/BurntSushi/toml v1.5.0/go.mod h1:ukJfTF/6rtPPRCnwkur4qwRxa8vTRFBF0uk2
 github.com/CloudyKit/fastprinter v0.0.0-20200109182630-33d98a066a53/go.mod h1:+3IMCy2vIlbG1XG/0ggNQv0SvxCAIpPM5b1nCz56Xno=
 github.com/CloudyKit/jet/v3 v3.0.0/go.mod h1:HKQPgSJmdK8hdoAbKUUWajkHyHo4RaU5rMdUywE7VMo=
 github.com/Joker/hpp v1.0.0/go.mod h1:8x5n+M1Hp5hC0g8okX3sR3vFQwynaX/UgSOM9MeBKzY=
-github.com/LingByte/lingllm v1.4.3 h1:IRAzVumzyuYcWuECxrmvYXzkWpwttF9+Ypv1iiYqJGY=
-github.com/LingByte/lingllm v1.4.3/go.mod h1:twZoPrkVd5mavGAmNq1agwNgIseb30vF0RzbExq/sHU=
+github.com/LingByte/lingllm v1.4.4 h1:XT3ioStRJEpTc6Qx8ZKYScqAPCqA2kNZ4Viow+t5UfE=
+github.com/LingByte/lingllm v1.4.4/go.mod h1:VkOV3irQPX4jDILwN1gOX/ceziaOR8Yb55FwXvs5UKg=
 github.com/RoaringBitmap/roaring/v2 v2.14.5 h1:ckd0o545JqDPeVJDgeFoaM21eBixUnlWfYgjE5VnyWw=
 github.com/RoaringBitmap/roaring/v2 v2.14.5/go.mod h1:eq4wdNXxtJIS/oikeCzdX1rBzek7ANzbth041hrU8Q4=
 github.com/Shopify/goreferrer v0.0.0-20181106222321-ec9c9a553398/go.mod h1:a1uqRtAwp2Xwc6WNPJEufxJ7fx3npB4UV/JOLmbu5I0=

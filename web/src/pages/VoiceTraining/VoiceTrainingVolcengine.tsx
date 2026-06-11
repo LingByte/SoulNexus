@@ -1,17 +1,14 @@
-import React, { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { showAlert } from '@/utils/notification'
 import { useI18nStore } from '@/stores/i18nStore'
-import Card, { CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/UI/Card'
+import Card, { CardHeader, CardTitle, CardContent } from '@/components/UI/Card'
 import { Input as ArcoInput } from '@arco-design/web-react'
 import Button from '@/components/UI/Button'
-import { Select as ArcoSelect } from '@arco-design/web-react'
 import FileUpload from '@/components/UI/FileUpload'
 import FormField from '@/components/Forms/FormField'
-import CollapsibleSectionHeader from '@/components/UI/CollapsibleSectionHeader'
-import { Upload, RefreshCw, History, Play, Pause, Volume2, Trash2, Edit3, Zap, Settings, Save } from 'lucide-react'
+import { RefreshCw, Play, Pause, Trash2, Zap, Mic, Square, Upload } from 'lucide-react'
 import { get, post } from '@/utils/request'
-import { getSystemInit, saveVoiceCloneConfig } from '@/api/system'
+import { getSystemInit } from '@/api/system'
 import { getApiBaseURL } from '@/config/apiConfig'
 
 interface VoiceClone {
@@ -22,7 +19,7 @@ interface VoiceClone {
     createdAt: string
     audioUrl?: string
     provider?: string
-    assetId?: string // 音色ID（speaker_id）
+    assetId?: string
 }
 
 interface SynthesisRecord {
@@ -35,53 +32,47 @@ interface SynthesisRecord {
 
 const VoiceTrainingVolcengine: React.FC = () => {
     const { t } = useI18nStore()
-    const navigate = useNavigate()
 
+    // Training
     const [speakerId, setSpeakerId] = useState('')
     const [uploading, setUploading] = useState(false)
     const [querying, setQuerying] = useState(false)
     const [taskStatus, setTaskStatus] = useState<any>(null)
 
-    // 音色管理相关状态
+    // Recording
+    const [recording, setRecording] = useState(false)
+    const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null)
+    const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null)
+    const [recordingTime, setRecordingTime] = useState(0)
+    const recordingTimer = useRef<ReturnType<typeof setInterval> | null>(null)
+
+    // Clones & Synthesis
     const [voiceClones, setVoiceClones] = useState<VoiceClone[]>([])
     const [loadingClones, setLoadingClones] = useState(false)
     const [synthesisHistory, setSynthesisHistory] = useState<SynthesisRecord[]>([])
     const [loadingHistory, setLoadingHistory] = useState(false)
     const [activeTab, setActiveTab] = useState<'training' | 'clones' | 'history'>('training')
-
-    // 音频播放相关状态
     const [playingAudio, setPlayingAudio] = useState<string | null>(null)
     const [audioRef, setAudioRef] = useState<HTMLAudioElement | null>(null)
-
-    // 音色管理相关状态
-    const [editingClone, setEditingClone] = useState<VoiceClone | null>(null)
-    const [editName, setEditName] = useState('')
-    const [editDescription, setEditDescription] = useState('')
     const [synthesisText, setSynthesisText] = useState('')
     const [synthesizing, setSynthesizing] = useState(false)
     const [selectedCloneForSynthesis, setSelectedCloneForSynthesis] = useState<number | null>(null)
+
+    // Config
     const [configChecked, setConfigChecked] = useState(false)
     const [configConfigured, setConfigConfigured] = useState(false)
-    const [configData, setConfigData] = useState<any>(null)
-    const [configForm, setConfigForm] = useState({
-        app_id: '',
-        token: '',
-        cluster: 'volcano_icl',
-        voice_type: '',
-        encoding: 'pcm',
-        frame_duration: '20ms',
-        sample_rate: 8000,
-        bit_depth: 16,
-        channels: 1,
-        speed_ratio: 1.0,
-        training_times: 1
-    })
-    const [savingConfig, setSavingConfig] = useState(false)
 
-    useEffect(() => {
-        checkConfig()
+    const checkConfig = useCallback(async () => {
+        try {
+            const response = await getSystemInit()
+            if (response.code === 200 && response.data) {
+                setConfigConfigured(response.data.voiceClone?.volcengine?.configured || false)
+            }
+        } catch (err) { console.error(err) }
+        finally { setConfigChecked(true) }
     }, [])
 
+    useEffect(() => { checkConfig() }, [checkConfig])
     useEffect(() => {
         if (configChecked && configConfigured) {
             refreshVoiceClones()
@@ -89,619 +80,386 @@ const VoiceTrainingVolcengine: React.FC = () => {
         }
     }, [configChecked, configConfigured])
 
-    const checkConfig = async () => {
-        try {
-            const response = await getSystemInit()
-            if (response.code === 200 && response.data) {
-                const volcengineConfig = response.data.voiceClone?.volcengine
-                const configured = volcengineConfig?.configured || false
-                setConfigConfigured(configured)
-                setConfigData(volcengineConfig)
-                if (volcengineConfig?.config) {
-                    setConfigForm({
-                        app_id: volcengineConfig.config.app_id || '',
-                        token: volcengineConfig.config.token || '',
-                        cluster: volcengineConfig.config.cluster || 'volcano_icl',
-                        voice_type: volcengineConfig.config.voice_type || '',
-                        encoding: volcengineConfig.config.encoding || 'pcm',
-                        frame_duration: volcengineConfig.config.frame_duration || '20ms',
-                        sample_rate: volcengineConfig.config.sample_rate || 8000,
-                        bit_depth: volcengineConfig.config.bit_depth || 16,
-                        channels: volcengineConfig.config.channels || 1,
-                        speed_ratio: volcengineConfig.config.speed_ratio || 1.0,
-                        training_times: volcengineConfig.config.training_times || 1
-                    })
-                }
-                setConfigChecked(true)
-            } else {
-                setConfigChecked(true)
-            }
-        } catch (err: any) {
-            console.error('检查配置失败:', err)
-            setConfigChecked(true)
-        }
-    }
+    useEffect(() => {
+        return () => { if (recordingTimer.current) clearInterval(recordingTimer.current) }
+    }, [])
 
-    const handleSaveConfig = async () => {
-        try {
-            setSavingConfig(true)
-            const response = await saveVoiceCloneConfig({
-                provider: 'volcengine',
-                config: configForm
-            })
-            if (response.code === 200) {
-                showAlert('配置保存成功', 'success')
-                setConfigConfigured(true)
-                await checkConfig()
-            } else {
-                throw new Error(response.msg || '保存配置失败')
-            }
-        } catch (err: any) {
-            console.error('保存配置失败:', err)
-            showAlert(err?.message || '保存配置失败', 'error')
-        } finally {
-            setSavingConfig(false)
-        }
-    }
-
+    // --- Data fetch ---
     const refreshVoiceClones = async () => {
         try {
             setLoadingClones(true)
-            const response = await get('/voice/clones?provider=volcengine')
-            const list = response.data || []
-            setVoiceClones(list.map((x: any) => ({
+            const res = await get('/voice/clones?provider=volcengine')
+            setVoiceClones((res.data || []).map((x: any) => ({
                 id: x.id ?? x.ID,
                 voiceName: x.voiceName || x.voice_name || '',
                 voiceDescription: x.voiceDescription || x.voice_description || '',
                 isActive: x.IsActive ?? x.is_active ?? false,
                 createdAt: x.createdAt || x.created_at || '',
                 provider: x.provider || 'volcengine',
-                assetId: x.assetId || x.asset_id || '' // 音色ID（speaker_id）
+                assetId: x.assetId || x.asset_id || ''
             })))
-        } catch (err: any) {
-            console.error('获取音色列表失败:', err)
-            showAlert(err?.message || t('voiceTraining.messages.fetchClonesFailed'), 'error')
-        } finally {
-            setLoadingClones(false)
-        }
+        } catch (err: any) { showAlert(err?.message || t('voiceTraining.messages.fetchClonesFailed'), 'error') }
+        finally { setLoadingClones(false) }
     }
 
     const refreshSynthesisHistory = async () => {
         try {
             setLoadingHistory(true)
-            // 直接按 provider 过滤，不依赖 voiceClones 数组
-            const response = await get('/voice/synthesis/history?provider=volcengine')
-            const list = response.data || []
-            setSynthesisHistory(list.map((x: any) => ({
+            const res = await get('/voice/synthesis/history?provider=volcengine')
+            setSynthesisHistory((res.data || []).map((x: any) => ({
                 id: x.id ?? x.ID,
                 voiceCloneId: x.voiceCloneId ?? x.voice_clone_id,
                 text: x.text || '',
                 audioUrl: x.audioUrl || x.audio_url || '',
                 createdAt: x.createdAt || x.created_at || ''
             })))
-        } catch (err: any) {
-            console.error('获取合成历史失败:', err)
-            showAlert(err?.message || t('voiceTraining.messages.fetchHistoryFailed'), 'error')
-        } finally {
-            setLoadingHistory(false)
-        }
+        } catch (err: any) { showAlert(err?.message || t('voiceTraining.messages.fetchHistoryFailed'), 'error') }
+        finally { setLoadingHistory(false) }
     }
 
-    // 音频播放功能
-    const playAudio = (audioUrl: string) => {
-        // 停止当前播放的音频
-        if (audioRef) {
-            audioRef.pause()
-            audioRef.currentTime = 0
-        }
-
-        // 处理音频URL - 如果是相对路径，添加服务器基础URL
-        // 直接使用数据库中的 URL，不做格式转换（因为旧数据可能是 .pcm，新数据是 .wav）
-        let fullAudioUrl = audioUrl
-        if (audioUrl.startsWith('/media/') || audioUrl.startsWith('/uploads/')) {
-            // 从 API base URL 提取基础 URL（去掉 /api 后缀）
-            const apiBaseURL = getApiBaseURL()
-            const baseURL = apiBaseURL.replace('/api', '')
-            fullAudioUrl = `${baseURL}${audioUrl}`
-        } else if (audioUrl.startsWith('/') && !audioUrl.startsWith('http://') && !audioUrl.startsWith('https://')) {
-            // 如果是其他相对路径，也添加基础 URL
-            const apiBaseURL = getApiBaseURL()
-            const baseURL = apiBaseURL.replace('/api', '')
-            fullAudioUrl = `${baseURL}${audioUrl}`
-        }
-
-        // 创建新的音频元素
-        const audio = new Audio(fullAudioUrl)
-        setAudioRef(audio)
-        setPlayingAudio(audioUrl)
-
-        audio.onended = () => {
-            setPlayingAudio(null)
-            setAudioRef(null)
-        }
-
-        audio.onerror = () => {
-            showAlert(t('voiceTraining.messages.audioPlayFailed'), 'error')
-            setPlayingAudio(null)
-            setAudioRef(null)
-        }
-
-        audio.play().catch(err => {
-            console.error('音频播放失败:', err)
-            showAlert(t('voiceTraining.messages.audioPlayFailed'), 'error')
-            setPlayingAudio(null)
-            setAudioRef(null)
-        })
-    }
-
-    const stopAudio = () => {
-        if (audioRef) {
-            audioRef.pause()
-            audioRef.currentTime = 0
-        }
-        setPlayingAudio(null)
-        setAudioRef(null)
-    }
-
-    // 清理音频资源
-    useEffect(() => {
-        return () => {
-            if (audioRef) {
-                audioRef.pause()
-                audioRef.currentTime = 0
-            }
-        }
-    }, [audioRef])
-
-    // 提交音频训练
-    const handleSubmitAudio = async (file: File) => {
-        if (!speakerId.trim()) {
-            showAlert(t('voiceTraining.volcengine.messages.enterSpeakerId'), 'warning')
-            return
-        }
-
+    // --- Training: upload & record ---
+    const doUpload = async (file: File) => {
+        if (!speakerId.trim()) { showAlert(t('voiceTraining.volcengine.speakerIdPlaceholder'), 'warning'); return }
         try {
             setUploading(true)
-            const formData = new FormData()
-            formData.append('audio', file)
-            formData.append('speakerId', speakerId)
-            formData.append('language', 'zh-CN')
+            const fd = new FormData()
+            fd.append('audio', file)
+            fd.append('speakerId', speakerId)
+            fd.append('language', 'zh-CN')
+            await post('/volcengine/task/submit-audio', fd)
+            showAlert(t('voiceTraining.messages.uploadSuccess'), 'success')
+        } catch (err: any) { showAlert(err?.message || t('voiceTraining.messages.uploadFailed'), 'error') }
+        finally { setUploading(false) }
+    }
 
-            await post('/volcengine/task/submit-audio', formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data'
-                }
-            })
-
-            showAlert(t('voiceTraining.volcengine.messages.audioSubmitSuccess'), 'success')
+    const startRecording = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+            const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' })
+            const chunks: BlobPart[] = []
+            recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data) }
+            recorder.onstop = () => {
+                const blob = new Blob(chunks, { type: 'audio/webm' })
+                setRecordedBlob(blob)
+                stream.getTracks().forEach(t => t.stop())
+            }
+            recorder.start()
+            setMediaRecorder(recorder)
+            setRecording(true)
+            setRecordingTime(0)
+            recordingTimer.current = setInterval(() => setRecordingTime(p => p + 1), 1000)
         } catch (err: any) {
-            console.error('提交音频失败:', err)
-            showAlert(err?.message || '提交音频失败', 'error')
-        } finally {
-            setUploading(false)
+            showAlert(t('voiceTraining.volcengine.recordingFailed'), 'error')
         }
     }
 
-    // 查询训练状态
-    const handleQueryStatus = async () => {
-        if (!speakerId.trim()) {
-            showAlert(t('voiceTraining.volcengine.messages.enterSpeakerIdRequired'), 'warning')
-            return
-        }
+    const stopRecording = () => {
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop()
+        if (recordingTimer.current) { clearInterval(recordingTimer.current); recordingTimer.current = null }
+        setRecording(false)
+    }
 
+    const submitRecording = async () => {
+        if (!recordedBlob) return
+        const file = new File([recordedBlob], `recording_${Date.now()}.webm`, { type: 'audio/webm' })
+        setRecordedBlob(null)
+        await doUpload(file)
+    }
+
+    const handleQueryStatus = async () => {
+        if (!speakerId.trim()) return
         try {
             setQuerying(true)
-            const response = await post('/volcengine/task/query', {
-                speakerId: speakerId
-            })
-            setTaskStatus(response.data)
-            showAlert('查询成功', 'success')
-        } catch (err: any) {
-            console.error('查询状态失败:', err)
-            showAlert(err?.message || '查询状态失败', 'error')
-        } finally {
-            setQuerying(false)
-        }
+            const res = await post('/volcengine/task/query', { speakerId })
+            setTaskStatus(res.data)
+            showAlert(t('voiceTraining.messages.querySuccess'), 'success')
+        } catch (err: any) { showAlert(err?.message || t('voiceTraining.messages.queryFailed'), 'error') }
+        finally { setQuerying(false) }
     }
 
-    // 合成语音功能
+    // --- Synthesis ---
     const synthesizeVoice = async (clone: VoiceClone) => {
-        if (!synthesisText.trim()) {
-            showAlert(t('voiceTraining.messages.enterSynthesisText'), 'warning')
-            return
-        }
-
+        if (!synthesisText.trim()) { showAlert(t('voiceTraining.messages.enterSynthesisText'), 'warning'); return }
+        const assetId = clone.assetId || clone.voiceName
+        if (!assetId) { showAlert(t('voiceTraining.volcengine.messages.assetIdNotFound'), 'error'); return }
         try {
             setSynthesizing(true)
-            // 使用 assetId（speaker_id），如果没有则使用 voiceName 作为 fallback
-            const assetId = clone.assetId || clone.voiceName
-            if (!assetId) {
-                showAlert(t('voiceTraining.volcengine.messages.assetIdNotFound'), 'error')
-                return
-            }
-            await post('/volcengine/synthesize', {
-                assetId: assetId, // 使用 speaker_id（asset_id）
-                text: synthesisText,
-                language: 'zh-CN'
-            })
-
+            await post('/volcengine/synthesize', { assetId, text: synthesisText, language: 'zh-CN' })
             showAlert(t('voiceTraining.messages.synthesisSuccess'), 'success')
             setSynthesisText('')
             refreshSynthesisHistory()
-        } catch (err: any) {
-            console.error('语音合成失败:', err)
-            showAlert(err?.message || t('voiceTraining.messages.synthesisFailed'), 'error')
-        } finally {
-            setSynthesizing(false)
+        } catch (err: any) { showAlert(err?.message || t('voiceTraining.messages.synthesisFailed'), 'error') }
+        finally { setSynthesizing(false) }
+    }
+
+    // --- Audio playback ---
+    const playAudio = (url: string) => {
+        if (audioRef) { audioRef.pause(); audioRef.currentTime = 0 }
+        let full = url
+        if (url.startsWith('/media/') || url.startsWith('/uploads/')) {
+            full = `${getApiBaseURL().replace('/api', '')}${url}`
+        } else if (url.startsWith('/') && !url.startsWith('http')) {
+            full = `${window.location.origin}${url}`
         }
+        const a = new Audio(full)
+        a.onended = () => setPlayingAudio(null)
+        a.onerror = () => { setPlayingAudio(null); showAlert(t('voiceTraining.messages.audioPlayFailed'), 'error') }
+        a.play(); setAudioRef(a); setPlayingAudio(url)
+    }
+    const stopAudio = () => { if (audioRef) { audioRef.pause(); audioRef.currentTime = 0 }; setPlayingAudio(null) }
+
+    // --- Delete ---
+    const deleteSynthesisRecord = async (id: number) => {
+        try { await post('/voice/synthesis/delete', { id }); showAlert(t('voiceTraining.messages.deleteRecordSuccess'), 'success'); refreshSynthesisHistory() }
+        catch (err: any) { showAlert(err?.message || t('voiceTraining.messages.deleteRecordFailed'), 'error') }
+    }
+    const deleteVoiceClone = async (id: number, name: string) => {
+        if (!window.confirm(t('voiceTraining.messages.deleteConfirm', { name }))) return
+        try { await post('/voice/clones/delete', { id }); showAlert(t('voiceTraining.messages.deleteSuccess'), 'success'); refreshVoiceClones() }
+        catch (err: any) { showAlert(err?.message || t('voiceTraining.messages.deleteFailed'), 'error') }
     }
 
-    const getStatusText = (status: number) => {
-        switch (status) {
-            case 0: return t('voiceTraining.volcengine.status.notFound')
-            case 1: return t('voiceTraining.volcengine.status.training')
-            case 2: return t('voiceTraining.volcengine.status.success')
-            case 3: return t('voiceTraining.volcengine.status.failed')
-            case 4: return t('voiceTraining.volcengine.status.available')
-            default: return t('voiceTraining.volcengine.status.unknown')
-        }
-    }
+    const getStatusText = (s: number) => ({
+        0: t('voiceTraining.volcengine.status.notFound'),
+        1: t('voiceTraining.volcengine.status.training'),
+        2: t('voiceTraining.volcengine.status.success'),
+        3: t('voiceTraining.volcengine.status.failed'),
+        4: t('voiceTraining.volcengine.status.available'),
+    } as Record<number, string>)[s] || t('voiceTraining.volcengine.status.unknown')
 
-    // 如果配置未检查完成，显示加载中
-    if (!configChecked) {
-        return (
-            <div className="flex items-center justify-center min-h-screen">
-                <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                    <p className="text-gray-600 dark:text-gray-400">检查配置中...</p>
-                </div>
-            </div>
-        )
-    }
+    const formatTime = (s: number) => `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`
 
-    // 如果配置未配置，显示配置表单
-    if (!configConfigured) {
-        return (
-            <div className="container mx-auto px-4 py-8">
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <Settings className="w-5 h-5" />
-                            配置火山引擎音色克隆服务
-                        </CardTitle>
-                        <CardDescription>
-                            请填写以下配置信息以使用音色克隆功能
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="pt-6">
-                        <div className="space-y-4">
-                            <FormField label="App ID" required>
-                                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={configForm.app_id}
-                                    onChange={(e) => setConfigForm({ ...configForm, app_id: e.target.value })}
-                                    placeholder="请输入 App ID"
-                                />
-                            </FormField>
-                            <FormField label="Token" required>
-                                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" type="password"
-                                    value={configForm.token}
-                                    onChange={(e) => setConfigForm({ ...configForm, token: e.target.value })}
-                                    placeholder="请输入 Token"
-                                />
-                            </FormField>
-                            <FormField label="Cluster">
-                                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={configForm.cluster}
-                                    onChange={(e) => setConfigForm({ ...configForm, cluster: e.target.value })}
-                                    placeholder="volcano_icl"
-                                />
-                            </FormField>
-                            <FormField label="Voice Type">
-                                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={configForm.voice_type}
-                                    onChange={(e) => setConfigForm({ ...configForm, voice_type: e.target.value })}
-                                    placeholder="请输入音色类型"
-                                />
-                            </FormField>
-                            <FormField label="Encoding">
-                                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={configForm.encoding}
-                                    onChange={(e) => setConfigForm({ ...configForm, encoding: e.target.value })}
-                                    placeholder="pcm"
-                                />
-                            </FormField>
-                            <FormField label="Frame Duration">
-                                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={configForm.frame_duration}
-                                    onChange={(e) => setConfigForm({ ...configForm, frame_duration: e.target.value })}
-                                    placeholder="20ms"
-                                />
-                            </FormField>
+    // --- Loading ---
+    if (!configChecked) return (
+        <div className="flex items-center justify-center min-h-[60vh]">
+            <div className="animate-spin rounded-full h-8 w-8 border-2 border-gray-300 border-t-gray-600" />
+        </div>
+    )
+
+    // --- Config not set ---
+    if (!configConfigured) return (
+        <div className="max-w-xl mx-auto py-12 px-4">
+            <Card>
+                <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><Zap className="w-5 h-5 text-orange-500" />{t('voiceTraining.volcengine.config.title')}</CardTitle></CardHeader>
+                <CardContent>
+                    <div className="text-center py-8">
+                        <p className="text-gray-500 mb-4">{t('voiceTraining.volcengine.config.envHint')}</p>
+                        <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 text-left text-sm font-mono space-y-1">
+                            <p>VOLCENGINE_CLONE_APP_ID=...</p>
+                            <p>VOLCENGINE_CLONE_TOKEN=...</p>
+                            <p>VOLCENGINE_CLONE_CLUSTER=volcano_icl</p>
                         </div>
-                    </CardContent>
-                    <CardFooter>
-                        <Button
-                            onClick={handleSaveConfig}
-                            disabled={savingConfig || !configForm.app_id || !configForm.token}
-                            leftIcon={<Save className="w-4 h-4" />}
-                        >
-                            {savingConfig ? '保存中...' : '保存配置'}
-                        </Button>
-                    </CardFooter>
-                </Card>
-            </div>
-        )
-    }
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+    )
+
+    // --- Main render ---
+    const selectedClone = voiceClones.find(c => c.id === selectedCloneForSynthesis)
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-purple-50/20 dark:from-neutral-900 dark:via-neutral-800 dark:to-neutral-900">
-            <div className="relative max-w-6xl mx-auto px-4 py-8">
-                {/* 返回按钮 */}
-                <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => navigate('/voice-training')}
-                    className="mb-4"
-                >
-                    ← {t('voiceTraining.back')}
-                </Button>
+        <div className="max-w-6xl mx-auto py-6 px-4 space-y-4">
+            {/* Tabs */}
+            <div className="flex gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-lg w-fit">
+                {(['training', 'clones', 'history'] as const).map(tab => (
+                    <button key={tab} onClick={() => setActiveTab(tab)}
+                        className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                            activeTab === tab ? 'bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'
+                        }`}>
+                        {t(`voiceTraining.volcengine.tab.${tab}`)}
+                    </button>
+                ))}
+            </div>
 
-                {/* 页面头部 */}
-                <div className="mb-6">
-                    <CollapsibleSectionHeader
-                        title={t('voiceTraining.volcengine.title')}
-                        icon={<Zap className="w-4 h-4 text-orange-500" />}
-                        expanded={true}
-                        onToggle={() => {}}
-                        showChevron={false}
-                        clickable={false}
-                        compact
-                        withDivider
-                    />
-                </div>
+            {/* ===== Training Tab ===== */}
+            {activeTab === 'training' && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {/* Left: Upload */}
+                    <Card>
+                        <CardHeader><CardTitle className="text-base flex items-center gap-2"><Upload className="w-4 h-4" />{t('voiceTraining.volcengine.submitAudio.title')}</CardTitle></CardHeader>
+                        <CardContent className="space-y-3">
+                            <FormField label={t('voiceTraining.volcengine.speakerId')} required>
+                                <ArcoInput size="large" className="!h-9 !text-sm" value={speakerId}
+                                    onChange={(e) => setSpeakerId(e)}
+                                    placeholder={t('voiceTraining.volcengine.speakerIdPlaceholder')} />
+                            </FormField>
+                            <FormField label={t('voiceTraining.volcengine.uploadAudio')} required>
+                                <FileUpload accept="audio/*"
+                                    hint={t('voiceTraining.volcengine.uploadAudio.hint')}
+                                    onFileSelect={(files: File[]) => { if (files[0]) doUpload(files[0]) }}
+                                    disabled={uploading || !speakerId.trim()} />
+                            </FormField>
+                        </CardContent>
+                    </Card>
 
-                {/* 标签页 */}
-                <div className="flex gap-2 mb-6">
-                    <Button
-                        variant={activeTab === 'training' ? 'primary' : 'outline'}
-                        size="sm"
-                        onClick={() => setActiveTab('training')}
-                    >
-                        {t('voiceTraining.volcengine.tab.training')}
-                    </Button>
-                    <Button
-                        variant={activeTab === 'clones' ? 'primary' : 'outline'}
-                        size="sm"
-                        onClick={() => setActiveTab('clones')}
-                    >
-                        {t('voiceTraining.volcengine.tab.clones')}
-                    </Button>
-                    <Button
-                        variant={activeTab === 'history' ? 'primary' : 'outline'}
-                        size="sm"
-                        onClick={() => setActiveTab('history')}
-                    >
-                        {t('voiceTraining.volcengine.tab.history')}
-                    </Button>
-                </div>
+                    {/* Right: Record + Query */}
+                    <Card>
+                        <CardHeader><CardTitle className="text-base flex items-center gap-2"><Mic className="w-4 h-4" />{t('voiceTraining.volcengine.record.title')}</CardTitle></CardHeader>
+                        <CardContent className="space-y-3">
+                            <div className="flex items-center gap-3">
+                                {!recording ? (
+                                    <Button onClick={startRecording} disabled={!speakerId.trim() || uploading}
+                                        variant="primary" leftIcon={<Mic className="w-4 h-4" />}>
+                                        {t('voiceTraining.volcengine.record.start')}
+                                    </Button>
+                                ) : (
+                                    <Button onClick={stopRecording} variant="danger" leftIcon={<Square className="w-4 h-4" />}>
+                                        {formatTime(recordingTime)}
+                                    </Button>
+                                )}
+                                {recordedBlob && !recording && (
+                                    <Button onClick={submitRecording} loading={uploading}
+                                        variant="primary" leftIcon={<Upload className="w-4 h-4" />}>
+                                        {t('voiceTraining.volcengine.record.submit')}
+                                    </Button>
+                                )}
+                            </div>
+                            <p className="text-xs text-gray-400">{t('voiceTraining.volcengine.record.hint')}</p>
 
-                {/* 训练任务标签页 */}
-                {activeTab === 'training' && (
-                    <div className="space-y-6">
-                        <Card variant="elevated" padding="lg">
-                            <CardHeader>
-                                <CardTitle>{t('voiceTraining.volcengine.submitAudio.title')}</CardTitle>
-                                <CardDescription>
-                                    {t('voiceTraining.volcengine.submitAudio.desc')}
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                                <FormField label={t('voiceTraining.volcengine.speakerId')} required>
-                                    <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={speakerId}
-                                        onValueChange={setSpeakerId}
-                                        placeholder={t('voiceTraining.volcengine.speakerIdPlaceholder')}
-                                        size="md"
-                                    />
-                                </FormField>
-                                <FormField label={t('voiceTraining.volcengine.uploadAudio')} required>
-                                    <FileUpload
-                                        accept="audio/*"
-                                        onFileSelect={handleSubmitAudio}
-                                        disabled={uploading || !speakerId.trim()}
-                                    />
-                                </FormField>
-                                <Button
-                                    onClick={handleQueryStatus}
-                                    loading={querying}
-                                    variant="primary"
-                                    size="md"
-                                    disabled={!speakerId.trim()}
-                                >
+                            <div className="border-t border-gray-100 dark:border-gray-700 pt-3">
+                                <Button onClick={handleQueryStatus} loading={querying} variant="outline"
+                                    disabled={!speakerId.trim()} fullWidth size="sm">
                                     {t('voiceTraining.volcengine.queryStatus')}
                                 </Button>
-                            </CardContent>
-                        </Card>
+                            </div>
+                            {taskStatus && (
+                                <div className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg text-sm flex items-center justify-between">
+                                    <span className="font-medium">{getStatusText(taskStatus.status)}</span>
+                                    {taskStatus.failedDesc && <span className="text-red-500 text-xs">{taskStatus.failedDesc}</span>}
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+                </div>
+            )}
 
-                        {taskStatus && (
-                            <Card variant="elevated" padding="lg">
-                                <CardHeader>
-                                    <CardTitle>{t('voiceTraining.volcengine.taskStatus')}</CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="space-y-2">
-                                        <p><strong>{t('voiceTraining.volcengine.speakerId')}:</strong> {taskStatus.speakerId}</p>
-                                        <p><strong>{t('voiceTraining.status')}:</strong> {getStatusText(taskStatus.status)}</p>
-                                        {taskStatus.failedDesc && (
-                                            <p><strong>{t('voiceTraining.volcengine.failedReason')}:</strong> {taskStatus.failedDesc}</p>
-                                        )}
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        )}
-                    </div>
-                )}
-
-                {/* 音色管理标签页 */}
-                {activeTab === 'clones' && (
-                    <div className="space-y-6">
-                        {/* 合成语音功能 */}
-                        {voiceClones.length > 0 && (
-                            <Card variant="elevated" padding="lg">
-                                <CardHeader>
-                                    <CardTitle>{t('voiceTraining.synthesize.title')}</CardTitle>
-                                </CardHeader>
-                                <CardContent className="space-y-4">
-                                    <FormField label={t('voiceTraining.selectVoice')} required>
-                                        <Select
-                                            value={selectedCloneForSynthesis?.toString() ?? ''}
-                                            onValueChange={(value) => setSelectedCloneForSynthesis(value === '' ? null : Number(value))}
-                                        >
-                                            <SelectTrigger>
-                                                <SelectValue placeholder={t('voiceTraining.selectVoicePlaceholder')}>
-                                                    {selectedCloneForSynthesis === null
-                                                        ? t('voiceTraining.selectVoicePlaceholder')
-                                                        : voiceClones.find(vc => vc.id === selectedCloneForSynthesis)?.voiceName || t('voiceTraining.unknownVoice')
-                                                    }
-                                                </SelectValue>
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {voiceClones.map(clone => (
-                                                    <SelectItem key={clone.id} value={clone.id.toString()}>
-                                                        {clone.voiceName}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    </FormField>
-                                    <FormField label={t('voiceTraining.synthesizeText')} required>
-                                        <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={synthesisText}
-                                            onValueChange={setSynthesisText}
-                                            placeholder={t('voiceTraining.synthesizeTextPlaceholder')}
-                                            size="md"
-                                        />
-                                    </FormField>
-                                </CardContent>
-                                <CardFooter>
-                                    <Button
-                                        onClick={() => {
-                                            if (!selectedCloneForSynthesis) {
-                                                showAlert(t('voiceTraining.messages.selectVoiceFirst'), 'warning')
-                                                return
-                                            }
-                                            const selectedClone = voiceClones.find(vc => vc.id === selectedCloneForSynthesis)
-                                            if (!selectedClone) {
-                                                showAlert(t('voiceTraining.messages.voiceNotFound'), 'error')
-                                                return
-                                            }
-                                            synthesizeVoice(selectedClone)
-                                        }}
-                                        loading={synthesizing}
-                                        variant="primary"
-                                        size="lg"
-                                        fullWidth
-                                        disabled={!selectedCloneForSynthesis || !synthesisText.trim()}
-                                    >
-                                        {synthesizing ? t('voiceTraining.synthesizing') : t('voiceTraining.startSynthesize')}
-                                    </Button>
-                                </CardFooter>
-                            </Card>
-                        )}
-
-                        {/* 音色列表 */}
-                        <Card variant="elevated" padding="lg">
+            {/* ===== Clones Tab ===== */}
+            {activeTab === 'clones' && (
+                <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+                    {/* Left: Voice List */}
+                    <div className="lg:col-span-2">
+                        <Card className="h-full">
                             <CardHeader>
                                 <div className="flex items-center justify-between">
-                                    <div>
-                                        <CardTitle>{t('voiceTraining.volcengine.myVoices.title')}</CardTitle>
-                                        <CardDescription>{t('voiceTraining.volcengine.myVoices.desc')}</CardDescription>
-                                    </div>
-                                    <Button
-                                        onClick={refreshVoiceClones}
-                                        variant="outline"
-                                        size="sm"
-                                        loading={loadingClones}
-                                        leftIcon={<RefreshCw className="w-4 h-4" />}
-                                    >
-                                        {t('voiceTraining.refresh')}
+                                    <CardTitle className="text-base">{t('voiceTraining.volcengine.myVoices.title')}</CardTitle>
+                                    <Button variant="ghost" size="sm" onClick={refreshVoiceClones}
+                                        loading={loadingClones} leftIcon={<RefreshCw className="w-3.5 h-3.5" />}>
                                     </Button>
                                 </div>
                             </CardHeader>
                             <CardContent>
                                 {loadingClones ? (
-                                    <div className="text-center py-8 text-gray-500">{t('voiceTraining.loadingClones')}</div>
+                                    <p className="text-center py-6 text-gray-400 text-sm">{t('voiceTraining.loadingClones')}</p>
                                 ) : voiceClones.length === 0 ? (
-                                    <div className="text-center py-8 text-gray-500">{t('voiceTraining.noClones')}</div>
+                                    <p className="text-center py-6 text-gray-400 text-sm">{t('voiceTraining.noClones')}</p>
                                 ) : (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {voiceClones.map((clone) => (
-                                            <Card key={clone.id} variant="outlined" padding="md">
-                                                <CardContent>
-                                                    <h3 className="font-semibold mb-2">{clone.voiceName}</h3>
-                                                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                                                        {clone.voiceDescription || t('voiceTraining.noVoiceDescription')}
-                                                    </p>
-                                                </CardContent>
-                                            </Card>
+                                    <div className="space-y-2 max-h-[500px] overflow-y-auto">
+                                        {voiceClones.map(clone => (
+                                            <div key={clone.id}
+                                                onClick={() => setSelectedCloneForSynthesis(clone.id)}
+                                                className={`p-3 rounded-lg border cursor-pointer transition-all group ${
+                                                    selectedCloneForSynthesis === clone.id
+                                                        ? 'border-orange-400 bg-orange-50 dark:bg-orange-900/20'
+                                                        : 'border-gray-200 dark:border-gray-700 hover:border-gray-300'
+                                                }`}>
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-2 min-w-0">
+                                                        <Zap className="w-4 h-4 text-orange-500 shrink-0" />
+                                                        <span className="font-medium text-sm truncate">{clone.voiceName}</span>
+                                                    </div>
+                                                    <button onClick={(e) => { e.stopPropagation(); deleteVoiceClone(clone.id, clone.voiceName) }}
+                                                        className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-red-500 shrink-0">
+                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
+                                            </div>
                                         ))}
                                     </div>
                                 )}
                             </CardContent>
                         </Card>
                     </div>
-                )}
 
-                {/* 合成历史标签页 */}
-                {activeTab === 'history' && (
-                    <Card variant="elevated" padding="lg">
-                        <CardHeader>
-                            <CardTitle>{t('voiceTraining.synthesisHistory.title')}</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            {loadingHistory ? (
-                                <div className="text-center py-8 text-gray-500">{t('voiceTraining.loadingHistory')}</div>
-                            ) : synthesisHistory.length === 0 ? (
-                                <div className="text-center py-8 text-gray-500">{t('voiceTraining.noHistory')}</div>
-                            ) : (
-                                <div className="space-y-4">
-                                    {synthesisHistory.map((record) => (
-                                        <Card key={record.id} variant="outlined" padding="md">
-                                            <CardContent>
-                                                <div className="flex items-start justify-between gap-4">
-                                                    <div className="flex-1">
-                                                        <p className="mb-2 text-gray-900 dark:text-white">{record.text}</p>
-                                                        <p className="text-xs text-gray-500">{new Date(record.createdAt).toLocaleString()}</p>
-                                                    </div>
-                                                    {record.audioUrl && (
-                                                        <div className="flex items-center gap-2">
-                                                            {playingAudio === record.audioUrl ? (
-                                                                <Button
-                                                                    variant="outline"
-                                                                    size="sm"
-                                                                    onClick={stopAudio}
-                                                                    leftIcon={<Pause className="w-4 h-4" />}
-                                                                >
-                                                                    {t('voiceTraining.stop')}
-                                                                </Button>
-                                                            ) : (
-                                                                <Button
-                                                                    variant="outline"
-                                                                    size="sm"
-                                                                    onClick={() => playAudio(record.audioUrl)}
-                                                                    leftIcon={<Play className="w-4 h-4" />}
-                                                                >
-                                                                    {t('voiceTraining.play')}
-                                                                </Button>
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </CardContent>
-                                        </Card>
-                                    ))}
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-                )}
-            </div>
+                    {/* Right: Synthesis */}
+                    <div className="lg:col-span-3">
+                        <Card className="h-full">
+                            <CardHeader><CardTitle className="text-base">{t('voiceTraining.synthesize.title')}</CardTitle></CardHeader>
+                            <CardContent className="space-y-3">
+                                {selectedClone ? (
+                                    <>
+                                        <div className="flex items-center gap-2 p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
+                                            <Zap className="w-4 h-4 text-orange-500" />
+                                            <span className="text-sm font-medium">{selectedClone.voiceName}</span>
+                                            <span className="text-xs text-gray-400 ml-auto">{selectedClone.assetId}</span>
+                                        </div>
+                                        <FormField label={t('voiceTraining.synthesizeText')} required>
+                                            <ArcoInput size="large" className="!h-10 !text-base" value={synthesisText}
+                                                onChange={(e) => setSynthesisText(e)}
+                                                placeholder={t('voiceTraining.synthesizeTextPlaceholder')} />
+                                        </FormField>
+                                        <Button onClick={() => synthesizeVoice(selectedClone)} loading={synthesizing}
+                                            variant="primary" fullWidth disabled={!synthesisText.trim()}>
+                                            {synthesizing ? t('voiceTraining.synthesizing') : t('voiceTraining.startSynthesize')}
+                                        </Button>
+                                    </>
+                                ) : (
+                                    <div className="text-center py-12 text-gray-400 text-sm">
+                                        {t('voiceTraining.volcengine.selectVoiceHint')}
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </div>
+                </div>
+            )}
+
+            {/* ===== History Tab ===== */}
+            {activeTab === 'history' && (
+                <Card>
+                    <CardHeader>
+                        <div className="flex items-center justify-between">
+                            <CardTitle className="text-base">{t('voiceTraining.synthesisHistory.title')}</CardTitle>
+                            <Button variant="ghost" size="sm" onClick={refreshSynthesisHistory}
+                                loading={loadingHistory} leftIcon={<RefreshCw className="w-3.5 h-3.5" />}>
+                            </Button>
+                        </div>
+                    </CardHeader>
+                    <CardContent>
+                        {loadingHistory ? (
+                            <p className="text-center py-6 text-gray-400 text-sm">{t('voiceTraining.loadingHistory')}</p>
+                        ) : synthesisHistory.length === 0 ? (
+                            <p className="text-center py-6 text-gray-400 text-sm">{t('voiceTraining.noHistory')}</p>
+                        ) : (
+                            <div className="space-y-1.5">
+                                {synthesisHistory.map(record => (
+                                    <div key={record.id}
+                                        className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm truncate">{record.text}</p>
+                                            <p className="text-xs text-gray-400">{new Date(record.createdAt).toLocaleString()}</p>
+                                        </div>
+                                        <div className="flex items-center gap-0.5 shrink-0">
+                                            {record.audioUrl && (
+                                                <Button variant="ghost" size="sm"
+                                                    onClick={() => playingAudio === record.audioUrl ? stopAudio() : playAudio(record.audioUrl)}
+                                                    leftIcon={playingAudio === record.audioUrl ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}>
+                                                </Button>
+                                            )}
+                                            <Button variant="ghost" size="sm"
+                                                onClick={() => deleteSynthesisRecord(record.id)}
+                                                leftIcon={<Trash2 className="w-3.5 h-3.5 text-red-400" />}>
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+            )}
         </div>
     )
 }
 
 export default VoiceTrainingVolcengine
-

@@ -4,8 +4,6 @@ import NotFound from "@/pages/NotFound.tsx";
 import PWAInstaller from "@/components/PWA/PWAInstaller.tsx";
 import ErrorBoundary from "@/components/ErrorBoundary/ErrorBoundary.tsx";
 import VoiceAssistant from "@/pages/VoiceAssistant.tsx";
-import VoiceTrainingIndex from "@/pages/VoiceTraining/VoiceTrainingIndex.tsx";
-import VoiceTrainingXunfei from "@/pages/VoiceTraining/VoiceTrainingXunfei.tsx";
 import VoiceTrainingVolcengine from "@/pages/VoiceTraining/VoiceTrainingVolcengine.tsx";
 import DevErrorHandler from "@/components/Dev/DevErrorHandler.tsx";
 import GlobalSearch from "@/components/UI/GlobalSearch.tsx";
@@ -110,20 +108,6 @@ function AppRoutes() {
                         }/>
                         <Route path="/voice-assistant" element={<Navigate to="/assistants" replace />} />
                         <Route path="/voice-training" element={
-                            <ProtectedRoute>
-                                <Layout>
-                                    <VoiceTrainingIndex />
-                                </Layout>
-                            </ProtectedRoute>
-                        } />
-                        <Route path="/voice-training/xunfei" element={
-                            <ProtectedRoute>
-                                <Layout>
-                                    <VoiceTrainingXunfei />
-                                </Layout>
-                            </ProtectedRoute>
-                        } />
-                        <Route path="/voice-training/volcengine" element={
                             <ProtectedRoute>
                                 <Layout>
                                     <VoiceTrainingVolcengine />

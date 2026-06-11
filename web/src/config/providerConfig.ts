@@ -122,35 +122,6 @@ export const TTS_PROVIDERS: Record<string, ProviderConfig> = {
       }
     ]
   },
-  xunfei: {
-    name: '科大讯飞',
-    fields: [
-      {
-        key: 'appId',
-        label: 'App ID',
-        type: 'text',
-        placeholder: '请输入讯飞 App ID',
-        required: true,
-        description: '科大讯飞应用 ID'
-      },
-      {
-        key: 'apiKey',
-        label: 'API Key',
-        type: 'password',
-        placeholder: '请输入 API Key',
-        required: true,
-        description: '科大讯飞 API Key'
-      },
-      {
-        key: 'apiSecret',
-        label: 'API Secret',
-        type: 'password',
-        placeholder: '请输入 API Secret',
-        required: true,
-        description: '科大讯飞 API Secret'
-      }
-    ]
-  },
   openai: {
     name: 'OpenAI',
     fields: [
@@ -828,32 +799,6 @@ export const ASR_PROVIDERS: Record<string, ProviderConfig> = {
       }
     ]
   },
-  xunfei: {
-    name: '科大讯飞',
-    fields: [
-      {
-        key: 'appId',
-        label: 'App ID',
-        type: 'text',
-        placeholder: '请输入讯飞 App ID',
-        required: true
-      },
-      {
-        key: 'apiKey',
-        label: 'API Key',
-        type: 'password',
-        placeholder: '请输入 API Key',
-        required: true
-      },
-      {
-        key: 'apiSecret',
-        label: 'API Secret',
-        type: 'password',
-        placeholder: '请输入 API Secret',
-        required: true
-      }
-    ]
-  },
   deepgram: {
     name: 'Deepgram',
     fields: [
@@ -1083,7 +1028,7 @@ export const ASR_PROVIDERS: Record<string, ProviderConfig> = {
 
 // 获取所有 TTS 服务商选项
 export const getTTSProviderOptions = () => {
-  const supported = ['tencent', 'qcloud', 'volcengine', 'xunfei', 'baidu', 'openai', 'fishspeech', 'fishaudio']
+  const supported = ['tencent', 'qcloud', 'volcengine', 'baidu', 'openai', 'fishspeech', 'fishaudio']
   return supported.filter((key) => !!TTS_PROVIDERS[key]).map(key => ({
     value: key,
     label: TTS_PROVIDERS[key].name
@@ -1092,7 +1037,7 @@ export const getTTSProviderOptions = () => {
 
 // 获取所有 ASR 服务商选项
 export const getASRProviderOptions = () => {
-  const supported = ['tencent', 'qcloud', 'volcengine', 'xunfei', 'baidu', 'whisper', 'local']
+  const supported = ['tencent', 'qcloud', 'volcengine', 'baidu', 'whisper', 'local']
   return supported.filter((key) => !!ASR_PROVIDERS[key]).map(key => ({
     value: key,
     label: ASR_PROVIDERS[key].name

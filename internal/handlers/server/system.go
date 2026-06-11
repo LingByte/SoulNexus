@@ -71,9 +71,8 @@ func (h *Handlers) SystemInit(c *gin.Context) {
 		Count(&enabledMailChannels).Error
 	emailConfigured := enabledMailChannels > 0
 
-	// Get voice clone configurations (from database first, then from .env)
-	xunfeiConfig := h.getVoiceCloneConfig("xunfei")
-	volcengineConfig := h.getVoiceCloneConfig("volcengine")
+	// Check volcengine clone config from env
+	volcengineConfigured := utils.GetEnv("VOLCENGINE_CLONE_APP_ID") != "" && utils.GetEnv("VOLCENGINE_CLONE_TOKEN") != ""
 
 	// Get voiceprint recognition configuration
 	voiceprintConfig := h.getVoiceprintConfig()
@@ -88,13 +87,8 @@ func (h *Handlers) SystemInit(c *gin.Context) {
 			"configured": emailConfigured,
 		},
 		"voiceClone": gin.H{
-			"xunfei": gin.H{
-				"configured": xunfeiConfig != nil,
-				"config":     xunfeiConfig,
-			},
 			"volcengine": gin.H{
-				"configured": volcengineConfig != nil,
-				"config":     volcengineConfig,
+				"configured": volcengineConfigured,
 			},
 		},
 		"voiceprint": gin.H{
@@ -106,79 +100,6 @@ func (h *Handlers) SystemInit(c *gin.Context) {
 			"voiceprintEnabled": voiceprintConfig["enabled"], // 专门用于前端sidebar显示控制
 		},
 	})
-}
-
-// getVoiceCloneConfig gets voice clone configuration (read from database first, then from .env)
-func (h *Handlers) getVoiceCloneConfig(provider string) map[string]interface{} {
-	var configKey string
-	var envConfig map[string]interface{}
-
-	switch provider {
-	case "xunfei":
-		configKey = constants.KEY_VOICE_CLONE_XUNFEI_CONFIG
-		// Read configuration from .env
-		envConfig = map[string]interface{}{
-			"app_id":        utils.GetEnv("XUNFEI_APP_ID"),
-			"api_key":       utils.GetEnv("XUNFEI_API_KEY"),
-			"base_url":      utils.GetEnv("XUNFEI_BASE_URL"),
-			"ws_app_id":     utils.GetEnv("XUNFEI_WS_APP_ID"),
-			"ws_api_key":    utils.GetEnv("XUNFEI_WS_API_KEY"),
-			"ws_api_secret": utils.GetEnv("XUNFEI_WS_API_SECRET"),
-		}
-		if envConfig["base_url"] == "" {
-			envConfig["base_url"] = "http://opentrain.xfyousheng.com"
-		}
-	case "volcengine":
-		configKey = constants.KEY_VOICE_CLONE_VOLCENGINE_CONFIG
-		// Read configuration from .env
-		envConfig = map[string]interface{}{
-			"app_id":         utils.GetEnv("VOLCENGINE_CLONE_APP_ID"),
-			"token":          utils.GetEnv("VOLCENGINE_CLONE_TOKEN"),
-			"cluster":        utils.GetEnv("VOLCENGINE_CLONE_CLUSTER"),
-			"voice_type":     utils.GetEnv("VOLCENGINE_CLONE_VOICE_TYPE"),
-			"encoding":       utils.GetEnv("VOLCENGINE_CLONE_ENCODING"),
-			"frame_duration": utils.GetEnv("VOLCENGINE_CLONE_FRAME_DURATION"),
-		}
-		if envConfig["cluster"] == "" {
-			envConfig["cluster"] = "volcano_icl"
-		}
-		if sampleRate := utils.GetIntEnv("VOLCENGINE_CLONE_SAMPLE_RATE"); sampleRate > 0 {
-			envConfig["sample_rate"] = sampleRate
-		}
-		if bitDepth := utils.GetIntEnv("VOLCENGINE_CLONE_BIT_DEPTH"); bitDepth > 0 {
-			envConfig["bit_depth"] = bitDepth
-		}
-		if channels := utils.GetIntEnv("VOLCENGINE_CLONE_CHANNELS"); channels > 0 {
-			envConfig["channels"] = channels
-		}
-		if speedRatio := utils.GetFloatEnv("VOLCENGINE_CLONE_SPEED_RATIO"); speedRatio > 0 {
-			envConfig["speed_ratio"] = speedRatio
-		}
-		if trainingTimes := utils.GetIntEnv("VOLCENGINE_CLONE_TRAINING_TIMES"); trainingTimes > 0 {
-			envConfig["training_times"] = trainingTimes
-		}
-	default:
-		return nil
-	}
-
-	// Read from database first
-	dbConfigStr := utils.GetValue(h.db, configKey)
-	if dbConfigStr != "" {
-		var dbConfig map[string]interface{}
-		if err := json.Unmarshal([]byte(dbConfigStr), &dbConfig); err == nil {
-			// Check if configuration is complete (must have required fields)
-			if h.isConfigValid(provider, dbConfig) {
-				return dbConfig
-			}
-		}
-	}
-
-	// If database doesn't have it or configuration is incomplete, read from .env
-	if h.isConfigValid(provider, envConfig) {
-		return envConfig
-	}
-
-	return nil
 }
 
 // getVoiceprintConfig gets voiceprint recognition configuration
@@ -214,69 +135,6 @@ func (h *Handlers) getVoiceprintConfig() map[string]interface{} {
 		"configured": configured,
 		"config":     config,
 	}
-}
-
-// isConfigValid 检查配置是否有效
-func (h *Handlers) isConfigValid(provider string, config map[string]interface{}) bool {
-	if config == nil {
-		return false
-	}
-
-	switch provider {
-	case "xunfei":
-		appID, _ := config["app_id"].(string)
-		apiKey, _ := config["api_key"].(string)
-		return appID != "" && apiKey != ""
-	case "volcengine":
-		appID, _ := config["app_id"].(string)
-		token, _ := config["token"].(string)
-		return appID != "" && token != ""
-	default:
-		return false
-	}
-}
-
-// SaveVoiceCloneConfig 保存音色克隆配置
-func (h *Handlers) SaveVoiceCloneConfig(c *gin.Context) {
-	var req struct {
-		Provider string                 `json:"provider" binding:"required"`
-		Config   map[string]interface{} `json:"config" binding:"required"`
-	}
-
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Fail(c, "参数错误", err.Error())
-		return
-	}
-
-	// 验证配置
-	if !h.isConfigValid(req.Provider, req.Config) {
-		response.Fail(c, "配置无效", "请确保填写了所有必需的配置项")
-		return
-	}
-
-	// 确定配置键
-	var configKey string
-	switch req.Provider {
-	case "xunfei":
-		configKey = constants.KEY_VOICE_CLONE_XUNFEI_CONFIG
-	case "volcengine":
-		configKey = constants.KEY_VOICE_CLONE_VOLCENGINE_CONFIG
-	default:
-		response.Fail(c, "不支持的提供商", "只支持 xunfei 和 volcengine")
-		return
-	}
-
-	// 序列化为 JSON
-	configJSON, err := json.Marshal(req.Config)
-	if err != nil {
-		response.Fail(c, "序列化配置失败", err.Error())
-		return
-	}
-
-	// 保存到数据库
-	utils.SetValue(h.db, configKey, string(configJSON), "json", true, true)
-
-	response.Success(c, "配置保存成功", nil)
 }
 
 // SaveVoiceprintConfig 保存声纹识别配置
