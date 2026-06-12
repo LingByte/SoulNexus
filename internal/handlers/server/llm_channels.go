@@ -221,14 +221,14 @@ func (h *Handlers) handleAdminSyncLLMChannelAbilities(c *gin.Context) {
 	}
 	var row svcmodels.LLMChannel
 	if err := h.db.First(&row, id).Error; err != nil {
-		response.Fail(c, "channel not found", err)
+		response.Fail(c, i18n.T(c, i18n.MsgServerChannelNotFound), err)
 		return
 	}
 	if err := svcmodels.SyncLLMAbilitiesFromChannel(h.db, &row); err != nil {
-		response.Fail(c, "sync abilities failed", err)
+		response.Fail(c, i18n.T(c, i18n.MsgServerAbilitySyncFailed), err)
 		return
 	}
-	response.Success(c, "abilities synced", nil)
+	response.Success(c, i18n.T(c, i18n.MsgServerAbilitySynced), nil)
 }
 
 func (h *Handlers) handleAdminListLLMAbilities(c *gin.Context) {
@@ -252,15 +252,15 @@ func (h *Handlers) handleAdminListLLMAbilities(c *gin.Context) {
 	}
 	var total int64
 	if err := q.Count(&total).Error; err != nil {
-		response.Fail(c, "list abilities failed", err)
+		response.Fail(c, i18n.T(c, i18n.MsgServerAbilityListFailed), err)
 		return
 	}
 	var rows []svcmodels.LLMAbility
 	if err := q.Order("priority DESC, model ASC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&rows).Error; err != nil {
-		response.Fail(c, "list abilities failed", err)
+		response.Fail(c, i18n.T(c, i18n.MsgServerAbilityListFailed), err)
 		return
 	}
-	response.Success(c, "abilities fetched", gin.H{
+	response.Success(c, i18n.T(c, i18n.MsgServerAbilityFetched), gin.H{
 		"abilities": rows,
 		"total":     total,
 		"page":      page,
@@ -286,15 +286,15 @@ func (h *Handlers) handleAdminListLLMModelMetas(c *gin.Context) {
 	}
 	var total int64
 	if err := q.Count(&total).Error; err != nil {
-		response.Fail(c, "list model metas failed", err)
+		response.Fail(c, i18n.T(c, i18n.MsgServerModelMetaListFailed), err)
 		return
 	}
 	var rows []svcmodels.LLMModelMeta
 	if err := q.Order("sort_order DESC, id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&rows).Error; err != nil {
-		response.Fail(c, "list model metas failed", err)
+		response.Fail(c, i18n.T(c, i18n.MsgServerModelMetaListFailed), err)
 		return
 	}
-	response.Success(c, "model metas fetched", gin.H{
+	response.Success(c, i18n.T(c, i18n.MsgServerModelMetaFetched), gin.H{
 		"items":    rows,
 		"total":    total,
 		"page":     page,
@@ -319,17 +319,17 @@ func (h *Handlers) handleAdminUpsertLLMModelMeta(c *gin.Context) {
 	if row.Id == 0 {
 		row.CreatedTime = now
 		if err := h.db.Create(&row).Error; err != nil {
-			response.Fail(c, "create model meta failed", err)
+			response.Fail(c, i18n.T(c, i18n.MsgServerModelMetaCreateFailed), err)
 			return
 		}
-		response.Success(c, "model meta created", gin.H{"meta": row})
+		response.Success(c, i18n.T(c, i18n.MsgServerModelMetaCreated), gin.H{"meta": row})
 		return
 	}
 	if err := h.db.Save(&row).Error; err != nil {
-		response.Fail(c, "update model meta failed", err)
+		response.Fail(c, i18n.T(c, i18n.MsgServerModelMetaUpdateFailed), err)
 		return
 	}
-	response.Success(c, "model meta updated", gin.H{"meta": row})
+	response.Success(c, i18n.T(c, i18n.MsgServerModelMetaUpdated), gin.H{"meta": row})
 }
 
 func (h *Handlers) handleAdminDeleteLLMModelMeta(c *gin.Context) {
@@ -339,8 +339,8 @@ func (h *Handlers) handleAdminDeleteLLMModelMeta(c *gin.Context) {
 		return
 	}
 	if err := h.db.Delete(&svcmodels.LLMModelMeta{}, id).Error; err != nil {
-		response.Fail(c, "delete model meta failed", err)
+		response.Fail(c, i18n.T(c, i18n.MsgServerModelMetaDeleteFailed), err)
 		return
 	}
-	response.Success(c, "model meta deleted", nil)
+	response.Success(c, i18n.T(c, i18n.MsgServerModelMetaDeleted), nil)
 }
