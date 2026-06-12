@@ -326,7 +326,7 @@ const Playground = () => {
                     { label: 'Anthropic (/v1/messages)', value: 'anthropic' }
                   ]}
                 />
-                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" size="sm"
+                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                   label="Base URL"
                   value={settings.baseUrl}
                   onValueChange={(v) => patchSettings({ baseUrl: v })}
@@ -335,7 +335,7 @@ const Playground = () => {
                 <Button variant="ghost" size="sm" className="w-full text-xs" onClick={usePlatformGateway}>
                   使用本平台 /v1 网关
                 </Button>
-                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" size="sm"
+                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                   type="password"
                   label="API Key"
                   value={settings.apiKey}
@@ -345,12 +345,12 @@ const Playground = () => {
                 />
                 {settings.protocol === 'anthropic' && (
                   <>
-                    <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" size="sm"
+                    <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                       label="anthropic-version"
                       value={settings.anthropicVersion}
                       onValueChange={(v) => patchSettings({ anthropicVersion: v })}
                     />
-                    <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" size="sm"
+                    <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                       label="anthropic-beta（可选）"
                       value={settings.anthropicBeta}
                       onValueChange={(v) => patchSettings({ anthropicBeta: v })}
@@ -361,7 +361,7 @@ const Playground = () => {
               </SettingsSection>
 
               <SettingsSection title="模型">
-                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" size="sm"
+                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                   label="model"
                   value={settings.model}
                   onValueChange={(v) => patchSettings({ model: v })}
@@ -377,25 +377,25 @@ const Playground = () => {
 
               <SettingsSection title="采样与长度">
                 <div className="grid grid-cols-2 gap-2">
-                  <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" size="sm"
+                  <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                     type="number"
                     label="max_tokens"
                     value={String(settings.maxTokens)}
                     onValueChange={(v) => patchSettings({ maxTokens: Number(v) || 0 })}
                   />
-                  <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" size="sm"
+                  <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                     type="number"
                     label="temperature"
                     value={String(settings.temperature)}
                     onValueChange={(v) => patchSettings({ temperature: Number(v) })}
                   />
-                  <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" size="sm"
+                  <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                     type="number"
                     label="top_p"
                     value={String(settings.topP)}
                     onValueChange={(v) => patchSettings({ topP: Number(v) })}
                   />
-                  <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" size="sm"
+                  <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                     type="number"
                     label="n"
                     value={String(settings.n)}
@@ -403,13 +403,13 @@ const Playground = () => {
                   />
                   {settings.protocol === 'openai' && (
                     <>
-                      <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" size="sm"
+                      <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                         type="number"
                         label="presence_penalty"
                         value={String(settings.presencePenalty)}
                         onValueChange={(v) => patchSettings({ presencePenalty: Number(v) })}
                       />
-                      <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" size="sm"
+                      <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                         type="number"
                         label="frequency_penalty"
                         value={String(settings.frequencyPenalty)}
@@ -418,14 +418,14 @@ const Playground = () => {
                     </>
                   )}
                 </div>
-                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" size="sm"
+                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                   label="stop（逗号分隔）"
                   value={settings.stopSequences}
                   onValueChange={(v) => patchSettings({ stopSequences: v })}
                 />
                 {settings.protocol === 'openai' && (
                   <>
-                    <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" size="sm"
+                    <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                       label="seed"
                       value={settings.seed}
                       onValueChange={(v) => patchSettings({ seed: v })}
@@ -447,7 +447,7 @@ const Playground = () => {
                         ]}
                       />
                     </div>
-                    <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" size="sm"
+                    <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                       label="user（可选）"
                       value={settings.user}
                       onValueChange={(v) => patchSettings({ user: v })}
@@ -467,7 +467,7 @@ const Playground = () => {
                         onCheckedChange={(v) => patchSettings({ enableThinking: v })}
                       />
                     </div>
-                    <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" size="sm"
+                    <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                       type="number"
                       label="thinking_budget"
                       value={String(settings.thinkingBudget)}
@@ -484,7 +484,7 @@ const Playground = () => {
                         onCheckedChange={(v) => patchSettings({ anthropicThinkingEnabled: v })}
                       />
                     </div>
-                    <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" size="sm"
+                    <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                       type="number"
                       label="budget_tokens"
                       value={String(settings.anthropicThinkingBudget)}

@@ -1072,7 +1072,7 @@ const WorkflowManager: React.FC = () => {
                           <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                             工作流名称
                           </label>
-                          <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" size="sm"
+                          <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                             value={selectedWorkflow.name}
                             readOnly
                           />
@@ -1141,7 +1141,7 @@ const WorkflowManager: React.FC = () => {
                             {inputParameters.map((param, index) => (
                               <div key={index} className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg">
                                 <div className="grid grid-cols-2 gap-2 mb-2">
-                                  <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" size="sm"
+                                  <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                                     placeholder="参数名"
                                     value={param.name}
                                     onChange={(e) => {
@@ -1166,7 +1166,7 @@ const WorkflowManager: React.FC = () => {
                                     <option value="array">数组</option>
                                   </select>
                                 </div>
-                                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" size="sm"
+                                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                                   placeholder="描述"
                                   value={param.description}
                                   onChange={(e) => {
@@ -1224,7 +1224,7 @@ const WorkflowManager: React.FC = () => {
                             {outputParameters.map((param, index) => (
                               <div key={index} className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg">
                                 <div className="grid grid-cols-2 gap-2 mb-2">
-                                  <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" size="sm"
+                                  <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                                     placeholder="参数名"
                                     value={param.name}
                                     onChange={(e) => {
@@ -1249,7 +1249,7 @@ const WorkflowManager: React.FC = () => {
                                     <option value="array">数组</option>
                                   </select>
                                 </div>
-                                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" size="sm"
+                                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                                   placeholder="描述"
                                   value={param.description}
                                   onChange={(e) => {
@@ -2153,7 +2153,7 @@ const TriggerConfigPanel: React.FC<TriggerConfigPanelProps> = ({
                 Webhook URL
               </label>
               <div className="flex items-center gap-2">
-                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base flex-1" value={getWebhookURL()}
+                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base flex-1" value={getWebhookURL()}
                   readOnly
                   
                 />

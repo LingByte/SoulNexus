@@ -82,7 +82,7 @@ const AutocompleteInput = ({
     <div ref={wrapperRef} className="relative w-full">
       <div>
         {label && <label className="block text-sm font-medium mb-1">{label}</label>}
-        <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={inputValue}
+        <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" value={inputValue}
           onChange={handleInputChange}
           onFocus={handleFocus}
           placeholder={placeholder}
