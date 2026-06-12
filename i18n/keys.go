@@ -417,3 +417,20 @@ const (
 	MsgServerModelMetaDeleteFailed  = "handler.server.model_meta_delete_failed"
 	MsgServerModelMetaDeleted       = "handler.server.model_meta_deleted"
 )
+
+// Group handler messages
+const (
+	MsgGroupUnauthorized       = "handler.group.unauthorized"
+	MsgGroupInvalidParams      = "handler.group.invalid_params"
+	MsgGroupPersonalAutoCreated = "handler.group.personal_auto_created"
+	MsgGroupCreateFailed       = "handler.group.create_failed"
+	MsgGroupCreateMemberFailed = "handler.group.create_member_failed"
+	MsgGroupCreateSuccess      = "handler.group.create_success"
+	MsgGroupQueryListFailed    = "handler.group.query_list_failed"
+	MsgGroupQuerySuccess       = "handler.group.query_success"
+	MsgGroupInvalidId          = "handler.group.invalid_id"
+	MsgGroupNotExists          = "handler.group.not_exists"
+	MsgGroupQueryFailed        = "handler.group.query_failed"
+	MsgGroupPermissionDenied   = "handler.group.permission_denied"
+	MsgGroupQueryMembersFailed = "handler.group.query_members_failed"
+)
