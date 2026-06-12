@@ -1487,7 +1487,7 @@ func (h *Handlers) handleWechatBindCode(c *gin.Context) {
 	wechatBindSessions.items[sessionID] = session
 	wechatBindSessions.Unlock()
 	cleanExpiredWechatBindSessions()
-	response.Success(c, "wechat bind code generated", gin.H{
+	response.Success(c, i18n.T(c, i18n.MsgHandlerAuthWechatBindCodeGenerated), gin.H{
 		"sessionId":    sessionID,
 		"bindCode":     bindCode,
 		"expiresAt":    expiresAt.Unix(),
@@ -1510,7 +1510,7 @@ func (h *Handlers) handleWechatBindStatus(c *gin.Context) {
 	session, ok := wechatBindSessions.items[sessionID]
 	wechatBindSessions.RUnlock()
 	if !ok || time.Now().After(session.ExpiresAt) {
-		response.Success(c, "wechat bind status", gin.H{"status": "expired"})
+		response.Success(c, i18n.T(c, i18n.MsgHandlerAuthWechatBindStatus), gin.H{"status": "expired"})
 		return
 	}
 	if session.UserID != user.ID {
@@ -1529,7 +1529,7 @@ func (h *Handlers) handleWechatBindStatus(c *gin.Context) {
 		delete(wechatBindSessions.items, sessionID)
 		wechatBindSessions.Unlock()
 	}
-	response.Success(c, "wechat bind status", payload)
+	response.Success(c, i18n.T(c, i18n.MsgHandlerAuthWechatBindStatus), payload)
 }
 
 func (h *Handlers) handleWechatLogin(c *gin.Context) {
@@ -1884,7 +1884,7 @@ func (h *Handlers) handleUserInfo(c *gin.Context) {
 			}
 		}
 	}
-	response.Success(c, "success", user)
+	response.Success(c, i18n.T(c, i18n.MsgHandlerAuthLoginSuccessful), user)
 }
 
 // handleUserSigninByEmail handle user signin by email
@@ -2177,7 +2177,7 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 	var form authmodel.LoginForm
 	if err := c.BindJSON(&form); err != nil {
 		logger.Error("Failed to bind login form", zap.Error(err))
-		response.Fail(c, "login failed", err)
+		response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthLoginFailed), err)
 		return
 	}
 
@@ -2188,7 +2188,7 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 	// 1. IP限流检查
 	if utils.GlobalLoginSecurityManager != nil {
 		if err := utils.GlobalLoginSecurityManager.CheckIPRateLimit(clientIP); err != nil {
-			response.Fail(c, "too many login attempts", err)
+			response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthTooManyAttempts), err)
 			return
 		}
 	}
@@ -2220,20 +2220,20 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 			}, nil
 		}
 		if err := utils.GlobalLoginSecurityManager.CheckAccountLock(db, form.Email, 0, checkLockFunc); err != nil {
-			response.Fail(c, "account is locked", err)
+			response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthAccountLocked), err)
 			return
 		}
 	}
 
 	if form.AuthToken == "" && form.Email == "" {
 		logger.Warn("Login attempt without email or token", zap.String("ip", clientIP))
-		response.Fail(c, "login failed", errors.New("email is required"))
+		response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthLoginFailed), errors.New("email is required"))
 		return
 	}
 
 	if form.Password == "" && form.AuthToken == "" {
 		logger.Warn("Login attempt without password or token", zap.String("ip", clientIP), zap.String("email", form.Email))
-		response.Fail(c, "login failed", errors.New("empty password"))
+		response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthLoginFailed), errors.New("empty password"))
 		return
 	}
 
@@ -2252,7 +2252,7 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 				}
 				utils.GlobalLoginSecurityManager.RecordFailedLogin(db, form.Email, 0, clientIP, recordFunc)
 			}
-			response.Fail(c, "用户不存在，请检查邮箱地址", nil)
+			response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthUserNotFoundEmail), nil)
 			return
 		}
 
@@ -2307,11 +2307,11 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 						}
 						utils.GlobalLoginSecurityManager.RecordFailedLogin(db, form.Email, user.ID, clientIP, recordFunc)
 					}
-					response.Fail(c, "密码错误，请检查后重试", nil)
+					response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthPasswordError), nil)
 					return
 				}
 				// 密码正确，但需要邮箱验证
-				response.Success(c, "Email verification required", gin.H{
+				response.Success(c, i18n.T(c, i18n.MsgHandlerAuthEmailVerificationRequired), gin.H{
 					"requiresEmailVerification": true,
 					"message":                   "Password login limit reached. Please verify with email code.",
 				})
@@ -2333,7 +2333,7 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 					}
 					utils.GlobalLoginSecurityManager.RecordFailedLogin(db, form.Email, user.ID, clientIP, recordFunc)
 				}
-				response.Fail(c, "验证码错误，请重新输入", nil)
+				response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthCaptchaError), nil)
 				return
 			}
 		}
@@ -2358,7 +2358,7 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 				}
 				utils.GlobalLoginSecurityManager.RecordFailedLogin(db, form.Email, user.ID, clientIP, recordFunc)
 			}
-			response.Fail(c, "密码错误，请检查后重试", nil)
+			response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthPasswordError), nil)
 			return
 		}
 	} else {
@@ -2370,13 +2370,13 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 		p, err := utils.ParseAccessTokenWithKey(form.AuthToken, km)
 		if err != nil || p == nil || p.UserID == 0 {
 			logger.Warn("Login failed: invalid auth token", zap.String("ip", clientIP), zap.Error(err))
-			response.Fail(c, "login failed", errors.New("invalid auth token"))
+			response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthLoginFailed), errors.New("invalid auth token"))
 			return
 		}
 		user, err = authmodel.GetUserByUID(db, p.UserID)
 		if err != nil {
 			logger.Warn("Login failed: user not found by auth token", zap.String("ip", clientIP), zap.Error(err))
-			response.Fail(c, "login failed", errors.New("user not found"))
+			response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthLoginFailed), errors.New("user not found"))
 			return
 		}
 	}
@@ -2384,7 +2384,7 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 	err = authmodel.CheckUserAllowLogin(db, user)
 	if err != nil {
 		logger.Warn("Login failed: user not allowed to login", zap.String("email", form.Email), zap.Uint("userID", user.ID), zap.String("ip", clientIP), zap.Error(err))
-		response.Fail(c, "user no authorization to login", err)
+		response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthUserNoAuth), err)
 		return
 	}
 
@@ -2392,7 +2392,7 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 	if user.TwoFactorEnabled {
 		code := strings.TrimSpace(form.TwoFactorCode)
 		if code == "" {
-			response.Success(c, "Two-factor authentication required", gin.H{
+			response.Success(c, i18n.T(c, i18n.MsgHandlerAuthTwoFARequired), gin.H{
 				"requiresTwoFactor": true,
 				"message":           "Please enter your two-factor authentication code",
 			})
@@ -2400,7 +2400,7 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 		}
 		valid := utils.ValidateTOTP(code, user.TwoFactorSecret)
 		if !valid {
-			response.Fail(c, "两步验证码错误，请重新输入", errors.New("invalid 2fa code"))
+			response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthTwoFACodeInvalid), errors.New("invalid 2fa code"))
 			return
 		}
 	}
@@ -2472,7 +2472,7 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 				zap.String("ip", clientIP),
 				zap.String("country", country))
 
-			response.Success(c, "Device verification required", gin.H{
+			response.Success(c, i18n.T(c, i18n.MsgHandlerAuthDeviceVerificationRequired), gin.H{
 				"requiresDeviceVerification": true,
 				"deviceId":                   deviceID,
 				"message":                    "New login location detected. Please verify this device by email code.",
@@ -2583,7 +2583,7 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 	}
 
 	logger.Info("Login successful", zap.String("email", form.Email), zap.Uint("userID", user.ID), zap.String("ip", clientIP))
-	response.Success(c, "login successful", responseData)
+	response.Success(c, i18n.T(c, i18n.MsgHandlerAuthLoginSuccessful), responseData)
 }
 
 // handleUserSignin handle user signin
@@ -3016,20 +3016,20 @@ func (h *Handlers) handleUserSignupByEmail(c *gin.Context) {
 	}
 	utils.Sig().Emit(constants.SigUserCreate, user, db)
 	sendHashMail(db, user, constants.SigUserVerifyEmail, constants.KEY_VERIFY_EMAIL_EXPIRED, "180d", c.ClientIP(), c.Request.UserAgent())
-	response.Success(c, "signup success", user)
+	response.Success(c, i18n.T(c, i18n.MsgHandlerAuthSignupSuccess), user)
 }
 
 // handleUserUpdate Update User Info
 func (h *Handlers) handleUserUpdate(c *gin.Context) {
 	var req authmodel.UpdateUserRequest
 	if err := c.ShouldBind(&req); err != nil {
-		response.Fail(c, "Invalid request", err)
+		response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthInvalidRequest), err)
 		return
 	}
 
 	user := authmodel.CurrentUser(c)
 	if user == nil {
-		response.Fail(c, "User not found", errors.New("user not found"))
+		response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthUserNotFound), errors.New("user not found"))
 		return
 	}
 
@@ -3083,13 +3083,13 @@ func (h *Handlers) handleUserUpdate(c *gin.Context) {
 	if len(coreVals) > 0 {
 		coreVals["update_by"] = operator
 		if err := authmodel.UpdateUser(h.db, user, coreVals); err != nil {
-			response.Fail(c, "update user failed", err)
+			response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthUpdateUserFailed), err)
 			return
 		}
 	}
 	if len(profVals) > 0 {
 		if err := authmodel.UpdateUserProfileFields(h.db, user.ID, profVals); err != nil {
-			response.Fail(c, "update user profile failed", err)
+			response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthUpdateProfileFailed), err)
 			return
 		}
 	}
@@ -3097,23 +3097,23 @@ func (h *Handlers) handleUserUpdate(c *gin.Context) {
 	// 重新获取更新后的用户信息
 	updatedUser, err := authmodel.GetUserByUID(h.db, user.ID)
 	if err != nil {
-		response.Fail(c, "failed to get updated user", err)
+		response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthGetUserFailed), err)
 		return
 	}
 	cache.Delete(c, constants.CacheKeyUserByID+strconv.Itoa(int(user.ID)))
-	response.Success(c, "update user success", updatedUser)
+	response.Success(c, i18n.T(c, i18n.MsgHandlerAuthUpdateUserSuccess), updatedUser)
 }
 
 // handleUserUpdate Update User Info
 func (h *Handlers) handleUserUpdateBasicInfo(c *gin.Context) {
 	var req authmodel.UserBasicInfoUpdate
 	if err := c.ShouldBind(&req); err != nil {
-		response.Fail(c, "Invalid request", err)
+		response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthInvalidRequest), err)
 		return
 	}
 	user := authmodel.CurrentUser(c)
 	if user == nil {
-		response.Fail(c, "User not found", errors.New("user not found"))
+		response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthUserNotFound), errors.New("user not found"))
 		return
 	}
 	vals := make(map[string]interface{})
