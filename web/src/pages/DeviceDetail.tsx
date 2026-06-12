@@ -22,6 +22,7 @@ import {
     RefreshCw,
     BarChart3
 } from 'lucide-react';
+import LoadingAnimation from '@/components/LoadingAnimation';
 import {
     getDeviceDetail,
     getDeviceErrorLogs,
@@ -368,7 +369,7 @@ const DeviceDetail: React.FC = () => {
         return (
             <div className="min-h-screen dark:bg-neutral-900 flex items-center justify-center">
                 <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                    <LoadingAnimation type="spinner" size="lg" className="mb-4" />
                     <p className="text-gray-600 dark:text-gray-400">{t('device.loading')}</p>
                 </div>
             </div>
