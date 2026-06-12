@@ -2,10 +2,8 @@
 // SPDX-License-Identifier: AGPL-3.0
 
 import React, { useEffect, useState } from 'react'
-import { X } from 'lucide-react'
+import { Input as ArcoInput, Select as ArcoSelect, Drawer } from '@arco-design/web-react'
 import Button from '@/components/UI/Button'
-import { Input as ArcoInput } from '@arco-design/web-react'
-import { Select as ArcoSelect } from '@arco-design/web-react'
 import { useI18nStore } from '@/stores/i18nStore'
 import { showAlert } from '@/utils/alert'
 import { getGroupList, type Group } from '@/api/group'
@@ -19,30 +17,32 @@ type Props = {
 
 const KnowledgeCreateDrawer: React.FC<Props> = ({ open, onClose, onCreated }) => {
   const { t } = useI18nStore()
-  const [enter, setEnter] = useState(false)
   const [busy, setBusy] = useState(false)
   const [groups, setGroups] = useState<Group[]>([])
   const [formNs, setFormNs] = useState('')
   const [formName, setFormName] = useState('')
   const [formDesc, setFormDesc] = useState('')
-  const [formGroupId, setFormGroupId] = useState('')
+  const [formGroupId, setFormGroupId] = useState<string | undefined>(undefined)
 
   useEffect(() => {
-    if (!open) {
-      setEnter(false)
-      return
-    }
-    const t0 = requestAnimationFrame(() => setEnter(true))
+    if (!open) return
     void getGroupList().then((res) => {
       if (res.code === 200 && Array.isArray(res.data)) setGroups(res.data)
       else setGroups([])
     })
-    return () => cancelAnimationFrame(t0)
   }, [open])
 
-  const close = () => {
-    setEnter(false)
-    setTimeout(onClose, 200)
+  const resetForm = () => {
+    setFormNs('')
+    setFormName('')
+    setFormDesc('')
+    setFormGroupId(undefined)
+  }
+
+  const handleClose = () => {
+    if (busy) return
+    resetForm()
+    onClose()
   }
 
   const submit = async () => {
@@ -70,11 +70,8 @@ const KnowledgeCreateDrawer: React.FC<Props> = ({ open, onClose, onCreated }) =>
       }
       showAlert(res.msg || 'ok', 'success', t('knowledge.create'))
       onCreated(res.data)
-      setFormNs('')
-      setFormName('')
-      setFormDesc('')
-      setFormGroupId('')
-      close()
+      resetForm()
+      onClose()
     } catch (e: unknown) {
       showAlert((e as { msg?: string })?.msg || String(e), 'error', t('knowledge.create'))
     } finally {
@@ -82,62 +79,78 @@ const KnowledgeCreateDrawer: React.FC<Props> = ({ open, onClose, onCreated }) =>
     }
   }
 
-  if (!open) return null
-
   return (
-    <div className="fixed inset-0 z-[100]">
-      <button type="button" className={`absolute inset-0 bg-black/40 transition-opacity ${enter ? 'opacity-100' : 'opacity-0'}`} aria-label="Close" onClick={() => !busy && close()} />
-      <div
-        className={`absolute right-0 top-0 flex h-full w-full max-w-md flex-col border-l border-border bg-background shadow-2xl transition-transform duration-200 ease-out ${
-          enter ? 'translate-x-0' : 'translate-x-full'
-        }`}
-      >
-        <div className="flex items-center justify-between border-b border-border px-4 py-3">
-          <span className="font-semibold">{t('knowledge.newBase')}</span>
-          <button type="button" className="rounded p-1 hover:bg-muted" onClick={() => !busy && close()}>
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-        <div className="flex-1 space-y-4 overflow-y-auto p-4">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">{t('knowledge.fieldGroup')}</label>
-            <Select value={formGroupId} onValueChange={setFormGroupId}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder={t('knowledge.fieldGroupHint')} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">{t('knowledge.fieldGroupHint')}</SelectItem>
-                {groups.map((g) => (
-                  <SelectItem key={g.id} value={String(g.id)}>
-                    {g.name} (#{g.id})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">{t('knowledge.fieldNamespace')}</label>
-            <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" value={formNs} onChange={(e) => setFormNs(e.target.value)} />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">{t('knowledge.fieldName')}</label>
-            <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" value={formName} onChange={(e) => setFormName(e.target.value)} />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">{t('knowledge.fieldDesc')}</label>
-            <textarea value={formDesc} onChange={(e) => setFormDesc(e.target.value)} rows={2} className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm" />
-          </div>
-        </div>
-        <div className="flex justify-end gap-2 border-t border-border p-4">
-          <Button variant="ghost" onClick={() => !busy && close()} disabled={busy}>
+    <Drawer
+      width={420}
+      title={t('knowledge.newBase')}
+      visible={open}
+      onCancel={handleClose}
+      footer={
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={handleClose} disabled={busy}>
             {t('knowledge.cancel')}
           </Button>
           <Button variant="primary" onClick={() => void submit()} loading={busy} disabled={busy}>
             {t('knowledge.create')}
           </Button>
         </div>
+      }
+      maskClosable={!busy}
+      closable={!busy}
+    >
+      <div className="space-y-4">
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            {t('knowledge.fieldGroup')}
+          </label>
+          <ArcoSelect
+            size="large"
+            value={formGroupId}
+            onChange={(val) => setFormGroupId(val as string | undefined)}
+            placeholder={t('knowledge.fieldGroupHint')}
+            allowClear
+            className="w-full"
+            options={[
+              { label: t('knowledge.fieldGroupHint'), value: '' },
+              ...groups.map((g) => ({ label: `${g.name} (#${g.id})`, value: String(g.id) })),
+            ]}
+          />
+        </div>
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            {t('knowledge.fieldNamespace')} <span className="text-red-500">*</span>
+          </label>
+          <ArcoInput
+            size="large"
+            value={formNs}
+            onChange={(val) => setFormNs(val)}
+            placeholder="e.g. my-knowledge-base"
+          />
+        </div>
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            {t('knowledge.fieldName')} <span className="text-red-500">*</span>
+          </label>
+          <ArcoInput
+            size="large"
+            value={formName}
+            onChange={(val) => setFormName(val)}
+            placeholder={t('knowledge.fieldName')}
+          />
+        </div>
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            {t('knowledge.fieldDesc')}
+          </label>
+          <ArcoInput.TextArea
+            value={formDesc}
+            onChange={(val: string) => setFormDesc(val)}
+            rows={3}
+            placeholder={t('knowledge.fieldDesc')}
+          />
+        </div>
       </div>
-    </div>
+    </Drawer>
   )
 }
 

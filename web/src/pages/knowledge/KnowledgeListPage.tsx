@@ -5,11 +5,9 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { BookOpen, ChevronRight, Layers, Plus, RefreshCw, Search } from 'lucide-react'
 import { PageSEO } from '@/components/SEO/PageSEO'
-import PageContainer from '@/components/Layout/PageContainer'
 import PageHeader from '@/components/Layout/PageHeader'
 import Button from '@/components/UI/Button'
-import Card from '@/components/UI/Card'
-import { Input as ArcoInput } from '@arco-design/web-react'
+import { Input as ArcoInput, Card as ArcoCard, Pagination } from '@arco-design/web-react'
 import EmptyState from '@/components/UI/EmptyState'
 import { showAlert } from '@/utils/alert'
 import { useI18nStore } from '@/stores/i18nStore'
@@ -17,20 +15,16 @@ import { listKnowledgeNamespaces, type KnowledgeNamespaceRow } from '@/api/knowl
 import KnowledgeCreateDrawer from '@/pages/knowledge/KnowledgeCreateDrawer'
 import { cn } from '@/utils/cn'
 
-
 function KnowledgeCardSkeleton() {
   return (
-    <div className="flex min-h-[152px] flex-col rounded-xl border border-border/70 bg-card/80 p-5 shadow-sm">
-      <div className="h-5 w-2/3 max-w-[12rem] animate-pulse rounded-md bg-muted" />
-      <div className="mt-3 h-3 w-full max-w-[14rem] animate-pulse rounded-md bg-muted/70" />
-      <div className="mt-auto flex justify-between gap-2 pt-6">
-        <div className="flex gap-2">
-          <div className="h-6 w-10 animate-pulse rounded-md bg-muted/60" />
-          <div className="h-6 w-20 animate-pulse rounded-md bg-muted/50" />
-        </div>
-        <div className="h-6 w-16 animate-pulse rounded-full bg-muted/60" />
+    <ArcoCard bordered hoverable className="!rounded-xl !p-5">
+      <div className="h-5 w-2/3 max-w-[12rem] animate-pulse rounded-md bg-gray-200 dark:bg-neutral-700" />
+      <div className="mt-3 h-3 w-full max-w-[14rem] animate-pulse rounded-md bg-gray-200 dark:bg-neutral-700" />
+      <div className="mt-4 flex gap-2">
+        <div className="h-6 w-10 animate-pulse rounded bg-gray-200 dark:bg-neutral-700" />
+        <div className="h-6 w-20 animate-pulse rounded bg-gray-200 dark:bg-neutral-700" />
       </div>
-    </div>
+    </ArcoCard>
   )
 }
 
@@ -73,13 +67,12 @@ const KnowledgeListPage: React.FC = () => {
   }, [load])
 
   const site = t('brand.name')
-  const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
   return (
     <>
       <PageSEO title={`${t('knowledge.pageTitle')} · ${site}`} description={t('knowledge.listSubtitle')} />
       <div className="flex flex-col h-full">
-        <PageHeader 
+        <PageHeader
           title={t('knowledge.pageTitle')}
           actions={
             <>
@@ -94,88 +87,89 @@ const KnowledgeListPage: React.FC = () => {
         />
 
         <div className="flex-1 overflow-auto">
-          <PageContainer maxWidth="full" padding="md" className="pb-16">
-            <Card variant="outlined" padding="md" className="mb-6 border-border/80 shadow-sm">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-            <div className="flex-1">
-              <ArcoInput 
-                size="large" 
-                className="!h-10 !text-base ![&::placeholder]:text-base" 
+          <div className="mx-auto max-w-7xl w-full px-4 sm:px-6 lg:px-8 py-6 pb-16">
+            {/* Search bar */}
+            <div className="mb-6 flex items-center gap-3">
+              <ArcoInput
+                size="large"
+                className="flex-1 !h-10"
                 value={qInput}
                 onChange={(val) => setQInput(val)}
                 onKeyDown={(e) => e.key === 'Enter' && (setPage(1), setQ(qInput.trim()))}
                 placeholder={t('knowledge.searchPlaceholder')}
-                prefix={<Search className="h-4 w-4 text-muted-foreground" />}
+                prefix={<Search className="h-4 w-4 text-gray-400" />}
+                allowClear
               />
-            </div>
-            <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
               <Button variant="secondary" size="sm" onClick={() => { setPage(1); setQ(qInput.trim()) }}>
                 {t('knowledge.search')}
               </Button>
             </div>
-          </div>
-        </Card>
 
-        {loading ? (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <KnowledgeCardSkeleton key={i} />
-            ))}
-          </div>
-        ) : rows.length === 0 ? (
-          <Card variant="outlined" padding="lg" className="border-dashed border-border/80">
-            <EmptyState icon={BookOpen} title={t('knowledge.empty')} description={t('knowledge.emptyHint')} />
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {rows.map((r) => (
-              <Link
-                key={r.id}
-                to={`/knowledge/ns/${r.id}`}
-                className="block h-full rounded-xl outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <Card
-                  variant="elevated"
-                  hover
-                  padding="md"
-                  animation="none"
-                  className="relative h-full min-h-[152px] overflow-hidden border-border/60 bg-card/95 shadow-md"
-                >
-                  <div className="relative z-10 flex h-full min-h-[120px] flex-col">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex min-w-0 flex-1 items-start gap-2">
-                        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                          <Layers className="h-4 w-4" />
-                        </span>
-                        <h2 className="line-clamp-2 text-base font-semibold leading-snug tracking-tight text-foreground">{r.name}</h2>
+            {/* Content */}
+            {loading ? (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <KnowledgeCardSkeleton key={i} />
+                ))}
+              </div>
+            ) : rows.length === 0 ? (
+              <div className="py-16">
+                <EmptyState icon={BookOpen} title={t('knowledge.empty')} description={t('knowledge.emptyHint')} />
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {rows.map((r) => (
+                  <Link
+                    key={r.id}
+                    to={`/knowledge/ns/${r.id}`}
+                    className="block h-full"
+                  >
+                    <ArcoCard
+                      bordered
+                      hoverable
+                      className="!rounded-xl !p-5 !h-full min-h-[152px] transition-shadow hover:shadow-md cursor-pointer"
+                    >
+                      <div className="flex h-full min-h-[120px] flex-col">
+                        <div className="flex items-start gap-3">
+                          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-purple-50 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400">
+                            <Layers className="h-4 w-4" />
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <h2 className="line-clamp-2 text-base font-semibold leading-snug text-gray-900 dark:text-gray-100">
+                              {r.name}
+                            </h2>
+                            <p className="mt-1 line-clamp-1 font-mono text-xs text-gray-500 dark:text-gray-400">
+                              {r.namespace}
+                            </p>
+                            {r.description && (
+                              <p className="mt-1.5 line-clamp-2 text-xs text-gray-500 dark:text-gray-400">
+                                {r.description}
+                              </p>
+                            )}
+                          </div>
+                          <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-gray-400 transition-transform group-hover:translate-x-0.5" />
+                        </div>
                       </div>
-                      <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:translate-x-0.5" />
-                    </div>
-                    <p className="mt-2 line-clamp-2 pl-11 font-mono text-[11px] leading-relaxed text-muted-foreground">{r.namespace}</p>
-                    {r.description ? (
-                      <p className="mt-2 line-clamp-2 pl-11 text-xs text-muted-foreground/90">{r.description}</p>
-                    ) : null}
-                  </div>
-                </Card>
-              </Link>
-            ))}
-          </div>
-        )}
+                    </ArcoCard>
+                  </Link>
+                ))}
+              </div>
+            )}
 
-        {total > pageSize && !loading && (
-          <Card variant="outlined" padding="sm" className="mt-6 flex items-center justify-center gap-1 border-border/60">
-            <Button variant="ghost" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-              ‹
-            </Button>
-            <span className="min-w-[5rem] px-2 text-center text-sm text-muted-foreground">
-              {page} / {totalPages}
-            </span>
-            <Button variant="ghost" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
-              ›
-            </Button>
-          </Card>
-        )}
-          </PageContainer>
+            {/* Pagination */}
+            {total > pageSize && !loading && (
+              <div className="mt-6 flex justify-center">
+                <Pagination
+                  current={page}
+                  total={total}
+                  pageSize={pageSize}
+                  onChange={(p) => setPage(p)}
+                  size="small"
+                  showTotal
+                />
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: AGPL-3.0
 
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Loader2, Trash2, Upload } from 'lucide-react'
+import { useParams, useSearchParams } from 'react-router-dom'
+import { Loader2, Pencil, Trash2, Upload } from 'lucide-react'
 import { PageSEO } from '@/components/SEO/PageSEO'
-import PageContainer from '@/components/Layout/PageContainer'
+import PageHeader from '@/components/Layout/PageHeader'
 import Button from '@/components/UI/Button'
-import Card from '@/components/UI/Card'
+import { Card as ArcoCard, Input as ArcoInput } from '@arco-design/web-react'
 import MarkdownPreview from '@/components/UI/MarkdownPreview'
 import ConfirmDialog from '@/components/UI/ConfirmDialog'
 import { showAlert } from '@/utils/alert'
@@ -119,86 +119,85 @@ const KnowledgeDocumentDetailPage: React.FC = () => {
 
   if (loading) {
     return (
-      <PageContainer maxWidth="full" padding="md" className="flex justify-center py-24">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </PageContainer>
+      <div className="flex h-full items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
+      </div>
     )
   }
 
   if (!doc) {
     return (
-      <PageContainer maxWidth="md" padding="md" className="py-16 text-center text-sm text-muted-foreground">
+      <div className="flex h-full items-center justify-center text-sm text-gray-500">
         {t('knowledge.notFound')}
-      </PageContainer>
+      </div>
     )
   }
 
   return (
     <>
       <PageSEO title={`${doc.title} · ${t('knowledge.pageTitle')} · ${site}`} description={doc.namespace} />
-      <PageContainer maxWidth="full" padding="md" className="pb-16">
-        <div className="mb-6 flex flex-wrap items-center gap-3">
-          <Link to={backHref} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="h-4 w-4" />
-            {t('knowledge.back')}
-          </Link>
-        </div>
-
-        <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0">
-            <h1 className="text-2xl font-bold tracking-tight">{doc.title}</h1>
-            <p className="mt-1 font-mono text-xs text-muted-foreground">{doc.namespace}</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              ref={uploadRef}
-              type="file"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0]
-                e.target.value = ''
-                if (f) void onReupload(f)
-              }}
-            />
-            <Button variant="outline" size="sm" type="button" onClick={() => uploadRef.current?.click()} leftIcon={<Upload className="h-4 w-4" />}>
-              {t('knowledge.reupload')}
-            </Button>
-            <Button variant="outline" size="sm" type="button" onClick={() => setEditMode((e) => !e)}>
-              {t('knowledge.editMarkdown')}
-            </Button>
-            <Button variant="destructive" size="sm" type="button" onClick={() => setShowDeleteConfirm(true)} leftIcon={<Trash2 className="h-4 w-4" />}>
-              {t('knowledge.deleteDoc')}
-            </Button>
-          </div>
-        </div>
-
-        <Card className="border-border/80 p-4 md:p-6">
-          {editMode ? (
-            <div className="space-y-3">
-              <textarea
-                value={md}
-                onChange={(e) => setMd(e.target.value)}
-                rows={24}
-                className="w-full rounded-lg border border-input bg-background px-3 py-2 font-mono text-sm"
+      <div className="flex flex-col h-full">
+        <PageHeader
+          title={doc.title}
+          subtitle={doc.namespace}
+          backTo={backHref}
+          actions={
+            <>
+              <input
+                ref={uploadRef}
+                type="file"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0]
+                  e.target.value = ''
+                  if (f) void onReupload(f)
+                }}
               />
-              <div className="flex gap-2">
-                <Button variant="primary" size="sm" loading={saving} onClick={() => void onSave()}>
-                  {t('knowledge.saveMarkdown')}
-                </Button>
-                <Button variant="ghost" size="sm" disabled={saving} onClick={() => { setEditMode(false); void loadAll() }}>
-                  {t('knowledge.cancel')}
-                </Button>
-              </div>
-            </div>
-          ) : md ? (
-            <div className="prose prose-sm max-w-none dark:prose-invert">
-              <MarkdownPreview content={md} />
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">{t('knowledge.docTextEmpty')}</p>
-          )}
-        </Card>
-      </PageContainer>
+              <Button variant="outline" size="sm" onClick={() => uploadRef.current?.click()} leftIcon={<Upload className="h-4 w-4" />}>
+                {t('knowledge.reupload')}
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setEditMode((e) => !e)} leftIcon={<Pencil className="h-4 w-4" />}>
+                {editMode ? t('knowledge.cancel') : t('knowledge.editMarkdown')}
+              </Button>
+              <Button variant="destructive" size="sm" onClick={() => setShowDeleteConfirm(true)} leftIcon={<Trash2 className="h-4 w-4" />}>
+                {t('knowledge.deleteDoc')}
+              </Button>
+            </>
+          }
+        />
+
+        <div className="flex-1 overflow-auto">
+          <div className="mx-auto max-w-4xl w-full px-4 sm:px-6 lg:px-8 py-6 pb-16">
+            <ArcoCard bordered className="!rounded-xl !p-6">
+              {editMode ? (
+                <div className="space-y-4">
+                  <ArcoInput.TextArea
+                    value={md}
+                    onChange={(val: string) => setMd(val)}
+                    rows={24}
+                    placeholder={t('knowledge.docTextEmpty')}
+                  />
+                  <div className="flex gap-2">
+                    <Button variant="primary" size="sm" loading={saving} onClick={() => void onSave()}>
+                      {t('knowledge.saveMarkdown')}
+                    </Button>
+                    <Button variant="ghost" size="sm" disabled={saving} onClick={() => { setEditMode(false); void loadAll() }}>
+                      {t('knowledge.cancel')}
+                    </Button>
+                  </div>
+                </div>
+              ) : md ? (
+                <div className="prose prose-sm max-w-none dark:prose-invert">
+                  <MarkdownPreview content={md} />
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500 dark:text-gray-400">{t('knowledge.docTextEmpty')}</p>
+              )}
+            </ArcoCard>
+          </div>
+        </div>
+      </div>
+
       <ConfirmDialog
         isOpen={showDeleteConfirm}
         onClose={() => setShowDeleteConfirm(false)}
