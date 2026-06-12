@@ -361,3 +361,48 @@ const (
 	MsgHandlerAuthLoginSuccess    = "handler.auth.login_success"
 	MsgHandlerAuthUserNotExists   = "handler.auth.user_not_exists"
 )
+
+// Auth handler additional messages
+const (
+	MsgHandlerAuthWechatBindCodeGenerated = "handler.auth.wechat_bind_code_generated"
+	MsgHandlerAuthLoginFailed             = "handler.auth.login_failed"
+	MsgHandlerAuthTooManyAttempts         = "handler.auth.too_many_attempts"
+	MsgHandlerAuthAccountLocked           = "handler.auth.account_locked"
+	MsgHandlerAuthEmailRequired           = "handler.auth.email_required"
+	MsgHandlerAuthPasswordEmpty           = "handler.auth.password_empty"
+	MsgHandlerAuthUserNotFoundEmail       = "handler.auth.user_not_found_email"
+	MsgHandlerAuthPasswordError           = "handler.auth.password_error"
+	MsgHandlerAuthEmailVerificationRequired = "handler.auth.email_verification_required"
+	MsgHandlerAuthCaptchaError            = "handler.auth.captcha_error"
+	MsgHandlerAuthInvalidAuthToken        = "handler.auth.invalid_auth_token"
+	MsgHandlerAuthUserNotFound            = "handler.auth.user_not_found"
+	MsgHandlerAuthUserNoAuth              = "handler.auth.user_no_auth"
+	MsgHandlerAuthTwoFARequired           = "handler.auth.twofa_required"
+	MsgHandlerAuthTwoFACodeInvalid        = "handler.auth.twofa_code_invalid"
+	MsgHandlerAuthDeviceVerificationRequired = "handler.auth.device_verification_required"
+	MsgHandlerAuthLoginSuccessful         = "handler.auth.login_successful"
+	MsgHandlerAuthSignupSuccess           = "handler.auth.signup_success"
+	MsgHandlerAuthInvalidRequest          = "handler.auth.invalid_request"
+	MsgHandlerAuthUpdateUserFailed        = "handler.auth.update_user_failed"
+	MsgHandlerAuthUpdateProfileFailed     = "handler.auth.update_profile_failed"
+	MsgHandlerAuthGetUserFailed           = "handler.auth.get_user_failed"
+	MsgHandlerAuthUpdateUserSuccess       = "handler.auth.update_user_success"
+)
+
+// Server handler messages
+const (
+	MsgServerLLMUsageFetchFailed    = "handler.server.llm_usage_fetch_failed"
+	MsgServerLLMUsageFetched        = "handler.server.llm_usage_fetched"
+	MsgServerLLMUsageSummaryFailed  = "handler.server.llm_usage_summary_failed"
+	MsgServerLLMUsageSummary        = "handler.server.llm_usage_summary"
+	MsgServerChannelListFailed      = "handler.server.channel_list_failed"
+	MsgServerChannelFetched         = "handler.server.channel_fetched"
+	MsgServerChannelNotFound        = "handler.server.channel_not_found"
+	MsgServerChannelCreateFailed    = "handler.server.channel_create_failed"
+	MsgServerChannelCreated         = "handler.server.channel_created"
+	MsgServerChannelUpdateFailed    = "handler.server.channel_update_failed"
+	MsgServerChannelUpdated         = "handler.server.channel_updated"
+	MsgServerChannelDeleteFailed    = "handler.server.channel_delete_failed"
+	MsgServerChannelDeleted         = "handler.server.channel_deleted"
+	MsgServerAbilitySyncFailed      = "handler.server.ability_sync_failed"
+)
