@@ -14,6 +14,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/LingByte/SoulNexus/i18n"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/gin-gonic/gin"
 )
@@ -50,7 +51,7 @@ func (h *Handlers) handleMeTwoFAStatus(c *gin.Context) {
 	}
 	t, err := twoFAHelperGetOrSync(h, user)
 	if err != nil {
-		response.Fail(c, "load twofa failed", err)
+		response.Fail(c, i18n.T(c, i18n.MsgHandlerTwofaLoadFailed), err)
 		return
 	}
 	out := gin.H{
@@ -69,7 +70,7 @@ func (h *Handlers) handleMeTwoFAStatus(c *gin.Context) {
 			out["backup_codes_left"] = cnt
 		}
 	}
-	response.Success(c, "twofa status", out)
+	response.Success(c, i18n.T(c, i18n.MsgHandlerTwofaStatus), out)
 }
 
 // handleMeTwoFABackupCodesRegenerate POST /api/me/twofa/backup-codes/regenerate
@@ -91,7 +92,7 @@ func (h *Handlers) handleMeTwoFABackupCodesRegenerate(c *gin.Context) {
 	}
 	t, err := twoFAHelperGetOrSync(h, user)
 	if err != nil || t == nil || !t.IsEnabled {
-		response.Fail(c, "two-factor not enabled", errors.New("two-factor not enabled"))
+		response.Fail(c, i18n.T(c, i18n.MsgHandlerTwofaNotEnabled), errors.New("two-factor not enabled"))
 		return
 	}
 	ok, err := authmodel.ValidateTOTPAndUpdateUsage(h.db, t, req.Code)
@@ -105,10 +106,10 @@ func (h *Handlers) handleMeTwoFABackupCodesRegenerate(c *gin.Context) {
 	}
 	codes, err := authmodel.GenerateBackupCodes(h.db, user.ID, 8)
 	if err != nil {
-		response.Fail(c, "generate backup codes failed", err)
+		response.Fail(c, i18n.T(c, i18n.MsgHandlerTwofaBackupGenFailed), err)
 		return
 	}
-	response.Success(c, "backup codes generated", gin.H{
+	response.Success(c, i18n.T(c, i18n.MsgHandlerTwofaBackupGenerated), gin.H{
 		"codes":   codes,
 		"warning": "请立即妥善保存；离开页面后将无法再次查看明文。每码仅可使用一次。",
 	})
@@ -136,7 +137,7 @@ func (h *Handlers) handleMeTwoFABackupCodeUse(c *gin.Context) {
 	}
 	t, err := twoFAHelperGetOrSync(h, user)
 	if err != nil || t == nil {
-		response.Fail(c, "two-factor not enabled", errors.New("two-factor not enabled"))
+		response.Fail(c, i18n.T(c, i18n.MsgHandlerTwofaNotEnabled), errors.New("two-factor not enabled"))
 		return
 	}
 	ok, err := authmodel.ValidateBackupCodeAndConsume(h.db, t, req.Code)
@@ -149,7 +150,7 @@ func (h *Handlers) handleMeTwoFABackupCodeUse(c *gin.Context) {
 		return
 	}
 	left, _ := authmodel.CountUnusedBackupCodes(h.db, user.ID)
-	response.Success(c, "backup code accepted", gin.H{"remaining": left})
+	response.Success(c, i18n.T(c, i18n.MsgHandlerTwofaBackupAccepted), gin.H{"remaining": left})
 }
 
 // handleMeTwoFAReset POST /api/me/twofa/reset
@@ -171,7 +172,7 @@ func (h *Handlers) handleMeTwoFAReset(c *gin.Context) {
 	}
 	t, err := twoFAHelperGetOrSync(h, user)
 	if err != nil || t == nil {
-		response.Fail(c, "two-factor not enabled", errors.New("two-factor not enabled"))
+		response.Fail(c, i18n.T(c, i18n.MsgHandlerTwofaNotEnabled), errors.New("two-factor not enabled"))
 		return
 	}
 	ok, err := authmodel.ValidateBackupCodeAndConsume(h.db, t, req.BackupCode)
@@ -184,7 +185,7 @@ func (h *Handlers) handleMeTwoFAReset(c *gin.Context) {
 		return
 	}
 	if err := authmodel.DisableTwoFA(h.db, user.ID); err != nil {
-		response.Fail(c, "disable twofa failed", err)
+		response.Fail(c, i18n.T(c, i18n.MsgHandlerTwofaDisableFailed), err)
 		return
 	}
 	// 同步 User 兼容字段。
@@ -192,5 +193,5 @@ func (h *Handlers) handleMeTwoFAReset(c *gin.Context) {
 		"two_factor_enabled": false,
 		"two_factor_secret":  "",
 	}).Error
-	response.Success(c, "twofa disabled", nil)
+	response.Success(c, i18n.T(c, i18n.MsgHandlerTwofaDisabled), nil)
 }

@@ -10,11 +10,16 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/LingByte/SoulNexus/i18n"
 	"github.com/gin-gonic/gin"
 )
 
 func init() {
 	gin.SetMode(gin.TestMode)
+	// Initialize i18n for tests
+	if err := i18n.Init(); err != nil {
+		panic("failed to initialize i18n: " + err.Error())
+	}
 }
 
 func newCtx() (*gin.Engine, *httptest.ResponseRecorder) {
@@ -182,9 +187,9 @@ func TestAbortWithStatusJSON_UsernameError(t *testing.T) {
 	var got map[string]any
 	readJSON(t, rr, &got)
 
-	// 检查友好的中文错误信息
-	if got["msg"] != "用户名至少需要2个字符" {
-		t.Fatalf("msg field=%v, want '用户名至少需要2个字符'", got["msg"])
+	// 检查友好的错误信息（使用i18n翻译）
+	if got["msg"] != "Username must be at least 2 characters long" {
+		t.Fatalf("msg field=%v, want 'Username must be at least 2 characters long'", got["msg"])
 	}
 	if got["error"] != "INVALID_USERNAME_LENGTH" {
 		t.Fatalf("error field=%v, want 'INVALID_USERNAME_LENGTH'", got["error"])
