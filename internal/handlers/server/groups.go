@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/LingByte/SoulNexus/i18n"
 	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/internal/models/auth"
 	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
@@ -95,18 +96,18 @@ type GroupInvitationResponse struct {
 func (h *Handlers) CreateGroup(c *gin.Context) {
 	user := auth.CurrentUser(c)
 	if user == nil {
-		response.Fail(c, "未授权", "用户未登录")
+		response.Fail(c, i18n.T(c, i18n.MsgGroupUnauthorized), "用户未登录")
 		return
 	}
 
 	var req CreateGroupRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Fail(c, "参数错误", err.Error())
+		response.Fail(c, i18n.T(c, i18n.MsgGroupInvalidParams), err.Error())
 		return
 	}
 
 	if strings.TrimSpace(req.Type) == svcmodels.GroupTypePersonal {
-		response.Fail(c, "参数错误", "个人组织由系统自动创建，不能手动创建")
+		response.Fail(c, i18n.T(c, i18n.MsgGroupInvalidParams), i18n.T(c, i18n.MsgGroupPersonalAutoCreated))
 		return
 	}
 	if strings.TrimSpace(req.Type) == "" {
@@ -122,7 +123,7 @@ func (h *Handlers) CreateGroup(c *gin.Context) {
 	}
 
 	if err := h.db.Create(&group).Error; err != nil {
-		response.Fail(c, "创建组织失败", err.Error())
+		response.Fail(c, i18n.T(c, i18n.MsgGroupCreateFailed), err.Error())
 		return
 	}
 
@@ -135,7 +136,7 @@ func (h *Handlers) CreateGroup(c *gin.Context) {
 	if err := h.db.Create(&member).Error; err != nil {
 		// 如果创建成员失败，删除组织
 		h.db.Delete(&group)
-		response.Fail(c, "创建组织失败", "无法添加创建者为成员")
+		response.Fail(c, i18n.T(c, i18n.MsgGroupCreateFailed), i18n.T(c, i18n.MsgGroupCreateMemberFailed))
 		return
 	}
 
@@ -145,14 +146,14 @@ func (h *Handlers) CreateGroup(c *gin.Context) {
 	// 记录活动日志
 	h.logGroupActivity(group.ID, user.ID, svcmodels.ActionGroupCreated, svcmodels.ResourceTypeGroup, &group.ID, group.Name, nil, c.ClientIP())
 
-	response.Success(c, "创建组织成功", group)
+	response.Success(c, i18n.T(c, i18n.MsgGroupCreateSuccess), group)
 }
 
 // ListGroups 获取用户创建或加入的组织列表
 func (h *Handlers) ListGroups(c *gin.Context) {
 	user := auth.CurrentUser(c)
 	if user == nil {
-		response.Fail(c, "未授权", "用户未登录")
+		response.Fail(c, i18n.T(c, i18n.MsgGroupUnauthorized), "用户未登录")
 		return
 	}
 
@@ -164,7 +165,7 @@ func (h *Handlers) ListGroups(c *gin.Context) {
 		Group("groups.id").
 		Preload("Creator").
 		Find(&groups).Error; err != nil {
-		response.Fail(c, "查询组织列表失败", err.Error())
+		response.Fail(c, i18n.T(c, i18n.MsgGroupQueryListFailed), err.Error())
 		return
 	}
 
@@ -203,29 +204,29 @@ func (h *Handlers) ListGroups(c *gin.Context) {
 		})
 	}
 
-	response.Success(c, "查询成功", groupResponses)
+	response.Success(c, i18n.T(c, i18n.MsgGroupQuerySuccess), groupResponses)
 }
 
 // GetGroup 获取组织详情
 func (h *Handlers) GetGroup(c *gin.Context) {
 	user := auth.CurrentUser(c)
 	if user == nil {
-		response.Fail(c, "未授权", "用户未登录")
+		response.Fail(c, i18n.T(c, i18n.MsgGroupUnauthorized), "用户未登录")
 		return
 	}
 
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		response.Fail(c, "参数错误", "无效的组织ID")
+		response.Fail(c, i18n.T(c, i18n.MsgGroupInvalidParams), i18n.T(c, i18n.MsgGroupInvalidId))
 		return
 	}
 
 	var group svcmodels.Group
 	if err := h.db.Preload("Creator").First(&group, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			response.Fail(c, "组织不存在", nil)
+			response.Fail(c, i18n.T(c, i18n.MsgGroupNotExists), nil)
 		} else {
-			response.Fail(c, "查询失败", err.Error())
+			response.Fail(c, i18n.T(c, i18n.MsgGroupQueryFailed), err.Error())
 		}
 		return
 	}
@@ -234,7 +235,7 @@ func (h *Handlers) GetGroup(c *gin.Context) {
 	var member svcmodels.GroupMember
 	if err := h.db.Where("group_id = ? AND user_id = ?", group.ID, user.ID).First(&member).Error; err != nil {
 		if group.CreatorID != user.ID {
-			response.Fail(c, "权限不足", "您不是该组织的成员")
+			response.Fail(c, i18n.T(c, i18n.MsgGroupPermissionDenied), "您不是该组织的成员")
 			return
 		}
 	}
@@ -242,7 +243,7 @@ func (h *Handlers) GetGroup(c *gin.Context) {
 	// 获取成员列表（重新查询以确保获取最新数据）
 	var members []svcmodels.GroupMember
 	if err := h.db.Preload("User").Where("group_id = ?", group.ID).Find(&members).Error; err != nil {
-		response.Fail(c, "查询成员列表失败", err.Error())
+		response.Fail(c, i18n.T(c, i18n.MsgGroupQueryMembersFailed), err.Error())
 		return
 	}
 
@@ -287,20 +288,20 @@ func (h *Handlers) GetGroup(c *gin.Context) {
 		Members:     memberResponses,
 	}
 
-	response.Success(c, "查询成功", groupResponse)
+	response.Success(c, i18n.T(c, i18n.MsgGroupQuerySuccess), groupResponse)
 }
 
 // UpdateGroup 更新组织信息
 func (h *Handlers) UpdateGroup(c *gin.Context) {
 	user := auth.CurrentUser(c)
 	if user == nil {
-		response.Fail(c, "未授权", "用户未登录")
+		response.Fail(c, i18n.T(c, i18n.MsgGroupUnauthorized), "用户未登录")
 		return
 	}
 
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		response.Fail(c, "参数错误", "无效的组织ID")
+		response.Fail(c, i18n.T(c, i18n.MsgGroupInvalidParams), i18n.T(c, i18n.MsgGroupInvalidId))
 		return
 	}
 
