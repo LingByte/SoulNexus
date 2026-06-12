@@ -1,5 +1,3 @@
-# English translations
-
 # Common messages
 common.invalid_params: "Invalid parameters"
 common.database_error: "Database error, please contact the administrator"
@@ -266,3 +264,41 @@ distributor.get_channel_failed: "Failed to get available channel for model {{.Mo
 distributor.no_available_channel: "No available channel for model {{.Model}} under group {{.Group}} (distributor)"
 distributor.invalid_midjourney_request: "Invalid Midjourney request: {{.Error}}"
 distributor.invalid_request_parse_model: "Invalid request, unable to parse model"
+
+# Response validation messages
+response.username_too_short: "Username must be at least 2 characters long"
+response.username_invalid_format: "Username can only contain letters (including Chinese), numbers, underscores and hyphens"
+response.email_already_exists: "This email has already been registered"
+response.password_too_short: "Password must be at least 8 characters long"
+response.captcha_required: "Please enter the verification code"
+response.captcha_invalid: "Invalid verification code"
+
+# Handler messages
+handler.twofa.load_failed: "Failed to load 2FA status"
+handler.twofa.status: "2FA status"
+handler.twofa.not_enabled: "Two-factor authentication is not enabled"
+handler.twofa.backup_generate_failed: "Failed to generate backup codes"
+handler.twofa.backup_generated: "Backup codes generated"
+handler.twofa.backup_accepted: "Backup code accepted"
+handler.twofa.disable_failed: "Failed to disable 2FA"
+handler.twofa.disabled: "2FA disabled"
+handler.wechat.login_code_generated: "WeChat login code generated"
+handler.wechat.config_check: "WeChat configuration check"
+handler.wechat.session_expired: "WeChat session expired"
+handler.wechat.session_status: "WeChat session status"
+handler.wechat.check_login: "WeChat login check"
+handler.wechat.pending: "WeChat login pending"
+
+# Auth handler messages
+handler.auth.wechat_login_code: "WeChat login code generated"
+handler.auth.wechat_config_check: "WeChat configuration check"
+handler.auth.wechat_session_expired: "WeChat session expired"
+handler.auth.wechat_session_status: "WeChat session status"
+handler.auth.wechat_check_login: "WeChat login check"
+handler.auth.wechat_bind_code: "WeChat bind code generated"
+handler.auth.wechat_bind_status: "WeChat bind status"
+handler.auth.oidc_token_issued: "OIDC token issued"
+handler.auth.token_refreshed: "Token refreshed"
+handler.auth.logout_success: "Logout successful"
+handler.auth.login_success: "Login successful"
+handler.auth.user_not_exists: "User does not exist"

@@ -33,6 +33,7 @@ import (
 	authmodel "github.com/LingByte/SoulNexus/internal/models/auth"
 
 	SoulNexus "github.com/LingByte/SoulNexus"
+	"github.com/LingByte/SoulNexus/i18n"
 	"github.com/LingByte/SoulNexus/internal/config"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/logger"
@@ -806,7 +807,7 @@ func (h *Handlers) handleWechatLoginCode(c *gin.Context) {
 	wechatLoginSessions.items[sceneID] = session
 	wechatLoginSessions.Unlock()
 	cleanExpiredWechatSessions()
-	response.Success(c, "wechat login code generated", gin.H{
+	response.Success(c, i18n.T(c, i18n.MsgHandlerAuthWechatLoginCode), gin.H{
 		"sessionId":    sceneID,
 		"loginCode":    loginCode,
 		"expiresAt":    expiresAt.Unix(),
@@ -829,7 +830,7 @@ func (h *Handlers) handleWechatConfigCheck(c *gin.Context) {
 			tokenFingerprint = tokenFingerprint[:12]
 		}
 	}
-	response.Success(c, "wechat config check", gin.H{
+	response.Success(c, i18n.T(c, i18n.MsgHandlerAuthWechatConfigCheck), gin.H{
 		"appId":               appID,
 		"appIdLength":         len(appID),
 		"appSecretConfigured": appSecret != "",
@@ -850,11 +851,11 @@ func (h *Handlers) handleWechatLoginStatus(c *gin.Context) {
 	session, ok := wechatLoginSessions.items[sessionID]
 	wechatLoginSessions.RUnlock()
 	if !ok {
-		response.Success(c, "wechat session status", gin.H{"status": "expired"})
+		response.Success(c, i18n.T(c, i18n.MsgHandlerAuthWechatSessionStatus), gin.H{"status": "expired"})
 		return
 	}
 	if time.Now().After(session.ExpiresAt) {
-		response.Success(c, "wechat session status", gin.H{"status": "expired"})
+		response.Success(c, i18n.T(c, i18n.MsgHandlerAuthWechatSessionStatus), gin.H{"status": "expired"})
 		return
 	}
 	if session.Status != "success" {
@@ -862,7 +863,7 @@ func (h *Handlers) handleWechatLoginStatus(c *gin.Context) {
 		if status == "" {
 			status = "pending"
 		}
-		response.Success(c, "wechat session status", gin.H{
+		response.Success(c, i18n.T(c, i18n.MsgHandlerAuthWechatSessionStatus), gin.H{
 			"status":    status,
 			"expiresAt": session.ExpiresAt.Unix(),
 		})
@@ -871,13 +872,13 @@ func (h *Handlers) handleWechatLoginStatus(c *gin.Context) {
 
 	data, err := h.finishWechatSessionSuccess(c, session)
 	if err != nil {
-		response.Success(c, "wechat session status", gin.H{"status": "authorized_but_unbound"})
+		response.Success(c, i18n.T(c, i18n.MsgHandlerAuthWechatSessionStatus), gin.H{"status": "authorized_but_unbound"})
 		return
 	}
 	wechatLoginSessions.Lock()
 	delete(wechatLoginSessions.items, sessionID)
 	wechatLoginSessions.Unlock()
-	response.Success(c, "wechat session status", data)
+	response.Success(c, i18n.T(c, i18n.MsgHandlerAuthWechatSessionStatus), data)
 }
 
 func (h *Handlers) handleWechatCheckLogin(c *gin.Context) {
@@ -890,7 +891,7 @@ func (h *Handlers) handleWechatCheckLogin(c *gin.Context) {
 	session, ok := wechatLoginSessions.items[sceneID]
 	wechatLoginSessions.RUnlock()
 	if !ok || time.Now().After(session.ExpiresAt) {
-		response.Success(c, "wechat check login", gin.H{"status": "expired"})
+		response.Success(c, i18n.T(c, i18n.MsgHandlerAuthWechatCheckLogin), gin.H{"status": "expired"})
 		return
 	}
 	if session.Status != "success" {
@@ -898,18 +899,18 @@ func (h *Handlers) handleWechatCheckLogin(c *gin.Context) {
 		if status == "" {
 			status = "pending"
 		}
-		response.Success(c, "wechat check login", gin.H{"status": status})
+		response.Success(c, i18n.T(c, i18n.MsgHandlerAuthWechatCheckLogin), gin.H{"status": status})
 		return
 	}
 	data, err := h.finishWechatSessionSuccess(c, session)
 	if err != nil {
-		response.Success(c, "wechat check login", gin.H{"status": "pending"})
+		response.Success(c, i18n.T(c, i18n.MsgHandlerAuthWechatCheckLogin), gin.H{"status": "pending"})
 		return
 	}
 	wechatLoginSessions.Lock()
 	delete(wechatLoginSessions.items, sceneID)
 	wechatLoginSessions.Unlock()
-	response.Success(c, "wechat check login", data)
+	response.Success(c, i18n.T(c, i18n.MsgHandlerAuthWechatCheckLogin), data)
 }
 
 func (h *Handlers) handleWechatOAuthCallback(c *gin.Context) {
@@ -1194,7 +1195,7 @@ func (h *Handlers) processOIDCTokenReq(c *gin.Context, req oidcTokenReq) {
 		response.AbortWithJSONError(c, http.StatusInternalServerError, err)
 		return
 	}
-	response.Success(c, "oidc token issued", gin.H{
+	response.Success(c, i18n.T(c, i18n.MsgHandlerAuthOIDCTokenIssued), gin.H{
 		"access_token":  accessToken,
 		"refresh_token": refreshToken,
 		"token_type":    "Bearer",
@@ -1240,7 +1241,7 @@ func (h *Handlers) handleRefreshToken(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusInternalServerError, err)
 		return
 	}
-	response.Success(c, "token refreshed", gin.H{
+	response.Success(c, i18n.T(c, i18n.MsgHandlerAuthTokenRefreshed), gin.H{
 		"token":         accessToken,
 		"access_token":  accessToken,
 		"refreshToken":  refreshToken,
@@ -1842,7 +1843,7 @@ func (h *Handlers) handleUserLogout(c *gin.Context) {
 		c.Redirect(http.StatusFound, next)
 		return
 	}
-	response.Success(c, "Logout Success", nil)
+	response.Success(c, i18n.T(c, i18n.MsgHandlerAuthLogoutSuccess), nil)
 }
 
 // handleUserInfo handle user info
@@ -1958,7 +1959,7 @@ func (h *Handlers) handleUserSigninByEmail(c *gin.Context) {
 			}
 			utils.GlobalLoginSecurityManager.RecordFailedLogin(db, form.Email, 0, clientIP, recordFunc)
 		}
-		response.Fail(c, "user not exists", errors.New("user not exists"))
+		response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthUserNotExists), errors.New("user not exists"))
 		return
 	}
 
@@ -2168,7 +2169,7 @@ func (h *Handlers) handleUserSigninByEmail(c *gin.Context) {
 		responseData["message"] = "Login from new location or untrusted device detected. Please verify your identity."
 	}
 
-	response.Success(c, "login success", responseData)
+	response.Success(c, i18n.T(c, i18n.MsgHandlerAuthLoginSuccess), responseData)
 }
 
 // handleUserSignin handle user signin

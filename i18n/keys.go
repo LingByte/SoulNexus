@@ -317,3 +317,47 @@ const (
 	MsgDistributorInvalidMidjourney   = "distributor.invalid_midjourney_request"
 	MsgDistributorInvalidParseModel   = "distributor.invalid_request_parse_model"
 )
+
+// Response validation messages
+const (
+	MsgResponseUsernameTooShort    = "response.username_too_short"
+	MsgResponseUsernameInvalidFmt = "response.username_invalid_format"
+	MsgResponseEmailExists        = "response.email_already_exists"
+	MsgResponsePasswordTooShort   = "response.password_too_short"
+	MsgResponseCaptchaRequired    = "response.captcha_required"
+	MsgResponseCaptchaInvalid     = "response.captcha_invalid"
+)
+
+// Handler messages
+const (
+	MsgHandlerTwofaLoadFailed         = "handler.twofa.load_failed"
+	MsgHandlerTwofaStatus             = "handler.twofa.status"
+	MsgHandlerTwofaNotEnabled         = "handler.twofa.not_enabled"
+	MsgHandlerTwofaBackupGenFailed    = "handler.twofa.backup_generate_failed"
+	MsgHandlerTwofaBackupGenerated    = "handler.twofa.backup_generated"
+	MsgHandlerTwofaBackupAccepted     = "handler.twofa.backup_accepted"
+	MsgHandlerTwofaDisableFailed      = "handler.twofa.disable_failed"
+	MsgHandlerTwofaDisabled           = "handler.twofa.disabled"
+	MsgHandlerWechatLoginCodeGenerated = "handler.wechat.login_code_generated"
+	MsgHandlerWechatConfigCheck       = "handler.wechat.config_check"
+	MsgHandlerWechatSessionExpired    = "handler.wechat.session_expired"
+	MsgHandlerWechatSessionStatus     = "handler.wechat.session_status"
+	MsgHandlerWechatCheckLogin        = "handler.wechat.check_login"
+	MsgHandlerWechatPending           = "handler.wechat.pending"
+)
+
+// Auth handler messages
+const (
+	MsgHandlerAuthWechatLoginCode  = "handler.auth.wechat_login_code"
+	MsgHandlerAuthWechatConfigCheck = "handler.auth.wechat_config_check"
+	MsgHandlerAuthWechatSessionExpired = "handler.auth.wechat_session_expired"
+	MsgHandlerAuthWechatSessionStatus = "handler.auth.wechat_session_status"
+	MsgHandlerAuthWechatCheckLogin = "handler.auth.wechat_check_login"
+	MsgHandlerAuthWechatBindCode  = "handler.auth.wechat_bind_code"
+	MsgHandlerAuthWechatBindStatus = "handler.auth.wechat_bind_status"
+	MsgHandlerAuthOIDCTokenIssued = "handler.auth.oidc_token_issued"
+	MsgHandlerAuthTokenRefreshed  = "handler.auth.token_refreshed"
+	MsgHandlerAuthLogoutSuccess   = "handler.auth.logout_success"
+	MsgHandlerAuthLoginSuccess    = "handler.auth.login_success"
+	MsgHandlerAuthUserNotExists   = "handler.auth.user_not_exists"
+)
