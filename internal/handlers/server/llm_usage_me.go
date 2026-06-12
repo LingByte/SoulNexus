@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/LingByte/SoulNexus/i18n"
 	"github.com/LingByte/SoulNexus/internal/models/auth"
 	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"github.com/LingByte/SoulNexus/pkg/response"
@@ -64,7 +65,7 @@ func (h *Handlers) handleMeListLLMUsage(c *gin.Context) {
 
 	var total int64
 	if err := q.Count(&total).Error; err != nil {
-		response.Fail(c, "list llm usage failed", err)
+		response.Fail(c, i18n.T(c, i18n.MsgServerLLMUsageFetchFailed), err)
 		return
 	}
 
@@ -73,7 +74,7 @@ func (h *Handlers) handleMeListLLMUsage(c *gin.Context) {
 		Offset((page - 1) * pageSize).
 		Limit(pageSize).
 		Find(&items).Error; err != nil {
-		response.Fail(c, "list llm usage failed", err)
+		response.Fail(c, i18n.T(c, i18n.MsgServerLLMUsageFetchFailed), err)
 		return
 	}
 
@@ -82,7 +83,7 @@ func (h *Handlers) handleMeListLLMUsage(c *gin.Context) {
 		publicItems = append(publicItems, sanitizeLLMUsageForUser(&items[i]))
 	}
 
-	response.Success(c, "llm usage fetched", gin.H{
+	response.Success(c, i18n.T(c, i18n.MsgServerLLMUsageFetched), gin.H{
 		"items":    publicItems,
 		"total":    total,
 		"page":     page,
@@ -132,7 +133,7 @@ func (h *Handlers) handleMeLLMUsageSummary(c *gin.Context) {
 		COALESCE(SUM(total_tokens), 0) AS total_tokens,
 		COALESCE(SUM(quota_delta), 0) AS quota_delta
 	`).Scan(&row).Error; err != nil {
-		response.Fail(c, "llm usage summary failed", err)
+		response.Fail(c, i18n.T(c, i18n.MsgServerLLMUsageSummaryFailed), err)
 		return
 	}
 
@@ -151,7 +152,7 @@ func (h *Handlers) handleMeLLMUsageSummary(c *gin.Context) {
 		Limit(10).
 		Scan(&byModel).Error
 
-	response.Success(c, "llm usage summary", gin.H{
+	response.Success(c, i18n.T(c, i18n.MsgServerLLMUsageSummary), gin.H{
 		"summary":  row,
 		"by_model": byModel,
 	})

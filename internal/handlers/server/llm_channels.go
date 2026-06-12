@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/LingByte/SoulNexus/i18n"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/gin-gonic/gin"
@@ -104,12 +105,12 @@ func (h *Handlers) handleAdminListLLMChannels(c *gin.Context) {
 	}
 	var total int64
 	if err := q.Count(&total).Error; err != nil {
-		response.Fail(c, "list channels failed", err)
+		response.Fail(c, i18n.T(c, i18n.MsgServerChannelListFailed), err)
 		return
 	}
 	var rows []svcmodels.LLMChannel
 	if err := q.Order("priority DESC, id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&rows).Error; err != nil {
-		response.Fail(c, "list channels failed", err)
+		response.Fail(c, i18n.T(c, i18n.MsgServerChannelListFailed), err)
 		return
 	}
 	masked := strings.EqualFold(c.Query("mask_key"), "true")
@@ -118,7 +119,7 @@ func (h *Handlers) handleAdminListLLMChannels(c *gin.Context) {
 			rows[i].Key = maskLLMChannelKey(rows[i].Key)
 		}
 	}
-	response.Success(c, "channels fetched", gin.H{
+	response.Success(c, i18n.T(c, i18n.MsgServerChannelFetched), gin.H{
 		"channels": rows,
 		"total":    total,
 		"page":     page,
@@ -134,10 +135,10 @@ func (h *Handlers) handleAdminGetLLMChannel(c *gin.Context) {
 	}
 	var row svcmodels.LLMChannel
 	if err := h.db.First(&row, id).Error; err != nil {
-		response.Fail(c, "channel not found", err)
+		response.Fail(c, i18n.T(c, i18n.MsgServerChannelNotFound), err)
 		return
 	}
-	response.Success(c, "channel fetched", gin.H{"channel": row})
+	response.Success(c, i18n.T(c, i18n.MsgServerChannelFetched), gin.H{"channel": row})
 }
 
 func (h *Handlers) handleAdminCreateLLMChannel(c *gin.Context) {
@@ -157,12 +158,12 @@ func (h *Handlers) handleAdminCreateLLMChannel(c *gin.Context) {
 	}
 	row.CreatedTime = time.Now().Unix()
 	if err := h.db.Create(row).Error; err != nil {
-		response.Fail(c, "create channel failed", err)
+		response.Fail(c, i18n.T(c, i18n.MsgServerChannelCreateFailed), err)
 		return
 	}
 	// 同步 abilities（基于 Models + Group）。
 	_ = svcmodels.SyncLLMAbilitiesFromChannel(h.db, row)
-	response.Success(c, "channel created", gin.H{"channel": row})
+	response.Success(c, i18n.T(c, i18n.MsgServerChannelCreated), gin.H{"channel": row})
 }
 
 func (h *Handlers) handleAdminUpdateLLMChannel(c *gin.Context) {
@@ -173,7 +174,7 @@ func (h *Handlers) handleAdminUpdateLLMChannel(c *gin.Context) {
 	}
 	var row svcmodels.LLMChannel
 	if err := h.db.First(&row, id).Error; err != nil {
-		response.Fail(c, "channel not found", err)
+		response.Fail(c, i18n.T(c, i18n.MsgServerChannelNotFound), err)
 		return
 	}
 	var req llmChannelWriteReq
@@ -186,11 +187,11 @@ func (h *Handlers) handleAdminUpdateLLMChannel(c *gin.Context) {
 		return
 	}
 	if err := h.db.Save(&row).Error; err != nil {
-		response.Fail(c, "update channel failed", err)
+		response.Fail(c, i18n.T(c, i18n.MsgServerChannelUpdateFailed), err)
 		return
 	}
 	_ = svcmodels.SyncLLMAbilitiesFromChannel(h.db, &row)
-	response.Success(c, "channel updated", gin.H{"channel": row})
+	response.Success(c, i18n.T(c, i18n.MsgServerChannelUpdated), gin.H{"channel": row})
 }
 
 func (h *Handlers) handleAdminDeleteLLMChannel(c *gin.Context) {
@@ -200,14 +201,14 @@ func (h *Handlers) handleAdminDeleteLLMChannel(c *gin.Context) {
 		return
 	}
 	if err := h.db.Where("channel_id = ?", id).Delete(&svcmodels.LLMAbility{}).Error; err != nil {
-		response.Fail(c, "delete abilities failed", err)
+		response.Fail(c, i18n.T(c, i18n.MsgServerAbilitySyncFailed), err)
 		return
 	}
 	if err := h.db.Delete(&svcmodels.LLMChannel{}, id).Error; err != nil {
-		response.Fail(c, "delete channel failed", err)
+		response.Fail(c, i18n.T(c, i18n.MsgServerChannelDeleteFailed), err)
 		return
 	}
-	response.Success(c, "channel deleted", nil)
+	response.Success(c, i18n.T(c, i18n.MsgServerChannelDeleted), nil)
 }
 
 // handleAdminSyncLLMChannelAbilities POST /api/admin/llm-channels/:id/sync-abilities
