@@ -3,12 +3,13 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, FlaskConical, Loader2, Trash2, Upload } from 'lucide-react'
+import { BookOpen, ChevronRight, FlaskConical, Loader2, Trash2, Upload } from 'lucide-react'
 import { PageSEO } from '@/components/SEO/PageSEO'
-import PageContainer from '@/components/Layout/PageContainer'
+import PageHeader from '@/components/Layout/PageHeader'
 import Button from '@/components/UI/Button'
-import Card from '@/components/UI/Card'
-import { Input as ArcoInput } from '@arco-design/web-react'
+import { Input as ArcoInput, Card as ArcoCard, Tabs as ArcoTabs } from '@arco-design/web-react'
+import ConfirmDialog from '@/components/UI/ConfirmDialog'
+import EmptyState from '@/components/UI/EmptyState'
 import { showAlert } from '@/utils/alert'
 import { useI18nStore } from '@/stores/i18nStore'
 import {
@@ -32,12 +33,14 @@ const KnowledgeSpaceDetailPage: React.FC = () => {
   const [docsLoading, setDocsLoading] = useState(false)
   const [docQInput, setDocQInput] = useState('')
   const [docQ, setDocQ] = useState('')
-  const [tab, setTab] = useState<'docs' | 'recall'>('docs')
+  const [tab, setTab] = useState<string>('docs')
   const [recallQ, setRecallQ] = useState('')
   const [recallTopK, setRecallTopK] = useState(5)
   const [recallMin, setRecallMin] = useState(0)
   const [recallBusy, setRecallBusy] = useState(false)
   const [recallPayload, setRecallPayload] = useState<Record<string, unknown> | null>(null)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const loadNsRow = useCallback(async () => {
     if (!id) return
@@ -103,14 +106,20 @@ const KnowledgeSpaceDetailPage: React.FC = () => {
   }
 
   const onDeleteNs = async () => {
-    if (!ns || !window.confirm(t('knowledge.deleteBaseConfirm'))) return
-    const res = await deleteKnowledgeNamespace(ns.id)
-    if (res.code !== 200) {
-      showAlert(res.msg || 'failed', 'error', t('knowledge.deleteBase'))
-      return
+    if (!ns) return
+    setDeleting(true)
+    try {
+      const res = await deleteKnowledgeNamespace(ns.id)
+      if (res.code !== 200) {
+        showAlert(res.msg || 'failed', 'error', t('knowledge.deleteBase'))
+        return
+      }
+      showAlert(res.msg || 'ok', 'success', t('knowledge.deleteBase'))
+      window.location.href = '/knowledge'
+    } finally {
+      setDeleting(false)
+      setShowDeleteConfirm(false)
     }
-    showAlert(res.msg || 'ok', 'success', t('knowledge.deleteBase'))
-    window.location.href = '/knowledge'
   }
 
   const runRecall = async () => {
@@ -139,154 +148,185 @@ const KnowledgeSpaceDetailPage: React.FC = () => {
 
   if (loadNs) {
     return (
-      <PageContainer maxWidth="full" padding="md" className="flex justify-center py-24">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </PageContainer>
+      <div className="flex h-full items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
+      </div>
     )
   }
 
   if (!ns) {
     return (
-      <PageContainer maxWidth="md" padding="md" className="py-16 text-center text-sm text-muted-foreground">
+      <div className="flex h-full items-center justify-center text-sm text-gray-500">
         {t('knowledge.notFound')}
-      </PageContainer>
+      </div>
     )
   }
 
   return (
     <>
       <PageSEO title={`${ns.name} · ${t('knowledge.pageTitle')} · ${site}`} description={ns.namespace} />
-      <PageContainer maxWidth="full" padding="md" className="pb-16">
-        <div className="mb-6 flex flex-wrap items-center gap-3">
-          <Link to="/knowledge" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="h-4 w-4" />
-            {t('knowledge.back')}
-          </Link>
-        </div>
-
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <h1 className="text-2xl font-bold tracking-tight">{ns.name}</h1>
-            <p className="mt-1 font-mono text-sm text-muted-foreground">{ns.namespace}</p>
-            {ns.description ? <p className="mt-2 max-w-prose text-sm text-muted-foreground">{ns.description}</p> : null}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <input
-              ref={uploadRef}
-              type="file"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0]
-                e.target.value = ''
-                if (f) void onUpload(f)
-              }}
-            />
-            <Button variant="primary" size="sm" type="button" onClick={() => uploadRef.current?.click()} leftIcon={<Upload className="h-4 w-4" />}>
-              {t('knowledge.upload')}
-            </Button>
-            <Button variant="destructive" size="sm" type="button" onClick={() => void onDeleteNs()} leftIcon={<Trash2 className="h-4 w-4" />}>
-              {t('knowledge.deleteBase')}
-            </Button>
-          </div>
-        </div>
-
-
-        <div className="mb-4 flex gap-1 rounded-lg border border-border bg-muted/30 p-1">
-          <button
-            type="button"
-            onClick={() => setTab('docs')}
-            className={`flex-1 rounded-md px-3 py-2 text-sm font-medium ${tab === 'docs' ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}
-          >
-            {t('knowledge.docs')}
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab('recall')}
-            className={`flex-1 rounded-md px-3 py-2 text-sm font-medium ${tab === 'recall' ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}
-          >
-            <span className="inline-flex items-center justify-center gap-1.5">
-              <FlaskConical className="h-4 w-4" />
-              {t('knowledge.recall')}
-            </span>
-          </button>
-        </div>
-
-        {tab === 'docs' && (
-          <Card className="overflow-hidden border-border/80">
-            <div className="flex flex-wrap gap-2 border-b border-border p-3">
-              <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" value={docQInput}
-                onChange={(e) => setDocQInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && setDocQ(docQInput.trim())}
-                placeholder={t('knowledge.docSearchPlaceholder')}
+      <div className="flex flex-col h-full">
+        <PageHeader
+          title={ns.name}
+          subtitle={ns.namespace}
+          backTo="/knowledge"
+          actions={
+            <>
+              <input
+                ref={uploadRef}
+                type="file"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0]
+                  e.target.value = ''
+                  if (f) void onUpload(f)
+                }}
               />
-              <Button variant="secondary" size="sm" type="button" onClick={() => setDocQ(docQInput.trim())}>
-                {t('knowledge.search')}
+              <Button variant="primary" size="sm" onClick={() => uploadRef.current?.click()} leftIcon={<Upload className="h-4 w-4" />}>
+                {t('knowledge.upload')}
               </Button>
-            </div>
-            {docsLoading ? (
-              <div className="flex justify-center py-16">
-                <Loader2 className="h-7 w-7 animate-spin text-primary" />
-              </div>
-            ) : (
-              <ul className="divide-y divide-border">
-                {docs.map((d) => (
-                  <li key={d.id}>
-                    <Link
-                      to={`/knowledge/documents/${d.id}?ns=${encodeURIComponent(ns.id)}`}
-                      className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/30"
-                    >
-                      <div className="min-w-0">
-                        <div className="truncate font-medium">{d.title}</div>
-                        <div className="mt-0.5 text-xs text-muted-foreground">
-                          {(d.fileHash?.length ?? 0) > 12 ? `${d.fileHash.slice(0, 12)}…` : d.fileHash}
-                        </div>
-                      </div>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Card>
+              <Button variant="destructive" size="sm" onClick={() => setShowDeleteConfirm(true)} leftIcon={<Trash2 className="h-4 w-4" />}>
+                {t('knowledge.deleteBase')}
+              </Button>
+            </>
+          }
+        />
+
+        {ns.description && (
+          <div className="border-b border-border bg-muted/20 px-6 py-3">
+            <p className="text-sm text-gray-600 dark:text-gray-400">{ns.description}</p>
+          </div>
         )}
 
-        {tab === 'recall' && (
-          <Card className="space-y-4 border-border/80 p-4 md:p-6">
-            <textarea
-              value={recallQ}
-              onChange={(e) => setRecallQ(e.target.value)}
-              rows={3}
-              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-              placeholder={t('knowledge.query')}
-            />
-            <div className="flex flex-wrap gap-4">
-              <div>
-                <label className="mb-1 block text-xs text-muted-foreground">{t('knowledge.topK')}</label>
-                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" type="number" value={String(recallTopK)} onChange={(e) => setRecallTopK(parseInt(e.target.value, 10) || 5)} />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-muted-foreground">{t('knowledge.minScore')}</label>
-                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" type="number" step={0.05} value={String(recallMin)} onChange={(e) => setRecallMin(parseFloat(e.target.value) || 0)} />
-              </div>
-            </div>
-            <Button variant="primary" size="sm" onClick={() => void runRecall()} loading={recallBusy}>
-              {t('knowledge.runRecall')}
-            </Button>
-            {recallHits.length > 0 && (
-              <ul className="space-y-2">
-                {recallHits.map((hit, i) => (
-                  <li key={hit.record?.id || i} className="rounded-lg border border-border/60 bg-muted/10 p-3 text-sm">
-                    <div className="mb-1 flex justify-between gap-2 font-medium">
-                      <span className="truncate">{hit.record?.title}</span>
-                      <span className="shrink-0 font-mono text-xs text-primary">{typeof hit.score === 'number' ? hit.score.toFixed(4) : ''}</span>
+        <div className="flex-1 overflow-auto">
+          <div className="mx-auto max-w-7xl w-full px-4 sm:px-6 lg:px-8 py-6">
+            <ArcoTabs activeTab={tab} onChange={setTab} size="large" className="knowledge-tabs">
+              <ArcoTabs.TabPane key="docs" title={t('knowledge.docs')}>
+                <div className="pt-4">
+                  {/* Search bar */}
+                  <div className="mb-4 flex items-center gap-3">
+                    <ArcoInput
+                      size="large"
+                      className="flex-1 !h-10"
+                      value={docQInput}
+                      onChange={(val) => setDocQInput(val)}
+                      onKeyDown={(e) => e.key === 'Enter' && setDocQ(docQInput.trim())}
+                      placeholder={t('knowledge.docSearchPlaceholder')}
+                      allowClear
+                    />
+                    <Button variant="secondary" size="sm" onClick={() => setDocQ(docQInput.trim())}>
+                      {t('knowledge.search')}
+                    </Button>
+                  </div>
+
+                  {docsLoading ? (
+                    <div className="flex justify-center py-16">
+                      <Loader2 className="h-7 w-7 animate-spin text-purple-500" />
                     </div>
-                    <p className="line-clamp-3 text-muted-foreground">{hit.record?.content}</p>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Card>
-        )}
-      </PageContainer>
+                  ) : docs.length === 0 ? (
+                    <div className="py-12">
+                      <EmptyState icon={BookOpen} title={t('knowledge.empty')} description={t('knowledge.emptyHint')} />
+                    </div>
+                  ) : (
+                    <ArcoCard bordered className="!rounded-xl overflow-hidden">
+                      <ul className="divide-y divide-gray-100 dark:divide-gray-800">
+                        {docs.map((d) => (
+                          <li key={d.id}>
+                            <Link
+                              to={`/knowledge/documents/${d.id}?ns=${encodeURIComponent(ns.id)}`}
+                              className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+                            >
+                              <div className="min-w-0">
+                                <div className="truncate font-medium text-gray-900 dark:text-gray-100">{d.title}</div>
+                                <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                                  {(d.fileHash?.length ?? 0) > 12 ? `${d.fileHash.slice(0, 12)}...` : d.fileHash}
+                                </div>
+                              </div>
+                              <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" />
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    </ArcoCard>
+                  )}
+                </div>
+              </ArcoTabs.TabPane>
+
+              <ArcoTabs.TabPane key="recall" title={
+                <span className="inline-flex items-center gap-1.5">
+                  <FlaskConical className="h-4 w-4" />
+                  {t('knowledge.recall')}
+                </span>
+              }>
+                <div className="pt-4">
+                  <ArcoCard bordered className="!rounded-xl !p-6 space-y-4">
+                    <ArcoInput.TextArea
+                      value={recallQ}
+                      onChange={(val: string) => setRecallQ(val)}
+                      rows={3}
+                      placeholder={t('knowledge.query')}
+                    />
+                    <div className="flex flex-wrap gap-4">
+                      <div className="w-32">
+                        <label className="mb-1 block text-xs text-gray-500 dark:text-gray-400">{t('knowledge.topK')}</label>
+                        <ArcoInput
+                          size="large"
+                          className="!h-10"
+                          type="number"
+                          value={String(recallTopK)}
+                          onChange={(val) => setRecallTopK(parseInt(val, 10) || 5)}
+                        />
+                      </div>
+                      <div className="w-32">
+                        <label className="mb-1 block text-xs text-gray-500 dark:text-gray-400">{t('knowledge.minScore')}</label>
+                        <ArcoInput
+                          size="large"
+                          className="!h-10"
+                          type="number"
+                          step={0.05}
+                          value={String(recallMin)}
+                          onChange={(val) => setRecallMin(parseFloat(val) || 0)}
+                        />
+                      </div>
+                    </div>
+                    <Button variant="primary" size="sm" onClick={() => void runRecall()} loading={recallBusy}>
+                      {t('knowledge.runRecall')}
+                    </Button>
+
+                    {recallHits.length > 0 && (
+                      <div className="space-y-2 pt-2">
+                        {recallHits.map((hit, i) => (
+                          <ArcoCard key={hit.record?.id || i} bordered size="small" className="!rounded-lg">
+                            <div className="mb-1 flex justify-between gap-2">
+                              <span className="truncate font-medium text-sm">{hit.record?.title}</span>
+                              <span className="shrink-0 font-mono text-xs text-purple-600 dark:text-purple-400">
+                                {typeof hit.score === 'number' ? hit.score.toFixed(4) : ''}
+                              </span>
+                            </div>
+                            <p className="line-clamp-3 text-xs text-gray-500 dark:text-gray-400">{hit.record?.content}</p>
+                          </ArcoCard>
+                        ))}
+                      </div>
+                    )}
+                  </ArcoCard>
+                </div>
+              </ArcoTabs.TabPane>
+            </ArcoTabs>
+          </div>
+        </div>
+      </div>
+
+      <ConfirmDialog
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={() => void onDeleteNs()}
+        title={t('knowledge.deleteBase')}
+        message={t('knowledge.deleteBaseConfirm')}
+        confirmText={t('knowledge.deleteBase')}
+        cancelText={t('knowledge.cancel')}
+        type="danger"
+        loading={deleting}
+      />
     </>
   )
 }
