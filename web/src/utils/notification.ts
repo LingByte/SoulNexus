@@ -1,4 +1,5 @@
 import { useUIStore } from '../stores/uiStore'
+import { useI18nStore } from '../stores/i18nStore'
 import { playSuccessSound, playErrorSound, playWarningSound, playInfoSound } from './audioEffects'
 import type { ToastPosition } from '../stores/uiStore'
 
@@ -83,7 +84,7 @@ export const showAlert = (
   const notification = createNotification()
   
   notification[type]({
-    title: title || (type === 'error' ? '错误' : type === 'warning' ? '警告' : type === 'success' ? '成功' : '提示'),
+    title: title || (type === 'error' ? useI18nStore.getState().t('common.error') : type === 'warning' ? useI18nStore.getState().t('common.warning') : type === 'success' ? useI18nStore.getState().t('common.success') : useI18nStore.getState().t('common.info')),
     message: message,
     ...options
   })
@@ -109,7 +110,7 @@ export const showAlertWithScroll = (
   
   // 然后显示通知
   notification[type]({
-    title: title || (type === 'error' ? '错误' : type === 'warning' ? '警告' : type === 'success' ? '成功' : '提示'),
+    title: title || (type === 'error' ? useI18nStore.getState().t('common.error') : type === 'warning' ? useI18nStore.getState().t('common.warning') : type === 'success' ? useI18nStore.getState().t('common.success') : useI18nStore.getState().t('common.info')),
     message: message,
     duration: type === 'error' ? 7000 : 5000
   })
@@ -118,7 +119,7 @@ export const showAlertWithScroll = (
 // 确认对话框的替代函数
 export const showConfirm = (
   message: string,
-  title: string = '确认',
+  title: string = useI18nStore.getState().t('common.confirm'),
   onConfirm: () => void,
   onCancel?: () => void
 ) => {
@@ -133,7 +134,7 @@ export const showConfirm = (
 // 输入对话框的替代函数
 export const showPrompt = (
   message: string,
-  title: string = '输入',
+  title: string = useI18nStore.getState().t('common.input'),
   defaultValue: string = ''
 ): string | null => {
   return window.prompt(`${title}\n\n${message}`, defaultValue)

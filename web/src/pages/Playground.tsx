@@ -329,7 +329,7 @@ const Playground = () => {
                 <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                   label="Base URL"
                   value={settings.baseUrl}
-                  onValueChange={(v) => patchSettings({ baseUrl: v })}
+                  onChange={(v) => patchSettings({ baseUrl: v })}
                   placeholder="https://api.example.com/v1"
                 />
                 <Button variant="ghost" size="sm" className="w-full text-xs" onClick={usePlatformGateway}>
@@ -339,7 +339,7 @@ const Playground = () => {
                   type="password"
                   label="API Key"
                   value={settings.apiKey}
-                  onValueChange={(v) => patchSettings({ apiKey: v })}
+                  onChange={(v) => patchSettings({ apiKey: v })}
                   placeholder="sk-..."
                   autoComplete="off"
                 />
@@ -348,12 +348,12 @@ const Playground = () => {
                     <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                       label="anthropic-version"
                       value={settings.anthropicVersion}
-                      onValueChange={(v) => patchSettings({ anthropicVersion: v })}
+                      onChange={(v) => patchSettings({ anthropicVersion: v })}
                     />
                     <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                       label="anthropic-beta（可选）"
                       value={settings.anthropicBeta}
-                      onValueChange={(v) => patchSettings({ anthropicBeta: v })}
+                      onChange={(v) => patchSettings({ anthropicBeta: v })}
                       placeholder="extended-thinking-..."
                     />
                   </>
@@ -364,7 +364,7 @@ const Playground = () => {
                 <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                   label="model"
                   value={settings.model}
-                  onValueChange={(v) => patchSettings({ model: v })}
+                  onChange={(v) => patchSettings({ model: v })}
                 />
                 <Textarea
                   size="sm"
@@ -381,25 +381,25 @@ const Playground = () => {
                     type="number"
                     label="max_tokens"
                     value={String(settings.maxTokens)}
-                    onValueChange={(v) => patchSettings({ maxTokens: Number(v) || 0 })}
+                    onChange={(v) => patchSettings({ maxTokens: Number(v) || 0 })}
                   />
                   <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                     type="number"
                     label="temperature"
                     value={String(settings.temperature)}
-                    onValueChange={(v) => patchSettings({ temperature: Number(v) })}
+                    onChange={(v) => patchSettings({ temperature: Number(v) })}
                   />
                   <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                     type="number"
                     label="top_p"
                     value={String(settings.topP)}
-                    onValueChange={(v) => patchSettings({ topP: Number(v) })}
+                    onChange={(v) => patchSettings({ topP: Number(v) })}
                   />
                   <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                     type="number"
                     label="n"
                     value={String(settings.n)}
-                    onValueChange={(v) => patchSettings({ n: Math.max(1, Number(v) || 1) })}
+                    onChange={(v) => patchSettings({ n: Math.max(1, Number(v) || 1) })}
                   />
                   {settings.protocol === 'openai' && (
                     <>
@@ -407,13 +407,13 @@ const Playground = () => {
                         type="number"
                         label="presence_penalty"
                         value={String(settings.presencePenalty)}
-                        onValueChange={(v) => patchSettings({ presencePenalty: Number(v) })}
+                        onChange={(v) => patchSettings({ presencePenalty: Number(v) })}
                       />
                       <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                         type="number"
                         label="frequency_penalty"
                         value={String(settings.frequencyPenalty)}
-                        onValueChange={(v) => patchSettings({ frequencyPenalty: Number(v) })}
+                        onChange={(v) => patchSettings({ frequencyPenalty: Number(v) })}
                       />
                     </>
                   )}
@@ -421,14 +421,14 @@ const Playground = () => {
                 <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                   label="stop（逗号分隔）"
                   value={settings.stopSequences}
-                  onValueChange={(v) => patchSettings({ stopSequences: v })}
+                  onChange={(v) => patchSettings({ stopSequences: v })}
                 />
                 {settings.protocol === 'openai' && (
                   <>
                     <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                       label="seed"
                       value={settings.seed}
-                      onValueChange={(v) => patchSettings({ seed: v })}
+                      onChange={(v) => patchSettings({ seed: v })}
                     />
                     <div>
                       <p className="mb-1.5 text-sm font-medium text-foreground">response_format</p>
@@ -450,7 +450,7 @@ const Playground = () => {
                     <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                       label="user（可选）"
                       value={settings.user}
-                      onValueChange={(v) => patchSettings({ user: v })}
+                      onChange={(v) => patchSettings({ user: v })}
                     />
                   </>
                 )}
@@ -471,7 +471,7 @@ const Playground = () => {
                       type="number"
                       label="thinking_budget"
                       value={String(settings.thinkingBudget)}
-                      onValueChange={(v) => patchSettings({ thinkingBudget: Number(v) || 0 })}
+                      onChange={(v) => patchSettings({ thinkingBudget: Number(v) || 0 })}
                     />
                   </>
                 ) : (
@@ -488,7 +488,7 @@ const Playground = () => {
                       type="number"
                       label="budget_tokens"
                       value={String(settings.anthropicThinkingBudget)}
-                      onValueChange={(v) =>
+                      onChange={(v) =>
                         patchSettings({ anthropicThinkingBudget: Number(v) || 0 })
                       }
                     />
@@ -518,7 +518,7 @@ const Playground = () => {
                   label="extra JSON（合并进请求体）"
                   rows={4}
                   value={settings.extraJson}
-                  onValueChange={(v) => patchSettings({ extraJson: v })}
+                  onChange={(v) => patchSettings({ extraJson: v })}
                   placeholder='{"top_k": 20}'
                   className="font-mono text-[11px]"
                 />
