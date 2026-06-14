@@ -528,24 +528,19 @@ func ValidateEmbeddingDim(ctx context.Context, namespace string, nsVectorDim, go
 	return nil
 }
 
-// ChunkerFromEnv returns the document chunker for ingest pipelines.
-func ChunkerFromEnv() (lingchunk.Chunker, error) {
-	return lingchunk.NewRoutingChunker(&lingchunk.Config{}), nil
-}
-
 // Default chunk sizing (re-exported for handlers).
 const (
-	DefaultChunkMaxChars     = lingchunk.DefaultLLMChunkMaxChars
-	DefaultChunkOverlapChars = lingchunk.DefaultLLMChunkOverlapChars
+	DefaultChunkMaxChars     = defaultKnowledgeChunkMaxChars
+	DefaultChunkOverlapChars = 0
 	DefaultChunkMinChars     = lingchunk.DefaultLLMChunkMinChars
 )
 
-// ChunkOptions returns default chunk sizing for ingest.
+// ChunkOptions returns default chunk sizing for ingest (no overlap — chunks are semantically independent).
 func ChunkOptions(docTitle string) *lingchunk.ChunkOptions {
 	return &lingchunk.ChunkOptions{
 		DocumentTitle: strings.TrimSpace(docTitle),
-		MaxChars:      DefaultChunkMaxChars,
-		OverlapChars:  DefaultChunkOverlapChars,
+		MaxChars:      ChunkMaxCharsFromEnv(),
+		OverlapChars:  0,
 		MinChars:      DefaultChunkMinChars,
 	}
 }

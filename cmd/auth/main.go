@@ -75,6 +75,9 @@ func main() {
 	if err := logger.Init(&a.Log, a.Server.Mode); err != nil {
 		panic(err)
 	}
+	if err := bootstrap.InitI18n(); err != nil {
+		panic(err)
+	}
 
 	if err := bootstrap.PrintBannerFromFile("user-banner.txt", "SOULNEXUS USER"); err != nil {
 		log.Fatalf("unload banner: %v", err)

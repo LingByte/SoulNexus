@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0
 
 import React, { useEffect, useState } from 'react'
-import { Input as ArcoInput, Select as ArcoSelect, Drawer } from '@arco-design/web-react'
+import { Input as ArcoInput, Select as ArcoSelect, Drawer, Form as ArcoForm } from '@arco-design/web-react'
 import Button from '@/components/UI/Button'
 import { useI18nStore } from '@/stores/i18nStore'
 import { showAlert } from '@/utils/alert'
@@ -15,14 +15,13 @@ type Props = {
   onCreated: (row: KnowledgeNamespaceRow) => void
 }
 
+const FormItem = ArcoForm.Item
+
 const KnowledgeCreateDrawer: React.FC<Props> = ({ open, onClose, onCreated }) => {
   const { t } = useI18nStore()
   const [busy, setBusy] = useState(false)
   const [groups, setGroups] = useState<Group[]>([])
-  const [formNs, setFormNs] = useState('')
-  const [formName, setFormName] = useState('')
-  const [formDesc, setFormDesc] = useState('')
-  const [formGroupId, setFormGroupId] = useState<string | undefined>(undefined)
+  const [form] = ArcoForm.useForm()
 
   useEffect(() => {
     if (!open) return
@@ -32,35 +31,25 @@ const KnowledgeCreateDrawer: React.FC<Props> = ({ open, onClose, onCreated }) =>
     })
   }, [open])
 
-  const resetForm = () => {
-    setFormNs('')
-    setFormName('')
-    setFormDesc('')
-    setFormGroupId(undefined)
-  }
-
   const handleClose = () => {
     if (busy) return
-    resetForm()
+    form.resetFields()
     onClose()
   }
 
   const submit = async () => {
-    const ns = formNs.trim()
-    const name = formName.trim()
-    if (!ns || !name) {
-      showAlert('namespace / name required', 'error', t('knowledge.create'))
-      return
-    }
+    const values = await form.validate()
+    if (!values) return
+
     setBusy(true)
     try {
       const body: Parameters<typeof createKnowledgeNamespace>[0] = {
-        namespace: ns,
-        name,
-        description: formDesc.trim() || undefined,
+        namespace: values.namespace.trim(),
+        name: values.name.trim(),
+        description: values.description?.trim() || undefined,
       }
-      if (formGroupId) {
-        const gid = parseInt(formGroupId, 10)
+      if (values.groupId) {
+        const gid = parseInt(values.groupId, 10)
         if (!Number.isNaN(gid)) body.groupId = gid
       }
       const res = await createKnowledgeNamespace(body)
@@ -70,7 +59,7 @@ const KnowledgeCreateDrawer: React.FC<Props> = ({ open, onClose, onCreated }) =>
       }
       showAlert(res.msg || 'ok', 'success', t('knowledge.create'))
       onCreated(res.data)
-      resetForm()
+      form.resetFields()
       onClose()
     } catch (e: unknown) {
       showAlert((e as { msg?: string })?.msg || String(e), 'error', t('knowledge.create'))
@@ -81,8 +70,12 @@ const KnowledgeCreateDrawer: React.FC<Props> = ({ open, onClose, onCreated }) =>
 
   return (
     <Drawer
-      width={420}
-      title={t('knowledge.newBase')}
+      width={440}
+      title={
+        <div className="flex items-center gap-2">
+          <span className="text-base font-semibold">{t('knowledge.newBase')}</span>
+        </div>
+      }
       visible={open}
       onCancel={handleClose}
       footer={
@@ -98,58 +91,64 @@ const KnowledgeCreateDrawer: React.FC<Props> = ({ open, onClose, onCreated }) =>
       maskClosable={!busy}
       closable={!busy}
     >
-      <div className="space-y-4">
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
-            {t('knowledge.fieldGroup')}
-          </label>
+      <ArcoForm
+        form={form}
+        layout="vertical"
+        className="space-y-1"
+        initialValues={{ namespace: '', name: '', description: '', groupId: undefined }}
+      >
+        <FormItem label={t('knowledge.fieldGroup')} field="groupId">
           <ArcoSelect
             size="large"
-            value={formGroupId}
-            onChange={(val) => setFormGroupId(val as string | undefined)}
             placeholder={t('knowledge.fieldGroupHint')}
             allowClear
             className="w-full"
             options={[
-              { label: t('knowledge.fieldGroupHint'), value: '' },
               ...groups.map((g) => ({ label: `${g.name} (#${g.id})`, value: String(g.id) })),
             ]}
           />
-        </div>
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
-            {t('knowledge.fieldNamespace')} <span className="text-red-500">*</span>
-          </label>
+        </FormItem>
+
+        <FormItem
+          label={t('knowledge.fieldNamespace')}
+          field="namespace"
+          rules={[
+            { required: true, message: 'Required' },
+            {
+              validator: (_value: string | undefined, callback: (error?: React.ReactNode) => void) => {
+                if (_value && !/^[a-zA-Z0-9_-]+$/.test(_value)) {
+                  callback('ASCII letters, numbers, hyphens, underscores only')
+                } else {
+                  callback()
+                }
+              },
+            },
+          ]}
+        >
           <ArcoInput
             size="large"
-            value={formNs}
-            onChange={(val) => setFormNs(val)}
             placeholder="e.g. my-knowledge-base"
           />
-        </div>
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
-            {t('knowledge.fieldName')} <span className="text-red-500">*</span>
-          </label>
+        </FormItem>
+
+        <FormItem
+          label={t('knowledge.fieldName')}
+          field="name"
+          rules={[{ required: true, message: 'Required' }]}
+        >
           <ArcoInput
             size="large"
-            value={formName}
-            onChange={(val) => setFormName(val)}
             placeholder={t('knowledge.fieldName')}
           />
-        </div>
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
-            {t('knowledge.fieldDesc')}
-          </label>
+        </FormItem>
+
+        <FormItem label={t('knowledge.fieldDesc')} field="description">
           <ArcoInput.TextArea
-            value={formDesc}
-            onChange={(val: string) => setFormDesc(val)}
             rows={3}
             placeholder={t('knowledge.fieldDesc')}
           />
-        </div>
-      </div>
+        </FormItem>
+      </ArcoForm>
     </Drawer>
   )
 }

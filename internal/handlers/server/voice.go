@@ -23,7 +23,7 @@ import (
 
 	"github.com/LingByte/SoulNexus/internal/config"
 	"github.com/LingByte/SoulNexus/pkg/llm"
-	parser2 "github.com/LingByte/SoulNexus/pkg/parser"
+	lingparser "github.com/LingByte/lingllm/parser"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/stores"
 	"github.com/LingByte/lingllm/synthesizer"
@@ -1919,7 +1919,7 @@ func (h *Handlers) ParseAttachmentContent(c *gin.Context) {
 
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 45*time.Second)
 	defer cancel()
-	parseRes, err := parser2.ParseBytes(ctx, file.Filename, buf, &parser2.ParseOptions{
+	parseRes, err := lingparser.ParseBytes(ctx, file.Filename, buf, &lingparser.ParseOptions{
 		MaxTextLength:      300000,
 		PreserveLineBreaks: true,
 	})

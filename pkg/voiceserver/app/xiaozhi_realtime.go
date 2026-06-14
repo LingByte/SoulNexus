@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/LingByte/SoulNexus/pkg/realtime"
-	_ "github.com/LingByte/SoulNexus/pkg/realtime/aliyunomni" // register aliyun_omni provider
+	"github.com/LingByte/lingllm/realtime"
+	_ "github.com/LingByte/lingllm/realtime/aliyunomni" // register aliyun_omni provider
 	"github.com/LingByte/SoulNexus/pkg/utils"
 )
 

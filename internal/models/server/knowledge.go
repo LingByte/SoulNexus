@@ -16,8 +16,15 @@ import (
 const (
 	KnowledgeStatusActive     = "active"
 	KnowledgeStatusDeleted    = "deleted"
-	KnowledgeStatusProcessing = "processing"
 	KnowledgeStatusFailed     = "failed"
+	// Pipeline stages (persisted in knowledge_documents.status).
+	KnowledgeStatusUploading  = "uploading"
+	KnowledgeStatusParsing    = "parsing"
+	KnowledgeStatusChunking   = "chunking"
+	KnowledgeStatusEmbedding  = "embedding"
+	KnowledgeStatusIndexing   = "indexing"
+	// Legacy aggregate stage; still accepted for filters.
+	KnowledgeStatusProcessing = "processing"
 
 	// KnowledgeVectorProviderQdrant maps to a Qdrant collection.
 	KnowledgeVectorProviderQdrant = "qdrant"
@@ -28,6 +35,27 @@ const (
 	// persisted in stored_markdown (LingStorage upload failed or not configured). It is not an HTTP URL.
 	KnowledgeTextURLInline = "inline:db"
 )
+
+// KnowledgeInProgressStatuses lists non-terminal ingest stages for queries and UI.
+var KnowledgeInProgressStatuses = []string{
+	KnowledgeStatusUploading,
+	KnowledgeStatusParsing,
+	KnowledgeStatusChunking,
+	KnowledgeStatusEmbedding,
+	KnowledgeStatusIndexing,
+	KnowledgeStatusProcessing,
+}
+
+// IsKnowledgeInProgressStatus reports whether a document is still being ingested.
+func IsKnowledgeInProgressStatus(status string) bool {
+	s := strings.TrimSpace(strings.ToLower(status))
+	for _, v := range KnowledgeInProgressStatuses {
+		if s == v {
+			return true
+		}
+	}
+	return false
+}
 
 // IsKnowledgeInlineTextURL reports whether text_url points at DB-backed markdown.
 func IsKnowledgeInlineTextURL(s string) bool {
@@ -280,7 +308,8 @@ type KnowledgeDocument struct {
 	// StoredMarkdown holds full markdown when LingStorage upload failed or URL is unavailable (GET /text fallback).
 	StoredMarkdown string `json:"storedMarkdown,omitempty" gorm:"type:longtext;comment:fallback markdown when text_url empty or fetch fails"`
 	RecordIDs      string `json:"recordIds" gorm:"type:text;comment:related vector ids (csv or json)"`
-	Status         string `json:"-" gorm:"type:varchar(20);index;not null;default:'active'"`
+	Status         string `json:"status" gorm:"type:varchar(32);index;not null;default:'active'"`
+	ProcessError   string `json:"processError,omitempty" gorm:"type:text;comment:last ingest error message"`
 
 	CreatedAt time.Time `json:"createdAt" gorm:"autoCreateTime"`
 	UpdatedAt time.Time `json:"updatedAt" gorm:"autoUpdateTime"`
@@ -322,7 +351,11 @@ func ListKnowledgeDocuments(db *gorm.DB, groupIDs []uint, namespace, status, key
 		q = q.Where("namespace = ?", ns)
 	}
 	if s := strings.TrimSpace(status); s != "" {
-		q = q.Where("status = ?", s)
+		if strings.EqualFold(s, KnowledgeStatusProcessing) {
+			q = q.Where("status IN ?", KnowledgeInProgressStatuses)
+		} else {
+			q = q.Where("status = ?", s)
+		}
 	}
 	if kw := strings.TrimSpace(keyword); kw != "" {
 		like := "%" + kw + "%"
