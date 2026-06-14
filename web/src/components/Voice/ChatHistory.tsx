@@ -1,5 +1,5 @@
 import React from 'react'
-import { Spin, Empty } from '@arco-design/web-react'
+import { Spin } from '@arco-design/web-react'
 import { Bot, MessageSquare, Volume2 } from 'lucide-react'
 import { cn } from '@/utils/cn'
 import { sanitizeReadableText } from '@/utils/string'
@@ -54,11 +54,11 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
 
   if (chatHistory.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center py-10 px-3">
-        <Empty
-          icon={<Bot className="w-8 h-8 text-gray-300 dark:text-gray-600" />}
-          description={<span className="text-xs text-gray-400 dark:text-gray-500">暂无历史会话</span>}
-        />
+      <div className="flex-1 flex flex-col items-center justify-center py-10 px-3 text-center">
+        <div className="flex items-center justify-center w-12 h-12 rounded-full bg-gray-100 dark:bg-neutral-700/60 mb-2">
+          <Bot className="w-7 h-7 text-gray-400 dark:text-gray-500" strokeWidth={1.5} />
+        </div>
+        <span className="text-xs text-gray-400 dark:text-gray-500">暂无历史会话</span>
       </div>
     )
   }
