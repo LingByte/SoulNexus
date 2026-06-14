@@ -8,9 +8,9 @@ import { PageSEO } from '@/components/SEO/PageSEO'
 import PageContainer from '@/components/Layout/PageContainer'
 import Button from '@/components/UI/Button'
 import Card from '@/components/UI/Card'
-import Badge from '@/components/UI/Badge'
 import MarkdownPreview from '@/components/UI/MarkdownPreview'
-import { useToast } from '@/components/UI/ToastContainer'
+import ConfirmDialog from '@/components/UI/ConfirmDialog'
+import { showAlert } from '@/utils/alert'
 import { useI18nStore } from '@/stores/i18nStore'
 import {
   getKnowledgeDocument,
@@ -21,21 +21,12 @@ import {
   type KnowledgeDocumentRow,
 } from '@/api/knowledge'
 
-function statusVariant(s: string): 'success' | 'warning' | 'error' | 'muted' | 'default' {
-  const v = (s || '').toLowerCase()
-  if (v === 'active') return 'success'
-  if (v === 'processing') return 'warning'
-  if (v === 'failed') return 'error'
-  if (v === 'deleted') return 'muted'
-  return 'default'
-}
 
 const KnowledgeDocumentDetailPage: React.FC = () => {
   const { docId } = useParams<{ docId: string }>()
   const [searchParams] = useSearchParams()
   const nsId = searchParams.get('ns') || ''
   const { t } = useI18nStore()
-  const { success: toastSuccess, error: toastError } = useToast()
   const uploadRef = useRef<HTMLInputElement>(null)
 
   const [doc, setDoc] = useState<KnowledgeDocumentRow | null>(null)
@@ -43,6 +34,8 @@ const KnowledgeDocumentDetailPage: React.FC = () => {
   const [editMode, setEditMode] = useState(false)
   const [md, setMd] = useState('')
   const [saving, setSaving] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const backHref = nsId ? `/knowledge/ns/${nsId}` : '/knowledge'
 
@@ -52,7 +45,7 @@ const KnowledgeDocumentDetailPage: React.FC = () => {
     try {
       const dRes = await getKnowledgeDocument(docId)
       if (dRes.code !== 200 || !dRes.data?.document) {
-        toastError(t('knowledge.docs'), dRes.msg || 'not found')
+        showAlert(dRes.msg || 'not found', 'error', t('knowledge.docs'))
         setDoc(null)
         return
       }
@@ -64,12 +57,12 @@ const KnowledgeDocumentDetailPage: React.FC = () => {
       const fromRow = (row.storedMarkdown || '').trim()
       setMd(fromApi || fromRow)
     } catch (e: unknown) {
-      toastError(t('knowledge.docs'), (e as { msg?: string })?.msg || String(e))
+      showAlert((e as { msg?: string })?.msg || String(e), 'error', t('knowledge.docs'))
       setDoc(null)
     } finally {
       setLoading(false)
     }
-  }, [docId, toastError, t])
+  }, [docId, t])
 
   useEffect(() => {
     void loadAll()
@@ -81,38 +74,44 @@ const KnowledgeDocumentDetailPage: React.FC = () => {
     try {
       const res = await putKnowledgeDocumentText(docId, md)
       if (res.code !== 200) {
-        toastError(t('knowledge.saveMarkdown'), res.msg || 'failed')
+        showAlert(res.msg || 'failed', 'error', t('knowledge.saveMarkdown'))
         return
       }
-      toastSuccess(t('knowledge.saveMarkdown'), res.msg || 'ok')
+      showAlert(res.msg || 'ok', 'success', t('knowledge.saveMarkdown'))
       setEditMode(false)
       void loadAll()
     } catch (e: unknown) {
-      toastError(t('knowledge.saveMarkdown'), (e as { msg?: string })?.msg || String(e))
+      showAlert((e as { msg?: string })?.msg || String(e), 'error', t('knowledge.saveMarkdown'))
     } finally {
       setSaving(false)
     }
   }
 
   const onDelete = async () => {
-    if (!doc || !window.confirm(`${t('knowledge.deleteDoc')}?`)) return
-    const res = await deleteKnowledgeDocument(doc.id)
-    if (res.code !== 200) {
-      toastError(t('knowledge.deleteDoc'), res.msg || 'failed')
-      return
+    if (!doc) return
+    setDeleting(true)
+    try {
+      const res = await deleteKnowledgeDocument(doc.id)
+      if (res.code !== 200) {
+        showAlert(res.msg || 'failed', 'error', t('knowledge.deleteDoc'))
+        return
+      }
+      showAlert(res.msg || 'ok', 'success', t('knowledge.deleteDoc'))
+      window.location.href = backHref
+    } finally {
+      setDeleting(false)
+      setShowDeleteConfirm(false)
     }
-    toastSuccess(t('knowledge.deleteDoc'), res.msg || 'ok')
-    window.location.href = backHref
   }
 
   const onReupload = async (f: File) => {
     if (!doc) return
     const res = await reuploadKnowledgeDocument(doc.id, f)
     if (res.code !== 200) {
-      toastError(t('knowledge.reupload'), res.msg || 'failed')
+      showAlert(res.msg || 'failed', 'error', t('knowledge.reupload'))
       return
     }
-    toastSuccess(t('knowledge.reupload'), res.msg || 'ok')
+    showAlert(res.msg || 'ok', 'success', t('knowledge.reupload'))
     void loadAll()
   }
 
@@ -151,7 +150,6 @@ const KnowledgeDocumentDetailPage: React.FC = () => {
             <p className="mt-1 font-mono text-xs text-muted-foreground">{doc.namespace}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant={statusVariant(doc.status)}>{doc.status}</Badge>
             <input
               ref={uploadRef}
               type="file"
@@ -168,7 +166,7 @@ const KnowledgeDocumentDetailPage: React.FC = () => {
             <Button variant="outline" size="sm" type="button" onClick={() => setEditMode((e) => !e)}>
               {t('knowledge.editMarkdown')}
             </Button>
-            <Button variant="destructive" size="sm" type="button" onClick={() => void onDelete()} leftIcon={<Trash2 className="h-4 w-4" />}>
+            <Button variant="destructive" size="sm" type="button" onClick={() => setShowDeleteConfirm(true)} leftIcon={<Trash2 className="h-4 w-4" />}>
               {t('knowledge.deleteDoc')}
             </Button>
           </div>
@@ -201,6 +199,17 @@ const KnowledgeDocumentDetailPage: React.FC = () => {
           )}
         </Card>
       </PageContainer>
+      <ConfirmDialog
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={() => void onDelete()}
+        title={t('knowledge.deleteDoc')}
+        message={`${t('knowledge.deleteDoc')}?`}
+        confirmText={t('common.delete')}
+        cancelText={t('common.cancel')}
+        type="danger"
+        loading={deleting}
+      />
     </>
   )
 }

@@ -7,14 +7,14 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/LingByte/SoulNexus/pkg/recognizer"
+	"github.com/LingByte/lingllm/recognizer"
 	"github.com/LingByte/SoulNexus/pkg/voice/constants"
 	"go.uber.org/zap"
 )
 
 // ASRInputComponent ASR 输入阶段（发送到 ASR）
 type ASRInputComponent struct {
-	asr      recognizer.TranscribeService
+	asr      recognizer.SpeechRecognitionEngine
 	logger   *zap.Logger
 	metrics  *PipelineMetrics
 	pipeline *ASRPipeline // 引用父pipeline以检查TTS状态

@@ -264,6 +264,7 @@ func (h *Handlers) handleRelayOpenAIChat(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"type": "bad_request", "message": "read body failed"}})
 		return
 	}
+	body = llm.NormalizeOpenAIChatCompletionBody(body)
 	model := parseRelayBodyModel(body)
 	if model == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"type": "bad_request", "message": "model is required"}})
@@ -272,7 +273,7 @@ func (h *Handlers) handleRelayOpenAIChat(c *gin.Context) {
 	if !h.preflightTokenForModel(c, tok, model) {
 		return
 	}
-	channels, err := relayChannelsForModel(h.db, tok.Group, model, svcmodels.LLMChannelProtocolOpenAI, svcmodels.TokenOrgID(tok))
+	channels, err := relayChannelsForModelCached(h.db, tok.Group, model, svcmodels.LLMChannelProtocolOpenAI, svcmodels.TokenOrgID(tok))
 	if err != nil || len(channels) == 0 {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": gin.H{"type": "no_channel", "message": "no channel available for model"}})
 		return
@@ -286,11 +287,22 @@ func (h *Handlers) handleRelayOpenAIChat(c *gin.Context) {
 		for i := range channels {
 			ups = append(ups, toUpstreamChannel(&channels[i]))
 		}
-		cap, attempts, winID, err := llm.RelayOpenAIStreamMulti(c.Request.Context(), body, c.GetHeader("Accept"), ups, c.Writer)
-		if err != nil || cap == nil {
+		var cap *llm.OpenAIStreamCapture
+		var attempts []llm.UsageChannelAttempt
+		var winID int
+		var streamErr error
+		if len(ups) == 1 {
+			cap, streamErr = llm.RelayOpenAIStreamWithCapture(c.Request.Context(), body, c.GetHeader("Accept"), ups[0], c.Writer)
+			if cap != nil {
+				winID = ups[0].ID
+			}
+		} else {
+			cap, attempts, winID, streamErr = llm.RelayOpenAIStreamMulti(c.Request.Context(), body, c.GetHeader("Accept"), ups, c.Writer)
+		}
+		if streamErr != nil || cap == nil {
 			emsg := "all_channels_failed"
-			if err != nil {
-				emsg = err.Error()
+			if streamErr != nil {
+				emsg = streamErr.Error()
 			}
 			llm.EmitRelayOpenAIUsageFailure(body, &llm.RelayResult{
 				WinChannelID: winID,
@@ -299,19 +311,23 @@ func (h *Handlers) handleRelayOpenAIChat(c *gin.Context) {
 			}, meta, "stream_error", emsg)
 			return
 		}
-		quota := computeQuotaDelta(h.db, model, cap.PromptTokens, cap.CompletionTokens)
-		// 流式必须用 *Stream* 版本：非流版会因 FinalBody 为空而 early-return，导致 llm_usage 不落库。
-		baseURL := ""
-		for i := range channels {
-			if channels[i].Id == winID {
-				if channels[i].BaseURL != nil {
-					baseURL = *channels[i].BaseURL
+		// 流式结束后异步落库，避免阻塞客户端收尾。
+		capCopy := *cap
+		tokID := tok.ID
+		go func() {
+			quota := computeQuotaDelta(h.db, model, capCopy.PromptTokens, capCopy.CompletionTokens)
+			baseURL := ""
+			for i := range channels {
+				if channels[i].Id == winID {
+					if channels[i].BaseURL != nil {
+						baseURL = *channels[i].BaseURL
+					}
+					break
 				}
-				break
 			}
-		}
-		llm.EmitRelayOpenAIStreamUsageSuccess(body, meta, cap, winID, baseURL, attempts, quota)
-		_ = svcmodels.AddLLMTokenUsage(h.db, tok.ID, cap.PromptTokens+cap.CompletionTokens, quota)
+			llm.EmitRelayOpenAIStreamUsageSuccess(body, meta, &capCopy, winID, baseURL, attempts, quota)
+			_ = svcmodels.AddLLMTokenUsage(h.db, tokID, capCopy.PromptTokens+capCopy.CompletionTokens, quota)
+		}()
 		return
 	}
 
@@ -385,7 +401,7 @@ func (h *Handlers) handleRelayAnthropicMessages(c *gin.Context) {
 	if !h.preflightTokenForModel(c, tok, model) {
 		return
 	}
-	channels, err := relayChannelsForModel(h.db, tok.Group, model, svcmodels.LLMChannelProtocolAnthropic, svcmodels.TokenOrgID(tok))
+	channels, err := relayChannelsForModelCached(h.db, tok.Group, model, svcmodels.LLMChannelProtocolAnthropic, svcmodels.TokenOrgID(tok))
 	if err != nil || len(channels) == 0 {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": gin.H{"type": "no_channel", "message": "no channel available for model"}})
 		return

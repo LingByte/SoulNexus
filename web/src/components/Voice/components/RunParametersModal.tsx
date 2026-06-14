@@ -1,7 +1,7 @@
 import React from 'react'
 import Modal from '@/components/UI/Modal'
 import Button from '@/components/UI/Button'
-import Input from '@/components/UI/Input'
+import { Input as ArcoInput } from '@arco-design/web-react'
 import type { WorkflowNode } from '../types'
 
 interface RunParametersModalProps {
@@ -69,8 +69,7 @@ export const RunParametersModal: React.FC<RunParametersModalProps> = ({
           <div className="space-y-3">
             {startNode!.inputs.map((input, idx) => (
               <div key={idx}>
-                <Input
-                  label={input || `参数 ${idx + 1}`}
+                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" label={input || `参数 ${idx + 1}`}
                   size="sm"
                   value={parameters[input] || ''}
                   onChange={(e) => onParameterChange(input, e.target.value)}

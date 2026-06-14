@@ -7,6 +7,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Bot,
+  Beaker,
   User as UserIcon,
   LogOut,
   Smartphone, // 设备管理图标
@@ -76,6 +77,7 @@ const Sidebar = () => {
   }
 
   const navigation = [
+    { name: t('nav.sidebar.playground'), href: '/playground', icon: Beaker },
     { name: t('nav.sidebar.smartAssistant'), href: '/voice-assistant', icon: Bot },
     { name: t('nav.sidebar.voiceTraining'), href: '/voice-training', icon: Settings },
     { name: t('nav.sidebar.knowledgeBase'), href: '/knowledge', icon: BookOpen },
@@ -89,7 +91,7 @@ const Sidebar = () => {
   const navigationSections = [
     {
       title: '核心功能',
-      items: navigation.filter((item) => ['/voice-assistant', '/voice-training', '/voiceprint-management', '/knowledge'].includes(item.href)),
+      items: navigation.filter((item) => ['/playground', '/voice-assistant', '/voice-training', '/voiceprint-management', '/knowledge'].includes(item.href)),
     },
     {
       title: '工作流',
@@ -103,7 +105,7 @@ const Sidebar = () => {
 
   const publicNavs = [t('nav.docs')]
   // 受保护页面名称
-  const privateNavs = [t('nav.sidebar.smartAssistant'), t('nav.sidebar.voiceTraining'), t('nav.sidebar.knowledgeBase'), t('voiceprint.title'), t('nav.sidebar.workflow'), t('nav.sidebar.pluginMarket'), t('nav.sidebar.jsTemplate'), t('nav.sidebar.deviceManagement')]
+  const privateNavs = [t('nav.sidebar.playground'), t('nav.sidebar.smartAssistant'), t('nav.sidebar.voiceTraining'), t('nav.sidebar.knowledgeBase'), t('voiceprint.title'), t('nav.sidebar.workflow'), t('nav.sidebar.pluginMarket'), t('nav.sidebar.jsTemplate'), t('nav.sidebar.deviceManagement')]
 
   const isActive = (path: string) => location.pathname === path
   const isExternalHref = (href: string) => href.startsWith('http')
@@ -129,19 +131,20 @@ const Sidebar = () => {
             >
               <img src="/SoulMy.png" alt="" className="w-9 h-9 rounded" />
             </Link>
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => setIsCollapsed(false)}
-              className="inline-flex items-center justify-center w-8 h-8 rounded-full hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
               title={t('theme.expand')}
               aria-label={t('theme.expand')}
+              className="w-8 h-8 p-0"
             >
               <ChevronRight className="w-4 h-4" />
-            </button>
+            </Button>
           </div>
         ) : (
-          <div className="h-14 flex items-center px-3 relative">
-            <Link to="/" className="flex items-center gap-2 min-w-0 pr-10">
+          <div className="h-14 flex items-center justify-between px-3 gap-2">
+            <Link to="/" className="flex items-center gap-2 min-w-0">
               <img src="/SoulMy.png" alt="SoulNexus Logo" className="w-8 h-8 rounded shrink-0" />
               <span className="relative inline-block text-sm font-extrabold tracking-wider truncate">
                 <span className="block">{t('brand.name')}</span>
@@ -150,15 +153,16 @@ const Sidebar = () => {
                 </span>
               </span>
             </Link>
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => setIsCollapsed(true)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-7 h-7 rounded-full hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
               title={t('theme.collapse')}
               aria-label={t('theme.collapse')}
+              className="w-7 h-7 p-0 shrink-0"
             >
               <ChevronLeft className="w-4 h-4" />
-            </button>
+            </Button>
           </div>
         )}
       </div>
@@ -309,9 +313,10 @@ const Sidebar = () => {
                 }, 280)
               }}
             >
-              <button
+              <Button
                 ref={buttonRef}
-                className={`flex items-center w-full p-1 rounded hover:bg-accent transition-colors group text-muted-foreground hover:text-foreground ${isCollapsed ? 'justify-center' : ''}`}
+                variant="ghost"
+                className={`flex items-center w-full p-1 ${isCollapsed ? 'justify-center' : ''}`}
                 onClick={() => setShowDropdown((open) => !open)}
               >
                 <img
@@ -322,7 +327,7 @@ const Sidebar = () => {
                 {!isCollapsed && (
                   <span className="text-sm font-medium truncate max-w-[80px]">{user.displayName}</span>
                 )}
-              </button>
+              </Button>
               {showDropdown && !isCollapsed && (
                 <div 
                   ref={dropdownRef}
@@ -420,17 +425,19 @@ const Sidebar = () => {
           <div className="flex items-center gap-2">
             {isAuthenticated && user ? (
               <div className="relative" ref={mobileDropdownRef}>
-                <button
+                <Button
                   ref={mobileButtonRef}
+                  variant="ghost"
+                  size="sm"
                   onClick={() => setShowDropdown(!showDropdown)}
-                  className="flex items-center gap-2 p-1 rounded hover:bg-accent transition-colors"
+                  className="flex items-center gap-2 p-1"
                 >
                   <img
                     src={user.avatar || `https://ui-avatars.com/api/?name=${user.displayName || 'U'}&background=0ea5e9&color=fff`}
                     alt={user.displayName}
                     className="w-8 h-8 rounded-full"
                   />
-                </button>
+                </Button>
                 {showDropdown && (
                   <div className="absolute right-0 top-full mt-2 w-40 bg-popover rounded-md shadow-lg border z-50">
                     <div className="flex flex-col p-2">

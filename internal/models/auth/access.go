@@ -1,16 +1,16 @@
 package auth
+
 // Copyright (c) 2026 LingByte. All rights reserved.
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
-
 	"errors"
 	"fmt"
 	"sort"
 	"strings"
 
+	"github.com/LingByte/SoulNexus/internal/models"
 	"gorm.io/gorm"
-	"github.com/LingByte/SoulNexus/internal/modelbase"
 )
 
 // EffectivePermissionKeys 返回用户最终权限 key（角色 ∪ 直接附加）。
@@ -28,7 +28,7 @@ func EffectivePermissionKeys(db *gorm.DB, userID uint) ([]string, error) {
 		SELECT DISTINCT p.key FROM permissions p
 		INNER JOIN user_permissions up ON up.permission_id = p.id
 		WHERE up.user_id = ? AND p.is_deleted = ?
-	`, userID, modelbase.SoftDeleteStatusActive, userID, modelbase.SoftDeleteStatusActive).Scan(&keys).Error
+	`, userID, models.SoftDeleteStatusActive, userID, models.SoftDeleteStatusActive).Scan(&keys).Error
 	return keys, err
 }
 
@@ -43,7 +43,7 @@ func UserRoleSlugs(db *gorm.DB, userID uint) ([]string, error) {
 		INNER JOIN user_roles ur ON ur.role_id = r.id
 		WHERE ur.user_id = ? AND r.is_deleted = ?
 		ORDER BY r.slug ASC
-	`, userID, modelbase.SoftDeleteStatusActive).Scan(&slugs).Error
+	`, userID, models.SoftDeleteStatusActive).Scan(&slugs).Error
 	return slugs, err
 }
 
@@ -101,7 +101,7 @@ func AssignUserSingleRoleBySlug(db *gorm.DB, userID uint, slug string) error {
 		return errors.New("role slug is required")
 	}
 	var role Role
-	if err := db.Where("slug = ? AND is_deleted = ?", slug, modelbase.SoftDeleteStatusActive).First(&role).Error; err != nil {
+	if err := db.Where("slug = ? AND is_deleted = ?", slug, models.SoftDeleteStatusActive).First(&role).Error; err != nil {
 		return err
 	}
 	return db.Transaction(func(tx *gorm.DB) error {
@@ -125,7 +125,7 @@ func EnsureUserHasOneRole(db *gorm.DB, userID uint) error {
 		return nil
 	}
 	var role Role
-	if err := db.Where("is_deleted = ?", modelbase.SoftDeleteStatusActive).Order("id ASC").First(&role).Error; err != nil {
+	if err := db.Where("is_deleted = ?", models.SoftDeleteStatusActive).Order("id ASC").First(&role).Error; err != nil {
 		return fmt.Errorf("no roles defined; create at least one role before registering users: %w", err)
 	}
 	return db.Create(&UserRole{UserID: userID, RoleID: role.ID}).Error

@@ -4,12 +4,13 @@ package handlers
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
-	authmodel "github.com/LingByte/SoulNexus/internal/models/auth"
-	"github.com/LingByte/SoulNexus/internal/modelbase"
 	"errors"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/LingByte/SoulNexus/internal/models"
+	authmodel "github.com/LingByte/SoulNexus/internal/models/auth"
 
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/logger"
@@ -27,7 +28,7 @@ func (h *Handlers) loginBlockedByAccountDeletion(c *gin.Context, db *gorm.DB, us
 		return false
 	}
 	var fresh authmodel.User
-	if err := db.Where("id = ? AND is_deleted = ?", user.ID, modelbase.SoftDeleteStatusActive).First(&fresh).Error; err != nil {
+	if err := db.Where("id = ? AND is_deleted = ?", user.ID, models.SoftDeleteStatusActive).First(&fresh).Error; err != nil {
 		return false
 	}
 	if !authmodel.AccountDeletionPending(&fresh) {
@@ -100,7 +101,7 @@ func (h *Handlers) handleAccountDeletionEligibility(c *gin.Context) {
 	}
 	db := c.MustGet(constants.DbField).(*gorm.DB)
 	var fresh authmodel.User
-	if err := db.Where("id = ? AND is_deleted = ?", user.ID, modelbase.SoftDeleteStatusActive).First(&fresh).Error; err != nil {
+	if err := db.Where("id = ? AND is_deleted = ?", user.ID, models.SoftDeleteStatusActive).First(&fresh).Error; err != nil {
 		response.Fail(c, "用户不存在", err)
 		return
 	}
@@ -182,7 +183,7 @@ func (h *Handlers) handleAccountDeletionRequest(c *gin.Context) {
 	}
 	db := c.MustGet(constants.DbField).(*gorm.DB)
 	var fresh authmodel.User
-	if err := db.Where("id = ? AND is_deleted = ?", user.ID, modelbase.SoftDeleteStatusActive).First(&fresh).Error; err != nil {
+	if err := db.Where("id = ? AND is_deleted = ?", user.ID, models.SoftDeleteStatusActive).First(&fresh).Error; err != nil {
 		response.Fail(c, "用户不存在", err)
 		return
 	}
@@ -248,7 +249,7 @@ func (h *Handlers) handleAccountDeletionCancel(c *gin.Context) {
 	}
 	db := c.MustGet(constants.DbField).(*gorm.DB)
 	var fresh authmodel.User
-	if err := db.Where("id = ? AND is_deleted = ?", user.ID, modelbase.SoftDeleteStatusActive).First(&fresh).Error; err != nil {
+	if err := db.Where("id = ? AND is_deleted = ?", user.ID, models.SoftDeleteStatusActive).First(&fresh).Error; err != nil {
 		response.Fail(c, "用户不存在", err)
 		return
 	}
@@ -293,7 +294,7 @@ func (h *Handlers) handleAccountDeletionSendCancelCode(c *gin.Context) {
 		return
 	}
 	var fresh authmodel.User
-	if err := db.Where("id = ? AND is_deleted = ?", user.ID, modelbase.SoftDeleteStatusActive).First(&fresh).Error; err != nil {
+	if err := db.Where("id = ? AND is_deleted = ?", user.ID, models.SoftDeleteStatusActive).First(&fresh).Error; err != nil {
 		response.Success(c, "若该邮箱存在冷静期内的注销申请，将发送验证码", nil)
 		return
 	}
@@ -336,7 +337,7 @@ func (h *Handlers) handleAccountDeletionCancelByEmail(c *gin.Context) {
 		return
 	}
 	var fresh authmodel.User
-	if err := db.Where("id = ? AND is_deleted = ?", user.ID, modelbase.SoftDeleteStatusActive).First(&fresh).Error; err != nil {
+	if err := db.Where("id = ? AND is_deleted = ?", user.ID, models.SoftDeleteStatusActive).First(&fresh).Error; err != nil {
 		response.Fail(c, "邮箱或验证码不正确", errors.New("invalid"))
 		return
 	}

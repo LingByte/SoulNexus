@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/LingByte/SoulNexus/pkg/media"
-	"github.com/LingByte/SoulNexus/pkg/media/encoder"
-	"github.com/LingByte/SoulNexus/pkg/recognizer"
+	"github.com/LingByte/lingllm/media"
+	"github.com/LingByte/lingllm/media/encoder"
+	"github.com/LingByte/lingllm/recognizer"
 	"go.uber.org/zap"
 )
 
@@ -43,7 +43,7 @@ type PipelineMetrics struct {
 }
 
 type ASRPipelineOption struct {
-	Asr                  recognizer.TranscribeService
+	Asr                  recognizer.SpeechRecognitionEngine
 	InputFormat          string
 	SampleRate           int
 	Channels             int
@@ -62,7 +62,7 @@ func (ao *ASRPipelineOption) String() string {
 // ASRPipeline Global ASR pipeline
 type ASRPipeline struct {
 	inputStages     []PipelineComponent
-	Asr             recognizer.TranscribeService
+	Asr             recognizer.SpeechRecognitionEngine
 	outputStages    []PipelineComponent
 	onOutput        func(text string, isFinal bool)
 	onPCMAudio      func(data []byte) error // PCM 音频记录回调

@@ -9,8 +9,8 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"strings"
 
-	"github.com/LingByte/SoulNexus/pkg/recognizer"
-	"github.com/LingByte/SoulNexus/pkg/synthesizer"
+	"github.com/LingByte/lingllm/recognizer"
+	"github.com/LingByte/lingllm/synthesizer"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	voicetts "github.com/LingByte/SoulNexus/pkg/voiceserver/voice/tts"
 )
@@ -89,7 +89,7 @@ func NewXiaozhiFactory() (*XiaozhiFactory, error) {
 }
 
 // NewASR creates a per-session QCloud recognizer.
-func (f *XiaozhiFactory) NewASR(_ context.Context, _ string) (recognizer.TranscribeService, int, error) {
+func (f *XiaozhiFactory) NewASR(_ context.Context, _ string) (recognizer.SpeechRecognitionEngine, int, error) {
 	opt := recognizer.NewQcloudASROption(f.asrAppID, f.asrSID, f.asrSKey)
 	if f.asrModel != "" {
 		opt.ModelType = f.asrModel
@@ -152,7 +152,7 @@ func NewWebRTCFactory() (*WebRTCFactory, error) {
 }
 
 // NewASR creates a per-session QCloud recognizer.
-func (f *WebRTCFactory) NewASR(_ context.Context, _ string) (recognizer.TranscribeService, int, error) {
+func (f *WebRTCFactory) NewASR(_ context.Context, _ string) (recognizer.SpeechRecognitionEngine, int, error) {
 	opt := recognizer.NewQcloudASROption(f.asrAppID, f.asrSID, f.asrSKey)
 	if f.asrModel != "" {
 		opt.ModelType = f.asrModel

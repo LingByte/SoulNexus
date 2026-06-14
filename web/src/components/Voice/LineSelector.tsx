@@ -8,19 +8,19 @@ interface LineSelectorProps {
 
 const LineSelector: React.FC<LineSelectorProps> = ({ lineMode, onLineModeChange }) => {
   return (
-    <div className="mb-3 flex items-center justify-center">
-      <div className="relative bg-gray-100 dark:bg-neutral-700 rounded-xl p-1 flex gap-1 shadow-inner">
+    <div className="flex items-center justify-center gap-1.5">
+      <div className="relative flex-1 bg-gray-100 dark:bg-neutral-700/80 rounded-lg p-0.5 flex shadow-inner max-w-[11rem]">
         <div
           className={`absolute top-1 bottom-1 w-1/2 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 transition-transform duration-300 ease-out shadow-[0_0_20px_rgba(59,130,246,0.6)] ${lineMode === 'webrtc' ? 'translate-x-0' : 'translate-x-full'}`}
         />
         <button
-          className={`relative z-10 px-4 py-1 text-sm rounded-lg transition-all duration-200 ${lineMode === 'webrtc' ? 'text-blue-700 dark:text-blue-300 scale-[1.02]' : 'text-gray-700 dark:text-gray-200 hover:text-gray-900'} `}
+          className={`relative z-10 flex-1 px-2 py-1 text-[11px] font-medium rounded-md transition-all duration-200 ${lineMode === 'webrtc' ? 'text-blue-700 dark:text-blue-300' : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100'} `}
           onClick={() => onLineModeChange('webrtc')}
         >
           WebRTC
         </button>
         <button
-          className={`relative z-10 px-4 py-1 text-sm rounded-lg transition-all duration-200 ${lineMode === 'websocket' ? 'text-blue-700 dark:text-blue-300 scale-[1.02]' : 'text-gray-700 dark:text-gray-200 hover:text-gray-900'} `}
+          className={`relative z-10 flex-1 px-2 py-1 text-[11px] font-medium rounded-md transition-all duration-200 ${lineMode === 'websocket' ? 'text-blue-700 dark:text-blue-300' : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100'} `}
           onClick={() => onLineModeChange('websocket')}
         >
           WebSocket
@@ -28,9 +28,9 @@ const LineSelector: React.FC<LineSelectorProps> = ({ lineMode, onLineModeChange 
       </div>
       
       {/* 提示图标 */}
-      <div className="ml-2 relative group">
-        <div className="w-5 h-5 bg-gray-400 dark:bg-gray-500 rounded-full flex items-center justify-center cursor-help">
-          <span className="text-white text-xs font-bold">?</span>
+      <div className="relative group shrink-0">
+        <div className="w-4 h-4 bg-neutral-300 dark:bg-neutral-600 rounded-full flex items-center justify-center cursor-help">
+          <span className="text-white dark:text-neutral-200 text-[10px] font-bold leading-none">?</span>
         </div>
         
         {/* 悬停提示框 - 显示在屏幕中央，避免被遮挡 */}

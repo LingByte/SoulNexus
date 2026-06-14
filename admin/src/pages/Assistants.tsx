@@ -5,7 +5,7 @@ const Assistants = () => (
   <GenericEntityPage
     title="智能体管理"
     description="管理智能体配置与基础信息"
-    searchPlaceholder="搜索智能体名称 / 描述 / 模型"
+    searchPlaceholder="搜索智能体名称 / 模型"
     exportName="assistants"
     fetchList={async ({ page, pageSize, search }) => {
       const res = await listAdminAssistants({ page, pageSize, search })

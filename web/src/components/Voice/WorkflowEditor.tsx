@@ -21,7 +21,7 @@ import {
 import { cn } from '@/utils/cn'
 import Modal from '@/components/UI/Modal'
 import Button from '@/components/UI/Button'
-import Input from '@/components/UI/Input'
+import { Input as ArcoInput } from '@arco-design/web-react'
 import { showAlert } from '@/utils/notification'
 import { workflowService } from '@/api/workflow'
 import { workflowPluginService, WorkflowPluginCategory } from '@/api/workflowPlugin'
@@ -1266,8 +1266,7 @@ const WorkflowEditor: React.FC<WorkflowEditorProps> = ({
                   </p>
                   {node.inputs.map((input, idx) => (
                     <div key={idx}>
-                      <Input
-                        label={input || `参数 ${idx + 1}`}
+                      <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" label={input || `参数 ${idx + 1}`}
                         size="sm"
                         value={nodeTestParameters[input] || ''}
                         onChange={(e) => {
@@ -1740,11 +1739,9 @@ const PublishWorkflowPluginModal: React.FC<{
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     插件名称 <span className="text-red-500">*</span>
                   </label>
-                  <Input
-                    value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                  <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.name}
+                    onChange={(val) => setFormData({...formData, name: val})}
                     placeholder="my-awesome-workflow"
-                    className="font-mono text-sm"
                   />
                   <p className="text-xs text-gray-500 mt-1">用于标识插件的唯一名称，建议使用小写字母和连字符</p>
                 </div>
@@ -1752,9 +1749,8 @@ const PublishWorkflowPluginModal: React.FC<{
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     显示名称 <span className="text-red-500">*</span>
                   </label>
-                  <Input
-                    value={formData.displayName}
-                    onChange={(e) => setFormData({...formData, displayName: e.target.value})}
+                  <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.displayName}
+                    onChange={(val) => setFormData({...formData, displayName: val})}
                     placeholder="我的超棒工作流"
                   />
                   <p className="text-xs text-gray-500 mt-1">在插件市场中显示的名称</p>
@@ -1768,7 +1764,7 @@ const PublishWorkflowPluginModal: React.FC<{
               </label>
               <textarea
                 value={formData.description}
-                onChange={(e) => setFormData({...formData, description: e.target.value})}
+                onChange={(val) => setFormData({...formData, description: val})}
                 placeholder="详细描述这个工作流插件的功能和用途..."
                 className="w-full px-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg resize-none bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 rows={4}
@@ -1799,14 +1795,12 @@ const PublishWorkflowPluginModal: React.FC<{
                   <input
                     type="color"
                     value={formData.color}
-                    onChange={(e) => setFormData({...formData, color: e.target.value})}
+                    onChange={(val) => setFormData({...formData, color: val})}
                     className="w-12 h-10 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer"
                   />
-                  <Input
-                    value={formData.color}
-                    onChange={(e) => setFormData({...formData, color: e.target.value})}
+                  <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.color}
+                    onChange={(val) => setFormData({...formData, color: val})}
                     placeholder="#6366f1"
-                    className="flex-1 font-mono text-sm"
                   />
                 </div>
               </div>
@@ -1844,9 +1838,8 @@ const PublishWorkflowPluginModal: React.FC<{
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">标签</label>
-            <Input
-              value={formData.tags}
-              onChange={(e) => setFormData({...formData, tags: e.target.value})}
+            <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.tags}
+              onChange={(val) => setFormData({...formData, tags: val})}
               placeholder="自动化, 数据处理, API"
             />
             <p className="text-xs text-gray-500 mt-1">用逗号分隔多个标签，有助于用户搜索和发现</p>
@@ -1855,25 +1848,22 @@ const PublishWorkflowPluginModal: React.FC<{
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">作者</label>
-              <Input
-                value={formData.author}
-                onChange={(e) => setFormData({...formData, author: e.target.value})}
+              <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.author}
+                onChange={(val) => setFormData({...formData, author: val})}
                 placeholder="您的名称"
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">主页</label>
-              <Input
-                value={formData.homepage}
-                onChange={(e) => setFormData({...formData, homepage: e.target.value})}
+              <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.homepage}
+                onChange={(val) => setFormData({...formData, homepage: val})}
                 placeholder="https://example.com"
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">代码仓库</label>
-              <Input
-                value={formData.repository}
-                onChange={(e) => setFormData({...formData, repository: e.target.value})}
+              <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.repository}
+                onChange={(val) => setFormData({...formData, repository: val})}
                 placeholder="https://github.com/user/repo"
               />
             </div>
@@ -1883,7 +1873,7 @@ const PublishWorkflowPluginModal: React.FC<{
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">许可证</label>
             <select
               value={formData.license}
-              onChange={(e) => setFormData({...formData, license: e.target.value})}
+              onChange={(val) => setFormData({...formData, license: val})}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="MIT">MIT License</option>
@@ -1947,8 +1937,7 @@ const PublishWorkflowPluginModal: React.FC<{
                 {inputParameters.map((param, index) => (
                   <div key={index} className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg">
                     <div className="grid grid-cols-2 gap-2 mb-2">
-                      <Input
-                        size="sm"
+                      <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" size="sm"
                         placeholder="参数名"
                         value={param.name}
                         onChange={(e) => {
@@ -1973,8 +1962,7 @@ const PublishWorkflowPluginModal: React.FC<{
                         <option value="array">数组</option>
                       </select>
                     </div>
-                    <Input
-                      size="sm"
+                    <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" size="sm"
                       placeholder="描述"
                       value={param.description}
                       onChange={(e) => {
@@ -2032,8 +2020,7 @@ const PublishWorkflowPluginModal: React.FC<{
                 {outputParameters.map((param, index) => (
                   <div key={index} className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg">
                     <div className="grid grid-cols-2 gap-2 mb-2">
-                      <Input
-                        size="sm"
+                      <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" size="sm"
                         placeholder="参数名"
                         value={param.name}
                         onChange={(e) => {
@@ -2058,8 +2045,7 @@ const PublishWorkflowPluginModal: React.FC<{
                         <option value="array">数组</option>
                       </select>
                     </div>
-                    <Input
-                      size="sm"
+                    <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" size="sm"
                       placeholder="描述"
                       value={param.description}
                       onChange={(e) => {

@@ -91,6 +91,14 @@ func TestMakeWelcomeReply_ContainsSessionAndAudioParams(t *testing.T) {
 	}
 }
 
+func TestMakeLLMReply_ShapeMatchesBrowserExpectation(t *testing.T) {
+	raw := MakeLLMReply("你好，我是莉莉")
+	out := roundTrip(t, raw, "llm_response")
+	if out["text"] != "你好，我是莉莉" {
+		t.Fatalf("text: %v", out["text"])
+	}
+}
+
 func TestMakeSTTReply_ShapeMatchesFirmwareExpectation(t *testing.T) {
 	raw := MakeSTTReply("s1", "你好")
 	out := roundTrip(t, raw, RespSTT)

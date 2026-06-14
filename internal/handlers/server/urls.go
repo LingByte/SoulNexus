@@ -6,7 +6,6 @@ package server
 import (
 	"github.com/LingByte/SoulNexus/internal/models/auth"
 	grpcclients "github.com/LingByte/SoulNexus/internal/grpc/clients"
-	"log"
 	"time"
 
 	"github.com/LingByte/SoulNexus/internal/config"
@@ -35,8 +34,8 @@ func (h *Handlers) GetSearchHandler() *search.SearchHandlers {
 }
 
 func NewHandlers(db *gorm.DB, rpc *grpcclients.Bundle) *Handlers {
-	if rpc == nil || rpc.Auth == nil {
-		log.Fatal("grpc clients: Auth service client is required")
+	if rpc == nil {
+		rpc = &grpcclients.Bundle{}
 	}
 	wsConfig := websocket.LoadConfigFromEnv()
 	wsHub := websocket.NewHub(wsConfig)
@@ -70,7 +69,7 @@ func NewHandlers(db *gorm.DB, rpc *grpcclients.Bundle) *Handlers {
 			search.BuildIndexMapping(""),
 		)
 		if err != nil {
-			log.Printf("Failed to initialize search engine: %v", err)
+			logger.Warn("Failed to initialize search engine", zap.Error(err))
 			// Even if initialization fails, create an empty handler for route registration
 			searchHandler = search.NewSearchHandlers(nil)
 		} else {
@@ -676,6 +675,12 @@ func (h *Handlers) registerAdminManagementRoutes(r *gin.RouterGroup) {
 	meSpeechUsage := r.Group("me/speech-usage")
 	{
 		meSpeechUsage.GET("", auth.AuthRequired, h.handleMeListSpeechUsage)
+	}
+
+	meLLMUsage := r.Group("me/llm-usage", auth.AuthRequired)
+	{
+		meLLMUsage.GET("", h.handleMeListLLMUsage)
+		meLLMUsage.GET("/summary", h.handleMeLLMUsageSummary)
 	}
 
 	meLLMTokens := r.Group("me/llm-tokens", auth.AuthRequired, h.OrgScopeMiddleware())

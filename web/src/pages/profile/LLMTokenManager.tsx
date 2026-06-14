@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Key, Plus, RefreshCw, Trash2, Copy, Check } from 'lucide-react'
 import Button from '@/components/UI/Button'
-import Input from '@/components/UI/Input'
+import { Input as ArcoInput } from '@arco-design/web-react'
 import Card from '@/components/UI/Card'
 import Badge from '@/components/UI/Badge'
 import Modal from '@/components/UI/Modal'
@@ -260,7 +260,7 @@ const LLMTokenManager = () => {
         <div className="p-4 space-y-3">
           <div>
             <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">名称</label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="便于识别用途" />
+            <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={name} onChange={(e) => setName(e.target.value)} placeholder="便于识别用途" />
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">类型</label>
@@ -291,7 +291,7 @@ const LLMTokenManager = () => {
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">分组 group</label>
-            <Input value={group} onChange={(e) => setGroup(e.target.value)} placeholder="default" />
+            <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={group} onChange={(e) => setGroup(e.target.value)} placeholder="default" />
             <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">决定路由到哪一批 abilities / 语音渠道，由管理员预先配置。</p>
           </div>
           <div>

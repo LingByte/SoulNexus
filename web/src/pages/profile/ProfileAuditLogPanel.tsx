@@ -2,9 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { FileText, Search, RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react'
 import { getUserActivity, type ActivityLog } from '@/api/profile'
 import Button from '@/components/UI/Button'
-import Input from '@/components/UI/Input'
-import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/UI/Select'
-import LoadingAnimation from '@/components/Animations/LoadingAnimation'
+import { Input as ArcoInput } from '@arco-design/web-react'
+import { Select as ArcoSelect } from '@arco-design/web-react'
+import LoadingAnimation from '@/components/LoadingAnimation.tsx'
 
 function formatDateInput(d: Date) {
   const y = d.getFullYear()
@@ -154,26 +154,21 @@ const ProfileAuditLogPanel = ({ userId }: ProfileAuditLogPanelProps) => {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-gray-400">事件时间（起）</label>
-            <Input type="date" value={draft.start} onChange={(e) => setDraft((d) => ({ ...d, start: e.target.value }))} className="h-9" />
+            <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" type="date" value={draft.start} onChange={(e) => setDraft((d) => ({ ...d, start: e.target.value }))} />
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-gray-400">事件时间（止）</label>
-            <Input type="date" value={draft.end} onChange={(e) => setDraft((d) => ({ ...d, end: e.target.value }))} className="h-9" />
+            <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" type="date" value={draft.end} onChange={(e) => setDraft((d) => ({ ...d, end: e.target.value }))} />
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-gray-400">服务名称</label>
-            <Select value={draft.service} onValueChange={(v) => setDraft((d) => ({ ...d, service: v }))} className="w-full">
-              <SelectTrigger className="h-9">
-                <SelectValue placeholder="请选择服务" />
-              </SelectTrigger>
-              <SelectContent searchable searchPlaceholder="搜索服务...">
-                {SERVICE_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>
-                    {o.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <ArcoSelect 
+              value={draft.service} 
+              onChange={(v) => setDraft((d) => ({ ...d, service: v }))} 
+              className="w-full"
+              placeholder="请选择服务"
+              options={SERVICE_OPTIONS}
+            />
           </div>
         </div>
         <div className="mt-4 flex flex-wrap gap-2">

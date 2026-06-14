@@ -4,11 +4,12 @@ package bootstrap
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
-	"github.com/LingByte/SoulNexus/internal/models/auth"
-	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
-	"github.com/LingByte/SoulNexus/internal/modelbase"
 	"strconv"
 	"time"
+
+	"github.com/LingByte/SoulNexus/internal/models"
+	"github.com/LingByte/SoulNexus/internal/models/auth"
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 
 	SoulNexus "github.com/LingByte/SoulNexus"
 	"github.com/LingByte/SoulNexus/internal/config"
@@ -191,7 +192,7 @@ func (s *SeedService) seedConfigs() error {
 // seedMinimalRolesIfEmpty inserts one generic role when the table is empty so sign-up / seed users can satisfy user_roles.
 func (s *SeedService) seedMinimalRolesIfEmpty() error {
 	var n int64
-	if err := s.db.Model(&auth.Role{}).Where("is_deleted = ?", modelbase.SoftDeleteStatusActive).Count(&n).Error; err != nil {
+	if err := s.db.Model(&auth.Role{}).Where("is_deleted = ?", models.SoftDeleteStatusActive).Count(&n).Error; err != nil {
 		return err
 	}
 	if n > 0 {
@@ -209,7 +210,7 @@ func (s *SeedService) seedBootstrapRBAC() error {
 	permIDs := make([]uint, 0, len(permDefs))
 	for _, def := range permDefs {
 		var p auth.Permission
-		err := s.db.Where("`key` = ? AND is_deleted = ?", def.Key, modelbase.SoftDeleteStatusActive).First(&p).Error
+		err := s.db.Where("`key` = ? AND is_deleted = ?", def.Key, models.SoftDeleteStatusActive).First(&p).Error
 		if err != nil {
 			if err := s.db.Create(&def).Error; err != nil {
 				return err
@@ -221,7 +222,7 @@ func (s *SeedService) seedBootstrapRBAC() error {
 	}
 
 	var adminRole auth.Role
-	err := s.db.Where("slug = ? AND is_deleted = ?", "admin", modelbase.SoftDeleteStatusActive).First(&adminRole).Error
+	err := s.db.Where("slug = ? AND is_deleted = ?", "admin", models.SoftDeleteStatusActive).First(&adminRole).Error
 	if err != nil {
 		adminRole = auth.Role{Name: "Administrator", Slug: "admin", Description: "Full admin access", IsSystem: true}
 		if err := s.db.Create(&adminRole).Error; err != nil {
@@ -300,7 +301,6 @@ func (s *SeedService) seedAssistants() error {
 			GroupID:      g2.ID,
 			CreatedBy:    2,
 			Name:         "Technical Support",
-			Description:  "Provides technical support and answers various technical support questions",
 			SystemPrompt: "You are a professional technical support engineer, focused on helping users solve technology-related problems.",
 			PersonaTag:   "support",
 			Temperature:  0.6,
@@ -312,7 +312,6 @@ func (s *SeedService) seedAssistants() error {
 			GroupID:      g2.ID,
 			CreatedBy:    2,
 			Name:         "Smart Assistant",
-			Description:  "Smart assistant providing various intelligent services",
 			SystemPrompt: "You are a smart assistant, please answer user questions as an assistant.",
 			PersonaTag:   "assistant",
 			Temperature:  0.6,
@@ -324,7 +323,6 @@ func (s *SeedService) seedAssistants() error {
 			GroupID:      g1.ID,
 			CreatedBy:    1,
 			Name:         "Mentor",
-			Description:  "Mentor providing various guidance services",
 			SystemPrompt: "You are a mentor, please answer user questions as a mentor.",
 			PersonaTag:   "mentor",
 			Temperature:  0.6,
@@ -336,7 +334,6 @@ func (s *SeedService) seedAssistants() error {
 			GroupID:      g1.ID,
 			CreatedBy:    1,
 			Name:         "Assistant",
-			Description:  "An assistant that you can use to answer your questions.",
 			SystemPrompt: "You are an assistant, please answer user questions as an assistant.",
 			PersonaTag:   "assistant",
 			JsSourceID:   strconv.Itoa(1),

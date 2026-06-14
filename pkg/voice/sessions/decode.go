@@ -7,7 +7,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/LingByte/SoulNexus/pkg/media"
+	"github.com/LingByte/lingllm/media"
 	"github.com/LingByte/SoulNexus/pkg/voice/constants"
 	"go.uber.org/zap"
 )

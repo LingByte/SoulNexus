@@ -32,9 +32,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/LingByte/SoulNexus/pkg/recognizer"
-	"github.com/LingByte/SoulNexus/pkg/media"
-	"github.com/LingByte/SoulNexus/pkg/media/encoder"
+	"github.com/LingByte/lingllm/recognizer"
+	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/sessionctx"
+	"github.com/LingByte/lingllm/media"
+	"github.com/LingByte/lingllm/media/encoder"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/asr"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/gateway"
@@ -52,7 +53,7 @@ import (
 // SessionFactory is the same shape as in pkg/voice/xiaozhi — one
 // recognizer per call, optionally-shared TTS service.
 type SessionFactory interface {
-	NewASR(ctx context.Context, callID string) (svc recognizer.TranscribeService, sampleRate int, err error)
+	NewASR(ctx context.Context, callID string) (svc recognizer.SpeechRecognitionEngine, sampleRate int, err error)
 	TTS(ctx context.Context, callID string) (svc tts.Service, sampleRate int, err error)
 }
 
@@ -156,8 +157,21 @@ func newSession(ctx context.Context, cfg ServerConfig, api *pionwebrtc.API, offe
 	var err error
 	if len(offer.Payload) > 0 && ps != "" && ps != "null" {
 		merged, err = gateway.MergeDialogPayloadQuery(cfg.DialogWSURL, offer.Payload)
+		if spec := sessionctx.ParseDialogPayload(offer.Payload); spec != nil {
+			sessionctx.DefaultRegistry.Put(callID, spec)
+		}
 	} else {
 		merged, err = gateway.MergeDialogQueryParams(cfg.DialogWSURL, offer.ApiKey, offer.ApiSecret, offer.AgentId)
+		if err == nil && strings.TrimSpace(offer.ApiKey) != "" {
+			flat, _ := json.Marshal(map[string]string{
+				"apiKey":    offer.ApiKey,
+				"apiSecret": offer.ApiSecret,
+				"agentId":   offer.AgentId,
+			})
+			if spec := sessionctx.ParseDialogPayload(flat); spec != nil {
+				sessionctx.DefaultRegistry.Put(callID, spec)
+			}
+		}
 	}
 	if err != nil {
 		return nil, SDPMessage{}, fmt.Errorf("webrtc: merge dialog URL: %w", err)
@@ -631,6 +645,7 @@ func (s *session) ttsSink(pcm []byte) error {
 //     ended (matches the SIP and xiaozhi flush ordering).
 func (s *session) teardown(reason string) {
 	s.closeOnce.Do(func() {
+		sessionctx.DefaultRegistry.Delete(s.callID)
 		s.closed.Store(true)
 
 		// Snapshot stats BEFORE closing pc so we get a real summary.

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Bot, User, Volume2, VolumeX, RefreshCw, ChevronDown } from 'lucide-react'
+import { Bot, User, Volume2, VolumeX, RefreshCw, ChevronDown, Settings } from 'lucide-react'
+import { Button as ArcoButton, Spin } from '@arco-design/web-react'
 import { cn } from '@/utils/cn'
 import MarkdownPreview from '@/components/UI/MarkdownPreview.tsx'
 import { Typewriter } from '@/components/UX/MicroInteractions'
@@ -17,6 +18,7 @@ interface ChatAreaProps {
   onMuteToggle?: (isMuted: boolean) => void
   onStopAudio?: () => void
   onNewSession?: () => void
+  onSettingsClick?: () => void
   assistantName?: string
 }
 
@@ -104,6 +106,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   onMuteToggle,
   onStopAudio,
   onNewSession,
+  onSettingsClick,
   assistantName
 }) => {
   const [typingMessages, setTypingMessages] = useState<Set<string>>(new Set())
@@ -313,20 +316,10 @@ const ChatArea: React.FC<ChatAreaProps> = ({
 
       if (msg.isLoading) {
         return (
-          <div className="bg-gray-100 dark:bg-neutral-700 rounded-2xl p-3 text-sm">
+          <div className="bg-gray-100 dark:bg-neutral-700 rounded-2xl px-4 py-3 text-sm">
             <div className="flex items-center gap-2">
-              <div className="flex space-x-1">
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
-                <div
-                  className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                  style={{ animationDelay: '0.1s' }}
-                />
-                <div
-                  className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                  style={{ animationDelay: '0.2s' }}
-                />
-              </div>
-              <span className="text-gray-500 text-xs">AI正在思考中...</span>
+              <Spin size={14} />
+              <span className="text-gray-500 dark:text-gray-400 text-xs">AI 正在思考中...</span>
             </div>
           </div>
         )
@@ -374,27 +367,32 @@ const ChatArea: React.FC<ChatAreaProps> = ({
         </div>
         <div className="flex items-center gap-2">
           {onNewSession && (
-            <button
-              type="button"
+            <ArcoButton
+              type="outline"
+              size="small"
               onClick={onNewSession}
-              className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 bg-white dark:bg-neutral-800 border border-gray-300 dark:border-neutral-600 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-700 transition-colors"
-              title="开始新会话"
             >
-              <RefreshCw className="w-3 h-3" />
-              新会话
-            </button>
+              <RefreshCw className="w-3 h-3 inline mr-1" />新会话
+            </ArcoButton>
           )}
-          <button
-            type="button"
+          {onSettingsClick && (
+            <ArcoButton
+              type="outline"
+              size="small"
+              onClick={onSettingsClick}
+            >
+              <Settings className="w-3 h-3 inline mr-1" />设置
+            </ArcoButton>
+          )}
+          <ArcoButton
+            type="text"
+            size="small"
             onClick={toggleGlobalMute}
-            className={cn(
-              'p-2 rounded-lg transition-colors',
-              isMuted ? 'text-red-500 hover:bg-red-100 dark:hover:bg-red-900' : 'text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700'
-            )}
+            status={isMuted ? 'danger' : 'default'}
             title={isMuted ? '取消静音' : '全局静音'}
           >
-            {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
-          </button>
+            {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+          </ArcoButton>
         </div>
       </div>
 

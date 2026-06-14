@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Check, ChevronDown } from 'lucide-react'
-import Input from './Input'
+import { Input as ArcoInput } from '@arco-design/web-react'
 
 interface AutocompleteOption {
   value: string
@@ -33,7 +33,6 @@ const AutocompleteInput = ({
   const [isOpen, setIsOpen] = useState(false)
   const [inputValue, setInputValue] = useState(value)
   const wrapperRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
 
   // 同步外部value变化
   useEffect(() => {
@@ -61,8 +60,7 @@ const AutocompleteInput = ({
     option.description?.toLowerCase().includes(inputValue.toLowerCase())
   )
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = e.target.value
+  const handleInputChange = (newValue: string) => {
     setInputValue(newValue)
     onChange(newValue)
     setIsOpen(true)
@@ -72,9 +70,6 @@ const AutocompleteInput = ({
     setInputValue(option.value)
     onChange(option.value)
     setIsOpen(false)
-    if (inputRef.current) {
-      inputRef.current.blur()
-    }
   }
 
   const handleFocus = () => {
@@ -85,22 +80,22 @@ const AutocompleteInput = ({
 
   return (
     <div ref={wrapperRef} className="relative w-full">
-      <Input
-        ref={inputRef}
-        label={label}
-        value={inputValue}
-        onChange={handleInputChange}
-        onFocus={handleFocus}
-        placeholder={placeholder}
-        leftIcon={leftIcon}
-        rightIcon={
-          <ChevronDown 
-            className={`w-4 h-4 transition-transform text-gray-400 ${isOpen ? 'rotate-180' : ''}`}
-          />
-        }
-        helperText={helperText}
-        error={error}
-      />
+      <div>
+        {label && <label className="block text-sm font-medium mb-1">{label}</label>}
+        <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={inputValue}
+          onChange={handleInputChange}
+          onFocus={handleFocus}
+          placeholder={placeholder}
+          prefix={leftIcon}
+          suffix={
+            <ChevronDown 
+              className={`w-4 h-4 transition-transform text-gray-400 ${isOpen ? 'rotate-180' : ''}`}
+            />
+          }
+        />
+        {helperText && !error && <p className="mt-1 text-sm text-gray-500">{helperText}</p>}
+        {error && <p className="mt-1 text-sm text-red-500">{error}</p>}
+      </div>
 
       {/* 下拉建议列表 */}
       <AnimatePresence>

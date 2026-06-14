@@ -8,9 +8,8 @@ import { PageSEO } from '@/components/SEO/PageSEO'
 import PageContainer from '@/components/Layout/PageContainer'
 import Button from '@/components/UI/Button'
 import Card from '@/components/UI/Card'
-import Badge from '@/components/UI/Badge'
-import Input from '@/components/UI/Input'
-import { useToast } from '@/components/UI/ToastContainer'
+import { Input as ArcoInput } from '@arco-design/web-react'
+import { showAlert } from '@/utils/alert'
 import { useI18nStore } from '@/stores/i18nStore'
 import {
   getKnowledgeNamespace,
@@ -22,19 +21,9 @@ import {
   type KnowledgeDocumentRow,
 } from '@/api/knowledge'
 
-function statusVariant(s: string): 'success' | 'warning' | 'error' | 'muted' | 'default' {
-  const v = (s || '').toLowerCase()
-  if (v === 'active') return 'success'
-  if (v === 'processing') return 'warning'
-  if (v === 'failed') return 'error'
-  if (v === 'deleted') return 'muted'
-  return 'default'
-}
-
 const KnowledgeSpaceDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const { t } = useI18nStore()
-  const { success: toastSuccess, error: toastError } = useToast()
   const uploadRef = useRef<HTMLInputElement>(null)
 
   const [ns, setNs] = useState<KnowledgeNamespaceRow | null>(null)
@@ -56,19 +45,19 @@ const KnowledgeSpaceDetailPage: React.FC = () => {
     try {
       const res = await getKnowledgeNamespace(id)
       if (res.code !== 200) {
-        toastError(t('knowledge.pageTitle'), res.msg || 'not found')
+        showAlert(res.msg || 'not found', 'error', t('knowledge.pageTitle'))
         setNs(null)
         return
       }
       const row = (res.data as { namespace?: KnowledgeNamespaceRow })?.namespace
       setNs(row || null)
     } catch (e: unknown) {
-      toastError(t('knowledge.pageTitle'), (e as { msg?: string })?.msg || String(e))
+      showAlert((e as { msg?: string })?.msg || String(e), 'error', t('knowledge.pageTitle'))
       setNs(null)
     } finally {
       setLoadNs(false)
     }
-  }, [id, toastError, t])
+  }, [id, t])
 
   const loadDocs = useCallback(async () => {
     if (!ns) return
@@ -82,16 +71,16 @@ const KnowledgeSpaceDetailPage: React.FC = () => {
         q: docQ.trim() || undefined,
       })
       if (res.code !== 200) {
-        toastError(ns.name, res.msg || 'failed')
+        showAlert(res.msg || 'failed', 'error', ns.name)
         return
       }
       setDocs(res.data?.list || [])
     } catch (e: unknown) {
-      toastError(ns.name, (e as { msg?: string })?.msg || String(e))
+      showAlert((e as { msg?: string })?.msg || String(e), 'error', ns.name)
     } finally {
       setDocsLoading(false)
     }
-  }, [ns, docQ, toastError])
+  }, [ns, docQ])
 
   useEffect(() => {
     void loadNsRow()
@@ -105,10 +94,10 @@ const KnowledgeSpaceDetailPage: React.FC = () => {
     if (!ns) return
     const res = await uploadKnowledgeToNamespace(ns.id, f)
     if (res.code !== 200) {
-      toastError(t('knowledge.upload'), res.msg || 'failed')
+      showAlert(res.msg || 'failed', 'error', t('knowledge.upload'))
       return
     }
-    toastSuccess(t('knowledge.upload'), res.msg || 'ok')
+    showAlert(res.msg || 'ok', 'success', t('knowledge.upload'))
     void loadDocs()
     void loadNsRow()
   }
@@ -117,10 +106,10 @@ const KnowledgeSpaceDetailPage: React.FC = () => {
     if (!ns || !window.confirm(t('knowledge.deleteBaseConfirm'))) return
     const res = await deleteKnowledgeNamespace(ns.id)
     if (res.code !== 200) {
-      toastError(t('knowledge.deleteBase'), res.msg || 'failed')
+      showAlert(res.msg || 'failed', 'error', t('knowledge.deleteBase'))
       return
     }
-    toastSuccess(t('knowledge.deleteBase'), res.msg || 'ok')
+    showAlert(res.msg || 'ok', 'success', t('knowledge.deleteBase'))
     window.location.href = '/knowledge'
   }
 
@@ -131,12 +120,12 @@ const KnowledgeSpaceDetailPage: React.FC = () => {
     try {
       const res = await runKnowledgeRecallTest(ns.id, { query: recallQ.trim(), topK: recallTopK, minScore: recallMin })
       if (res.code !== 200) {
-        toastError(t('knowledge.runRecall'), res.msg || 'failed')
+        showAlert(res.msg || 'failed', 'error', t('knowledge.runRecall'))
         return
       }
       setRecallPayload((res.data as Record<string, unknown>) || {})
     } catch (e: unknown) {
-      toastError(t('knowledge.runRecall'), (e as { msg?: string })?.msg || String(e))
+      showAlert((e as { msg?: string })?.msg || String(e), 'error', t('knowledge.runRecall'))
     } finally {
       setRecallBusy(false)
     }
@@ -201,26 +190,6 @@ const KnowledgeSpaceDetailPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="mb-6 grid gap-3 sm:grid-cols-4">
-          <Card className="border-border/60 p-3 text-sm">
-            <div className="text-muted-foreground">{t('knowledge.dimension')}</div>
-            <div className="mt-1 font-semibold">{ns.vectorDim}</div>
-          </Card>
-          <Card className="border-border/60 p-3 text-sm">
-            <div className="text-muted-foreground">{t('knowledge.embedModel')}</div>
-            <div className="mt-1 truncate">{ns.embedModel}</div>
-          </Card>
-          <Card className="border-border/60 p-3 text-sm">
-            <div className="text-muted-foreground">Backend</div>
-            <div className="mt-1 font-mono text-xs">{ns.vectorProvider}</div>
-          </Card>
-          <Card className="border-border/60 p-3 text-sm">
-            <div className="text-muted-foreground">{t('knowledge.status')}</div>
-            <div className="mt-1">
-              <Badge variant={statusVariant(ns.status)}>{ns.status}</Badge>
-            </div>
-          </Card>
-        </div>
 
         <div className="mb-4 flex gap-1 rounded-lg border border-border bg-muted/30 p-1">
           <button
@@ -245,12 +214,10 @@ const KnowledgeSpaceDetailPage: React.FC = () => {
         {tab === 'docs' && (
           <Card className="overflow-hidden border-border/80">
             <div className="flex flex-wrap gap-2 border-b border-border p-3">
-              <Input
-                value={docQInput}
+              <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" value={docQInput}
                 onChange={(e) => setDocQInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && setDocQ(docQInput.trim())}
                 placeholder={t('knowledge.docSearchPlaceholder')}
-                className="max-w-md flex-1"
               />
               <Button variant="secondary" size="sm" type="button" onClick={() => setDocQ(docQInput.trim())}>
                 {t('knowledge.search')}
@@ -274,7 +241,6 @@ const KnowledgeSpaceDetailPage: React.FC = () => {
                           {(d.fileHash?.length ?? 0) > 12 ? `${d.fileHash.slice(0, 12)}…` : d.fileHash}
                         </div>
                       </div>
-                      <Badge variant={statusVariant(d.status)}>{d.status}</Badge>
                     </Link>
                   </li>
                 ))}
@@ -295,11 +261,11 @@ const KnowledgeSpaceDetailPage: React.FC = () => {
             <div className="flex flex-wrap gap-4">
               <div>
                 <label className="mb-1 block text-xs text-muted-foreground">{t('knowledge.topK')}</label>
-                <Input type="number" value={String(recallTopK)} onChange={(e) => setRecallTopK(parseInt(e.target.value, 10) || 5)} className="w-24" />
+                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" type="number" value={String(recallTopK)} onChange={(e) => setRecallTopK(parseInt(e.target.value, 10) || 5)} />
               </div>
               <div>
                 <label className="mb-1 block text-xs text-muted-foreground">{t('knowledge.minScore')}</label>
-                <Input type="number" step={0.05} value={String(recallMin)} onChange={(e) => setRecallMin(parseFloat(e.target.value) || 0)} className="w-24" />
+                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" type="number" step={0.05} value={String(recallMin)} onChange={(e) => setRecallMin(parseFloat(e.target.value) || 0)} />
               </div>
             </div>
             <Button variant="primary" size="sm" onClick={() => void runRecall()} loading={recallBusy}>

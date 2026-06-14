@@ -19,8 +19,9 @@ import {
 import Button from '@/components/UI/Button'
 import Card from '@/components/UI/Card'
 import Badge from '@/components/UI/Badge'
-import Input from '@/components/UI/Input'
+import { Input as ArcoInput } from '@arco-design/web-react'
 import Modal from '@/components/UI/Modal'
+import PageHeader from '@/components/Layout/PageHeader'
 import EmptyState from '@/components/UI/EmptyState'
 import CollapsibleSectionHeader from '@/components/UI/CollapsibleSectionHeader'
 import WorkflowEditor from '@/components/Voice/WorkflowEditor'
@@ -1071,8 +1072,7 @@ const WorkflowManager: React.FC = () => {
                           <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                             工作流名称
                           </label>
-                          <Input
-                            size="sm"
+                          <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" size="sm"
                             value={selectedWorkflow.name}
                             readOnly
                           />
@@ -1141,8 +1141,7 @@ const WorkflowManager: React.FC = () => {
                             {inputParameters.map((param, index) => (
                               <div key={index} className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg">
                                 <div className="grid grid-cols-2 gap-2 mb-2">
-                                  <Input
-                                    size="sm"
+                                  <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" size="sm"
                                     placeholder="参数名"
                                     value={param.name}
                                     onChange={(e) => {
@@ -1167,8 +1166,7 @@ const WorkflowManager: React.FC = () => {
                                     <option value="array">数组</option>
                                   </select>
                                 </div>
-                                <Input
-                                  size="sm"
+                                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" size="sm"
                                   placeholder="描述"
                                   value={param.description}
                                   onChange={(e) => {
@@ -1226,8 +1224,7 @@ const WorkflowManager: React.FC = () => {
                             {outputParameters.map((param, index) => (
                               <div key={index} className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg">
                                 <div className="grid grid-cols-2 gap-2 mb-2">
-                                  <Input
-                                    size="sm"
+                                  <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" size="sm"
                                     placeholder="参数名"
                                     value={param.name}
                                     onChange={(e) => {
@@ -1252,8 +1249,7 @@ const WorkflowManager: React.FC = () => {
                                     <option value="array">数组</option>
                                   </select>
                                 </div>
-                                <Input
-                                  size="sm"
+                                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" size="sm"
                                   placeholder="描述"
                                   value={param.description}
                                   onChange={(e) => {
@@ -1577,78 +1573,61 @@ const WorkflowManager: React.FC = () => {
 
   // 列表视图
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Header */}
-        <div className="mb-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-3">
-            <div className="flex-1 min-w-0">
-              <CollapsibleSectionHeader
-                title="工作流管理"
-                icon={<GitBranch className="w-4 h-4 text-primary" />}
-                expanded
-                onToggle={() => {}}
-                showChevron={false}
-                clickable={false}
-                compact
-                titleSize="lg"
-                withDivider
-              />
+    <div className="flex flex-col h-full bg-gray-50 dark:bg-gray-900">
+      <PageHeader 
+        title="工作流管理"
+        actions={
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={handleCreate}
+          >
+            创建工作流
+          </Button>
+        }
+      />
+
+      <div className="flex-1 overflow-auto">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          {error && (
+            <div className="flex items-center gap-2 px-4 py-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400 mb-6">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <span className="text-sm break-words">{error}</span>
+              <button
+                onClick={() => setError(null)}
+                className="ml-2 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 flex-shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
-            {error && (
-              <div className="flex items-center gap-2 px-4 py-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                <span className="text-sm break-words">{error}</span>
-                <button
-                  onClick={() => setError(null)}
-                  className="ml-2 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 flex-shrink-0"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                variant={viewMode === 'grid' ? 'primary' : 'outline'}
-                size="sm"
-                onClick={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  setViewMode('grid')
-                }}
-              >
-                网格
-              </Button>
-              <Button
-                variant={viewMode === 'list' ? 'primary' : 'outline'}
-                size="sm"
-                onClick={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  setViewMode('list')
-                }}
-              >
-                列表
-              </Button>
-              <Button
-                variant="primary"
-                onClick={handleCreate}
-              >
-                创建工作流
-              </Button>
-            </div>
+          )}
+
+          {/* 网格/列表切换按钮 */}
+          <div className="flex gap-2 mb-6">
+            <Button
+              variant={viewMode === 'grid' ? 'primary' : 'outline'}
+              size="sm"
+              onClick={() => setViewMode('grid')}
+            >
+              网格
+            </Button>
+            <Button
+              variant={viewMode === 'list' ? 'primary' : 'outline'}
+              size="sm"
+              onClick={() => setViewMode('list')}
+            >
+              列表
+            </Button>
           </div>
-        </div>
 
         {/* Filters */}
         <Card className="mb-6" padding="md">
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1">
-              <Input
-                placeholder="搜索工作流..."
+              <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" placeholder="搜索工作流..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                leftIcon={<Search className="w-4 h-4" />}
+                leftIcon={<Search />}
                 clearable
               />
             </div>
@@ -1873,15 +1852,16 @@ const WorkflowManager: React.FC = () => {
             }}
           />
         </Modal>
+
+          {/* 终端组件 */}
+          <Terminal
+            logs={terminalLogs}
+            isVisible={isTerminalVisible}
+            onClose={() => setIsTerminalVisible(false)}
+            onClear={() => setTerminalLogs([])}
+          />
+        </div>
       </div>
-      
-      {/* 终端组件 */}
-      <Terminal
-        logs={terminalLogs}
-        isVisible={isTerminalVisible}
-        onClose={() => setIsTerminalVisible(false)}
-        onClear={() => setTerminalLogs([])}
-      />
     </div>
   )
 }
@@ -1991,8 +1971,7 @@ const TriggerConfigPanel: React.FC<TriggerConfigPanelProps> = ({
             {safeTriggerConfig.api?.public && (
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <Input
-                    type={apiKeyVisible ? 'text' : 'password'}
+                  <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" type={apiKeyVisible ? 'text' : 'password'}
                     value={safeTriggerConfig.api?.apiKey || ''}
                     onChange={(e) => onUpdate({
                       ...safeTriggerConfig,
@@ -2004,7 +1983,6 @@ const TriggerConfigPanel: React.FC<TriggerConfigPanelProps> = ({
                       }
                     })}
                     placeholder="API 密钥"
-                    className="flex-1"
                   />
                   <Button
                     variant="outline"
@@ -2124,8 +2102,7 @@ const TriggerConfigPanel: React.FC<TriggerConfigPanelProps> = ({
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Cron 表达式
               </label>
-              <Input
-                value={safeTriggerConfig.schedule?.cronExpr || ''}
+              <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={safeTriggerConfig.schedule?.cronExpr || ''}
                 onChange={(e) => onUpdate({
                   ...safeTriggerConfig,
                   schedule: {
@@ -2176,10 +2153,9 @@ const TriggerConfigPanel: React.FC<TriggerConfigPanelProps> = ({
                 Webhook URL
               </label>
               <div className="flex items-center gap-2">
-                <Input
-                  value={getWebhookURL()}
+                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base flex-1" value={getWebhookURL()}
                   readOnly
-                  className="flex-1"
+                  
                 />
                 <Button
                   variant="outline"
@@ -2197,8 +2173,7 @@ const TriggerConfigPanel: React.FC<TriggerConfigPanelProps> = ({
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Webhook 密钥（可选，用于验证）
               </label>
-              <Input
-                type="password"
+              <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" type="password"
                 value={safeTriggerConfig.webhook?.secret || ''}
                 onChange={(e) => onUpdate({
                   ...safeTriggerConfig,
@@ -2345,14 +2320,12 @@ const WorkflowForm: React.FC<WorkflowFormProps> = ({ workflow, onSave, onCancel,
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <Input
-        label="名称"
+      <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" label="名称"
         value={formData.name}
         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
         required
       />
-      <Input
-        label="Slug"
+      <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" label="Slug"
         value={formData.slug}
         onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
         required
@@ -2383,8 +2356,7 @@ const WorkflowForm: React.FC<WorkflowFormProps> = ({ workflow, onSave, onCancel,
           <option value="archived">归档</option>
         </select>
       </div>
-      <Input
-        label="标签 (逗号分隔)"
+      <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" label="标签 (逗号分隔)"
         value={formData.tags}
         onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
         helperText="使用逗号分隔多个标签"
@@ -2393,7 +2365,7 @@ const WorkflowForm: React.FC<WorkflowFormProps> = ({ workflow, onSave, onCancel,
         <Button variant="outline" onClick={onCancel} disabled={saving}>
           取消
         </Button>
-        <Button variant="primary" type="submit" loading={saving} disabled={saving}>
+        <Button variant="primary" loading={saving} disabled={saving}>
           保存
         </Button>
       </div>

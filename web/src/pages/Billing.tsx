@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
+import { Select as ArcoSelect, Input as ArcoInput } from '@arco-design/web-react'
 import { 
   FileText, Download, RefreshCw, Brain, Mic, Volume2,
   Globe, Plus, Eye, ChevronLeft, ChevronRight,
@@ -7,13 +8,11 @@ import {
 } from 'lucide-react'
 import { useI18nStore } from '@/stores/i18nStore'
 import Button from '@/components/UI/Button'
-import Input from '@/components/UI/Input'
 import Card, { CardContent, CardDescription, CardHeader, CardTitle } from '@/components/UI/Card'
 import Badge from '@/components/UI/Badge'
-import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/UI/Select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/UI/Tabs'
-import FadeIn from '@/components/Animations/FadeIn'
-import LoadingAnimation from '@/components/Animations/LoadingAnimation'
+import FadeIn from '@/components/FadeIn.tsx'
+import ContentLoadingSpinner from '@/components/ContentLoadingSpinner.tsx'
 import { showAlert } from '@/utils/notification'
 import {
   getUsageStatistics,
@@ -36,6 +35,15 @@ import UsageCharts from '@/components/Billing/UsageCharts'
 import { fetchUserCredentials, type Credential } from '@/api/credential'
 import { useAuthStore } from '@/stores/authStore'
 import { getGroupList, type Group } from '@/api/group'
+
+// 为了兼容旧的 Select 代码，创建包装器
+const Select = ({ children, onValueChange, ...props }: any) => (
+  <ArcoSelect {...props} onChange={onValueChange} />
+)
+const SelectTrigger = ({ children, ...props }: any) => <>{children}</>
+const SelectValue = ({ children, ...props }: any) => <>{children}</>
+const SelectContent = ({ children, ...props }: any) => <>{children}</>
+const SelectItem = ({ children, value, ...props }: any) => <>{children}</>
 
 const Billing = () => {
   const { t } = useI18nStore()
@@ -510,20 +518,18 @@ const Billing = () => {
                 <>
                   <div className="min-w-[140px]">
                     <label className="text-xs text-muted-foreground mb-1 block">{t('billing.filter.startDate')}</label>
-                    <Input
-                      type="date"
-                      className="h-9 text-sm"
+                    <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base h-9 text-sm" type="date"
+                      
                       value={startDate}
-                      onChange={(e) => setStartDate(e.target.value)}
+                      onChange={(val) => setStartDate(val)}
                     />
                   </div>
                   <div className="min-w-[140px]">
                     <label className="text-xs text-muted-foreground mb-1 block">{t('billing.filter.endDate')}</label>
-                    <Input
-                      type="date"
-                      className="h-9 text-sm"
+                    <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base h-9 text-sm" type="date"
+                      
                       value={endDate}
-                      onChange={(e) => setEndDate(e.target.value)}
+                      onChange={(val) => setEndDate(val)}
                     />
                   </div>
                 </>
@@ -621,9 +627,7 @@ const Billing = () => {
         {/* 统计概览 */}
         <TabsContent value="statistics" className="space-y-6">
           {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <LoadingAnimation type="spinner" size="lg" />
-            </div>
+            <ContentLoadingSpinner size="lg" />
           ) : statistics ? (
             <>
               {/* 统计卡片 */}
@@ -747,9 +751,7 @@ const Billing = () => {
           </div>
           
           {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <LoadingAnimation type="spinner" size="lg" />
-            </div>
+            <ContentLoadingSpinner size="lg" />
           ) : usageRecords.length > 0 ? (
             <>
               <Card>
@@ -838,9 +840,7 @@ const Billing = () => {
         
         <TabsContent value="bills" className="space-y-4 mt-3">
           {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <LoadingAnimation type="spinner" size="lg" />
-            </div>
+            <ContentLoadingSpinner size="lg" />
           ) : bills.length > 0 ? (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -959,25 +959,22 @@ const Billing = () => {
             <CardContent className="space-y-4">
               <div>
                 <label className="text-sm font-medium mb-2 block">{t('billing.filter.startDate')}</label>
-                <Input
-                  type="date"
+                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" type="date"
                   value={generateBillForm.startTime}
-                  onChange={(e) => setGenerateBillForm({ ...generateBillForm, startTime: e.target.value })}
+                  onChange={(val) => setGenerateBillForm({ ...generateBillForm, startTime: val })}
                 />
               </div>
               <div>
                 <label className="text-sm font-medium mb-2 block">{t('billing.filter.endDate')}</label>
-                <Input
-                  type="date"
+                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" type="date"
                   value={generateBillForm.endTime}
-                  onChange={(e) => setGenerateBillForm({ ...generateBillForm, endTime: e.target.value })}
+                  onChange={(val) => setGenerateBillForm({ ...generateBillForm, endTime: val })}
                 />
               </div>
               <div>
                 <label className="text-sm font-medium mb-2 block">{t('billing.generate.billTitle')}</label>
-                <Input
-                  value={generateBillForm.title || ''}
-                  onChange={(e) => setGenerateBillForm({ ...generateBillForm, title: e.target.value })}
+                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={generateBillForm.title || ''}
+                  onChange={(val) => setGenerateBillForm({ ...generateBillForm, title: val })}
                   placeholder={t('billing.generate.billTitlePlaceholder')}
                 />
               </div>

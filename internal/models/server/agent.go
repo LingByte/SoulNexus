@@ -14,7 +14,6 @@ type Agent struct {
 	GroupID              uint      `json:"groupId" gorm:"index"`
 	CreatedBy            uint      `json:"createdBy" gorm:"index"`
 	Name                 string    `json:"name" gorm:"index"`
-	Description          string    `json:"description"`
 	SystemPrompt         string    `json:"systemPrompt"`
 	PersonaTag           string    `json:"personaTag"`
 	Temperature          float32   `json:"temperature"`

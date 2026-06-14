@@ -3,10 +3,11 @@ import { motion } from 'framer-motion'
 import { Mic, Users, Shield, Save, Plus, Trash2, User, Volume2, Bot, AlertCircle, Play, TestTube, Edit2 } from 'lucide-react'
 import Card, { CardContent, CardHeader, CardTitle } from '@/components/UI/Card'
 import Button from '@/components/UI/Button'
-import Input from '@/components/UI/Input'
+import { Input as ArcoInput } from '@arco-design/web-react'
 import Modal, { ModalContent, ModalHeader, ModalTitle } from '@/components/UI/Modal'
 import VoiceprintDeleteConfirm from '@/components/Voice/VoiceprintDeleteConfirm'
 import CollapsibleSectionHeader from '@/components/UI/CollapsibleSectionHeader'
+import PageHeader from '@/components/Layout/PageHeader'
 import { showAlert } from '@/utils/notification'
 import { getSystemInit, SystemInitInfo } from '@/api/system'
 import { getAssistantList, AssistantListItem } from '@/api/assistant'
@@ -297,26 +298,17 @@ const VoiceprintManagement = () => {
   const selectedAssistant = assistants.find(a => String(a.id) === selectedAssistantId)
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
+    <div className="flex flex-col h-full">
+      <PageHeader 
+        title={t('voiceprint.title')}
+      />
+      <div className="flex-1 overflow-auto">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="space-y-6"
       >
-        {/* 页面标题 */}
-        <CollapsibleSectionHeader
-          title={t('voiceprint.title')}
-          icon={<Mic className="w-4 h-4 text-primary" />}
-          expanded
-          onToggle={() => {}}
-          showChevron={false}
-          clickable={false}
-          compact
-          titleSize="lg"
-          withDivider
-          className="mb-6"
-        />
-
         {/* 智能体选择器 - 使用按钮组样式 */}
         {assistants.length > 0 ? (
           <div className="w-full">
@@ -576,12 +568,10 @@ const VoiceprintManagement = () => {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 说话人姓名 <span className="text-red-500">*</span>
               </label>
-              <Input
-                type="text"
+              <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" type="text"
                 value={newSpeaker.name}
                 onChange={(e) => setNewSpeaker(prev => ({ ...prev, name: e.target.value }))}
                 placeholder="输入说话人的姓名，如：张三"
-                className="w-full"
               />
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 系统将自动为该说话人生成唯一标识符
@@ -1015,12 +1005,10 @@ const VoiceprintManagement = () => {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     说话人姓名 <span className="text-red-500">*</span>
                   </label>
-                  <Input
-                    type="text"
+                  <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" type="text"
                     value={editingSpeaker.name}
                     onChange={(e) => setEditingSpeaker(prev => ({ ...prev, name: e.target.value }))}
                     placeholder="输入说话人的姓名"
-                    className="w-full"
                   />
                 </div>
 
@@ -1079,6 +1067,8 @@ const VoiceprintManagement = () => {
           loading={isDeletingVoiceprint}
         />
       )}
+        </div>
+      </div>
     </div>
   )
 }

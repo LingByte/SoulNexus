@@ -16,7 +16,7 @@ import (
 
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/stores"
-	"github.com/LingByte/SoulNexus/pkg/synthesizer"
+	"github.com/LingByte/lingllm/synthesizer"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/LingByte/SoulNexus/pkg/voice/constants"
 	"github.com/LingByte/SoulNexus/pkg/voice/sessions"
@@ -71,7 +71,7 @@ type HardwareSession struct {
 	llmProcessing     bool
 	currentSpeakerID  string                                  // current speaker ID, for switch speaker
 	outputAudioCodec  string                                  // 当前下行音频编码（opus/pcm）
-	ttsServiceCache   map[string]synthesizer.SynthesisService // TTS service cache：speakerID -> service
+	ttsServiceCache   map[string]synthesizer.AudioSynthesisEngine // TTS service cache：speakerID -> service
 	db                *gorm.DB
 	voiceprintService *voiceprint.Service
 	callRecording     *svcmodels.CallRecording
@@ -131,7 +131,7 @@ func NewHardwareSession(ctx context.Context, hardwareConfig *HardwareSessionOpti
 		ttsConfig["voiceType"] = ""
 	}
 
-	var ttsService synthesizer.SynthesisService
+	var ttsService synthesizer.AudioSynthesisEngine
 
 	// 如果指定了克隆音色ID，优先使用克隆音色
 	if hardwareConfig.VoiceCloneID != nil && *hardwareConfig.VoiceCloneID > 0 {
@@ -190,18 +190,18 @@ func NewHardwareSession(ctx context.Context, hardwareConfig *HardwareSessionOpti
 					zap.Int("voiceCloneID", *hardwareConfig.VoiceCloneID),
 					zap.String("provider", voiceClone.Provider),
 					zap.Error(cloneErr))
-				ttsService, err = synthesizer.NewSynthesisServiceFromCredential(ttsConfig)
+				ttsService, err = synthesizer.NewAudioSynthesisEngineFromCredential(ttsConfig)
 			}
 		} else {
 			// 克隆音色不存在，降级到普通TTS
 			hardwareConfig.Logger.Warn("[Session] 克隆音色不存在，降级到普通TTS",
 				zap.Int("voiceCloneID", *hardwareConfig.VoiceCloneID),
 				zap.Error(voiceCloneErr))
-			ttsService, err = synthesizer.NewSynthesisServiceFromCredential(ttsConfig)
+			ttsService, err = synthesizer.NewAudioSynthesisEngineFromCredential(ttsConfig)
 		}
 	} else {
 		// 没有指定克隆音色，使用普通TTS
-		ttsService, err = synthesizer.NewSynthesisServiceFromCredential(ttsConfig)
+		ttsService, err = synthesizer.NewAudioSynthesisEngineFromCredential(ttsConfig)
 	}
 
 	if err != nil {
@@ -254,7 +254,7 @@ func NewHardwareSession(ctx context.Context, hardwareConfig *HardwareSessionOpti
 		ttsPipeline:       pipeline,
 		speakerManager:    speakerManager,
 		outputAudioCodec:  "opus",
-		ttsServiceCache:   make(map[string]synthesizer.SynthesisService),
+		ttsServiceCache:   make(map[string]synthesizer.AudioSynthesisEngine),
 		db:                hardwareConfig.DB,
 		voiceprintService: hardwareConfig.VoiceprintService,
 		callRecording: &svcmodels.CallRecording{
@@ -357,7 +357,7 @@ func (s *HardwareSession) preloadCommonSpeakers(baseConfig synthesizer.TTSCreden
 		fmt.Sscanf(speaker.id, "%d", &voiceType)
 		newConfig["voiceType"] = voiceType
 		startTime := time.Now()
-		ttsService, err := synthesizer.NewSynthesisServiceFromCredential(newConfig)
+		ttsService, err := synthesizer.NewAudioSynthesisEngineFromCredential(newConfig)
 		if err != nil {
 			s.logger.Warn("[Session] 预加载发音人失败",
 				zap.String("speaker_id", speaker.id),
@@ -560,7 +560,7 @@ func (s *HardwareSession) switchSpeaker(speakerID string, ttsProvider string, ba
 		}
 
 		// 创建新的 TTS 服务
-		newTTSService, err := synthesizer.NewSynthesisServiceFromCredential(newConfig)
+		newTTSService, err := synthesizer.NewAudioSynthesisEngineFromCredential(newConfig)
 		if err != nil {
 			s.logger.Error("[Session] 创建新 TTS 服务失败",
 				zap.Error(err),

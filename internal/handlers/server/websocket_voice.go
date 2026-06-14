@@ -56,14 +56,9 @@ func (h *Handlers) HandleWebSocketVoice(c *gin.Context) {
 		return
 	}
 
-	// 验证凭证
-	cred, err := h.rpc.Auth.ResolveCredential(c.Request.Context(), apiKey, apiSecret)
+	cred, err := h.resolveCredential(c.Request.Context(), apiKey, apiSecret)
 	if err != nil {
-		response.Fail(c, "Database error: "+err.Error(), nil)
-		return
-	}
-	if cred == nil {
-		response.Fail(c, "Invalid credentials", nil)
+		response.Fail(c, "Invalid credentials", err)
 		return
 	}
 

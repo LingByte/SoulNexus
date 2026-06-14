@@ -9,7 +9,7 @@ import (
 	"encoding/binary"
 	"strings"
 
-	"github.com/LingByte/SoulNexus/pkg/media/encoder"
+	"github.com/LingByte/lingllm/media/encoder"
 	"github.com/hraban/opus"
 )
 

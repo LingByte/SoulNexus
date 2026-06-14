@@ -1,19 +1,19 @@
 package auth
+
 // Copyright (c) 2026 LingByte. All rights reserved.
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
-
 	"time"
 
+	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"gorm.io/gorm"
-	"github.com/LingByte/SoulNexus/internal/modelbase"
 )
 
 // UserDevice 用户设备表
 type UserDevice struct {
-	modelbase.BaseModel
+	models.BaseModel
 	UserID     uint      `gorm:"index;not null" json:"userId"`
 	DeviceID   string    `gorm:"size:128;index;not null" json:"deviceId"`
 	DeviceName string    `gorm:"size:128" json:"deviceName"`
@@ -34,7 +34,7 @@ func (UserDevice) TableName() string {
 
 // LoginHistory 登录历史记录表（用于异地登录检测）
 type LoginHistory struct {
-	modelbase.BaseModel
+	models.BaseModel
 	UserID        uint   `gorm:"index;not null" json:"userId"`
 	Email         string `gorm:"size:128;index" json:"email"`
 	IPAddress     string `gorm:"size:128;index" json:"ipAddress"`
@@ -55,7 +55,7 @@ func (LoginHistory) TableName() string {
 
 // AccountLock 账号锁定记录
 type AccountLock struct {
-	modelbase.BaseModel
+	models.BaseModel
 	UserID         uint      `gorm:"index;not null" json:"userId"`
 	Email          string    `gorm:"size:128;index;not null" json:"email"` // 邮箱（用于未登录时的锁定）
 	IPAddress      string    `gorm:"size:128;index" json:"ipAddress"`      // 锁定IP

@@ -15,6 +15,9 @@ var errInvalidAPICredential = errors.New("invalid api credentials")
 
 // resolveCredential loads API key credentials via the auth gRPC service.
 func (h *Handlers) resolveCredential(ctx context.Context, apiKey, apiSecret string) (*auth.UserCredential, error) {
+	if h.rpc == nil || h.rpc.Auth == nil {
+		return nil, errors.New("auth service unavailable")
+	}
 	if apiKey == "" || apiSecret == "" {
 		return nil, errInvalidAPICredential
 	}

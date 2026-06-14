@@ -6,27 +6,17 @@ import { Link, useNavigate } from 'react-router-dom'
 import { BookOpen, ChevronRight, Layers, Plus, RefreshCw, Search } from 'lucide-react'
 import { PageSEO } from '@/components/SEO/PageSEO'
 import PageContainer from '@/components/Layout/PageContainer'
+import PageHeader from '@/components/Layout/PageHeader'
 import Button from '@/components/UI/Button'
 import Card from '@/components/UI/Card'
-import Badge from '@/components/UI/Badge'
-import Input from '@/components/UI/Input'
+import { Input as ArcoInput } from '@arco-design/web-react'
 import EmptyState from '@/components/UI/EmptyState'
-import { useToast } from '@/components/UI/ToastContainer'
+import { showAlert } from '@/utils/alert'
 import { useI18nStore } from '@/stores/i18nStore'
-import { cn } from '@/utils/cn'
 import { listKnowledgeNamespaces, type KnowledgeNamespaceRow } from '@/api/knowledge'
 import KnowledgeCreateDrawer from '@/pages/knowledge/KnowledgeCreateDrawer'
+import { cn } from '@/utils/cn'
 
-type StatusFilter = 'all' | 'active' | 'processing' | 'failed' | 'deleted'
-
-function statusVariant(s: string): 'success' | 'warning' | 'error' | 'muted' | 'default' {
-  const v = (s || '').toLowerCase()
-  if (v === 'active') return 'success'
-  if (v === 'processing') return 'warning'
-  if (v === 'failed') return 'error'
-  if (v === 'deleted') return 'muted'
-  return 'default'
-}
 
 function KnowledgeCardSkeleton() {
   return (
@@ -47,13 +37,11 @@ function KnowledgeCardSkeleton() {
 const KnowledgeListPage: React.FC = () => {
   const { t } = useI18nStore()
   const navigate = useNavigate()
-  const { error: toastError } = useToast()
   const [rows, setRows] = useState<KnowledgeNamespaceRow[]>([])
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
   const [pageSize] = useState(30)
   const [total, setTotal] = useState(0)
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('active')
   const [qInput, setQInput] = useState('')
   const [q, setQ] = useState('')
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -64,22 +52,21 @@ const KnowledgeListPage: React.FC = () => {
       const res = await listKnowledgeNamespaces({
         page,
         pageSize,
-        status: statusFilter === 'all' ? 'all' : statusFilter,
         q: q.trim() || undefined,
       })
       if (res.code !== 200) {
-        toastError(t('knowledge.pageTitle'), res.msg || 'load failed')
+        showAlert(res.msg || 'load failed', 'error', t('knowledge.pageTitle'))
         return
       }
       const d = res.data
       setRows(d?.list || [])
       setTotal(d?.total || 0)
     } catch (e: unknown) {
-      toastError(t('knowledge.pageTitle'), (e as { msg?: string })?.msg || String(e))
+      showAlert((e as { msg?: string })?.msg || String(e), 'error', t('knowledge.pageTitle'))
     } finally {
       setLoading(false)
     }
-  }, [page, pageSize, statusFilter, q, toastError, t])
+  }, [page, pageSize, q, t])
 
   useEffect(() => {
     void load()
@@ -91,64 +78,40 @@ const KnowledgeListPage: React.FC = () => {
   return (
     <>
       <PageSEO title={`${t('knowledge.pageTitle')} · ${site}`} description={t('knowledge.listSubtitle')} />
-      <PageContainer maxWidth="full" padding="md" className="pb-16">
-        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight">{t('knowledge.pageTitle')}</h1>
-            <p className="mt-0.5 text-sm text-muted-foreground">{t('knowledge.listSubtitle')}</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={() => void load()} leftIcon={<RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />}>
-              {t('knowledge.refresh')}
-            </Button>
-            <Button variant="primary" size="sm" onClick={() => setDrawerOpen(true)} leftIcon={<Plus className="h-4 w-4" />}>
-              {t('knowledge.newBase')}
-            </Button>
-          </div>
-        </div>
+      <div className="flex flex-col h-full">
+        <PageHeader 
+          title={t('knowledge.pageTitle')}
+          actions={
+            <>
+              <Button variant="outline" size="sm" onClick={() => void load()} leftIcon={<RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />}>
+                {t('knowledge.refresh')}
+              </Button>
+              <Button variant="primary" size="sm" onClick={() => setDrawerOpen(true)} leftIcon={<Plus className="h-4 w-4" />}>
+                {t('knowledge.newBase')}
+              </Button>
+            </>
+          }
+        />
 
-        <Card variant="outlined" padding="md" className="mb-6 border-border/80 shadow-sm">
+        <div className="flex-1 overflow-auto">
+          <PageContainer maxWidth="full" padding="md" className="pb-16">
+            <Card variant="outlined" padding="md" className="mb-6 border-border/80 shadow-sm">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-            <div className="relative min-w-0 flex-1">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
+            <div className="flex-1">
+              <ArcoInput 
+                size="large" 
+                className="!h-10 !text-base ![&::placeholder]:text-base" 
                 value={qInput}
-                onChange={(e) => setQInput(e.target.value)}
+                onChange={(val) => setQInput(val)}
                 onKeyDown={(e) => e.key === 'Enter' && (setPage(1), setQ(qInput.trim()))}
                 placeholder={t('knowledge.searchPlaceholder')}
-                className="pl-8"
+                prefix={<Search className="h-4 w-4 text-muted-foreground" />}
               />
             </div>
             <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
               <Button variant="secondary" size="sm" onClick={() => { setPage(1); setQ(qInput.trim()) }}>
                 {t('knowledge.search')}
               </Button>
-              <div className="flex flex-wrap gap-1.5">
-                {(['all', 'active', 'processing', 'failed', 'deleted'] as StatusFilter[]).map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => {
-                      setStatusFilter(s)
-                      setPage(1)
-                    }}
-                    className={cn(
-                      'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
-                      statusFilter === s ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80',
-                    )}
-                  >
-                    {s === 'all'
-                      ? t('knowledge.statusAll')
-                      : s === 'active'
-                        ? t('knowledge.statusActive')
-                        : s === 'processing'
-                          ? t('knowledge.statusProcessing')
-                          : s === 'failed'
-                            ? t('knowledge.statusFailed')
-                            : t('knowledge.statusDeleted')}
-                  </button>
-                ))}
-              </div>
             </div>
           </div>
         </Card>
@@ -192,21 +155,6 @@ const KnowledgeListPage: React.FC = () => {
                     {r.description ? (
                       <p className="mt-2 line-clamp-2 pl-11 text-xs text-muted-foreground/90">{r.description}</p>
                     ) : null}
-                    <div className="mt-auto flex flex-wrap items-end justify-between gap-2 border-t border-border/50 pt-4">
-                      <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
-                        <span className="rounded-md bg-muted/90 px-2 py-0.5 font-mono font-medium tabular-nums">{r.vectorDim}d</span>
-                        <span
-                          className="max-w-[10rem] truncate rounded-md bg-muted/60 px-2 py-0.5 font-mono"
-                          title={r.embedModel}
-                        >
-                          {r.embedModel}
-                        </span>
-                        <span className="hidden rounded-md bg-muted/40 px-2 py-0.5 uppercase sm:inline">{r.vectorProvider}</span>
-                      </div>
-                      <Badge variant={statusVariant(r.status)} className="shrink-0">
-                        {r.status}
-                      </Badge>
-                    </div>
                   </div>
                 </Card>
               </Link>
@@ -227,7 +175,9 @@ const KnowledgeListPage: React.FC = () => {
             </Button>
           </Card>
         )}
-      </PageContainer>
+          </PageContainer>
+        </div>
+      </div>
 
       <KnowledgeCreateDrawer
         open={drawerOpen}

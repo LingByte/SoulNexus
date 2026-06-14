@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LingByte/SoulNexus/pkg/recognizer"
+	"github.com/LingByte/lingllm/recognizer"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/asr"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/tts"
@@ -21,9 +21,9 @@ import (
 
 // ---- minimal fakes ----
 
-type fakeASR struct{ tr recognizer.TranscribeResult }
+type fakeASR struct{ tr recognizer.SpeechRecognitionResult }
 
-func (f *fakeASR) Init(tr recognizer.TranscribeResult, _ recognizer.ProcessError) {
+func (f *fakeASR) Init(tr recognizer.SpeechRecognitionResult, _ recognizer.RecognitionError) {
 	f.tr = tr
 }
 func (f *fakeASR) Vendor() string              { return "fake" }

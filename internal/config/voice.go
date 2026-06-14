@@ -121,8 +121,8 @@ func buildVoiceConfig() *VoiceServerConfig {
 
 		TTSPrewarm:                  voiceBool("VOICE_TTS_PREWARM", false),
 		BargeIn:                     voiceBool("VOICE_BARGE_IN", true),
-		BargeInThreshold:            voiceFloat("VOICE_BARGE_IN_THRESHOLD", 1500),
-		BargeInFrames:               voiceInt("VOICE_BARGE_IN_FRAMES", 2),
+		BargeInThreshold:            voiceFloat("VOICE_BARGE_IN_THRESHOLD", 4500),
+		BargeInFrames:               voiceInt("VOICE_BARGE_IN_FRAMES", 5),
 		Denoise:                     voiceBool("VOICE_DENOISE", false),
 		ASRSentenceFilter:           voiceBool("VOICE_ASR_SENTENCE_FILTER", false),
 		ASRSentenceFilterSimilarity: voiceFloat("VOICE_ASR_SENTENCE_FILTER_SIMILARITY", 0.85),
@@ -162,18 +162,11 @@ func (c *VoiceServerConfig) Validate() error {
 	if c.RTPEnd-c.RTPStart < 1 {
 		return errors.New("VOICE_RTP_END - VOICE_RTP_START must be >= 1 (need at least one RTP port pair)")
 	}
-
-	// --- HTTP transports gate ---
-	// At least one transport must be enabled when the HTTP listener is set,
-	// or the HTTP listener should be disabled (empty Addr). A listener that
-	// only answers /healthz with no transports usually indicates a config typo.
 	httpEnabled := c.HTTPAddr != ""
 	anyTransport := c.EnableXiaozhi || c.EnableWebRTC || c.EnableSFU || c.SoulnexusHardwarePath != ""
 	if httpEnabled && !anyTransport {
 		return errors.New("VOICE_HTTP_ADDR is set but no transport is enabled (set VOICE_ENABLE_XIAOZHI / VOICE_ENABLE_WEBRTC / VOICE_ENABLE_SFU)")
 	}
-
-	// --- Dialog plane required for pipeline xiaozhi and WebRTC ---
 	needsDialog := c.EnableWebRTC
 	if c.EnableXiaozhi && c.XiaozhiMode != "realtime" {
 		needsDialog = true
@@ -181,8 +174,6 @@ func (c *VoiceServerConfig) Validate() error {
 	if needsDialog && c.DialogWS == "" {
 		return errors.New("VOICE_DIALOG_WS is required when xiaozhi uses pipeline mode or webrtc is enabled")
 	}
-
-	// --- SFU consistency ---
 	if c.EnableSFU && !c.SFUAllowAnon && c.SFUSecret == "" {
 		return errors.New("VOICE_SFU_SECRET is required when EnableSFU=true and SFUAllowAnon=false (set VOICE_SFU_ALLOW_ANON=true for local dev)")
 	}
@@ -192,8 +183,6 @@ func (c *VoiceServerConfig) Validate() error {
 	if c.EnableSFU && c.SFUMaxRooms <= 0 {
 		return errors.New("VOICE_SFU_MAX_ROOMS must be > 0")
 	}
-
-	// --- Hardware (legacy ESP32) consistency ---
 	if c.SoulnexusHardwarePath != "" && c.SoulnexusHardwareBindingURL == "" {
 		return errors.New("VOICE_SOULNEXUS_HW_BINDING_URL is required when VOICE_SOULNEXUS_HW_WS_PATH is set")
 	}
@@ -201,16 +190,12 @@ func (c *VoiceServerConfig) Validate() error {
 	if c.RecordChunk < 0 {
 		return errors.New("VOICE_RECORD_CHUNK must be >= 0 (use 0 to disable rolling uploads)")
 	}
-
-	// --- Dialog reconnect knobs ---
 	if c.DialogReconnect < 0 {
 		return errors.New("VOICE_DIALOG_RECONNECT must be >= 0")
 	}
 	if c.DialogReconnectBackoff < 0 {
 		return errors.New("VOICE_DIALOG_RECONNECT_BACKOFF must be >= 0")
 	}
-
-	// --- Barge-in / ASR sentence filter ---
 	if c.BargeIn && c.BargeInThreshold < 0 {
 		return errors.New("VOICE_BARGE_IN_THRESHOLD must be >= 0")
 	}

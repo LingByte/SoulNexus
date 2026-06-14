@@ -28,22 +28,29 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LingByte/SoulNexus/pkg/recognizer"
+	"github.com/LingByte/SoulNexus/pkg/logger"
+	"github.com/LingByte/lingllm/recognizer"
 	voicetts "github.com/LingByte/SoulNexus/pkg/voiceserver/voice/tts"
 
 	"github.com/gorilla/websocket"
+	"go.uber.org/zap"
 )
+
+func TestMain(m *testing.M) {
+	_ = logger.Init(&logger.LogConfig{Level: "error"}, "test")
+	m.Run()
+}
 
 // ----- Stub recognizer -----
 
 type stubASR struct {
 	mu     sync.Mutex
-	tr     recognizer.TranscribeResult
+	tr     recognizer.SpeechRecognitionResult
 	fired  bool
 	active bool
 }
 
-func (a *stubASR) Init(tr recognizer.TranscribeResult, _ recognizer.ProcessError) {
+func (a *stubASR) Init(tr recognizer.SpeechRecognitionResult, _ recognizer.RecognitionError) {
 	a.mu.Lock()
 	a.tr = tr
 	a.mu.Unlock()
@@ -87,7 +94,7 @@ func (stubTTS) SampleRate() int { return 16000 }
 
 type stubFactory struct{}
 
-func (stubFactory) NewASR(_ context.Context, _ string) (recognizer.TranscribeService, int, error) {
+func (stubFactory) NewASR(_ context.Context, _ string) (recognizer.SpeechRecognitionEngine, int, error) {
 	return &stubASR{}, 16000, nil
 }
 func (stubFactory) TTS(_ context.Context, _ string) (voicetts.Service, int, error) {
@@ -221,6 +228,7 @@ func TestXiaozhi_EndToEnd_PCMRoundTrip(t *testing.T) {
 		SessionFactory: stubFactory{},
 		DialogWSURL:    dialogWS,
 		CallIDPrefix:   "xz-test",
+		Logger:         zap.NewNop(),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -256,6 +264,9 @@ func TestXiaozhi_EndToEnd_PCMRoundTrip(t *testing.T) {
 	}
 	if !strings.Contains(joined, `"type":"stt"`) {
 		t.Errorf("device missing stt push:\n%s", joined)
+	}
+	if !strings.Contains(joined, `"type":"llm_response"`) {
+		t.Errorf("device missing llm_response push:\n%s", joined)
 	}
 	if !strings.Contains(joined, `"state":"start"`) {
 		t.Errorf("device missing tts:start envelope:\n%s", joined)

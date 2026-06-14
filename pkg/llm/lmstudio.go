@@ -116,11 +116,11 @@ func (h *LMStudioHandler) QueryWithOptions(text string, options *QueryOptions) (
 	}
 
 	body := map[string]any{
-		"model":       model,
-		"messages":    chatMessagesToMap(buildShortTermMessages(text, options)),
-		"stream":      false,
-		"temperature": options.Temperature,
+		"model":    model,
+		"messages": chatMessagesToMap(buildShortTermMessages(text, options)),
+		"stream":   false,
 	}
+	applyOpenAICompatGenParams(body, options)
 	raw, err := h.doChatCompletion(reqCtx, body)
 	if err != nil {
 		tracker.Error("LMSTUDIO_REQUEST_ERROR", err.Error())
@@ -227,11 +227,11 @@ func (h *LMStudioHandler) QueryStream(text string, options *QueryOptions, callba
 	}
 
 	body := map[string]any{
-		"model":       model,
-		"messages":    chatMessagesToMap(buildShortTermMessages(text, options)),
-		"stream":      true,
-		"temperature": options.Temperature,
+		"model":    model,
+		"messages": chatMessagesToMap(buildShortTermMessages(text, options)),
+		"stream":   true,
 	}
+	applyOpenAICompatGenParams(body, options)
 	b, _ := json.Marshal(body)
 	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, h.baseURL+"/chat/completions", bytes.NewReader(b))
 	if err != nil {

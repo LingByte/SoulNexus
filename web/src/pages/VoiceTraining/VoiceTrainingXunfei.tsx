@@ -3,9 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { showAlert } from '@/utils/notification'
 import { useI18nStore } from '@/stores/i18nStore'
 import Card, { CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/UI/Card'
-import Input from '@/components/UI/Input'
+import { Input as ArcoInput } from '@arco-design/web-react'
 import Button from '@/components/UI/Button'
-import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/UI/Select'
+import { Select as ArcoSelect } from '@arco-design/web-react'
 import FileUpload from '@/components/UI/FileUpload'
 import FormField from '@/components/Forms/FormField'
 import CollapsibleSectionHeader from '@/components/UI/CollapsibleSectionHeader'
@@ -554,45 +554,39 @@ const VoiceTrainingXunfei: React.FC = () => {
                     <CardContent className="pt-6">
                         <div className="space-y-4">
                             <FormField label="App ID" required>
-                                <Input
-                                    value={configForm.app_id}
+                                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={configForm.app_id}
                                     onChange={(e) => setConfigForm({ ...configForm, app_id: e.target.value })}
                                     placeholder="请输入 App ID"
                                 />
                             </FormField>
                             <FormField label="API Key" required>
-                                <Input
-                                    type="password"
+                                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" type="password"
                                     value={configForm.api_key}
                                     onChange={(e) => setConfigForm({ ...configForm, api_key: e.target.value })}
                                     placeholder="请输入 API Key"
                                 />
                             </FormField>
                             <FormField label="Base URL">
-                                <Input
-                                    value={configForm.base_url}
+                                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={configForm.base_url}
                                     onChange={(e) => setConfigForm({ ...configForm, base_url: e.target.value })}
                                     placeholder="http://opentrain.xfyousheng.com"
                                 />
                             </FormField>
                             <FormField label="WebSocket App ID">
-                                <Input
-                                    value={configForm.ws_app_id}
+                                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={configForm.ws_app_id}
                                     onChange={(e) => setConfigForm({ ...configForm, ws_app_id: e.target.value })}
                                     placeholder="请输入 WebSocket App ID"
                                 />
                             </FormField>
                             <FormField label="WebSocket API Key">
-                                <Input
-                                    type="password"
+                                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" type="password"
                                     value={configForm.ws_api_key}
                                     onChange={(e) => setConfigForm({ ...configForm, ws_api_key: e.target.value })}
                                     placeholder="请输入 WebSocket API Key"
                                 />
                             </FormField>
                             <FormField label="WebSocket API Secret">
-                                <Input
-                                    type="password"
+                                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" type="password"
                                     value={configForm.ws_api_secret}
                                     onChange={(e) => setConfigForm({ ...configForm, ws_api_secret: e.target.value })}
                                     placeholder="请输入 WebSocket API Secret"
@@ -705,8 +699,7 @@ const VoiceTrainingXunfei: React.FC = () => {
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 <FormField label={t('voiceTraining.taskName')} required>
-                                    <Input
-                                        value={taskName}
+                                    <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={taskName}
                                         onValueChange={setTaskName}
                                         placeholder={t('voiceTraining.taskNamePlaceholder')}
                                         size="md"
@@ -746,8 +739,7 @@ const VoiceTrainingXunfei: React.FC = () => {
                                 </div>
 
                                 <FormField label={t('voiceTraining.language')} required>
-                                    <Input
-                                        value={language}
+                                    <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={language}
                                         onValueChange={setLanguage}
                                         placeholder={t('voiceTraining.languagePlaceholder')}
                                         size="md"
@@ -1239,16 +1231,14 @@ const VoiceTrainingXunfei: React.FC = () => {
                                 </CardHeader>
                                 <CardContent className="space-y-4">
                                     <FormField label={t('voiceTraining.voiceName')} required>
-                                        <Input
-                                            value={editName}
+                                        <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={editName}
                                             onValueChange={setEditName}
                                             placeholder={t('voiceTraining.voiceName')}
                                             size="md"
                                         />
                                     </FormField>
                                     <FormField label={t('voiceTraining.voiceDescription')}>
-                                        <Input
-                                            value={editDescription}
+                                        <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={editDescription}
                                             onValueChange={setEditDescription}
                                             placeholder={t('voiceTraining.voiceDescription')}
                                             size="md"
@@ -1323,8 +1313,7 @@ const VoiceTrainingXunfei: React.FC = () => {
                                         </Select>
                                     </FormField>
                                     <FormField label={t('voiceTraining.synthesizeText')} required>
-                                        <Input
-                                            value={synthesisText}
+                                        <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={synthesisText}
                                             onValueChange={setSynthesisText}
                                             placeholder={t('voiceTraining.synthesizeTextPlaceholder')}
                                             size="md"

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { Select as ArcoSelect, Input as ArcoInput } from '@arco-design/web-react'
 import {
   User, Mail, Camera, Save, Edit3, X, Lock, Eye, EyeOff,
   Phone, Heart,
@@ -8,13 +9,10 @@ import { useAuthStore } from '../stores/authStore'
 import { useI18nStore } from '../stores/i18nStore'
 import { useThemeStore, type ThemeMode } from '../stores/themeStore'
 import Button from '../components/UI/Button'
-import Input from '../components/UI/Input'
-import Card from '../components/UI/Card'
 import Badge from '../components/UI/Badge'
 import Switch from '../components/UI/Switch'
-import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '../components/UI/Select'
-import FadeIn from '../components/Animations/FadeIn'
-import LoadingAnimation from '../components/Animations/LoadingAnimation'
+import FadeIn from '../components/FadeIn.tsx'
+import LoadingAnimation from '../components/LoadingAnimation.tsx'
 import { showAlert } from '../utils/notification'
 import { getProfile, updateProfile, updatePreferences, changePassword, changePasswordByEmail, uploadAvatar, setupTwoFactor, enableTwoFactor, disableTwoFactor, getUserDevices, deleteUserDevice, trustUserDevice, untrustUserDevice, TwoFactorSetupResponse, UserDevice } from '../api/profile'
 import { sendEmailCode, sendEmailVerification } from '../api/auth'
@@ -26,6 +24,7 @@ import Billing from '@/pages/Billing.tsx'
 import NotificationCenter from '@/pages/NotificationCenter.tsx'
 import CredentialManager from '@/pages/CredentialManager.tsx'
 import LLMTokenManager from '@/pages/profile/LLMTokenManager.tsx'
+import LLMUsagePanel from '@/pages/profile/LLMUsagePanel.tsx'
 import TeamWorkspacePage from '@/pages/profile/TeamWorkspacePage.tsx'
 import ProfileAuditLogPanel from '@/pages/profile/ProfileAuditLogPanel.tsx'
 import { resolveDeviceVisualKind, type DeviceVisualKind } from '@/pages/profile/profileDeviceVisual'
@@ -66,6 +65,7 @@ const VALID_SECTIONS = new Set([
   'account-security',
   'credential',
   'llm-tokens',
+  'llm-usage',
   'notifications',
   'locale',
 ])
@@ -853,96 +853,99 @@ const Profile = () => {
 
                   <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-3 sm:p-4 lg:max-h-full lg:overflow-y-auto lg:p-6">
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-3 md:gap-x-4 md:gap-y-4">
-                      <Input
-                        size="sm"
-                        label={t('profile.displayName')}
-                        value={formData.displayName}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, displayName: e.target.value }))}
-                        disabled={!isEditing}
-                        leftIcon={<User className="h-3.5 w-3.5" />}
-                        placeholder={t('profile.displayNamePlaceholder')}
-                      />
-                      <Input
-                        size="sm"
-                        label={t('profile.firstName')}
-                        value={formData.firstName}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, firstName: e.target.value }))}
-                        disabled={!isEditing}
-                        leftIcon={<User className="h-3.5 w-3.5" />}
-                        placeholder={t('profile.firstNamePlaceholder')}
-                      />
-                      <Input
-                        size="sm"
-                        label={t('profile.lastName')}
-                        value={formData.lastName}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, lastName: e.target.value }))}
-                        disabled={!isEditing}
-                        leftIcon={<User className="h-3.5 w-3.5" />}
-                        placeholder={t('profile.lastNamePlaceholder')}
-                      />
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">{t('profile.displayName')}</label>
+                        <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.displayName}
+                          onChange={(val) => setFormData((prev) => ({ ...prev, displayName: val }))}
+                          disabled={!isEditing}
+                          prefix={<User />}
+                          placeholder={t('profile.displayNamePlaceholder')}
+                          size="large"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">{t('profile.firstName')}</label>
+                        <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.firstName}
+                          onChange={(val) => setFormData((prev) => ({ ...prev, firstName: val }))}
+                          disabled={!isEditing}
+                          prefix={<User />}
+                          placeholder={t('profile.firstNamePlaceholder')}
+                          size="large"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">{t('profile.lastName')}</label>
+                        <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.lastName}
+                          onChange={(val) => setFormData((prev) => ({ ...prev, lastName: val }))}
+                          disabled={!isEditing}
+                          prefix={<User />}
+                          placeholder={t('profile.lastNamePlaceholder')}
+                          size="large"
+                        />
+                      </div>
                       <div>
                         <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-gray-400">
                           {t('profile.gender')}
                         </label>
-                        <Select
+                        <ArcoSelect
                           value={formData.gender}
-                          onValueChange={(v) => setFormData((prev) => ({ ...prev, gender: v }))}
+                          onChange={(v) => setFormData((prev) => ({ ...prev, gender: v }))}
                           disabled={!isEditing}
-                        >
-                          <SelectTrigger className="h-9 w-full text-sm">
-                            <SelectValue placeholder={t('profile.genderSelect')} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="">{t('profile.genderSelect')}</SelectItem>
-                            <SelectItem value="male">{t('profile.gender.male')}</SelectItem>
-                            <SelectItem value="female">{t('profile.gender.female')}</SelectItem>
-                            <SelectItem value="other">{t('profile.gender.other')}</SelectItem>
-                          </SelectContent>
-                        </Select>
+                          className="h-9 w-full text-sm"
+                          placeholder={t('profile.genderSelect')}
+                          options={[
+                            { label: t('profile.genderSelect'), value: '' },
+                            { label: t('profile.gender.male'), value: 'male' },
+                            { label: t('profile.gender.female'), value: 'female' },
+                            { label: t('profile.gender.other'), value: 'other' }
+                          ]}
+                        />
                       </div>
-                      <Input
-                        size="sm"
-                        label={t('profile.email')}
-                        type="email"
-                        value={formData.email}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
-                        disabled={!isEditing}
-                        leftIcon={<Mail className="h-3.5 w-3.5" />}
-                        placeholder={t('profile.emailPlaceholder')}
-                      />
-                      <Input
-                        size="sm"
-                        label={t('profile.phone')}
-                        value={formData.phone}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, phone: e.target.value }))}
-                        disabled={!isEditing}
-                        leftIcon={<Phone className="h-3.5 w-3.5" />}
-                        placeholder={t('profile.phonePlaceholder')}
-                      />
-                      <Input
-                        size="sm"
-                        label="城市"
-                        value={formData.city}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, city: e.target.value }))}
-                        disabled={!isEditing}
-                        placeholder="请输入所在城市"
-                      />
-                      <Input
-                        size="sm"
-                        label="地区"
-                        value={formData.region}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, region: e.target.value }))}
-                        disabled={!isEditing}
-                        placeholder="请输入所在地区"
-                      />
-                      <div className="col-span-full">
-                        <Input
-                          size="sm"
-                          label={t('profile.bio')}
-                          value={formData.extra}
-                          onChange={(e) => setFormData((prev) => ({ ...prev, extra: e.target.value }))}
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">{t('profile.email')}</label>
+                        <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" type="email"
+                          value={formData.email}
+                          onChange={(val) => setFormData((prev) => ({ ...prev, email: val }))}
                           disabled={!isEditing}
-                          leftIcon={<Heart className="h-3.5 w-3.5" />}
+                          prefix={<Mail />}
+                          placeholder={t('profile.emailPlaceholder')}
+                          size="large"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">{t('profile.phone')}</label>
+                        <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.phone}
+                          onChange={(val) => setFormData((prev) => ({ ...prev, phone: val }))}
+                          disabled={!isEditing}
+                          prefix={<Phone />}
+                          placeholder={t('profile.phonePlaceholder')}
+                          size="large"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">城市</label>
+                        <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.city}
+                          onChange={(val) => setFormData((prev) => ({ ...prev, city: val }))}
+                          disabled={!isEditing}
+                          placeholder="请输入所在城市"
+                          size="large"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">地区</label>
+                        <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.region}
+                          onChange={(val) => setFormData((prev) => ({ ...prev, region: val }))}
+                          disabled={!isEditing}
+                          placeholder="请输入所在地区"
+                          size="large"
+                        />
+                      </div>
+                      <div className="col-span-full">
+                        <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">{t('profile.bio')}</label>
+                        <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.extra}
+                          onChange={(val) => setFormData((prev) => ({ ...prev, extra: val }))}
+                          disabled={!isEditing}
+                          prefix={<Heart />}
                           placeholder={t('profile.bioPlaceholder')}
                         />
                       </div>
@@ -955,83 +958,80 @@ const Profile = () => {
         )}
 
                 {section === 'locale' && (
-                  <Card>
-                    <div className="p-6 space-y-6">
-                      <div>
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">语言、时区与外观</h3>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                          设置界面语言、默认时区与外观模式；保存后写入账户。外观模式保存后立即应用到本机。
-                        </p>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-4">
+                    <p className="text-xs text-slate-500 dark:text-gray-400">
+                      设置界面语言、默认时区与外观模式；保存后写入账户，外观模式会立即应用到本机。
+                    </p>
+                    <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-950">
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            {t('profile.timezone')}
-                          </label>
-                          <Select
-                            value={formData.timezone}
-                            onValueChange={(v) => setFormData((prev) => ({ ...prev, timezone: v }))}
-                          >
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder={t('profile.timezone')} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="Asia/Shanghai">Asia/Shanghai</SelectItem>
-                              <SelectItem value="Asia/Tokyo">Asia/Tokyo</SelectItem>
-                              <SelectItem value="America/New_York">America/New_York</SelectItem>
-                              <SelectItem value="Europe/London">Europe/London</SelectItem>
-                              <SelectItem value="UTC">UTC</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          <p className="mb-1.5 text-sm font-medium text-slate-700 dark:text-gray-300">
                             {t('profile.language')}
-                          </label>
-                          <Select
+                          </p>
+                          <ArcoSelect
                             value={formData.locale}
-                            onValueChange={(v) => setFormData((prev) => ({ ...prev, locale: v }))}
-                          >
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder={t('profile.language')} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="zh">简体中文</SelectItem>
-                              <SelectItem value="zh-TW">繁體中文</SelectItem>
-                              <SelectItem value="en">English</SelectItem>
-                              <SelectItem value="ja">日本語</SelectItem>
-                              <SelectItem value="fr">Français</SelectItem>
-                            </SelectContent>
-                          </Select>
+                            onChange={(v) => setFormData((prev) => ({ ...prev, locale: v }))}
+                            className="h-9 w-full text-sm"
+                            placeholder={t('profile.language')}
+                            options={[
+                              { label: '简体中文', value: 'zh' },
+                              { label: '繁體中文', value: 'zh-TW' },
+                              { label: 'English', value: 'en' },
+                              { label: '日本語', value: 'ja' },
+                              { label: 'Français', value: 'fr' }
+                            ]}
+                          />
                         </div>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          <p className="mb-1.5 text-sm font-medium text-slate-700 dark:text-gray-300">
+                            {t('profile.timezone')}
+                          </p>
+                          <ArcoSelect
+                            value={formData.timezone}
+                            onChange={(v) => setFormData((prev) => ({ ...prev, timezone: v }))}
+                            className="h-9 w-full text-sm"
+                            placeholder={t('profile.timezone')}
+                            options={[
+                              { label: 'Asia/Shanghai (UTC+8)', value: 'Asia/Shanghai' },
+                              { label: 'Asia/Tokyo (UTC+9)', value: 'Asia/Tokyo' },
+                              { label: 'America/New_York', value: 'America/New_York' },
+                              { label: 'Europe/London', value: 'Europe/London' },
+                              { label: 'UTC', value: 'UTC' }
+                            ]}
+                          />
+                        </div>
+                        <div className="sm:col-span-2">
+                          <p className="mb-1.5 text-sm font-medium text-slate-700 dark:text-gray-300">
                             外观模式
-                          </label>
-                          <Select
+                          </p>
+                          <ArcoSelect
                             value={formData.themeMode}
-                            onValueChange={(v) =>
+                            onChange={(v) =>
                               setFormData((prev) => ({ ...prev, themeMode: v as ThemeMode }))
                             }
-                          >
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder="外观模式" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="system">跟随系统</SelectItem>
-                              <SelectItem value="light">浅色</SelectItem>
-                              <SelectItem value="dark">深色</SelectItem>
-                            </SelectContent>
-                          </Select>
+                            className="h-9 w-full text-sm"
+                            placeholder="外观模式"
+                            options={[
+                              { label: '跟随系统', value: 'system' },
+                              { label: '浅色', value: 'light' },
+                              { label: '深色', value: 'dark' }
+                            ]}
+                          />
                         </div>
                       </div>
-                      <Button variant="primary" size="sm" onClick={() => void handleSave()} disabled={isLoading} leftIcon={<Save className="w-4 h-4" />}>
-                        {isLoading ? t('profile.saving') : t('profile.save')}
-                      </Button>
+                      <div className="mt-4 flex justify-end border-t border-slate-100 pt-4 dark:border-neutral-800">
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => void handleSave()}
+                          disabled={isLoading}
+                          leftIcon={<Save className="h-4 w-4" />}
+                        >
+                          {isLoading ? t('profile.saving') : t('profile.save')}
+                        </Button>
+                      </div>
                     </div>
-                  </Card>
+                  </div>
                 )}
 
                 {/* 账号、第三方绑定与安全 — 各块标题与分栏样式统一 */}
@@ -1239,39 +1239,38 @@ const Profile = () => {
                                 </div>
                               </div>
                               {passwordChangeMethod === 'password' ? (
-                                <Input
-                                  size="sm"
-                                  label="当前密码"
-                                  type={showCurrentPassword ? 'text' : 'password'}
-                                  value={passwordData.currentPassword}
-                                  onChange={(e) =>
-                                    setPasswordData((prev) => ({ ...prev, currentPassword: e.target.value }))
-                                  }
-                                  leftIcon={<Lock className="h-3.5 w-3.5" />}
-                                  rightIcon={
-                                    <button
-                                      type="button"
-                                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                                      className="text-slate-400 hover:text-slate-600 dark:hover:text-gray-300"
-                                    >
-                                      {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                    </button>
-                                  }
-                                  placeholder="请输入当前密码"
-                                />
+                                <div>
+                                  <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">当前密码</label>
+                                  <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" type={showCurrentPassword ? 'text' : 'password'}
+                                    value={passwordData.currentPassword}
+                                    onChange={(val) =>
+                                      setPasswordData((prev) => ({ ...prev, currentPassword: val }))
+                                    }
+                                    prefix={<Lock />}
+                                    suffix={
+                                      <button
+                                        type="button"
+                                        onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                                        className="text-slate-400 hover:text-slate-600 dark:hover:text-gray-300"
+                                      >
+                                        {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                      </button>
+                                    }
+                                    placeholder="请输入当前密码"
+                                    size="large"
+                                  />
+                                </div>
                               ) : (
                                 <div className="space-y-2">
                                   <label className="block text-xs font-medium text-slate-600 dark:text-gray-400">邮箱验证码</label>
                                   <div className="flex gap-2">
                                     <div className="min-w-0 flex-1">
-                                      <Input
-                                        size="sm"
-                                        label=""
-                                        type="text"
+                                      <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" type="text"
                                         value={emailCode}
-                                        onChange={(e) => setEmailCode(e.target.value)}
-                                        leftIcon={<Mail className="h-3.5 w-3.5" />}
+                                        onChange={(val) => setEmailCode(val)}
+                                        prefix={<Mail />}
                                         placeholder="请输入邮箱验证码"
+                                        size="large"
                                       />
                                     </div>
                                     <Button
@@ -1288,44 +1287,46 @@ const Profile = () => {
                                 </div>
                               )}
                               <div className="mt-2 space-y-2">
-                                <Input
-                                  size="sm"
-                                  label="新密码"
-                                  type={showNewPassword ? 'text' : 'password'}
-                                  value={passwordData.newPassword}
-                                  onChange={(e) => setPasswordData((prev) => ({ ...prev, newPassword: e.target.value }))}
-                                  leftIcon={<Lock className="h-3.5 w-3.5" />}
-                                  rightIcon={
-                                    <button
-                                      type="button"
-                                      onClick={() => setShowNewPassword(!showNewPassword)}
-                                      className="text-slate-400 hover:text-slate-600 dark:hover:text-gray-300"
-                                    >
-                                      {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                    </button>
-                                  }
-                                  placeholder="请输入新密码"
-                                />
-                                <Input
-                                  size="sm"
-                                  label="确认新密码"
-                                  type={showConfirmPassword ? 'text' : 'password'}
-                                  value={passwordData.confirmPassword}
-                                  onChange={(e) =>
-                                    setPasswordData((prev) => ({ ...prev, confirmPassword: e.target.value }))
-                                  }
-                                  leftIcon={<Lock className="h-3.5 w-3.5" />}
-                                  rightIcon={
-                                    <button
-                                      type="button"
-                                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                                      className="text-slate-400 hover:text-slate-600 dark:hover:text-gray-300"
-                                    >
-                                      {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                <div>
+                                  <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">新密码</label>
+                                  <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" type={showNewPassword ? 'text' : 'password'}
+                                    value={passwordData.newPassword}
+                                    onChange={(val) => setPasswordData((prev) => ({ ...prev, newPassword: val }))}
+                                    prefix={<Lock />}
+                                    suffix={
+                                      <button
+                                        type="button"
+                                        onClick={() => setShowNewPassword(!showNewPassword)}
+                                        className="text-slate-400 hover:text-slate-600 dark:hover:text-gray-300"
+                                      >
+                                        {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                      </button>
+                                    }
+                                    placeholder="请输入新密码"
+                                    size="large"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">确认新密码</label>
+                                  <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" type={showConfirmPassword ? 'text' : 'password'}
+                                    value={passwordData.confirmPassword}
+                                    onChange={(val) =>
+                                      setPasswordData((prev) => ({ ...prev, confirmPassword: val }))
+                                    }
+                                    prefix={<Lock />}
+                                    suffix={
+                                      <button
+                                        type="button"
+                                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                        className="text-slate-400 hover:text-slate-600 dark:hover:text-gray-300"
+                                      >
+                                        {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                                     </button>
                                   }
                                   placeholder="请再次输入新密码"
+                                  size="large"
                                 />
+                                </div>
                               </div>
                               <div className="mt-3 flex gap-2">
                                 <Button
@@ -1539,6 +1540,7 @@ const Profile = () => {
                 {section === 'credential' && <CredentialManager />}
 
                 {section === 'llm-tokens' && <LLMTokenManager />}
+                {section === 'llm-usage' && <LLMUsagePanel />}
             </FadeIn>
 
       {/* 两步验证设置模态框 */}

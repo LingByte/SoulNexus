@@ -1171,7 +1171,6 @@ export interface AdminAssistant {
   userId: number
   groupId?: number
   name: string
-  description?: string
   systemPrompt?: string
   temperature?: number
   maxTokens?: number
@@ -1887,8 +1886,6 @@ export const createKnowledgeNamespace = async (body: {
   namespace: string
   name: string
   description?: string
-  vectorProvider?: string
-  embedModel: string
   groupId?: number
   status?: string
 }): Promise<KnowledgeNamespaceRow> => {

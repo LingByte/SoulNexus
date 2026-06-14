@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { Select as ArcoSelect } from '@arco-design/web-react'
 import { 
   Key, Plus, Trash2, Download, 
   Settings, CheckCircle,
@@ -7,7 +8,7 @@ import {
 import { useAuthStore } from '../stores/authStore'
 import { useI18nStore } from '../stores/i18nStore'
 import Button from '../components/UI/Button'
-import Input from '../components/UI/Input'
+import { Input as ArcoInput } from '@arco-design/web-react'
 import AutocompleteInput from '../components/UI/AutocompleteInput'
 import Card from '../components/UI/Card'
 import Badge from '../components/UI/Badge'
@@ -23,7 +24,6 @@ import {
 } from '../api/credential'
 import { motion, AnimatePresence } from 'framer-motion'
 import ProviderConfigForm from '../components/Credential/ProviderConfigForm'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/UI/Select'
 import { 
   getTTSProviderConfig, 
   getASRProviderConfig,
@@ -577,11 +577,10 @@ const CredentialManager = () => {
                           <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700 pb-1.5">
                             {t('credential.generalSettings')}
                           </h4>
-                          <Input
-                            label={t('credential.keyName')}
+                          <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" label={t('credential.keyName')}
                             value={form.name}
                             onChange={(e) => handleFormChange("name", e.target.value)}
-                            leftIcon={<Key className="w-4 h-4" />}
+                            leftIcon={<Key />}
                             placeholder={t('credential.keyNamePlaceholder')}
                           />
                         </div>
@@ -609,15 +608,14 @@ const CredentialManager = () => {
                               placeholder={t('credential.providerPlaceholder')}
                               helperText={t('credential.providerHelper')}
                             />
-                            <Input
-                              label={
+                            <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" label={
                                 isCozeProvider(form.llmProvider) ? 'Coze API Token' : 
                                 (isOllamaProvider(form.llmProvider) || isLMStudioProvider(form.llmProvider)) ? 'API Key (可选)' :
                                 t('credential.apiKeyLabel')
                               }
                               value={form.llmApiKey}
                               onChange={(e) => handleFormChange("llmApiKey", e.target.value)}
-                              leftIcon={<Lock className="w-4 h-4" />}
+                              leftIcon={<Lock />}
                               placeholder={
                                 isCozeProvider(form.llmProvider) ? '请输入 Coze API Token' : 
                                 (isOllamaProvider(form.llmProvider) || isLMStudioProvider(form.llmProvider))
@@ -634,37 +632,33 @@ const CredentialManager = () => {
                             />
                             {isCozeProvider(form.llmProvider) ? (
                               <>
-                                <Input
-                                  label="Bot ID"
+                                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" label="Bot ID"
                                   value={form.llmApiUrl}
                                   onChange={(e) => handleFormChange("llmApiUrl", e.target.value)}
-                                  leftIcon={<Settings className="w-4 h-4" />}
+                                  leftIcon={<Settings />}
                                   placeholder="请输入 Coze Bot ID"
                                   helperText="在 Coze 平台上创建的智能体 Bot ID（必需）"
                                 />
-                                <Input
-                                  label="User ID（可选）"
+                                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" label="User ID（可选）"
                                   value={cozeConfig.userId}
                                   onChange={(e) => setCozeConfig(prev => ({ ...prev, userId: e.target.value }))}
-                                  leftIcon={<Settings className="w-4 h-4" />}
+                                  leftIcon={<Settings />}
                                   placeholder="自定义 User ID（留空则自动生成）"
                                   helperText="如果不填写，将自动使用 user_{您的用户ID} 格式"
                                 />
-                                <Input
-                                  label="Base URL（可选）"
+                                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" label="Base URL（可选）"
                                   value={cozeConfig.baseUrl}
                                   onChange={(e) => setCozeConfig(prev => ({ ...prev, baseUrl: e.target.value }))}
-                                  leftIcon={<Globe className="w-4 h-4" />}
+                                  leftIcon={<Globe />}
                                   placeholder="https://api.coze.com"
                                   helperText="Coze API 基础地址（留空使用默认值）"
                                 />
                               </>
                             ) : (
-                              <Input
-                                label={t('credential.apiUrl')}
+                              <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" label={t('credential.apiUrl')}
                                 value={form.llmApiUrl}
                                 onChange={(e) => handleFormChange("llmApiUrl", e.target.value)}
-                                leftIcon={<Globe className="w-4 h-4" />}
+                                leftIcon={<Globe />}
                                 placeholder={
                                   isOllamaProvider(form.llmProvider)
                                     ? 'http://localhost:11434/v1'
@@ -693,25 +687,19 @@ const CredentialManager = () => {
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                               {t('credential.serviceProvider')}
                             </label>
-                            <Select
+                            <ArcoSelect
                               value={asrProvider}
-                              onValueChange={(value) => {
+                              onChange={(value) => {
                                 setAsrProvider(value)
                                 setAsrConfigFields({})
                               }}
-                            >
-                              <SelectTrigger className="w-full">
-                                <SelectValue placeholder={t('credential.selectProvider')} />
-                              </SelectTrigger>
-                              <SelectContent searchable searchPlaceholder="搜索ASR服务商">
-                                <SelectItem value="">{t('credential.selectProvider')}</SelectItem>
-                                {getASRProviderOptions().map((opt) => (
-                                  <SelectItem key={opt.value} value={opt.value}>
-                                    {opt.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                              className="w-full"
+                              placeholder={t('credential.selectProvider')}
+                              options={[
+                                { label: t('credential.selectProvider'), value: '' },
+                                ...getASRProviderOptions()
+                              ]}
+                            />
                           </div>
                           <ProviderConfigForm
                             provider={asrProvider}
@@ -733,25 +721,19 @@ const CredentialManager = () => {
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                               {t('credential.serviceProvider')}
                             </label>
-                            <Select
+                            <ArcoSelect
                               value={ttsProvider}
-                              onValueChange={(value) => {
+                              onChange={(value) => {
                                 setTtsProvider(value)
                                 setTtsConfigFields({})
                               }}
-                            >
-                              <SelectTrigger className="w-full">
-                                <SelectValue placeholder={t('credential.selectProvider')} />
-                              </SelectTrigger>
-                              <SelectContent searchable searchPlaceholder="搜索TTS服务商">
-                                <SelectItem value="">{t('credential.selectProvider')}</SelectItem>
-                                {getTTSProviderOptions().map((opt) => (
-                                  <SelectItem key={opt.value} value={opt.value}>
-                                    {opt.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                              className="w-full"
+                              placeholder={t('credential.selectProvider')}
+                              options={[
+                                { label: t('credential.selectProvider'), value: '' },
+                                ...getTTSProviderOptions()
+                              ]}
+                            />
                           </div>
                           <ProviderConfigForm
                             provider={ttsProvider}
@@ -777,8 +759,7 @@ const CredentialManager = () => {
                               <Button size="sm" variant="outline" onClick={() => handleFormChange("expiresAt", DATE_NEVER)}>1970-01-01 07:59:59</Button>
                               <Button size="sm" variant="ghost" onClick={() => handleFormChange("expiresAt", "")}>清空</Button>
                             </div>
-                            <Input
-                              label="过期时间"
+                            <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" label="过期时间"
                               value={form.expiresAt || ""}
                               onChange={(e) => handleFormChange("expiresAt", e.target.value)}
                               placeholder="YYYY-MM-DD HH:MM:SS"
@@ -802,14 +783,12 @@ const CredentialManager = () => {
                               />
                               <span>无限额度</span>
                             </label>
-                            <Input
-                              label="设置令牌可用额度"
+                            <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" label="设置令牌可用额度"
                               type="number"
                               value={String(form.tokenQuota ?? 0)}
                               onChange={(e) => setForm(prev => ({ ...prev, tokenQuota: Number(e.target.value || 0) }))}
                             />
-                            <Input
-                              label="设置令牌可用数量"
+                            <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" className="!h-10 !text-base ![&::placeholder]:text-base" label="设置令牌可用数量"
                               type="number"
                               value={String(form.requestQuota ?? 0)}
                               onChange={(e) => setForm(prev => ({ ...prev, requestQuota: Number(e.target.value || 0) }))}

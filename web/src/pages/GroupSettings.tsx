@@ -24,11 +24,9 @@ import {
 import { showAlert } from '@/utils/notification';
 import { useAuthStore } from '@/stores/authStore';
 import { useI18nStore } from '@/stores/i18nStore';
-import { ArrowLeft, Save, Trash2, AlertTriangle, Bot, BookOpen, Upload, X, Plus, Edit, Database, Archive, RotateCcw, Copy, Download, Activity } from 'lucide-react';
+import { ArrowLeft, Save, Trash2, AlertTriangle, Bot, Upload, X, Plus, Edit, Database, Archive, RotateCcw, Copy, Download, Activity } from 'lucide-react';
 import Button from '@/components/UI/Button';
 import ConfirmDialog from '@/components/UI/ConfirmDialog';
-import QuotaModal from '@/components/Quota/QuotaModal';
-import DeleteConfirmModal from '@/components/Quota/DeleteConfirmModal';
 const GroupSettings: React.FC = () => {
   const { t } = useI18nStore();
   const { id } = useParams<{ id: string }>();
@@ -44,8 +42,6 @@ const GroupSettings: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [quotas, setQuotas] = useState<GroupQuota[]>([]);
   const [loadingQuotas, setLoadingQuotas] = useState(false);
-  const [showQuotaModal, setShowQuotaModal] = useState(false);
-  const [editingQuota, setEditingQuota] = useState<GroupQuota | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deletingQuotaType, setDeletingQuotaType] = useState<string | null>(null);
   const [deletingLoading, setDeletingLoading] = useState(false);
@@ -325,12 +321,13 @@ const GroupSettings: React.FC = () => {
           <AlertTriangle className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
           <div className="text-gray-400 text-lg mb-2">{t('groupSettings.insufficientPermissions')}</div>
           <div className="text-gray-500 text-sm mb-6">{t('groupSettings.insufficientPermissionsDesc')}</div>
-          <button
+          <Button
             onClick={() => navigate('/profile/teams')}
-            className="px-6 py-3 rounded-lg bg-purple-600 text-white hover:bg-purple-700 transition-colors"
+            variant="primary"
+            size="lg"
           >
             {t('groupSettings.backToList')}
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -607,8 +604,7 @@ const GroupSettings: React.FC = () => {
                         className="p-4 border border-gray-200 dark:border-neutral-700 rounded-lg hover:border-purple-400 transition-colors cursor-pointer"
                         onClick={() => navigate(`/voice-assistant/${assistant.id}`)}
                       >
-                        <div className="font-medium text-gray-900 dark:text-gray-100 mb-1">{assistant.name}</div>
-                        <div className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2">{assistant.description}</div>
+                        <div className="font-medium text-gray-900 dark:text-gray-100">{assistant.name}</div>
                       </div>
                     ))}
                   </div>
@@ -630,8 +626,7 @@ const GroupSettings: React.FC = () => {
             </h2>
             <Button
               onClick={() => {
-                setEditingQuota(null);
-                setShowQuotaModal(true);
+                showAlert('配额管理功能已禁用', 'info');
               }}
               variant="primary"
               size="sm"
@@ -710,8 +705,7 @@ const GroupSettings: React.FC = () => {
                       <div className="flex items-center gap-2 ml-4">
                         <Button
                           onClick={() => {
-                            setEditingQuota(quota);
-                            setShowQuotaModal(true);
+                            showAlert('配额管理功能已禁用', 'info');
                           }}
                           variant="ghost"
                           size="sm"
@@ -771,30 +765,12 @@ const GroupSettings: React.FC = () => {
       </div>
 
       {/* 配额管理弹窗 */}
-      {showQuotaModal && (
-        <QuotaModal
-          isOpen={showQuotaModal}
-          onClose={() => {
-            setShowQuotaModal(false);
-            setEditingQuota(null);
-          }}
-          groupId={Number(id)}
-          quota={editingQuota}
-          onSuccess={() => {
-            fetchQuotas();
-          }}
-        />
-      )}
-
-      {/* 删除确认弹窗 */}
-      <DeleteConfirmModal
+      <ConfirmDialog
         isOpen={showDeleteConfirm}
         onClose={() => {
           setShowDeleteConfirm(false);
           setDeletingQuotaType(null);
         }}
-        quotaType={deletingQuotaType || ''}
-        loading={deletingLoading}
         onConfirm={async () => {
           if (!id || !deletingQuotaType) return;
           try {
@@ -810,6 +786,11 @@ const GroupSettings: React.FC = () => {
             setDeletingLoading(false);
           }
         }}
+        title={t('groupSettings.messages.deleteConfirm')}
+        message={`${t('groupSettings.messages.deleteQuotaWarning')}\n${deletingQuotaType || ''}`}
+        confirmText={t('alertRules.delete')}
+        cancelText={t('groups.createModal.cancel')}
+        type="warning"
       />
     </div>
   );

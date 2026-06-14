@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AlertTriangle, CheckCircle2, AlertCircle, Info, X, Filter, RefreshCw } from 'lucide-react';
 import Badge from '@/components/UI/Badge';
-import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/UI/Select';
+import { Select as ArcoSelect } from '@arco-design/web-react';
 import { resolveDeviceError } from '@/api/device';
 import { showAlert } from '@/utils/notification';
 
@@ -128,41 +128,35 @@ const ErrorLogsPanel: React.FC<ErrorLogsPanelProps> = ({ errorLogs, onRefresh, i
             <div className="flex flex-wrap gap-2 items-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
                 <Filter className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                 
-                <Select
+                <ArcoSelect
                     value={selectedErrorType}
-                    onValueChange={setSelectedErrorType}
-                    className="min-w-[8.5rem] shrink-0"
+                    onChange={setSelectedErrorType}
+                    placeholder="所有类型"
+                    style={{ minWidth: '8.5rem' }}
+                    size="small"
                 >
-                    <SelectTrigger className="h-9 border-gray-300 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100">
-                        <SelectValue placeholder="所有类型" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="">所有类型</SelectItem>
-                        {errorTypes.map((type) => (
-                            <SelectItem key={type} value={type}>
-                                {type}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                    <ArcoSelect.Option value="">所有类型</ArcoSelect.Option>
+                    {errorTypes.map((type) => (
+                        <ArcoSelect.Option key={type} value={type}>
+                            {type}
+                        </ArcoSelect.Option>
+                    ))}
+                </ArcoSelect>
 
-                <Select
+                <ArcoSelect
                     value={selectedErrorLevel}
-                    onValueChange={setSelectedErrorLevel}
-                    className="min-w-[8.5rem] shrink-0"
+                    onChange={setSelectedErrorLevel}
+                    placeholder="所有级别"
+                    style={{ minWidth: '8.5rem' }}
+                    size="small"
                 >
-                    <SelectTrigger className="h-9 border-gray-300 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100">
-                        <SelectValue placeholder="所有级别" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="">所有级别</SelectItem>
-                        {errorLevels.map((level) => (
-                            <SelectItem key={level} value={level}>
-                                {level}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                    <ArcoSelect.Option value="">所有级别</ArcoSelect.Option>
+                    {errorLevels.map((level) => (
+                        <ArcoSelect.Option key={level} value={level}>
+                            {level}
+                        </ArcoSelect.Option>
+                    ))}
+                </ArcoSelect>
 
                 <label className="flex items-center gap-2 text-sm cursor-pointer">
                     <input

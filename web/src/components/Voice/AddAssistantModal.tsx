@@ -6,23 +6,22 @@ import { getGroupList, type Group } from '@/api/group'
 import { useAuthStore } from '@/stores/authStore'
 import { useI18nStore } from '@/stores/i18nStore'
 import Button from '@/components/UI/Button'
-import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/UI/Select'
+import { Select as ArcoSelect } from '@arco-design/web-react'
 
 interface AddAssistantModalProps {
   isOpen: boolean
   onClose: () => void
-  onAdd: (assistant: { name: string; description: string; groupId?: number | null }) => void
+  onAdd: (assistant: { name: string; groupId?: number | null }) => void
 }
 
 const AddAssistantModal: React.FC<AddAssistantModalProps> = ({ isOpen, onClose, onAdd }) => {
   const { user } = useAuthStore()
   const { t } = useI18nStore()
   const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
   const [groups, setGroups] = useState<Group[]>([])
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null)
   const [shareToGroup, setShareToGroup] = useState(false)
-  const [errors, setErrors] = useState<{ name?: string; description?: string }>({})
+  const [errors, setErrors] = useState<{ name?: string }>({})
 
   useEffect(() => {
     if (isOpen) {
@@ -46,12 +45,9 @@ const AddAssistantModal: React.FC<AddAssistantModalProps> = ({ isOpen, onClose, 
   }
 
   const validateForm = () => {
-    const newErrors: { name?: string; description?: string } = {}
+    const newErrors: { name?: string } = {}
     if (!name.trim()) {
       newErrors.name = t('assistants.validation.nameRequired') || '请输入智能体名称'
-    }
-    if (!description.trim()) {
-      newErrors.description = t('assistants.validation.descriptionRequired') || '请输入智能体描述'
     }
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
@@ -61,11 +57,9 @@ const AddAssistantModal: React.FC<AddAssistantModalProps> = ({ isOpen, onClose, 
     if (!validateForm()) return
     onAdd({
       name,
-      description,
       groupId: shareToGroup && selectedGroupId ? selectedGroupId : null,
     })
     setName('')
-    setDescription('')
     setShareToGroup(false)
     setSelectedGroupId(null)
     setErrors({})
@@ -106,32 +100,6 @@ const AddAssistantModal: React.FC<AddAssistantModalProps> = ({ isOpen, onClose, 
                   <div className="mt-1 flex items-center gap-1 text-xs text-red-600 dark:text-red-400">
                     <AlertCircle className="h-3 w-3" />
                     {errors.name}
-                  </div>
-                )}
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  {t('assistants.description') || '智能体描述'}
-                </label>
-                <textarea
-                  value={description}
-                  onChange={(e) => {
-                    setDescription(e.target.value)
-                    if (errors.description) setErrors({ ...errors, description: undefined })
-                  }}
-                  rows={2}
-                  className={cn(
-                    'w-full resize-none rounded-lg border px-3 py-2 transition-colors dark:bg-neutral-700 dark:text-gray-100',
-                    errors.description
-                      ? 'border-red-500 bg-red-50 dark:border-red-500 dark:bg-red-900/10'
-                      : 'border-gray-300 dark:border-neutral-600',
-                  )}
-                  placeholder={t('assistants.descriptionPlaceholder') || '请输入智能体描述'}
-                />
-                {errors.description && (
-                  <div className="mt-1 flex items-center gap-1 text-xs text-red-600 dark:text-red-400">
-                    <AlertCircle className="h-3 w-3" />
-                    {errors.description}
                   </div>
                 )}
               </div>

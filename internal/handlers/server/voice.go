@@ -27,7 +27,7 @@ import (
 	parser2 "github.com/LingByte/SoulNexus/pkg/parser"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/stores"
-	"github.com/LingByte/SoulNexus/pkg/synthesizer"
+	"github.com/LingByte/lingllm/synthesizer"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/LingByte/SoulNexus/pkg/voiceclone"
 	"github.com/gin-gonic/gin"
@@ -1227,6 +1227,10 @@ func (h *Handlers) getFishSpeechVoices(c *gin.Context) {
 
 	// 如果没有从查询参数获取，尝试从 user_credential 中获取
 	if apiKey == "" {
+		if h.rpc == nil || h.rpc.Auth == nil {
+			response.Fail(c, "auth 服务不可用", "请先启动 auth 服务")
+			return
+		}
 		credentials, err := h.rpc.Auth.ListUserCredentials(c.Request.Context(), user.ID)
 		if err != nil {
 			logrus.WithError(err).Errorf("获取用户凭证失败")
@@ -1289,6 +1293,10 @@ func (h *Handlers) getFishAudioVoices(c *gin.Context) {
 
 	// 如果没有从查询参数获取，尝试从 user_credential 中获取
 	if apiKey == "" {
+		if h.rpc == nil || h.rpc.Auth == nil {
+			response.Fail(c, "auth 服务不可用", "请先启动 auth 服务")
+			return
+		}
 		credentials, err := h.rpc.Auth.ListUserCredentials(c.Request.Context(), user.ID)
 		if err != nil {
 			logrus.WithError(err).Errorf("获取用户凭证失败")
@@ -2269,7 +2277,7 @@ func (h *Handlers) processAudioAsyncV2(ctx context.Context, credential *auth.Use
 		}
 	}
 
-	ttsService, err := synthesizer.NewSynthesisServiceFromCredential(ttsConfig)
+	ttsService, err := synthesizer.NewAudioSynthesisEngineFromCredential(ttsConfig)
 	if err != nil {
 		fmt.Printf("[V2] 无法创建TTS服务: %v\n", err)
 		audioCacheMutex.Lock()

@@ -1,10 +1,11 @@
 package svcmodels
+
 // Copyright (c) 2026 LingByte. All rights reserved.
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"github.com/LingByte/SoulNexus/internal/models"
 	auth "github.com/LingByte/SoulNexus/internal/models/auth"
-
 
 	"fmt"
 	"testing"
@@ -12,14 +13,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
-	"github.com/LingByte/SoulNexus/internal/modelbase"
 )
 
 func ensureTestTeamGroup(t *testing.T, db *gorm.DB, userID uint) uint {
 	t.Helper()
 	g := Group{Name: fmt.Sprintf("test-org-%d", userID), Type: GroupTypeTeam, CreatorID: userID}
 	require.NoError(t, db.Create(&g).Error)
-	require.NoError(t, db.Create(&GroupMember{UserID: userID, GroupID: g.ID, Role: modelbase.GroupRoleAdmin}).Error)
+	require.NoError(t, db.Create(&GroupMember{UserID: userID, GroupID: g.ID, Role: models.GroupRoleAdmin}).Error)
 	return g.ID
 }
 

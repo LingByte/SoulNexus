@@ -12,8 +12,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/LingByte/SoulNexus/pkg/media"
-	"github.com/LingByte/SoulNexus/pkg/recognizer"
+	"github.com/LingByte/lingllm/media"
+	"github.com/LingByte/lingllm/recognizer"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/vad"
 	"go.uber.org/zap"
 )
@@ -31,7 +31,7 @@ type ErrorCallback func(err error, fatal bool)
 // Options configures a Pipeline.
 type Options struct {
 	// ASR is the underlying recognizer. Required.
-	ASR recognizer.TranscribeService
+	ASR recognizer.SpeechRecognitionEngine
 
 	// InputSampleRate is the sample rate of PCM16 bytes handed to ProcessPCM.
 	// 0 means "same as SampleRate" (no resample).
@@ -246,7 +246,7 @@ func (p *Pipeline) ProcessPCM(ctx context.Context, data []byte) error {
 
 	// SendAudioBytes may block on the websocket writer; serialize to preserve order.
 	p.feedMu.Lock()
-	err := p.opt.ASR.SendAudioBytes(toSend)
+	err := p.sendAudioLocked(ctx, toSend)
 	p.feedMu.Unlock()
 	if err != nil {
 		p.emitError(err, false)
@@ -269,7 +269,7 @@ func (p *Pipeline) Flush() error {
 		return nil
 	}
 	p.feedMu.Lock()
-	err := p.opt.ASR.SendAudioBytes(pending)
+	err := p.sendAudioLocked(context.Background(), pending)
 	p.feedMu.Unlock()
 	return err
 }
@@ -378,6 +378,49 @@ func (p *Pipeline) denoiseHook() Denoiser {
 	p.denoiseMu.RLock()
 	defer p.denoiseMu.RUnlock()
 	return p.denoise
+}
+
+// isRecoverableASRErr reports vendor errors where the recognizer session
+// died (typically idle timeout during long TTS playback) but can be
+// transparently restarted without tearing down the call.
+func isRecoverableASRErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "recognizer") && strings.Contains(msg, "not running")
+}
+
+// sendAudioLocked forwards PCM to the recognizer and, on a stale-session
+// error, reconnects once and retries. Caller must hold feedMu.
+func (p *Pipeline) sendAudioLocked(ctx context.Context, data []byte) error {
+	err := p.opt.ASR.SendAudioBytes(data)
+	if err == nil || !isRecoverableASRErr(err) {
+		return err
+	}
+	p.log.Debug("voice/asr: recognizer stale, restarting", zap.Error(err))
+	if restartErr := p.restartLocked(ctx); restartErr != nil {
+		return err
+	}
+	return p.opt.ASR.SendAudioBytes(data)
+}
+
+// restartLocked tears down and reconnects the recognizer. Caller must
+// hold feedMu so no other feed is in flight during the swap.
+func (p *Pipeline) restartLocked(ctx context.Context) error {
+	if p.closed.Load() {
+		return errors.New("voice/asr: pipeline closed")
+	}
+	if ctx != nil && ctx.Err() != nil {
+		return ctx.Err()
+	}
+	if p.connected.Load() {
+		_ = p.opt.ASR.SendEnd()
+		_ = p.opt.ASR.StopConn()
+	}
+	p.connected.Store(false)
+	p.connect = sync.Once{}
+	return p.connectOnce()
 }
 
 func (p *Pipeline) emitText(text string, isFinal bool) {

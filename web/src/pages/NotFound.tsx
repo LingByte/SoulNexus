@@ -2,7 +2,7 @@ import { motion } from 'framer-motion'
 import { Home, ArrowLeft, Search } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import Button from '../components/UI/Button'
-import FadeIn from '../components/Animations/FadeIn'
+import FadeIn from '../components/FadeIn.tsx'
 import { useI18nStore } from '../stores/i18nStore'
 
 const NotFound = () => {

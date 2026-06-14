@@ -1,5 +1,4 @@
 import { BrowserRouter as Router, Route, Routes, Navigate, useLocation } from 'react-router-dom';
-import { useState } from 'react';
 import Home from '@/pages/Home.tsx';
 import NotFound from "@/pages/NotFound.tsx";
 import PWAInstaller from "@/components/PWA/PWAInstaller.tsx";
@@ -10,11 +9,8 @@ import VoiceTrainingXunfei from "@/pages/VoiceTraining/VoiceTrainingXunfei.tsx";
 import VoiceTrainingVolcengine from "@/pages/VoiceTraining/VoiceTrainingVolcengine.tsx";
 import DevErrorHandler from "@/components/Dev/DevErrorHandler.tsx";
 import GlobalSearch from "@/components/UI/GlobalSearch.tsx";
-import NotificationContainer from "@/components/UI/NotificationContainer.tsx";
-import { ToastProvider } from "@/components/UI/ToastContainer.tsx";
 import Profile from "@/pages/Profile.tsx";
 import ProfileLayout from '@/pages/profile/ProfileLayout.tsx';
-import AnimationShowcase from "@/pages/AnimationShowcase.tsx";
 import Layout from "@/components/Layout/Layout.tsx";
 import ResetPassword from "@/pages/ResetPassword.tsx";
 import ProtectedRoute from "@/components/Auth/ProtectedRoute.tsx";
@@ -38,9 +34,9 @@ import Terms from '@/pages/Terms.tsx';
 import CookieConsent from '@/components/CookieConsent.tsx';
 import OIDCCallback from '@/pages/OIDCCallback.tsx';
 import AccountDeletionRequest from '@/pages/AccountDeletionRequest.tsx';
+import Playground from '@/pages/Playground.tsx';
 
 function AppRoutes() {
-    const [showPerformanceMonitor, setShowPerformanceMonitor] = useState(false);
     const location = useLocation();
     const isHomePage = location.pathname === '/';
     
@@ -91,6 +87,13 @@ function AppRoutes() {
                         {/* Redirect old device-management URLs to new devices URLs */}
                         <Route path="/device-management" element={<Navigate to="/devices" replace />} />
                         <Route path="/device-management/:deviceId" element={<RedirectToDevices />} />
+                        <Route path="/playground" element={
+                            <ProtectedRoute>
+                                <Layout>
+                                    <Playground />
+                                </Layout>
+                            </ProtectedRoute>
+                        } />
                         <Route path="/assistants" element={
                             <ProtectedRoute>
                                 <Layout>
@@ -124,13 +127,6 @@ function AppRoutes() {
                             <ProtectedRoute>
                                 <Layout>
                                     <VoiceTrainingVolcengine />
-                                </Layout>
-                            </ProtectedRoute>
-                        } />
-                        <Route path="/animate" element={
-                            <ProtectedRoute>
-                                <Layout>
-                                    <AnimationShowcase />
                                 </Layout>
                             </ProtectedRoute>
                         } />
@@ -240,9 +236,6 @@ function AppRoutes() {
                         />
                     )}
 
-                    {/* 自定义通知系统 */}
-                    <NotificationContainer />
-
                     {/* 开发环境错误处理 */}
                     <DevErrorHandler />
 
@@ -251,52 +244,6 @@ function AppRoutes() {
 
                     {/* Cookie 同意弹窗 */}
                     <CookieConsent />
-
-                    {/* 性能监控 */}
-                    <div className="fixed -left-4 top-1/2 transform -translate-y-1/2 z-50">
-                        <div className="relative">
-                            {/* 小触发按钮 */}
-                            <button 
-                                className="w-8 h-8 bg-black/80 hover:bg-black text-white rounded-full flex items-center justify-center text-xs font-bold border border-gray-600 hover:scale-110 transition-all duration-200"
-                                onClick={() => setShowPerformanceMonitor(!showPerformanceMonitor)}
-                            >
-                                P
-                            </button>
-                            
-                            {/* 展开的性能监控面板 */}
-                            {showPerformanceMonitor && (
-                                <div className="absolute left-10 top-0 w-80 h-48 bg-black/95 rounded-lg p-4 text-white text-xs border border-gray-600 shadow-2xl z-50">
-                                    <div className="flex justify-between items-center mb-3">
-                                        <div className="font-bold text-sm">性能监控</div>
-                                        <button 
-                                            className="text-gray-400 hover:text-white text-lg"
-                                            onClick={() => setShowPerformanceMonitor(false)}
-                                        >
-                                            ×
-                                        </button>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <div className="flex justify-between">
-                                            <span>FPS:</span>
-                                            <span className="text-green-400">60</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span>内存使用:</span>
-                                            <span className="text-blue-400">45MB</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span>网络状态:</span>
-                                            <span className="text-green-400">正常</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span>CPU使用率:</span>
-                                            <span className="text-yellow-400">15%</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
         </div>
     );
 }
@@ -304,11 +251,9 @@ function AppRoutes() {
 function App() {
     return (
         <ErrorBoundary>
-            <ToastProvider>
-                <Router>
-                    <AppRoutes />
-                </Router>
-            </ToastProvider>
+            <Router>
+                <AppRoutes />
+            </Router>
         </ErrorBoundary>
     );
 }

@@ -36,17 +36,19 @@ type Detector struct {
 // 16 kHz PCM frames from a typical VoIP microphone. Defaults:
 //
 //   - enabled = true
-//   - threshold = 1500 RMS (int16 units)
-//   - consecutive frames needed = 1 (fire on first over-threshold)
+//   - threshold = 4500 RMS (int16 units) — high enough to ignore
+//     speaker echo on uncancelled hardware mics
+//   - consecutive frames needed = 5 (~100 ms sustained speech at
+//     20 ms frames; scales with whatever chunk size the ASR feed uses)
 //   - adaptive noise floor tracked over the last 20 quiet frames
 //
 // Call the Set* methods to tune for a specific transport profile.
 func NewDetector() *Detector {
 	return &Detector{
 		enabled:                 true,
-		threshold:               1500.0,
+		threshold:               4500.0,
 		adaptiveThreshold:       0,
-		consecutiveFramesNeeded: 1,
+		consecutiveFramesNeeded: 5,
 		frameCounter:            0,
 		lastLogTime:             time.Now(),
 		noiseLevel:              0,
@@ -104,9 +106,9 @@ func (v *Detector) CheckBargeIn(pcmData []byte, synthPlaying bool) bool {
 		}
 		if len(v.noiseSamples) > 0 {
 			v.noiseLevel = sum / float64(len(v.noiseSamples))
-			v.adaptiveThreshold = v.noiseLevel * 4.0
-			if v.adaptiveThreshold < 180 {
-				v.adaptiveThreshold = 180
+			v.adaptiveThreshold = v.noiseLevel * 6.0
+			if v.adaptiveThreshold < 300 {
+				v.adaptiveThreshold = 300
 			}
 			if v.adaptiveThreshold > v.threshold {
 				v.adaptiveThreshold = v.threshold
@@ -117,11 +119,11 @@ func (v *Detector) CheckBargeIn(pcmData []byte, synthPlaying bool) bool {
 	effectiveThreshold := v.threshold
 	if v.adaptiveThreshold > 0 {
 		// Floor the adaptive threshold so a very quiet room doesn't
-		// end up tripping on every keystroke. 65% of the configured
-		// ceiling or 300 RMS, whichever is larger.
-		minAdaptiveFloor := v.threshold * 0.65
-		if minAdaptiveFloor < 300 {
-			minAdaptiveFloor = 300
+		// end up tripping on every keystroke. 80% of the configured
+		// ceiling or 800 RMS, whichever is larger.
+		minAdaptiveFloor := v.threshold * 0.80
+		if minAdaptiveFloor < 800 {
+			minAdaptiveFloor = 800
 		}
 		effectiveThreshold = v.adaptiveThreshold
 		if effectiveThreshold < minAdaptiveFloor {

@@ -16,8 +16,6 @@
 package server
 
 import (
-	"github.com/LingByte/SoulNexus/internal/models/auth"
-	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"bytes"
 	"context"
 	"crypto/md5"
@@ -35,32 +33,31 @@ import (
 	"sync"
 	"time"
 
+	"github.com/LingByte/SoulNexus/internal/models/auth"
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
+
 	"github.com/LingByte/SoulNexus/internal/config"
-	"github.com/LingByte/SoulNexus/pkg/knowledge"
-	"github.com/LingByte/SoulNexus/pkg/llm"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	knowledgeParser "github.com/LingByte/SoulNexus/pkg/parser"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/stores"
-	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/LingByte/SoulNexus/pkg/utils/search"
+	lingembedder "github.com/LingByte/lingllm/embedder"
+	lingknowledge "github.com/LingByte/lingllm/knowledge"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
-// ============================================================================
-// Helpers (shared)
-// ============================================================================
-
-func normalizeVec64InPlace(v []float64) {
+func normalizeVec32InPlace(v []float32) {
 	if len(v) == 0 {
 		return
 	}
 	var sum float64
 	for _, x := range v {
-		sum += x * x
+		f := float64(x)
+		sum += f * f
 	}
 	if sum <= 0 {
 		return
@@ -70,19 +67,12 @@ func normalizeVec64InPlace(v []float64) {
 		return
 	}
 	for i := range v {
-		v[i] = v[i] / n
+		v[i] = float32(float64(v[i]) / n)
 	}
 }
 
-func knowledgeProviderForLog(ns *svcmodels.KnowledgeNamespace) string {
-	if ns == nil {
-		return ""
-	}
-	p := strings.TrimSpace(strings.ToLower(ns.VectorProvider))
-	if p == "" {
-		p = svcmodels.KnowledgeVectorProviderQdrant
-	}
-	return p
+func knowledgeProviderForLog(_ *svcmodels.KnowledgeNamespace) string {
+	return config.VectorProviderFromEnv()
 }
 
 var (
@@ -93,10 +83,7 @@ var (
 
 func knowledgeSearchFromEnv() (search.Engine, error) {
 	knowledgeSearchOnce.Do(func() {
-		path := strings.TrimSpace(utils.GetEnv("KNOWLEDGE_SEARCH_INDEX_PATH"))
-		if path == "" {
-			path = "./data/knowledge_search.bleve"
-		}
+		path := config.SearchIndexPath()
 		_ = os.MkdirAll(filepath.Dir(path), 0o755)
 		eng, err := search.New(search.Config{
 			IndexPath:           path,
@@ -115,74 +102,11 @@ func knowledgeSearchFromEnv() (search.Engine, error) {
 	return knowledgeSearchEngine, knowledgeSearchErr
 }
 
-func knowledgeHandlerForNS(ns *svcmodels.KnowledgeNamespace, embedder knowledge.Embedder) (knowledge.KnowledgeHandler, error) {
+func knowledgeHandlerForNS(ns *svcmodels.KnowledgeNamespace, emb lingembedder.Embedder) (lingknowledge.KnowledgeHandler, error) {
 	if ns == nil {
 		return nil, errors.New("nil namespace")
 	}
-	return knowledge.NewKnowledgeHandler(knowledge.HandlerFactoryParams{
-		Provider:  ns.VectorProvider,
-		Namespace: strings.TrimSpace(ns.Namespace),
-		Embedder:  embedder,
-	})
-}
-
-// embedderFromEnv builds an embedding client from env vars (EMBED_*).
-func embedderFromEnv() (knowledge.Embedder, error) {
-	baseURL := strings.TrimSpace(utils.GetEnv("EMBED_BASEURL"))
-	apiKey := strings.TrimSpace(utils.GetEnv("EMBED_API_KEY"))
-	model := strings.TrimSpace(utils.GetEnv("EMBED_MODEL"))
-	inputKey := strings.TrimSpace(utils.GetEnv("EMBED_INPUT_KEY"))
-	embPath := strings.TrimSpace(utils.GetEnv("EMBED_EMBEDDINGS_PATH"))
-	if baseURL == "" || apiKey == "" || model == "" {
-		return nil, errors.New("embedder env required: EMBED_BASEURL, EMBED_API_KEY, EMBED_MODEL")
-	}
-	timeoutSec := int64(30)
-	if raw := strings.TrimSpace(utils.GetEnv("EMBED_TIMEOUT_SECONDS")); raw != "" {
-		if n, err := strconv.ParseInt(raw, 10, 64); err == nil && n > 0 {
-			timeoutSec = n
-		}
-	}
-	return &knowledge.NvidiaEmbedClient{
-		BaseURL:        baseURL,
-		APIKey:         apiKey,
-		Model:          model,
-		InputKey:       inputKey,
-		EmbeddingsPath: embPath,
-		HTTPClient:     &http.Client{Timeout: time.Duration(timeoutSec) * time.Second},
-	}, nil
-}
-
-// chunkerFromEnv returns a routing chunker, optionally with an LLM arm for unstructured docs.
-func chunkerFromEnv() (knowledge.Chunker, string, error) {
-	var llmArm knowledge.Chunker
-	provider := strings.TrimSpace(utils.GetEnv("LLM_PROVIDER"))
-	apiKey := strings.TrimSpace(utils.GetEnv("LLM_API_KEY"))
-	baseURL := strings.TrimSpace(utils.GetEnv("LLM_BASEURL"))
-	model := strings.TrimSpace(utils.GetEnv("LLM_MODEL"))
-	if provider != "" && apiKey != "" && baseURL != "" && model != "" {
-		systemPrompt := strings.TrimSpace(utils.GetEnv("LLM_SYSTEM_PROMPT"))
-		h, err := llm.NewLLMProvider(context.Background(), provider, apiKey, baseURL, systemPrompt)
-		if err == nil {
-			llmArm = &knowledge.LLMChunker{LLM: h, Model: model}
-		}
-	}
-	r := knowledge.DefaultRoutingChunker(llmArm)
-	var msg string
-	if llmArm != nil {
-		msg = fmt.Sprintf("RoutingChunker: structured+table_kv+llm (LLM provider=%s model=%s)", provider, model)
-	} else {
-		msg = "RoutingChunker: structured+table_kv+rules"
-	}
-	return r, msg, nil
-}
-
-func knowledgeChunkOpts(docTitle string) *knowledge.ChunkOptions {
-	return &knowledge.ChunkOptions{
-		DocumentTitle: strings.TrimSpace(docTitle),
-		MaxChars:      knowledge.DefaultChunkMaxChars,
-		OverlapChars:  knowledge.DefaultChunkOverlapChars,
-		MinChars:      knowledge.DefaultChunkMinChars,
-	}
+	return config.NewHandler(ns.Namespace, emb)
 }
 
 func parseRecordIDs(s string) []string {
@@ -214,9 +138,6 @@ func parseRecordIDs(s string) []string {
 
 // uploadMarkdownToStore uploads a markdown text blob to object storage and returns its URL.
 func uploadMarkdownToStore(groupID uint, namespace string, docID int64, filename, mdText string) (string, error) {
-	if config.GlobalConfig == nil {
-		return "", errors.New("storage not initialized")
-	}
 	ns := strings.TrimSpace(namespace)
 	if ns == "" {
 		ns = "default"
@@ -319,14 +240,12 @@ func (h *Handlers) knowledgeDocFinalizeFailed(docID int64) {
 
 // KnowledgeNamespaceUpsertReq create/update knowledge base.
 type KnowledgeNamespaceUpsertReq struct {
-	Namespace      string  `json:"namespace" binding:"required,max=128"`
-	Name           string  `json:"name" binding:"required,max=255"`
-	Description    string  `json:"description"`
-	VectorProvider string  `json:"vectorProvider"`
-	EmbedModel     string  `json:"embedModel" binding:"max=64"`
-	VectorDim      int     `json:"vectorDim"`
-	Status         *string `json:"status"`
-	GroupID        *uint   `json:"groupId,omitempty"`
+	Namespace   string  `json:"namespace" binding:"required,max=128"`
+	Name        string  `json:"name" binding:"required,max=255"`
+	Description string  `json:"description"`
+	VectorDim   int     `json:"vectorDim"`
+	Status      *string `json:"status"`
+	GroupID     *uint   `json:"groupId,omitempty"`
 }
 
 // KnowledgeDocumentUpsertReq metadata-only document upsert.
@@ -555,7 +474,7 @@ func (h *Handlers) knowledgeNamespaceCreateHandler(c *gin.Context) {
 		response.Fail(c, "resolve group failed", err.Error())
 		return
 	}
-	vp := svcmodels.NormalizeVectorProvider(req.VectorProvider)
+	vp := config.VectorProviderFromEnv()
 	var status string
 	if req.Status != nil {
 		status = strings.TrimSpace(*req.Status)
@@ -564,19 +483,18 @@ func (h *Handlers) knowledgeNamespaceCreateHandler(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
 	defer cancel()
 
-	embedder, err := embedderFromEnv()
+	embedder, err := config.EmbedderFromEnv()
 	if err != nil {
 		response.Fail(c, "embedder not configured", err.Error())
 		return
 	}
-	probe, err := embedder.Embed(ctx, []string{"dimension_probe"})
-	if err != nil || len(probe) == 0 || len(probe[0]) == 0 {
-		response.Fail(c, "embedding model unavailable", fmt.Sprintf("%v", err))
+	realDim, err := config.ProbeEmbeddingDimension(ctx, embedder)
+	if err != nil {
+		response.Fail(c, "embedding model unavailable", err.Error())
 		return
 	}
-	realDim := len(probe[0])
 
-	tmpNS := &svcmodels.KnowledgeNamespace{VectorProvider: vp, Namespace: strings.TrimSpace(req.Namespace)}
+	tmpNS := &svcmodels.KnowledgeNamespace{Namespace: strings.TrimSpace(req.Namespace)}
 	kh, err := knowledgeHandlerForNS(tmpNS, embedder)
 	if err != nil {
 		response.Fail(c, "vector backend unavailable", err.Error())
@@ -586,7 +504,11 @@ func (h *Handlers) knowledgeNamespaceCreateHandler(c *gin.Context) {
 		response.Fail(c, "vector backend ping failed", gin.H{"provider": vp, "error": err.Error()})
 		return
 	}
-	if vp == svcmodels.KnowledgeVectorProviderQdrant {
+	if config.UsesQdrant() {
+		if err := config.ValidateEmbeddingDim(ctx, req.Namespace, realDim, realDim, kh); err != nil {
+			response.Fail(c, "vector dimension incompatible with existing qdrant collection", err.Error())
+			return
+		}
 		if err := kh.CreateNamespace(ctx, strings.TrimSpace(req.Namespace)); err != nil {
 			response.Fail(c, "create namespace failed (qdrant)", err.Error())
 			return
@@ -594,16 +516,14 @@ func (h *Handlers) knowledgeNamespaceCreateHandler(c *gin.Context) {
 	}
 
 	row, err := svcmodels.UpsertKnowledgeNamespace(h.db, gid, user.ID, 0, &svcmodels.KnowledgeNamespaceCreateUpdate{
-		Namespace:      req.Namespace,
-		Name:           req.Name,
-		Description:    req.Description,
-		VectorProvider: vp,
-		EmbedModel:     req.EmbedModel,
-		VectorDim:      realDim,
-		Status:         status,
+		Namespace:   req.Namespace,
+		Name:        req.Name,
+		Description: req.Description,
+		VectorDim:   realDim,
+		Status:      status,
 	})
 	if err != nil {
-		if vp == svcmodels.KnowledgeVectorProviderQdrant {
+		if config.UsesQdrant() {
 			_ = kh.DeleteNamespace(context.Background(), strings.TrimSpace(req.Namespace))
 		}
 		response.Fail(c, "create failed", err.Error())
@@ -638,10 +558,6 @@ func (h *Handlers) knowledgeNamespaceUpdateHandler(c *gin.Context) {
 		response.FailWithCode(c, 400, "namespace immutable", "vector backend collection cannot be renamed")
 		return
 	}
-	if svcmodels.NormalizeVectorProvider(req.VectorProvider) != svcmodels.NormalizeVectorProvider(existing.VectorProvider) {
-		response.FailWithCode(c, 400, "vector_provider immutable", nil)
-		return
-	}
 	if existing.VectorDim > 0 && req.VectorDim > 0 && existing.VectorDim != req.VectorDim {
 		response.FailWithCode(c, 400, "vector_dim immutable", gin.H{"current": existing.VectorDim, "got": req.VectorDim})
 		return
@@ -651,13 +567,11 @@ func (h *Handlers) knowledgeNamespaceUpdateHandler(c *gin.Context) {
 		status = strings.TrimSpace(*req.Status)
 	}
 	row, err := svcmodels.UpsertKnowledgeNamespace(h.db, existing.GroupID, existing.CreatedBy, id, &svcmodels.KnowledgeNamespaceCreateUpdate{
-		Namespace:      req.Namespace,
-		Name:           req.Name,
-		Description:    req.Description,
-		VectorProvider: existing.VectorProvider,
-		EmbedModel:     req.EmbedModel,
-		VectorDim:      existing.VectorDim,
-		Status:         status,
+		Namespace:   req.Namespace,
+		Name:        req.Name,
+		Description: req.Description,
+		VectorDim:   existing.VectorDim,
+		Status:      status,
 	})
 	if err != nil {
 		response.Fail(c, "update failed", err.Error())
@@ -863,7 +777,7 @@ func (h *Handlers) knowledgeDocumentDeleteHandler(c *gin.Context) {
 			response.Fail(c, "vector backend unavailable", err.Error())
 			return
 		}
-		if err := kh.Delete(ctx, ids, &knowledge.DeleteOptions{Namespace: strings.TrimSpace(doc.Namespace)}); err != nil {
+		if err := kh.Delete(ctx, ids, &lingknowledge.DeleteOptions{Namespace: strings.TrimSpace(doc.Namespace)}); err != nil {
 			response.Fail(c, "delete failed (vector backend)", err.Error())
 			return
 		}
@@ -968,7 +882,7 @@ func (h *Handlers) knowledgeDocumentTextPutHandler(c *gin.Context) {
 	if u, upErr := uploadMarkdownToStore(doc.GroupID, doc.Namespace, doc.ID, doc.Title, mdText+"\n"); upErr == nil && u != "" {
 		textURL = u
 	} else if upErr != nil {
-		logger.Warn("knowledge.text_put.upload_markdown_failed",
+		logger.Warn("lingknowledge.text_put.upload_markdown_failed",
 			zap.Error(upErr),
 			zap.Int64("doc_id", doc.ID),
 			zap.Uint("group_id", doc.GroupID),
@@ -990,7 +904,7 @@ func (h *Handlers) knowledgeDocumentTextPutHandler(c *gin.Context) {
 	go func(orgGID uint, ns svcmodels.KnowledgeNamespace, d svcmodels.KnowledgeDocument, md string) {
 		ctx := context.Background()
 		if err := h.runKnowledgeTextPutJob(ctx, orgGID, ns, d, md); err != nil {
-			logger.Error("knowledge.text_put.job.failed", zap.Error(err), zap.Int64("doc_id", d.ID))
+			logger.Error("lingknowledge.text_put.job.failed", zap.Error(err), zap.Int64("doc_id", d.ID))
 		}
 	}(doc.GroupID, *nsRow, *doc, mdText)
 
@@ -1053,7 +967,7 @@ func (h *Handlers) knowledgeNamespaceUploadHandler(c *gin.Context) {
 	go func(gid uint, ns svcmodels.KnowledgeNamespace, docID int64, fileName, fileHashStr string, content []byte) {
 		ctx := context.Background()
 		if err := h.runKnowledgeUploadJob(ctx, gid, ns, docID, fileName, fileHashStr, content); err != nil {
-			logger.Error("knowledge.upload.job.failed", zap.Error(err), zap.Int64("doc_id", docID))
+			logger.Error("lingknowledge.upload.job.failed", zap.Error(err), zap.Int64("doc_id", docID))
 		}
 	}(nsRow.GroupID, *nsRow, docRow.ID, fh.Filename, fileHash, b)
 
@@ -1123,7 +1037,7 @@ func (h *Handlers) knowledgeDocumentReuploadHandler(c *gin.Context) {
 	go func(gid uint, ns svcmodels.KnowledgeNamespace, d svcmodels.KnowledgeDocument, old, fileName, fileHashStr string, content []byte) {
 		ctx := context.Background()
 		if err := h.runKnowledgeReuploadJob(ctx, gid, ns, d, old, fileName, fileHashStr, content); err != nil {
-			logger.Error("knowledge.reupload.job.failed", zap.Error(err), zap.Int64("doc_id", d.ID))
+			logger.Error("lingknowledge.reupload.job.failed", zap.Error(err), zap.Int64("doc_id", d.ID))
 		}
 	}(doc.GroupID, *nsRow, *doc, oldRecordIDs, fh.Filename, fileHash, b)
 
@@ -1191,7 +1105,7 @@ func (h *Handlers) knowledgeNamespaceRecallTestHandler(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 60*time.Second)
 	defer cancel()
 
-	embedder, err := embedderFromEnv()
+	embedder, err := config.EmbedderFromEnv()
 	if err != nil {
 		response.Fail(c, "embedder not configured", err.Error())
 		return
@@ -1201,16 +1115,16 @@ func (h *Handlers) knowledgeNamespaceRecallTestHandler(c *gin.Context) {
 		response.Fail(c, "vector backend unavailable", err.Error())
 		return
 	}
-	vecResults, err := kh.Query(ctx, strings.TrimSpace(req.Query), &knowledge.QueryOptions{
+	vecResults, err := kh.Query(ctx, strings.TrimSpace(req.Query), &lingknowledge.QueryOptions{
 		Namespace: strings.TrimSpace(nsRow.Namespace),
 		TopK:      topK,
 		MinScore:  minScore,
-		Filters: func() []knowledge.Filter {
+		Filters: func() []lingknowledge.Filter {
 			if docRow == nil {
 				return nil
 			}
-			return []knowledge.Filter{
-				{Field: "doc_id", Operator: knowledge.FilterOpEqual, Value: []any{fmt.Sprintf("%d", docRow.ID)}},
+			return []lingknowledge.Filter{
+				{Field: "doc_id", Operator: lingknowledge.FilterOpEqual, Value: []any{fmt.Sprintf("%d", docRow.ID)}},
 			}
 		}(),
 	})
@@ -1256,7 +1170,7 @@ func (h *Handlers) knowledgeNamespaceRecallTestHandler(c *gin.Context) {
 	const rrfK = 60.0
 	type fused struct {
 		ID       string
-		Record   knowledge.Record
+		Record   lingknowledge.Record
 		Score    float64
 		VecScore *float64
 		KwScore  *float64
@@ -1286,7 +1200,7 @@ func (h *Handlers) knowledgeNamespaceRecallTestHandler(c *gin.Context) {
 		if item == nil {
 			item = &fused{
 				ID: recID,
-				Record: knowledge.Record{
+				Record: lingknowledge.Record{
 					ID:      recID,
 					Source:  "keyword",
 					Title:   hh.Title,
@@ -1327,7 +1241,7 @@ func (h *Handlers) knowledgeNamespaceRecallTestHandler(c *gin.Context) {
 	if len(fusedList) > topK {
 		fusedList = fusedList[:topK]
 	}
-	results := make([]knowledge.QueryResult, 0, len(fusedList))
+	results := make([]lingknowledge.QueryResult, 0, len(fusedList))
 	for _, it := range fusedList {
 		score := it.Score
 		if it.VecScore != nil {
@@ -1335,7 +1249,7 @@ func (h *Handlers) knowledgeNamespaceRecallTestHandler(c *gin.Context) {
 		} else if it.KwScore != nil {
 			score = *it.KwScore
 		}
-		results = append(results, knowledge.QueryResult{Record: it.Record, Score: score})
+		results = append(results, lingknowledge.QueryResult{Record: it.Record, Score: score})
 	}
 
 	hits := 0
@@ -1377,7 +1291,7 @@ func (h *Handlers) knowledgeNamespaceRecallTestHandler(c *gin.Context) {
 func (h *Handlers) runKnowledgeUploadJob(ctx context.Context, groupID uint, ns svcmodels.KnowledgeNamespace, docID int64, fileName, fileHash string, content []byte) error {
 	start := time.Now()
 	provider := knowledgeProviderForLog(&ns)
-	logger.Info("knowledge.upload.job.start",
+	logger.Info("lingknowledge.upload.job.start",
 		zap.String("provider", provider),
 		zap.Uint("group_id", groupID),
 		zap.String("namespace", ns.Namespace),
@@ -1391,7 +1305,13 @@ func (h *Handlers) runKnowledgeUploadJob(ctx context.Context, groupID uint, ns s
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
 
-	embedder, err := embedderFromEnv()
+	if ns.ID > 0 {
+		if fresh, err := svcmodels.GetKnowledgeNamespace(h.db, ns.ID); err == nil && fresh != nil {
+			ns = *fresh
+		}
+	}
+
+	embedder, err := config.EmbedderFromEnv()
 	if err != nil {
 		h.knowledgeDocFinalizeFailed(docID)
 		return err
@@ -1411,7 +1331,7 @@ func (h *Handlers) runKnowledgeUploadJob(ctx context.Context, groupID uint, ns s
 	for _, ch := range chunks {
 		inputs = append(inputs, ch.Text)
 	}
-	vecs, err := embedder.Embed(ctx, inputs)
+	vecs, err := config.EmbedTextsBatched(ctx, embedder, inputs)
 	if err != nil || len(vecs) != len(chunks) || len(vecs) == 0 || len(vecs[0]) == 0 {
 		h.knowledgeDocFinalizeFailed(docID)
 		if err == nil {
@@ -1420,26 +1340,30 @@ func (h *Handlers) runKnowledgeUploadJob(ctx context.Context, groupID uint, ns s
 		return err
 	}
 	for i := range vecs {
-		normalizeVec64InPlace(vecs[i])
+		normalizeVec32InPlace(vecs[i])
 	}
 	gotDim := len(vecs[0])
-	if ns.VectorDim > 0 && gotDim != ns.VectorDim {
+	kh, err := knowledgeHandlerForNS(&ns, embedder)
+	if err != nil {
 		h.knowledgeDocFinalizeFailed(docID)
-		return errors.New("knowledge: vector dim mismatch")
+		return err
+	}
+	if err := config.ValidateEmbeddingDim(ctx, ns.Namespace, ns.VectorDim, gotDim, kh); err != nil {
+		h.knowledgeDocFinalizeFailed(docID)
+		return err
 	}
 	now := time.Now().UTC()
-	records := make([]knowledge.Record, 0, len(chunks))
+	records := make([]lingknowledge.Record, 0, len(chunks))
 	recordIDs := make([]string, 0, len(chunks))
 	for i, ch := range chunks {
 		rid := uuid.NewString()
 		recordIDs = append(recordIDs, rid)
-		v32 := vec64To32(vecs[i])
-		records = append(records, knowledge.Record{
+		records = append(records, lingknowledge.Record{
 			ID:      rid,
 			Source:  "upload",
 			Title:   fileName,
 			Content: ch.Text,
-			Vector:  v32,
+			Vector:  vecs[i],
 			Metadata: map[string]any{
 				"group_id":      fmt.Sprintf("%d", groupID),
 				"doc_id":        fmt.Sprintf("%d", docID),
@@ -1451,12 +1375,7 @@ func (h *Handlers) runKnowledgeUploadJob(ctx context.Context, groupID uint, ns s
 			UpdatedAt: now,
 		})
 	}
-	kh, err := knowledgeHandlerForNS(&ns, embedder)
-	if err != nil {
-		h.knowledgeDocFinalizeFailed(docID)
-		return err
-	}
-	if err := kh.Upsert(ctx, records, &knowledge.UpsertOptions{Namespace: ns.Namespace, BatchSize: 64}); err != nil {
+	if err := kh.Upsert(ctx, records, &lingknowledge.UpsertOptions{Namespace: ns.Namespace, BatchSize: 64}); err != nil {
 		h.knowledgeDocFinalizeFailed(docID)
 		return err
 	}
@@ -1464,7 +1383,7 @@ func (h *Handlers) runKnowledgeUploadJob(ctx context.Context, groupID uint, ns s
 	if u, upErr := uploadMarkdownToStore(groupID, ns.Namespace, docID, fileName, mdText); upErr == nil && u != "" {
 		textURL = u
 	} else if upErr != nil {
-		logger.Warn("knowledge.upload.job.markdown_upload_failed",
+		logger.Warn("lingknowledge.upload.job.markdown_upload_failed",
 			zap.Error(upErr),
 			zap.Int64("doc_id", docID),
 			zap.Uint("group_id", groupID),
@@ -1476,7 +1395,7 @@ func (h *Handlers) runKnowledgeUploadJob(ctx context.Context, groupID uint, ns s
 	}
 	indexKeywordRecords(ctx, groupID, ns.Namespace, docID, fileHash, "upload", records)
 	h.knowledgeDocFinalizeSuccess(docID, recordIDs, textURL, stored)
-	logger.Info("knowledge.upload.job.done",
+	logger.Info("lingknowledge.upload.job.done",
 		zap.Int64("doc_id", docID),
 		zap.Int("records", len(recordIDs)),
 		zap.Duration("elapsed", time.Since(start)),
@@ -1490,7 +1409,7 @@ func (h *Handlers) runKnowledgeReuploadJob(ctx context.Context, groupID uint, ns
 	}
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
-	embedder, err := embedderFromEnv()
+	embedder, err := config.EmbedderFromEnv()
 	if err != nil {
 		h.knowledgeDocFinalizeFailed(doc.ID)
 		return err
@@ -1510,7 +1429,7 @@ func (h *Handlers) runKnowledgeReuploadJob(ctx context.Context, groupID uint, ns
 	for _, ch := range chunks {
 		inputs = append(inputs, ch.Text)
 	}
-	vecs, err := embedder.Embed(ctx, inputs)
+	vecs, err := config.EmbedTextsBatched(ctx, embedder, inputs)
 	if err != nil || len(vecs) != len(chunks) || len(vecs) == 0 || len(vecs[0]) == 0 {
 		h.knowledgeDocFinalizeFailed(doc.ID)
 		if err == nil {
@@ -1519,21 +1438,21 @@ func (h *Handlers) runKnowledgeReuploadJob(ctx context.Context, groupID uint, ns
 		return err
 	}
 	for i := range vecs {
-		normalizeVec64InPlace(vecs[i])
+		normalizeVec32InPlace(vecs[i])
 	}
 	gotDim := len(vecs[0])
-	if ns.VectorDim > 0 && gotDim != ns.VectorDim {
-		h.knowledgeDocFinalizeFailed(doc.ID)
-		return errors.New("knowledge: vector dim mismatch")
-	}
 	kh, err := knowledgeHandlerForNS(&ns, embedder)
 	if err != nil {
 		h.knowledgeDocFinalizeFailed(doc.ID)
 		return err
 	}
+	if err := config.ValidateEmbeddingDim(ctx, doc.Namespace, ns.VectorDim, gotDim, kh); err != nil {
+		h.knowledgeDocFinalizeFailed(doc.ID)
+		return err
+	}
 	oldIDs := parseRecordIDs(oldRecordIDs)
 	if len(oldIDs) > 0 {
-		_ = kh.Delete(ctx, oldIDs, &knowledge.DeleteOptions{Namespace: doc.Namespace})
+		_ = kh.Delete(ctx, oldIDs, &lingknowledge.DeleteOptions{Namespace: doc.Namespace})
 		if eng, err := knowledgeSearchFromEnv(); err == nil && eng != nil {
 			for _, rid := range oldIDs {
 				_ = eng.Delete(ctx, rid)
@@ -1541,18 +1460,17 @@ func (h *Handlers) runKnowledgeReuploadJob(ctx context.Context, groupID uint, ns
 		}
 	}
 	now := time.Now().UTC()
-	records := make([]knowledge.Record, 0, len(chunks))
+	records := make([]lingknowledge.Record, 0, len(chunks))
 	recordIDs := make([]string, 0, len(chunks))
 	for i, ch := range chunks {
 		rid := uuid.NewString()
 		recordIDs = append(recordIDs, rid)
-		v32 := vec64To32(vecs[i])
-		records = append(records, knowledge.Record{
+		records = append(records, lingknowledge.Record{
 			ID:      rid,
 			Source:  "upload",
 			Title:   fileName,
 			Content: ch.Text,
-			Vector:  v32,
+			Vector:  vecs[i],
 			Metadata: map[string]any{
 				"group_id":      fmt.Sprintf("%d", groupID),
 				"doc_id":        fmt.Sprintf("%d", doc.ID),
@@ -1564,7 +1482,7 @@ func (h *Handlers) runKnowledgeReuploadJob(ctx context.Context, groupID uint, ns
 			UpdatedAt: now,
 		})
 	}
-	if err := kh.Upsert(ctx, records, &knowledge.UpsertOptions{Namespace: doc.Namespace, Overwrite: true, BatchSize: 64}); err != nil {
+	if err := kh.Upsert(ctx, records, &lingknowledge.UpsertOptions{Namespace: doc.Namespace, Overwrite: true, BatchSize: 64}); err != nil {
 		h.knowledgeDocFinalizeFailed(doc.ID)
 		return err
 	}
@@ -1572,7 +1490,7 @@ func (h *Handlers) runKnowledgeReuploadJob(ctx context.Context, groupID uint, ns
 	if u, upErr := uploadMarkdownToStore(groupID, doc.Namespace, doc.ID, fileName, mdText); upErr == nil && u != "" {
 		textURL = u
 	} else if upErr != nil {
-		logger.Warn("knowledge.reupload.job.markdown_upload_failed",
+		logger.Warn("lingknowledge.reupload.job.markdown_upload_failed",
 			zap.Error(upErr),
 			zap.Int64("doc_id", doc.ID),
 			zap.Uint("group_id", groupID),
@@ -1593,7 +1511,7 @@ func (h *Handlers) runKnowledgeTextPutJob(ctx context.Context, groupID uint, ns 
 	}
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
-	embedder, err := embedderFromEnv()
+	embedder, err := config.EmbedderFromEnv()
 	if err != nil {
 		h.knowledgeDocFinalizeFailed(doc.ID)
 		return err
@@ -1607,7 +1525,7 @@ func (h *Handlers) runKnowledgeTextPutJob(ctx context.Context, groupID uint, ns 
 	for _, ch := range chunks {
 		inputs = append(inputs, ch.Text)
 	}
-	vecs, err := embedder.Embed(ctx, inputs)
+	vecs, err := config.EmbedTextsBatched(ctx, embedder, inputs)
 	if err != nil || len(vecs) != len(chunks) || len(vecs) == 0 || len(vecs[0]) == 0 {
 		h.knowledgeDocFinalizeFailed(doc.ID)
 		if err == nil {
@@ -1616,21 +1534,21 @@ func (h *Handlers) runKnowledgeTextPutJob(ctx context.Context, groupID uint, ns 
 		return err
 	}
 	for i := range vecs {
-		normalizeVec64InPlace(vecs[i])
+		normalizeVec32InPlace(vecs[i])
 	}
 	gotDim := len(vecs[0])
-	if ns.VectorDim > 0 && gotDim != ns.VectorDim {
-		h.knowledgeDocFinalizeFailed(doc.ID)
-		return errors.New("knowledge: vector dim mismatch")
-	}
 	kh, err := knowledgeHandlerForNS(&ns, embedder)
 	if err != nil {
 		h.knowledgeDocFinalizeFailed(doc.ID)
 		return err
 	}
+	if err := config.ValidateEmbeddingDim(ctx, doc.Namespace, ns.VectorDim, gotDim, kh); err != nil {
+		h.knowledgeDocFinalizeFailed(doc.ID)
+		return err
+	}
 	oldIDs := parseRecordIDs(doc.RecordIDs)
 	if len(oldIDs) > 0 {
-		_ = kh.Delete(ctx, oldIDs, &knowledge.DeleteOptions{Namespace: doc.Namespace})
+		_ = kh.Delete(ctx, oldIDs, &lingknowledge.DeleteOptions{Namespace: doc.Namespace})
 		if eng, err := knowledgeSearchFromEnv(); err == nil && eng != nil {
 			for _, rid := range oldIDs {
 				_ = eng.Delete(ctx, rid)
@@ -1638,18 +1556,17 @@ func (h *Handlers) runKnowledgeTextPutJob(ctx context.Context, groupID uint, ns 
 		}
 	}
 	now := time.Now().UTC()
-	records := make([]knowledge.Record, 0, len(chunks))
+	records := make([]lingknowledge.Record, 0, len(chunks))
 	recordIDs := make([]string, 0, len(chunks))
 	for i, ch := range chunks {
 		rid := uuid.NewString()
 		recordIDs = append(recordIDs, rid)
-		v32 := vec64To32(vecs[i])
-		records = append(records, knowledge.Record{
+		records = append(records, lingknowledge.Record{
 			ID:      rid,
 			Source:  "edit",
 			Title:   doc.Title,
 			Content: ch.Text,
-			Vector:  v32,
+			Vector:  vecs[i],
 			Metadata: map[string]any{
 				"group_id":      fmt.Sprintf("%d", groupID),
 				"doc_id":        fmt.Sprintf("%d", doc.ID),
@@ -1660,7 +1577,7 @@ func (h *Handlers) runKnowledgeTextPutJob(ctx context.Context, groupID uint, ns 
 			UpdatedAt: now,
 		})
 	}
-	if err := kh.Upsert(ctx, records, &knowledge.UpsertOptions{Namespace: doc.Namespace, Overwrite: true, BatchSize: 64}); err != nil {
+	if err := kh.Upsert(ctx, records, &lingknowledge.UpsertOptions{Namespace: doc.Namespace, Overwrite: true, BatchSize: 64}); err != nil {
 		h.knowledgeDocFinalizeFailed(doc.ID)
 		return err
 	}
@@ -1669,7 +1586,7 @@ func (h *Handlers) runKnowledgeTextPutJob(ctx context.Context, groupID uint, ns 
 	if u, upErr := uploadMarkdownToStore(groupID, doc.Namespace, doc.ID, doc.Title, mdText); upErr == nil && u != "" {
 		textURL = u
 	} else if upErr != nil {
-		logger.Warn("knowledge.text_put.job.markdown_upload_failed",
+		logger.Warn("lingknowledge.text_put.job.markdown_upload_failed",
 			zap.Error(upErr),
 			zap.Int64("doc_id", doc.ID),
 			zap.Uint("group_id", groupID),
@@ -1687,14 +1604,71 @@ func (h *Handlers) runKnowledgeTextPutJob(ctx context.Context, groupID uint, ns 
 // Chunking helpers
 // ============================================================================
 
+// splitTextWindow splits long text into overlapping segments (character-based).
+func splitTextWindow(text string, maxChars, overlap int) []string {
+	text = strings.TrimSpace(text)
+	if text == "" || maxChars <= 0 {
+		return nil
+	}
+	if overlap < 0 {
+		overlap = 0
+	}
+	if overlap >= maxChars {
+		overlap = maxChars / 5
+	}
+	out := make([]string, 0, 8)
+	for start := 0; start < len(text); {
+		end := start + maxChars
+		if end > len(text) {
+			end = len(text)
+		}
+		part := strings.TrimSpace(text[start:end])
+		if part != "" {
+			out = append(out, part)
+		}
+		if end >= len(text) {
+			break
+		}
+		start = end - overlap
+		if start <= 0 {
+			start = end
+		}
+	}
+	return out
+}
+
+// normalizeKnowledgeChunks enforces max chunk size so embedders (Ollama/vLLM) never see whole files.
+func normalizeKnowledgeChunks(chunks []mdChunkRef) []mdChunkRef {
+	maxChars := config.DefaultChunkMaxChars
+	overlap := config.DefaultChunkOverlapChars
+	out := make([]mdChunkRef, 0, len(chunks))
+	idx := 0
+	for _, ch := range chunks {
+		parts := splitTextWindow(ch.Text, maxChars, overlap)
+		if len(parts) == 0 {
+			continue
+		}
+		for _, p := range parts {
+			out = append(out, mdChunkRef{Idx: idx, Text: p})
+			idx++
+		}
+	}
+	return out
+}
+
 func buildChunks(ctx context.Context, fileName string, parsed *knowledgeParser.ParseResult) []mdChunkRef {
 	chunks := make([]mdChunkRef, 0, 16)
-	ch, _, _ := chunkerFromEnv()
+	ch, _ := config.ChunkerFromEnv()
 	if ch != nil && parsed != nil {
 		raw := strings.TrimSpace(parsed.Text)
 		if raw != "" {
-			routed, err := ch.Chunk(ctx, raw, knowledgeChunkOpts(fileName))
-			if err == nil {
+			routed, err := ch.Chunk(ctx, raw, config.ChunkOptions(fileName))
+			if err != nil {
+				logger.Warn("knowledge.chunker.routed_failed",
+					zap.String("file", fileName),
+					zap.Error(err),
+				)
+			} else {
 				for _, it := range routed {
 					if strings.TrimSpace(it.Text) == "" {
 						continue
@@ -1719,15 +1693,20 @@ func buildChunks(ctx context.Context, fileName string, parsed *knowledgeParser.P
 			chunks = append(chunks, mdChunkRef{Idx: 0, Text: txt})
 		}
 	}
-	return chunks
+	return normalizeKnowledgeChunks(chunks)
 }
 
 func buildChunksFromMarkdown(ctx context.Context, title, mdText string) []mdChunkRef {
 	chunks := make([]mdChunkRef, 0, 16)
-	ch, _, _ := chunkerFromEnv()
+	ch, _ := config.ChunkerFromEnv()
 	if ch != nil {
-		routed, err := ch.Chunk(ctx, mdText, knowledgeChunkOpts(title))
-		if err == nil {
+		routed, err := ch.Chunk(ctx, mdText, config.ChunkOptions(title))
+		if err != nil {
+			logger.Warn("knowledge.chunker.routed_failed",
+				zap.String("title", title),
+				zap.Error(err),
+			)
+		} else {
 			for _, it := range routed {
 				if strings.TrimSpace(it.Text) == "" {
 					continue
@@ -1736,44 +1715,16 @@ func buildChunksFromMarkdown(ctx context.Context, title, mdText string) []mdChun
 			}
 		}
 	}
-	if len(chunks) > 0 {
-		return chunks
-	}
-	// Fallback: fixed-size sliding window.
-	const maxChars = knowledge.DefaultChunkMaxChars
-	const overlap = knowledge.DefaultChunkOverlapChars
-	s := mdText
-	idx := 0
-	for chunkStart := 0; chunkStart < len(s); {
-		end := chunkStart + maxChars
-		if end > len(s) {
-			end = len(s)
-		}
-		part := strings.TrimSpace(s[chunkStart:end])
-		if part != "" {
-			chunks = append(chunks, mdChunkRef{Idx: idx, Text: part})
-			idx++
-		}
-		if end == len(s) {
-			break
-		}
-		chunkStart = end - overlap
-		if chunkStart < 0 {
-			chunkStart = 0
+	if len(chunks) == 0 {
+		parts := splitTextWindow(mdText, config.DefaultChunkMaxChars, config.DefaultChunkOverlapChars)
+		for i, p := range parts {
+			chunks = append(chunks, mdChunkRef{Idx: i, Text: p})
 		}
 	}
-	return chunks
+	return normalizeKnowledgeChunks(chunks)
 }
 
-func vec64To32(v []float64) []float32 {
-	out := make([]float32, 0, len(v))
-	for _, x := range v {
-		out = append(out, float32(x))
-	}
-	return out
-}
-
-func indexKeywordRecords(ctx context.Context, groupID uint, namespace string, docID int64, fileHash, source string, records []knowledge.Record) {
+func indexKeywordRecords(ctx context.Context, groupID uint, namespace string, docID int64, fileHash, source string, records []lingknowledge.Record) {
 	eng, err := knowledgeSearchFromEnv()
 	if err != nil || eng == nil {
 		return

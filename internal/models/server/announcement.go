@@ -1,6 +1,8 @@
 package svcmodels
 
-import "github.com/LingByte/SoulNexus/internal/modelbase"
+import (
+	"github.com/LingByte/SoulNexus/internal/models"
+)
 
 import "time"
 
@@ -11,7 +13,7 @@ const (
 )
 
 type Announcement struct {
-	modelbase.BaseModel
+	models.BaseModel
 	Title     string     `json:"title" gorm:"type:varchar(255);not null;index"`
 	Summary   string     `json:"summary" gorm:"type:varchar(500)"`
 	Content   string     `json:"content" gorm:"type:text;not null"`

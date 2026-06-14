@@ -71,11 +71,8 @@ func (h *Handlers) resolveSoulnexusHardwareSession(ctx context.Context, deviceID
 		return nil, http.StatusBadRequest, "助手未配置API凭证"
 	}
 
-	cred, err := h.rpc.Auth.ResolveCredential(ctx, assistant.ApiKey, assistant.ApiSecret)
+	cred, err := h.resolveCredential(ctx, assistant.ApiKey, assistant.ApiSecret)
 	if err != nil {
-		return nil, http.StatusInternalServerError, "获取凭证失败: " + err.Error()
-	}
-	if cred == nil {
 		return nil, http.StatusBadRequest, "无效的API凭证"
 	}
 

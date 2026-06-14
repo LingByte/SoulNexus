@@ -1,12 +1,11 @@
-import {ButtonHTMLAttributes, forwardRef} from 'react'
+import {forwardRef} from 'react'
 import {motion} from 'framer-motion'
+import {Button as ArcoButton, ButtonProps as ArcoButtonProps} from '@arco-design/web-react'
 import {cn} from '@/utils/cn.ts'
-// @ts-ignore
-import {getCurrentTheme, getThemeClasses} from '@/utils/themeAdapter.ts'
 // @ts-ignore
 import {playClickSound, playHoverSound} from '@/utils/audioEffects.ts'
 
-interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+interface ButtonProps extends Omit<ArcoButtonProps, 'type' | 'size' | 'loading'> {
     variant?: 'default' | 'primary' | 'secondary' | 'outline' | 'ghost' | 'destructive' | 'success' | 'warning'
     size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'icon'
     loading?: boolean
@@ -34,22 +33,65 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
          onMouseEnter,
          ...props
      }, ref) => {
-        const baseClasses =
-            'relative inline-flex flex-nowrap items-center justify-center font-medium transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none select-none overflow-hidden whitespace-nowrap [&_svg]:pointer-events-none [&_svg]:shrink-0'
+        // 深紫色主题 RGB: (109, 40, 217)
+        const PURPLE_PRIMARY = '#6d28d9'
+        const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
 
-        // 获取当前主题
-        const currentTheme = getCurrentTheme()
-        const themeClasses = getThemeClasses(currentTheme, 'primary')
+        // 映射variant到Arco Design的type和自定义样式
+        const variantConfig: Record<string, { type: any, customStyle?: React.CSSProperties }> = {
+            default: { 
+                type: 'primary', 
+                customStyle: { 
+                    backgroundColor: PURPLE_PRIMARY,
+                    borderColor: PURPLE_PRIMARY,
+                    color: '#ffffff'
+                } 
+            },
+            primary: { 
+                type: 'primary', 
+                customStyle: { 
+                    backgroundColor: PURPLE_PRIMARY,
+                    borderColor: PURPLE_PRIMARY,
+                    color: '#ffffff'
+                } 
+            },
+            secondary: { type: 'secondary' },
+            outline: { type: 'outline' },
+            ghost: { type: 'text' },
+            destructive: { 
+                type: 'primary', 
+                customStyle: { 
+                    backgroundColor: '#dc2626',
+                    borderColor: '#dc2626',
+                    color: '#ffffff'
+                } 
+            },
+            success: { 
+                type: 'primary', 
+                customStyle: { 
+                    backgroundColor: '#16a34a',
+                    borderColor: '#16a34a',
+                    color: '#ffffff'
+                } 
+            },
+            warning: { 
+                type: 'primary', 
+                customStyle: { 
+                    backgroundColor: '#ea580c',
+                    borderColor: '#ea580c',
+                    color: '#ffffff'
+                } 
+            },
+        }
 
-        const variantClasses = {
-            default: `${themeClasses.bg} ${themeClasses.text} ${themeClasses.hover} focus:ring-${themeClasses.ring} shadow-sm hover:shadow-lg active:shadow-md`,
-            primary: `${themeClasses.bg} ${themeClasses.text} ${themeClasses.hover} focus:ring-${themeClasses.ring} shadow-sm hover:shadow-lg active:shadow-md`,
-            secondary: 'bg-gray-100 text-gray-900 hover:bg-gray-200 focus:ring-gray-500 shadow-sm hover:shadow-lg active:shadow-md',
-            outline: 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 focus:ring-blue-500 shadow-sm hover:shadow-lg active:shadow-md',
-            ghost: 'text-gray-700 hover:bg-gray-100 focus:ring-gray-500 hover:shadow-sm',
-            destructive: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500 shadow-sm hover:shadow-lg active:shadow-md',
-            success: 'bg-green-600 text-white hover:bg-green-700 focus:ring-green-500 shadow-sm hover:shadow-lg active:shadow-md',
-            warning: 'bg-yellow-500 text-white hover:bg-yellow-600 focus:ring-yellow-500 shadow-sm hover:shadow-lg active:shadow-md',
+        // 映射size到Arco Design的size
+        const sizeToArcoSize = {
+            xs: 'small',
+            sm: 'small',
+            md: 'middle',
+            lg: 'large',
+            xl: 'large',
+            icon: 'large',
         }
 
         const sizeClasses = {
@@ -100,90 +142,92 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         }
 
         const iconSize = iconSizeClasses[size]
+        const config = variantConfig[variant]
+        const arcoSize = sizeToArcoSize[size]
 
         const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
             if (enableAudio && !disabled && !loading) {
                 playClickSound()
             }
-            onClick?.(e)
+            onClick?.(e as any)
         }
 
         const handleMouseEnter = (e: React.MouseEvent<HTMLButtonElement>) => {
             if (enableAudio && !disabled && !loading) {
                 playHoverSound()
             }
-            onMouseEnter?.(e)
+            onMouseEnter?.(e as any)
         }
 
         return (
-            <motion.button
-                ref={ref}
-                className={cn(
-                    baseClasses,
-                    variantClasses[variant],
-                    sizeClasses[size],
-                    fullWidth && 'w-full',
-                    className
-                )}
-                disabled={disabled || loading}
+            <motion.div
                 variants={animationVariants[animation]}
                 whileHover={disabled || loading ? {} : (animationVariants[animation] as any).hover}
                 whileTap={disabled || loading ? {} : (animationVariants[animation] as any).tap}
                 transition={{duration: 0.2, ease: "easeOut"}}
-                onClick={handleClick}
-                onMouseEnter={handleMouseEnter}
-                {...(props as any)}
+                className={cn(fullWidth && 'w-full')}
             >
-                <motion.div
-                    className="absolute inset-0 bg-white/20 rounded-inherit"
-                    initial={{scale: 0, opacity: 0}}
-                    whileTap={{scale: 1, opacity: 1}}
-                    transition={{duration: 0.3}}
-                />
-
-                <div
+                <ArcoButton
+                    ref={ref}
+                    type={config.type}
+                    size={arcoSize as any}
+                    loading={loading}
+                    disabled={disabled || loading}
+                    style={config.customStyle || {}}
                     className={cn(
-                        'relative z-[1] flex min-w-0 flex-row flex-nowrap items-center justify-center gap-2',
-                        fullWidth && 'w-full min-w-0'
+                        sizeClasses[size],
+                        fullWidth && 'w-full',
+                        className
                     )}
+                    onClick={handleClick}
+                    onMouseEnter={handleMouseEnter}
+                    {...(props as any)}
                 >
-                    {loading && (
-                        <motion.div
-                            animate={{rotate: 360}}
-                            transition={{duration: 1, repeat: Infinity, ease: 'linear'}}
-                            className={cn('flex-shrink-0 rounded-full border-2 border-current border-t-transparent', iconSize)}
-                        />
-                    )}
-                    {!loading && leftIcon && (
-                        <motion.span
-                            className={cn('inline-flex flex-shrink-0 items-center justify-center', iconSize)}
-                            whileHover={{scale: 1.1}}
-                            transition={{duration: 0.2}}
-                        >
-                            {leftIcon}
-                        </motion.span>
-                    )}
-                    {children != null && children !== false && (
-                        <motion.span
-                            className="inline-flex min-w-0 max-w-full flex-row flex-nowrap items-center justify-center gap-1.5 whitespace-nowrap [&_svg]:shrink-0"
-                            initial={{opacity: 0, y: 10}}
-                            animate={{opacity: 1, y: 0}}
-                            transition={{duration: 0.3, delay: 0.1}}
-                        >
-                            {children}
-                        </motion.span>
-                    )}
-                    {!loading && rightIcon && (
-                        <motion.span
-                            className={cn('inline-flex flex-shrink-0 items-center justify-center', iconSize)}
-                            whileHover={{scale: 1.1, x: 2}}
-                            transition={{duration: 0.2}}
-                        >
-                            {rightIcon}
-                        </motion.span>
-                    )}
-                </div>
-            </motion.button>
+                    <motion.div
+                        className="absolute inset-0 rounded-inherit"
+                        initial={{scale: 0, opacity: 0}}
+                        whileTap={{scale: 1, opacity: 1}}
+                        transition={{duration: 0.3}}
+                        style={{backgroundColor: 'rgba(255, 255, 255, 0.1)'}}
+                    />
+
+                    <div
+                        className={cn(
+                            'relative z-[1] flex min-w-0 flex-row flex-nowrap items-center justify-center gap-2',
+                            fullWidth && 'w-full min-w-0'
+                        )}
+                    >
+                        {!loading && leftIcon && (
+                            <motion.span
+                                className={cn('inline-flex flex-shrink-0 items-center justify-center', iconSize)}
+                                whileHover={{scale: 1.1}}
+                                transition={{duration: 0.2}}
+                            >
+                                {leftIcon}
+                            </motion.span>
+                        )}
+                        {children != null && children !== false && (
+                            <motion.span
+                                className="inline-flex min-w-0 max-w-full flex-row flex-nowrap items-center justify-center gap-1.5 whitespace-nowrap [&_svg]:shrink-0"
+                                initial={{opacity: 0, y: 10}}
+                                animate={{opacity: 1, y: 0}}
+                                transition={{duration: 0.3, delay: 0.1}}
+                            >
+                                {children}
+                            </motion.span>
+                        )}
+                        {!loading && rightIcon && (
+                            <motion.span
+                                className={cn('inline-flex flex-shrink-0 items-center justify-center', iconSize)}
+                                whileHover={{scale: 1.1, x: 2}}
+                                transition={{duration: 0.2}}
+                            >
+                                {rightIcon}
+                            </motion.span>
+                        )}
+                    </div>
+                </ArcoButton>
+            </motion.div>
         )
     }
 )

@@ -217,32 +217,96 @@ func CreateChatSessionLogWithUsage(db *gorm.DB, userID uint, agentID int64, chat
 // GetChatSessionLogs 获取用户的聊天记录列表
 // 按 session_id 分组，返回每个 session 的最新记录作为预览，同时返回该 session 的消息数量
 func GetChatSessionLogs(db *gorm.DB, userID uint, pageSize int, cursor int64) ([]ChatSessionLogSummary, error) {
+	return queryChatSessionLogSummaries(db, userID, 0, pageSize, cursor)
+}
+
+// GetChatSessionLogsByAgent 获取指定助手的聊天记录列表（数据库层过滤，避免全量扫描）
+func GetChatSessionLogsByAgent(db *gorm.DB, userID uint, agentID int64, pageSize int, cursor int64) ([]ChatSessionLogSummary, error) {
+	return queryChatSessionLogSummaries(db, userID, agentID, pageSize, cursor)
+}
+
+func queryChatSessionLogSummaries(db *gorm.DB, userID uint, agentID int64, pageSize int, cursor int64) ([]ChatSessionLogSummary, error) {
+	userIDStr := fmt.Sprintf("%d", userID)
 	var sessions []ChatSession
-	query := db.Where("user_id = ? AND status != ?", fmt.Sprintf("%d", userID), "deleted")
+	query := db.Where("user_id = ? AND status != ?", userIDStr, "deleted")
+	if agentID > 0 {
+		query = query.Where("agent_id = ?", agentID)
+	}
 	if cursor > 0 {
 		query = query.Where("updated_at < ?", time.UnixMilli(cursor))
 	}
 	if err := query.Order("updated_at DESC").Limit(pageSize).Find(&sessions).Error; err != nil {
 		return nil, err
 	}
+	return buildChatSessionLogSummaries(db, sessions)
+}
+
+func buildChatSessionLogSummaries(db *gorm.DB, sessions []ChatSession) ([]ChatSessionLogSummary, error) {
+	if len(sessions) == 0 {
+		return []ChatSessionLogSummary{}, nil
+	}
+
+	sessionIDs := make([]string, len(sessions))
+	agentIDSet := make(map[int64]struct{})
+	agentIDs := make([]int64, 0)
+	for i, s := range sessions {
+		sessionIDs[i] = s.ID
+		if s.AgentID > 0 {
+			if _, ok := agentIDSet[s.AgentID]; !ok {
+				agentIDSet[s.AgentID] = struct{}{}
+				agentIDs = append(agentIDs, s.AgentID)
+			}
+		}
+	}
+
+	type countRow struct {
+		SessionID string
+		Count     int64
+	}
+	var counts []countRow
+	if err := db.Model(&ChatMessage{}).
+		Select("session_id, COUNT(*) as count").
+		Where("session_id IN ?", sessionIDs).
+		Group("session_id").
+		Scan(&counts).Error; err != nil {
+		return nil, err
+	}
+	countMap := make(map[string]int, len(counts))
+	for _, row := range counts {
+		countMap[row.SessionID] = int(row.Count)
+	}
+
+	var lastMsgs []ChatMessage
+	if err := db.Raw(`
+		SELECT m.* FROM chat_messages m
+		INNER JOIN (
+			SELECT session_id, MAX(created_at) AS max_created_at
+			FROM chat_messages
+			WHERE session_id IN ?
+			GROUP BY session_id
+		) lm ON m.session_id = lm.session_id AND m.created_at = lm.max_created_at
+	`, sessionIDs).Scan(&lastMsgs).Error; err != nil {
+		return nil, err
+	}
+	lastMsgMap := make(map[string]ChatMessage, len(lastMsgs))
+	for _, msg := range lastMsgs {
+		lastMsgMap[msg.SessionID] = msg
+	}
+
+	agentNameMap := make(map[int64]string)
+	if len(agentIDs) > 0 {
+		var agents []Agent
+		if err := db.Select("id, name").Where("id IN ?", agentIDs).Find(&agents).Error; err != nil {
+			return nil, err
+		}
+		for _, agent := range agents {
+			agentNameMap[agent.ID] = agent.Name
+		}
+	}
 
 	logs := make([]ChatSessionLogSummary, 0, len(sessions))
 	for _, s := range sessions {
-		var msgCount int64
-		_ = db.Model(&ChatMessage{}).Where("session_id = ?", s.ID).Count(&msgCount).Error
-
-		var lastMsg ChatMessage
-		_ = db.Where("session_id = ?", s.ID).Order("created_at DESC").First(&lastMsg).Error
-
-		agentName := ""
-		if s.AgentID > 0 {
-			var agent Agent
-			if err := db.Select("name").Where("id = ?", s.AgentID).First(&agent).Error; err == nil {
-				agentName = agent.Name
-			}
-		}
-
-		preview := lastMsg.Content
+		preview := lastMsgMap[s.ID].Content
 		if len(preview) > 50 {
 			preview = preview[:50]
 		}
@@ -250,11 +314,11 @@ func GetChatSessionLogs(db *gorm.DB, userID uint, pageSize int, cursor int64) ([
 			ID:           s.UpdatedAt.UnixMilli(),
 			SessionID:    s.ID,
 			AgentID:      s.AgentID,
-			AgentName:    agentName,
+			AgentName:    agentNameMap[s.AgentID],
 			ChatType:     ChatTypeText,
 			Preview:      preview,
 			CreatedAt:    s.CreatedAt,
-			MessageCount: int(msgCount),
+			MessageCount: countMap[s.ID],
 		})
 	}
 	return logs, nil
@@ -262,20 +326,18 @@ func GetChatSessionLogs(db *gorm.DB, userID uint, pageSize int, cursor int64) ([
 
 // GetChatSessionLogDetail 获取聊天记录详情
 func GetChatSessionLogDetail(db *gorm.DB, logID int64, userID uint) (*ChatSessionLogDetail, error) {
-	sessions, err := GetChatSessionLogs(db, userID, 200, 0)
-	if err != nil {
-		return nil, err
-	}
-	var target *ChatSessionLogSummary
-	for i := range sessions {
-		if sessions[i].ID == logID {
-			target = &sessions[i]
-			break
-		}
-	}
-	if target == nil {
+	userIDStr := fmt.Sprintf("%d", userID)
+	var session ChatSession
+	if err := db.Where("user_id = ? AND updated_at = ? AND status != ?", userIDStr, time.UnixMilli(logID), "deleted").
+		First(&session).Error; err != nil {
 		return nil, fmt.Errorf("record not found")
 	}
+
+	summaries, err := buildChatSessionLogSummaries(db, []ChatSession{session})
+	if err != nil || len(summaries) == 0 {
+		return nil, fmt.Errorf("record not found")
+	}
+	target := summaries[0]
 
 	logs, err := GetChatSessionLogsBySession(db, target.SessionID, userID)
 	if err != nil || len(logs) == 0 {

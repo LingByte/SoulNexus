@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, Suspense, lazy } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
+import { Select as ArcoSelect, Input as ArcoInput } from '@arco-design/web-react'
 import { useI18nStore } from '@/stores/i18nStore'
+import PageHeader from '@/components/Layout/PageHeader.tsx'
+import PageLoadingScreen from '@/components/PageLoadingScreen.tsx'
 import Card, { CardFooter, CardHeader, CardTitle } from '@/components/UI/Card.tsx'
 import Button from '@/components/UI/Button.tsx'
-import Input from '@/components/UI/Input.tsx'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/UI/Select.tsx'
 import { jsTemplateService, JSTemplate, CreateJSTemplateForm } from '@/api/jsTemplate'
 import { ArrowLeft, Plus, Code, Eye, AlertCircle, Maximize2, Minimize2, FileText } from 'lucide-react'
 import { showAlert } from '@/utils/notification'
@@ -13,7 +14,7 @@ import { useDebounce } from '@/hooks/useDebounce'
 import { validateJavaScript } from '@/utils/jsValidator'
 import { getApiBaseURL } from '@/config/apiConfig'
 import MarkdownPreview from '@/components/UI/MarkdownPreview.tsx'
-import LoadingAnimation from '@/components/Animations/LoadingAnimation'
+import LoadingAnimation from '@/components/LoadingAnimation.tsx'
 import CollapsibleSectionHeader from '@/components/UI/CollapsibleSectionHeader'
 
 // 懒加载Monaco Editor，优化首次加载性能
@@ -429,53 +430,21 @@ const JSTemplateManager = () => {
     }, [newTemplate.content, isCreating, isEditing])
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
-            {/* 页面头部 */}
-            <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border-b border-gray-200/50 dark:border-slate-700/50 sticky top-0 z-40">
-                <div className="max-w-7xl mx-auto px-4 py-3">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                            <Button
-                                onClick={() => navigate(-1)}
-                                variant="outline"
-                                size="sm"
-                                leftIcon={<ArrowLeft className="w-4 h-4" />}
-                                className="border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500 transition-all duration-200"
-                            >
-                                {t('jsTemplate.back')}
-                            </Button>
-                            <div className="h-8 w-px bg-slate-300 dark:bg-slate-600"></div>
-                            <div className="w-full">
-                                <CollapsibleSectionHeader
-                                    title={t('jsTemplate.title')}
-                                    icon={<Code className="w-4 h-4 text-primary" />}
-                                    expanded
-                                    onToggle={() => {}}
-                                    showChevron={false}
-                                    clickable={false}
-                                    compact
-                                    titleSize="lg"
-                                    withDivider
-                                />
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <div className="text-right">
-                                <div className="text-sm font-medium">
-                                    {t('jsTemplate.templateCount', { count: filteredTemplates.length })}
-                                </div>
-                            </div>
-                            <Button
-                                onClick={handleCreateTemplate}
-                                leftIcon={<Plus className="w-4 h-4" />}
-                                className="px-4 py-2.5 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 font-medium"
-                            >
-                                {t('jsTemplate.create')}
-                            </Button>
-                        </div>
-                    </div>
-                </div>
-            </div>
+        <div className="flex flex-col h-full bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
+            <PageHeader 
+                title={t('jsTemplate.title')}
+                actions={
+                    <Button
+                        onClick={handleCreateTemplate}
+                        leftIcon={<Plus className="w-4 h-4" />}
+                        size="sm"
+                    >
+                        {t('jsTemplate.create')}
+                    </Button>
+                }
+            />
+
+            <div className="flex-1 overflow-auto">
 
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
                 {/* 搜索和过滤栏 */}
@@ -486,30 +455,24 @@ const JSTemplateManager = () => {
                                 <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                                 </svg>
-                                <Input
-                                    placeholder={t('jsTemplate.searchPlaceholder')}
+                                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" placeholder={t('jsTemplate.searchPlaceholder')}
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="pl-10 h-9 bg-white/80 dark:bg-slate-700/80 border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                                 />
                             </div>
                         </div>
                         <div className="flex items-center gap-3">
                             <div className="text-sm">{t('jsTemplate.filterType')}</div>
-                            <Select value={filterType} onValueChange={(value: string) => setFilterType(value as 'all' | 'default' | 'custom')}>
-                                <SelectTrigger className="w-32 h-9 bg-white/80 dark:bg-slate-700/80 border-slate-200 dark:border-slate-600 rounded-lg">
-                                    <SelectValue>
-                                        {filterType === 'all' && t('jsTemplate.filter.all')}
-                                        {filterType === 'default' && t('jsTemplate.filter.default')}
-                                        {filterType === 'custom' && t('jsTemplate.filter.custom')}
-                                    </SelectValue>
-                                </SelectTrigger>
-                                <SelectContent className="z-50 max-h-48 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">
-                                    <SelectItem value="all">{t('jsTemplate.filter.all')}</SelectItem>
-                                    <SelectItem value="default">{t('jsTemplate.filter.default')}</SelectItem>
-                                    <SelectItem value="custom">{t('jsTemplate.filter.custom')}</SelectItem>
-                                </SelectContent>
-                            </Select>
+                            <ArcoSelect 
+                              value={filterType} 
+                              onChange={(value: string) => setFilterType(value as 'all' | 'default' | 'custom')}
+                              className="w-32 h-9"
+                              options={[
+                                { label: t('jsTemplate.filter.all'), value: 'all' },
+                                { label: t('jsTemplate.filter.default'), value: 'default' },
+                                { label: t('jsTemplate.filter.custom'), value: 'custom' }
+                              ]}
+                            />
                         </div>
                     </div>
                 </div>
@@ -733,11 +696,9 @@ const JSTemplateManager = () => {
                                                 <label className="block text-sm font-semibold mb-1">
                                                     {t('jsTemplate.templateName')}
                                                 </label>
-                                                <Input
-                                                    placeholder={t('jsTemplate.templateNamePlaceholder')}
+                                                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" placeholder={t('jsTemplate.templateNamePlaceholder')}
                                                     value={newTemplate.name}
                                                     onChange={(e) => setNewTemplate({ ...newTemplate, name: e.target.value })}
-                                                    className="h-9 bg-white/80 dark:bg-slate-700/80 border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                                                 />
                                             </div>
 
@@ -903,7 +864,7 @@ const JSTemplateManager = () => {
                                 <Suspense fallback={
                                     <div className="h-full flex items-center justify-center bg-slate-900">
                                         <div className="text-center">
-                                            <div className="animate-spin rounded-full h-8 w-8 border-4 border-slate-700 border-t-blue-500 mx-auto mb-3"></div>
+                                            <LoadingAnimation type="spinner" size="md" className="mb-3" />
                                             <p className="text-sm text-slate-400">加载代码编辑器...</p>
                                         </div>
                                     </div>
@@ -1005,7 +966,7 @@ const JSTemplateManager = () => {
                                     <Suspense fallback={
                                         <div className="h-full flex items-center justify-center bg-slate-50 dark:bg-slate-800">
                                             <div className="text-center">
-                                                <div className="animate-spin rounded-full h-8 w-8 border-4 border-slate-200 dark:border-slate-700 border-t-green-500 mx-auto mb-3"></div>
+                                                <LoadingAnimation type="spinner" size="md" className="mb-3" />
                                                 <p className="text-sm text-slate-600 dark:text-slate-400">加载Markdown编辑器...</p>
                                             </div>
                                         </div>
@@ -1080,6 +1041,7 @@ const JSTemplateManager = () => {
                     </>
                 )}
             </AnimatePresence>
+            </div>
         </div>
     )
 }

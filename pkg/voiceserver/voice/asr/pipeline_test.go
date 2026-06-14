@@ -7,25 +7,27 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/LingByte/SoulNexus/pkg/recognizer"
+	"github.com/LingByte/lingllm/recognizer"
 )
 
-// fakeASR implements recognizer.TranscribeService.
+// fakeASR implements recognizer.SpeechRecognitionEngine.
 type fakeASR struct {
-	mu         sync.Mutex
-	tr         recognizer.TranscribeResult
-	er         recognizer.ProcessError
-	connCalls  int32
-	sentBytes  int32
-	endCalled  int32
-	stopCalled int32
-	vendor     string
-	connErr    error
-	sendErr    error
-	active     bool
+	mu                 sync.Mutex
+	tr                 recognizer.SpeechRecognitionResult
+	er                 recognizer.RecognitionError
+	connCalls          int32
+	sentBytes          int32
+	endCalled          int32
+	stopCalled         int32
+	vendor             string
+	connErr            error
+	sendErr            error
+	failNotRunningOnce bool
+	stoppedOnce        bool
+	active             bool
 }
 
-func (f *fakeASR) Init(tr recognizer.TranscribeResult, er recognizer.ProcessError) {
+func (f *fakeASR) Init(tr recognizer.SpeechRecognitionResult, er recognizer.RecognitionError) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.tr = tr
@@ -39,6 +41,10 @@ func (f *fakeASR) ConnAndReceive(dialogID string) error {
 func (f *fakeASR) Activity() bool    { return f.active }
 func (f *fakeASR) RestartClient()    {}
 func (f *fakeASR) SendAudioBytes(b []byte) error {
+	if f.failNotRunningOnce && !f.stoppedOnce {
+		f.stoppedOnce = true
+		return errors.New("recognizer not running")
+	}
 	atomic.AddInt32(&f.sentBytes, int32(len(b)))
 	return f.sendErr
 }
@@ -142,6 +148,31 @@ func TestPipelineRejectsBadOptions(t *testing.T) {
 	if _, err := New(Options{ASR: &fakeASR{}}); err == nil {
 		t.Fatal("expected bad-rate error")
 	}
+}
+
+func TestPipelineRecoverableASRErrRestarts(t *testing.T) {
+	fa := &fakeASR{vendor: "fake", failNotRunningOnce: true}
+	p, err := New(Options{ASR: fa, SampleRate: 16000, MinFeedBytes: 1, DialogID: "call-1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var errCbCount int
+	p.SetErrorCallback(func(error, bool) { errCbCount++ })
+
+	payload := []byte{0x00, 0x01, 0x00, 0x02}
+	if err := p.ProcessPCM(context.Background(), payload); err != nil {
+		t.Fatalf("ProcessPCM: %v", err)
+	}
+	if atomic.LoadInt32(&fa.connCalls) != 2 {
+		t.Fatalf("expected reconnect after stale recognizer, connCalls=%d", fa.connCalls)
+	}
+	if atomic.LoadInt32(&fa.sentBytes) != int32(len(payload)) {
+		t.Fatalf("expected payload sent after restart, got %d", fa.sentBytes)
+	}
+	if errCbCount != 0 {
+		t.Fatalf("recoverable restart should not emit error callback, got %d", errCbCount)
+	}
+	_ = p.Close()
 }
 
 func TestPipelineFlushAndRestart(t *testing.T) {

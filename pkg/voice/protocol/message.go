@@ -11,7 +11,7 @@ import (
 	"unicode"
 
 	"github.com/LingByte/SoulNexus/pkg/llm"
-	"github.com/LingByte/SoulNexus/pkg/recognizer"
+	"github.com/LingByte/lingllm/recognizer"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/LingByte/SoulNexus/pkg/voice/constants"
 	"github.com/LingByte/SoulNexus/pkg/voice/sessions"
