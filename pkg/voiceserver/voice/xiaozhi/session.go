@@ -115,6 +115,10 @@ type ServerConfig struct {
 	// new gateway knob. nil = no extra configuration.
 	ConfigureClient func(*gateway.ClientConfig)
 
+	// SwitchSpeaker rebuilds the per-call TTS engine when the dialog
+	// plane requests tts.switch_speaker (LLM switch_speaker tool).
+	SwitchSpeaker func(ctx context.Context, callID, speakerID string) (tts.Service, int, error)
+
 	// Logger optional.
 	Logger *zap.Logger
 }
@@ -287,6 +291,16 @@ type session struct {
 	// Written only from the gateway tts worker goroutine.
 	turnLLMText string
 
+	// lastListenStartAt filters ASR noise right after listen:start (see pkg/voice).
+	lastListenStartAt time.Time
+	listenMu          sync.Mutex
+
+	// lowLatency uses smaller outbound TTS frames (PCM web clients).
+	lowLatency bool
+
+	// helloFeatures echoed in the welcome reply for firmware negotiation.
+	helloFeatures map[string]interface{}
+
 	// persister is built from cfg.PersisterFactory at hello time and
 	// used through the call lifecycle. nil = persistence disabled.
 	persister gateway.SessionPersister
@@ -369,7 +383,7 @@ func (s *session) handleText(ctx context.Context, raw []byte) {
 	case MsgHello:
 		s.handleHello(ctx, raw)
 	case MsgListen:
-		s.handleListen(raw)
+		s.handleListen(ctx, raw)
 	case MsgAbort:
 		s.handleAbort()
 	case MsgPing:
@@ -403,6 +417,9 @@ func (s *session) handleHello(ctx context.Context, raw []byte) {
 	s.outSR = ap.SampleRate
 	s.outFrameMs = ap.FrameDuration
 
+	s.helloFeatures = msg.Features
+	s.lowLatency = s.inFormat == AudioFormatPCM
+
 	// Build codecs.
 	if s.inFormat == AudioFormatOpus {
 		dec, err := encoder.CreateDecode(
@@ -430,7 +447,9 @@ func (s *session) handleHello(ctx context.Context, raw []byte) {
 	}
 
 	s.ttsWireFrameMs = s.outFrameMs
-	if s.opusEnc == nil && s.outFormat == AudioFormatPCM && s.outFrameMs >= 40 {
+	if s.lowLatency && s.ttsWireFrameMs > 10 {
+		s.ttsWireFrameMs = 10
+	} else if s.opusEnc == nil && s.outFormat == AudioFormatPCM && s.ttsWireFrameMs >= 40 {
 		s.ttsWireFrameMs = 20
 	}
 
@@ -494,6 +513,8 @@ func (s *session) handleHello(ctx context.Context, raw []byte) {
 		Attached: s.att,
 		CallID:   s.callID,
 		BargeIn:  bargeInFromFactory(s.cfg.BargeInFactory),
+		ASRForwardFilter: s.shouldForwardASR,
+		SwitchSpeaker:    s.handleSwitchSpeaker,
 		OnHangup: func(reason string) {
 			s.log.Info("xiaozhi: dialog hangup", zap.String("reason", reason))
 			// Record the dialog-side hangup as its own event so the
@@ -585,7 +606,7 @@ func (s *session) handleHello(ctx context.Context, raw []byte) {
 		Channels:      1,
 		FrameDuration: s.ttsWireFrameMs,
 		BitDepth:      16,
-	}))
+	}, s.helloFeatures))
 	if s.cfg.OnSessionStart != nil {
 		s.cfg.OnSessionStart(ctx, s.callID, s.deviceID)
 	}
@@ -624,18 +645,67 @@ func (s *session) handleHello(ctx context.Context, raw []byte) {
 		s.callID, s.deviceID, s.inFormat, s.inSR, s.outFormat, s.outSR, gateway.RedactDialogDialURL(s.cfg.DialogWSURL)))
 }
 
+func (s *session) shouldForwardASR(text string, isFinal bool) bool {
+	if s == nil {
+		return true
+	}
+	s.listenMu.Lock()
+	started := s.lastListenStartAt
+	s.listenMu.Unlock()
+	if !started.IsZero() && time.Since(started) < 800*time.Millisecond {
+		return false
+	}
+	return true
+}
+
+func (s *session) handleSwitchSpeaker(speakerID string) (bool, string) {
+	if s == nil {
+		return false, "会话未就绪"
+	}
+	speakerID = strings.TrimSpace(speakerID)
+	if speakerID == "" {
+		return false, "发音人ID为空"
+	}
+	if s.cfg.SwitchSpeaker == nil {
+		msg := "当前未配置发音人切换"
+		s.writeText(MakeSpeakerChangedReply(s.sessionID, speakerID, false, msg))
+		return false, msg
+	}
+	svc, _, err := s.cfg.SwitchSpeaker(context.Background(), s.callID, speakerID)
+	if err != nil {
+		msg := err.Error()
+		s.writeText(MakeSpeakerChangedReply(s.sessionID, speakerID, false, msg))
+		return false, msg
+	}
+	if svc != nil && s.ttsPipe != nil {
+		s.ttsPipe.UpdateService(svc)
+	}
+	msg := fmt.Sprintf("已切换到发音人 %s", speakerID)
+	s.writeText(MakeSpeakerChangedReply(s.sessionID, speakerID, true, msg))
+	return true, msg
+}
+
 // handleListen flips the input gate: while !listening the inbound audio
 // frames are decoded but dropped before reaching ASR. This mirrors the
 // firmware's expectation that the server only "hears" between start/stop.
-func (s *session) handleListen(raw []byte) {
+func (s *session) handleListen(ctx context.Context, raw []byte) {
 	var lm ListenMessage
 	if err := json.Unmarshal(raw, &lm); err != nil {
 		return
+	}
+	if ctx == nil {
+		ctx = context.Background()
 	}
 	state := strings.ToLower(strings.TrimSpace(lm.State))
 	switch state {
 	case ListenStart:
 		s.listening.Store(true)
+		s.listenMu.Lock()
+		s.lastListenStartAt = time.Now()
+		s.listenMu.Unlock()
+		if s.asrPipe != nil {
+			_ = s.asrPipe.Restart(ctx)
+		}
 	case ListenStop:
 		s.listening.Store(false)
 		// Flush whatever the recognizer has buffered so the user gets a
@@ -657,6 +727,9 @@ func (s *session) handleListen(raw []byte) {
 // path — here we already cancel locally), then send tts:stop so the device
 // flushes its audio buffer, finally an abort:confirmed acknowledgement.
 func (s *session) handleAbort() {
+	if s.gw != nil {
+		s.gw.InterruptPlayback(true)
+	}
 	if s.rtAgent != nil {
 		_ = s.rtAgent.Cancel()
 	}
@@ -688,14 +761,8 @@ func (s *session) handleAudio(ctx context.Context, frame []byte) {
 	if s.asrPipe == nil || !s.listening.Load() {
 		return
 	}
-	// ESP32 / hardware keeps streaming mic frames during TTS playback.
-	// Speaker echo into the mic false-triggers server-side VAD barge-in
-	// and cuts the AI mid-sentence. Match the browser client: don't feed
-	// uplink PCM into ASR while we're inside a tts:start…tts:stop span.
-	// Device-initiated interrupt still works via handleAbort().
-	if s.ttsActive.Load() {
-		return
-	}
+	// Uplink keeps flowing during TTS so barge-in VAD can run; ASR echo
+	// suppression (silence feed while TTS plays) lives in voice/asr.Pipeline.
 	var pcm []byte
 	if s.opusDec != nil {
 		out, err := s.opusDec(&media.AudioPacket{Payload: frame})

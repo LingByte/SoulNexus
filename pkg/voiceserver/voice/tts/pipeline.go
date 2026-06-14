@@ -185,6 +185,16 @@ func (p *Pipeline) Interrupt() {
 // IsPlaying reports whether a Speak call is currently streaming frames.
 func (p *Pipeline) IsPlaying() bool { return p != nil && p.playing.Load() }
 
+// UpdateService hot-swaps the streaming TTS engine (e.g. switch_speaker).
+func (p *Pipeline) UpdateService(svc Service) {
+	if p == nil || svc == nil {
+		return
+	}
+	p.speakMu.Lock()
+	p.cfg.Service = svc
+	p.speakMu.Unlock()
+}
+
 // ArmFirstFrameHook installs a one-shot callback that fires when the
 // next successful Sink call ships PCM. The hook is consumed atomically
 // (swap-and-clear) so it triggers at most once per arming. Calling
@@ -211,9 +221,25 @@ func (p *Pipeline) ArmFirstFrameHook(fn func()) {
 	p.firstFrameHook.Store(&fn)
 }
 
+// Service returns the pipeline's default TTS engine (for prefetch synthesis).
+func (p *Pipeline) Service() Service {
+	if p == nil {
+		return nil
+	}
+	return p.cfg.Service
+}
+
 // Speak synthesizes text and streams frames synchronously. Returns when either
 // Service returns, Interrupt/Stop is called, or the run context is cancelled.
 func (p *Pipeline) Speak(text string) error {
+	if p == nil {
+		return fmt.Errorf("voice/tts: nil pipeline")
+	}
+	return p.SpeakWithService(text, p.cfg.Service)
+}
+
+// SpeakWithService plays text using an alternate Service (e.g. prefetch replay).
+func (p *Pipeline) SpeakWithService(text string, svc Service) error {
 	if p == nil {
 		return fmt.Errorf("voice/tts: nil pipeline")
 	}
@@ -222,6 +248,9 @@ func (p *Pipeline) Speak(text string) error {
 	}
 	if text == "" {
 		return nil
+	}
+	if svc == nil {
+		return fmt.Errorf("voice/tts: nil service")
 	}
 
 	p.speakMu.Lock()
@@ -314,7 +343,7 @@ func (p *Pipeline) Speak(text string) error {
 		}
 	}
 
-	err := p.cfg.Service.SynthesizeStream(ctx, text, func(chunk []byte) error {
+	err := svc.SynthesizeStream(ctx, text, func(chunk []byte) error {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}

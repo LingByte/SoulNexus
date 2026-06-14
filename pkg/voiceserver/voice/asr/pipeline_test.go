@@ -196,3 +196,31 @@ func TestPipelineFlushAndRestart(t *testing.T) {
 	}
 	_ = p.Close()
 }
+
+func TestPipelineEchoSuppressWhileSynth(t *testing.T) {
+	fa := &fakeASR{}
+	p, err := New(Options{ASR: fa, SampleRate: 16000, MinFeedBytes: 4})
+	if err != nil {
+		t.Fatal(err)
+	}
+	playing := true
+	p.SetBargeInDetector(nil, func() bool { return playing }, nil)
+	p.SetEchoSuppressWhileSynth(true)
+
+	loud := []byte{0xff, 0x7f, 0xff, 0x7f, 0xff, 0x7f, 0xff, 0x7f}
+	if err := p.ProcessPCM(context.Background(), loud); err != nil {
+		t.Fatal(err)
+	}
+	if atomic.LoadInt32(&fa.sentBytes) != int32(len(loud)) {
+		t.Fatalf("expected %d silent bytes sent, got %d", len(loud), fa.sentBytes)
+	}
+
+	playing = false
+	if err := p.ProcessPCM(context.Background(), loud); err != nil {
+		t.Fatal(err)
+	}
+	if atomic.LoadInt32(&fa.sentBytes) != int32(2*len(loud)) {
+		t.Fatalf("expected real audio forwarded when not playing, got %d", fa.sentBytes)
+	}
+	_ = p.Close()
+}

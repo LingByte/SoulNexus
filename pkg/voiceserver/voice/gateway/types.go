@@ -57,9 +57,12 @@ const (
 type CommandType string
 
 const (
-	CmdTTSSpeak     CommandType = "tts.speak"     // synthesize + play text
-	CmdTTSInterrupt CommandType = "tts.interrupt" // stop current TTS (barge-in)
-	CmdHangup       CommandType = "hangup"        // terminate the call
+	CmdTTSSpeak      CommandType = "tts.speak"       // synthesize + play text segment
+	CmdTTSStream     CommandType = "tts.stream"      // raw LLM delta; voice plane segments + prefetches TTS
+	CmdTTSStreamEnd  CommandType = "tts.stream.end"  // end of LLM stream for current utterance
+	CmdTTSInterrupt      CommandType = "tts.interrupt"       // stop current TTS (barge-in)
+	CmdTTSSwitchSpeaker  CommandType = "tts.switch_speaker" // change TTS voice + notify device
+	CmdHangup            CommandType = "hangup"              // terminate the call
 )
 
 // Event is the envelope VoiceServer sends to the dialog app.
@@ -105,9 +108,15 @@ type Command struct {
 	Type   CommandType `json:"type"`
 	CallID string      `json:"call_id"`
 
-	// tts.speak
+	// tts.speak / tts.stream
 	Text        string `json:"text,omitempty"`
 	UtteranceID string `json:"utterance_id,omitempty"`
+	// stream_end marks the end of an LLM token stream (tts.stream).
+	StreamEnd bool `json:"stream_end,omitempty"`
+
+	// tts.switch_speaker
+	SpeakerID string `json:"speaker_id,omitempty"`
+	Message   string `json:"message,omitempty"` // optional device/UI hint
 
 	// hangup
 	Reason string `json:"reason,omitempty"`

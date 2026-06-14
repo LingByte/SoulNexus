@@ -860,7 +860,6 @@ const Profile = () => {
                           disabled={!isEditing}
                           prefix={<User />}
                           placeholder={t('profile.displayNamePlaceholder')}
-                          size="large"
                         />
                       </div>
                       <div>
@@ -870,7 +869,6 @@ const Profile = () => {
                           disabled={!isEditing}
                           prefix={<User />}
                           placeholder={t('profile.firstNamePlaceholder')}
-                          size="large"
                         />
                       </div>
                       <div>
@@ -880,7 +878,6 @@ const Profile = () => {
                           disabled={!isEditing}
                           prefix={<User />}
                           placeholder={t('profile.lastNamePlaceholder')}
-                          size="large"
                         />
                       </div>
                       <div>
@@ -909,7 +906,6 @@ const Profile = () => {
                           disabled={!isEditing}
                           prefix={<Mail />}
                           placeholder={t('profile.emailPlaceholder')}
-                          size="large"
                         />
                       </div>
                       <div>
@@ -919,7 +915,6 @@ const Profile = () => {
                           disabled={!isEditing}
                           prefix={<Phone />}
                           placeholder={t('profile.phonePlaceholder')}
-                          size="large"
                         />
                       </div>
                       <div>
@@ -928,7 +923,6 @@ const Profile = () => {
                           onChange={(val) => setFormData((prev) => ({ ...prev, city: val }))}
                           disabled={!isEditing}
                           placeholder="请输入所在城市"
-                          size="large"
                         />
                       </div>
                       <div>
@@ -937,7 +931,6 @@ const Profile = () => {
                           onChange={(val) => setFormData((prev) => ({ ...prev, region: val }))}
                           disabled={!isEditing}
                           placeholder="请输入所在地区"
-                          size="large"
                         />
                       </div>
                       <div className="col-span-full">
@@ -1257,7 +1250,6 @@ const Profile = () => {
                                       </button>
                                     }
                                     placeholder="请输入当前密码"
-                                    size="large"
                                   />
                                 </div>
                               ) : (
@@ -1270,7 +1262,6 @@ const Profile = () => {
                                         onChange={(val) => setEmailCode(val)}
                                         prefix={<Mail />}
                                         placeholder="请输入邮箱验证码"
-                                        size="large"
                                       />
                                     </div>
                                     <Button
@@ -1303,7 +1294,6 @@ const Profile = () => {
                                       </button>
                                     }
                                     placeholder="请输入新密码"
-                                    size="large"
                                   />
                                 </div>
                                 <div>
@@ -1323,9 +1313,8 @@ const Profile = () => {
                                         {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                                     </button>
                                   }
-                                  placeholder="请再次输入新密码"
-                                  size="large"
-                                />
+                                    placeholder="请再次输入新密码"
+                                  />
                                 </div>
                               </div>
                               <div className="mt-3 flex gap-2">

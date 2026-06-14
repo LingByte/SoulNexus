@@ -69,6 +69,7 @@ func (h *Handlers) mountXiaozhi(r gin.IRoutes) bool {
 	}
 
 	var realtimeProvider string
+	var agentFactory *app.AgentAwareFactory
 	switch mode {
 	case app.XiaozhiModeRealtime:
 		rt, err := app.NewXiaozhiRealtimeFactory()
@@ -88,10 +89,21 @@ func (h *Handlers) mountXiaozhi(r gin.IRoutes) bool {
 			logger.Info(fmt.Sprintf("[xiaozhi] disabled: %v", err))
 			return false
 		}
-		srvCfg.SessionFactory = factory
+		var agentFactory *app.AgentAwareFactory
 		if h.cfg.DB != nil {
-			srvCfg.SessionFactory = app.NewAgentAwareFactory(h.cfg.DB, factory, nil, app.VoiceLogger("xiaozhi"))
+			agentFactory = app.NewAgentAwareFactory(h.cfg.DB, factory, nil, app.VoiceLogger("xiaozhi"))
+			srvCfg.SessionFactory = agentFactory
+			srvCfg.SwitchSpeaker = agentFactory.SwitchSpeaker
 			logger.Info("[xiaozhi] agent-aware TTS enabled (speaker/clone from payload + DB)")
+		} else {
+			srvCfg.SessionFactory = factory
+		}
+	}
+
+	if agentFactory != nil {
+		srvCfg.OnSessionEnd = func(ctx context.Context, callID, reason string) {
+			logger.Info(fmt.Sprintf("[xiaozhi] session end   call=%s reason=%s", callID, reason))
+			agentFactory.Release(callID)
 		}
 	}
 

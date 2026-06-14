@@ -76,7 +76,7 @@ const JSTemplateManager = () => {
 
     const updateIframe = () => {
         if (!iframeRef.current) return
-        const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://store.lingecho.com;"><style>body{margin:0;font-family:sans-serif;}*{box-sizing:border-box;}</style></head><body><div id="app"></div><script>window.SERVER_BASE='${getApiBaseURL()}';window.ASSISTANT_NAME='preview';window.AGENT_ID=1;window.LANGUAGE='zh-cn';window.ASSISTANT_ID='preview';</script><script src="https://store.lingecho.com/sdk/browser/soulnexus-browser-sdk-v0.1.1.js"></script><script>document.addEventListener('lingllm-ready',()=>{try{${(debouncedContent || '').replace(/<\/script>/g, '').replace(/<!--/g, '').replace(/<script/g, '')}}catch(e){document.body.innerHTML='<pre style="color:red;padding:16px;">'+e.message+'</pre>'}});</script></body></html>`
+        const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval'; script-src 'self' 'unsafe-inline' 'unsafe-eval';"><style>body{margin:0;font-family:sans-serif;}*{box-sizing:border-box;}</style></head><body><div id="app"></div><script>window.SERVER_BASE='${getApiBaseURL()}';window.ASSISTANT_NAME='preview';window.AGENT_ID=1;window.LANGUAGE='zh-cn';window.ASSISTANT_ID='preview';try{${(debouncedContent || '').replace(/<\/script>/g, '').replace(/<!--/g, '').replace(/<script/g, '')}}catch(e){document.body.innerHTML='<pre style="color:red;padding:16px;">'+e.message+'</pre>'}</script></body></html>`
         iframeRef.current.srcdoc = html
     }
 

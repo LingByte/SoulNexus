@@ -17,8 +17,10 @@ import (
 
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/metrics"
+	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/tts"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/vad"
 	"github.com/gorilla/websocket"
+	llmtts "github.com/LingByte/lingllm/protocol/voice/tts"
 	"go.uber.org/zap"
 )
 
@@ -122,6 +124,17 @@ type ClientConfig struct {
 	// the number of asr.partial events the LLM has to digest.
 	ASRSentenceFilter ASRSentenceFilter
 
+	// ASRForwardFilter, when non-nil, can suppress recogniser output
+	// before it is forwarded to the dialog plane (e.g. listen-start
+	// protection window). Return false to drop the hypothesis.
+	ASRForwardFilter func(text string, isFinal bool) bool
+
+	// SwitchSpeaker is invoked when the dialog plane sends
+	// tts.switch_speaker. The transport should hot-swap the per-call
+	// TTS engine and push speaker_changed to the hardware client.
+	// Returns success + user-visible message for the device UI.
+	SwitchSpeaker func(speakerID string) (success bool, message string)
+
 	// Logger is optional.
 	Logger *zap.Logger
 }
@@ -202,6 +215,15 @@ type Client struct {
 	// after Start() returns, so we could have stored it plain but the
 	// atomic pattern matches the other lifecycle fields.
 	transport atomic.Pointer[string]
+
+	// tts.stream: segment LLM deltas on the voice plane (LingEchoX-style).
+	ttsStreamSegmenter *llmtts.TextSegmenterComponent
+	streamMu           sync.Mutex
+	streamUtteranceID  string
+	streamSegIdx       int
+	streamGen          atomic.Uint64
+	ttsGenInvalidBefore atomic.Uint64
+	ttsPrefetchSem     chan struct{}
 }
 
 // ttsJob is one queued TTS utterance. meta carries optional dialog-side
@@ -211,6 +233,30 @@ type ttsJob struct {
 	text  string
 	utter string
 	meta  *CommandMeta
+	gen   uint64
+
+	prefetchCh     <-chan []byte
+	prefetchCancel context.CancelFunc
+	prefetchErr    error
+	prefetchMu     sync.Mutex
+}
+
+func (j *ttsJob) cancelPrefetch() {
+	if j == nil || j.prefetchCancel == nil {
+		return
+	}
+	j.prefetchCancel()
+}
+
+func (j *ttsJob) setPrefetchErr(err error) {
+	if j == nil || err == nil {
+		return
+	}
+	j.prefetchMu.Lock()
+	if j.prefetchErr == nil {
+		j.prefetchErr = err
+	}
+	j.prefetchMu.Unlock()
 }
 
 // NewClient validates cfg. The WebSocket is opened by Start.
@@ -284,10 +330,13 @@ func (c *Client) Start(ctx context.Context, meta StartMeta) error {
 	// the WS read loop; new commands queue and play in arrival order.
 	if c.cfg.Attached.TTS != nil {
 		c.ttsQueue = make(chan ttsJob, 64)
+		c.ttsPrefetchSem = make(chan struct{}, ttsPrefetchMaxConcurrency())
+		c.initTTSStreamSegmenter()
 		c.ttsWg.Add(1)
 		go c.ttsWorker()
 		logger.Info(fmt.Sprintf("[gw] call=%s tts worker started (serial speak queue cap=64)",
 			c.cfg.CallID))
+		go c.warmTTSEngine()
 	}
 
 	// Wire ASR → events.
@@ -316,6 +365,9 @@ func (c *Client) Start(ctx context.Context, meta StartMeta) error {
 				// fire even when its tail equals what we last
 				// emitted, so the dialog plane hears "this turn
 				// is closed").
+			}
+			if c.cfg.ASRForwardFilter != nil && !c.cfg.ASRForwardFilter(text, isFinal) {
+				return
 			}
 			t := EvASRPartial
 			if isFinal {
@@ -368,11 +420,7 @@ func (c *Client) Start(ctx context.Context, meta StartMeta) error {
 				det,
 				c.cfg.Attached.TTS.IsPlaying,
 				func() {
-					c.drainTTSQueue()
-					c.cfg.Attached.TTS.Interrupt()
-					_ = c.sendEvent(Event{
-						Type: EvTTSInterrupt, CallID: c.cfg.CallID,
-					})
+					c.interruptPlayback(true)
 					metrics.BargeIn(c.transportLabel())
 					logger.Info(fmt.Sprintf("[gw] call=%s barge-in: tts interrupted by user voice",
 						c.cfg.CallID))
@@ -661,27 +709,36 @@ func (c *Client) dispatch(cmd Command) {
 		if text == "" {
 			return
 		}
-		// Non-blocking enqueue: if the worker is overwhelmed (rare), drop
-		// the new utterance rather than stall the WS read loop.
-		select {
-		case c.ttsQueue <- ttsJob{text: text, utter: cmd.UtteranceID, meta: cmd.Meta}:
-		default:
-			c.log.Warn("voice/gateway tts queue full, dropping",
-				zap.String("call_id", c.cfg.CallID),
-				zap.String("utter", cmd.UtteranceID))
-			_ = c.sendEvent(Event{
-				Type: EvTTSEnded, CallID: c.cfg.CallID,
-				UtteranceID: cmd.UtteranceID, OK: false,
-			})
+		c.enqueueSpeakJob(text, cmd.UtteranceID, cmd.Meta, 0)
+
+	case CmdTTSStream, CmdTTSStreamEnd:
+		if c.cfg.Attached.TTS == nil {
+			return
 		}
+		streamEnd := cmd.Type == CmdTTSStreamEnd || cmd.StreamEnd
+		c.handleTTSStream(cmd.Text, cmd.UtteranceID, streamEnd)
+
 	case CmdTTSInterrupt:
 		if c.cfg.Attached.TTS == nil {
 			return
 		}
-		// Drain pending utterances so a barge-in really stops the AI;
-		// also cancel the in-flight Speak so frames stop hitting RTP.
-		c.drainTTSQueue()
-		c.cfg.Attached.TTS.Interrupt()
+		c.interruptPlayback(false)
+
+	case CmdTTSSwitchSpeaker:
+		speakerID := strings.TrimSpace(cmd.SpeakerID)
+		if speakerID == "" || c.cfg.SwitchSpeaker == nil {
+			return
+		}
+		ok, msg := c.cfg.SwitchSpeaker(speakerID)
+		if msg == "" && ok {
+			msg = "发音人已切换"
+		}
+		c.log.Info("voice/gateway tts.switch_speaker",
+			zap.String("call_id", c.cfg.CallID),
+			zap.String("speaker_id", speakerID),
+			zap.Bool("ok", ok),
+			zap.String("message", msg))
+
 	case CmdHangup:
 		if c.cfg.OnHangup != nil {
 			c.cfg.OnHangup(cmd.Reason)
@@ -725,20 +782,37 @@ func (c *Client) ttsWorker() {
 			// distinguish "never fired" (Speak error / drained) from
 			// "fired at T0" downstream.
 			var firstByteAt atomic.Pointer[time.Time]
+			var startedOnce atomic.Bool
 			c.cfg.Attached.TTS.ArmFirstFrameHook(func() {
 				ts := time.Now()
 				firstByteAt.Store(&ts)
+				if !startedOnce.CompareAndSwap(false, true) {
+					return
+				}
+				_ = c.sendEvent(Event{
+					Type: EvTTSStarted, CallID: c.cfg.CallID, UtteranceID: job.utter,
+				})
+				if c.cfg.OnTTSStart != nil {
+					c.cfg.OnTTSStart(job.utter, job.text)
+				}
+				if asrFinalPtr != nil {
+					e2e := int(ts.Sub(*asrFinalPtr).Milliseconds())
+					if e2e < 0 {
+						e2e = 0
+					}
+					logger.Info(fmt.Sprintf("[gw] call=%s tts first-audio utter=%s e2e_user=%dms text=%q",
+						c.cfg.CallID, job.utter, e2e, ellipsize(job.text, 40)))
+				}
 			})
 
 			logger.Info(fmt.Sprintf("[gw] call=%s tts speak begin utter=%s text=%q",
 				c.cfg.CallID, job.utter, ellipsize(job.text, 40)))
-			_ = c.sendEvent(Event{
-				Type: EvTTSStarted, CallID: c.cfg.CallID, UtteranceID: job.utter,
-			})
-			if c.cfg.OnTTSStart != nil {
-				c.cfg.OnTTSStart(job.utter, job.text)
+			var err error
+			if job.prefetchCh != nil {
+				err = c.cfg.Attached.TTS.SpeakWithService(job.text, tts.NewReplayService(job.prefetchCh))
+			} else {
+				err = c.cfg.Attached.TTS.Speak(job.text)
 			}
-			err := c.cfg.Attached.TTS.Speak(job.text)
 			// Defensive disarm: if Speak returned before any frame was
 			// produced (synthesis error, Interrupt, ctx cancel) the hook
 			// is still pending and would otherwise fire on the NEXT
@@ -765,7 +839,7 @@ func (c *Client) ttsWorker() {
 				Type: EvTTSEnded, CallID: c.cfg.CallID,
 				UtteranceID: job.utter, OK: err == nil,
 			})
-			logger.Info(fmt.Sprintf("[gw] call=%s tts speak end   utter=%s ok=%v dur=%s ttf=%dms e2e=%dms",
+			logger.Info(fmt.Sprintf("[gw] call=%s tts speak end   utter=%s ok=%v dur=%s ttf=%dms e2e_user=%dms",
 				c.cfg.CallID, job.utter, err == nil, dur.Round(time.Millisecond),
 				ttsFirstMs, e2eFirstMs))
 			if err != nil {
@@ -802,6 +876,7 @@ func (c *Client) drainTTSQueue() {
 	for {
 		select {
 		case job := <-c.ttsQueue:
+			job.cancelPrefetch()
 			_ = c.sendEvent(Event{
 				Type: EvTTSEnded, CallID: c.cfg.CallID,
 				UtteranceID: job.utter, OK: false,
@@ -821,6 +896,29 @@ func ellipsize(s string, max int) string {
 		return s
 	}
 	return string(r[:max]) + "…"
+}
+
+// InterruptPlayback stops in-flight and queued TTS on the media plane.
+// When notifyDialog is true, a tts.interrupt event is sent so the dialog
+// plane can cancel the upstream LLM stream (device abort / barge-in).
+func (c *Client) InterruptPlayback(notifyDialog bool) {
+	if c == nil {
+		return
+	}
+	c.interruptPlayback(notifyDialog)
+}
+
+func (c *Client) interruptPlayback(notifyDialog bool) {
+	if c == nil || c.cfg.Attached == nil || c.cfg.Attached.TTS == nil {
+		return
+	}
+	c.streamGen.Add(1)
+	c.invalidateQueuedTTS()
+	c.resetTTSStreamState()
+	c.cfg.Attached.TTS.Interrupt()
+	if notifyDialog {
+		_ = c.sendEvent(Event{Type: EvTTSInterrupt, CallID: c.cfg.CallID})
+	}
 }
 
 // MergeDialogPayloadQuery parses raw and sets query key "payload" to the

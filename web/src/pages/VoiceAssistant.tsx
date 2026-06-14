@@ -215,12 +215,12 @@ const VoiceAssistant = () => {
     const [pendingAgent, setPendingAgent] = useState<number | null>(null)
 
     // 获取选中助手的 jsSourceId
-    const jsSourceId = assistants.find(a => a.id === agentId)?.jsSourceId || ''
+    const jsSourceId = (assistants ?? []).find(a => a.id === agentId)?.jsSourceId || ''
 
     // 当选中助手变化时，更新基础配置
     useEffect(() => {
-        if (agentId && assistants.length > 0) {
-            const currentAssistant = assistants.find(a => a.id === agentId)
+        if (agentId && (assistants ?? []).length > 0) {
+            const currentAssistant = (assistants ?? []).find(a => a.id === agentId)
             if (currentAssistant) {
                 // 同步助手基础配置（包括图记忆开关和VAD配置）
                 setAssistantName(currentAssistant.name || '')
@@ -1252,7 +1252,7 @@ const VoiceAssistant = () => {
                 loadTasks.push(
                     getAssistantList()
                         .then((response) => {
-                            setAssistants(response.data as Assistant[])
+                            setAssistants(Array.isArray(response.data) ? response.data : [])
                         })
                         .catch((err) => {
                             console.warn('获取助手列表失败:', err)
@@ -1297,7 +1297,7 @@ const VoiceAssistant = () => {
     // 但是为了避免重复加载，我们只在助手列表加载完成后，且 agentId 发生变化时才加载
     useEffect(() => {
         // 只在助手列表加载完成后才处理切换，避免初始化时重复加载
-        if (agentId && agentId > 0 && assistants.length > 0) {
+        if (agentId && agentId > 0 && (assistants ?? []).length > 0) {
             // 防止重复调用同一个 agentId（StrictMode 会导致重复执行）
             if (lastSelectedAgentRef.current !== agentId) {
                 lastSelectedAgentRef.current = agentId
@@ -1598,7 +1598,7 @@ const VoiceAssistant = () => {
 
             // 刷新助手列表
             const assistantsResponse = await getAssistantList()
-            setAssistants(assistantsResponse.data as Assistant[])
+            setAssistants(Array.isArray(assistantsResponse.data) ? assistantsResponse.data : [])
 
             showAlert('助手创建成功', 'success')
         } catch (err: any) {
@@ -1631,7 +1631,7 @@ const VoiceAssistant = () => {
                 const response = await updateAssistant(agentId, {
                     name: assistantName,
                     systemPrompt,
-                    persona_tag: assistants.find(a => a.id === agentId)?.name || '',
+                    persona_tag: (assistants ?? []).find(a => a.id === agentId)?.name || '',
                     temperature: temperature,
                     maxTokens: maxTokens,
                     language,
@@ -1650,7 +1650,7 @@ const VoiceAssistant = () => {
 
                 // 使用返回的助手数据更新列表，避免额外的GET请求
                 if (response.code === 200 && response.data) {
-                    setAssistants(assistants.map(a => a.id === agentId ? response.data : a))
+                    setAssistants((assistants ?? []).map(a => a.id === agentId ? response.data : a))
                 }
 
                 showAlert('设置保存成功', 'success')
@@ -1821,7 +1821,7 @@ const VoiceAssistant = () => {
                             onMuteToggle={setIsGlobalMuted}
                             onNewSession={startNewSession}
                             onSettingsClick={() => setIsControlPanelCollapsed(false)}
-                            assistantName={assistants.find(a => a.id === agentId)?.name}
+                            assistantName={(assistants ?? []).find(a => a.id === agentId)?.name}
                         />
                         {showOnboarding && highlightedElement === 'chat-area' && (
                             <GuideTooltip

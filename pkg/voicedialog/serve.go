@@ -1,13 +1,6 @@
-// Copyright (c) 2026 LinByte. All rights reserved.
+// Copyright (c) 2026 LingByte. All rights reserved.
 // SPDX-License-Identifier: AGPL-3.0
 
-// Package voicedialog implements the dialog-plane WebSocket server consumed by
-// cmd/voice when it dials SoulNexus (or compatible) /ws/call. It speaks the
-// pkg/voiceserver/voice/gateway event protocol: ASR/DTMF events in,
-// tts.speak / tts.interrupt commands out, with LLM streaming and utterance
-// segmentation mirroring cmd/dialog-example.
-//
-// It lives under pkg/ so HTTP handlers import a stable path without Gin types.
 package voicedialog
 
 import (
@@ -22,7 +15,6 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/llm"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/gateway"
-	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/tts"
 	"github.com/gorilla/websocket"
 )
 
@@ -60,6 +52,15 @@ func Serve(ctx context.Context, conn *websocket.Conn, callID string, cfg Config,
 		provider: provider,
 	}
 
+	RegisterHardwareTools(provider, HardwareToolHooks{
+		SendCommand: c.sendCommand,
+		GoodbyePending: func() {
+			c.goodbyePending.Store(true)
+		},
+	})
+
+	go c.warmLLM(ctx)
+
 	for {
 		_ = conn.SetReadDeadline(time.Now().Add(5 * time.Minute))
 		_, raw, err := conn.ReadMessage()
@@ -89,6 +90,8 @@ type callConn struct {
 	llmBusy    atomic.Bool
 	lastFinal  string
 	lastFinalM sync.Mutex
+
+	goodbyePending atomic.Bool
 }
 
 func (c *callConn) dispatch(ctx context.Context, ev gateway.Event) {
@@ -96,6 +99,7 @@ func (c *callConn) dispatch(ctx context.Context, ev gateway.Event) {
 	case gateway.EvCallStarted:
 		logger.Info(fmt.Sprintf("[call=%s] started: from=%s to=%s codec=%s pcm_hz=%d",
 			c.callID, ev.From, ev.To, ev.Codec, ev.PCMHz))
+		go c.warmLLM(ctx)
 
 	case gateway.EvCallEnded:
 		logger.Info(fmt.Sprintf("[call=%s] ended: %s", c.callID, ev.Reason))
@@ -125,6 +129,7 @@ func (c *callConn) dispatch(ctx context.Context, ev gateway.Event) {
 
 	case gateway.EvTTSInterrupt:
 		logger.Info(fmt.Sprintf("[call=%s] tts-interrupt (playback cut by voiceserver)", c.callID))
+		c.provider.Interrupt()
 
 	case gateway.EvASRError:
 		logger.Info(fmt.Sprintf("[call=%s] asr-error fatal=%v: %s", c.callID, ev.Fatal, ev.Message))
@@ -137,6 +142,15 @@ func (c *callConn) dispatch(ctx context.Context, ev gateway.Event) {
 
 	case gateway.EvTTSEnded:
 		logger.Info(fmt.Sprintf("[call=%s] tts-ended  utt=%s ok=%v", c.callID, ev.UtteranceID, ev.OK))
+		if c.goodbyePending.Load() && !c.llmBusy.Load() && ev.OK {
+			// Defer hangup so multi-segment goodbye replies finish playing.
+			time.AfterFunc(450*time.Millisecond, func() {
+				if c.goodbyePending.Load() && !c.llmBusy.Load() {
+					c.goodbyePending.Store(false)
+					c.sendCommand(gateway.Command{Type: gateway.CmdHangup, Reason: "goodbye"})
+				}
+			})
+		}
 
 	default:
 		logger.Info(fmt.Sprintf("[call=%s] unknown event type=%q", c.callID, ev.Type))
@@ -152,48 +166,21 @@ func (c *callConn) runTurn(ctx context.Context, userText string) {
 	defer c.llmBusy.Store(false)
 
 	turn := c.turnSeq.Add(1)
-	utterIdx := 0
+	utteranceID := fmt.Sprintf("t%d", turn)
 	t0 := time.Now()
 	var firstByteMs int
 
-	speak := func(text string) {
-		text = strings.TrimSpace(text)
-		if text == "" {
+	sendStream := func(delta string, streamEnd bool) {
+		if !streamEnd && strings.TrimSpace(delta) == "" {
 			return
 		}
-		utterIdx++
-		meta := &gateway.CommandMeta{
-			LLMModel:   c.cfg.Model,
-			LLMFirstMs: firstByteMs,
-			LLMWallMs:  int(time.Since(t0).Milliseconds()),
-			UserText:   userText,
-		}
 		c.sendCommand(gateway.Command{
-			Type:        gateway.CmdTTSSpeak,
-			Text:        text,
-			UtteranceID: fmt.Sprintf("t%d-u%d", turn, utterIdx),
-			Meta:        meta,
+			Type:        gateway.CmdTTSStream,
+			Text:        delta,
+			UtteranceID: utteranceID,
+			StreamEnd:   streamEnd,
 		})
 	}
-
-	seg := tts.NewSegmenter(tts.SegmenterConfig{
-		// Balance: pure sentence-only + huge MaxRunes waits too long for the
-		// first tts.speak and ships multi-sentence blobs (slow TTF, long
-		// monologue). Defaults (MinRunes 12 / MaxRunes 40) over-split on commas.
-		// Here: clause flush only after a substantial clause, hard-cap length,
-		// and modest idle so streaming still chunks without "语义碎屑".
-		OmitClauseFlushes: false,
-		SentenceEnders:    []string{"。", "！", "？", ".", "!", "?", "\n"},
-		// Chinese models often use … / …… instead of commas; treat as soft
-		// boundaries so we do not ship one 8s tts.speak before a period.
-		ClauseMarkers: []string{"，", "、", "；", "：", "—", "……", "…"},
-		MinRunes:      12,
-		MaxRunes:      32,
-		IdleFlush:     200 * time.Millisecond,
-	}, func(text string, _ bool) {
-		speak(text)
-	})
-	defer seg.Reset()
 
 	var sv streamView
 	startedTTS := false
@@ -221,27 +208,46 @@ func (c *callConn) runTurn(ctx context.Context, userText string) {
 				firstByteMs = int(time.Since(t0).Milliseconds())
 				logger.Info(fmt.Sprintf("[call=%s] llm first-byte=%dms", c.callID, firstByteMs))
 			}
-			seg.Push(delta)
+			sendStream(delta, false)
 		}
 		if isComplete {
-			seg.Complete()
+			sendStream("", true)
 		}
 		return nil
 	})
 	if err != nil {
 		logger.Info(fmt.Sprintf("[call=%s] llm stream failed: %v (fullSeen=%q)",
 			c.callID, err, ellipsize(sv.seen, 200)))
-		seg.Complete()
+		sendStream("", true)
 		if !startedTTS && c.fallback != "" {
-			speak(c.fallback)
+			c.sendCommand(gateway.Command{
+				Type:        gateway.CmdTTSSpeak,
+				Text:        c.fallback,
+				UtteranceID: fmt.Sprintf("%s-fallback", utteranceID),
+				Meta: &gateway.CommandMeta{
+					LLMModel:   c.cfg.Model,
+					LLMFirstMs: firstByteMs,
+					LLMWallMs:  int(time.Since(t0).Milliseconds()),
+					UserText:   userText,
+				},
+			})
 		}
 		return
 	}
-	seg.Complete()
 	if !startedTTS {
 		logger.Info(fmt.Sprintf("[call=%s] llm produced no speakable text; using fallback", c.callID))
 		if c.fallback != "" {
-			speak(c.fallback)
+			c.sendCommand(gateway.Command{
+				Type:        gateway.CmdTTSSpeak,
+				Text:        c.fallback,
+				UtteranceID: fmt.Sprintf("%s-fallback", utteranceID),
+				Meta: &gateway.CommandMeta{
+					LLMModel:   c.cfg.Model,
+					LLMFirstMs: firstByteMs,
+					LLMWallMs:  int(time.Since(t0).Milliseconds()),
+					UserText:   userText,
+				},
+			})
 		}
 	}
 }
@@ -326,5 +332,26 @@ func (c *callConn) sendCommand(cmd gateway.Command) {
 	_ = c.conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
 	if err := c.conn.WriteMessage(websocket.TextMessage, data); err != nil {
 		logger.Info(fmt.Sprintf("[call=%s] write cmd %s: %v", c.callID, cmd.Type, err))
+	}
+}
+
+func (c *callConn) warmLLM(ctx context.Context) {
+	if c == nil || c.provider == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+	temp := c.cfg.Temperature
+	if temp <= 0 {
+		temp = 0.7
+	}
+	opts := &llm.QueryOptions{
+		Model:       c.cfg.Model,
+		Temperature: temp,
+		MaxTokens:   1,
+	}
+	_, err := c.provider.QueryStream(" ", opts, func(string, bool) error { return nil })
+	if err != nil && ctx.Err() == nil {
+		logger.Info(fmt.Sprintf("[call=%s] llm warm: %v", c.callID, err))
 	}
 }

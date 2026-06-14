@@ -697,21 +697,6 @@ func (oh *OpenaiHandler) QueryStream(text string, options *QueryOptions, callbac
 	if options == nil {
 		options = &QueryOptions{}
 	}
-	if len(oh.buildOpenAITools()) > 0 {
-		resp, err := oh.QueryWithOptions(text, options)
-		if err != nil {
-			return nil, err
-		}
-		if callback != nil && resp != nil && len(resp.Choices) > 0 {
-			if err := callback(resp.Choices[0].Content, false); err != nil {
-				return nil, err
-			}
-			if err := callback("", true); err != nil {
-				return nil, err
-			}
-		}
-		return resp, nil
-	}
 	requestType := strings.TrimSpace(options.RequestType)
 	if requestType == "" {
 		requestType = "query_stream"
@@ -835,6 +820,9 @@ func (oh *OpenaiHandler) QueryStream(text string, options *QueryOptions, callbac
 	if options.LogitBias != nil {
 		request.LogitBias = options.LogitBias
 	}
+	if tools := oh.buildOpenAITools(); len(tools) > 0 {
+		request.Tools = tools
+	}
 
 	reqCtx, cancel := context.WithCancel(oh.ctx)
 	cancelID := oh.setCurrentCancel(cancel)
@@ -842,42 +830,51 @@ func (oh *OpenaiHandler) QueryStream(text string, options *QueryOptions, callbac
 		oh.clearCurrentCancel(cancelID)
 		cancel()
 	}()
-	stream, err := oh.client.CreateChatCompletionStream(reqCtx, request)
-	if err != nil {
-		tracker.Error("API_ERROR", err.Error())
-		return nil, err
-	}
-	defer stream.Close()
 
 	var content strings.Builder
-	for {
-		chunkResp, e := stream.Recv()
-		if errors.Is(e, context.Canceled) {
-			return nil, e
+	roundMessages := messages
+	for round := 0; round < maxToolCallRounds; round++ {
+		request.Messages = roundMessages
+		stream, err := oh.client.CreateChatCompletionStream(reqCtx, request)
+		if err != nil {
+			tracker.Error("API_ERROR", err.Error())
+			return nil, err
 		}
-		if e != nil {
-			if errors.Is(e, io.EOF) {
-				break
-			}
-			tracker.Error("STREAM_ERROR", e.Error())
-			return nil, e
-		}
-		if len(chunkResp.Choices) == 0 {
-			continue
-		}
-		delta := chunkResp.Choices[0].Delta.Content
-		if delta == "" {
-			continue
-		}
-		if options.FilterEmoji {
-			delta = emojiRegex.ReplaceAllString(delta, "")
-		}
-		content.WriteString(delta)
-		if callback != nil {
-			if err := callback(delta, false); err != nil {
+		roundContent, toolCalls, finishReason, err := oh.recvChatCompletionStream(stream, callback, options)
+		stream.Close()
+		if err != nil {
+			if errors.Is(err, context.Canceled) {
 				return nil, err
 			}
+			tracker.Error("STREAM_ERROR", err.Error())
+			return nil, err
 		}
+		content.WriteString(roundContent.String())
+
+		if finishReason == openai.FinishReasonToolCalls && len(toolCalls) > 0 {
+			assistantMsg := openai.ChatCompletionMessage{
+				Role:      openai.ChatMessageRoleAssistant,
+				Content:   roundContent.String(),
+				ToolCalls: toolCalls,
+			}
+			if strings.TrimSpace(assistantMsg.Content) == "" {
+				assistantMsg.Content = " "
+			}
+			roundMessages = append(roundMessages, assistantMsg)
+			for _, tc := range toolCalls {
+				toolResult := oh.executeToolCall(tc)
+				if strings.TrimSpace(toolResult) == "" {
+					toolResult = "工具执行完成"
+				}
+				roundMessages = append(roundMessages, openai.ChatCompletionMessage{
+					Role:       openai.ChatMessageRoleTool,
+					ToolCallID: tc.ID,
+					Content:    toolResult,
+				})
+			}
+			continue
+		}
+		break
 	}
 	if callback != nil {
 		if err := callback("", true); err != nil {
@@ -949,6 +946,75 @@ func (oh *OpenaiHandler) buildOpenAITools() []openai.Tool {
 		})
 	}
 	return tools
+}
+
+// mergeStreamToolCallDeltas accumulates tool-call fragments from a streaming chunk.
+func mergeStreamToolCallDeltas(accum []openai.ToolCall, delta []openai.ToolCall) []openai.ToolCall {
+	for _, tc := range delta {
+		idx := 0
+		if tc.Index != nil {
+			idx = *tc.Index
+		}
+		for len(accum) <= idx {
+			accum = append(accum, openai.ToolCall{Type: openai.ToolTypeFunction})
+		}
+		if tc.ID != "" {
+			accum[idx].ID = tc.ID
+		}
+		if tc.Type != "" {
+			accum[idx].Type = tc.Type
+		}
+		if tc.Function.Name != "" {
+			accum[idx].Function.Name += tc.Function.Name
+		}
+		accum[idx].Function.Arguments += tc.Function.Arguments
+	}
+	return accum
+}
+
+func (oh *OpenaiHandler) recvChatCompletionStream(
+	stream *openai.ChatCompletionStream,
+	callback func(segment string, isComplete bool) error,
+	options *QueryOptions,
+) (strings.Builder, []openai.ToolCall, openai.FinishReason, error) {
+	var spoken strings.Builder
+	var toolCalls []openai.ToolCall
+	var finishReason openai.FinishReason
+
+	for {
+		chunkResp, e := stream.Recv()
+		if errors.Is(e, context.Canceled) {
+			return spoken, toolCalls, finishReason, e
+		}
+		if e != nil {
+			if errors.Is(e, io.EOF) {
+				break
+			}
+			return spoken, toolCalls, finishReason, e
+		}
+		if len(chunkResp.Choices) == 0 {
+			continue
+		}
+		choice := chunkResp.Choices[0]
+		if choice.FinishReason != "" {
+			finishReason = choice.FinishReason
+		}
+		toolCalls = mergeStreamToolCallDeltas(toolCalls, choice.Delta.ToolCalls)
+		delta := choice.Delta.Content
+		if delta == "" {
+			continue
+		}
+		if options != nil && options.FilterEmoji {
+			delta = emojiRegex.ReplaceAllString(delta, "")
+		}
+		spoken.WriteString(delta)
+		if callback != nil {
+			if err := callback(delta, false); err != nil {
+				return spoken, toolCalls, finishReason, err
+			}
+		}
+	}
+	return spoken, toolCalls, finishReason, nil
 }
 
 func (oh *OpenaiHandler) createChatCompletionWithTools(ctx context.Context, request openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error) {
