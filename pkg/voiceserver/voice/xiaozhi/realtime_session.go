@@ -10,7 +10,7 @@ import (
 
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/lingllm/media"
-	"github.com/LingByte/SoulNexus/pkg/realtime"
+	"github.com/LingByte/lingllm/realtime"
 	"go.uber.org/zap"
 )
 

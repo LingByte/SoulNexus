@@ -77,6 +77,9 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	if err := bootstrap.InitI18n(); err != nil {
+		panic(err)
+	}
 
 	// 5. Print Banner
 	if err := bootstrap.PrintBannerFromFile("system-banner.txt", config.GlobalConfig.Server.Name); err != nil {

@@ -308,7 +308,6 @@ handler.auth.user_not_exists: "使用者不存在"
 
 # Auth handler additional messages
 handler.auth.wechat_bind_code_generated: "微信綁定碼已產生"
-handler.auth.wechat_bind_status: "微信綁定狀態"
 handler.auth.login_failed: "登入失敗"
 handler.auth.too_many_attempts: "登入嘗試次數過多"
 handler.auth.account_locked: "帳戶已被鎖定"

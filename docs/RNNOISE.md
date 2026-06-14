@@ -25,14 +25,14 @@ sudo port install rnnoise
 
 ```bash
 export CGO_ENABLED=1
-go build -tags rnnoise ./pkg/rnnoise/...
+go build -tags rnnoise github.com/LingByte/lingllm/media/rnnoise
 ```
 
 ### Debian / Ubuntu
 
 ```bash
 sudo apt-get install -y librnnoise-dev
-go build -tags rnnoise ./pkg/rnnoise/...
+go build -tags rnnoise github.com/LingByte/lingllm/media/rnnoise
 ```
 
 若库在非标准路径，可设置例如：

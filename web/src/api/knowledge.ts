@@ -33,8 +33,24 @@ export interface KnowledgeDocumentRow {
   textUrl?: string
   storedMarkdown?: string
   recordIds?: string
+  status?: string
+  processError?: string
   createdAt?: string
   updatedAt?: string
+}
+
+export const KNOWLEDGE_IN_PROGRESS_STATUSES = [
+  'uploading',
+  'parsing',
+  'chunking',
+  'embedding',
+  'indexing',
+  'processing',
+] as const
+
+export function isKnowledgeDocInProgress(status?: string): boolean {
+  if (!status) return false
+  return KNOWLEDGE_IN_PROGRESS_STATUSES.includes(status as typeof KNOWLEDGE_IN_PROGRESS_STATUSES[number])
 }
 
 export interface KnowledgeDocumentListPayload {

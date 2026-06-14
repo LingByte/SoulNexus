@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/LingByte/SoulNexus/pkg/voiceserver/audio/rnnoise"
+	"github.com/LingByte/lingllm/media/rnnoise"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/asr"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/gateway"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/vad"
@@ -143,7 +143,7 @@ func NewBargeInDetector() *vad.Detector {
 //     enough — repeated identical lines per call would just be noise.
 //
 // The returned value satisfies the voicertc.Denoiser interface
-// (Process + Close) which pkg/voiceserver/audio/rnnoise.Denoiser
+// (Process + Close) which lingllm/media/rnnoise.Denoiser
 // implements directly.
 func NewDenoiserOrNil() voicertc.Denoiser {
 	if !denoiseFlag {

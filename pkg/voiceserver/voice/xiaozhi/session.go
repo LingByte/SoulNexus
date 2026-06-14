@@ -24,7 +24,7 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/sessionctx"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/recorder"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/tts"
-	"github.com/LingByte/SoulNexus/pkg/realtime"
+	"github.com/LingByte/lingllm/realtime"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/vad"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"

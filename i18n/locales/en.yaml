@@ -305,7 +305,6 @@ handler.auth.user_not_exists: "User does not exist"
 
 # Auth handler additional messages
 handler.auth.wechat_bind_code_generated: "WeChat bind code generated"
-handler.auth.wechat_bind_status: "WeChat bind status"
 handler.auth.login_failed: "Login failed"
 handler.auth.too_many_attempts: "Too many login attempts"
 handler.auth.account_locked: "Account is locked"
