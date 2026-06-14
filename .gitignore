@@ -80,6 +80,7 @@ yarn-error.log*
 *.db
 
 lingecho
+LingEchoX
 main
 server/main
 

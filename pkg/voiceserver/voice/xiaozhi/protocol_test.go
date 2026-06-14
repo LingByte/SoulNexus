@@ -70,7 +70,7 @@ func TestMergeHelloAudio_FillsDefaults(t *testing.T) {
 }
 
 func TestMakeWelcomeReply_ContainsSessionAndAudioParams(t *testing.T) {
-	raw := MakeWelcomeReply("sess-1", DefaultHelloAudio())
+	raw := MakeWelcomeReply("sess-1", DefaultHelloAudio(), nil)
 	out := roundTrip(t, raw, RespHello)
 	if out["session_id"] != "sess-1" {
 		t.Fatalf("session_id: %v", out["session_id"])
@@ -83,7 +83,7 @@ func TestMakeWelcomeReply_ContainsSessionAndAudioParams(t *testing.T) {
 		t.Fatalf("sample_rate: %v", ap["sample_rate"])
 	}
 	// Browser web clients negotiate format=pcm; verify we pass it through.
-	rawWeb := MakeWelcomeReply("web-1", AudioParams{Format: "pcm", SampleRate: 16000, Channels: 1, FrameDuration: 60, BitDepth: 16})
+	rawWeb := MakeWelcomeReply("web-1", AudioParams{Format: "pcm", SampleRate: 16000, Channels: 1, FrameDuration: 60, BitDepth: 16}, nil)
 	w := roundTrip(t, rawWeb, RespHello)
 	wap := w["audio_params"].(map[string]any)
 	if wap["format"] != "pcm" {

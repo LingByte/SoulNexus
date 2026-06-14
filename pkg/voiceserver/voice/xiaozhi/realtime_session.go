@@ -45,7 +45,7 @@ func (s *session) handleHelloRealtime(ctx context.Context) {
 		Channels:      1,
 		FrameDuration: s.ttsWireFrameMs,
 		BitDepth:      16,
-	}))
+	}, s.helloFeatures))
 
 	if s.cfg.OnSessionStart != nil {
 		s.cfg.OnSessionStart(ctx, s.callID, s.deviceID)

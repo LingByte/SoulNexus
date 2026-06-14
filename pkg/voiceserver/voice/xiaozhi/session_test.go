@@ -58,7 +58,11 @@ func (a *stubASR) Init(tr recognizer.SpeechRecognitionResult, _ recognizer.Recog
 func (a *stubASR) Vendor() string                  { return "stub" }
 func (a *stubASR) ConnAndReceive(_ string) error    { a.mu.Lock(); a.active = true; a.mu.Unlock(); return nil }
 func (a *stubASR) Activity() bool                   { a.mu.Lock(); defer a.mu.Unlock(); return a.active }
-func (a *stubASR) RestartClient()                   {}
+func (a *stubASR) RestartClient() {
+	a.mu.Lock()
+	a.fired = false
+	a.mu.Unlock()
+}
 func (a *stubASR) SendAudioBytes(b []byte) error {
 	a.mu.Lock()
 	tr := a.tr
@@ -208,6 +212,8 @@ func runFakeDevice(t *testing.T, wsURL string) (texts []string, binaryCount int)
 	// above the buffer floor.
 	time.Sleep(200 * time.Millisecond)
 	_ = conn.WriteJSON(map[string]any{"type": "listen", "state": "start", "mode": "auto"})
+	// Allow listen-start ASR protection window (800ms) to elapse before uplink.
+	time.Sleep(850 * time.Millisecond)
 	_ = conn.WriteMessage(websocket.BinaryMessage, make([]byte, 3200))
 	// listen.stop triggers asr.Pipeline.Flush so the buffered tail is
 	// pushed even when the vendor never declares end-of-utterance on

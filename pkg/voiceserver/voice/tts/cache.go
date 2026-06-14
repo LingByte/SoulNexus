@@ -235,6 +235,19 @@ func (c *CachingService) Cache() *Cache {
 	return c.cfg.Cache
 }
 
+// CachedPCM returns rendered PCM when text is already in the process cache.
+func (c *CachingService) CachedPCM(text string) ([]byte, bool) {
+	if c == nil {
+		return nil, false
+	}
+	t := strings.TrimSpace(text)
+	if t == "" {
+		return nil, false
+	}
+	pcm, ok := c.cfg.Cache.Get(cacheKey(c.cfg.VoiceKey, t))
+	return pcm, ok
+}
+
 // SynthesizeStream implements Service. On cache hit it replays cached PCM via
 // onPCMChunk synchronously and returns nil. On miss it delegates to the inner
 // service, copies the PCM into a buffer, then writes the buffer to the cache

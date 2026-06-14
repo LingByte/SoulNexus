@@ -6,7 +6,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"github.com/LingByte/SoulNexus/pkg/logger"
 	"strings"
 
 	"github.com/LingByte/lingllm/recognizer"
@@ -59,23 +58,11 @@ func NewXiaozhiFactory() (*XiaozhiFactory, error) {
 	var ttsVoice int64 = 101007
 	ttsCfg := synthesizer.NewQcloudTTSConfig(ttsAppID, ttsSID, ttsSKey, ttsVoice, "pcm", ttsSR)
 	ttsSvc := synthesizer.NewQCloudService(ttsCfg)
-	cached, _ := voicetts.NewCachingService(voicetts.FromSynthesisService(ttsSvc), voicetts.CacheConfig{
-		VoiceKey:   fmt.Sprintf("qcloud-%d-%d", ttsVoice, ttsSR),
-		MaxRunes:   80,
-		ChunkBytes: 0,
-	})
-	var sharedTTS voicetts.Service = cached
-	if cached == nil {
-		sharedTTS = voicetts.FromSynthesisService(ttsSvc)
-	}
-	// Best-effort prewarm of common short replies (shared cache benefits
-	// every device after the first call). Same gate as the SIP path so
-	// VOICE_TTS_PREWARM=false (the default) means absolutely zero TTS
-	// calls fire at boot, regardless of which transports are mounted.
-	if cached != nil && TTSPrewarmEnabled() {
-		go cached.Prewarm(context.Background(), PrewarmTexts(), func(t string, e error) {
-			logger.Info(fmt.Sprintf("[xiaozhi][tts-cache] prewarm %q failed: %v", t, e))
-		})
+	inner := voicetts.FromSynthesisService(ttsSvc)
+	voiceKey := fmt.Sprintf("qcloud-%d-%d", ttsVoice, ttsSR)
+	sharedTTS := WrapCachedTTSService(inner, voiceKey)
+	if sharedTTS == nil {
+		sharedTTS = inner
 	}
 	return &XiaozhiFactory{
 		asrAppID:   asrAppID,

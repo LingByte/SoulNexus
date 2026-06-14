@@ -85,13 +85,15 @@ func (f *AgentAwareFactory) TTS(ctx context.Context, callID string) (voicetts.Se
 		f.Log.Warn("agent tts: fallback to env TTS", zap.String("call_id", callID), zap.Error(err))
 		return f.Base.TTS(ctx, callID)
 	}
-	svc := voicetts.FromSynthesisService(synth)
+	voiceKey := ttsVoiceKeyFromSpec(spec)
+	svc := WrapCachedTTSService(voicetts.FromSynthesisService(synth), voiceKey)
 	if svc == nil {
 		return f.Base.TTS(ctx, callID)
 	}
 	f.mu.Lock()
 	f.cache[callID] = cachedTTS{svc: svc, sr: sr}
 	f.mu.Unlock()
+	go WarmTTSConnection(ctx, svc, fmt.Sprintf("call=%s", callID))
 	return svc, sr, nil
 }
 
@@ -103,6 +105,32 @@ func (f *AgentAwareFactory) Release(callID string) {
 	f.mu.Lock()
 	delete(f.cache, callID)
 	f.mu.Unlock()
+}
+
+// SwitchSpeaker updates the per-call dialog payload speaker and rebuilds
+// the cached TTS service for the call.
+func (f *AgentAwareFactory) SwitchSpeaker(ctx context.Context, callID, speakerID string) (voicetts.Service, int, error) {
+	if f == nil {
+		return nil, 0, fmt.Errorf("agent tts: nil factory")
+	}
+	speakerID = strings.TrimSpace(speakerID)
+	if speakerID == "" {
+		return nil, 0, fmt.Errorf("agent tts: empty speaker_id")
+	}
+	spec := f.Registry.Get(callID)
+	if spec == nil {
+		return nil, 0, fmt.Errorf("agent tts: no dialog payload for call %s", callID)
+	}
+	spec.Speaker = speakerID
+	f.Registry.Put(callID, spec)
+	f.mu.Lock()
+	delete(f.cache, callID)
+	f.mu.Unlock()
+	svc, sr, err := f.TTS(ctx, callID)
+	if err != nil {
+		return nil, 0, err
+	}
+	return svc, sr, nil
 }
 
 func buildSynthesisServiceFromDialog(ctx context.Context, db *gorm.DB, spec *sessionctx.DialogPayload, log *zap.Logger) (synthesizer.AudioSynthesisEngine, int, error) {
@@ -168,6 +196,7 @@ func buildSynthesisServiceFromDialog(ctx context.Context, db *gorm.DB, spec *ses
 	if lang := strings.TrimSpace(spec.Language); lang != "" {
 		ttsConfig["language"] = lang
 	}
+	EnsureVolcengineStreaming(ttsConfig)
 
 	svc, err := synthesizer.NewAudioSynthesisEngineFromCredential(ttsConfig)
 	if err != nil {
@@ -208,4 +237,19 @@ func buildVoiceCloneSynthesis(db *gorm.DB, cred *auth.UserCredential, voiceClone
 	}
 	log.Info("[agent-tts] using volcengine voice clone", zap.Int64("id", voiceCloneID), zap.String("assetID", voiceClone.AssetID))
 	return engine, nil
+}
+
+func ttsVoiceKeyFromSpec(spec *sessionctx.DialogPayload) string {
+	if spec == nil {
+		return "default"
+	}
+	if spec.VoiceCloneID != nil && *spec.VoiceCloneID > 0 {
+		return fmt.Sprintf("clone-%d", *spec.VoiceCloneID)
+	}
+	speaker := strings.TrimSpace(spec.Speaker)
+	provider := strings.TrimSpace(spec.TtsProvider)
+	if speaker != "" || provider != "" {
+		return fmt.Sprintf("%s-%s-%s", strings.TrimSpace(spec.AgentID), provider, speaker)
+	}
+	return fmt.Sprintf("agent-%s", strings.TrimSpace(spec.AgentID))
 }

@@ -162,14 +162,18 @@ func ParseTextFrame(raw []byte) (string, error) {
 
 // MakeWelcomeReply builds the JSON server reply to a hardware hello. The
 // reply mirrors back the agreed audio profile and a fresh session_id so
-// the device can stamp it on later frames.
-func MakeWelcomeReply(sessionID string, ap AudioParams) []byte {
+// the device can stamp it on later frames. features, when non-nil, is
+// echoed back for firmware capability negotiation (aec/mcp).
+func MakeWelcomeReply(sessionID string, ap AudioParams, features map[string]interface{}) []byte {
 	msg := map[string]interface{}{
 		"type":         RespHello,
 		"version":      1,
 		"transport":    "websocket",
 		"session_id":   sessionID,
 		"audio_params": ap,
+	}
+	if len(features) > 0 {
+		msg["features"] = features
 	}
 	b, _ := json.Marshal(msg)
 	return b
@@ -231,6 +235,18 @@ func MakeTTSStateReplyFrames(sessionID, state, codec string, frameMs int) []byte
 		}
 	}
 	b, _ := json.Marshal(body)
+	return b
+}
+
+// MakeSpeakerChangedReply notifies the device that the TTS voice changed.
+func MakeSpeakerChangedReply(sessionID, speakerID string, success bool, message string) []byte {
+	b, _ := json.Marshal(map[string]interface{}{
+		"type":       "speaker_changed",
+		"speaker_id": speakerID,
+		"success":    success,
+		"message":    message,
+		"session_id": sessionID,
+	})
 	return b
 }
 

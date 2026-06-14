@@ -105,6 +105,8 @@ func TTSPrewarmEnabled() bool { return ttsPrewarmFlag }
 // replace this with a tenant- or scenario-specific list.
 func PrewarmTexts() []string {
 	return []string{
+		"嗯，",
+		"好。",
 		"您好，已收到",
 		"听得到，您请讲。",
 		"请稍等。",
@@ -115,6 +117,11 @@ func PrewarmTexts() []string {
 // ============================================================================
 // Constructors used by ServerConfig fields on the xiaozhi/webrtc adapters.
 // ============================================================================
+
+// BargeInEnabled reports whether process-wide barge-in is enabled.
+func BargeInEnabled() bool {
+	return bargeInFlag
+}
 
 // NewBargeInDetector returns a configured *vad.Detector, or nil if
 // barge-in is disabled globally. Callers pass the returned value into

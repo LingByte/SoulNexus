@@ -87,6 +87,11 @@ type Pipeline struct {
 	bargeDet        *vad.Detector
 	bargeSynthFn    func() bool
 	bargeOnFire     func()
+	// echoSuppress feeds silence to the recognizer while synthPlayingFn
+	// reports TTS playback. Barge-in still runs on the real uplink PCM
+	// first so user speech can interrupt AI output without ASR picking up
+	// speaker echo (matches pkg/voice EchoFilterComponent).
+	echoSuppress    bool
 	bargeMu         sync.RWMutex
 
 	// Denoise hook. nil = passthrough (zero overhead). When set, the
@@ -221,7 +226,8 @@ func (p *Pipeline) ProcessPCM(ctx context.Context, data []byte) error {
 	// Barge-in check — runs on the resampled PCM (same rate the
 	// ASR sees) so energy numbers are comparable across transports.
 	// Cheap fast-path: one atomic-style pointer read when disabled.
-	if det, synthFn, onFire := p.bargeInHooks(); det != nil && synthFn != nil && onFire != nil {
+	det, synthFn, onFire := p.bargeInHooks()
+	if det != nil && synthFn != nil && onFire != nil {
 		if det.CheckBargeIn(pcm, synthFn()) {
 			// Fire in a goroutine because onFire typically calls
 			// TTS.Interrupt() which takes a mutex that may serialize
@@ -231,9 +237,14 @@ func (p *Pipeline) ProcessPCM(ctx context.Context, data []byte) error {
 		}
 	}
 
+	feedPCM := pcm
+	if p.echoSuppressEnabled() && synthFn != nil && synthFn() {
+		feedPCM = make([]byte, len(pcm))
+	}
+
 	// Coalesce into >= minFeed chunks.
 	p.bufMu.Lock()
-	p.buf = append(p.buf, pcm...)
+	p.buf = append(p.buf, feedPCM...)
 	var toSend []byte
 	if len(p.buf) >= p.minFeed {
 		toSend = append([]byte(nil), p.buf...)
@@ -300,6 +311,9 @@ func (p *Pipeline) Restart(ctx context.Context) error {
 		_ = p.opt.ASR.SendEnd()
 		_ = p.opt.ASR.StopConn()
 	}
+	if p.opt.ASR != nil {
+		p.opt.ASR.RestartClient()
+	}
 	p.connected.Store(false)
 	p.connect = sync.Once{}
 	return p.connectOnce()
@@ -349,6 +363,21 @@ func (p *Pipeline) SetBargeInDetector(det *vad.Detector, synthPlayingFn func() b
 	p.bargeDet = det
 	p.bargeSynthFn = synthPlayingFn
 	p.bargeOnFire = onFire
+	// Hardware / WebRTC uplink keeps streaming during TTS; without this
+	// ASR transcribes speaker echo and false-triggers new dialog turns.
+	p.echoSuppress = det != nil && synthPlayingFn != nil
+	p.bargeMu.Unlock()
+}
+
+// SetEchoSuppressWhileSynth toggles feeding silence to the recognizer
+// while synthPlayingFn (from SetBargeInDetector) reports TTS playback.
+// Barge-in VAD still runs on the real uplink PCM before suppression.
+func (p *Pipeline) SetEchoSuppressWhileSynth(enabled bool) {
+	if p == nil {
+		return
+	}
+	p.bargeMu.Lock()
+	p.echoSuppress = enabled
 	p.bargeMu.Unlock()
 }
 
@@ -359,6 +388,12 @@ func (p *Pipeline) bargeInHooks() (*vad.Detector, func() bool, func()) {
 	p.bargeMu.RLock()
 	defer p.bargeMu.RUnlock()
 	return p.bargeDet, p.bargeSynthFn, p.bargeOnFire
+}
+
+func (p *Pipeline) echoSuppressEnabled() bool {
+	p.bargeMu.RLock()
+	defer p.bargeMu.RUnlock()
+	return p.echoSuppress
 }
 
 // SetDenoiser wires (or clears, with nil) the noise-suppression hook

@@ -119,7 +119,7 @@ func buildVoiceConfig() *VoiceServerConfig {
 		ASREcho:   voiceBool("VOICE_ASR_ECHO", false),
 		ReplyText: voiceString("VOICE_REPLY_TEXT", "您好，已收到"),
 
-		TTSPrewarm:                  voiceBool("VOICE_TTS_PREWARM", false),
+		TTSPrewarm:                  voiceBool("VOICE_TTS_PREWARM", true),
 		BargeIn:                     voiceBool("VOICE_BARGE_IN", true),
 		BargeInThreshold:            voiceFloat("VOICE_BARGE_IN_THRESHOLD", 4500),
 		BargeInFrames:               voiceInt("VOICE_BARGE_IN_FRAMES", 5),
