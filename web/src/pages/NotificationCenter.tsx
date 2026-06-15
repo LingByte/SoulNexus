@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react'
 import { useNotificationStore } from '@/stores/notificationStore'
 import { useAuthStore } from '@/stores/authStore'
 import { useI18nStore } from '@/stores/i18nStore'
-import { Input as ArcoInput, Pagination, Drawer, Checkbox, Tag } from '@arco-design/web-react'
+import { Input as ArcoInput, Pagination, Checkbox, Tag } from '@arco-design/web-react'
 import Button from '@/components/UI/Button'
 import Badge from '@/components/UI/Badge'
+import Modal from '@/components/UI/Modal'
 import { showAlert } from '@/utils/notification'
 import { formatDistanceToNow } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
@@ -198,9 +199,12 @@ const NotificationCenter = () => {
         </div>
       )}
 
-      {/* Detail Drawer */}
-      <Drawer visible={!!selectedNotification} title={selectedNotification?.title || ''}
-        onClose={() => setSelectedNotification(null)} width={400} closable maskClosable>
+      <Modal
+        isOpen={!!selectedNotification}
+        onClose={() => setSelectedNotification(null)}
+        title={selectedNotification?.title || t('notification.title')}
+        size="sm"
+      >
         {selectedNotification && (
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-sm text-gray-500">
@@ -208,26 +212,30 @@ const NotificationCenter = () => {
               {selectedNotification.created_at ? formatDistanceToNow(new Date(selectedNotification.created_at), { addSuffix: true, locale: zhCN }) : ''}
             </div>
             <div className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-              <div className="text-xs text-gray-400 mb-1">{t('notification.title')}</div>
-              <div className="text-sm font-medium break-words"
-                dangerouslySetInnerHTML={{ __html: highlightContent(selectedNotification.title, searchKeyword, highlightFragments || undefined) }} />
-            </div>
-            <div className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
               <div className="text-xs text-gray-400 mb-1">{t('notification.content')}</div>
               <div className="text-sm whitespace-pre-wrap break-words leading-relaxed"
                 dangerouslySetInnerHTML={{ __html: highlightContent(selectedNotification.content || t('notification.noContent'), searchKeyword, highlightFragments || undefined) }} />
             </div>
-            <div className="flex justify-end gap-2">
+            <div className="flex justify-end gap-2 pt-1">
               {!selectedNotification.read && (
-                <Button size="sm" onClick={async () => { await handleMarkAsRead(selectedNotification.id.toString()); setSelectedNotification(null) }}>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  onClick={async () => {
+                    await handleMarkAsRead(selectedNotification.id.toString())
+                    setSelectedNotification(null)
+                  }}
+                >
                   {t('notification.markAsRead')}
                 </Button>
               )}
-              <Button variant="outline" size="sm" onClick={() => setSelectedNotification(null)}>{t('notification.done')}</Button>
+              <Button variant="outline" size="sm" onClick={() => setSelectedNotification(null)}>
+                {t('notification.close')}
+              </Button>
             </div>
           </div>
         )}
-      </Drawer>
+      </Modal>
     </div>
   )
 }

@@ -21,16 +21,20 @@ func InitUserListeners() {
 
 	// Handle after user registration success
 	utils.Sig().Connect(constants.SigUserCreate, func(sender any, params ...any) {
-		if len(params) < 2 {
-			return
-		}
 		user, ok := sender.(*auth.User)
-		if !ok {
+		if !ok || user == nil {
 			return
 		}
 
-		db, ok := params[0].(*gorm.DB)
-		if !ok {
+		var db *gorm.DB
+		for i := len(params) - 1; i >= 0; i-- {
+			if candidate, ok := params[i].(*gorm.DB); ok && candidate != nil {
+				db = candidate
+				break
+			}
+		}
+		if db == nil {
+			logger.Warn("SigUserCreate: missing db parameter", zap.Int("paramCount", len(params)))
 			return
 		}
 

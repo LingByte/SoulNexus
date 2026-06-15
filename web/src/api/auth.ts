@@ -155,6 +155,9 @@ export interface RegisterResponseData {
   hasFilledDetails?: boolean
   activation?: boolean
   expired?: string
+  token?: string
+  refreshToken?: string
+  user?: User
 }
 
 // 用户信息类型

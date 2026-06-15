@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, type Dispatch, type SetStateAction } from 'react'
 import { Select as ArcoSelect, Input as ArcoInput } from '@arco-design/web-react'
 import {
   User, Mail, Camera, Save, Edit3, X, Lock, Eye, EyeOff,
@@ -14,8 +14,10 @@ import Switch from '../components/UI/Switch'
 import FadeIn from '../components/FadeIn.tsx'
 import LoadingAnimation from '../components/LoadingAnimation.tsx'
 import { showAlert } from '../utils/notification'
-import { getProfile, updateProfile, updatePreferences, changePassword, changePasswordByEmail, uploadAvatar, setupTwoFactor, enableTwoFactor, disableTwoFactor, getUserDevices, deleteUserDevice, trustUserDevice, untrustUserDevice, TwoFactorSetupResponse, UserDevice } from '../api/profile'
+import { getProfile, updateProfile, updatePreferences, changePassword, changePasswordByEmail, uploadAvatar, setupTwoFactor, enableTwoFactor, disableTwoFactor, getUserDevices, deleteUserDevice, trustUserDevice, untrustUserDevice, bindEmail, changeEmail, sendCurrentEmailCode, TwoFactorSetupResponse, UserDevice } from '../api/profile'
 import { sendEmailCode, sendEmailVerification } from '../api/auth'
+import { canBindEmail, canChangeEmail, isPlaceholderEmail } from '@/utils/emailAccount'
+import Modal from '../components/UI/Modal'
 import { motion, AnimatePresence } from 'framer-motion'
 import ConfirmDialog from '../components/UI/ConfirmDialog'
 import { beginSSOLogin } from '@/utils/sso'
@@ -144,6 +146,18 @@ const Profile = () => {
   const [emailCode, setEmailCode] = useState('')
   const [isSendingCode, setIsSendingCode] = useState(false)
   const [countdown, setCountdown] = useState(0)
+
+  const [showBindEmailModal, setShowBindEmailModal] = useState(false)
+  const [showChangeEmailModal, setShowChangeEmailModal] = useState(false)
+  const [bindEmailForm, setBindEmailForm] = useState({ email: '', code: '' })
+  const [changeEmailForm, setChangeEmailForm] = useState({ newEmail: '', newEmailCode: '', currentEmailCode: '' })
+  const [bindEmailSending, setBindEmailSending] = useState(false)
+  const [changeNewEmailSending, setChangeNewEmailSending] = useState(false)
+  const [changeCurrentEmailSending, setChangeCurrentEmailSending] = useState(false)
+  const [bindEmailCountdown, setBindEmailCountdown] = useState(0)
+  const [changeNewEmailCountdown, setChangeNewEmailCountdown] = useState(0)
+  const [changeCurrentEmailCountdown, setChangeCurrentEmailCountdown] = useState(0)
+  const [emailAccountSubmitting, setEmailAccountSubmitting] = useState(false)
 
   // 页面加载时获取最新用户信息
   useEffect(() => {
@@ -439,7 +453,8 @@ const Profile = () => {
   const handleSave = async () => {
     setIsLoading(true)
     try {
-      const response = await updateProfile(formData)
+      const { email: _email, phone: _phone, ...profilePayload } = formData
+      const response = await updateProfile(profilePayload)
       if (response.code === 200) {
         await useAuthStore.getState().refreshUserInfo()
         // 资料里保存的外观需立即作用到全局（refresh 不再从服务端覆盖 mode，见 applyAuthUserUIPreferences）
@@ -509,7 +524,6 @@ const Profile = () => {
     }
   }
 
-  // 发送邮箱验证邮件
   const handleSendEmailVerification = async () => {
     if (!user?.email) {
       showAlert('邮箱地址不存在', 'error', '操作失败')
@@ -533,6 +547,135 @@ const Profile = () => {
       showAlert(error?.msg || error?.message || '发送验证邮件失败', 'error', '操作失败')
     } finally {
       setIsSendingEmailVerification(false)
+    }
+  }
+
+  const startCountdown = (setter: Dispatch<SetStateAction<number>>) => {
+    setter(60)
+    const timer = setInterval(() => {
+      setter((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer)
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+  }
+
+  const handleSendBindEmailCode = async () => {
+    const email = bindEmailForm.email.trim()
+    if (!email) {
+      showAlert('请输入邮箱地址', 'error', '操作失败')
+      return
+    }
+    setBindEmailSending(true)
+    try {
+      const response = await sendEmailCode({ email })
+      if (response.code === 200) {
+        showAlert('验证码已发送，请查收邮箱', 'success', '发送成功')
+        startCountdown(setBindEmailCountdown)
+      } else {
+        throw new Error(response.msg || '发送验证码失败')
+      }
+    } catch (error: any) {
+      showAlert(error?.msg || error?.message || '发送验证码失败', 'error', '操作失败')
+    } finally {
+      setBindEmailSending(false)
+    }
+  }
+
+  const handleSubmitBindEmail = async () => {
+    const email = bindEmailForm.email.trim()
+    const code = bindEmailForm.code.trim()
+    if (!email || !code) {
+      showAlert('请填写邮箱和验证码', 'error', '操作失败')
+      return
+    }
+    setEmailAccountSubmitting(true)
+    try {
+      const response = await bindEmail({ email, code })
+      if (response.code === 200) {
+        if (response.data) updateAuthStore(response.data)
+        await useAuthStore.getState().refreshUserInfo()
+        setShowBindEmailModal(false)
+        setBindEmailForm({ email: '', code: '' })
+        showAlert('邮箱绑定成功', 'success', '操作成功')
+      } else {
+        throw new Error(response.msg || '绑定失败')
+      }
+    } catch (error: any) {
+      showAlert(error?.msg || error?.message || '绑定失败', 'error', '操作失败')
+    } finally {
+      setEmailAccountSubmitting(false)
+    }
+  }
+
+  const handleSendChangeNewEmailCode = async () => {
+    const email = changeEmailForm.newEmail.trim()
+    if (!email) {
+      showAlert('请输入新邮箱地址', 'error', '操作失败')
+      return
+    }
+    setChangeNewEmailSending(true)
+    try {
+      const response = await sendEmailCode({ email })
+      if (response.code === 200) {
+        showAlert('新邮箱验证码已发送', 'success', '发送成功')
+        startCountdown(setChangeNewEmailCountdown)
+      } else {
+        throw new Error(response.msg || '发送验证码失败')
+      }
+    } catch (error: any) {
+      showAlert(error?.msg || error?.message || '发送验证码失败', 'error', '操作失败')
+    } finally {
+      setChangeNewEmailSending(false)
+    }
+  }
+
+  const handleSendChangeCurrentEmailCode = async () => {
+    setChangeCurrentEmailSending(true)
+    try {
+      const response = await sendCurrentEmailCode()
+      if (response.code === 200) {
+        showAlert('验证码已发送到当前邮箱', 'success', '发送成功')
+        startCountdown(setChangeCurrentEmailCountdown)
+      } else {
+        throw new Error(response.msg || '发送验证码失败')
+      }
+    } catch (error: any) {
+      showAlert(error?.msg || error?.message || '发送验证码失败', 'error', '操作失败')
+    } finally {
+      setChangeCurrentEmailSending(false)
+    }
+  }
+
+  const handleSubmitChangeEmail = async () => {
+    const { newEmail, newEmailCode, currentEmailCode } = changeEmailForm
+    if (!newEmail.trim() || !newEmailCode.trim() || !currentEmailCode.trim()) {
+      showAlert('请完整填写换绑信息', 'error', '操作失败')
+      return
+    }
+    setEmailAccountSubmitting(true)
+    try {
+      const response = await changeEmail({
+        newEmail: newEmail.trim(),
+        newEmailCode: newEmailCode.trim(),
+        currentEmailCode: currentEmailCode.trim(),
+      })
+      if (response.code === 200) {
+        if (response.data) updateAuthStore(response.data)
+        await useAuthStore.getState().refreshUserInfo()
+        setShowChangeEmailModal(false)
+        setChangeEmailForm({ newEmail: '', newEmailCode: '', currentEmailCode: '' })
+        showAlert('邮箱换绑成功', 'success', '操作成功')
+      } else {
+        throw new Error(response.msg || '换绑失败')
+      }
+    } catch (error: any) {
+      showAlert(error?.msg || error?.message || '换绑失败', 'error', '操作失败')
+    } finally {
+      setEmailAccountSubmitting(false)
     }
   }
 
@@ -902,20 +1045,24 @@ const Profile = () => {
                         <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">{t('profile.email')}</label>
                         <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" type="email"
                           value={formData.email}
-                          onChange={(val) => setFormData((prev) => ({ ...prev, email: val }))}
-                          disabled={!isEditing}
+                          disabled
                           prefix={<Mail />}
                           placeholder={t('profile.emailPlaceholder')}
                         />
+                        <p className="mt-1 text-xs text-slate-500 dark:text-gray-500">
+                          邮箱请在
+                          <Link to="/profile/account-security" className="mx-0.5 text-sky-600 underline dark:text-sky-400">账号与安全</Link>
+                          中绑定或换绑
+                        </p>
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">{t('profile.phone')}</label>
                         <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.phone}
-                          onChange={(val) => setFormData((prev) => ({ ...prev, phone: val }))}
-                          disabled={!isEditing}
+                          disabled
                           prefix={<Phone />}
                           placeholder={t('profile.phonePlaceholder')}
                         />
+                        <p className="mt-1 text-xs text-slate-500 dark:text-gray-500">手机号暂不支持修改</p>
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">城市</label>
@@ -1093,19 +1240,48 @@ const Profile = () => {
                         </div>
                       </div>
                       <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 sm:px-5">
-                        <span className="text-sm text-slate-800 dark:text-gray-100">邮箱状态</span>
-                        <div className="flex items-center gap-2">
-                          <Badge variant={user?.emailVerified ? 'success' : 'warning'} className="text-xs">
-                            {user?.emailVerified ? '已验证' : '未验证'}
+                        <div className="min-w-0">
+                          <span className="text-sm text-slate-800 dark:text-gray-100">邮箱</span>
+                          <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-gray-400">
+                            {isPlaceholderEmail(user?.email) ? '未绑定邮箱' : (user?.email || '—')}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant={user?.emailVerified && !isPlaceholderEmail(user?.email) ? 'success' : 'warning'} className="text-xs">
+                            {user?.emailVerified && !isPlaceholderEmail(user?.email) ? '已验证' : '未验证'}
                           </Badge>
-                          {!user?.emailVerified && (
+                          {canBindEmail(user?.email, user?.emailVerified) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setBindEmailForm({ email: '', code: '' })
+                                setShowBindEmailModal(true)
+                              }}
+                              className="text-xs font-medium text-sky-600 underline decoration-sky-600/40 underline-offset-2 hover:text-sky-700 dark:text-sky-400"
+                            >
+                              绑定邮箱
+                            </button>
+                          )}
+                          {canChangeEmail(user?.email, user?.emailVerified) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setChangeEmailForm({ newEmail: '', newEmailCode: '', currentEmailCode: '' })
+                                setShowChangeEmailModal(true)
+                              }}
+                              className="text-xs font-medium text-sky-600 underline decoration-sky-600/40 underline-offset-2 hover:text-sky-700 dark:text-sky-400"
+                            >
+                              换绑邮箱
+                            </button>
+                          )}
+                          {!user?.emailVerified && !isPlaceholderEmail(user?.email) && (
                             <button
                               type="button"
                               onClick={handleSendEmailVerification}
                               disabled={isSendingEmailVerification}
                               className="text-xs font-medium text-sky-600 underline decoration-sky-600/40 underline-offset-2 hover:text-sky-700 disabled:opacity-50 dark:text-sky-400"
                             >
-                              {isSendingEmailVerification ? '发送中...' : '验证'}
+                              {isSendingEmailVerification ? '发送中...' : '验证邮箱'}
                             </button>
                           )}
                         </div>
@@ -1652,6 +1828,121 @@ const Profile = () => {
           </div>
         </div>
       )}
+
+      <Modal
+        isOpen={showBindEmailModal}
+        onClose={() => setShowBindEmailModal(false)}
+        title="绑定邮箱"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-500 dark:text-gray-400">输入新邮箱并完成验证码校验后即可绑定。</p>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">邮箱地址</label>
+            <ArcoInput
+              type="email"
+              value={bindEmailForm.email}
+              onChange={(v) => setBindEmailForm((prev) => ({ ...prev, email: v }))}
+              placeholder="请输入邮箱"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">验证码</label>
+            <div className="flex gap-2">
+              <ArcoInput
+                value={bindEmailForm.code}
+                onChange={(v) => setBindEmailForm((prev) => ({ ...prev, code: v }))}
+                placeholder="请输入验证码"
+                className="flex-1"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSendBindEmailCode}
+                disabled={bindEmailSending || bindEmailCountdown > 0 || !bindEmailForm.email.trim()}
+              >
+                {bindEmailCountdown > 0 ? `${bindEmailCountdown}s` : bindEmailSending ? '发送中...' : '发送验证码'}
+              </Button>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" size="sm" onClick={() => setShowBindEmailModal(false)} disabled={emailAccountSubmitting}>
+              取消
+            </Button>
+            <Button variant="primary" size="sm" onClick={handleSubmitBindEmail} loading={emailAccountSubmitting}>
+              确认绑定
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={showChangeEmailModal}
+        onClose={() => setShowChangeEmailModal(false)}
+        title="换绑邮箱"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            需同时验证当前邮箱（{user?.email}）与新邮箱。
+          </p>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">当前邮箱验证码</label>
+            <div className="flex gap-2">
+              <ArcoInput
+                value={changeEmailForm.currentEmailCode}
+                onChange={(v) => setChangeEmailForm((prev) => ({ ...prev, currentEmailCode: v }))}
+                placeholder="当前邮箱验证码"
+                className="flex-1"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSendChangeCurrentEmailCode}
+                disabled={changeCurrentEmailSending || changeCurrentEmailCountdown > 0}
+              >
+                {changeCurrentEmailCountdown > 0 ? `${changeCurrentEmailCountdown}s` : changeCurrentEmailSending ? '发送中...' : '发送验证码'}
+              </Button>
+            </div>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">新邮箱</label>
+            <ArcoInput
+              type="email"
+              value={changeEmailForm.newEmail}
+              onChange={(v) => setChangeEmailForm((prev) => ({ ...prev, newEmail: v }))}
+              placeholder="请输入新邮箱"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">新邮箱验证码</label>
+            <div className="flex gap-2">
+              <ArcoInput
+                value={changeEmailForm.newEmailCode}
+                onChange={(v) => setChangeEmailForm((prev) => ({ ...prev, newEmailCode: v }))}
+                placeholder="新邮箱验证码"
+                className="flex-1"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSendChangeNewEmailCode}
+                disabled={changeNewEmailSending || changeNewEmailCountdown > 0 || !changeEmailForm.newEmail.trim()}
+              >
+                {changeNewEmailCountdown > 0 ? `${changeNewEmailCountdown}s` : changeNewEmailSending ? '发送中...' : '发送验证码'}
+              </Button>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" size="sm" onClick={() => setShowChangeEmailModal(false)} disabled={emailAccountSubmitting}>
+              取消
+            </Button>
+            <Button variant="primary" size="sm" onClick={handleSubmitChangeEmail} loading={emailAccountSubmitting}>
+              确认换绑
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* 确认对话框 */}
       <ConfirmDialog

@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Users/chenting/Desktop/lingllm/synthesizer/**)",
+      "Bash(git commit -m ' *)",
+      "Bash(cat /Users/chenting/Desktop/lingllm/voiceclone/types.go)",
+      "Read(//Users/chenting/Desktop/lingllm/voiceclone/**)"
+    ]
+  }
+}

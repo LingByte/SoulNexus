@@ -9,6 +9,7 @@ import { useDebounce } from '@/hooks/useDebounce'
 import { validateJavaScript } from '@/utils/jsValidator'
 import { getApiBaseURL } from '@/config/apiConfig'
 import MarkdownPreview from '@/components/UI/MarkdownPreview.tsx'
+import PageHeader from '@/components/Layout/PageHeader'
 
 const MonacoEditor = lazy(() => import('@monaco-editor/react'))
 
@@ -263,28 +264,30 @@ const JSTemplateManager = () => {
 
     // ==================== List Page ====================
     return (
-        <div className="w-full flex flex-col h-full">
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-800">
-                <h1 className="text-lg font-semibold">{t('jsTemplate.title')}</h1>
-                <Button size="sm" leftIcon={<Plus className="w-4 h-4" />} onClick={handleCreateTemplate}>{t('jsTemplate.create')}</Button>
-            </div>
+        <div className="flex flex-col h-full bg-gray-50 dark:bg-gray-900">
+            <PageHeader
+                title={t('jsTemplate.title')}
+                actions={
+                    <Button size="sm" leftIcon={<Plus className="w-4 h-4" />} onClick={handleCreateTemplate}>
+                        {t('jsTemplate.create')}
+                    </Button>
+                }
+            />
 
-            {/* Toolbar */}
-            <div className="px-6 py-3 flex items-center gap-3 border-b border-gray-100 dark:border-gray-800">
-                <ArcoInput.Search placeholder={t('jsTemplate.searchPlaceholder')} value={searchTerm} onChange={setSearchTerm} className="w-64" />
-                <ArcoSelect value={filterType} onChange={(v) => setFilterType(v as any)} className="w-32"
-                    options={[
-                        { label: t('jsTemplate.filter.all'), value: 'all' },
-                        { label: t('jsTemplate.filter.default'), value: 'default' },
-                        { label: t('jsTemplate.filter.custom'), value: 'custom' },
-                    ]}
-                />
-            </div>
+            <div className="flex-1 overflow-auto">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                    <div className="flex items-center gap-3 mb-4">
+                        <ArcoInput.Search placeholder={t('jsTemplate.searchPlaceholder')} value={searchTerm} onChange={setSearchTerm} className="w-64" />
+                        <ArcoSelect value={filterType} onChange={(v) => setFilterType(v as any)} className="w-32"
+                            options={[
+                                { label: t('jsTemplate.filter.all'), value: 'all' },
+                                { label: t('jsTemplate.filter.default'), value: 'default' },
+                                { label: t('jsTemplate.filter.custom'), value: 'custom' },
+                            ]}
+                        />
+                    </div>
 
-            {/* Content */}
-            <div className="flex-1 overflow-auto px-6 py-4">
-                {isLoading ? (
+                    {isLoading ? (
                     <div className="text-center py-16 text-gray-400">
                         <div className="animate-spin w-8 h-8 border-2 border-gray-300 border-t-gray-600 rounded-full mx-auto mb-3" />
                         <p className="text-sm">{t('jsTemplate.loading')}</p>
@@ -334,6 +337,7 @@ const JSTemplateManager = () => {
                         ))}
                     </div>
                 )}
+                </div>
             </div>
         </div>
     )
