@@ -31,6 +31,7 @@ import (
 
 	"github.com/LingByte/SoulNexus/internal/models"
 	authmodel "github.com/LingByte/SoulNexus/internal/models/auth"
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 
 	SoulNexus "github.com/LingByte/SoulNexus"
 	"github.com/LingByte/SoulNexus/i18n"
@@ -216,6 +217,12 @@ func (h *Handlers) handleUserSignupPage(c *gin.Context) {
 	ctx := SoulNexus.GetRenderPageContext(c)
 	ctx["SignupText"] = "Sign Up Now"
 	ctx["Site.SignupApi"] = utils.GetValue(h.db, constants.KEY_SITE_SIGNUP_API)
+	if redirectURL := strings.TrimSpace(c.Query("redirecturl")); redirectURL != "" {
+		ctx["LoginNext"] = redirectURL
+	}
+	ctx["OIDCClientID"] = strings.TrimSpace(c.Query("client_id"))
+	ctx["OIDCRedirectURI"] = strings.TrimSpace(c.Query("redirect_uri"))
+	ctx["OIDCState"] = strings.TrimSpace(c.Query("state"))
 	c.HTML(http.StatusOK, "signup.html", ctx)
 }
 
@@ -415,19 +422,30 @@ func getRefreshTokenTTL(db *gorm.DB) time.Duration {
 // authTokenTTLFromDB reads AUTH_TOKEN_EXPIRED from system_config; empty uses def with no log noise.
 // Non-empty but invalid values log a warning and fall back to def.
 func authTokenTTLFromDB(db *gorm.DB, def time.Duration) time.Duration {
-	val := strings.TrimSpace(utils.GetValue(db, constants.KEY_AUTH_TOKEN_EXPIRED))
+	return durationFromConfigKey(db, constants.KEY_AUTH_TOKEN_EXPIRED, def)
+}
+
+// durationFromConfigKey reads a duration from system_config. Supports Go duration strings ("168h")
+// and bare seconds ("86400"). Invalid or non-positive values fall back to def.
+func durationFromConfigKey(db *gorm.DB, key string, def time.Duration) time.Duration {
+	if def <= 0 {
+		def = 24 * time.Hour
+	}
+	val := strings.TrimSpace(utils.GetValue(db, key))
 	if val == "" {
 		return def
 	}
-	d, err := time.ParseDuration(val)
-	if err != nil || d <= 0 {
-		logger.Warn("invalid AUTH_TOKEN_EXPIRED config value, using default",
-			zap.String("raw", val),
-			zap.Duration("default", def),
-			zap.Error(err))
-		return def
+	if d, err := time.ParseDuration(val); err == nil && d > 0 {
+		return d
 	}
-	return d
+	if sec, err := strconv.ParseInt(val, 10, 64); err == nil && sec > 0 {
+		return time.Duration(sec) * time.Second
+	}
+	logger.Warn("invalid config duration, using default",
+		zap.String("key", key),
+		zap.String("raw", val),
+		zap.Duration("default", def))
+	return def
 }
 
 func jwtRoleForToken(db *gorm.DB, user *authmodel.User) string {
@@ -2322,7 +2340,16 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 		// 6. 验证码验证（随机图形/点击）
 		// 如果已经进入2FA提交阶段(twoFactorCode存在)，跳过验证码二次校验，避免同一验证码重复消费导致失败
 		isTwoFactorSubmit := strings.TrimSpace(form.TwoFactorCode) != ""
-		if utilscaptcha.GlobalManager != nil && !isTwoFactorSubmit {
+		skipCaptchaAfterDeviceVerify := false
+		if utils.GlobalCache != nil {
+			deviceID := utils.GetDeviceID(userAgent, clientIP)
+			skipKey := fmt.Sprintf("device_verified_login:%s:%s", form.Email, deviceID)
+			if _, ok := utils.GlobalCache.Get(skipKey); ok {
+				skipCaptchaAfterDeviceVerify = true
+				utils.GlobalCache.Remove(skipKey)
+			}
+		}
+		if utilscaptcha.GlobalManager != nil && !isTwoFactorSubmit && !skipCaptchaAfterDeviceVerify {
 			valid, err := verifyRequestCaptcha(form.CaptchaID, form.CaptchaCode, form.CaptchaData, form.CaptchaType)
 			if err != nil || !valid {
 				logger.Warn("Login failed: invalid captcha", zap.String("email", form.Email), zap.Uint("userID", user.ID), zap.String("ip", clientIP), zap.String("captchaID", form.CaptchaID), zap.Error(err))
@@ -2860,10 +2887,13 @@ func (h *Handlers) handleUserSignup(c *gin.Context) {
 		user = ru
 	}
 
-	utils.Sig().Emit(constants.SigUserCreate, user, c, db)
+	utils.Sig().Emit(constants.SigUserCreate, user, db)
+	if _, err := svcmodels.EnsurePersonalGroupForUser(db, user.ID); err != nil {
+		logger.Warn("EnsurePersonalGroupForUser failed after signup", zap.Uint("userId", user.ID), zap.Error(err))
+	}
 
-	r := gin.H{
-		"email": user.Email,
+	if form.Timezone != "" {
+		authmodel.InTimezone(c, form.Timezone)
 	}
 
 	// Check if user is allowed to login before auto-login
@@ -2872,8 +2902,30 @@ func (h *Handlers) handleUserSignup(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusForbidden, err)
 		return
 	}
-	authmodel.Login(c, user) //Login now
-	c.JSON(http.StatusOK, r)
+	authmodel.Login(c, user)
+	if c.IsAborted() {
+		logger.Error("Signup auto-login aborted", zap.String("email", form.Email), zap.Uint("userID", user.ID))
+		return
+	}
+
+	if updatedUser, err := authmodel.GetUserByUID(db, user.ID); err == nil && updatedUser != nil {
+		user = updatedUser
+	}
+
+	expired := authTokenTTLFromDB(db, 7*24*time.Hour)
+	accessToken, refreshToken, err := buildTokenPair(db, user, expired)
+	if err != nil {
+		response.AbortWithJSONError(c, http.StatusInternalServerError, err)
+		return
+	}
+	user.AuthToken = accessToken
+
+	response.Success(c, i18n.T(c, i18n.MsgHandlerAuthSignupSuccess), gin.H{
+		"email":        user.Email,
+		"user":         user,
+		"token":        accessToken,
+		"refreshToken": refreshToken,
+	})
 }
 
 // handleUserSignupByEmail email register email activation
@@ -3015,8 +3067,49 @@ func (h *Handlers) handleUserSignupByEmail(c *gin.Context) {
 		user = ru
 	}
 	utils.Sig().Emit(constants.SigUserCreate, user, db)
-	sendHashMail(db, user, constants.SigUserVerifyEmail, constants.KEY_VERIFY_EMAIL_EXPIRED, "180d", c.ClientIP(), c.Request.UserAgent())
-	response.Success(c, i18n.T(c, i18n.MsgHandlerAuthSignupSuccess), user)
+	if _, err := svcmodels.EnsurePersonalGroupForUser(db, user.ID); err != nil {
+		logger.Warn("EnsurePersonalGroupForUser failed after email signup", zap.Uint("userId", user.ID), zap.Error(err))
+	}
+
+	if err := authmodel.UpdateUser(db, user, map[string]interface{}{
+		"email_verified": true,
+		"update_by":      strings.ToLower(strings.TrimSpace(form.Email)),
+	}); err != nil {
+		logger.Warn("mark email verified after signup failed", zap.Uint("userId", user.ID), zap.Error(err))
+	}
+
+	if err := authmodel.CheckUserAllowLogin(db, user); err != nil {
+		response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthLoginFailed), err)
+		return
+	}
+
+	if form.Timezone != "" {
+		authmodel.InTimezone(c, form.Timezone)
+	}
+
+	authmodel.Login(c, user)
+	if c.IsAborted() {
+		logger.Error("Signup auto-login aborted", zap.String("email", form.Email), zap.Uint("userID", user.ID))
+		return
+	}
+
+	if updatedUser, err := authmodel.GetUserByUID(db, user.ID); err == nil && updatedUser != nil {
+		user = updatedUser
+	}
+
+	expired := authTokenTTLFromDB(db, 7*24*time.Hour)
+	accessToken, refreshToken, err := buildTokenPair(db, user, expired)
+	if err != nil {
+		response.AbortWithJSONError(c, http.StatusInternalServerError, err)
+		return
+	}
+	user.AuthToken = accessToken
+
+	response.Success(c, i18n.T(c, i18n.MsgHandlerAuthSignupSuccess), gin.H{
+		"user":         user,
+		"token":        accessToken,
+		"refreshToken": refreshToken,
+	})
 }
 
 // handleUserUpdate Update User Info
@@ -3036,12 +3129,7 @@ func (h *Handlers) handleUserUpdate(c *gin.Context) {
 	coreVals := make(map[string]interface{})
 	profVals := make(map[string]interface{})
 
-	if req.Email != "" {
-		coreVals["email"] = strings.TrimSpace(strings.ToLower(req.Email))
-	}
-	if req.Phone != "" {
-		coreVals["phone"] = strings.TrimSpace(req.Phone)
-	}
+	// 邮箱、手机号需在「账号与安全」中绑定/换绑，不允许通过资料接口修改
 	if req.FirstName != "" {
 		profVals["first_name"] = req.FirstName
 	}
@@ -3437,6 +3525,12 @@ func (h *Handlers) handleVerifyDeviceForLogin(c *gin.Context) {
 		return
 	}
 
+	// 设备验证通过后，允许同设备在短时内免图形验证码完成登录（验证码已在首次登录时校验过）
+	if utils.GlobalCache != nil {
+		skipKey := fmt.Sprintf("device_verified_login:%s:%s", form.Email, form.DeviceID)
+		utils.GlobalCache.Add(skipKey, true)
+	}
+
 	logger.Info("Device verified and trusted for login",
 		zap.Uint("userID", user.ID),
 		zap.String("email", user.Email),
@@ -3602,6 +3696,194 @@ func (h *Handlers) handleSendEmailVerification(c *gin.Context) {
 		zap.String("token", token))
 
 	response.Success(c, "Verification email sent", nil)
+}
+
+func verifyCachedEmailOTP(email, code string) bool {
+	key := strings.ToLower(strings.TrimSpace(email))
+	input := strings.TrimSpace(code)
+	if key == "" || input == "" || utils.GlobalCache == nil {
+		return false
+	}
+	cached, ok := utils.GlobalCache.Get(key)
+	if !ok {
+		return false
+	}
+	if fmt.Sprint(cached) != input {
+		return false
+	}
+	utils.GlobalCache.Remove(key)
+	return true
+}
+
+func currentEmailChangeCacheKey(userID uint, email string) string {
+	return fmt.Sprintf("email_change:%d:%s", userID, strings.ToLower(strings.TrimSpace(email)))
+}
+
+func verifyCurrentEmailChangeOTP(userID uint, email, code string) bool {
+	key := currentEmailChangeCacheKey(userID, email)
+	input := strings.TrimSpace(code)
+	if input == "" || utils.GlobalCache == nil {
+		return false
+	}
+	cached, ok := utils.GlobalCache.Get(key)
+	if !ok {
+		return false
+	}
+	if fmt.Sprint(cached) != input {
+		return false
+	}
+	utils.GlobalCache.Remove(key)
+	return true
+}
+
+// handleSendCurrentEmailCode 向当前账号邮箱发送换绑验证码
+func (h *Handlers) handleSendCurrentEmailCode(c *gin.Context) {
+	user := authmodel.CurrentUser(c)
+	if user == nil {
+		response.Fail(c, "User not found", errors.New("user not found"))
+		return
+	}
+	if authmodel.IsPlaceholderEmail(user.Email) {
+		response.Fail(c, "请先绑定邮箱", errors.New("email not bound"))
+		return
+	}
+
+	code := utils.RandNumberText(6)
+	key := currentEmailChangeCacheKey(user.ID, user.Email)
+	if utils.GlobalCache != nil {
+		utils.GlobalCache.Add(key, code)
+	}
+
+	clientIP := c.ClientIP()
+	go func() {
+		mailer := notification.NewMailer(h.db, 0, user.ID, clientIP)
+		if err := mailer.SendVerificationCode(user.Email, code); err != nil {
+			logger.Error("send current email change code failed",
+				zap.Uint("userId", user.ID), zap.String("email", user.Email), zap.Error(err))
+		}
+	}()
+
+	response.Success(c, "验证码已发送到当前邮箱", nil)
+}
+
+// handleBindEmail 为未绑定真实邮箱的账号绑定邮箱
+func (h *Handlers) handleBindEmail(c *gin.Context) {
+	var form struct {
+		Email string `json:"email" binding:"required,email"`
+		Code  string `json:"code" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&form); err != nil {
+		response.Fail(c, "Invalid request", err)
+		return
+	}
+
+	user := authmodel.CurrentUser(c)
+	if user == nil {
+		response.Fail(c, "User not found", errors.New("user not found"))
+		return
+	}
+	if !authmodel.IsPlaceholderEmail(user.Email) && user.EmailVerified {
+		response.Fail(c, "已绑定邮箱，请使用换绑功能", errors.New("email already bound"))
+		return
+	}
+
+	newEmail, err := utils.SanitizeAndValidate(form.Email, "email")
+	if err != nil {
+		response.Fail(c, "Invalid email", err)
+		return
+	}
+	newEmail = strings.ToLower(strings.TrimSpace(newEmail))
+	if authmodel.IsExistsByEmail(h.db, newEmail) {
+		response.Fail(c, "该邮箱已被使用", errors.New("email already exists"))
+		return
+	}
+	if !verifyCachedEmailOTP(newEmail, form.Code) {
+		response.Fail(c, "验证码无效或已过期", errors.New("invalid verification code"))
+		return
+	}
+
+	if err := authmodel.UpdateUser(h.db, user, map[string]interface{}{
+		"email":          newEmail,
+		"email_verified": true,
+		"update_by":      fmt.Sprintf("uid:%d", user.ID),
+	}); err != nil {
+		response.Fail(c, "绑定邮箱失败", err)
+		return
+	}
+
+	updatedUser, err := authmodel.GetUserByUID(h.db, user.ID)
+	if err != nil {
+		response.Fail(c, "获取用户信息失败", err)
+		return
+	}
+	cache.Delete(c, constants.CacheKeyUserByID+strconv.Itoa(int(user.ID)))
+	response.Success(c, "邮箱绑定成功", updatedUser)
+}
+
+// handleChangeEmail 换绑邮箱（需验证当前邮箱与新邮箱验证码）
+func (h *Handlers) handleChangeEmail(c *gin.Context) {
+	var form struct {
+		NewEmail         string `json:"newEmail" binding:"required,email"`
+		NewEmailCode     string `json:"newEmailCode" binding:"required"`
+		CurrentEmailCode string `json:"currentEmailCode" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&form); err != nil {
+		response.Fail(c, "Invalid request", err)
+		return
+	}
+
+	user := authmodel.CurrentUser(c)
+	if user == nil {
+		response.Fail(c, "User not found", errors.New("user not found"))
+		return
+	}
+	if authmodel.IsPlaceholderEmail(user.Email) || !user.EmailVerified {
+		response.Fail(c, "请先完成邮箱绑定", errors.New("email not verified"))
+		return
+	}
+
+	newEmail, err := utils.SanitizeAndValidate(form.NewEmail, "email")
+	if err != nil {
+		response.Fail(c, "Invalid email", err)
+		return
+	}
+	newEmail = strings.ToLower(strings.TrimSpace(newEmail))
+	oldEmail := strings.ToLower(strings.TrimSpace(user.Email))
+	if newEmail == oldEmail {
+		response.Fail(c, "新邮箱不能与当前邮箱相同", utils.ErrSameEmail)
+		return
+	}
+	if authmodel.IsExistsByEmail(h.db, newEmail) {
+		response.Fail(c, "该邮箱已被使用", errors.New("email already exists"))
+		return
+	}
+	if !verifyCurrentEmailChangeOTP(user.ID, user.Email, form.CurrentEmailCode) {
+		response.Fail(c, "当前邮箱验证码无效或已过期", errors.New("invalid current email code"))
+		return
+	}
+	if !verifyCachedEmailOTP(newEmail, form.NewEmailCode) {
+		response.Fail(c, "新邮箱验证码无效或已过期", errors.New("invalid new email code"))
+		return
+	}
+
+	if err := authmodel.UpdateUser(h.db, user, map[string]interface{}{
+		"email":          newEmail,
+		"email_verified": true,
+		"update_by":      fmt.Sprintf("uid:%d", user.ID),
+	}); err != nil {
+		response.Fail(c, "换绑邮箱失败", err)
+		return
+	}
+
+	utils.Sig().Emit(constants.SigUserChangeEmailDone, user, oldEmail, newEmail)
+
+	updatedUser, err := authmodel.GetUserByUID(h.db, user.ID)
+	if err != nil {
+		response.Fail(c, "获取用户信息失败", err)
+		return
+	}
+	cache.Delete(c, constants.CacheKeyUserByID+strconv.Itoa(int(user.ID)))
+	response.Success(c, "邮箱换绑成功", updatedUser)
 }
 
 // handleVerifyPhone 验证手机
@@ -3899,10 +4181,11 @@ func isDefaultAvatar(avatarURL string) bool {
 }
 
 func sendHashMail(db *gorm.DB, user *authmodel.User, signame, expireKey, defaultExpired, clientIp, useragent string) {
-	d, err := time.ParseDuration(utils.GetValue(db, expireKey))
-	if err != nil {
-		d, _ = time.ParseDuration(defaultExpired)
+	def, _ := time.ParseDuration(defaultExpired)
+	if def <= 0 {
+		def = 180 * 24 * time.Hour
 	}
+	d := durationFromConfigKey(db, expireKey, def)
 	km := utils.JWTKeyManager()
 	if km == nil {
 		logger.Error("jwt key manager not initialized (cannot issue email token)")

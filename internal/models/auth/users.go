@@ -225,6 +225,15 @@ func (u *User) TableName() string {
 	return constants.USER_TABLE_NAME
 }
 
+// IsPlaceholderEmail reports whether the account email is unset or a synthetic OAuth placeholder.
+func IsPlaceholderEmail(email string) bool {
+	e := strings.ToLower(strings.TrimSpace(email))
+	if e == "" {
+		return true
+	}
+	return strings.HasSuffix(e, "@temp.local")
+}
+
 // EffectiveDisplayName returns profile display name, or the email local-part when unset.
 func (u *User) EffectiveDisplayName() string {
 	if u == nil {

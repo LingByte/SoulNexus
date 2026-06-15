@@ -107,7 +107,7 @@ const WorkflowManager: React.FC = () => {
       
       const response = await workflowService.listDefinitions(params)
       if (response.code === 200) {
-        setWorkflows(response.data)
+        setWorkflows(Array.isArray(response.data) ? response.data : [])
       } else {
         setError(response.msg || '加载工作流列表失败')
       }
@@ -121,7 +121,7 @@ const WorkflowManager: React.FC = () => {
 
   // 过滤和搜索（前端过滤，如果后端支持搜索则不需要）
   useEffect(() => {
-    let filtered = workflows
+    let filtered = Array.isArray(workflows) ? workflows : []
 
     if (selectedStatus === 'all' && !searchTerm) {
       // 如果使用后端搜索，直接使用返回的数据
@@ -139,7 +139,7 @@ const WorkflowManager: React.FC = () => {
       filtered = filtered.filter(w => 
         w.name.toLowerCase().includes(term) ||
         w.slug.toLowerCase().includes(term) ||
-        w.description.toLowerCase().includes(term) ||
+        (w.description || '').toLowerCase().includes(term) ||
         w.tags?.some(tag => tag.toLowerCase().includes(term))
       )
     }
@@ -1729,11 +1729,11 @@ const WorkflowManager: React.FC = () => {
                     <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
                       <div className="flex items-center gap-1">
                         <GitBranch className="w-3 h-3" />
-                        <span>{workflow.definition.nodes.length}</span>
+                        <span>{workflow.definition?.nodes?.length ?? 0}</span>
                       </div>
                       <div className="flex items-center gap-1">
                         <FileText className="w-3 h-3" />
-                        <span>{workflow.definition.edges.length}</span>
+                        <span>{workflow.definition?.edges?.length ?? 0}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
@@ -1790,8 +1790,8 @@ const WorkflowManager: React.FC = () => {
                         </p>
                         <div className="flex items-center gap-4 mt-2 text-xs text-gray-400">
                           <span>{formatDate(workflow.updatedAt)}</span>
-                          <span>{workflow.definition.nodes.length} 节点</span>
-                          <span>{workflow.definition.edges.length} 连接</span>
+                          <span>{workflow.definition?.nodes?.length ?? 0} 节点</span>
+                          <span>{workflow.definition?.edges?.length ?? 0} 连接</span>
                         </div>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">

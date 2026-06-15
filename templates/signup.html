@@ -221,7 +221,7 @@
     }
     .password-strength {
       font-size: 11px;
-      margin-top: 4px;
+      margin-top: -4px;
       min-height: 16px;
     }
     .password-strength.weak { color: var(--danger); }
@@ -229,12 +229,49 @@
     .password-strength.strong { color: var(--success); }
     .message.success { color: var(--success); }
     .message.error { color: var(--danger); }
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(42, 34, 64, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity var(--duration) ease, visibility var(--duration) ease;
+    }
+    .modal-overlay.active {
+      opacity: 1;
+      visibility: visible;
+    }
     .modal {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
       width: 100%;
       max-width: 420px;
+      box-shadow: 0 24px 56px rgba(79, 71, 230, 0.12);
+      transform: scale(0.95);
+      transition: transform var(--duration) ease;
+    }
+    .modal-overlay.active .modal {
+      transform: scale(1);
     }
     .modal.click-mode {
       max-width: 520px;
+    }
+    .modal-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text);
+      margin: 0 0 16px 0;
+    }
+    .actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
     }
     .modal-captcha-layout {
       display: grid;
@@ -260,7 +297,12 @@
     }
   </style>
 </head>
-<body data-next="{{ .LoginNext }}">
+<body
+  data-next="{{ .LoginNext }}"
+  data-oidc-client-id="{{ .OIDCClientID }}"
+  data-oidc-redirect-uri="{{ .OIDCRedirectURI }}"
+  data-oidc-state="{{ .OIDCState }}"
+>
   <header class="header">
     <div class="header-left">
       <img src="/static/logo.png" alt="Logo" class="header-logo" />
@@ -295,13 +337,13 @@
         <div class="field">
           <label for="password">密码</label>
           <input id="password" class="input" type="password" required placeholder="请输入密码" />
-          <div id="password-strength" class="password-strength"></div>
         </div>
         <div class="field">
           <label for="confirmPassword">确认密码</label>
           <input id="confirmPassword" class="input" type="password" required placeholder="请再次输入密码" />
         </div>
       </div>
+      <div id="password-strength" class="password-strength"></div>
       <div class="field">
         <label for="emailCode">邮箱验证码</label>
         <div class="inline">
@@ -322,7 +364,7 @@
     </div>
   </main>
 
-  <div id="captcha-modal" class="modal-overlay hidden">
+  <div id="captcha-modal" class="modal-overlay">
     <div class="modal">
       <h3 class="modal-title">请输入图形验证码</h3>
       <div class="modal-captcha-layout">
@@ -341,7 +383,46 @@
     (function () {
       const state = { captchaId: '', captchaType: 'image', captchaCount: 0, captchaWords: [], captchaPoints: [] };
       const nextTarget = document.body.dataset.next || '';
-      const loginURL = '/api/auth/login' + (nextTarget ? ('?next=' + encodeURIComponent(nextTarget)) : '');
+      const oidcClientID = (document.body.dataset.oidcClientId || '').trim();
+      const oidcRedirectURI = (document.body.dataset.oidcRedirectUri || '').trim();
+      const oidcState = (document.body.dataset.oidcState || '').trim();
+      const buildLoginURL = () => {
+        const params = new URLSearchParams();
+        if (nextTarget) params.set('next', nextTarget);
+        if (oidcClientID) params.set('client_id', oidcClientID);
+        if (oidcRedirectURI) params.set('redirect_uri', oidcRedirectURI);
+        if (oidcState) params.set('state', oidcState);
+        const query = params.toString();
+        return '/api/auth/login' + (query ? ('?' + query) : '');
+      };
+      const buildOIDCRedirect = () => {
+        if (!oidcClientID || !oidcRedirectURI) return '';
+        const params = new URLSearchParams({
+          client_id: oidcClientID,
+          redirect_uri: oidcRedirectURI,
+        });
+        if (oidcState) params.set('state', oidcState);
+        return '/api/auth/oidc/authorize?' + params.toString();
+      };
+      const appendAuthTokenToRedirect = (target, token) => {
+        if (!target || !token) return target;
+        try {
+          const url = new URL(target, window.location.origin);
+          url.searchParams.set('auth_token', token);
+          return url.toString();
+        } catch (_) {
+          return target;
+        }
+      };
+      const loginURL = buildLoginURL();
+      const normalizeRedirectTarget = (raw) => {
+        if (!raw) return 'https://lingecho.com';
+        const lowered = raw.toLowerCase();
+        if (lowered.indexOf('/api/admin') !== -1) return 'https://lingecho.com';
+        if (lowered.indexOf('/api/auth/login') !== -1) return 'https://lingecho.com';
+        return raw;
+      };
+      const redirectTarget = normalizeRedirectTarget(nextTarget);
       const $ = (id) => document.getElementById(id);
       $('backLogin').href = loginURL;
 
@@ -359,6 +440,7 @@
         const resp = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify(payload || {}),
         });
         let data = {};
@@ -533,8 +615,25 @@
         try {
           const { resp, data } = await apiRequest('/api/auth/register/email', payload);
           if (!resp.ok || data.code !== 200) throw new Error(data.msg || '注册失败');
-          setMessage('注册成功，正在跳转到登录页...', 'success');
-          setTimeout(() => { window.location.href = loginURL; }, 700);
+          const result = data.data || {};
+          try {
+            const token = result.token || result.authToken || data.token;
+            const refreshToken = result.refreshToken || data.refreshToken;
+            if (token) localStorage.setItem('auth_token', token);
+            if (refreshToken) localStorage.setItem('refresh_token', refreshToken);
+          } catch (e) {
+            console.warn('unable to persist auth tokens after signup', e);
+          }
+          setMessage('注册成功，正在进入...', 'success');
+          setTimeout(() => {
+            const oidcURL = buildOIDCRedirect();
+            if (oidcURL) {
+              window.location.href = oidcURL;
+              return;
+            }
+            const token = result.token || result.authToken || data.token;
+            window.location.href = appendAuthTokenToRedirect(redirectTarget, token);
+          }, 700);
         } catch (err) {
           setMessage(err.message || '注册失败', 'error');
           loadCaptcha();
@@ -559,6 +658,7 @@
         if (!emailCode) return setMessage('请输入邮箱验证码', 'error');
         
         await loadCaptcha();
+        if (!state.captchaId) return;
         $('modalCaptchaCode').value = '';
         $('captcha-modal').classList.add('active');
       });

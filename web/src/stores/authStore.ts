@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { registerUser, getUserInfo, logoutUser, type User, type RegisterUserForm } from '../api/auth'
+import { registerUser, getUserInfo, logoutUser, type User, type RegisterUserForm, type RegisterResponseData } from '../api/auth'
 import { mergeUserPartial } from '@/utils/authUserProfile'
 import { applyAuthUserUIPreferences } from '@/utils/userUiPreferences'
 import { buildSSOLogoutURL } from '@/utils/sso'
@@ -72,7 +72,20 @@ export const useAuthStore = create<AuthState>()(
           const response = await registerUser(data)
           
           if (response.code === 200) {
-            // 注册成功，但通常注册后需要用户主动登录
+            const result = response.data as RegisterResponseData & { token?: string; refreshToken?: string }
+            const token = result?.token || (result as any)?.authToken
+            const refreshToken = result?.refreshToken
+            if (token) {
+              localStorage.setItem('auth_token', token)
+              if (refreshToken) localStorage.setItem('refresh_token', refreshToken)
+              set({ isAuthenticated: true, token, isLoading: false })
+              const userResponse = await getUserInfo()
+              if (userResponse.code === 200 && userResponse.data) {
+                set({ user: userResponse.data })
+                applyAuthUserUIPreferences(userResponse.data as unknown as Record<string, unknown>)
+              }
+              return true
+            }
             set({ isLoading: false })
             return true
           } else {

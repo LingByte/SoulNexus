@@ -541,7 +541,7 @@
 
     <section class="right">
       <div class="top-links" id="top-links">
-        <span>还没有账号？<a href="/api/auth/register">立即注册</a></span>
+        <span>还没有账号？<a id="register-link" href="/api/auth/register">立即注册</a></span>
       </div>
 
       <div class="switch" id="switch">
@@ -708,6 +708,23 @@
         }
         const query = params.toString();
         return '/api/auth/github/login' + (query ? ('?' + query) : '');
+      };
+      const buildRegisterURL = () => {
+        const params = new URLSearchParams();
+        if (rawNext) {
+          params.set('next', rawNext);
+        }
+        if (oidcClientID) {
+          params.set('client_id', oidcClientID);
+        }
+        if (oidcRedirectURI) {
+          params.set('redirect_uri', oidcRedirectURI);
+        }
+        if (oidcState) {
+          params.set('state', oidcState);
+        }
+        const query = params.toString();
+        return '/api/auth/register' + (query ? ('?' + query) : '');
       };
 
       const $ = (id) => document.getElementById(id);
@@ -932,6 +949,10 @@
       $('github-login').addEventListener('click', () => {
         window.location.href = buildGitHubLoginURL();
       });
+      const registerLink = $('register-link');
+      if (registerLink) {
+        registerLink.href = buildRegisterURL();
+      }
       $('modal-captcha-box').addEventListener('click', () => {
         if (state.captchaType !== 'click') loadCaptcha();
       });
@@ -1064,8 +1085,9 @@
           });
           if (!resp.ok || data.code !== 200) throw new Error(data.msg || '设备验证失败');
           closeDeviceVerifyModal();
-          setMessage('login-message', '设备验证成功，请重新登录', 'success');
           state.pendingDeviceId = '';
+          setMessage('login-message', '设备验证成功，正在登录...', 'info');
+          await performLogin('', '', true);
         } catch (err) {
           setMessage('device-verify-message', err.message || '设备验证失败', 'error');
         } finally {

@@ -241,3 +241,37 @@ export const trustUserDevice = async (deviceId: string): Promise<ApiResponse<nul
 export const untrustUserDevice = async (deviceId: string): Promise<ApiResponse<null>> => {
   return post('/auth/devices/untrust', { deviceId }, userServiceConfig)
 }
+
+export interface BindEmailForm {
+  email: string
+  code: string
+}
+
+export interface ChangeEmailForm {
+  newEmail: string
+  newEmailCode: string
+  currentEmailCode: string
+}
+
+/** 向当前账号邮箱发送换绑验证码 */
+export const sendCurrentEmailCode = async (): Promise<ApiResponse<null>> => {
+  return post('/auth/email/send-current-code', {}, userServiceConfig)
+}
+
+/** 绑定邮箱（未绑定真实邮箱时使用） */
+export const bindEmail = async (data: BindEmailForm): Promise<ApiResponse<any>> => {
+  const res = await post<any>('/auth/email/bind', data, userServiceConfig)
+  if (res.code === 200 && res.data) {
+    return { ...res, data: normalizeAuthUser(res.data as Record<string, unknown>) }
+  }
+  return res
+}
+
+/** 换绑邮箱 */
+export const changeEmail = async (data: ChangeEmailForm): Promise<ApiResponse<any>> => {
+  const res = await post<any>('/auth/email/change', data, userServiceConfig)
+  if (res.code === 200 && res.data) {
+    return { ...res, data: normalizeAuthUser(res.data as Record<string, unknown>) }
+  }
+  return res
+}

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, ReactNode } from 'react';
 import { useAuthStore, type User } from '@/stores/authStore';
+import { consumeAuthTokenFromURL } from '@/utils/authBootstrap';
 
 interface AuthContextType {
   user: User | null;
@@ -23,7 +24,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const authStore = useAuthStore();
 
   useEffect(() => {
-    // 初始化时检查是否有token
+    const bootstrapToken = consumeAuthTokenFromURL();
+    if (bootstrapToken) {
+      void authStore.login(bootstrapToken);
+      return;
+    }
     const token = localStorage.getItem('auth_token');
     if (token) {
       authStore.refreshUserInfo();

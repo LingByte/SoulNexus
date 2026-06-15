@@ -82,9 +82,10 @@ const DeviceManagement: React.FC = () => {
             try {
                 const res = await getAssistantList();
                 if (res.code === 200) {
-                    setAssistants(res.data);
-                    if (res.data.length > 0 && !selectedAssistantId) {
-                        setSelectedAssistantId(String(res.data[0].id));
+                    const list = Array.isArray(res.data) ? res.data : []
+                    setAssistants(list)
+                    if (list.length > 0 && !selectedAssistantId) {
+                        setSelectedAssistantId(String(list[0].id))
                     }
                 } else {
                     showAlert(t('device.messages.fetchAssistantsFailed'), 'error');
@@ -108,7 +109,7 @@ const DeviceManagement: React.FC = () => {
             setIsLoading(true);
             const res = await getUserDevices(agentId);
             if (res.code === 200) {
-                setDevices(res.data);
+                setDevices(Array.isArray(res.data) ? res.data : [])
             } else {
                 showAlert(res.msg || t('device.messages.fetchDevicesFailed'), 'error');
             }

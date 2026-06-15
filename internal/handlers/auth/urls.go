@@ -205,6 +205,9 @@ func (h *Handlers) registerAuthRoutes(r *gin.RouterGroup) {
 
 		auth.GET("/verify-email", h.handleVerifyEmail)
 		auth.POST("/send-email-verification", authmodel.AuthRequired, h.handleSendEmailVerification)
+		auth.POST("/email/send-current-code", authmodel.AuthRequired, h.handleSendCurrentEmailCode)
+		auth.POST("/email/bind", authmodel.AuthRequired, h.handleBindEmail)
+		auth.POST("/email/change", authmodel.AuthRequired, h.handleChangeEmail)
 
 		auth.POST("/verify-phone", authmodel.AuthRequired, h.handleVerifyPhone)
 		auth.POST("/send-phone-verification", authmodel.AuthRequired, h.handleSendPhoneVerification)

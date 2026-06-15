@@ -6,6 +6,7 @@ import { Input as ArcoInput } from '@arco-design/web-react'
 import Button from '@/components/UI/Button'
 import FileUpload from '@/components/UI/FileUpload'
 import FormField from '@/components/Forms/FormField'
+import PageHeader from '@/components/Layout/PageHeader'
 import { RefreshCw, Play, Pause, Trash2, Zap, Mic, Square, Upload, Download } from 'lucide-react'
 import { get, post } from '@/utils/request'
 import { getSystemInit } from '@/api/system'
@@ -244,27 +245,34 @@ const VoiceTrainingVolcengine: React.FC = () => {
 
     // --- Loading ---
     if (!configChecked) return (
-        <div className="flex items-center justify-center min-h-[60vh]">
-            <div className="animate-spin rounded-full h-8 w-8 border-2 border-gray-300 border-t-gray-600" />
+        <div className="flex flex-col h-full bg-gray-50 dark:bg-gray-900">
+            <PageHeader title={t('voiceTraining.title')} />
+            <div className="flex flex-1 items-center justify-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-2 border-gray-300 border-t-gray-600" />
+            </div>
         </div>
     )
 
-    // --- Config not set ---
     if (!configConfigured) return (
-        <div className="max-w-xl mx-auto py-12 px-4">
-            <Card>
-                <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><Zap className="w-5 h-5 text-orange-500" />{t('voiceTraining.volcengine.config.title')}</CardTitle></CardHeader>
-                <CardContent>
-                    <div className="text-center py-8">
-                        <p className="text-gray-500 mb-4">{t('voiceTraining.volcengine.config.envHint')}</p>
-                        <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 text-left text-sm font-mono space-y-1">
-                            <p>VOLCENGINE_CLONE_APP_ID=...</p>
-                            <p>VOLCENGINE_CLONE_TOKEN=...</p>
-                            <p>VOLCENGINE_CLONE_CLUSTER=volcano_icl</p>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
+        <div className="flex flex-col h-full bg-gray-50 dark:bg-gray-900">
+            <PageHeader title={t('voiceTraining.title')} />
+            <div className="flex-1 overflow-auto">
+                <div className="max-w-xl mx-auto py-6 px-4">
+                    <Card>
+                        <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><Zap className="w-5 h-5 text-orange-500" />{t('voiceTraining.volcengine.config.title')}</CardTitle></CardHeader>
+                        <CardContent>
+                            <div className="text-center py-8">
+                                <p className="text-gray-500 mb-4">{t('voiceTraining.volcengine.config.envHint')}</p>
+                                <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 text-left text-sm font-mono space-y-1">
+                                    <p>VOLCENGINE_CLONE_APP_ID=...</p>
+                                    <p>VOLCENGINE_CLONE_TOKEN=...</p>
+                                    <p>VOLCENGINE_CLONE_CLUSTER=volcano_icl</p>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            </div>
         </div>
     )
 
@@ -272,7 +280,10 @@ const VoiceTrainingVolcengine: React.FC = () => {
     const selectedClone = voiceClones.find(c => c.id === selectedCloneForSynthesis)
 
     return (
-        <div className="max-w-6xl mx-auto py-6 px-4 space-y-4">
+        <div className="flex flex-col h-full bg-gray-50 dark:bg-gray-900">
+            <PageHeader title={t('voiceTraining.title')} />
+            <div className="flex-1 overflow-auto">
+                <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-4">
             {/* Tabs */}
             <div className="flex gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-lg w-fit">
                 {(['training', 'clones', 'history'] as const).map(tab => (
@@ -477,6 +488,8 @@ const VoiceTrainingVolcengine: React.FC = () => {
                     </CardContent>
                 </Card>
             )}
+                </div>
+            </div>
         </div>
     )
 }
