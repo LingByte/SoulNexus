@@ -44,7 +44,7 @@ func FromSynthesisService(svc synthesizer.AudioSynthesisEngine) Service {
 	if svc == nil {
 		return nil
 	}
-	return &synthesisAdapter{svc: svc}
+	return WithSynthConcurrency(&synthesisAdapter{svc: svc})
 }
 
 type synthesisAdapter struct {

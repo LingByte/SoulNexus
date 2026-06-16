@@ -29,6 +29,7 @@ import (
 	"time"
 
 	webauthnsvc "github.com/LingByte/SoulNexus/pkg/auth/webauthn"
+	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/gin-gonic/gin"
 	"github.com/go-webauthn/webauthn/protocol"
@@ -403,7 +404,7 @@ func (h *Handlers) handleAuthPasskeyFinish(c *gin.Context) {
 	if c.IsAborted() {
 		return
 	}
-	expired := authTokenTTLFromDB(h.db, 7*24*time.Hour)
+	expired := durationFromConfigKey(h.db, constants.KEY_AUTH_TOKEN_EXPIRED, 7*24*time.Hour)
 	accessToken, refreshToken, err := buildTokenPair(h.db, user, expired)
 	if err != nil {
 		response.AbortWithJSONError(c, http.StatusInternalServerError, err)

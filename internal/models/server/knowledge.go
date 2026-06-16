@@ -62,19 +62,6 @@ func IsKnowledgeInlineTextURL(s string) bool {
 	return strings.TrimSpace(s) == KnowledgeTextURLInline
 }
 
-// NormalizeVectorProvider canonicalises a stored vector backend name (legacy rows).
-func NormalizeVectorProvider(s string) string {
-	v := strings.TrimSpace(strings.ToLower(s))
-	switch v {
-	case "", KnowledgeVectorProviderQdrant:
-		return KnowledgeVectorProviderQdrant
-	case KnowledgeVectorProviderMilvus:
-		return KnowledgeVectorProviderMilvus
-	default:
-		return v
-	}
-}
-
 // KnowledgeNamespace 表示一个知识库（在向量后端中对应一个 collection）。
 type KnowledgeNamespace struct {
 	ID        int64 `json:"id,string" gorm:"primaryKey;autoIncrement"`
@@ -214,7 +201,10 @@ func UpsertKnowledgeNamespace(db *gorm.DB, groupID uint, createdBy uint, id int6
 	if name == "" {
 		return nil, errors.New("name is required")
 	}
-	vp := NormalizeVectorProvider(config.VectorProviderFromEnv())
+	vp := strings.TrimSpace(strings.ToLower(config.VectorProviderFromEnv()))
+	if vp == "" {
+		vp = KnowledgeVectorProviderQdrant
+	}
 	embedModel := config.EmbedModelFromEnv()
 	if embedModel == "" {
 		return nil, errors.New("embed model not configured (set EMBED_MODEL)")

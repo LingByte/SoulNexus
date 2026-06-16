@@ -38,18 +38,3 @@ func GetLatestOTA(db *gorm.DB, otaType string) (*OTA, error) {
 	}
 	return &ota, nil
 }
-
-// CreateOTA creates a new OTA firmware record
-func CreateOTA(db *gorm.DB, ota *OTA) error {
-	return db.Create(ota).Error
-}
-
-// UpdateOTA updates OTA firmware record
-func UpdateOTA(db *gorm.DB, ota *OTA) error {
-	return db.Save(ota).Error
-}
-
-// DeleteOTA deletes OTA firmware record
-func DeleteOTA(db *gorm.DB, id string) error {
-	return db.Delete(&OTA{}, "id = ?", id).Error
-}

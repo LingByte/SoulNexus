@@ -34,7 +34,7 @@ func TestCreateOTA(t *testing.T) {
 		Sort:         1,
 	}
 
-	err := CreateOTA(db, ota)
+	err := db.Create(ota).Error
 	require.NoError(t, err)
 
 	// Verify the record was created
@@ -64,7 +64,7 @@ func TestCreateOTA_WithMinimalFields(t *testing.T) {
 		FirmwarePath: "/firmware/default/v2.0.0.bin",
 	}
 
-	err := CreateOTA(db, ota)
+	err := db.Create(ota).Error
 	require.NoError(t, err)
 
 	// Verify default values
@@ -87,7 +87,7 @@ func TestGetLatestOTA_Success(t *testing.T) {
 		Version:      "1.0.0",
 		FirmwarePath: "/firmware/esp32/v1.0.0.bin",
 	}
-	err := CreateOTA(db, ota1)
+	err := db.Create(ota1).Error
 	require.NoError(t, err)
 
 	// Wait a bit to ensure different timestamps
@@ -100,7 +100,7 @@ func TestGetLatestOTA_Success(t *testing.T) {
 		Version:      "1.1.0",
 		FirmwarePath: "/firmware/esp32/v1.1.0.bin",
 	}
-	err = CreateOTA(db, ota2)
+	err = db.Create(ota2).Error
 	require.NoError(t, err)
 
 	// Wait a bit more
@@ -113,7 +113,7 @@ func TestGetLatestOTA_Success(t *testing.T) {
 		Version:      "1.2.0",
 		FirmwarePath: "/firmware/esp32/v1.2.0.bin",
 	}
-	err = CreateOTA(db, ota3)
+	err = db.Create(ota3).Error
 	require.NoError(t, err)
 
 	// Get latest OTA for esp32 type
@@ -144,7 +144,7 @@ func TestGetLatestOTA_DifferentTypes(t *testing.T) {
 		Version:      "1.0.0",
 		FirmwarePath: "/firmware/esp32/v1.0.0.bin",
 	}
-	err := CreateOTA(db, ota1)
+	err := db.Create(ota1).Error
 	require.NoError(t, err)
 
 	time.Sleep(10 * time.Millisecond)
@@ -156,7 +156,7 @@ func TestGetLatestOTA_DifferentTypes(t *testing.T) {
 		Version:      "1.0.0",
 		FirmwarePath: "/firmware/default/v1.0.0.bin",
 	}
-	err = CreateOTA(db, ota2)
+	err = db.Create(ota2).Error
 	require.NoError(t, err)
 
 	// Get latest for each type
@@ -185,7 +185,7 @@ func TestUpdateOTA(t *testing.T) {
 		FirmwarePath: "/firmware/esp32/v1.0.0.bin",
 		Sort:         1,
 	}
-	err := CreateOTA(db, ota)
+	err := db.Create(ota).Error
 	require.NoError(t, err)
 
 	originalUpdatedAt := ota.UpdatedAt
@@ -200,7 +200,7 @@ func TestUpdateOTA(t *testing.T) {
 	ota.Remark = "Bug fixes"
 	ota.Sort = 2
 
-	err = UpdateOTA(db, ota)
+	err = db.Save(ota).Error
 	require.NoError(t, err)
 
 	// Verify the update
@@ -226,7 +226,7 @@ func TestUpdateOTA_AllFields(t *testing.T) {
 		Version:      "1.0.0",
 		FirmwarePath: "/firmware/esp32/v1.0.0.bin",
 	}
-	err := CreateOTA(db, ota)
+	err := db.Create(ota).Error
 	require.NoError(t, err)
 
 	// Update all fields
@@ -238,7 +238,7 @@ func TestUpdateOTA_AllFields(t *testing.T) {
 	ota.FirmwarePath = "/firmware/default/v2.0.0.bin"
 	ota.Sort = 10
 
-	err = UpdateOTA(db, ota)
+	err = db.Save(ota).Error
 	require.NoError(t, err)
 
 	// Verify all fields were updated
@@ -265,7 +265,7 @@ func TestDeleteOTA_Success(t *testing.T) {
 		Version:      "1.0.0",
 		FirmwarePath: "/firmware/esp32/v1.0.0.bin",
 	}
-	err := CreateOTA(db, ota)
+	err := db.Create(ota).Error
 	require.NoError(t, err)
 
 	// Verify it exists
@@ -274,7 +274,7 @@ func TestDeleteOTA_Success(t *testing.T) {
 	assert.Equal(t, int64(1), count)
 
 	// Delete the OTA record
-	err = DeleteOTA(db, "ota-001")
+	err = db.Delete(&OTA{}, "id = ?", "ota-001").Error
 	require.NoError(t, err)
 
 	// Verify it was deleted
@@ -286,7 +286,7 @@ func TestDeleteOTA_NonExistent(t *testing.T) {
 	db := setupOTATestDB(t)
 
 	// Try to delete non-existent OTA
-	err := DeleteOTA(db, "nonexistent-id")
+	err := db.Delete(&OTA{}, "id = ?", "nonexistent-id").Error
 	// Delete should not error even if record doesn't exist
 	// GORM's Delete returns no error if no rows are affected
 	assert.NoError(t, err)
@@ -303,7 +303,7 @@ func TestDeleteOTA_MultipleRecords(t *testing.T) {
 		Version:      "1.0.0",
 		FirmwarePath: "/firmware/esp32/v1.0.0.bin",
 	}
-	err := CreateOTA(db, ota1)
+	err := db.Create(ota1).Error
 	require.NoError(t, err)
 
 	ota2 := &OTA{
@@ -313,7 +313,7 @@ func TestDeleteOTA_MultipleRecords(t *testing.T) {
 		Version:      "1.1.0",
 		FirmwarePath: "/firmware/esp32/v1.1.0.bin",
 	}
-	err = CreateOTA(db, ota2)
+	err = db.Create(ota2).Error
 	require.NoError(t, err)
 
 	// Verify both exist
@@ -322,7 +322,7 @@ func TestDeleteOTA_MultipleRecords(t *testing.T) {
 	assert.Equal(t, int64(2), count)
 
 	// Delete one
-	err = DeleteOTA(db, "ota-001")
+	err = db.Delete(&OTA{}, "id = ?", "ota-001").Error
 	require.NoError(t, err)
 
 	// Verify only one remains
@@ -347,7 +347,7 @@ func TestGetLatestOTA_OrderByUpdatedAt(t *testing.T) {
 		Version:      "1.0.0",
 		FirmwarePath: "/firmware/esp32/v1.0.0.bin",
 	}
-	err := CreateOTA(db, ota1)
+	err := db.Create(ota1).Error
 	require.NoError(t, err)
 
 	// Wait to ensure different timestamp
@@ -361,13 +361,13 @@ func TestGetLatestOTA_OrderByUpdatedAt(t *testing.T) {
 		Version:      "1.1.0",
 		FirmwarePath: "/firmware/esp32/v1.1.0.bin",
 	}
-	err = CreateOTA(db, ota2)
+	err = db.Create(ota2).Error
 	require.NoError(t, err)
 
 	// Wait and update the first one to make it newer
 	time.Sleep(10 * time.Millisecond)
 	ota1.Remark = "Updated"
-	err = UpdateOTA(db, ota1)
+	err = db.Save(ota1).Error
 	require.NoError(t, err)
 
 	// Get latest - should return ota-001 because it was updated most recently
@@ -388,7 +388,7 @@ func TestOTA_WithEmptyFields(t *testing.T) {
 		Version:      "",
 		FirmwarePath: "",
 	}
-	err := CreateOTA(db, ota)
+	err := db.Create(ota).Error
 	require.NoError(t, err)
 
 	// Verify it was created

@@ -288,7 +288,7 @@ func (h *AlibabaHandler) rewriteQueryAlibaba(ctx context.Context, text string, o
 	if err := json.Unmarshal(body, &parsed); err != nil {
 		return "", err
 	}
-	out := NormalizeRewrittenQuery(parsed.Output.Text)
+	out := TrimRewrittenQuery(parsed.Output.Text)
 	if out == "" {
 		return strings.TrimSpace(text), nil
 	}

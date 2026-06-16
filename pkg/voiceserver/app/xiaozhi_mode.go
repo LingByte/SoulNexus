@@ -18,11 +18,11 @@ const (
 
 // XiaozhiMode reads XIAOZHIMODE from the environment (via .env-voice).
 func XiaozhiMode() string {
-	return NormalizeXiaozhiMode(utils.GetEnv("XIAOZHIMODE"))
+	return ModeFromConfig(utils.GetEnv("XIAOZHIMODE"))
 }
 
-// NormalizeXiaozhiMode maps user-facing aliases to a canonical mode slug.
-func NormalizeXiaozhiMode(m string) string {
+// ModeFromConfig maps config/env aliases to a canonical mode slug.
+func ModeFromConfig(m string) string {
 	m = strings.ToLower(strings.TrimSpace(m))
 	switch m {
 	case XiaozhiModeRealtime, "omni", "multimodal":

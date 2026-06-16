@@ -8,9 +8,9 @@ import (
 	"strings"
 )
 
-// NormalizeOpenAIChatCompletionBody normalizes an OpenAI-compatible chat completion
+// PatchOpenAIChatCompletionBody normalizes an OpenAI-compatible chat completion
 // request before relaying upstream. It preserves caller fields and only fills gaps.
-func NormalizeOpenAIChatCompletionBody(body []byte) []byte {
+func PatchOpenAIChatCompletionBody(body []byte) []byte {
 	var m map[string]json.RawMessage
 	if json.Unmarshal(body, &m) != nil || len(m) == 0 {
 		return body

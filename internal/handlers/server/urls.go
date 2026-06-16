@@ -24,13 +24,8 @@ type Handlers struct {
 	db                *gorm.DB
 	rpc               *grpcclients.Bundle
 	wsHub             *websocket.Hub
-	searchHandler     *search.SearchHandlers
+	SearchHandler     *search.SearchHandlers
 	ipLocationService *utils.IPLocationService
-}
-
-// GetSearchHandler gets the search handler (for scheduled tasks)
-func (h *Handlers) GetSearchHandler() *search.SearchHandlers {
-	return h.searchHandler
 }
 
 func NewHandlers(db *gorm.DB, rpc *grpcclients.Bundle) *Handlers {
@@ -70,17 +65,14 @@ func NewHandlers(db *gorm.DB, rpc *grpcclients.Bundle) *Handlers {
 		)
 		if err != nil {
 			logger.Warn("Failed to initialize search engine", zap.Error(err))
-			// Even if initialization fails, create an empty handler for route registration
 			searchHandler = search.NewSearchHandlers(nil)
 		} else {
 			searchHandler = search.NewSearchHandlers(engine)
 		}
-		// Set database connection for configuration checking
 		if searchHandler != nil {
 			searchHandler.SetDB(db)
 		}
 	} else {
-		// Even if search is not enabled, create an empty handler for route registration
 		searchHandler = search.NewSearchHandlers(nil)
 		if searchHandler != nil {
 			searchHandler.SetDB(db)
@@ -93,7 +85,7 @@ func NewHandlers(db *gorm.DB, rpc *grpcclients.Bundle) *Handlers {
 		db:                db,
 		rpc:               rpc,
 		wsHub:             wsHub,
-		searchHandler:     searchHandler,
+		SearchHandler:     searchHandler,
 		ipLocationService: ipLocationService,
 	}
 }
@@ -116,7 +108,7 @@ func (h *Handlers) Register(engine *gin.Engine) {
 
 	// Register routes regardless of whether search is enabled, check in handler methods
 	// If handler is nil, try to initialize
-	if h.searchHandler == nil {
+	if h.SearchHandler == nil {
 		searchPath := utils.GetValue(h.db, constants.KEY_SEARCH_PATH)
 		if searchPath == "" && config.GlobalConfig != nil {
 			searchPath = config.GlobalConfig.Features.SearchPath
@@ -144,24 +136,24 @@ func (h *Handlers) Register(engine *gin.Engine) {
 		if err != nil {
 			logger.Warn("Failed to initialize search engine in Register", zap.Error(err))
 			// Even if initialization fails, create an empty handler for route registration
-			h.searchHandler = search.NewSearchHandlers(nil)
+			h.SearchHandler = search.NewSearchHandlers(nil)
 		} else {
-			h.searchHandler = search.NewSearchHandlers(engine)
+			h.SearchHandler = search.NewSearchHandlers(engine)
 		}
 	}
 
 	// Register routes regardless of whether search is enabled, check in handler methods
-	if h.searchHandler == nil {
+	if h.SearchHandler == nil {
 		// If handler is still nil, create an empty one for route registration
 		logger.Info("Search handler is nil, creating empty handler for route registration")
-		h.searchHandler = search.NewSearchHandlers(nil)
+		h.SearchHandler = search.NewSearchHandlers(nil)
 	}
 
 	// Set database connection for configuration checking
-	if h.searchHandler != nil {
-		h.searchHandler.SetDB(h.db)
+	if h.SearchHandler != nil {
+		h.SearchHandler.SetDB(h.db)
 		logger.Info("Registering search routes")
-		h.searchHandler.RegisterSearchRoutes(r)
+		h.SearchHandler.RegisterSearchRoutes(r)
 		logger.Info("Search routes registered successfully")
 	} else {
 		logger.Warn("Search handler is still nil after initialization, routes not registered")
@@ -281,8 +273,6 @@ func (h *Handlers) registerWebSocketRoutes(r *gin.RouterGroup) {
 
 	r.GET("/ws", auth.AuthRequired, wsHandler.HandleWebSocket)
 
-	r.GET("/voice/websocket", h.HandleWebSocketVoice)
-
 	wsGroup := r.Group("/ws")
 	wsGroup.Use(auth.AuthRequired)
 	{
@@ -314,10 +304,8 @@ func (h *Handlers) registerVolcengineTTSRoutes(r *gin.RouterGroup) {
 func (h *Handlers) registerVoiceTrainingRoutes(r *gin.RouterGroup) {
 	voice := r.Group("/voice")
 
-	// Device-Id → dialog payload for cmd/voice SoulNexus hardware mount (X-Lingecho-Voice-Secret when LINGECHO_HARDWARE_BINDING_SECRET is set; URL/header kept for backward compatibility).
+	// Device-Id → dialog payload for cmd/voice hardware mount (X-Lingecho-Voice-Secret when LINGECHO_HARDWARE_BINDING_SECRET is set).
 	voice.GET("/lingecho/binding", h.HandleSoulnexusHardwareBinding)
-	// v1: legacy in-process pkg/voice.HardwareHandler (ASR/LLM/TTS all in cmd/server).
-	voice.GET("/lingecho/v1/", h.HandleHardwareWebSocketVoice)
 	voice.POST("/simple_text_chat", h.SimpleTextChat)
 
 	voice.Use(auth.AuthRequired)

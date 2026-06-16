@@ -69,7 +69,7 @@ func AccountDeletionEligibilityReasons(db *gorm.DB, user *User, accountLocked bo
 	if err := CheckUserAllowLogin(db, user); err != nil {
 		reasons = append(reasons, "账号状态不允许（未激活、已封禁或角色异常）")
 	}
-	if UserHasAdminAccess(db, user.ID) {
+	if UserHasPermission(db, user.ID, PermAdminAccess) || UserHasPermission(db, user.ID, PermWildcard) {
 		reasons = append(reasons, "管理员账号不支持自助注销")
 	}
 	if accountLocked {

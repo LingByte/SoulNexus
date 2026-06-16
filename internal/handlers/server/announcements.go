@@ -90,7 +90,7 @@ func (h *Handlers) handleAdminListAnnouncements(c *gin.Context) {
 	search := strings.TrimSpace(c.Query("search"))
 	query := h.db.Model(&svcmodels.Announcement{}).Where("is_deleted = ?", models.SoftDeleteStatusActive)
 	if status != "" {
-		query = query.Where("status = ?", svcmodels.NormalizeAnnouncementStatus(status))
+		query = query.Where("status = ?", strings.TrimSpace(status))
 	}
 	if search != "" {
 		like := "%" + search + "%"
@@ -164,11 +164,18 @@ func (h *Handlers) handleAdminCreateAnnouncement(c *gin.Context) {
 	if admin != nil && strings.TrimSpace(admin.Email) != "" {
 		operator = strings.TrimSpace(admin.Email)
 	}
+	status := svcmodels.AnnouncementStatusDraft
+	if st := strings.TrimSpace(req.Status); st != "" {
+		switch st {
+		case svcmodels.AnnouncementStatusDraft, svcmodels.AnnouncementStatusPublished, svcmodels.AnnouncementStatusOffline:
+			status = st
+		}
+	}
 	item := svcmodels.Announcement{
 		Title:     title,
 		Summary:   strings.TrimSpace(req.Summary),
 		Content:   content,
-		Status:    svcmodels.NormalizeAnnouncementStatus(strings.TrimSpace(req.Status)),
+		Status:    status,
 		Pinned:    req.Pinned != nil && *req.Pinned,
 		PublishAt: publishAt,
 		ExpireAt:  expireAt,
@@ -214,7 +221,14 @@ func (h *Handlers) handleAdminUpdateAnnouncement(c *gin.Context) {
 		updates["content"] = strings.TrimSpace(*req.Content)
 	}
 	if req.Status != nil {
-		updates["status"] = svcmodels.NormalizeAnnouncementStatus(strings.TrimSpace(*req.Status))
+		st := strings.TrimSpace(*req.Status)
+		switch st {
+		case svcmodels.AnnouncementStatusDraft, svcmodels.AnnouncementStatusPublished, svcmodels.AnnouncementStatusOffline:
+			updates["status"] = st
+		default:
+			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid status"))
+			return
+		}
 	}
 	if req.Pinned != nil {
 		updates["pinned"] = *req.Pinned

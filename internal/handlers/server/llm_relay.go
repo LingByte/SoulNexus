@@ -264,7 +264,7 @@ func (h *Handlers) handleRelayOpenAIChat(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"type": "bad_request", "message": "read body failed"}})
 		return
 	}
-	body = llm.NormalizeOpenAIChatCompletionBody(body)
+	body = llm.PatchOpenAIChatCompletionBody(body)
 	model := parseRelayBodyModel(body)
 	if model == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"type": "bad_request", "message": "model is required"}})

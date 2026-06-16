@@ -193,11 +193,6 @@ type UsageStatistics struct {
 	APICalls int64 `json:"apiCalls"` // API调用次数
 }
 
-// CreateUsageRecord 创建使用量记录
-func CreateUsageRecord(db *gorm.DB, record *UsageRecord) error {
-	return db.Create(record).Error
-}
-
 // GetUsageRecords 获取使用量记录列表
 func GetUsageRecords(db *gorm.DB, userID uint, params map[string]interface{}) ([]UsageRecord, int64, error) {
 	var records []UsageRecord
@@ -441,11 +436,6 @@ func GetDailyUsageData(db *gorm.DB, userID uint, startTime, endTime time.Time, c
 	return results, nil
 }
 
-// CreateBill 创建账单
-func CreateBill(db *gorm.DB, bill *Bill) error {
-	return db.Create(bill).Error
-}
-
 // GetBills 获取账单列表
 func GetBills(db *gorm.DB, userID uint, params map[string]interface{}) ([]Bill, int64, error) {
 	var bills []Bill
@@ -514,11 +504,6 @@ func GetBill(db *gorm.DB, userID uint, billID uint) (*Bill, error) {
 	return &bill, nil
 }
 
-// UpdateBill 更新账单
-func UpdateBill(db *gorm.DB, bill *Bill) error {
-	return db.Save(bill).Error
-}
-
 // GenerateBillNo 生成账单编号
 func GenerateBillNo() string {
 	randomBytes := make([]byte, 3)
@@ -542,7 +527,7 @@ func RecordLLMUsage(db *gorm.DB, userID, credentialID uint, assistantID *uint, g
 		TotalTokens:      totalTokens,
 		UsageTime:        time.Now(),
 	}
-	return CreateUsageRecord(db, record)
+	return db.Create(record).Error
 }
 
 // RecordCallUsage 记录通话使用量
@@ -559,7 +544,7 @@ func RecordCallUsage(db *gorm.DB, userID, credentialID uint, assistantID *uint, 
 		CallCount:    1,
 		UsageTime:    time.Now(),
 	}
-	return CreateUsageRecord(db, record)
+	return db.Create(record).Error
 }
 
 // RecordASRUsage 记录ASR使用量
@@ -575,7 +560,7 @@ func RecordASRUsage(db *gorm.DB, userID, credentialID uint, assistantID *uint, g
 		AudioSize:     audioSize,
 		UsageTime:     time.Now(),
 	}
-	return CreateUsageRecord(db, record)
+	return db.Create(record).Error
 }
 
 // RecordTTSUsage 记录TTS使用量
@@ -591,7 +576,7 @@ func RecordTTSUsage(db *gorm.DB, userID, credentialID uint, assistantID *uint, g
 		AudioSize:     audioSize,
 		UsageTime:     time.Now(),
 	}
-	return CreateUsageRecord(db, record)
+	return db.Create(record).Error
 }
 
 // RecordAPIUsage 记录API使用量
@@ -607,7 +592,7 @@ func RecordAPIUsage(db *gorm.DB, userID, credentialID uint, assistantID *uint, g
 		Description:  description,
 		UsageTime:    time.Now(),
 	}
-	return CreateUsageRecord(db, record)
+	return db.Create(record).Error
 }
 
 // GenerateBill 生成账单
@@ -641,7 +626,7 @@ func GenerateBill(db *gorm.DB, userID uint, credentialID *uint, groupID *uint, s
 		TotalAPICalls:         stats.APICalls,
 	}
 
-	if err := CreateBill(db, bill); err != nil {
+	if err := db.Create(bill).Error; err != nil {
 		return nil, fmt.Errorf("failed to create bill: %w", err)
 	}
 

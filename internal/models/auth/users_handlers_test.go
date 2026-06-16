@@ -67,7 +67,7 @@ func TestLogin(t *testing.T) {
 	db := setupHandlerTestDB(t)
 	router := setupHandlerTestRouter(t, db)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := CreateUserWithMeta(db, "test@example.com", "password123", UserSourceSystem, UserStatusActive)
 	require.NoError(t, err)
 
 	router.POST("/login", func(c *gin.Context) {
@@ -92,7 +92,7 @@ func TestLogout(t *testing.T) {
 	db := setupHandlerTestDB(t)
 	router := setupHandlerTestRouter(t, db)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := CreateUserWithMeta(db, "test@example.com", "password123", UserSourceSystem, UserStatusActive)
 	require.NoError(t, err)
 
 	router.POST("/logout", func(c *gin.Context) {
@@ -113,7 +113,7 @@ func TestAuthRequired_WithSession(t *testing.T) {
 	db := setupHandlerTestDB(t)
 	router := setupHandlerTestRouter(t, db)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := CreateUserWithMeta(db, "test@example.com", "password123", UserSourceSystem, UserStatusActive)
 	require.NoError(t, err)
 
 	// First, set the session by making a login request
@@ -162,7 +162,7 @@ func TestAuthRequired_WithToken(t *testing.T) {
 	db := setupHandlerTestDB(t)
 	router := setupHandlerTestRouter(t, db)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := CreateUserWithMeta(db, "test@example.com", "password123", UserSourceSystem, UserStatusActive)
 	require.NoError(t, err)
 
 	km := utils.NewKeyManager("RS256")
@@ -194,7 +194,7 @@ func TestAuthRequired_WithTestToken(t *testing.T) {
 	router := setupHandlerTestRouter(t, db)
 
 	// 创建一个测试用户和token
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := CreateUserWithMeta(db, "test@example.com", "password123", UserSourceSystem, UserStatusActive)
 	require.NoError(t, err)
 
 	km := utils.NewKeyManager("RS256")
@@ -243,7 +243,7 @@ func TestAuthApiRequired_WithAPIKey(t *testing.T) {
 	db := setupHandlerTestDB(t)
 	router := setupHandlerTestRouter(t, db)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := CreateUserWithMeta(db, "test@example.com", "password123", UserSourceSystem, UserStatusActive)
 	require.NoError(t, err)
 	gid := ensureTestTeamGroup(t, db, user.ID)
 
@@ -277,7 +277,7 @@ func TestAuthApiRequired_WithQueryParams(t *testing.T) {
 	db := setupHandlerTestDB(t)
 	router := setupHandlerTestRouter(t, db)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := CreateUserWithMeta(db, "test@example.com", "password123", UserSourceSystem, UserStatusActive)
 	require.NoError(t, err)
 	gid := ensureTestTeamGroup(t, db, user.ID)
 
@@ -344,14 +344,14 @@ func TestInTimezone(t *testing.T) {
 func TestUpdateUser(t *testing.T) {
 	db := setupHandlerTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := CreateUserWithMeta(db, "test@example.com", "password123", UserSourceSystem, UserStatusActive)
 	require.NoError(t, err)
 
 	err = UpdateUser(db, user, map[string]any{"ThemeMode": "dark"})
 	require.NoError(t, err)
 
 	// Verify updates
-	retrieved, err := GetUserByUID(db, user.ID)
+	retrieved, err := GetUserByID(db, user.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "dark", retrieved.ThemeMode)
 }

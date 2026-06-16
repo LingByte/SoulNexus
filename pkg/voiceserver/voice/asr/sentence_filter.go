@@ -83,7 +83,7 @@ func (f *SentenceFilter) Update(text string, isFinal bool) string {
 	// like a redo of the last emit. We compare on the normalised
 	// form so whitespace / punctuation jitter doesn't fool us.
 	if f.similarityThreshold > 0 && f.lastEmittedNorm != "" {
-		if Similarity(NormalizeForCompare(text), f.lastEmittedNorm) >= f.similarityThreshold {
+		if Similarity(stripASRCompareText(text), f.lastEmittedNorm) >= f.similarityThreshold {
 			// Treat as no-op without losing track of the latest text;
 			// next "real" change still produces a clean delta.
 			return ""
@@ -107,7 +107,7 @@ func (f *SentenceFilter) Update(text string, isFinal bool) string {
 			delta = text
 		}
 		f.lastEmittedFull = text
-		f.lastEmittedNorm = NormalizeForCompare(text)
+		f.lastEmittedNorm = stripASRCompareText(text)
 		f.pendingTail = ""
 		return delta
 	}
@@ -146,7 +146,7 @@ func (f *SentenceFilter) Update(text string, isFinal bool) string {
 		delta = upToSentence
 	}
 	f.lastEmittedFull = upToSentence
-	f.lastEmittedNorm = NormalizeForCompare(upToSentence)
+	f.lastEmittedNorm = stripASRCompareText(upToSentence)
 	f.pendingTail = strings.TrimSpace(text[endIdx+1:])
 	return delta
 }
@@ -179,7 +179,7 @@ func (f *SentenceFilter) Reset() {
 
 // Similarity returns 1 - Levenshtein(a, b) / max(len(a), len(b)),
 // clamped to [0, 1]. 1.0 = identical, 0.0 = completely different.
-// Both inputs should already be normalised (see NormalizeForCompare)
+// Both inputs should already be normalised (see stripASRCompareText)
 // for stable scores; raw text may give surprising results due to
 // punctuation/whitespace weight.
 //

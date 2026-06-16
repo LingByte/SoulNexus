@@ -19,11 +19,6 @@ func TestSendWelcomeEmail_Function(t *testing.T) {
 	assert.NotNil(t, sendWelcomeEmail)
 }
 
-func TestSendEmailVerification_Function(t *testing.T) {
-	// Test that the function exists
-	assert.NotNil(t, sendEmailVerification)
-}
-
 func TestSendPasswordResetEmail_Function(t *testing.T) {
 	// Test that the function exists
 	assert.NotNil(t, sendPasswordResetEmail)

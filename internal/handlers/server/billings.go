@@ -618,7 +618,7 @@ func (h *Handlers) ExportBill(c *gin.Context) {
 	bill.ExportedAt = &now
 	bill.ExportFormat = format
 	bill.ExportPath = filePath
-	svcmodels.UpdateBill(h.db, bill)
+	h.db.Save(bill)
 
 	// 生成下载文件名（使用UTF-8编码，避免中文文件名问题）
 	fileName := filepath.Base(filePath)
@@ -903,7 +903,7 @@ func (h *Handlers) UpdateBill(c *gin.Context) {
 		bill.Notes = req.Notes
 	}
 
-	if err := svcmodels.UpdateBill(h.db, bill); err != nil {
+	if err := h.db.Save(bill).Error; err != nil {
 		response.AbortWithStatusJSON(c, http.StatusInternalServerError, err)
 		return
 	}
@@ -966,7 +966,7 @@ func (h *Handlers) ArchiveBill(c *gin.Context) {
 
 	// 更新状态为已归档
 	bill.Status = svcmodels.BillStatusArchived
-	if err := svcmodels.UpdateBill(h.db, bill); err != nil {
+	if err := h.db.Save(bill).Error; err != nil {
 		response.AbortWithStatusJSON(c, http.StatusInternalServerError, err)
 		return
 	}
@@ -1007,7 +1007,7 @@ func (h *Handlers) UpdateBillNotes(c *gin.Context) {
 
 	// 更新备注
 	bill.Notes = req.Notes
-	if err := svcmodels.UpdateBill(h.db, bill); err != nil {
+	if err := h.db.Save(bill).Error; err != nil {
 		response.AbortWithStatusJSON(c, http.StatusInternalServerError, err)
 		return
 	}

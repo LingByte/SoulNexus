@@ -369,7 +369,7 @@ func (h *CozeHandler) rewriteQueryCoze(ctx context.Context, text string, options
 			break
 		}
 	}
-	answer := NormalizeRewrittenQuery(out.String())
+	answer := TrimRewrittenQuery(out.String())
 	if answer == "" {
 		return strings.TrimSpace(text), nil
 	}

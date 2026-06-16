@@ -273,12 +273,12 @@ func IsSentenceTerminator(r rune) bool {
 	return false
 }
 
-// NormalizeForCompare strips whitespace and punctuation, leaving only
+// stripASRCompareText strips whitespace and punctuation, leaving only
 // letters / digits / Han characters; collapses repeated identical
 // runes; returns the result. Used for fuzzy-equality between two ASR
 // hypotheses where the recognizer is jittering on inserted spaces or
 // commas. Keeps the same shape as LingEchoX's normalizeTextFast.
-func NormalizeForCompare(text string) string {
+func stripASRCompareText(text string) string {
 	if text == "" {
 		return ""
 	}

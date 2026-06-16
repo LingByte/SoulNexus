@@ -166,8 +166,8 @@ func TestPickTelephoneEventFromOffer(t *testing.T) {
 	}
 }
 
-func TestNormalizeBody(t *testing.T) {
-	s := NormalizeBody("  a\r\nb\r  ")
+func TesttrimSDPBody(t *testing.T) {
+	s := trimSDPBody("  a\r\nb\r  ")
 	if s != "a\nb" {
 		t.Fatalf("%q", s)
 	}

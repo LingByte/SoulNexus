@@ -17,7 +17,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LingByte/SoulNexus/internal/config"
 	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/response"
@@ -176,7 +175,7 @@ func (h *Handlers) buildOTAResponse(deviceID, clientID string, req *svcmodels.De
 		if req.Application != nil {
 			device.AppVersion = req.Application.Version
 		}
-		svcmodels.UpdateDevice(h.db, device)
+		h.db.Save(device)
 
 		// Only return firmware upgrade info when device is bound and autoUpdate is not 0
 		if device.AutoUpdate != 0 {
@@ -204,24 +203,11 @@ func (h *Handlers) buildOTAResponse(deviceID, clientID string, req *svcmodels.De
 
 	// Build WebSocket configuration (only return when device is activated)
 	if device != nil {
-		// WebSocket URL: legacy SoulNexus in-process path /api/voice/lingecho/v1/
-		// or VoiceServer SoulNexus mount e.g. ws://<voice-host>:7080/voice/lingecho/v1/ (path kept for compat)
-		// (requires cmd/voice -lingecho-hw-ws-path and binding URL on SoulNexus).
+		// WebSocket URL: cmd/voice hardware mount e.g. ws://<voice-host>:7080/voice/lingecho/v1/
+		// (set server.websocket in admin; requires VOICE_SOULNEXUS_HW_WS_PATH + binding URL on cmd/voice).
 		wsURL := utils.GetValue(h.db, constants.KEY_SERVER_WEBSOCKET)
 		if wsURL == "" || wsURL == "null" {
-			// Default: SoulNexus /api/voice/lingecho/v1/ (in-process pkg/voice) or set
-			// server.websocket to VoiceServer e.g. ws://host:7080/voice/lingecho/v1/
-			if config.GlobalConfig.Server.URL != "" {
-				baseURL := strings.TrimSuffix(config.GlobalConfig.Server.URL, "/")
-				// Keep API prefix since route is under /api
-				wsURL = strings.Replace(baseURL, "http://", "ws://", 1)
-				wsURL = strings.Replace(wsURL, "https://", "wss://", 1)
-				// SoulNexus legacy hardware WS path (see registerVoiceTrainingRoutes).
-				wsURL = fmt.Sprintf("%s/api/voice/lingecho/v1/", wsURL)
-			} else {
-				// Default to localhost with correct path
-				wsURL = "ws://localhost:7072/api/voice/lingecho/v1/"
-			}
+			wsURL = "ws://localhost:7080/voice/lingecho/v1/"
 		} else {
 			// Use configured WebSocket URL directly
 			// Split by semicolon and select one randomly if multiple URLs provided

@@ -5,17 +5,14 @@ package server
 
 import (
 	"context"
-
-	"github.com/LingByte/SoulNexus/internal/models/auth"
-	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"net/http"
 	"strconv"
 	"strings"
 
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/utils"
-	"github.com/LingByte/SoulNexus/pkg/voice/constants"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -26,25 +23,13 @@ import (
 // backward compatibility with deployed VoiceServer instances.
 const HeaderSoulnexusVoiceSecret = "X-Lingecho-Voice-Secret"
 
-// soulnexusHardwareSession holds everything needed for in-process hardware WS
-// (pkg/voice) or for exposing dialog-plane credentials to VoiceServer.
 type soulnexusHardwareSession struct {
-	Device               *svcmodels.Device
-	Assistant            svcmodels.Agent
-	Credential           *auth.UserCredential
-	AssistantID          uint
-	Language             string
-	Speaker              string
-	SystemPrompt         string
-	Temperature          float64
-	LLMModel             string
-	EnableVAD            bool
-	VADThreshold         float64
-	VADConsecutiveFrames int
+	Device    *svcmodels.Device
+	Assistant svcmodels.Agent
 }
 
-// resolveSoulnexusHardwareSession loads device + assistant + credential for a
-// hardware Device-Id (MAC). msg is a short Chinese message suitable for JSON / logs.
+// resolveSoulnexusHardwareSession loads device + assistant for a hardware Device-Id (MAC).
+// msg is a short Chinese message suitable for JSON / logs.
 func (h *Handlers) resolveSoulnexusHardwareSession(ctx context.Context, deviceID string) (*soulnexusHardwareSession, int, string) {
 	deviceID = strings.TrimSpace(deviceID)
 	if deviceID == "" {
@@ -71,37 +56,13 @@ func (h *Handlers) resolveSoulnexusHardwareSession(ctx context.Context, deviceID
 		return nil, http.StatusBadRequest, "助手未配置API凭证"
 	}
 
-	cred, err := h.resolveCredential(ctx, assistant.ApiKey, assistant.ApiSecret)
-	if err != nil {
+	if _, err := h.resolveCredential(ctx, assistant.ApiKey, assistant.ApiSecret); err != nil {
 		return nil, http.StatusBadRequest, "无效的API凭证"
 	}
 
-	language := "zh-cn"
-	speaker := assistant.Speaker
-	if speaker == "" {
-		speaker = "502007"
-	}
-	llmModel := assistant.LLMModel
-	if llmModel == "" {
-		llmModel = "deepseek-v3.1"
-	}
-
-	vadThreshold := constants.DefaultVADThreshold
-	vadConsecutiveFrames := constants.DefaultVADConsecutiveFrames
-
 	return &soulnexusHardwareSession{
-		Device:               device,
-		Assistant:            assistant,
-		Credential:           cred,
-		AssistantID:          assistantID,
-		Language:             language,
-		Speaker:              speaker,
-		SystemPrompt:         assistant.SystemPrompt,
-		Temperature:          float64(assistant.Temperature),
-		LLMModel:             llmModel,
-		EnableVAD:            assistant.EnableVAD,
-		VADThreshold:         vadThreshold,
-		VADConsecutiveFrames: vadConsecutiveFrames,
+		Device:    device,
+		Assistant: assistant,
 	}, 0, ""
 }
 

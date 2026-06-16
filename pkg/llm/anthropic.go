@@ -372,7 +372,7 @@ func (h *AnthropicHandler) rewriteQueryAnthropic(ctx context.Context, text strin
 			b.WriteString(c.Text)
 		}
 	}
-	out := NormalizeRewrittenQuery(b.String())
+	out := TrimRewrittenQuery(b.String())
 	if out == "" {
 		return strings.TrimSpace(text), nil
 	}

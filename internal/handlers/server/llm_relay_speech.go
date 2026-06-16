@@ -38,6 +38,19 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func relayTTSOutputMode(responseType, output string) string {
+	s := strings.TrimSpace(responseType)
+	if s == "" {
+		s = strings.TrimSpace(output)
+	}
+	switch strings.ToLower(s) {
+	case "url", "audio_url":
+		return "url"
+	default:
+		return "audio_base64"
+	}
+}
+
 // uploadTTSAudio 把合成出来的音频字节上传到对象存储，返回 URL。
 // 上传失败返回 error；调用方负责把错误写回 HTTP 响应并记录用量。
 //
@@ -87,16 +100,13 @@ const (
 	relayASRResultWait       = 120 * time.Second
 )
 
-// relaySSRFProtection 用于音频 URL 拉取的 SSRF 策略：禁私网、仅 80/443、3s DNS 超时。
-func relaySSRFProtection() *ssrf.Protection { return ssrf.Default() }
-
 // fetchRelayAudioBytes 拉取 URL 音频，限制大小，并做 SSRF 防护（DNS+连接两层）。
 func fetchRelayAudioBytes(ctx context.Context, rawURL string) ([]byte, error) {
 	u := strings.TrimSpace(rawURL)
 	if u == "" {
 		return nil, errors.New("audio_url 为空")
 	}
-	prot := relaySSRFProtection()
+	prot := ssrf.Default()
 	if err := prot.ValidateURL(u); err != nil {
 		return nil, err
 	}
@@ -681,7 +691,7 @@ func (h *Handlers) handleRelaySpeechTTSSynthesize(c *gin.Context) {
 	}
 	u.textChars = utf8.RuneCountInString(text)
 	u.reqSnap = gin.H{"group": body.Group, "voice": body.Voice, "audio_format": body.AudioFormat, "sample_rate": body.SampleRate, "text_chars": u.textChars, "response_type": body.ResponseType}
-	outMode := svcmodels.NormalizeRelayTTSResponseType(body.ResponseType, body.Output)
+	outMode := relayTTSOutputMode(body.ResponseType, body.Output)
 	ch, perr := svcmodels.PickTTSChannelForToken(h.db, tok, body.Group)
 	if perr != nil {
 		u.status, u.errMsg = http.StatusServiceUnavailable, perr.Error()
@@ -834,7 +844,7 @@ func (h *Handlers) handleRelayOpenAIAudioSpeech(c *gin.Context) {
 		body.TTSOptions = map[string]interface{}{"speed": *req.Speed, "speedRatio": *req.Speed}
 	}
 	// 归一化输出模式：base64 默认，可显式指定 url。
-	outMode := svcmodels.NormalizeRelayTTSResponseType("", req.Output)
+	outMode := relayTTSOutputMode("", req.Output)
 	requestID := utils.SnowflakeUtil.GenID()
 
 	ch, perr := svcmodels.PickTTSChannelForToken(h.db, tok, body.Group)

@@ -15,8 +15,8 @@ func BuildQueryRewriteUserPrompt(userQuery string, extraInstruction string) stri
 	return base
 }
 
-// NormalizeRewrittenQuery trims fences/quotes and keeps the first line of model output.
-func NormalizeRewrittenQuery(s string) string {
+// TrimRewrittenQuery trims fences/quotes and keeps the first line of model output.
+func TrimRewrittenQuery(s string) string {
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return ""

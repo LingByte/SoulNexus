@@ -8,9 +8,9 @@ import (
 	"testing"
 )
 
-func TestNormalizeOpenAIChatCompletionBody_maxCompletionTokensAlias(t *testing.T) {
+func TestPatchOpenAIChatCompletionBody_maxCompletionTokensAlias(t *testing.T) {
 	in := []byte(`{"model":"gpt-4o","max_completion_tokens":32,"messages":[{"role":"user","content":"hi"}]}`)
-	out := NormalizeOpenAIChatCompletionBody(in)
+	out := PatchOpenAIChatCompletionBody(in)
 	var m map[string]any
 	if err := json.Unmarshal(out, &m); err != nil {
 		t.Fatal(err)
@@ -24,9 +24,9 @@ func TestNormalizeOpenAIChatCompletionBody_maxCompletionTokensAlias(t *testing.T
 	}
 }
 
-func TestNormalizeOpenAIChatCompletionBody_preservesExistingMaxTokens(t *testing.T) {
+func TestPatchOpenAIChatCompletionBody_preservesExistingMaxTokens(t *testing.T) {
 	in := []byte(`{"model":"qwen-plus","max_tokens":32,"temperature":0.2,"stream":false}`)
-	out := NormalizeOpenAIChatCompletionBody(in)
+	out := PatchOpenAIChatCompletionBody(in)
 	var m map[string]any
 	if err := json.Unmarshal(out, &m); err != nil {
 		t.Fatal(err)

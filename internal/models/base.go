@@ -54,10 +54,6 @@ func (m *BaseModel) BeforeUpdate(tx *gorm.DB) error {
 	return nil
 }
 
-func (m *BaseModel) IsSoftDeleted() bool {
-	return m.IsDeleted == SoftDeleteStatusDeleted
-}
-
 func (m *BaseModel) SoftDelete(operator string) {
 	m.IsDeleted = SoftDeleteStatusDeleted
 	m.UpdateBy = operator
@@ -77,26 +73,4 @@ func (m *BaseModel) SetCreateInfo(operator string) {
 
 func (m *BaseModel) SetUpdateInfo(operator string) {
 	m.UpdateBy = operator
-}
-
-func (m *BaseModel) GetCreatedAtString() string {
-	return m.CreatedAt.Format("2006-01-02 15:04:05")
-}
-
-func (m *BaseModel) GetUpdatedAtString() string {
-	if m.UpdatedAt.IsZero() {
-		return ""
-	}
-	return m.UpdatedAt.Format("2006-01-02 15:04:05")
-}
-
-func (m *BaseModel) GetCreatedAtUnix() int64 {
-	return m.CreatedAt.Unix()
-}
-
-func (m *BaseModel) GetUpdatedAtUnix() int64 {
-	if m.UpdatedAt.IsZero() {
-		return 0
-	}
-	return m.UpdatedAt.Unix()
 }

@@ -83,33 +83,15 @@ func ParseACDRouteType(s string) (string, bool) {
 	}
 }
 
-// NormalizeACDSipSource returns internal or trunk.
-func NormalizeACDSipSource(s string) string {
-	s = strings.ToLower(strings.TrimSpace(s))
-	if s == ACDSipSourceTrunk || s == "external" {
-		return ACDSipSourceTrunk
+// ACDTrunkStorageFields returns DB trunk columns; empty when not sip+trunk.
+func ACDTrunkStorageFields(routeType, sipSource, trunkHost string, trunkPort int, trunkSig string) (host string, port int, sig string) {
+	if routeType != ACDPoolRouteTypeSIP || sipSource != ACDSipSourceTrunk {
+		return "", 0, ""
 	}
-	return ACDSipSourceInternal
-}
-
-// NormalizeACDWorkState returns a known work_state or offline.
-func NormalizeACDWorkState(s string) string {
-	s = strings.ToLower(strings.TrimSpace(s))
-	switch s {
-	case ACDWorkStateOffline, ACDWorkStateAvailable, ACDWorkStateRinging,
-		ACDWorkStateBusy, ACDWorkStateACW, ACDWorkStateBreak:
-		return s
-	default:
-		return ACDWorkStateOffline
+	if trunkPort <= 0 || trunkPort >= 65536 {
+		trunkPort = 5060
 	}
-}
-
-// NormalizeACDTrunkPort returns a valid SIP port or 5060.
-func NormalizeACDTrunkPort(p int) int {
-	if p <= 0 || p >= 65536 {
-		return 5060
-	}
-	return p
+	return strings.TrimSpace(trunkHost), trunkPort, strings.TrimSpace(trunkSig)
 }
 
 // ACDSipInternalLiveLineEligible is true when list UI may show SIP registration hint.
@@ -122,14 +104,6 @@ func ACDSipInternalLiveLineEligible(row ACDPoolTarget) bool {
 		return false
 	}
 	return true
-}
-
-// ACDTrunkStorageFields returns DB trunk columns; empty when not sip+trunk.
-func ACDTrunkStorageFields(routeType, sipSource, trunkHost string, trunkPort int, trunkSig string) (host string, port int, sig string) {
-	if routeType != ACDPoolRouteTypeSIP || sipSource != ACDSipSourceTrunk {
-		return "", 0, ""
-	}
-	return strings.TrimSpace(trunkHost), NormalizeACDTrunkPort(trunkPort), strings.TrimSpace(trunkSig)
 }
 
 // ACDCallerStorageFields returns outbound CLI fields for SIP rows only.
@@ -289,7 +263,13 @@ func UpdateACDPoolTargetWorkState(ctx context.Context, db *gorm.DB, id uint, wor
 	if db == nil || id == 0 {
 		return nil
 	}
-	ws := NormalizeACDWorkState(workState)
+	ws := strings.ToLower(strings.TrimSpace(workState))
+	switch ws {
+	case ACDWorkStateOffline, ACDWorkStateAvailable, ACDWorkStateRinging,
+		ACDWorkStateBusy, ACDWorkStateACW, ACDWorkStateBreak:
+	default:
+		ws = ACDWorkStateOffline
+	}
 	now := time.Now()
 	u := map[string]any{
 		"work_state":    ws,

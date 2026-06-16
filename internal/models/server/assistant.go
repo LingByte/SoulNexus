@@ -99,11 +99,6 @@ const (
 	ChatTypeText     = "text"     // 文本聊天
 )
 
-// CreateChatSessionLog 创建聊天记录
-func CreateChatSessionLog(db *gorm.DB, userID uint, agentID int64, chatType, sessionID, userMessage, agentMessage, audioURL string, duration int) (*ChatSessionLog, error) {
-	return CreateChatSessionLogWithUsage(db, userID, agentID, chatType, sessionID, userMessage, agentMessage, audioURL, duration, nil)
-}
-
 // CreateChatSessionLogWithUsage 创建聊天记录（包含LLM Usage信息）
 func CreateChatSessionLogWithUsage(db *gorm.DB, userID uint, agentID int64, chatType, sessionID, userMessage, agentMessage, audioURL string, duration int, usage *LLMUsage) (*ChatSessionLog, error) {
 	cleanedUserMessage := utils.RemoveEmoji(userMessage)
@@ -214,14 +209,8 @@ func CreateChatSessionLogWithUsage(db *gorm.DB, userID uint, agentID int64, chat
 	}, nil
 }
 
-// GetChatSessionLogs 获取用户的聊天记录列表
-// 按 session_id 分组，返回每个 session 的最新记录作为预览，同时返回该 session 的消息数量
-func GetChatSessionLogs(db *gorm.DB, userID uint, pageSize int, cursor int64) ([]ChatSessionLogSummary, error) {
-	return queryChatSessionLogSummaries(db, userID, 0, pageSize, cursor)
-}
-
-// GetChatSessionLogsByAgent 获取指定助手的聊天记录列表（数据库层过滤，避免全量扫描）
-func GetChatSessionLogsByAgent(db *gorm.DB, userID uint, agentID int64, pageSize int, cursor int64) ([]ChatSessionLogSummary, error) {
+// GetChatSessionLogs 获取用户的聊天记录列表；agentID>0 时仅返回该助手的 session。
+func GetChatSessionLogs(db *gorm.DB, userID uint, agentID int64, pageSize int, cursor int64) ([]ChatSessionLogSummary, error) {
 	return queryChatSessionLogSummaries(db, userID, agentID, pageSize, cursor)
 }
 

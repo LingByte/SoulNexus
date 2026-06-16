@@ -100,9 +100,7 @@ func (h *Handlers) handleAdminListUsers(c *gin.Context) {
 			Where("r.slug = ?", roleFilter)
 	}
 	if statusQuery != "" {
-		if st := authmodel.NormalizeUserStatus(statusQuery); st != "" {
-			query = query.Where("users.status = ?", st)
-		}
+		query = query.Where("users.status = ?", strings.ToLower(strings.TrimSpace(statusQuery)))
 	} else if enabledQuery != "" {
 		if enabled, err := strconv.ParseBool(enabledQuery); err == nil {
 			if enabled {
@@ -183,9 +181,11 @@ func (h *Handlers) handleAdminCreateUser(c *gin.Context) {
 
 	status := authmodel.UserStatusActive
 	if req.Status != nil && strings.TrimSpace(*req.Status) != "" {
-		if st := authmodel.NormalizeUserStatus(*req.Status); st != "" {
+		st := strings.ToLower(strings.TrimSpace(*req.Status))
+		switch st {
+		case authmodel.UserStatusActive, authmodel.UserStatusPendingVerification, authmodel.UserStatusSuspended, authmodel.UserStatusBanned:
 			status = st
-		} else {
+		default:
 			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid status"))
 			return
 		}
@@ -322,11 +322,13 @@ func (h *Handlers) handleAdminUpdateUser(c *gin.Context) {
 			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("status cannot be empty"))
 			return
 		}
-		if st := authmodel.NormalizeUserStatus(raw); st == "" {
+		st := strings.ToLower(raw)
+		switch st {
+		case authmodel.UserStatusActive, authmodel.UserStatusPendingVerification, authmodel.UserStatusSuspended, authmodel.UserStatusBanned:
+			coreVals["status"] = st
+		default:
 			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid status"))
 			return
-		} else {
-			coreVals["status"] = st
 		}
 	}
 	if req.EmailNotifications != nil {

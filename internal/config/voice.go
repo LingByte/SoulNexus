@@ -104,7 +104,15 @@ func buildVoiceConfig() *VoiceServerConfig {
 		HTTPAddr:        voiceString("VOICE_HTTP_ADDR", "127.0.0.1:7080"),
 		DialogWS:        voiceString("VOICE_DIALOG_WS", "ws://localhost:7072/ws/call"),
 		EnableXiaozhi:   voiceBool("VOICE_ENABLE_XIAOZHI", true),
-		XiaozhiMode:     normalizeXiaozhiModeEnv(voiceString("XIAOZHIMODE", "pipeline")),
+		XiaozhiMode:     func() string {
+			m := strings.ToLower(strings.TrimSpace(voiceString("XIAOZHIMODE", "pipeline")))
+			switch m {
+			case "realtime", "omni", "multimodal":
+				return "realtime"
+			default:
+				return "pipeline"
+			}
+		}(),
 		XiaozhiPath:     voiceString("VOICE_XIAOZHI_WS_PATH", "/xiaozhi/v1/"),
 		EnableWebRTC:    voiceBool("VOICE_ENABLE_WEBRTC", true),
 		WebRTCOfferPath: voiceString("VOICE_WEBRTC_HTTP_PATH", "/webrtc/v1/offer"),
@@ -235,16 +243,6 @@ func voiceFloat(key string, defaultValue float64) float64 {
 		return defaultValue
 	}
 	return utils.GetFloatEnvWithDefault(key, defaultValue)
-}
-
-func normalizeXiaozhiModeEnv(m string) string {
-	m = strings.ToLower(strings.TrimSpace(m))
-	switch m {
-	case "realtime", "omni", "multimodal":
-		return "realtime"
-	default:
-		return "pipeline"
-	}
 }
 
 func voiceDuration(key string, defaultValue time.Duration) time.Duration {
