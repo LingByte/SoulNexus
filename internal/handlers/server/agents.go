@@ -208,7 +208,7 @@ func (h *Handlers) UpdateAgent(c *gin.Context) {
 	if input.Name != "" {
 		updateData["name"] = input.Name
 	}
-	if input.SystemPrompt != "" {
+	if _, systemPromptProvided := rawBody["systemPrompt"]; systemPromptProvided {
 		updateData["system_prompt"] = input.SystemPrompt
 	}
 	if input.PersonaTag != "" {

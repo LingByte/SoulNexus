@@ -161,6 +161,20 @@ TTS_APPID=
 TTS_SECRET_ID=
 TTS_SECRET_KEY=
 
+# Volcengine voice clone (WebSocket / WebRTC when agent uses trained voice clone)
+# Credentials are read via utils.GetEnv — not from user API keys.
+VOLCENGINE_CLONE_APP_ID=
+VOLCENGINE_CLONE_TOKEN=
+VOLCENGINE_CLONE_CLUSTER=volcano_icl
+# VOLCENGINE_CLONE_VOICE_TYPE=
+VOLCENGINE_CLONE_ENCODING=pcm
+# VOLCENGINE_CLONE_FRAME_DURATION=20ms
+VOLCENGINE_CLONE_SAMPLE_RATE=16000
+# VOLCENGINE_CLONE_BIT_DEPTH=16
+# VOLCENGINE_CLONE_CHANNELS=1
+VOLCENGINE_CLONE_SPEED_RATIO=1.0
+# VOLCENGINE_CLONE_TRAINING_TIMES=1
+
 # ---------------------------------------------------------------------------
 # 8) WebRTC NAT / firewall (only needed if VOICE_ENABLE_WEBRTC=true)
 # ---------------------------------------------------------------------------

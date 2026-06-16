@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Key, Settings, AppWindow, RefreshCw, ArrowRight, Mic } from 'lucide-react';
 import { Input, Select as ArcoSelect, Slider, InputNumber, Switch as ArcoSwitch, Button as ArcoButton } from '@arco-design/web-react';
@@ -66,6 +66,9 @@ interface ControlPanelProps {
     highlightFragments?: Record<string, string[]> | null
     highlightResultId?: string
 
+    naturalPromptExample?: string
+    onApplyNaturalPrompt?: () => void
+
     className?: string
 }
 const ControlPanel: React.FC<ControlPanelProps> = ({
@@ -108,48 +111,56 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                                        searchKeyword,
                                                        highlightFragments,
                                                        highlightResultId,
+                                                       naturalPromptExample,
+                                                       onApplyNaturalPrompt,
                                                        className = ''
                                                    }) => {
     const { t } = useI18nStore()
     const [voiceOptions, setVoiceOptions] = useState<VoiceOption[]>([]);
     const [loadingVoices, setLoadingVoices] = useState(false);
     const [jsTemplates, setJsTemplates] = useState<JSTemplate[]>([])
+    const lastVoiceProviderRef = useRef<string | undefined>(undefined)
 
-
-    // 根据TTS Provider加载音色列表
-    const fetchVoiceOptions = async (provider: string, currentSpeaker?: string) => {
-        if (!provider) {
-            setVoiceOptions([]);
-            return;
-        }
-
-        setLoadingVoices(true);
-        try {
-            const response = await getVoiceOptions(provider);
-            if (response.code === 200 && response.data?.voices) {
-                setVoiceOptions(response.data.voices);
-                // 如果当前选中的音色不在新列表中，重置为第一个音色
-                if (currentSpeaker && !response.data.voices.find(v => v.id === currentSpeaker)) {
-                    if (response.data.voices.length > 0) {
-                        onSpeakerChange(response.data.voices[0].id);
-                    }
-                } else if (!currentSpeaker && response.data.voices.length > 0) {
-                    onSpeakerChange(response.data.voices[0].id);
-                }
-            }
-        } catch (error) {
-            console.error('获取音色列表失败:', error);
-            setVoiceOptions([]);
-        } finally {
-            setLoadingVoices(false);
-        }
-    };
-
-    // 当TTS Provider变化时，重新加载音色列表
+    // 根据 TTS Provider 加载音色列表（不自动改写父组件已选音色，避免触发整页重渲染）
     useEffect(() => {
-        const provider = ttsProvider || 'tencent'; // 如果没有provider，使用默认的腾讯云音色列表（向后兼容）
-        fetchVoiceOptions(provider, selectedSpeaker);
-    }, [ttsProvider]); // 只依赖ttsProvider，selectedSpeaker和language的变化不影响重新加载
+        const provider = ttsProvider || 'tencent'
+        if (lastVoiceProviderRef.current === provider) {
+            return
+        }
+        lastVoiceProviderRef.current = provider
+
+        if (!provider) {
+            setVoiceOptions([])
+            return
+        }
+
+        let cancelled = false
+        setLoadingVoices(true)
+        getVoiceOptions(provider)
+            .then((response) => {
+                if (cancelled) return
+                if (response.code === 200 && response.data?.voices) {
+                    setVoiceOptions(response.data.voices)
+                } else {
+                    setVoiceOptions([])
+                }
+            })
+            .catch((error) => {
+                if (!cancelled) {
+                    console.error('获取音色列表失败:', error)
+                    setVoiceOptions([])
+                }
+            })
+            .finally(() => {
+                if (!cancelled) {
+                    setLoadingVoices(false)
+                }
+            })
+
+        return () => {
+            cancelled = true
+        }
+    }, [ttsProvider])
 
     useEffect(() => {
         const fetchJSTemplates = async () => {
@@ -185,8 +196,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
             <div className="space-y-6 min-h-0 max-h-[85vh]">
                 {/* API 密钥配置 */}
                 <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
+                    initial={false}
                     className="space-y-4"
                 >
                     <CollapsibleSectionHeader
@@ -199,10 +209,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                     <AnimatePresence>
                         {expandedSections.api && (
                             <motion.div
-                                initial={{ height: 0, opacity: 0 }}
-                                animate={{ height: 'auto', opacity: 1 }}
-                                exit={{ height: 0, opacity: 0 }}
-                                transition={{ duration: 0.3, ease: 'easeInOut' }}
+                                initial={false}
                                 className="overflow-hidden"
                             >
                                 <div className="space-y-4 pt-4">
@@ -231,9 +238,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
 
                 {/* 通话设置 */}
                 <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1 }}
+                    initial={false}
                     className="space-y-4"
                 >
                     <CollapsibleSectionHeader
@@ -246,10 +251,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                     <AnimatePresence>
                         {expandedSections.call && (
                             <motion.div
-                                initial={{ height: 0, opacity: 0 }}
-                                animate={{ height: 'auto', opacity: 1 }}
-                                exit={{ height: 0, opacity: 0 }}
-                                transition={{ duration: 0.3, ease: 'easeInOut' }}
+                                initial={false}
                                 className="overflow-hidden"
                             >
                                 <div className="space-y-4 pt-4">
@@ -291,10 +293,19 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                         <Input.TextArea 
                                             className="!text-base min-h-[10rem] text-lg leading-relaxed"
                                             value={systemPrompt}
-                                            onChange={onSystemPromptChange}
-                                            placeholder={t('controlPanel.call.systemPromptPlaceholder')}
+                                            onChange={(v) => onSystemPromptChange(v)}
+                                            placeholder={naturalPromptExample || t('controlPanel.call.systemPromptPlaceholder')}
                                             rows={8}
                                         />
+                                        {onApplyNaturalPrompt && naturalPromptExample && (
+                                            <button
+                                                type="button"
+                                                className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                                                onClick={onApplyNaturalPrompt}
+                                            >
+                                                {t('controlPanel.call.useNaturalPrompt')}
+                                            </button>
+                                        )}
                                         {searchKeyword && systemPrompt && (
                                             <div
                                                 className="text-xs text-gray-400 p-2 bg-gray-50 dark:bg-neutral-800 rounded border"
@@ -358,9 +369,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
 
                 {/* 助手设置 */}
                 <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 }}
+                    initial={false}
                     className="space-y-4"
                 >
                     <CollapsibleSectionHeader
@@ -373,10 +382,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                     <AnimatePresence>
                         {expandedSections.assistant && (
                             <motion.div
-                                initial={{ height: 0, opacity: 0 }}
-                                animate={{ height: 'auto', opacity: 1 }}
-                                exit={{ height: 0, opacity: 0 }}
-                                transition={{ duration: 0.3, ease: 'easeInOut' }}
+                                initial={false}
                                 className="overflow-hidden"
                             >
                                 <div className="pt-4 border-t dark:border-neutral-700 mb-6 space-y-6">
@@ -453,9 +459,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                 </motion.div>
                 {/* 训练音色配置 */}
                 <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 }}
+                    initial={false}
                     className="space-y-4"
                 >
                     <CollapsibleSectionHeader
@@ -468,10 +472,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                     <AnimatePresence>
                         {expandedSections.voiceClone && (
                             <motion.div
-                                initial={{ height: 0, opacity: 0 }}
-                                animate={{ height: 'auto', opacity: 1 }}
-                                exit={{ height: 0, opacity: 0 }}
-                                transition={{ duration: 0.3, ease: 'easeInOut' }}
+                                initial={false}
                                 className="overflow-hidden"
                             >
                                 <div className="space-y-4 pt-4 mb-24">
@@ -527,10 +528,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                     <AnimatePresence>
                         {expandedSections.vad && (
                             <motion.div
-                                initial={{ height: 0, opacity: 0 }}
-                                animate={{ height: 'auto', opacity: 1 }}
-                                exit={{ height: 0, opacity: 0 }}
-                                transition={{ duration: 0.3, ease: 'easeInOut' }}
+                                initial={false}
                                 className="overflow-hidden"
                             >
                                 <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-neutral-700">
@@ -627,9 +625,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
 
                 {/* 应用接入 */}
                 <motion.div
-                    initial={{opacity: 0, y: 20}}
-                    animate={{opacity: 1, y: 0 }}
-                    transition={{ delay: 0.3 }}
+                    initial={false}
                     className="space-y-4"
                 >
                     <CollapsibleSectionHeader
@@ -642,10 +638,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                     <AnimatePresence>
                         {expandedSections.integration && (
                             <motion.div
-                                initial={{ height: 0, opacity: 0 }}
-                                animate={{ height: 'auto', opacity: 1 }}
-                                exit={{ height: 0, opacity: 0 }}
-                                transition={{ duration: 0.3, ease: 'easeInOut' }}
+                                initial={false}
                                 className="overflow-hidden"
                             >
                                 <div className="pt-4">
