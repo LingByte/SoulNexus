@@ -26,14 +26,3 @@ type Announcement struct {
 func (Announcement) TableName() string {
 	return "announcements"
 }
-
-func NormalizeAnnouncementStatus(status string) string {
-	switch status {
-	case AnnouncementStatusPublished:
-		return AnnouncementStatusPublished
-	case AnnouncementStatusOffline:
-		return AnnouncementStatusOffline
-	default:
-		return AnnouncementStatusDraft
-	}
-}

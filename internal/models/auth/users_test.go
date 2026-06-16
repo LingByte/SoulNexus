@@ -107,7 +107,7 @@ func TestCheckPassword(t *testing.T) {
 func TestCreateUser(t *testing.T) {
 	db := setupTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := CreateUserWithMeta(db, "test@example.com", "password123", UserSourceSystem, UserStatusActive)
 	require.NoError(t, err)
 	assert.NotZero(t, user.ID)
 	assert.Equal(t, "test@example.com", user.Email)
@@ -120,7 +120,7 @@ func TestCreateUser(t *testing.T) {
 func TestCreateUserByEmail(t *testing.T) {
 	db := setupTestDB(t)
 
-	user, err := CreateUserByEmail(db, "testuser", "Test User", "test@example.com", "password123")
+	user, err := CreateUserByEmailWithMeta(db, "testuser", "Test User", "test@example.com", "password123", UserSourceSystem, UserStatusActive)
 	require.NoError(t, err)
 	assert.NotZero(t, user.ID)
 	assert.Equal(t, "test@example.com", user.Email)
@@ -132,21 +132,21 @@ func TestCreateUserByEmail(t *testing.T) {
 	assert.True(t, user.Profile.EmailNotifications)
 }
 
-func TestGetUserByUID(t *testing.T) {
+func TestGetUserByID(t *testing.T) {
 	db := setupTestDB(t)
 
 	// Create a user
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := CreateUserWithMeta(db, "test@example.com", "password123", UserSourceSystem, UserStatusActive)
 	require.NoError(t, err)
 
 	// Get user by ID
-	retrieved, err := GetUserByUID(db, user.ID)
+	retrieved, err := GetUserByID(db, user.ID)
 	require.NoError(t, err)
 	assert.Equal(t, user.ID, retrieved.ID)
 	assert.Equal(t, user.Email, retrieved.Email)
 
 	// Get non-existent user
-	_, err = GetUserByUID(db, 999)
+	_, err = GetUserByID(db, 999)
 	assert.Error(t, err)
 }
 
@@ -154,7 +154,7 @@ func TestGetUserByEmail(t *testing.T) {
 	db := setupTestDB(t)
 
 	// Create a user
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := CreateUserWithMeta(db, "test@example.com", "password123", UserSourceSystem, UserStatusActive)
 	require.NoError(t, err)
 
 	// Get user by email
@@ -178,7 +178,7 @@ func TestIsExistsByEmail(t *testing.T) {
 
 	assert.False(t, IsExistsByEmail(db, "test@example.com"))
 
-	_, err := CreateUser(db, "test@example.com", "password123")
+	_, err := CreateUserWithMeta(db, "test@example.com", "password123", UserSourceSystem, UserStatusActive)
 	require.NoError(t, err)
 
 	assert.True(t, IsExistsByEmail(db, "test@example.com"))
@@ -188,14 +188,14 @@ func TestIsExistsByEmail(t *testing.T) {
 func TestSetPassword(t *testing.T) {
 	db := setupTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "oldpassword")
+	user, err := CreateUserWithMeta(db, "test@example.com", "oldpassword", UserSourceSystem, UserStatusActive)
 	require.NoError(t, err)
 
 	err = SetPassword(db, user, "newpassword")
 	require.NoError(t, err)
 
 	// Verify password was updated
-	retrieved, err := GetUserByUID(db, user.ID)
+	retrieved, err := GetUserByID(db, user.ID)
 	require.NoError(t, err)
 	assert.True(t, CheckPassword(retrieved, "newpassword"))
 	assert.False(t, CheckPassword(retrieved, "oldpassword"))
@@ -204,14 +204,14 @@ func TestSetPassword(t *testing.T) {
 func TestUpdateUserFields(t *testing.T) {
 	db := setupTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := CreateUserWithMeta(db, "test@example.com", "password123", UserSourceSystem, UserStatusActive)
 	require.NoError(t, err)
 
 	err = UpdateUserFields(db, user, map[string]any{"Phone": "+15551234567"})
 	require.NoError(t, err)
 
 	// Verify updates
-	retrieved, err := GetUserByUID(db, user.ID)
+	retrieved, err := GetUserByID(db, user.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "+15551234567", retrieved.Phone)
 }
@@ -219,14 +219,14 @@ func TestUpdateUserFields(t *testing.T) {
 func TestSetLastLogin(t *testing.T) {
 	db := setupTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := CreateUserWithMeta(db, "test@example.com", "password123", UserSourceSystem, UserStatusActive)
 	require.NoError(t, err)
 
 	err = SetLastLogin(db, user, "192.168.1.1")
 	require.NoError(t, err)
 
 	// Verify last login was set
-	retrieved, err := GetUserByUID(db, user.ID)
+	retrieved, err := GetUserByID(db, user.ID)
 	require.NoError(t, err)
 	assert.NotNil(t, retrieved.LastLogin)
 	assert.Equal(t, "192.168.1.1", retrieved.LastLoginIP)
@@ -235,7 +235,7 @@ func TestSetLastLogin(t *testing.T) {
 func TestCheckUserAllowLogin(t *testing.T) {
 	db := setupTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := CreateUserWithMeta(db, "test@example.com", "password123", UserSourceSystem, UserStatusActive)
 	require.NoError(t, err)
 
 	err = CheckUserAllowLogin(db, user)
@@ -253,7 +253,7 @@ func TestCheckUserAllowLogin(t *testing.T) {
 func TestChangePassword(t *testing.T) {
 	db := setupTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "oldpassword")
+	user, err := CreateUserWithMeta(db, "test@example.com", "oldpassword", UserSourceSystem, UserStatusActive)
 	require.NoError(t, err)
 
 	// Change password
@@ -261,7 +261,7 @@ func TestChangePassword(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify new password works
-	retrieved, err := GetUserByUID(db, user.ID)
+	retrieved, err := GetUserByID(db, user.ID)
 	require.NoError(t, err)
 	assert.True(t, CheckPassword(retrieved, "newpassword"))
 	assert.False(t, CheckPassword(retrieved, "oldpassword"))
@@ -278,7 +278,7 @@ func TestChangePassword(t *testing.T) {
 func TestResetPassword(t *testing.T) {
 	db := setupTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "oldpassword")
+	user, err := CreateUserWithMeta(db, "test@example.com", "oldpassword", UserSourceSystem, UserStatusActive)
 	require.NoError(t, err)
 
 	// Reset password
@@ -286,7 +286,7 @@ func TestResetPassword(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify new password works
-	retrieved, err := GetUserByUID(db, user.ID)
+	retrieved, err := GetUserByID(db, user.ID)
 	require.NoError(t, err)
 	assert.True(t, CheckPassword(retrieved, "newpassword"))
 	assert.False(t, CheckPassword(retrieved, "oldpassword"))
@@ -296,7 +296,7 @@ func TestResetPassword(t *testing.T) {
 func TestGeneratePasswordResetToken(t *testing.T) {
 	db := setupTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := CreateUserWithMeta(db, "test@example.com", "password123", UserSourceSystem, UserStatusActive)
 	require.NoError(t, err)
 
 	token, err := GeneratePasswordResetToken(db, user)
@@ -305,7 +305,7 @@ func TestGeneratePasswordResetToken(t *testing.T) {
 	assert.Len(t, token, 32)
 
 	// Verify token was saved
-	retrieved, err := GetUserByUID(db, user.ID)
+	retrieved, err := GetUserByID(db, user.ID)
 	require.NoError(t, err)
 	assert.Equal(t, token, retrieved.PasswordResetToken)
 	assert.NotNil(t, retrieved.PasswordResetExpires)
@@ -314,7 +314,7 @@ func TestGeneratePasswordResetToken(t *testing.T) {
 func TestVerifyPasswordResetToken(t *testing.T) {
 	db := setupTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := CreateUserWithMeta(db, "test@example.com", "password123", UserSourceSystem, UserStatusActive)
 	require.NoError(t, err)
 
 	token, err := GeneratePasswordResetToken(db, user)
@@ -340,54 +340,10 @@ func TestVerifyPasswordResetToken(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestGenerateEmailVerifyToken(t *testing.T) {
-	db := setupTestDB(t)
-
-	user, err := CreateUser(db, "test@example.com", "password123")
-	require.NoError(t, err)
-
-	token, err := GenerateEmailVerifyToken(db, user)
-	require.NoError(t, err)
-	assert.NotEmpty(t, token)
-	assert.Len(t, token, 32)
-
-	// Verify token was saved
-	retrieved, err := GetUserByUID(db, user.ID)
-	require.NoError(t, err)
-	assert.Equal(t, token, retrieved.EmailVerifyToken)
-	assert.NotNil(t, retrieved.EmailVerifyExpires)
-}
-
-func TestVerifyEmail(t *testing.T) {
-	db := setupTestDB(t)
-
-	user, err := CreateUser(db, "test@example.com", "password123")
-	require.NoError(t, err)
-
-	token, err := GenerateEmailVerifyToken(db, user)
-	require.NoError(t, err)
-
-	// Verify email
-	verified, err := VerifyEmail(db, token)
-	require.NoError(t, err)
-	assert.Equal(t, user.ID, verified.ID)
-	assert.True(t, verified.EmailVerified)
-
-	// Verify token was cleared
-	retrieved, err := GetUserByUID(db, user.ID)
-	require.NoError(t, err)
-	assert.Empty(t, retrieved.EmailVerifyToken)
-	assert.Nil(t, retrieved.EmailVerifyExpires)
-
-	// Test invalid token
-	_, err = VerifyEmail(db, "invalid-token")
-	assert.Error(t, err)
-}
-
 func TestGeneratePhoneVerifyToken(t *testing.T) {
 	db := setupTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := CreateUserWithMeta(db, "test@example.com", "password123", UserSourceSystem, UserStatusActive)
 	require.NoError(t, err)
 
 	token, err := GeneratePhoneVerifyToken(db, user)
@@ -396,7 +352,7 @@ func TestGeneratePhoneVerifyToken(t *testing.T) {
 	assert.Len(t, token, 6) // 6 digits
 
 	// Verify token was saved
-	retrieved, err := GetUserByUID(db, user.ID)
+	retrieved, err := GetUserByID(db, user.ID)
 	require.NoError(t, err)
 	assert.Equal(t, token, retrieved.PhoneVerifyToken)
 }
@@ -404,7 +360,7 @@ func TestGeneratePhoneVerifyToken(t *testing.T) {
 func TestVerifyPhone(t *testing.T) {
 	db := setupTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := CreateUserWithMeta(db, "test@example.com", "password123", UserSourceSystem, UserStatusActive)
 	require.NoError(t, err)
 
 	token, err := GeneratePhoneVerifyToken(db, user)
@@ -416,7 +372,7 @@ func TestVerifyPhone(t *testing.T) {
 	assert.True(t, user.PhoneVerified)
 
 	// Verify token was cleared
-	retrieved, err := GetUserByUID(db, user.ID)
+	retrieved, err := GetUserByID(db, user.ID)
 	require.NoError(t, err)
 	assert.Empty(t, retrieved.PhoneVerifyToken)
 
@@ -428,7 +384,7 @@ func TestVerifyPhone(t *testing.T) {
 func TestUpdateNotificationSettings(t *testing.T) {
 	db := setupTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := CreateUserWithMeta(db, "test@example.com", "password123", UserSourceSystem, UserStatusActive)
 	require.NoError(t, err)
 
 	settings := map[string]bool{
@@ -440,7 +396,7 @@ func TestUpdateNotificationSettings(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify settings were updated
-	retrieved, err := GetUserByUID(db, user.ID)
+	retrieved, err := GetUserByID(db, user.ID)
 	require.NoError(t, err)
 	assert.False(t, retrieved.Profile.EmailNotifications)
 	assert.True(t, retrieved.Profile.PushNotifications)
@@ -449,7 +405,7 @@ func TestUpdateNotificationSettings(t *testing.T) {
 func TestUpdatePreferences(t *testing.T) {
 	db := setupTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := CreateUserWithMeta(db, "test@example.com", "password123", UserSourceSystem, UserStatusActive)
 	require.NoError(t, err)
 
 	preferences := map[string]string{
@@ -461,7 +417,7 @@ func TestUpdatePreferences(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify preferences were updated
-	retrieved, err := GetUserByUID(db, user.ID)
+	retrieved, err := GetUserByID(db, user.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "UTC", retrieved.Timezone)
 	assert.Equal(t, "en-US", retrieved.Locale)
@@ -523,7 +479,7 @@ func TestCalculateProfileComplete(t *testing.T) {
 func TestUpdateProfileComplete(t *testing.T) {
 	db := setupTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := CreateUserWithMeta(db, "test@example.com", "password123", UserSourceSystem, UserStatusActive)
 	require.NoError(t, err)
 
 	err = UpdateUserProfileFields(db, user.ID, map[string]any{
@@ -537,7 +493,7 @@ func TestUpdateProfileComplete(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify profile complete was updated
-	retrieved, err := GetUserByUID(db, user.ID)
+	retrieved, err := GetUserByID(db, user.ID)
 	require.NoError(t, err)
 	assert.Greater(t, retrieved.Profile.ProfileComplete, 0)
 }
@@ -545,11 +501,11 @@ func TestUpdateProfileComplete(t *testing.T) {
 func TestIncrementLoginCount(t *testing.T) {
 	db := setupTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := CreateUserWithMeta(db, "test@example.com", "password123", UserSourceSystem, UserStatusActive)
 	require.NoError(t, err)
 
 	// Get fresh user to get actual initial count
-	retrieved, err := GetUserByUID(db, user.ID)
+	retrieved, err := GetUserByID(db, user.ID)
 	require.NoError(t, err)
 	initialCount := retrieved.LoginCount
 
@@ -558,7 +514,7 @@ func TestIncrementLoginCount(t *testing.T) {
 
 	// IncrementLoginCount updates the database but not the passed object
 	// So we need to fetch from DB to verify
-	retrieved2, err := GetUserByUID(db, user.ID)
+	retrieved2, err := GetUserByID(db, user.ID)
 	require.NoError(t, err)
 	assert.Equal(t, initialCount+1, retrieved2.LoginCount)
 }
@@ -583,7 +539,7 @@ func TestGetUserByAPIKey(t *testing.T) {
 	c := setupTestContext(t, db)
 
 	// Create user and credential
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := CreateUserWithMeta(db, "test@example.com", "password123", UserSourceSystem, UserStatusActive)
 	require.NoError(t, err)
 
 	gid := ensureTestTeamGroup(t, db, user.ID)
@@ -621,7 +577,7 @@ func TestGetUserByAPIKey(t *testing.T) {
 func TestUpdatePreferences_Empty(t *testing.T) {
 	db := setupTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := CreateUserWithMeta(db, "test@example.com", "password123", UserSourceSystem, UserStatusActive)
 	require.NoError(t, err)
 
 	// Test with empty preferences
@@ -632,7 +588,7 @@ func TestUpdatePreferences_Empty(t *testing.T) {
 func TestUpdatePreferences_Partial(t *testing.T) {
 	db := setupTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := CreateUserWithMeta(db, "test@example.com", "password123", UserSourceSystem, UserStatusActive)
 	require.NoError(t, err)
 
 	preferences := map[string]string{
@@ -643,7 +599,7 @@ func TestUpdatePreferences_Partial(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify updates
-	retrieved, err := GetUserByUID(db, user.ID)
+	retrieved, err := GetUserByID(db, user.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "Asia/Shanghai", retrieved.Timezone)
 }
@@ -651,7 +607,7 @@ func TestUpdatePreferences_Partial(t *testing.T) {
 func TestUpdateNotificationSettings_Empty(t *testing.T) {
 	db := setupTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := CreateUserWithMeta(db, "test@example.com", "password123", UserSourceSystem, UserStatusActive)
 	require.NoError(t, err)
 
 	// Test with empty settings
@@ -662,7 +618,7 @@ func TestUpdateNotificationSettings_Empty(t *testing.T) {
 func TestUpdateNotificationSettings_AllSettings(t *testing.T) {
 	db := setupTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := CreateUserWithMeta(db, "test@example.com", "password123", UserSourceSystem, UserStatusActive)
 	require.NoError(t, err)
 
 	settings := map[string]bool{
@@ -674,7 +630,7 @@ func TestUpdateNotificationSettings_AllSettings(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify updates
-	retrieved, err := GetUserByUID(db, user.ID)
+	retrieved, err := GetUserByID(db, user.ID)
 	require.NoError(t, err)
 	assert.False(t, retrieved.Profile.EmailNotifications)
 	assert.True(t, retrieved.Profile.PushNotifications)
@@ -712,23 +668,24 @@ func TestCalculateProfileComplete_Minimal(t *testing.T) {
 	assert.GreaterOrEqual(t, complete, 0)
 	assert.LessOrEqual(t, complete, 30)
 }
-func TestGetUserByUID_NonActiveUser(t *testing.T) {
+func TestGetUserByID_NonActiveUser(t *testing.T) {
 	db := setupTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := CreateUserWithMeta(db, "test@example.com", "password123", UserSourceSystem, UserStatusActive)
 	require.NoError(t, err)
 
 	err = UpdateUserFields(db, user, map[string]any{"status": UserStatusBanned})
 	require.NoError(t, err)
 
-	_, err = GetUserByUID(db, user.ID)
-	assert.Error(t, err)
+	retrieved, err := GetUserByID(db, user.ID)
+	require.NoError(t, err)
+	assert.Equal(t, UserStatusBanned, retrieved.Status)
 }
 
 func TestGetUserByEmail_CaseInsensitive(t *testing.T) {
 	db := setupTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := CreateUserWithMeta(db, "test@example.com", "password123", UserSourceSystem, UserStatusActive)
 	require.NoError(t, err)
 
 	// Test case insensitive

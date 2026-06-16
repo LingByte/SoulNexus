@@ -114,7 +114,7 @@ func (h *Handlers) getChatSessionLog(c *gin.Context) {
 	}
 
 	// 使用新的模型方法获取聊天记录
-	logs, err := svcmodels.GetChatSessionLogs(h.db, user.ID, pageSizeInt, cursorID)
+	logs, err := svcmodels.GetChatSessionLogs(h.db, user.ID, 0, pageSizeInt, cursorID)
 	if err != nil {
 		response.Fail(c, "Failed to fetch chat logs", err.Error())
 		return
@@ -301,7 +301,7 @@ func (h *Handlers) getChatSessionLogByAgent(c *gin.Context) {
 		}
 	}
 
-	logs, err := svcmodels.GetChatSessionLogsByAgent(h.db, user.ID, agentID, pageSizeInt, cursorID)
+	logs, err := svcmodels.GetChatSessionLogs(h.db, user.ID, agentID, pageSizeInt, cursorID)
 	if err != nil {
 		response.Fail(c, "Failed to fetch chat logs", err.Error())
 		return
@@ -431,10 +431,9 @@ func (h *Handlers) handleConnection(c *gin.Context) {
 
 	systemPrompt := agent.SystemPrompt
 	if systemPrompt == "" {
-		systemPrompt = "你是一个友好的AI助手，请用简洁明了的语言回答问题。"
+		systemPrompt = "你是一个友好的助手，请用自然、口语化的方式和用户交流。"
 	}
 
-	maxTokens := agent.MaxTokens
 	temperature := agent.Temperature
 	if temperature == 0 {
 		temperature = 0.7
@@ -460,7 +459,6 @@ func (h *Handlers) handleConnection(c *gin.Context) {
 		APIURL:       cred.LLMApiURL,
 		Model:        model,
 		SystemPrompt: systemPrompt,
-		MaxTokens:    maxTokens,
 		Temperature:  temperature,
 	}
 	voicedialog.Serve(context.Background(), conn, callID, cfg, fallback)

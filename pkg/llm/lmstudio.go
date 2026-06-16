@@ -380,7 +380,7 @@ func (h *LMStudioHandler) rewriteQueryChatCompletions(ctx context.Context, text 
 	if len(parsed.Choices) > 0 {
 		out = strings.TrimSpace(parsed.Choices[0].Message.Content)
 	}
-	out = NormalizeRewrittenQuery(out)
+	out = TrimRewrittenQuery(out)
 	if out == "" {
 		return strings.TrimSpace(text), nil
 	}

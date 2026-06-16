@@ -52,13 +52,13 @@ func setupAssistantTestDB(t *testing.T) *gorm.DB {
 	return db
 }
 
-func TestCreateChatSessionLog(t *testing.T) {
+func TestCreateChatSessionLogWithUsage(t *testing.T) {
 	db := setupAssistantTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := auth.CreateUserWithMeta(db, "test@example.com", "password123", auth.UserSourceSystem, auth.UserStatusActive)
 	require.NoError(t, err)
 
-	log, err := CreateChatSessionLog(db, user.ID, 1, ChatTypeText, "session-123", "Hello", "Hi there", "", 0)
+	log, err := CreateChatSessionLogWithUsage(db, user.ID, 1, ChatTypeText, "session-123", "Hello", "Hi there", "", 0, nil)
 	require.NoError(t, err)
 	assert.NotZero(t, log.ID)
 	assert.Equal(t, "session-123", log.SessionID)
@@ -72,34 +72,34 @@ func TestCreateChatSessionLog(t *testing.T) {
 func TestGetChatSessionLogs(t *testing.T) {
 	db := setupAssistantTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := auth.CreateUserWithMeta(db, "test@example.com", "password123", auth.UserSourceSystem, auth.UserStatusActive)
 	require.NoError(t, err)
 
 	// Create multiple logs with different sessions
-	_, err = CreateChatSessionLog(db, user.ID, 1, ChatTypeText, "session-1", "Message 1", "Reply 1", "", 0)
+	_, err = CreateChatSessionLogWithUsage(db, user.ID, 1, ChatTypeText, "session-1", "Message 1", "Reply 1", "", 0, nil)
 	require.NoError(t, err)
-	_, err = CreateChatSessionLog(db, user.ID, 1, ChatTypeText, "session-1", "Message 2", "Reply 2", "", 0)
+	_, err = CreateChatSessionLogWithUsage(db, user.ID, 1, ChatTypeText, "session-1", "Message 2", "Reply 2", "", 0, nil)
 	require.NoError(t, err)
-	_, err = CreateChatSessionLog(db, user.ID, 1, ChatTypeText, "session-2", "Message 3", "Reply 3", "", 0)
+	_, err = CreateChatSessionLogWithUsage(db, user.ID, 1, ChatTypeText, "session-2", "Message 3", "Reply 3", "", 0, nil)
 	require.NoError(t, err)
 
 	// Get logs
-	logs, err := GetChatSessionLogs(db, user.ID, 10, 0)
+	logs, err := GetChatSessionLogs(db, user.ID, 0, 10, 0)
 	require.NoError(t, err)
 	assert.Len(t, logs, 2) // Should return 2 sessions (latest from each)
 
 	// Test with cursor
-	logs, err = GetChatSessionLogs(db, user.ID, 10, logs[0].ID)
+	logs, err = GetChatSessionLogs(db, user.ID, 0, 10, logs[0].ID)
 	require.NoError(t, err)
 }
 
 func TestGetChatSessionLogDetail(t *testing.T) {
 	db := setupAssistantTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := auth.CreateUserWithMeta(db, "test@example.com", "password123", auth.UserSourceSystem, auth.UserStatusActive)
 	require.NoError(t, err)
 
-	log, err := CreateChatSessionLog(db, user.ID, 1, ChatTypeText, "session-123", "Hello", "Hi there", "", 0)
+	log, err := CreateChatSessionLogWithUsage(db, user.ID, 1, ChatTypeText, "session-123", "Hello", "Hi there", "", 0, nil)
 	require.NoError(t, err)
 
 	// Get detail
@@ -117,13 +117,13 @@ func TestGetChatSessionLogDetail(t *testing.T) {
 func TestGetChatSessionLogsBySession(t *testing.T) {
 	db := setupAssistantTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := auth.CreateUserWithMeta(db, "test@example.com", "password123", auth.UserSourceSystem, auth.UserStatusActive)
 	require.NoError(t, err)
 
 	sessionID := "session-123"
-	_, err = CreateChatSessionLog(db, user.ID, 1, ChatTypeText, sessionID, "Message 1", "Reply 1", "", 0)
+	_, err = CreateChatSessionLogWithUsage(db, user.ID, 1, ChatTypeText, sessionID, "Message 1", "Reply 1", "", 0, nil)
 	require.NoError(t, err)
-	_, err = CreateChatSessionLog(db, user.ID, 1, ChatTypeText, sessionID, "Message 2", "Reply 2", "", 0)
+	_, err = CreateChatSessionLogWithUsage(db, user.ID, 1, ChatTypeText, sessionID, "Message 2", "Reply 2", "", 0, nil)
 	require.NoError(t, err)
 
 	// Get logs by session
@@ -138,7 +138,7 @@ func TestGetChatSessionLogsBySession(t *testing.T) {
 func TestCreateJSTemplate(t *testing.T) {
 	db := setupAssistantTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := auth.CreateUserWithMeta(db, "test@example.com", "password123", auth.UserSourceSystem, auth.UserStatusActive)
 	require.NoError(t, err)
 	gid := ensureTestTeamGroup(t, db, user.ID)
 
@@ -191,7 +191,7 @@ func TestCreateJSTemplate(t *testing.T) {
 func TestGetJSTemplateByJsSourceID(t *testing.T) {
 	db := setupAssistantTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := auth.CreateUserWithMeta(db, "test@example.com", "password123", auth.UserSourceSystem, auth.UserStatusActive)
 	require.NoError(t, err)
 	gid := ensureTestTeamGroup(t, db, user.ID)
 
@@ -218,7 +218,7 @@ func TestGetJSTemplateByJsSourceID(t *testing.T) {
 func TestGetJSTemplateByID(t *testing.T) {
 	db := setupAssistantTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := auth.CreateUserWithMeta(db, "test@example.com", "password123", auth.UserSourceSystem, auth.UserStatusActive)
 	require.NoError(t, err)
 	gid := ensureTestTeamGroup(t, db, user.ID)
 
@@ -241,7 +241,7 @@ func TestGetJSTemplateByID(t *testing.T) {
 func TestGetJSTemplatesByName(t *testing.T) {
 	db := setupAssistantTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := auth.CreateUserWithMeta(db, "test@example.com", "password123", auth.UserSourceSystem, auth.UserStatusActive)
 	require.NoError(t, err)
 	gid := ensureTestTeamGroup(t, db, user.ID)
 
@@ -277,9 +277,9 @@ func TestGetJSTemplatesByName(t *testing.T) {
 func TestListJSTemplates(t *testing.T) {
 	db := setupAssistantTestDB(t)
 
-	user1, err := CreateUser(db, "user1@example.com", "password123")
+	user1, err := auth.CreateUserWithMeta(db, "user1@example.com", "password123", auth.UserSourceSystem, auth.UserStatusActive)
 	require.NoError(t, err)
-	user2, err := CreateUser(db, "user2@example.com", "password123")
+	user2, err := auth.CreateUserWithMeta(db, "user2@example.com", "password123", auth.UserSourceSystem, auth.UserStatusActive)
 	require.NoError(t, err)
 	gid1 := ensureTestTeamGroup(t, db, user1.ID)
 	gid2 := ensureTestTeamGroup(t, db, user2.ID)
@@ -322,7 +322,7 @@ func TestListJSTemplates(t *testing.T) {
 func TestListJSTemplatesByType(t *testing.T) {
 	db := setupAssistantTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := auth.CreateUserWithMeta(db, "test@example.com", "password123", auth.UserSourceSystem, auth.UserStatusActive)
 	require.NoError(t, err)
 	gid := ensureTestTeamGroup(t, db, user.ID)
 
@@ -365,7 +365,7 @@ func TestListJSTemplatesByType(t *testing.T) {
 func TestUpdateJSTemplate(t *testing.T) {
 	db := setupAssistantTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := auth.CreateUserWithMeta(db, "test@example.com", "password123", auth.UserSourceSystem, auth.UserStatusActive)
 	require.NoError(t, err)
 	gid := ensureTestTeamGroup(t, db, user.ID)
 
@@ -397,7 +397,7 @@ func TestUpdateJSTemplate(t *testing.T) {
 func TestDeleteJSTemplate(t *testing.T) {
 	db := setupAssistantTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := auth.CreateUserWithMeta(db, "test@example.com", "password123", auth.UserSourceSystem, auth.UserStatusActive)
 	require.NoError(t, err)
 	gid := ensureTestTeamGroup(t, db, user.ID)
 
@@ -423,9 +423,9 @@ func TestDeleteJSTemplate(t *testing.T) {
 func TestIsJSTemplateOwner(t *testing.T) {
 	db := setupAssistantTestDB(t)
 
-	user1, err := CreateUser(db, "user1@example.com", "password123")
+	user1, err := auth.CreateUserWithMeta(db, "user1@example.com", "password123", auth.UserSourceSystem, auth.UserStatusActive)
 	require.NoError(t, err)
-	user2, err := CreateUser(db, "user2@example.com", "password123")
+	user2, err := auth.CreateUserWithMeta(db, "user2@example.com", "password123", auth.UserSourceSystem, auth.UserStatusActive)
 	require.NoError(t, err)
 	gid := ensureTestTeamGroup(t, db, user1.ID)
 
@@ -453,7 +453,7 @@ func TestIsJSTemplateOwner(t *testing.T) {
 func TestGetJSTemplatesCount(t *testing.T) {
 	db := setupAssistantTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := auth.CreateUserWithMeta(db, "test@example.com", "password123", auth.UserSourceSystem, auth.UserStatusActive)
 	require.NoError(t, err)
 	gid := ensureTestTeamGroup(t, db, user.ID)
 
@@ -497,7 +497,7 @@ func TestGetJSTemplatesCount(t *testing.T) {
 func TestSearchJSTemplates(t *testing.T) {
 	db := setupAssistantTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := auth.CreateUserWithMeta(db, "test@example.com", "password123", auth.UserSourceSystem, auth.UserStatusActive)
 	require.NoError(t, err)
 	gid := ensureTestTeamGroup(t, db, user.ID)
 
@@ -531,7 +531,7 @@ func TestSearchJSTemplates(t *testing.T) {
 func TestGetAssistantByJSTemplateID(t *testing.T) {
 	db := setupAssistantTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := auth.CreateUserWithMeta(db, "test@example.com", "password123", auth.UserSourceSystem, auth.UserStatusActive)
 	require.NoError(t, err)
 	gid := ensureTestTeamGroup(t, db, user.ID)
 
@@ -557,11 +557,11 @@ func TestGetAssistantByJSTemplateID(t *testing.T) {
 func TestCreateChatSessionLog_Error(t *testing.T) {
 	db := setupAssistantTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := auth.CreateUserWithMeta(db, "test@example.com", "password123", auth.UserSourceSystem, auth.UserStatusActive)
 	require.NoError(t, err)
 
 	// Test with invalid assistant ID (should still work, just create the log)
-	log, err := CreateChatSessionLog(db, user.ID, 999, ChatTypeText, "session-123", "Hello", "Hi there", "", 0)
+	log, err := CreateChatSessionLogWithUsage(db, user.ID, 999, ChatTypeText, "session-123", "Hello", "Hi there", "", 0, nil)
 	require.NoError(t, err)
 	assert.NotZero(t, log.ID)
 }
@@ -569,7 +569,7 @@ func TestCreateChatSessionLog_Error(t *testing.T) {
 func TestGetChatSessionLogDetail_Error(t *testing.T) {
 	db := setupAssistantTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := auth.CreateUserWithMeta(db, "test@example.com", "password123", auth.UserSourceSystem, auth.UserStatusActive)
 	require.NoError(t, err)
 
 	// Test with non-existent log ID
@@ -577,10 +577,10 @@ func TestGetChatSessionLogDetail_Error(t *testing.T) {
 	assert.Error(t, err)
 
 	// Test with wrong user ID
-	log, err := CreateChatSessionLog(db, user.ID, 1, ChatTypeText, "session-123", "Hello", "Hi there", "", 0)
+	log, err := CreateChatSessionLogWithUsage(db, user.ID, 1, ChatTypeText, "session-123", "Hello", "Hi there", "", 0, nil)
 	require.NoError(t, err)
 
-	user2, err := CreateUser(db, "test2@example.com", "password123")
+	user2, err := auth.CreateUserWithMeta(db, "test2@example.com", "password123", auth.UserSourceSystem, auth.UserStatusActive)
 	require.NoError(t, err)
 
 	_, err = GetChatSessionLogDetail(db, log.ID, user2.ID)
@@ -590,11 +590,11 @@ func TestGetChatSessionLogDetail_Error(t *testing.T) {
 func TestCreateChatSessionLog_WithAudio(t *testing.T) {
 	db := setupAssistantTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := auth.CreateUserWithMeta(db, "test@example.com", "password123", auth.UserSourceSystem, auth.UserStatusActive)
 	require.NoError(t, err)
 
 	// Test with audio URL and duration
-	log, err := CreateChatSessionLog(db, user.ID, 1, ChatTypeRealtime, "session-123", "Hello", "Hi there", "audio.mp3", 5000)
+	log, err := CreateChatSessionLogWithUsage(db, user.ID, 1, ChatTypeRealtime, "session-123", "Hello", "Hi there", "audio.mp3", 5000, nil)
 	require.NoError(t, err)
 	assert.NotZero(t, log.ID)
 	assert.Equal(t, "audio.mp3", log.AudioURL)
@@ -605,19 +605,19 @@ func TestCreateChatSessionLog_WithAudio(t *testing.T) {
 func TestGetChatSessionLogs_WithCursor(t *testing.T) {
 	db := setupAssistantTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := auth.CreateUserWithMeta(db, "test@example.com", "password123", auth.UserSourceSystem, auth.UserStatusActive)
 	require.NoError(t, err)
 
 	// Create multiple logs
-	log1, err := CreateChatSessionLog(db, user.ID, 1, ChatTypeText, "session-1", "Message 1", "Reply 1", "", 0)
+	log1, err := CreateChatSessionLogWithUsage(db, user.ID, 1, ChatTypeText, "session-1", "Message 1", "Reply 1", "", 0, nil)
 	require.NoError(t, err)
-	_, err = CreateChatSessionLog(db, user.ID, 1, ChatTypeText, "session-1", "Message 2", "Reply 2", "", 0)
+	_, err = CreateChatSessionLogWithUsage(db, user.ID, 1, ChatTypeText, "session-1", "Message 2", "Reply 2", "", 0, nil)
 	require.NoError(t, err)
-	_, err = CreateChatSessionLog(db, user.ID, 1, ChatTypeText, "session-2", "Message 3", "Reply 3", "", 0)
+	_, err = CreateChatSessionLogWithUsage(db, user.ID, 1, ChatTypeText, "session-2", "Message 3", "Reply 3", "", 0, nil)
 	require.NoError(t, err)
 
 	// Get logs with cursor
-	logs, err := GetChatSessionLogs(db, user.ID, 1, log1.ID+100)
+	logs, err := GetChatSessionLogs(db, user.ID, 0, 1, log1.ID+100)
 	require.NoError(t, err)
 	assert.Len(t, logs, 1)
 }
@@ -625,7 +625,7 @@ func TestGetChatSessionLogs_WithCursor(t *testing.T) {
 func TestGenerateUniqueJsSourceID(t *testing.T) {
 	db := setupAssistantTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := auth.CreateUserWithMeta(db, "test@example.com", "password123", auth.UserSourceSystem, auth.UserStatusActive)
 	require.NoError(t, err)
 	gid := ensureTestTeamGroup(t, db, user.ID)
 
@@ -660,13 +660,13 @@ func TestGenerateUniqueJsSourceID(t *testing.T) {
 func TestCreateChatSessionLog_ErrorHandling(t *testing.T) {
 	db := setupAssistantTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := auth.CreateUserWithMeta(db, "test@example.com", "password123", auth.UserSourceSystem, auth.UserStatusActive)
 	require.NoError(t, err)
 
 	// Test with different chat types
 	chatTypes := []string{ChatTypeText, ChatTypeRealtime, ChatTypePress}
 	for _, chatType := range chatTypes {
-		log, err := CreateChatSessionLog(db, user.ID, 1, chatType, "session-123", "Hello", "Hi there", "", 0)
+		log, err := CreateChatSessionLogWithUsage(db, user.ID, 1, chatType, "session-123", "Hello", "Hi there", "", 0, nil)
 		require.NoError(t, err)
 		assert.Equal(t, chatType, log.ChatType)
 	}
@@ -675,7 +675,7 @@ func TestCreateChatSessionLog_ErrorHandling(t *testing.T) {
 func TestGetChatSessionLogDetail_WithAssistantName(t *testing.T) {
 	db := setupAssistantTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := auth.CreateUserWithMeta(db, "test@example.com", "password123", auth.UserSourceSystem, auth.UserStatusActive)
 	require.NoError(t, err)
 
 	gid := ensureTestTeamGroup(t, db, user.ID)
@@ -690,7 +690,7 @@ func TestGetChatSessionLogDetail_WithAssistantName(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create log with assistant
-	log, err := CreateChatSessionLog(db, user.ID, int64(assistant.ID), ChatTypeText, "session-123", "Hello", "Hi there", "", 0)
+	log, err := CreateChatSessionLogWithUsage(db, user.ID, int64(assistant.ID), ChatTypeText, "session-123", "Hello", "Hi there", "", 0, nil)
 	require.NoError(t, err)
 
 	// Get detail
@@ -712,7 +712,7 @@ func TestGetJSTemplatesByName_EmptyResult(t *testing.T) {
 func TestListJSTemplates_WithPagination(t *testing.T) {
 	db := setupAssistantTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := auth.CreateUserWithMeta(db, "test@example.com", "password123", auth.UserSourceSystem, auth.UserStatusActive)
 	require.NoError(t, err)
 	gid := ensureTestTeamGroup(t, db, user.ID)
 
@@ -744,7 +744,7 @@ func TestListJSTemplates_WithPagination(t *testing.T) {
 func TestIsJSTemplateOwner_NonExistent(t *testing.T) {
 	db := setupAssistantTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := auth.CreateUserWithMeta(db, "test@example.com", "password123", auth.UserSourceSystem, auth.UserStatusActive)
 	require.NoError(t, err)
 
 	_, ownerErr := IsJSTemplateOwner(db, "nonexistent-id", user.ID)
@@ -754,7 +754,7 @@ func TestIsJSTemplateOwner_NonExistent(t *testing.T) {
 func TestGetJSTemplatesCount_WithType(t *testing.T) {
 	db := setupAssistantTestDB(t)
 
-	user, err := CreateUser(db, "test@example.com", "password123")
+	user, err := auth.CreateUserWithMeta(db, "test@example.com", "password123", auth.UserSourceSystem, auth.UserStatusActive)
 	require.NoError(t, err)
 	gid := ensureTestTeamGroup(t, db, user.ID)
 

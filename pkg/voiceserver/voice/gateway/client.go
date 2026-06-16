@@ -807,9 +807,18 @@ func (c *Client) ttsWorker() {
 
 			logger.Info(fmt.Sprintf("[gw] call=%s tts speak begin utter=%s text=%q",
 				c.cfg.CallID, job.utter, ellipsize(job.text, 40)))
+			c.startSegmentPrefetch(&job)
 			var err error
 			if job.prefetchCh != nil {
 				err = c.cfg.Attached.TTS.SpeakWithService(job.text, tts.NewReplayService(job.prefetchCh))
+				if err == nil && firstByteAt.Load() == nil {
+					job.prefetchMu.Lock()
+					pe := job.prefetchErr
+					job.prefetchMu.Unlock()
+					if pe != nil {
+						err = c.cfg.Attached.TTS.Speak(job.text)
+					}
+				}
 			} else {
 				err = c.cfg.Attached.TTS.Speak(job.text)
 			}

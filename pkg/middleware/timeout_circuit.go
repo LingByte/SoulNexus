@@ -221,9 +221,6 @@ func DefaultTimeoutConfig() TimeoutConfig {
 			"/api/assistant/chat": 60 * time.Second,
 			"/api/chat/send":      60 * time.Second,
 
-			// 语音接口：10分钟超时（支持长时间语音会话）
-			"/api/voice/lingecho/v1/": 10 * time.Minute,
-
 			// 工作流执行：10分钟超时
 			"/api/workflow/execute": 10 * time.Minute,
 
@@ -279,10 +276,7 @@ func CombinedTimeoutCircuitMiddleware() gin.HandlerFunc {
 
 	return func(c *gin.Context) {
 		endpoint := c.Request.URL.Path
-		if endpoint == "/api/voice/lingecho/v1/" ||
-			endpoint == "/api/voice/lingecho/v2/" ||
-			endpoint == "/api/voice/websocket" ||
-			endpoint == "/api/chat/call" {
+		if endpoint == "/api/chat/call" {
 			c.Next()
 			return
 		}

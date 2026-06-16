@@ -20,10 +20,6 @@ func MD5(str string) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-func SixteenMD5(str string) string {
-	return MD5(str)[8:24]
-}
-
 func AesEncrypt(key, plaintext []byte) (buf []byte, err error) {
 	var (
 		block cipher.Block

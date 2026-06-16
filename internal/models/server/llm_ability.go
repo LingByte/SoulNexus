@@ -52,10 +52,6 @@ func (LLMAbility) TableName() string {
 
 // SplitLLMModelNamesCSV 解析渠道「模型」配置字段（逗号/分号/换行分隔）。
 func SplitLLMModelNamesCSV(s string) []string {
-	return splitLLMModelNamesCSV(s)
-}
-
-func splitLLMModelNamesCSV(s string) []string {
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return nil

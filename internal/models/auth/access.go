@@ -86,11 +86,6 @@ func UserHasPermission(db *gorm.DB, userID uint, key string) bool {
 	return false
 }
 
-// UserHasAdminAccess 是否可进入管理后台（admin.access 或 *）。
-func UserHasAdminAccess(db *gorm.DB, userID uint) bool {
-	return UserHasPermission(db, userID, PermAdminAccess) || UserHasPermission(db, userID, PermWildcard)
-}
-
 // AssignUserSingleRoleBySlug replaces all user_roles rows with a single role matching slug.
 func AssignUserSingleRoleBySlug(db *gorm.DB, userID uint, slug string) error {
 	if db == nil || userID == 0 {

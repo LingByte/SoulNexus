@@ -70,22 +70,6 @@ func MergeASRTranscribeOptions(merged map[string]interface{}, body *SpeechASRTra
 	}
 }
 
-// NormalizeRelayTTSResponseType 由 response_type / output 别名归一为 audio_base64 | url。
-func NormalizeRelayTTSResponseType(responseType, output string) string {
-	s := strings.TrimSpace(responseType)
-	if s == "" {
-		s = strings.TrimSpace(output)
-	}
-	switch strings.ToLower(s) {
-	case "url", "audio_url":
-		return "url"
-	case "audio_base64", "base64", "audio_data", "data", "":
-		return "audio_base64"
-	default:
-		return "audio_base64"
-	}
-}
-
 // PickASRChannelForToken 按 token.group 选择 enabled ASR 渠道；group 覆盖优先生效。
 func PickASRChannelForToken(db *gorm.DB, tok *LLMToken, groupOverride string) (*ASRChannel, error) {
 	if db == nil {

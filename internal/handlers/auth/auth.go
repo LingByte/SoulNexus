@@ -419,12 +419,6 @@ func getRefreshTokenTTL(db *gorm.DB) time.Duration {
 	return ttl
 }
 
-// authTokenTTLFromDB reads AUTH_TOKEN_EXPIRED from system_config; empty uses def with no log noise.
-// Non-empty but invalid values log a warning and fall back to def.
-func authTokenTTLFromDB(db *gorm.DB, def time.Duration) time.Duration {
-	return durationFromConfigKey(db, constants.KEY_AUTH_TOKEN_EXPIRED, def)
-}
-
 // durationFromConfigKey reads a duration from system_config. Supports Go duration strings ("168h")
 // and bare seconds ("86400"). Invalid or non-positive values fall back to def.
 func durationFromConfigKey(db *gorm.DB, key string, def time.Duration) time.Duration {
@@ -775,8 +769,11 @@ func (h *Handlers) findOrCreateGitHubUser(githubUser *githubUserResp, githubEmai
 }
 
 func (h *Handlers) finishWechatSessionSuccess(c *gin.Context, session *wechatLoginSession) (gin.H, error) {
-	user, err := authmodel.GetUserByUID(h.db, session.UserID)
+	user, err := authmodel.GetUserByID(h.db, session.UserID)
 	if err != nil || user == nil {
+		return nil, errors.New("wechat user is not bound")
+	}
+	if err := authmodel.CheckUserAllowLogin(h.db, user); err != nil {
 		return nil, errors.New("wechat user is not bound")
 	}
 	var wxFresh authmodel.User
@@ -1187,9 +1184,13 @@ func (h *Handlers) processOIDCTokenReq(c *gin.Context, req oidcTokenReq) {
 	codeData.Used = true
 	oidcAuthCodeStore.Unlock()
 
-	user, err := authmodel.GetUserByUID(h.db, codeData.UserID)
+	user, err := authmodel.GetUserByID(h.db, codeData.UserID)
 	if err != nil || user == nil {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("user not found"))
+		return
+	}
+	if err := authmodel.CheckUserAllowLogin(h.db, user); err != nil {
+		response.AbortWithJSONError(c, http.StatusForbidden, err)
 		return
 	}
 	var oidcFresh authmodel.User
@@ -1411,7 +1412,7 @@ func (h *Handlers) handleGitHubCallback(c *gin.Context) {
 		return
 	}
 	if stateData.BindUserID > 0 {
-		bindUser, err := authmodel.GetUserByUID(h.db, stateData.BindUserID)
+		bindUser, err := authmodel.GetUserByID(h.db, stateData.BindUserID)
 		if err == nil && bindUser != nil {
 			newGithubID := strconv.FormatInt(githubUser.ID, 10)
 			redirectURL := strings.TrimSpace(stateData.RedirectURL)
@@ -2153,7 +2154,7 @@ func (h *Handlers) handleUserSigninByEmail(c *gin.Context) {
 	}
 
 	// 重新从数据库加载用户信息，确保获取最新的LastLogin等信息
-	updatedUser, err := authmodel.GetUserByUID(db, user.ID)
+	updatedUser, err := authmodel.GetUserByID(db, user.ID)
 	if err != nil {
 		logger.Warn("Failed to reload user after login, using original user object", zap.Error(err))
 		updatedUser = user // 如果加载失败，使用原始user对象
@@ -2164,7 +2165,7 @@ func (h *Handlers) handleUserSigninByEmail(c *gin.Context) {
 	// 如果需要 Token，生成 AuthToken
 	var refreshToken string
 	if form.AuthToken {
-		expired := authTokenTTLFromDB(db, 24*time.Hour)
+		expired := durationFromConfigKey(db, constants.KEY_AUTH_TOKEN_EXPIRED, 24*time.Hour)
 		if expired < 24*time.Hour {
 			expired = 24 * time.Hour
 		}
@@ -2400,7 +2401,7 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 			response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthLoginFailed), errors.New("invalid auth token"))
 			return
 		}
-		user, err = authmodel.GetUserByUID(db, p.UserID)
+		user, err = authmodel.GetUserByID(db, p.UserID)
 		if err != nil {
 			logger.Warn("Login failed: user not found by auth token", zap.String("ip", clientIP), zap.Error(err))
 			response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthLoginFailed), errors.New("user not found"))
@@ -2581,7 +2582,7 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 		logger.Error("Login failed: authmodel.Login aborted the request", zap.String("email", form.Email), zap.Uint("userID", user.ID), zap.String("ip", clientIP))
 		return
 	}
-	updatedUser, err := authmodel.GetUserByUID(db, user.ID)
+	updatedUser, err := authmodel.GetUserByID(db, user.ID)
 	if err != nil {
 		logger.Warn("Failed to reload user after login, using original user object", zap.Error(err))
 		updatedUser = user // 如果加载失败，使用原始user对象
@@ -2590,7 +2591,7 @@ func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
 	}
 
 	// 生成认证Token
-	expired := authTokenTTLFromDB(db, 7*24*time.Hour)
+	expired := durationFromConfigKey(db, constants.KEY_AUTH_TOKEN_EXPIRED, 7*24*time.Hour)
 	accessToken, refreshToken, err := buildTokenPair(db, user, expired)
 	if err != nil {
 		response.AbortWithJSONError(c, http.StatusInternalServerError, err)
@@ -2655,7 +2656,7 @@ func (h *Handlers) handleUserSignin(c *gin.Context) {
 			response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("invalid auth token"))
 			return
 		}
-		user, err = authmodel.GetUserByUID(db, p.UserID)
+		user, err = authmodel.GetUserByID(db, p.UserID)
 		if err != nil {
 			response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("user not found"))
 			return
@@ -2702,7 +2703,7 @@ func (h *Handlers) handleUserSignin(c *gin.Context) {
 	authmodel.Login(c, user)
 
 	if form.Remember {
-		expired := authTokenTTLFromDB(db, 7*24*time.Hour)
+		expired := durationFromConfigKey(db, constants.KEY_AUTH_TOKEN_EXPIRED, 7*24*time.Hour)
 		km := utils.JWTKeyManager()
 		if km != nil {
 			if tok, signErr := utils.SignAccessTokenWithKey(utils.AccessPayload{
@@ -2829,7 +2830,7 @@ func (h *Handlers) handleUserSignup(c *gin.Context) {
 
 	passwordToStore := authmodel.PasswordForStorageFromClient(form.Password)
 
-	user, err := authmodel.CreateUserWithMeta(db, form.Email, passwordToStore, authmodel.NormalizeUserSource(form.Source), authmodel.UserStatusActive)
+	user, err := authmodel.CreateUserWithMeta(db, form.Email, passwordToStore, form.Source, authmodel.UserStatusActive)
 	if err != nil {
 		if utils.GlobalRegistrationGuard != nil {
 			utils.GlobalRegistrationGuard.RecordRegistrationAttempt(clientIP, form.Email, false, err.Error())
@@ -2908,11 +2909,11 @@ func (h *Handlers) handleUserSignup(c *gin.Context) {
 		return
 	}
 
-	if updatedUser, err := authmodel.GetUserByUID(db, user.ID); err == nil && updatedUser != nil {
+	if updatedUser, err := authmodel.GetUserByID(db, user.ID); err == nil && updatedUser != nil {
 		user = updatedUser
 	}
 
-	expired := authTokenTTLFromDB(db, 7*24*time.Hour)
+	expired := durationFromConfigKey(db, constants.KEY_AUTH_TOKEN_EXPIRED, 7*24*time.Hour)
 	accessToken, refreshToken, err := buildTokenPair(db, user, expired)
 	if err != nil {
 		response.AbortWithJSONError(c, http.StatusInternalServerError, err)
@@ -3093,11 +3094,11 @@ func (h *Handlers) handleUserSignupByEmail(c *gin.Context) {
 		return
 	}
 
-	if updatedUser, err := authmodel.GetUserByUID(db, user.ID); err == nil && updatedUser != nil {
+	if updatedUser, err := authmodel.GetUserByID(db, user.ID); err == nil && updatedUser != nil {
 		user = updatedUser
 	}
 
-	expired := authTokenTTLFromDB(db, 7*24*time.Hour)
+	expired := durationFromConfigKey(db, constants.KEY_AUTH_TOKEN_EXPIRED, 7*24*time.Hour)
 	accessToken, refreshToken, err := buildTokenPair(db, user, expired)
 	if err != nil {
 		response.AbortWithJSONError(c, http.StatusInternalServerError, err)
@@ -3145,8 +3146,12 @@ func (h *Handlers) handleUserUpdate(c *gin.Context) {
 	if req.Timezone != "" {
 		coreVals["preferred_timezone"] = strings.TrimSpace(req.Timezone)
 	}
-	if tm := authmodel.NormalizeThemeMode(req.ThemeMode); tm != "" {
-		coreVals["theme_mode"] = tm
+	if req.ThemeMode != "" {
+		tm := strings.ToLower(strings.TrimSpace(req.ThemeMode))
+		switch tm {
+		case "light", "dark", "system":
+			coreVals["theme_mode"] = tm
+		}
 	}
 	if req.Gender != "" {
 		profVals["gender"] = req.Gender
@@ -3183,12 +3188,12 @@ func (h *Handlers) handleUserUpdate(c *gin.Context) {
 	}
 
 	// 重新获取更新后的用户信息
-	updatedUser, err := authmodel.GetUserByUID(h.db, user.ID)
+	updatedUser, err := authmodel.GetUserByID(h.db, user.ID)
 	if err != nil {
 		response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthGetUserFailed), err)
 		return
 	}
-	cache.Delete(c, constants.CacheKeyUserByID+strconv.Itoa(int(user.ID)))
+	cache.GetGlobalCache().Delete(c, constants.CacheKeyUserByID+strconv.Itoa(int(user.ID)))
 	response.Success(c, i18n.T(c, i18n.MsgHandlerAuthUpdateUserSuccess), updatedUser)
 }
 
@@ -3637,67 +3642,6 @@ func (h *Handlers) handleResetPasswordConfirm(c *gin.Context) {
 	response.Success(c, "Password reset successfully", nil)
 }
 
-// handleVerifyEmail 验证邮箱
-func (h *Handlers) handleVerifyEmail(c *gin.Context) {
-	token := c.Query("token")
-	if token == "" {
-		response.Fail(c, "Token is required", errors.New("token is required"))
-		return
-	}
-
-	user, err := authmodel.VerifyEmail(h.db, token)
-	if err != nil {
-		response.Fail(c, "Invalid or expired token", err)
-		return
-	}
-
-	response.Success(c, "Email verified successfully", user)
-}
-
-// handleSendEmailVerification 发送邮箱验证邮件
-func (h *Handlers) handleSendEmailVerification(c *gin.Context) {
-	ctxUser := authmodel.CurrentUser(c)
-	if ctxUser == nil {
-		response.Fail(c, "User not found", errors.New("user not found"))
-		return
-	}
-	user, err := authmodel.GetUserByID(h.db, ctxUser.ID)
-	if err != nil || user == nil {
-		response.Fail(c, "User not found", err)
-		return
-	}
-
-	logger.Info("Email verification request",
-		zap.Uint("userId", user.ID),
-		zap.String("email", user.Email),
-		zap.Bool("emailVerified", user.EmailVerified))
-
-	if user.EmailVerified {
-		response.Fail(c, "Email already verified", errors.New("email already verified"))
-		return
-	}
-
-	token, err := authmodel.GenerateEmailVerifyToken(h.db, user)
-	if err != nil {
-		logger.Error("Failed to generate verification token", zap.Error(err))
-		response.Fail(c, "Failed to generate verification token", err)
-		return
-	}
-
-	logger.Info("Generated email verification token",
-		zap.String("token", token),
-		zap.String("email", user.Email))
-
-	// 发送邮箱验证邮件
-	utils.Sig().Emit(constants.SigUserVerifyEmail, user, token, c.ClientIP(), c.Request.UserAgent(), h.db)
-
-	logger.Info("Email verification signal emitted",
-		zap.String("email", user.Email),
-		zap.String("token", token))
-
-	response.Success(c, "Verification email sent", nil)
-}
-
 func verifyCachedEmailOTP(email, code string) bool {
 	key := strings.ToLower(strings.TrimSpace(email))
 	input := strings.TrimSpace(code)
@@ -3782,7 +3726,7 @@ func (h *Handlers) handleBindEmail(c *gin.Context) {
 		response.Fail(c, "User not found", errors.New("user not found"))
 		return
 	}
-	if !authmodel.IsPlaceholderEmail(user.Email) && user.EmailVerified {
+	if !authmodel.IsPlaceholderEmail(user.Email) {
 		response.Fail(c, "已绑定邮箱，请使用换绑功能", errors.New("email already bound"))
 		return
 	}
@@ -3811,12 +3755,12 @@ func (h *Handlers) handleBindEmail(c *gin.Context) {
 		return
 	}
 
-	updatedUser, err := authmodel.GetUserByUID(h.db, user.ID)
+	updatedUser, err := authmodel.GetUserByID(h.db, user.ID)
 	if err != nil {
 		response.Fail(c, "获取用户信息失败", err)
 		return
 	}
-	cache.Delete(c, constants.CacheKeyUserByID+strconv.Itoa(int(user.ID)))
+	cache.GetGlobalCache().Delete(c, constants.CacheKeyUserByID+strconv.Itoa(int(user.ID)))
 	response.Success(c, "邮箱绑定成功", updatedUser)
 }
 
@@ -3837,8 +3781,8 @@ func (h *Handlers) handleChangeEmail(c *gin.Context) {
 		response.Fail(c, "User not found", errors.New("user not found"))
 		return
 	}
-	if authmodel.IsPlaceholderEmail(user.Email) || !user.EmailVerified {
-		response.Fail(c, "请先完成邮箱绑定", errors.New("email not verified"))
+	if authmodel.IsPlaceholderEmail(user.Email) {
+		response.Fail(c, "请先绑定邮箱", errors.New("email not bound"))
 		return
 	}
 
@@ -3877,12 +3821,12 @@ func (h *Handlers) handleChangeEmail(c *gin.Context) {
 
 	utils.Sig().Emit(constants.SigUserChangeEmailDone, user, oldEmail, newEmail)
 
-	updatedUser, err := authmodel.GetUserByUID(h.db, user.ID)
+	updatedUser, err := authmodel.GetUserByID(h.db, user.ID)
 	if err != nil {
 		response.Fail(c, "获取用户信息失败", err)
 		return
 	}
-	cache.Delete(c, constants.CacheKeyUserByID+strconv.Itoa(int(user.ID)))
+	cache.GetGlobalCache().Delete(c, constants.CacheKeyUserByID+strconv.Itoa(int(user.ID)))
 	response.Success(c, "邮箱换绑成功", updatedUser)
 }
 
@@ -4178,31 +4122,6 @@ func isDefaultAvatar(avatarURL string) bool {
 	return strings.Contains(avatarURL, "default") ||
 		strings.Contains(avatarURL, "placeholder") ||
 		strings.Contains(avatarURL, "gravatar")
-}
-
-func sendHashMail(db *gorm.DB, user *authmodel.User, signame, expireKey, defaultExpired, clientIp, useragent string) {
-	def, _ := time.ParseDuration(defaultExpired)
-	if def <= 0 {
-		def = 180 * 24 * time.Hour
-	}
-	d := durationFromConfigKey(db, expireKey, def)
-	km := utils.JWTKeyManager()
-	if km == nil {
-		logger.Error("jwt key manager not initialized (cannot issue email token)")
-		return
-	}
-	hash, err := utils.SignAccessTokenWithKey(utils.AccessPayload{
-		UserID: user.ID,
-		Email:  user.Email,
-		Role:   jwtRoleForToken(db, user),
-	}, km, d)
-	if err != nil {
-		logger.Error("failed to sign email token", zap.Error(err))
-		return
-	}
-
-	// 发送信号，让监听器处理邮件发送
-	utils.Sig().Emit(signame, user, hash, clientIp, useragent, db)
 }
 
 // handleSendEmailCode Send Email Code

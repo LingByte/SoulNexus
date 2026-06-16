@@ -120,7 +120,7 @@ export function getWebSocketBaseURL(): string {
 
 /**
  * 构建完整的WebSocket URL
- * @param path API路径，例如 '/api/voice/websocket' 或 '/api/chat/call'
+ * @param path API路径，例如 '/api/chat/call'
  */
 export function buildWebSocketURL(path: string): string {
   const wsBaseURL = getWebSocketBaseURL()

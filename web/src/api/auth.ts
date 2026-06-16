@@ -267,20 +267,6 @@ export const refreshToken = async (): Promise<ApiResponse<{ token: string; refre
   }, userServiceConfig)
 }
 
-// 发送邮箱验证邮件
-export const sendEmailVerification = async (): Promise<ApiResponse<null>> => {
-  return post<null>('/auth/send-email-verification', undefined, userServiceConfig)
-}
-
-// 验证邮箱（通过URL中的token）
-export const verifyEmail = async (token: string): Promise<ApiResponse<User>> => {
-  const res = await get<User>(`/auth/verify-email?token=${token}`, userServiceConfig)
-  if (res.code === 200 && res.data) {
-    return { ...res, data: normalizeAuthUser(res.data as unknown as Record<string, unknown>) as unknown as User }
-  }
-  return res
-}
-
 // 登出 - 对应 GET /auth/logout
 export const logoutUser = async (next?: string): Promise<ApiResponse<null>> => {
   const params = next ? { next } : undefined

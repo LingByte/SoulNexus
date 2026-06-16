@@ -117,7 +117,7 @@ func TestCreateUsageRecord(t *testing.T) {
 		UsageTime:        time.Now(),
 	}
 
-	err := CreateUsageRecord(db, record)
+	err := db.Create(record).Error
 	assert.NoError(t, err)
 	assert.NotZero(t, record.ID)
 	assert.NotZero(t, record.CreatedAt)
@@ -157,7 +157,7 @@ func TestGetUsageRecords(t *testing.T) {
 	}
 
 	for _, record := range records {
-		err := CreateUsageRecord(db, record)
+		err := db.Create(record).Error
 		require.NoError(t, err)
 	}
 
@@ -273,7 +273,7 @@ func TestGetUsageStatistics(t *testing.T) {
 	}
 
 	for _, record := range records {
-		err := CreateUsageRecord(db, record)
+		err := db.Create(record).Error
 		require.NoError(t, err)
 	}
 
@@ -338,7 +338,7 @@ func TestGetDailyUsageData(t *testing.T) {
 	}
 
 	for _, record := range records {
-		err := CreateUsageRecord(db, record)
+		err := db.Create(record).Error
 		require.NoError(t, err)
 	}
 
@@ -394,7 +394,7 @@ func TestCreateBill(t *testing.T) {
 		Notes:                 "Test bill",
 	}
 
-	err := CreateBill(db, bill)
+	err := db.Create(bill).Error
 	assert.NoError(t, err)
 	assert.NotZero(t, bill.ID)
 	assert.NotZero(t, bill.CreatedAt)
@@ -440,7 +440,7 @@ func TestGetBills(t *testing.T) {
 	}
 
 	for _, bill := range bills {
-		err := CreateBill(db, bill)
+		err := db.Create(bill).Error
 		require.NoError(t, err)
 	}
 
@@ -492,7 +492,7 @@ func TestGetBill(t *testing.T) {
 		TotalLLMCalls: 150,
 	}
 
-	err := CreateBill(db, bill)
+	err := db.Create(bill).Error
 	require.NoError(t, err)
 
 	// Test successful retrieval
@@ -528,7 +528,7 @@ func TestUpdateBill(t *testing.T) {
 		TotalLLMCalls: 100,
 	}
 
-	err := CreateBill(db, bill)
+	err := db.Create(bill).Error
 	require.NoError(t, err)
 
 	// Update bill
@@ -538,7 +538,7 @@ func TestUpdateBill(t *testing.T) {
 	bill.ExportFormat = "csv"
 	bill.Notes = "Updated notes"
 
-	err = UpdateBill(db, bill)
+	err = db.Save(bill).Error
 	assert.NoError(t, err)
 
 	// Verify update
@@ -670,7 +670,7 @@ func TestGenerateBill(t *testing.T) {
 	}
 
 	for _, record := range records {
-		err := CreateUsageRecord(db, record)
+		err := db.Create(record).Error
 		require.NoError(t, err)
 	}
 
@@ -709,7 +709,7 @@ func BenchmarkCreateUsageRecord(b *testing.B) {
 			UsageTime:    time.Now(),
 		}
 
-		err := CreateUsageRecord(db, record)
+		err := db.Create(record).Error
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -729,7 +729,7 @@ func BenchmarkGetUsageStatistics(b *testing.B) {
 			TotalTokens:  100,
 			UsageTime:    now.Add(-time.Duration(i) * time.Minute),
 		}
-		CreateUsageRecord(db, record)
+		db.Create(record)
 	}
 
 	credentialID := uint(1)
@@ -781,7 +781,7 @@ func TestUsageRecord_ComplexFiltering(t *testing.T) {
 	}
 
 	for _, record := range records {
-		err := CreateUsageRecord(db, record)
+		err := db.Create(record).Error
 		require.NoError(t, err)
 	}
 
@@ -843,7 +843,7 @@ func TestBill_ComplexFiltering(t *testing.T) {
 	}
 
 	for _, bill := range bills {
-		err := CreateBill(db, bill)
+		err := db.Create(bill).Error
 		require.NoError(t, err)
 	}
 
@@ -910,7 +910,7 @@ func TestUsageStatistics_EdgeCases(t *testing.T) {
 	}
 
 	for _, record := range records {
-		err := CreateUsageRecord(db, record)
+		err := db.Create(record).Error
 		require.NoError(t, err)
 	}
 

@@ -254,8 +254,8 @@ func main() {
 	if searchEnabled {
 		// Get search engine instance
 		var searchEngine search.Engine
-		if app.handlers.GetSearchHandler() != nil {
-			searchEngine = app.handlers.GetSearchHandler().GetEngine()
+		if app.handlers.SearchHandler != nil {
+			searchEngine = app.handlers.SearchHandler.GetEngine()
 		}
 		if searchEngine != nil {
 			// Start scheduled task

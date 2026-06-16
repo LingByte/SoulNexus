@@ -525,12 +525,6 @@ func (oh *OpenaiHandler) QueryWithOptions(text string, options *QueryOptions) (*
 			Content: formatInstruction,
 		})
 	}
-	if estimatedMaxOutputChars > 0 {
-		sanitizedMessages = append(sanitizedMessages, openai.ChatCompletionMessage{
-			Role:    openai.ChatMessageRoleSystem,
-			Content: fmt.Sprintf("Limit the assistant output to at most %d characters.", estimatedMaxOutputChars),
-		})
-	}
 
 	if !hasExternalMessages {
 		sanitizedMessages = append(sanitizedMessages, openai.ChatCompletionMessage{
@@ -864,7 +858,7 @@ func (oh *OpenaiHandler) QueryStream(text string, options *QueryOptions, callbac
 			for _, tc := range toolCalls {
 				toolResult := oh.executeToolCall(tc)
 				if strings.TrimSpace(toolResult) == "" {
-					toolResult = "工具执行完成"
+					toolResult = "{\"status\":\"ok\"}"
 				}
 				roundMessages = append(roundMessages, openai.ChatCompletionMessage{
 					Role:       openai.ChatMessageRoleTool,
@@ -1040,7 +1034,7 @@ func (oh *OpenaiHandler) createChatCompletionWithTools(ctx context.Context, requ
 		for _, tc := range assistantMsg.ToolCalls {
 			toolResult := oh.executeToolCall(tc)
 			if strings.TrimSpace(toolResult) == "" {
-				toolResult = "工具执行完成"
+				toolResult = "{\"status\":\"ok\"}"
 			}
 			current.Messages = append(current.Messages, openai.ChatCompletionMessage{
 				Role:       openai.ChatMessageRoleTool,
@@ -1142,7 +1136,7 @@ func (oh *OpenaiHandler) rewriteQueryStateless(text string, options *QueryOption
 	if len(resp.Choices) == 0 {
 		return strings.TrimSpace(text), nil
 	}
-	out := NormalizeRewrittenQuery(resp.Choices[0].Message.Content)
+	out := TrimRewrittenQuery(resp.Choices[0].Message.Content)
 	if out == "" {
 		return strings.TrimSpace(text), nil
 	}

@@ -56,8 +56,8 @@ func staticPayloadCodec(pt uint8) (Codec, bool) {
 	}
 }
 
-// NormalizeBody trims whitespace and collapses line endings to LF so parsing is stable across CRLF/LF peers.
-func NormalizeBody(body string) string {
+// trimSDPBody trims whitespace and collapses line endings to LF so parsing is stable across CRLF/LF peers.
+func trimSDPBody(body string) string {
 	s := strings.TrimSpace(body)
 	s = strings.ReplaceAll(s, "\r\n", "\n")
 	s = strings.ReplaceAll(s, "\r", "\n")
@@ -66,7 +66,7 @@ func NormalizeBody(body string) string {
 
 // Parse extracts connection IP, audio m= port/proto, and codec list from an SDP body.
 func Parse(body string) (*Info, error) {
-	body = NormalizeBody(body)
+	body = trimSDPBody(body)
 	if body == "" {
 		return nil, fmt.Errorf("sip1/sdp: empty body")
 	}

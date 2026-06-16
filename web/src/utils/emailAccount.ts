@@ -5,11 +5,11 @@ export function isPlaceholderEmail(email?: string | null): boolean {
 }
 
 /** 是否可在账号安全页绑定邮箱 */
-export function canBindEmail(email?: string | null, emailVerified?: boolean): boolean {
-  return isPlaceholderEmail(email) || !emailVerified
+export function canBindEmail(email?: string | null): boolean {
+  return isPlaceholderEmail(email)
 }
 
 /** 是否可换绑邮箱 */
-export function canChangeEmail(email?: string | null, emailVerified?: boolean): boolean {
-  return !isPlaceholderEmail(email) && !!emailVerified
+export function canChangeEmail(email?: string | null): boolean {
+  return !isPlaceholderEmail(email)
 }

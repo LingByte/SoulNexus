@@ -25,7 +25,6 @@ type Config struct {
 	APIURL       string // OpenAI base URL, Alibaba AppID, Coze bot JSON or bot id, Ollama base URL
 	Model        string
 	SystemPrompt string
-	MaxTokens    int     // 0 = unlimited (omit in LLM request)
 	Temperature  float32 // 0 = caller should apply default (e.g. 0.7)
 }
 
@@ -192,7 +191,6 @@ func (c *callConn) runTurn(ctx context.Context, userText string) {
 	opts := &llm.QueryOptions{
 		Model:       c.cfg.Model,
 		Temperature: temp,
-		MaxTokens:   c.cfg.MaxTokens,
 	}
 
 	_, err := c.provider.QueryStream(userText, opts, func(piece string, isComplete bool) error {

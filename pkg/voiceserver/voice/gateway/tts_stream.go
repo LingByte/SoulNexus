@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	ttsPrefetchMaxDefault = 3
+	ttsPrefetchMaxDefault = 1
 	ttsPrefetchChanCap    = 64
 )
 
@@ -178,7 +178,6 @@ func (c *Client) enqueueSpeakJob(text, utter string, meta *CommandMeta, gen uint
 	}
 
 	job := ttsJob{text: text, utter: utter, meta: meta, gen: gen}
-	c.startSegmentPrefetch(&job)
 
 	select {
 	case c.ttsQueue <- job:

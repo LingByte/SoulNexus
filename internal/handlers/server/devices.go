@@ -287,7 +287,7 @@ func (h *Handlers) UnbindDevice(c *gin.Context) {
 	}
 
 	// Delete device
-	if err := svcmodels.DeleteDevice(h.db, req.DeviceID); err != nil {
+	if err := h.db.Delete(&svcmodels.Device{}, "id = ?", req.DeviceID).Error; err != nil {
 		logger.Error("Failed to delete device", zap.Error(err))
 		response.Fail(c, "Failed to delete device", nil)
 		return
@@ -347,7 +347,7 @@ func (h *Handlers) UpdateDeviceInfo(c *gin.Context) {
 		device.AutoUpdate = *req.AutoUpdate
 	}
 
-	if err := svcmodels.UpdateDevice(h.db, device); err != nil {
+	if err := h.db.Save(device).Error; err != nil {
 		logger.Error("Failed to update device", zap.Error(err))
 		response.Fail(c, "Failed to update device", nil)
 		return

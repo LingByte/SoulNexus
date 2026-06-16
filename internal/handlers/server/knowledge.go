@@ -72,10 +72,6 @@ func normalizeVec32InPlace(v []float32) {
 	}
 }
 
-func knowledgeProviderForLog(_ *svcmodels.KnowledgeNamespace) string {
-	return config.VectorProviderFromEnv()
-}
-
 var (
 	knowledgeSearchOnce   sync.Once
 	knowledgeSearchEngine search.Engine
@@ -1319,7 +1315,7 @@ func (h *Handlers) knowledgeNamespaceRecallTestHandler(c *gin.Context) {
 
 func (h *Handlers) runKnowledgeUploadJob(ctx context.Context, groupID uint, ns svcmodels.KnowledgeNamespace, docID int64, fileName, fileHash string, content []byte) error {
 	start := time.Now()
-	provider := knowledgeProviderForLog(&ns)
+	provider := config.VectorProviderFromEnv()
 	logger.Info("lingknowledge.upload.job.start",
 		zap.String("provider", provider),
 		zap.Uint("group_id", groupID),

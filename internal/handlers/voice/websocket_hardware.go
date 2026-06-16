@@ -41,7 +41,7 @@ type soulnexusBindingHTTPResp struct {
 // returns false — the listener keeps running so SIP traffic isn't
 // affected by a misconfigured xiaozhi stack.
 func (h *Handlers) mountXiaozhi(r gin.IRoutes) bool {
-	mode := app.NormalizeXiaozhiMode(h.cfg.XiaozhiMode)
+	mode := app.ModeFromConfig(h.cfg.XiaozhiMode)
 	dialogWS := strings.TrimSpace(h.cfg.DialogWS)
 
 	bindingURL := strings.TrimSpace(h.cfg.SoulnexusHardwareBindingURL)
@@ -135,13 +135,10 @@ func (h *Handlers) mountXiaozhi(r gin.IRoutes) bool {
 	return true
 }
 
-// mountSoulnexusHardware registers the legacy SoulNexus ESP32 firmware
-// path. SoulNexus firmware historically opened WebSocket on
-// /api/voice/lingecho/v1/ with Device-Id; this wrapper resolves that
-// device against the SoulNexus binding endpoint and merges the returned
-// dialog credentials into the URL ?payload= before delegating to the
-// xiaozhi adapter. URL paths and the X-Lingecho-Voice-Secret header are
-// preserved for backward compatibility with deployed firmware.
+// mountSoulnexusHardware registers the legacy SoulNexus ESP32 firmware path on cmd/voice.
+// Firmware opens WebSocket on /voice/lingecho/v1/ with Device-Id; this wrapper resolves
+// the device against the SoulNexus binding endpoint and merges credentials into ?payload=
+// before delegating to the xiaozhi adapter.
 func (h *Handlers) mountSoulnexusHardware(r gin.IRoutes) {
 	srv := h.xiaozhiSrv
 	wsPath := "/" + strings.Trim(h.cfg.SoulnexusHardwarePath, "/")

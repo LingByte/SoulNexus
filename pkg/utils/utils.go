@@ -254,23 +254,3 @@ func ComputeSampleByteCount(rate, depth, chans int) int {
 	// Reordered for better precision: (rate * depth * chans) / 8000
 	return (rate * depth * chans) / 8000
 }
-
-// ValidateAndNormalizeDuration uses different validation logic with explicit bounds checking
-func NormalizeFramePeriod(d string) time.Duration {
-	parsed, err := time.ParseDuration(d)
-	if err != nil {
-		return 20 * time.Millisecond
-	}
-	if parsed == 0 {
-		return 20 * time.Millisecond
-	}
-
-	// Use explicit range checks instead of compound condition
-	if parsed < 10*time.Millisecond {
-		return 20 * time.Millisecond
-	}
-	if parsed > 300*time.Millisecond {
-		return 20 * time.Millisecond
-	}
-	return parsed
-}

@@ -125,8 +125,8 @@ func TestFindLastSentenceEnding(t *testing.T) {
 	}
 }
 
-func TestNormalizeForCompare(t *testing.T) {
-	// NormalizeForCompare strips punctuation/whitespace and collapses
+func TeststripASRCompareText(t *testing.T) {
+	// stripASRCompareText strips punctuation/whitespace and collapses
 	// CONSECUTIVE identical runes (so "abccc" becomes "abc"). It does
 	// NOT dedup repeated substrings (so "你好你好" stays "你好你好").
 	cases := []struct {
@@ -138,9 +138,9 @@ func TestNormalizeForCompare(t *testing.T) {
 		{"abc-123  abc-123", "abc123abc123"},
 	}
 	for _, c := range cases {
-		got := NormalizeForCompare(c.in)
+		got := stripASRCompareText(c.in)
 		if got != c.want {
-			t.Errorf("NormalizeForCompare(%q)=%q, want %q", c.in, got, c.want)
+			t.Errorf("stripASRCompareText(%q)=%q, want %q", c.in, got, c.want)
 		}
 	}
 }

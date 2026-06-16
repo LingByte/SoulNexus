@@ -21,7 +21,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// 用户来源（注册 / 创建渠道）
 const (
 	UserSourceSystem = "SYSTEM"
 	UserSourceAdmin  = "ADMIN"
@@ -35,53 +34,6 @@ const (
 	UserStatusSuspended           = "suspended"
 	UserStatusBanned              = "banned"
 )
-
-// NormalizeUserSource 统一为大写合法值，未知则回落为 SYSTEM。
-func NormalizeUserSource(raw string) string {
-	s := strings.TrimSpace(raw)
-	if s == "" {
-		return UserSourceSystem
-	}
-	u := strings.ToUpper(s)
-	switch u {
-	case UserSourceSystem, UserSourceAdmin, UserSourceWechat, UserSourceGithub:
-		return u
-	}
-	switch strings.ToLower(s) {
-	case "system", "web", "email", "password", "signup":
-		return UserSourceSystem
-	case "admin", "后台":
-		return UserSourceAdmin
-	case "wechat", "weixin", "微信":
-		return UserSourceWechat
-	case "github":
-		return UserSourceGithub
-	default:
-		return UserSourceSystem
-	}
-}
-
-// NormalizeUserStatus 校验并规范化状态字符串。
-func NormalizeUserStatus(raw string) string {
-	s := strings.TrimSpace(strings.ToLower(raw))
-	switch s {
-	case "", UserStatusActive:
-		return UserStatusActive
-	case UserStatusPendingVerification:
-		return UserStatusPendingVerification
-	case UserStatusSuspended:
-		return UserStatusSuspended
-	case UserStatusBanned:
-		return UserStatusBanned
-	default:
-		return ""
-	}
-}
-
-// UserStatusAllowsLogin 是否允许登录（仅正常态）。
-func UserStatusAllowsLogin(status string) bool {
-	return strings.EqualFold(strings.TrimSpace(status), UserStatusActive)
-}
 
 type SendEmailVerifyEmail struct {
 	Email     string `json:"email"`
@@ -172,16 +124,6 @@ type UpdateUserRequest struct {
 	Region      string `form:"region" json:"region"`
 	Extra       string `form:"extra" json:"extra"`
 	Avatar      string `form:"avatar" json:"avatar"`
-}
-
-// NormalizeThemeMode returns light|dark|system or empty if invalid.
-func NormalizeThemeMode(s string) string {
-	switch strings.ToLower(strings.TrimSpace(s)) {
-	case "light", "dark", "system":
-		return strings.ToLower(strings.TrimSpace(s))
-	default:
-		return ""
-	}
 }
 
 // User is the authentication and account row (users table). Presentation, prefs,
@@ -293,12 +235,6 @@ func Logout(c *gin.Context, user *User) {
 }
 
 func AuthRequired(c *gin.Context) {
-	// 检查配置是否存在
-	if config.GlobalConfig == nil {
-		response.AbortWithJSONError(c, http.StatusInternalServerError, errors.New("server configuration not initialized"))
-		return
-	}
-
 	token := c.GetHeader(config.GlobalConfig.Auth.Header)
 	if token == "" {
 		token = c.Query("token")
@@ -313,51 +249,17 @@ func AuthRequired(c *gin.Context) {
 	setUserFromJWT(c, token)
 }
 
-// authPathExemptWhileAccountDeletionPending 冷静期内仍允许访问的认证接口（获取信息、撤销注销）。
-func authPathExemptWhileAccountDeletionPending(c *gin.Context) bool {
-	method := c.Request.Method
-	path := c.Request.URL.Path
-	if method == http.MethodGet && strings.Contains(path, "/auth/info") {
-		return true
-	}
-	if method == http.MethodGet && strings.Contains(path, "/account-deletion/eligibility") {
-		return true
-	}
-	// 勿用 Contains("/cancel")，否则会误匹配 cancel-by-email
-	if method == http.MethodPost && strings.HasSuffix(path, "/account-deletion/cancel") {
-		return true
-	}
-	return false
-}
-
 func CurrentUser(c *gin.Context) *User {
 	if cachedObj, exists := c.Get(constants.UserField); exists && cachedObj != nil {
 		return cachedObj.(*User)
 	}
-	// JWT auth stores a minimal user object in context; we intentionally do not
-	// resolve sessions or hit the database on every request.
 	return nil
 }
 
-func scopeUserWithProfile(db *gorm.DB) *gorm.DB {
-	return db.Joins("Profile")
-}
-
-func GetUserByUID(db *gorm.DB, userID uint) (*User, error) {
-	var val User
-	tbl := constants.USER_TABLE_NAME
-	err := scopeUserWithProfile(db).Where(tbl+".id = ? AND "+tbl+".status = ? AND "+tbl+".is_deleted = ?", userID, UserStatusActive, models.SoftDeleteStatusActive).First(&val).Error
-	if err != nil {
-		return nil, err
-	}
-	return &val, nil
-}
-
-// GetUserByID loads a user by ID for profile/auth responses (any status, not deleted).
 func GetUserByID(db *gorm.DB, userID uint) (*User, error) {
 	var u User
 	tbl := constants.USER_TABLE_NAME
-	err := scopeUserWithProfile(db).Where(tbl+".id = ? AND "+tbl+".is_deleted = ?", userID, models.SoftDeleteStatusActive).First(&u).Error
+	err := db.Joins("Profile").Where(tbl+".id = ? AND "+tbl+".is_deleted = ?", userID, models.SoftDeleteStatusActive).First(&u).Error
 	if err != nil {
 		return nil, err
 	}
@@ -367,7 +269,7 @@ func GetUserByID(db *gorm.DB, userID uint) (*User, error) {
 func GetUserByEmail(db *gorm.DB, email string) (user *User, err error) {
 	var val User
 	tbl := constants.USER_TABLE_NAME
-	result := scopeUserWithProfile(db).Where(tbl+".email = ?", strings.ToLower(email)).Take(&val)
+	result := db.Joins("Profile").Where(tbl+".email = ?", strings.ToLower(email)).Take(&val)
 
 	if result.Error != nil {
 		return nil, result.Error
@@ -424,16 +326,11 @@ func GetUserByAPIKey(c *gin.Context, apiKey, apiSecret string) (*User, error) {
 	return &u, nil
 }
 
-func CreateUserByEmail(db *gorm.DB, username, display, email, password string) (*User, error) {
-	return CreateUserByEmailWithMeta(db, username, display, email, password, UserSourceSystem, UserStatusActive)
-}
-
-// CreateUserByEmailWithMeta 创建用户并写入来源与账号状态。
 func CreateUserByEmailWithMeta(db *gorm.DB, username, display, email, password, source, status string) (*User, error) {
-	source = NormalizeUserSource(source)
-	if st := NormalizeUserStatus(status); st != "" {
-		status = st
-	} else {
+	if strings.TrimSpace(source) == "" {
+		source = UserSourceSystem
+	}
+	if strings.TrimSpace(status) == "" {
 		status = UserStatusActive
 	}
 	// Properly handle Unicode characters (including Chinese)
@@ -484,16 +381,11 @@ func CreateUserByEmailWithMeta(db *gorm.DB, username, display, email, password, 
 	return &user, nil
 }
 
-func CreateUser(db *gorm.DB, email, password string) (*User, error) {
-	return CreateUserWithMeta(db, email, password, UserSourceSystem, UserStatusActive)
-}
-
-// CreateUserWithMeta 使用邮箱+密码创建用户（如网页注册），可指定来源与状态。
 func CreateUserWithMeta(db *gorm.DB, email, password, source, status string) (*User, error) {
-	source = NormalizeUserSource(source)
-	if st := NormalizeUserStatus(status); st != "" {
-		status = st
-	} else {
+	if strings.TrimSpace(source) == "" {
+		source = UserSourceSystem
+	}
+	if strings.TrimSpace(status) == "" {
 		status = UserStatusActive
 	}
 	user := User{
@@ -550,7 +442,7 @@ func CheckUserAllowLogin(db *gorm.DB, user *User) error {
 	if user == nil {
 		return errors.New("user not allow login")
 	}
-	if !UserStatusAllowsLogin(user.Status) {
+	if user.Status != UserStatusActive {
 		return errors.New("user not allow login")
 	}
 
@@ -675,48 +567,6 @@ func VerifyPasswordResetToken(db *gorm.DB, token string) (*User, error) {
 	return &user, nil
 }
 
-// GenerateEmailVerifyToken 生成邮箱验证令牌
-func GenerateEmailVerifyToken(db *gorm.DB, user *User) (string, error) {
-	token := utils.RandString(32)
-	expires := time.Now().Add(24 * time.Hour) // 24小时过期
-
-	err := UpdateUserFields(db, user, map[string]any{
-		"EmailVerifyToken":   token,
-		"EmailVerifyExpires": &expires,
-	})
-	if err != nil {
-		return "", err
-	}
-
-	user.EmailVerifyToken = token
-	user.EmailVerifyExpires = &expires
-	return token, nil
-}
-
-// VerifyEmail 验证邮箱
-func VerifyEmail(db *gorm.DB, token string) (*User, error) {
-	var user User
-	err := db.Where("email_verify_token = ? AND email_verify_expires > ?", token, time.Now()).First(&user).Error
-	if err != nil {
-		return nil, errors.New("无效或过期的邮箱验证令牌")
-	}
-
-	// 更新邮箱验证状态
-	err = UpdateUserFields(db, &user, map[string]any{
-		"EmailVerified":      true,
-		"EmailVerifyToken":   "",
-		"EmailVerifyExpires": nil,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	user.EmailVerified = true
-	user.EmailVerifyToken = ""
-	user.EmailVerifyExpires = nil
-	return &user, nil
-}
-
 // GeneratePhoneVerifyToken 生成手机验证令牌
 func GeneratePhoneVerifyToken(db *gorm.DB, user *User) (string, error) {
 	token := utils.RandNumberText(6) // 6位数字验证码
@@ -832,15 +682,12 @@ func CalculateProfileComplete(user *User) int {
 		complete++
 	}
 
-	// 联系方式 (30%)
-	total += 3
-	if user.Email != "" {
+	// 联系方式 (20%)
+	total += 2
+	if user.Email != "" && !IsPlaceholderEmail(user.Email) {
 		complete++
 	}
 	if strings.TrimSpace(user.Phone) != "" {
-		complete++
-	}
-	if user.EmailVerified {
 		complete++
 	}
 

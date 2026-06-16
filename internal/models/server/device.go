@@ -243,11 +243,6 @@ func CreateDevice(db *gorm.DB, device *Device) error {
 	return nil
 }
 
-// UpdateDevice updates device information
-func UpdateDevice(db *gorm.DB, device *Device) error {
-	return db.Save(device).Error
-}
-
 // GetDeviceByID gets device by ID
 func GetDeviceByID(db *gorm.DB, id string) (*Device, error) {
 	var device Device
@@ -256,11 +251,6 @@ func GetDeviceByID(db *gorm.DB, id string) (*Device, error) {
 		return nil, err
 	}
 	return &device, nil
-}
-
-// DeleteDevice deletes a device
-func DeleteDevice(db *gorm.DB, id string) error {
-	return db.Delete(&Device{}, "id = ?", id).Error
 }
 
 // GetUserDevices lists devices in every organization the user belongs to.

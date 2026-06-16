@@ -15,7 +15,7 @@ import FadeIn from '../components/FadeIn.tsx'
 import LoadingAnimation from '../components/LoadingAnimation.tsx'
 import { showAlert } from '../utils/notification'
 import { getProfile, updateProfile, updatePreferences, changePassword, changePasswordByEmail, uploadAvatar, setupTwoFactor, enableTwoFactor, disableTwoFactor, getUserDevices, deleteUserDevice, trustUserDevice, untrustUserDevice, bindEmail, changeEmail, sendCurrentEmailCode, TwoFactorSetupResponse, UserDevice } from '../api/profile'
-import { sendEmailCode, sendEmailVerification } from '../api/auth'
+import { sendEmailCode } from '../api/auth'
 import { canBindEmail, canChangeEmail, isPlaceholderEmail } from '@/utils/emailAccount'
 import Modal from '../components/UI/Modal'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -110,8 +110,6 @@ const Profile = () => {
     type: 'warning'
   })
   
-  // 邮箱验证相关状态
-  const [isSendingEmailVerification, setIsSendingEmailVerification] = useState(false)
   const [isWechatBinding, setIsWechatBinding] = useState(false)
   const [wechatBindCode, setWechatBindCode] = useState('')
   const [wechatBindExpiresAt, setWechatBindExpiresAt] = useState<number>(0)
@@ -521,32 +519,6 @@ const Profile = () => {
       showAlert(error?.msg || error?.message || '发送验证码失败', 'error', '操作失败')
     } finally {
       setIsSendingCode(false)
-    }
-  }
-
-  const handleSendEmailVerification = async () => {
-    if (!user?.email) {
-      showAlert('邮箱地址不存在', 'error', '操作失败')
-      return
-    }
-
-    if (user.emailVerified) {
-      showAlert('邮箱已经验证过了', 'info', '提示')
-      return
-    }
-
-    setIsSendingEmailVerification(true)
-    try {
-      const response = await sendEmailVerification()
-      if (response.code === 200) {
-        showAlert('验证邮件已发送到您的邮箱，请查收并点击邮件中的链接完成验证', 'success', '发送成功')
-      } else {
-        throw new Error(response.msg || '发送验证邮件失败')
-      }
-    } catch (error: any) {
-      showAlert(error?.msg || error?.message || '发送验证邮件失败', 'error', '操作失败')
-    } finally {
-      setIsSendingEmailVerification(false)
     }
   }
 
@@ -1247,10 +1219,7 @@ const Profile = () => {
                           </p>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
-                          <Badge variant={user?.emailVerified && !isPlaceholderEmail(user?.email) ? 'success' : 'warning'} className="text-xs">
-                            {user?.emailVerified && !isPlaceholderEmail(user?.email) ? '已验证' : '未验证'}
-                          </Badge>
-                          {canBindEmail(user?.email, user?.emailVerified) && (
+                          {canBindEmail(user?.email) && (
                             <button
                               type="button"
                               onClick={() => {
@@ -1262,7 +1231,7 @@ const Profile = () => {
                               绑定邮箱
                             </button>
                           )}
-                          {canChangeEmail(user?.email, user?.emailVerified) && (
+                          {canChangeEmail(user?.email) && (
                             <button
                               type="button"
                               onClick={() => {
@@ -1272,16 +1241,6 @@ const Profile = () => {
                               className="text-xs font-medium text-sky-600 underline decoration-sky-600/40 underline-offset-2 hover:text-sky-700 dark:text-sky-400"
                             >
                               换绑邮箱
-                            </button>
-                          )}
-                          {!user?.emailVerified && !isPlaceholderEmail(user?.email) && (
-                            <button
-                              type="button"
-                              onClick={handleSendEmailVerification}
-                              disabled={isSendingEmailVerification}
-                              className="text-xs font-medium text-sky-600 underline decoration-sky-600/40 underline-offset-2 hover:text-sky-700 disabled:opacity-50 dark:text-sky-400"
-                            >
-                              {isSendingEmailVerification ? '发送中...' : '验证邮箱'}
                             </button>
                           )}
                         </div>

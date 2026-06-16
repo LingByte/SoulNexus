@@ -87,45 +87,6 @@ func InitUserListeners() {
 		go logUserEvent(user, "user_logout", "User logout")
 	})
 
-	// User email verification
-	utils.Sig().Connect(constants.SigUserVerifyEmail, func(sender any, params ...any) {
-		logger.Info("SigUserVerifyEmail signal received")
-		if len(params) < 4 {
-			logger.Warn("SigUserVerifyEmail: insufficient parameters", zap.Int("paramCount", len(params)))
-			return
-		}
-		user, ok := sender.(*auth.User)
-		if !ok {
-			logger.Warn("SigUserVerifyEmail: invalid user type")
-			return
-		}
-		hash, ok := params[0].(string)
-		if !ok {
-			logger.Warn("SigUserVerifyEmail: invalid hash type")
-			return
-		}
-		clientIp, ok := params[1].(string)
-		if !ok {
-			logger.Warn("SigUserVerifyEmail: invalid clientIp type")
-			return
-		}
-		userAgent, ok := params[2].(string)
-		if !ok {
-			logger.Warn("SigUserVerifyEmail: invalid userAgent type")
-			return
-		}
-		db, ok := params[3].(*gorm.DB)
-		if !ok {
-			logger.Warn("SigUserVerifyEmail: invalid db type")
-			return
-		}
-
-		logger.Info("Sending email verification", zap.Uint("userId", user.ID), zap.String("email", user.Email))
-
-		// Send email verification
-		go sendEmailVerification(user, hash, clientIp, userAgent, db)
-	})
-
 	// User password reset
 	utils.Sig().Connect(constants.SigUserResetPassword, func(sender any, params ...any) {
 		if len(params) < 5 {
@@ -205,34 +166,6 @@ func sendWelcomeEmail(user *auth.User, db *gorm.DB) {
 		} else {
 			logger.Info("Welcome email sent successfully", zap.String("email", user.Email))
 		}
-	}
-}
-
-// sendEmailVerification sends email verification
-func sendEmailVerification(user *auth.User, hash, clientIp, userAgent string, db *gorm.DB) {
-	logger.Info("Starting email verification process",
-		zap.String("email", user.Email),
-		zap.String("hash", hash))
-
-	// Get site URL
-	siteURL := utils.GetValue(db, constants.KEY_SITE_URL)
-	if siteURL == "" {
-		siteURL = "http://localhost:3000" // Default value
-	}
-
-	// Build verification URL
-	verifyUrl := siteURL + "/verify-email?token=" + hash
-
-	logger.Info("Preparing to send email verification",
-		zap.String("email", user.Email),
-		zap.String("verifyUrl", verifyUrl))
-
-	mailer := notification.NewMailer(db, 0, user.ID, "")
-	err := mailer.SendVerificationEmail(user.Email, user.EffectiveDisplayName(), verifyUrl)
-	if err != nil {
-		logger.Error("Failed to send email verification", zap.Error(err), zap.String("email", user.Email))
-	} else {
-		logger.Info("Email verification sent successfully", zap.String("email", user.Email), zap.String("verifyUrl", verifyUrl))
 	}
 }
 
