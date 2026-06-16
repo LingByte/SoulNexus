@@ -6,7 +6,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -14,6 +13,7 @@ import (
 	"github.com/LingByte/SoulNexus/internal/models/auth"
 	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"github.com/LingByte/SoulNexus/pkg/logger"
+	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/LingByte/lingllm/recognizer"
 	"github.com/LingByte/lingllm/synthesizer"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/sessionctx"
@@ -174,8 +174,12 @@ func buildSynthesisServiceFromDialog(ctx context.Context, db *gorm.DB, spec *ses
 	}
 
 	if voiceCloneID != nil && *voiceCloneID > 0 {
-		if svc, err := buildVoiceCloneSynthesis(db, cred, int64(*voiceCloneID), log); err == nil && svc != nil {
-			return svc, 16000, nil
+		if svc, err := buildVoiceCloneSynthesis(db, int64(*voiceCloneID), log); err == nil && svc != nil {
+			sr := 16000
+			if v := utils.GetIntEnv("VOLCENGINE_CLONE_SAMPLE_RATE"); v > 0 {
+				sr = int(v)
+			}
+			return svc, sr, nil
 		} else if err != nil {
 			log.Warn("agent tts: voice clone failed, using credential TTS", zap.Int("voiceCloneId", *voiceCloneID), zap.Error(err))
 		}
@@ -206,36 +210,26 @@ func buildSynthesisServiceFromDialog(ctx context.Context, db *gorm.DB, spec *ses
 	return svc, 16000, nil
 }
 
-func buildVoiceCloneSynthesis(db *gorm.DB, cred *auth.UserCredential, voiceCloneID int64, log *zap.Logger) (synthesizer.AudioSynthesisEngine, error) {
+func buildVoiceCloneSynthesis(db *gorm.DB, voiceCloneID int64, log *zap.Logger) (synthesizer.AudioSynthesisEngine, error) {
 	voiceClone, err := svcmodels.GetVoiceCloneByID(db, voiceCloneID)
 	if err != nil || voiceClone == nil {
 		return nil, fmt.Errorf("voice clone %d: %w", voiceCloneID, err)
 	}
+	if strings.TrimSpace(voiceClone.AssetID) == "" {
+		return nil, fmt.Errorf("voice clone %d: asset not trained", voiceCloneID)
+	}
+	if strings.ToLower(strings.TrimSpace(voiceClone.Provider)) != "volcengine" {
+		return nil, fmt.Errorf("voice clone %d: provider %s not supported on voice plane", voiceCloneID, voiceClone.Provider)
+	}
 
-	appID := ""
-	if cred.TtsConfig != nil {
-		if v, ok := cred.TtsConfig["appId"].(string); ok {
-			appID = v
-		}
-	}
-	token := cred.LLMApiKey
-	cluster := os.Getenv("VOLCENGINE_CLONE_CLUSTER")
-	if cluster == "" {
-		cluster = "volcano_icl"
-	}
-	engine, err := synthesizer.NewVolcengineCloneEngine(synthesizer.VolcengineCloneOption{
-		AppID:       appID,
-		AccessToken: token,
-		Cluster:     cluster,
-		AssetID:     voiceClone.AssetID,
-		Rate:        16000,
-		SourceRate:  24000,
-		Streaming:   true,
-	})
+	engine, err := voicetts.NewVolcengineCloneEngineFromEnv(voiceClone.AssetID)
 	if err != nil {
 		return nil, err
 	}
-	log.Info("[agent-tts] using volcengine voice clone", zap.Int64("id", voiceCloneID), zap.String("assetID", voiceClone.AssetID))
+	log.Info("[agent-tts] using volcengine voice clone (env credentials)",
+		zap.Int64("id", voiceCloneID),
+		zap.String("assetID", voiceClone.AssetID),
+	)
 	return engine, nil
 }
 

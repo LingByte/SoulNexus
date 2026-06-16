@@ -28,6 +28,7 @@ import {
     getAudioStatus,
     type VoiceClone,
 } from '@/api/assistant'
+import type { Assistant as ApiAssistant } from '@/api/assistant'
 import {
     getChatSessionLogDetail,
     getChatSessionLogsBySession,
@@ -101,6 +102,11 @@ const VoiceAssistant = () => {
     const lastASRTextRef = useRef<string>('') // 上次已处理的ASR文本（用于去重）
     const lastLLMResponseRef = useRef<string>('') // 上次已处理的LLM回复（用于去重）
     const lastSelectedAgentRef = useRef<number | null>(null) // 防止重复选择同一个助手
+    const settingsDirtyRef = useRef(false) // 用户正在编辑配置面板时，避免被异步加载覆盖
+    const agentTtsProviderFromDbRef = useRef(false) // 助手已配置 TTS 平台时，不用凭证覆盖
+
+    const NATURAL_SYSTEM_PROMPT_HINT =
+        '你是一个亲切、自然的语音助手。用口语化短句交流，先听懂用户意图再回答；适当用语气词，避免书面语和列表式回复。'
 
     // 引用DOM元素用于引导动画
     const voiceBallRef = useRef<HTMLDivElement>(null)
@@ -159,9 +165,12 @@ const VoiceAssistant = () => {
         }
     }, [apiSecret])
 
-    // 根据API密钥查找对应的凭证，获取TTS Provider
+    // 根据API密钥查找对应的凭证，获取TTS Provider（助手已配置的平台优先）
     useEffect(() => {
         const fetchTTSProvider = async () => {
+            if (agentTtsProviderFromDbRef.current) {
+                return
+            }
             if (!apiKey || !apiSecret) {
                 setTtsProvider(undefined)
                 return
@@ -170,10 +179,8 @@ const VoiceAssistant = () => {
             try {
                 const response = await getCredentialByKey(apiKey, apiSecret)
                 if (response.code === 200 && response.data) {
-                    // 直接使用返回的 ttsProvider
                     setTtsProvider(response.data.ttsProvider?.toLowerCase() || 'tencent')
                 } else {
-                    // 未找到匹配的凭证
                     setTtsProvider(undefined)
                 }
             } catch (error) {
@@ -188,7 +195,7 @@ const VoiceAssistant = () => {
     const [selectedSpeaker, setSelectedSpeaker] = useState('101016')
     const [systemPrompt, setSystemPrompt] = useState('')
     const [temperature, setTemperature] = useState(0.6)
-    const [maxTokens, setMaxTokens] = useState(150)
+    const [maxTokens, setMaxTokens] = useState(512)
     const [llmModel, setLlmModel] = useState('')
     const [jsSourceIdState, setJsSourceIdState] = useState('')
 
@@ -217,31 +224,83 @@ const VoiceAssistant = () => {
     // 获取选中助手的 jsSourceId
     const jsSourceId = (assistants ?? []).find(a => a.id === agentId)?.jsSourceId || ''
 
-    // 当选中助手变化时，更新基础配置
+    // 将服务端助手详情写入本地状态（切换助手时强制覆盖；同助手异步回包时若用户已在编辑则跳过）
+    const applyAgentDetail = (detail: ApiAssistant, forAgentId: number, force = false) => {
+        if (!force) {
+            if (forAgentId !== agentId) {
+                return
+            }
+            if (settingsDirtyRef.current) {
+                return
+            }
+        }
+
+        setSystemPrompt(detail.systemPrompt ?? '')
+        setSelectedSpeaker(
+            detail.speaker !== undefined && detail.speaker !== null && detail.speaker !== ''
+                ? detail.speaker
+                : '101016',
+        )
+        setLanguage(
+            detail.language !== undefined && detail.language !== null && detail.language !== ''
+                ? detail.language
+                : 'zh-cn',
+        )
+        setTemperature(detail.temperature ?? 0.75)
+        setLlmModel(detail.llmModel ?? '')
+        setMaxTokens(detail.maxTokens && detail.maxTokens > 0 ? detail.maxTokens : 512)
+        if (detail.voiceCloneId !== null && detail.voiceCloneId !== undefined) {
+            setSelectedVoiceCloneId(detail.voiceCloneId)
+        } else {
+            setSelectedVoiceCloneId(null)
+        }
+        setApiKey(detail.apiKey ?? '')
+        setApiSecret(detail.apiSecret ?? '')
+        if (detail.ttsProvider) {
+            agentTtsProviderFromDbRef.current = true
+            setTtsProvider(detail.ttsProvider)
+        } else {
+            agentTtsProviderFromDbRef.current = false
+            setTtsProvider(undefined)
+        }
+        setAssistantName(detail.name ?? '')
+        setEnableVAD(detail.enableVAD !== undefined ? detail.enableVAD : true)
+        setVadThreshold(detail.vadThreshold ?? 500)
+        setVadConsecutiveFrames(detail.vadConsecutiveFrames ?? 2)
+        setEnableJSONOutput(detail.enableJSONOutput !== undefined ? detail.enableJSONOutput : false)
+        setJsSourceIdState(detail.jsSourceId ?? '')
+    }
+
+    const markSettingsDirty = () => {
+        settingsDirtyRef.current = true
+    }
+
+    // 当选中助手变化时，同步列表中的基础字段（不覆盖用户正在编辑的通话/提示词配置）
     useEffect(() => {
+        if (settingsDirtyRef.current || !isControlPanelCollapsed) {
+            return
+        }
         if (agentId && (assistants ?? []).length > 0) {
             const currentAssistant = (assistants ?? []).find(a => a.id === agentId)
             if (currentAssistant) {
-                // 同步助手基础配置（包括图记忆开关和VAD配置）
                 setAssistantName(currentAssistant.name || '')
-                // 同步 VAD 配置
-                if ((currentAssistant as any).enableVAD !== undefined) {
-                    setEnableVAD((currentAssistant as any).enableVAD)
+                const ext = currentAssistant as ApiAssistant
+                if (ext.enableVAD !== undefined) {
+                    setEnableVAD(ext.enableVAD)
                 }
-                if ((currentAssistant as any).vadThreshold !== undefined) {
-                    setVadThreshold((currentAssistant as any).vadThreshold)
+                if (ext.vadThreshold !== undefined) {
+                    setVadThreshold(ext.vadThreshold)
                 }
-                if ((currentAssistant as any).vadConsecutiveFrames !== undefined) {
-                    setVadConsecutiveFrames((currentAssistant as any).vadConsecutiveFrames)
+                if (ext.vadConsecutiveFrames !== undefined) {
+                    setVadConsecutiveFrames(ext.vadConsecutiveFrames)
                 }
-                // 同步 JSON 输出配置
-                if ((currentAssistant as any).enableJSONOutput !== undefined) {
-                    setEnableJSONOutput((currentAssistant as any).enableJSONOutput)
-                    setJsSourceIdState((currentAssistant as any).jsSourceId || '')
+                if (ext.enableJSONOutput !== undefined) {
+                    setEnableJSONOutput(ext.enableJSONOutput)
+                    setJsSourceIdState(ext.jsSourceId || '')
                 }
             }
         }
-    }, [agentId, assistants])
+    }, [agentId, assistants, isControlPanelCollapsed])
 
     // 状态管理中新增
     const [ttsProvider, setTtsProvider] = useState<string | undefined>(undefined)
@@ -1222,26 +1281,7 @@ const VoiceAssistant = () => {
                             .then((response) => {
                                 const detail = response.data
                                 if (!detail) return
-                                setSystemPrompt(detail.systemPrompt ?? '')
-                                setSelectedSpeaker(detail.speaker !== undefined && detail.speaker !== null && detail.speaker !== '' ? detail.speaker : '101016')
-                                setLanguage(detail.language !== undefined && detail.language !== null && detail.language !== '' ? detail.language : 'zh-cn')
-                                setTemperature(detail.temperature ?? 0.6)
-                                setLlmModel(detail.llmModel ?? '')
-                                setMaxTokens(detail.maxTokens ?? 150)
-                                if (detail.voiceCloneId !== null && detail.voiceCloneId !== undefined) {
-                                    setSelectedVoiceCloneId(detail.voiceCloneId)
-                                } else {
-                                    setSelectedVoiceCloneId(null)
-                                }
-                                setApiKey(detail.apiKey ?? '')
-                                setApiSecret(detail.apiSecret ?? '')
-                                setTtsProvider(detail.ttsProvider ?? undefined)
-                                setAssistantName(detail.name ?? '')
-                                setEnableVAD(detail.enableVAD !== undefined ? detail.enableVAD : true)
-                                setVadThreshold(detail.vadThreshold ?? 500)
-                                setVadConsecutiveFrames(detail.vadConsecutiveFrames ?? 2)
-                                setEnableJSONOutput(detail.enableJSONOutput !== undefined ? detail.enableJSONOutput : false)
-                                setJsSourceIdState(detail.jsSourceId ?? '')
+                                applyAgentDetail(detail, agentId)
                             })
                             .catch((err) => {
                                 console.warn('加载助手配置失败:', err)
@@ -1525,47 +1565,23 @@ const VoiceAssistant = () => {
     }
 
     // 切换助手
-    const handleSelectAgent = async (agentId: number) => {
+    const handleSelectAgent = async (selectedId: number) => {
         if (isCalling || isConnecting) {
-            setPendingAgent(agentId)
+            setPendingAgent(selectedId)
             setShowConfirmModal(true)
             return
         }
 
+        settingsDirtyRef.current = false
+        agentTtsProviderFromDbRef.current = false
+
         try {
-            const response = await getAssistant(agentId)
+            const response = await getAssistant(selectedId)
             const detail = response.data
 
             if (detail) {
-                // 使用 ?? 来判断，确保空字符串也能正确赋值
-                setSystemPrompt(detail.systemPrompt ?? '')
-                setSelectedSpeaker(detail.speaker !== undefined && detail.speaker !== null && detail.speaker !== '' ? detail.speaker : '101016')
-                setLanguage(detail.language !== undefined && detail.language !== null && detail.language !== '' ? detail.language : 'zh-cn')
-                setTemperature(detail.temperature ?? 0.6)
-                setLlmModel(detail.llmModel ?? '')
-                setMaxTokens(detail.maxTokens ?? 150)
-                // 加载训练音色配置（从后端读取，不自动选择）
-                if (detail.voiceCloneId !== null && detail.voiceCloneId !== undefined) {
-                    setSelectedVoiceCloneId(detail.voiceCloneId)
-                } else {
-                    setSelectedVoiceCloneId(null)
-                }
-                // 加载API密钥配置（即使为空字符串也要设置）
-                setApiKey(detail.apiKey ?? '')
-                setApiSecret(detail.apiSecret ?? '')
-                // 加载TTS提供商（即使为空字符串也要设置）
-                setTtsProvider(detail.ttsProvider ?? undefined)
-                // 加载助手基本信息
-                setAssistantName(detail.name ?? '')
-                // 加载 VAD 配置
-                setEnableVAD(detail.enableVAD !== undefined ? detail.enableVAD : true)
-                setVadThreshold(detail.vadThreshold ?? 500)
-                setVadConsecutiveFrames(detail.vadConsecutiveFrames ?? 2)
-                // 加载 JSON 输出配置
-                setEnableJSONOutput(detail.enableJSONOutput !== undefined ? detail.enableJSONOutput : false)
-                setJsSourceIdState(detail.jsSourceId ?? '')
-
-                await refreshChatHistory(agentId)
+                applyAgentDetail(detail, selectedId, true)
+                await refreshChatHistory(selectedId)
             }
         } catch (err: any) {
             console.error('获取助手详情失败:', err)
@@ -1617,21 +1633,18 @@ const VoiceAssistant = () => {
 
     // 保存设置（带防抖）
     const handleSaveSettings = async () => {
-        // 清除之前的防抖定时器
         if (saveSettingsTimeoutRef.current) {
             clearTimeout(saveSettingsTimeoutRef.current)
         }
 
-        // 设置新的防抖定时器（500ms）
         saveSettingsTimeoutRef.current = setTimeout(async () => {
             try {
                 setIsSavingSettings(true)
 
-                // 合并两个请求为一个
                 const response = await updateAssistant(agentId, {
                     name: assistantName,
                     systemPrompt,
-                    persona_tag: (assistants ?? []).find(a => a.id === agentId)?.name || '',
+                    persona_tag: ((assistants ?? []).find(a => a.id === agentId) as ApiAssistant | undefined)?.personaTag || '',
                     temperature: temperature,
                     maxTokens: maxTokens,
                     language,
@@ -1648,12 +1661,14 @@ const VoiceAssistant = () => {
                     jsSourceId: jsSourceIdState || '',
                 })
 
-                // 使用返回的助手数据更新列表，避免额外的GET请求
                 if (response.code === 200 && response.data) {
-                    setAssistants((assistants ?? []).map(a => a.id === agentId ? response.data : a))
+                    settingsDirtyRef.current = false
+                    applyAgentDetail(response.data, agentId, true)
+                    setAssistants((assistants ?? []).map(a => a.id === agentId ? response.data! : a))
+                    showAlert('设置保存成功。语音通话需挂断后重新连接才会使用新提示词。', 'success')
+                } else {
+                    showAlert('设置保存成功', 'success')
                 }
-
-                showAlert('设置保存成功', 'success')
             } catch (err: any) {
                 console.error('保存设置失败:', err)
 
@@ -1869,6 +1884,7 @@ const VoiceAssistant = () => {
                     onCancel={() => setIsControlPanelCollapsed(true)}
                     footer={null}
                     placement="right"
+                    unmountOnExit={false}
                 >
                     <div
                         ref={controlPanelRef}
@@ -1879,8 +1895,8 @@ const VoiceAssistant = () => {
                                 <ControlPanel
                                     apiKey={apiKey}
                                     apiSecret={apiSecret}
-                                    onApiKeyChange={setApiKey}
-                                    onApiSecretChange={setApiSecret}
+                                    onApiKeyChange={(v) => { markSettingsDirty(); setApiKey(v) }}
+                                    onApiSecretChange={(v) => { markSettingsDirty(); setApiSecret(v) }}
                                     ttsProvider={ttsProvider}
                                     selectedSpeaker={selectedSpeaker}
                                     systemPrompt={systemPrompt}
@@ -1888,22 +1904,22 @@ const VoiceAssistant = () => {
                                     maxTokens={maxTokens}
                                     llmModel={llmModel}
                                     jsSourceId={jsSourceIdState}
-                                    onSpeakerChange={setSelectedSpeaker}
-                                    onSystemPromptChange={setSystemPrompt}
-                                    onTemperatureChange={setTemperature}
-                                    onMaxTokensChange={setMaxTokens}
-                                    onLlmModelChange={setLlmModel}
-                                    onJsSourceIdChange={setJsSourceIdState}
+                                    onSpeakerChange={(v) => { markSettingsDirty(); setSelectedSpeaker(v) }}
+                                    onSystemPromptChange={(v) => { markSettingsDirty(); setSystemPrompt(v) }}
+                                    onTemperatureChange={(v) => { markSettingsDirty(); setTemperature(v) }}
+                                    onMaxTokensChange={(v) => { markSettingsDirty(); setMaxTokens(v) }}
+                                    onLlmModelChange={(v) => { markSettingsDirty(); setLlmModel(v) }}
+                                    onJsSourceIdChange={(v) => { markSettingsDirty(); setJsSourceIdState(v) }}
                                     assistantName={assistantName}
-                                    onAssistantNameChange={setAssistantName}
+                                    onAssistantNameChange={(v) => { markSettingsDirty(); setAssistantName(v) }}
                                     enableVAD={enableVAD}
                                     vadThreshold={vadThreshold}
                                     vadConsecutiveFrames={vadConsecutiveFrames}
-                                    onEnableVADChange={setEnableVAD}
-                                    onVADThresholdChange={setVadThreshold}
-                                    onVADConsecutiveFramesChange={setVadConsecutiveFrames}
+                                    onEnableVADChange={(v) => { markSettingsDirty(); setEnableVAD(v) }}
+                                    onVADThresholdChange={(v) => { markSettingsDirty(); setVadThreshold(v) }}
+                                    onVADConsecutiveFramesChange={(v) => { markSettingsDirty(); setVadConsecutiveFrames(v) }}
                                     enableJSONOutput={enableJSONOutput}
-                                    onEnableJSONOutputChange={setEnableJSONOutput}
+                                    onEnableJSONOutputChange={(v) => { markSettingsDirty(); setEnableJSONOutput(v) }}
                                     onSaveSettings={handleSaveSettings}
                                     isSavingSettings={isSavingSettings}
                                     onDeleteAssistant={() => setShowDeleteConfirm(true)}
@@ -1926,6 +1942,11 @@ const VoiceAssistant = () => {
                                         }
                                     }}
                                     onNavigateToVoiceTraining={() => navigate('/voice-training')}
+                                    naturalPromptExample={NATURAL_SYSTEM_PROMPT_HINT}
+                                    onApplyNaturalPrompt={() => {
+                                        markSettingsDirty()
+                                        setSystemPrompt(NATURAL_SYSTEM_PROMPT_HINT)
+                                    }}
                                 />
                                 {showOnboarding && highlightedElement === 'control-panel' && (
                                     <GuideTooltip
