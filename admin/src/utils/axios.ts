@@ -20,10 +20,8 @@ axiosInstance.interceptors.request.use(
     const token = localStorage.getItem('auth_token')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
-    } else {
-      // 测试模式：使用测试token
-      config.headers.Authorization = `Bearer test-token-123`
     }
+    // 无 token 时不发送 Authorization header，由后端决定是否拒绝
     
     // 如果是FormData，让浏览器自动设置Content-Type（包含boundary）
     if (config.data instanceof FormData) {
@@ -37,18 +35,12 @@ axiosInstance.interceptors.request.use(
       config.params = { _t: Date.now() }
     }
     
-    // 添加调试信息
-    // @ts-ignore
-      console.log('Making request to:', config.baseURL + config.url, {
-      method: config.method,
-      headers: config.headers,
-      params: config.params
-    })
-    
     return config
   },
   (error) => {
-    console.error('Request interceptor error:', error)
+    if (import.meta.env.DEV) {
+      console.error('Request interceptor error:', error)
+    }
     return Promise.reject(error)
   }
 )
@@ -60,19 +52,16 @@ axiosInstance.interceptors.response.use(
     return response
   },
   (error) => {
+    if (import.meta.env.DEV) {
       console.error('Response interceptor error:', error)
+    }
     // 处理网络错误和HTTP状态码错误
     if (error.response) {
-        console.log('Response status:', error.response.status)
-      // 服务器返回了错误状态码
       const status = error.response.status
 
       switch (status) {
         case 401:
-            console.log('Unauthorized')
-            useAuthStore.getState().clearUser()
-            // window.location.href = '/'
-            console.log('Unauthorized: Please log in')
+          useAuthStore.getState().clearUser()
           break
         case 403:
           console.error('Forbidden: Access denied')
@@ -84,14 +73,18 @@ axiosInstance.interceptors.response.use(
           console.error('Internal Server Error')
           break
         default:
-          console.error(`HTTP Error ${status}:`, error.response.data)
+          if (import.meta.env.DEV) {
+            console.error(`HTTP Error ${status}:`, error.response.data)
+          }
       }
     } else if (error.request) {
-      // 网络错误 - 连接被拒绝或超时
-      console.error('Network Error:', error.message)
+      if (import.meta.env.DEV) {
+        console.error('Network Error:', error.message)
+      }
     } else {
-      // 其他错误
-      console.error('Error:', error.message)
+      if (import.meta.env.DEV) {
+        console.error('Error:', error.message)
+      }
     }
     
     return Promise.reject(error)
