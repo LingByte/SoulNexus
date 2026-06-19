@@ -22,57 +22,78 @@ func NewSecureQueryBuilder(db *gorm.DB) *SecureQueryBuilder {
 	return &SecureQueryBuilder{Db: db}
 }
 
-// SafeWhere secure WHERE condition builder
-func (sqb *SecureQueryBuilder) SafeWhere(column string, operator string, value interface{}) *gorm.DB {
+// ErrInvalidColumn is returned when a column name fails validation.
+var ErrInvalidColumn = fmt.Errorf("invalid column name")
+
+// ErrInvalidOperator is returned when an operator fails validation.
+var ErrInvalidOperator = fmt.Errorf("invalid operator")
+
+// ErrInvalidHavingCondition is returned when a HAVING condition fails validation.
+var ErrInvalidHavingCondition = fmt.Errorf("invalid HAVING condition")
+
+// ErrInvalidQuery is returned when a raw query fails validation.
+var ErrInvalidQuery = fmt.Errorf("invalid query")
+
+// ErrBetweenRequiresTwoValues is returned when BETWEEN receives != 2 values.
+var ErrBetweenRequiresTwoValues = fmt.Errorf("BETWEEN operator requires exactly 2 values")
+
+// ErrUnsupportedOperator is returned when an unsupported operator is used.
+var ErrUnsupportedOperator = fmt.Errorf("unsupported operator")
+
+// SafeWhere secure WHERE condition builder.
+// It returns the chained *gorm.DB and a validation error.
+// On validation failure the returned *gorm.DB is still valid (unchained) so callers
+// can decide whether to abort or fall back.
+func (sqb *SecureQueryBuilder) SafeWhere(column string, operator string, value interface{}) (*gorm.DB, error) {
 	// Validate column name
 	if !isValidColumnName(column) {
-		panic(fmt.Sprintf("invalid column name: %s", column))
+		return sqb.Db, fmt.Errorf("%w: %s", ErrInvalidColumn, column)
 	}
 
 	// Validate operator
 	if !isValidOperator(operator) {
-		panic(fmt.Sprintf("invalid operator: %s", operator))
+		return sqb.Db, fmt.Errorf("%w: %s", ErrInvalidOperator, operator)
 	}
 
 	// Build query based on operator
 	switch strings.ToUpper(operator) {
 	case "=", "!=", "<", ">", "<=", ">=":
-		return sqb.Db.Where(fmt.Sprintf("%s %s ?", column, operator), value)
+		return sqb.Db.Where(fmt.Sprintf("%s %s ?", column, operator), value), nil
 	case "<>":
-		return sqb.Db.Where(fmt.Sprintf("%s <> ?", column), value)
+		return sqb.Db.Where(fmt.Sprintf("%s <> ?", column), value), nil
 	case "LIKE":
 		if str, ok := value.(string); ok {
-			return sqb.Db.Where(fmt.Sprintf("%s LIKE ?", column), "%"+str+"%")
+			return sqb.Db.Where(fmt.Sprintf("%s LIKE ?", column), "%"+str+"%"), nil
 		}
-		return sqb.Db.Where(fmt.Sprintf("%s LIKE ?", column), value)
+		return sqb.Db.Where(fmt.Sprintf("%s LIKE ?", column), value), nil
 	case "NOT LIKE":
 		if str, ok := value.(string); ok {
-			return sqb.Db.Where(fmt.Sprintf("%s NOT LIKE ?", column), "%"+str+"%")
+			return sqb.Db.Where(fmt.Sprintf("%s NOT LIKE ?", column), "%"+str+"%"), nil
 		}
-		return sqb.Db.Where(fmt.Sprintf("%s NOT LIKE ?", column), value)
+		return sqb.Db.Where(fmt.Sprintf("%s NOT LIKE ?", column), value), nil
 	case "IN":
-		return sqb.Db.Where(fmt.Sprintf("%s IN ?", column), value)
+		return sqb.Db.Where(fmt.Sprintf("%s IN ?", column), value), nil
 	case "NOT IN":
-		return sqb.Db.Where(fmt.Sprintf("%s NOT IN ?", column), value)
+		return sqb.Db.Where(fmt.Sprintf("%s NOT IN ?", column), value), nil
 	case "BETWEEN":
 		if values, ok := value.([]interface{}); ok && len(values) == 2 {
-			return sqb.Db.Where(fmt.Sprintf("%s BETWEEN ? AND ?", column), values[0], values[1])
+			return sqb.Db.Where(fmt.Sprintf("%s BETWEEN ? AND ?", column), values[0], values[1]), nil
 		}
-		panic("BETWEEN operator requires exactly 2 values")
+		return sqb.Db, ErrBetweenRequiresTwoValues
 	case "IS NULL":
-		return sqb.Db.Where(fmt.Sprintf("%s IS NULL", column))
+		return sqb.Db.Where(fmt.Sprintf("%s IS NULL", column)), nil
 	case "IS NOT NULL":
-		return sqb.Db.Where(fmt.Sprintf("%s IS NOT NULL", column))
+		return sqb.Db.Where(fmt.Sprintf("%s IS NOT NULL", column)), nil
 	default:
-		panic(fmt.Sprintf("unsupported operator: %s", operator))
+		return sqb.Db, fmt.Errorf("%w: %s", ErrUnsupportedOperator, operator)
 	}
 }
 
 // SafeOrder secure ORDER BY builder
-func (sqb *SecureQueryBuilder) SafeOrder(column string, direction string) *gorm.DB {
+func (sqb *SecureQueryBuilder) SafeOrder(column string, direction string) (*gorm.DB, error) {
 	// Validate column name
 	if !isValidColumnName(column) {
-		panic(fmt.Sprintf("invalid column name: %s", column))
+		return sqb.Db, fmt.Errorf("%w: %s", ErrInvalidColumn, column)
 	}
 
 	// Validate sort direction
@@ -81,41 +102,41 @@ func (sqb *SecureQueryBuilder) SafeOrder(column string, direction string) *gorm.
 		direction = "ASC" // Default ascending
 	}
 
-	return sqb.Db.Order(fmt.Sprintf("%s %s", column, direction))
+	return sqb.Db.Order(fmt.Sprintf("%s %s", column, direction)), nil
 }
 
 // SafeSelect secure SELECT field builder
-func (sqb *SecureQueryBuilder) SafeSelect(columns []string) *gorm.DB {
+func (sqb *SecureQueryBuilder) SafeSelect(columns []string) (*gorm.DB, error) {
 	// Validate all column names
 	for _, column := range columns {
 		if !isValidColumnName(column) {
-			panic(fmt.Sprintf("invalid column name: %s", column))
+			return sqb.Db, fmt.Errorf("%w: %s", ErrInvalidColumn, column)
 		}
 	}
 
-	return sqb.Db.Select(columns)
+	return sqb.Db.Select(columns), nil
 }
 
 // SafeGroup secure GROUP BY builder
-func (sqb *SecureQueryBuilder) SafeGroup(columns []string) *gorm.DB {
+func (sqb *SecureQueryBuilder) SafeGroup(columns []string) (*gorm.DB, error) {
 	// Validate all column names
 	for _, column := range columns {
 		if !isValidColumnName(column) {
-			panic(fmt.Sprintf("invalid column name: %s", column))
+			return sqb.Db, fmt.Errorf("%w: %s", ErrInvalidColumn, column)
 		}
 	}
 
-	return sqb.Db.Group(strings.Join(columns, ", "))
+	return sqb.Db.Group(strings.Join(columns, ", ")), nil
 }
 
 // SafeHaving secure HAVING condition builder
-func (sqb *SecureQueryBuilder) SafeHaving(condition string, args ...interface{}) *gorm.DB {
+func (sqb *SecureQueryBuilder) SafeHaving(condition string, args ...interface{}) (*gorm.DB, error) {
 	// Validate column names in HAVING condition
 	if !isValidHavingCondition(condition) {
-		panic(fmt.Sprintf("invalid HAVING condition: %s", condition))
+		return sqb.Db, fmt.Errorf("%w: %s", ErrInvalidHavingCondition, condition)
 	}
 
-	return sqb.Db.Having(condition, args...)
+	return sqb.Db.Having(condition, args...), nil
 }
 
 // isValidColumnName validate if column name is secure
@@ -167,13 +188,13 @@ func isValidHavingCondition(condition string) bool {
 }
 
 // SafeQuery execute secure raw query
-func (sqb *SecureQueryBuilder) SafeQuery(query string, args ...interface{}) *gorm.DB {
+func (sqb *SecureQueryBuilder) SafeQuery(query string, args ...interface{}) (*gorm.DB, error) {
 	// Validate query statement
 	if !isValidQuery(query) {
-		panic(fmt.Sprintf("invalid query: %s", query))
+		return sqb.Db, fmt.Errorf("%w: %s", ErrInvalidQuery, query)
 	}
 
-	return sqb.Db.Raw(query, args...)
+	return sqb.Db.Raw(query, args...), nil
 }
 
 // isValidQuery validate if query statement is secure

@@ -66,31 +66,42 @@ func TestSecureQueryBuilder_SafeWhere_AllOps(t *testing.T) {
 
 	t.Run("equals", func(t *testing.T) {
 		var got []TestModel
-		q := b.SafeWhere("age", "=", 20)
+		q, err := b.SafeWhere("age", "=", 20)
+		require.NoError(t, err)
 		require.NoError(t, q.Find(&got).Error)
 		assert.Len(t, got, 1)
 	})
 
 	t.Run("not equals", func(t *testing.T) {
 		var got []TestModel
-		q := b.SafeWhere("age", "!=", 20)
+		q, err := b.SafeWhere("age", "!=", 20)
+		require.NoError(t, err)
 		require.NoError(t, q.Find(&got).Error)
 		assert.Len(t, got, 4)
 	})
 
 	t.Run("<>", func(t *testing.T) {
 		var got []TestModel
-		q := b.SafeWhere("age", "<>", 20)
+		q, err := b.SafeWhere("age", "<>", 20)
+		require.NoError(t, err)
 		require.NoError(t, q.Find(&got).Error)
 		assert.Len(t, got, 4)
 	})
 
 	t.Run("gt/lt/gte/lte", func(t *testing.T) {
 		var a, b1, c, d []TestModel
-		require.NoError(t, b.SafeWhere("age", ">", 20).Find(&a).Error)
-		require.NoError(t, b.SafeWhere("age", "<", 20).Find(&b1).Error)
-		require.NoError(t, b.SafeWhere("age", ">=", 20).Find(&c).Error)
-		require.NoError(t, b.SafeWhere("age", "<=", 20).Find(&d).Error)
+		q1, err := b.SafeWhere("age", ">", 20)
+		require.NoError(t, err)
+		require.NoError(t, q1.Find(&a).Error)
+		q2, err := b.SafeWhere("age", "<", 20)
+		require.NoError(t, err)
+		require.NoError(t, q2.Find(&b1).Error)
+		q3, err := b.SafeWhere("age", ">=", 20)
+		require.NoError(t, err)
+		require.NoError(t, q3.Find(&c).Error)
+		q4, err := b.SafeWhere("age", "<=", 20)
+		require.NoError(t, err)
+		require.NoError(t, q4.Find(&d).Error)
 		assert.Equal(t, 2, len(a))  // 21,22
 		assert.Equal(t, 2, len(b1)) // 18,19
 		assert.Equal(t, 3, len(c))  // 20,21,22
@@ -99,64 +110,72 @@ func TestSecureQueryBuilder_SafeWhere_AllOps(t *testing.T) {
 
 	t.Run("like string", func(t *testing.T) {
 		var got []TestModel
-		q := b.SafeWhere("email", "LIKE", "u1@")
+		q, err := b.SafeWhere("email", "LIKE", "u1@")
+		require.NoError(t, err)
 		require.NoError(t, q.Find(&got).Error)
 		assert.Len(t, got, 1)
 	})
 
 	t.Run("not like string", func(t *testing.T) {
 		var got []TestModel
-		q := b.SafeWhere("email", "NOT LIKE", "u1@")
+		q, err := b.SafeWhere("email", "NOT LIKE", "u1@")
+		require.NoError(t, err)
 		require.NoError(t, q.Find(&got).Error)
 		assert.Len(t, got, 4)
 	})
 
 	t.Run("like non-string (still param)", func(t *testing.T) {
 		var got []TestModel
-		q := b.SafeWhere("email", "LIKE", 123)
+		q, err := b.SafeWhere("email", "LIKE", 123)
+		require.NoError(t, err)
 		require.NoError(t, q.Find(&got).Error)
 		assert.Len(t, got, 0)
 	})
 
 	t.Run("IN ints", func(t *testing.T) {
 		var got []TestModel
-		q := b.SafeWhere("age", "IN", []int{18, 22})
+		q, err := b.SafeWhere("age", "IN", []int{18, 22})
+		require.NoError(t, err)
 		require.NoError(t, q.Find(&got).Error)
 		assert.Len(t, got, 2)
 	})
 
 	t.Run("NOT IN strings", func(t *testing.T) {
 		var got []TestModel
-		q := b.SafeWhere("name", "NOT IN", []string{"User 0", "User 1"})
+		q, err := b.SafeWhere("name", "NOT IN", []string{"User 0", "User 1"})
+		require.NoError(t, err)
 		require.NoError(t, q.Find(&got).Error)
 		assert.Len(t, got, 3)
 	})
 
 	t.Run("BETWEEN ok", func(t *testing.T) {
 		var got []TestModel
-		q := b.SafeWhere("age", "BETWEEN", []interface{}{19, 21})
+		q, err := b.SafeWhere("age", "BETWEEN", []interface{}{19, 21})
+		require.NoError(t, err)
 		require.NoError(t, q.Find(&got).Error)
 		assert.Len(t, got, 3) // 19,20,21
 	})
 
-	t.Run("BETWEEN invalid slice len -> panic", func(t *testing.T) {
-		assert.Panics(t, func() {
-			_ = b.SafeWhere("age", "BETWEEN", []interface{}{19})
-		})
+	t.Run("BETWEEN invalid slice len -> error", func(t *testing.T) {
+		_, err := b.SafeWhere("age", "BETWEEN", []interface{}{19})
+		assert.ErrorIs(t, err, ErrBetweenRequiresTwoValues)
 	})
 
 	t.Run("IS NULL / IS NOT NULL", func(t *testing.T) {
 		var got []TestModel
-		require.NoError(t, b.SafeWhere("email", "IS NULL", nil).Find(&got).Error)
+		q1, err := b.SafeWhere("email", "IS NULL", nil)
+		require.NoError(t, err)
+		require.NoError(t, q1.Find(&got).Error)
 		assert.Len(t, got, 0)
-		require.NoError(t, b.SafeWhere("email", "IS NOT NULL", nil).Find(&got).Error)
+		q2, err := b.SafeWhere("email", "IS NOT NULL", nil)
+		require.NoError(t, err)
+		require.NoError(t, q2.Find(&got).Error)
 		assert.Len(t, got, 5)
 	})
 
-	t.Run("invalid column should panic", func(t *testing.T) {
-		assert.Panics(t, func() {
-			_ = b.SafeWhere("age; DROP TABLE users;", "=", 1)
-		})
+	t.Run("invalid column should return error", func(t *testing.T) {
+		_, err := b.SafeWhere("age; DROP TABLE users;", "=", 1)
+		assert.ErrorIs(t, err, ErrInvalidColumn)
 	})
 }
 
@@ -166,16 +185,30 @@ func TestSecureQueryBuilder_OrderSelectGroup(t *testing.T) {
 	b := NewSecureQueryBuilder(db)
 	seedUsers(t, db, 3)
 
-	assert.NotPanics(t, func() { _ = b.SafeOrder("age", "ASC") })
-	assert.NotPanics(t, func() { _ = b.SafeOrder("age", "DESC") })
-	assert.NotPanics(t, func() { _ = b.SafeOrder("age", "INVALID") }) // 默认升序
-	assert.Panics(t, func() { _ = b.SafeOrder("age desc; DROP", "ASC") })
+	assert.NotPanics(t, func() {
+		_, err := b.SafeOrder("age", "ASC")
+		assert.NoError(t, err)
+	})
+	assert.NotPanics(t, func() {
+		_, err := b.SafeOrder("age", "DESC")
+		assert.NoError(t, err)
+	})
+	assert.NotPanics(t, func() {
+		_, err := b.SafeOrder("age", "INVALID")
+		assert.NoError(t, err)
+	}) // 默认升序
+	_, err := b.SafeOrder("age desc; DROP", "ASC")
+	assert.ErrorIs(t, err, ErrInvalidColumn)
 
-	assert.NotPanics(t, func() { _ = b.SafeSelect([]string{"name", "email"}) })
-	assert.Panics(t, func() { _ = b.SafeSelect([]string{"name", "email; DROP"}) })
+	_, err = b.SafeSelect([]string{"name", "email"})
+	assert.NoError(t, err)
+	_, err = b.SafeSelect([]string{"name", "email; DROP"})
+	assert.ErrorIs(t, err, ErrInvalidColumn)
 
-	assert.NotPanics(t, func() { _ = b.SafeGroup([]string{"name", "email"}) })
-	assert.Panics(t, func() { _ = b.SafeGroup([]string{"name", "email; DROP"}) })
+	_, err = b.SafeGroup([]string{"name", "email"})
+	assert.NoError(t, err)
+	_, err = b.SafeGroup([]string{"name", "email; DROP"})
+	assert.ErrorIs(t, err, ErrInvalidColumn)
 }
 
 // ---------- SafeHaving / SafeQuery ----------
@@ -188,35 +221,36 @@ func TestSecureQueryBuilder_HavingAndQuery(t *testing.T) {
 		type Row struct{ C int64 }
 		var rows []Row
 
-		q := b.
-			SafeHaving("COUNT(*) > ?", 2). // 先加 Having（来自 b.Db）
-			Model(&TestModel{}).           // 再补 Model
-			Select("COUNT(*) AS c")        // 再补 Select
+		q, err := b.SafeHaving("COUNT(*) > ?", 2)
+		require.NoError(t, err)
+		q = q.Model(&TestModel{}).Select("COUNT(*) AS c")
 
-		err := q.Scan(&rows).Error
+		err = q.Scan(&rows).Error
 		require.NoError(t, err)
 		require.NotEmpty(t, rows)
 		assert.Greater(t, rows[0].C, int64(0))
 	})
 
 	t.Run("having invalid - union", func(t *testing.T) {
-		assert.Panics(t, func() {
-			_ = b.SafeHaving("COUNT(*) > 0 UNION SELECT * FROM users")
-		})
+		_, err := b.SafeHaving("COUNT(*) > 0 UNION SELECT * FROM users")
+		assert.ErrorIs(t, err, ErrInvalidHavingCondition)
 	})
 
 	t.Run("raw select ok", func(t *testing.T) {
-		q := b.SafeQuery("SELECT name FROM test_models WHERE age > ?", 20)
+		q, err := b.SafeQuery("SELECT name FROM test_models WHERE age > ?", 20)
+		require.NoError(t, err)
 		var rows []map[string]any
 		require.NoError(t, q.Find(&rows).Error)
 	})
 
 	t.Run("raw forbidden - drop", func(t *testing.T) {
-		assert.Panics(t, func() { _ = b.SafeQuery("DROP TABLE test_models") })
+		_, err := b.SafeQuery("DROP TABLE test_models")
+		assert.ErrorIs(t, err, ErrInvalidQuery)
 	})
 
 	t.Run("raw forbidden - not start with select", func(t *testing.T) {
-		assert.Panics(t, func() { _ = b.SafeQuery("UPDATE test_models SET name='x'") })
+		_, err := b.SafeQuery("UPDATE test_models SET name='x'")
+		assert.ErrorIs(t, err, ErrInvalidQuery)
 	})
 }
 
