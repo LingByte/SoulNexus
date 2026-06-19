@@ -68,16 +68,19 @@ func main() {
 
 	// 3. Load Global Configuration
 	if err := config.Load(); err != nil {
-		panic("config load failed: " + err.Error())
+		fmt.Fprintf(os.Stderr, "config load failed: %v\n", err)
+		os.Exit(1)
 	}
 
 	// 4. Load Log Configuration
 	err := logger.Init(&config.GlobalConfig.Log, config.GlobalConfig.Server.Mode)
 	if err != nil {
-		panic(err)
+		fmt.Fprintf(os.Stderr, "logger init failed: %v\n", err)
+		os.Exit(1)
 	}
 	if err := bootstrap.InitI18n(); err != nil {
-		panic(err)
+		fmt.Fprintf(os.Stderr, "i18n init failed: %v\n", err)
+		os.Exit(1)
 	}
 
 	// 5. Print Banner
@@ -284,10 +287,44 @@ func main() {
 	}
 
 	shutdownAll := func() {
+		logger.Info("starting graceful shutdown...")
+
+		// 1. Stop workflow components
+		if eventListener != nil {
+			eventListener.Stop()
+			logger.Info("workflow event listener stopped")
+		}
+		if scheduler != nil {
+			scheduler.Stop()
+			logger.Info("workflow scheduler stopped")
+		}
+
+		// 2. Stop background tasks
+		task.StopEmailCleaner()
+		backup.StopBackupScheduler()
+		task.StopSearchIndexer()
+		logger.Info("background tasks stopped")
+
+		// 3. Stop system listeners
+		listeners.StopAll()
+		logger.Info("system listeners stopped")
+
+		// 4. Shutdown HTTP server with graceful timeout
 		ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 		defer cancel()
 		if err := httpServer.Shutdown(ctx); err != nil {
 			logger.Error("HTTP server shutdown", zap.Error(err))
+		} else {
+			logger.Info("HTTP server shutdown complete")
+		}
+
+		// 5. Close database connection
+		if sqlDB, err := db.DB(); err == nil {
+			if err := sqlDB.Close(); err != nil {
+				logger.Error("database connection close", zap.Error(err))
+			} else {
+				logger.Info("database connection closed")
+			}
 		}
 	}
 

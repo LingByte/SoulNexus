@@ -36,6 +36,13 @@ func (l *WorkflowEventListener) Start() error {
 	return nil
 }
 
+// Stop 停止事件监听
+func (l *WorkflowEventListener) Stop() {
+	bus := events.GetEventBus()
+	bus.Unsubscribe("*")
+	logger.Info("Workflow event listener stopped")
+}
+
 // handleEvent 处理事件
 func (l *WorkflowEventListener) handleEvent(event events.Event) error {
 	// 获取所有需要监听此事件的工作流

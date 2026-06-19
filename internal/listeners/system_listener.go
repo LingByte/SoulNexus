@@ -84,6 +84,33 @@ func IsSSLEnabled() bool {
 	return config.GlobalConfig.Server.SSLEnabled && sslCertErr == nil
 }
 
+// StopAll stops all registered signal listeners.
+func StopAll() {
+	// Clear common signal channels that listeners subscribe to.
+	// The signal system's Clear() removes all handlers for the given event names.
+	utils.Sig().Clear(
+		"LLMUsage",
+		"llm.request.start",
+		"llm.request.end",
+		"llm.request.error",
+		"session.created",
+		"session.updated",
+		"session.deleted",
+		"message.created",
+		"message.updated",
+		"message.deleted",
+		"billing.usage",
+		"billing.charge",
+		"agent.created",
+		"agent.updated",
+		"agent.deleted",
+		"user.created",
+		"user.updated",
+		"user.deleted",
+	)
+	logger.Info("all system listeners stopped")
+}
+
 // GetTLSConfig gets TLS configuration
 func GetTLSConfig() (*tls.Config, error) {
 	if !IsSSLEnabled() {

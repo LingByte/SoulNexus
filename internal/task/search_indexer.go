@@ -20,6 +20,7 @@ import (
 
 var searchEngine search2.Engine
 var searchIndexerRunning bool
+var searchIndexerCron *cron.Cron
 
 // StartSearchIndexer starts the search indexing scheduled task
 func StartSearchIndexer(db *gorm.DB, engine search2.Engine) {
@@ -27,6 +28,7 @@ func StartSearchIndexer(db *gorm.DB, engine search2.Engine) {
 	searchIndexerRunning = true
 
 	c := cron.New()
+	searchIndexerCron = c
 
 	// Get scheduled task expression from configuration
 	schedule := utils.GetValue(db, constants.KEY_SEARCH_INDEX_SCHEDULE)
@@ -57,6 +59,14 @@ func StartSearchIndexer(db *gorm.DB, engine search2.Engine) {
 	c.Start()
 
 	logger.Info("Search indexer started", zap.String("schedule", schedule))
+}
+
+// StopSearchIndexer stops the search indexing scheduled task.
+func StopSearchIndexer() {
+	searchIndexerRunning = false
+	if searchIndexerCron != nil {
+		searchIndexerCron.Stop()
+	}
 }
 
 // IndexUserDataAsync asynchronously indexes user data (used at project startup)

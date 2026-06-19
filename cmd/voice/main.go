@@ -11,7 +11,8 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"os/signal"
+	"os"
+	ossignal "os/signal"
 	"strconv"
 	"strings"
 	"sync"
@@ -802,8 +803,15 @@ func (r *pcmRecorder) recorder() *recorder.Recorder {
 }
 
 func main() {
+	// Use os.Exit(1) instead of logger.Fatal to allow defers to run.
+	exit := func(msg string, args ...interface{}) {
+		logger.Error(fmt.Sprintf(msg, args...))
+		os.Exit(1)
+	}
+
 	if err := config.LoadVoice(); err != nil {
-		logger.Fatal(fmt.Sprintf("config load failed: %v", err))
+		logger.Error(fmt.Sprintf("config load failed: %v", err))
+		os.Exit(1)
 	}
 
 	if err := bootstrap.PrintBannerFromFile("voice-banner.txt", config.VoiceGlobalConfig.Name); err != nil {
@@ -812,7 +820,8 @@ func main() {
 
 	err := logger.Init(&config.VoiceGlobalConfig.Log, config.VoiceGlobalConfig.Mode)
 	if err != nil {
-		panic(err)
+		logger.Error(fmt.Sprintf("logger init failed: %v", err))
+		os.Exit(1)
 	}
 	cfg := config.VoiceGlobalConfig
 	app.SetTTSPrewarm(cfg.TTSPrewarm)
@@ -825,13 +834,13 @@ func main() {
 
 	dialogWSEffective, err := app.MergeDialogAuthQuery(cfg.DialogWS)
 	if err != nil {
-		logger.Fatal(fmt.Sprintf("invalid VOICE_DIALOG_WS: %v", err))
+		exit("invalid VOICE_DIALOG_WS: %v", err)
 	}
 	app.WarnDialogAuthIfNeeded(dialogWSEffective)
 
 	host, port, err := app.SplitHostPort(cfg.SIPAddr)
 	if err != nil {
-		logger.Fatal(fmt.Sprintf("invalid VOICE_SIP_ADDR: %v", err))
+		exit("invalid VOICE_SIP_ADDR: %v", err)
 	}
 	ip := strings.TrimSpace(cfg.LocalIP)
 	if ip == "" {
@@ -846,7 +855,7 @@ func main() {
 		if cfg.Record {
 			rec = newRTPRecorder("outbound-" + newTag())
 		}
-		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+		ctx, stop := ossignal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 		defer stop()
 		if err := runOutbound(ctx, outboundConfig{
 			TargetURI: cfg.OutboundURI,
@@ -856,7 +865,7 @@ func main() {
 			AsrEcho:   cfg.ASREcho,
 			ReplyText: cfg.ReplyText,
 		}); err != nil {
-			logger.Fatal(fmt.Sprintf("outbound failed: %v", err))
+			exit("outbound failed: %v", err)
 		}
 		return
 	}
@@ -898,7 +907,7 @@ func main() {
 	srv.SetInboundAllowUnknownDID(true)
 
 	if err := srv.Start(); err != nil {
-		logger.Fatal(fmt.Sprintf("sip start: %v", err))
+		exit("sip start: %v", err)
 	}
 	defer srv.Stop()
 
@@ -907,7 +916,7 @@ func main() {
 		h, p, ip, cfg.RTPStart, cfg.RTPEnd, cfg.Record, cfg.ASREcho))
 	logger.Info(fmt.Sprintf("place a call to sip:anyone@%s:%d to test", h, p))
 
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	ctx, stop := ossignal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
 	startVoiceHTTPListener(ctx, cfg.HTTPAddr, voicehttp.NewHandlers(voicehttp.Config{

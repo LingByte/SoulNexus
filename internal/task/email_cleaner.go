@@ -15,9 +15,12 @@ import (
 	"gorm.io/gorm"
 )
 
+var emailCleanerCron *cron.Cron
+
 // StartEmailCleaner starts the email cleanup scheduled task
 func StartEmailCleaner(db *gorm.DB) {
 	c := cron.New()
+	emailCleanerCron = c
 
 	// Execute cleanup task at 2 AM every day
 	schedule := "0 2 * * *"
@@ -40,6 +43,13 @@ func StartEmailCleaner(db *gorm.DB) {
 	c.Start()
 
 	logger.Info("Email cleaner started", zap.String("schedule", schedule))
+}
+
+// StopEmailCleaner stops the email cleanup scheduled task.
+func StopEmailCleaner() {
+	if emailCleanerCron != nil {
+		emailCleanerCron.Stop()
+	}
 }
 
 // CleanUnreadEmails cleans up emails unread for more than seven days

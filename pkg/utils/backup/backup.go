@@ -18,11 +18,14 @@ import (
 	"gorm.io/gorm"
 )
 
+var backupSchedulerCron *cron.Cron
+
 // StartBackupScheduler starts the backup scheduler and executes backup immediately on startup
 func StartBackupScheduler(db *gorm.DB) {
 	// Execute backup immediately on startup
 	logger.Info("Executing initial backup on startup...")
 	c := cron.New()
+	backupSchedulerCron = c
 	// Use Cron expression from configuration
 	schedule := config.GlobalConfig.Features.BackupSchedule
 
@@ -38,6 +41,13 @@ func StartBackupScheduler(db *gorm.DB) {
 
 	// Start the scheduler
 	c.Start()
+}
+
+// StopBackupScheduler stops the backup scheduler.
+func StopBackupScheduler() {
+	if backupSchedulerCron != nil {
+		backupSchedulerCron.Stop()
+	}
 }
 
 // ExecuteBackup executes database backup according to configuration
