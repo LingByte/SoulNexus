@@ -264,6 +264,9 @@ func (h *Handlers) UpdateAgent(c *gin.Context) {
 		}
 		updateData["bound_js_template_source_id"] = tplID
 	}
+	if _, openingProvided := rawBody["openingStatement"]; openingProvided {
+		updateData["opening_statement"] = input.OpeningStatement
+	}
 
 	if err := h.db.Model(&assistant).Where("id = ?", id).Updates(updateData).Error; err != nil {
 		response.Fail(c, "update failed", "Update failed")

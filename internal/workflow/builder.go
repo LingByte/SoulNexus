@@ -199,27 +199,17 @@ func instantiateNode(base runtimewf.Node) (runtimewf.ExecutableNode, error) {
 					gatewayNode.Expression = expression
 				}
 			} else {
-				// Value mode (default): use condition field as context key
-				if condition, ok := base.Properties["condition"]; ok {
-					gatewayNode.Condition = condition
-					// Debug: log the condition being set
-					fmt.Printf("[DEBUG] GatewayNode %s: Setting condition from properties: '%s'\n", base.ID, condition)
-				} else {
-					keys := make([]string, 0, len(base.Properties))
-					for k := range base.Properties {
-						keys = append(keys, k)
-					}
-					fmt.Printf("[DEBUG] GatewayNode %s: No condition found in properties. Available keys: %v\n", base.ID, keys)
-				}
+		// Value mode (default): use condition field as context key
+			if condition, ok := base.Properties["condition"]; ok {
+				gatewayNode.Condition = condition
+			}
 			}
 			// Check if result should be stored
 			if storeResult, ok := base.Properties["store_result"]; ok {
 				gatewayNode.StoreResult = storeResult == "true" || storeResult == "1"
 			}
-		} else {
-			fmt.Printf("[DEBUG] GatewayNode %s: Properties is nil\n", base.ID)
-		}
-		return gatewayNode, nil
+	}
+	return gatewayNode, nil
 	case runtimewf.NodeTypeEvent:
 		eventNode := &runtimewf.EventNode{Node: base}
 		// Extract event configuration from properties

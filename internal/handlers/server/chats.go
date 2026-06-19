@@ -6,7 +6,6 @@ package server
 import (
 	"github.com/LingByte/SoulNexus/internal/models/auth"
 	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
-	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -454,12 +453,13 @@ func (h *Handlers) handleConnection(c *gin.Context) {
 	defer conn.Close()
 
 	cfg := voicedialog.Config{
-		Provider:     cred.LLMProvider,
-		APIKey:       cred.LLMApiKey,
-		APIURL:       cred.LLMApiURL,
-		Model:        model,
-		SystemPrompt: systemPrompt,
-		Temperature:  temperature,
+		Provider:         cred.LLMProvider,
+		APIKey:           cred.LLMApiKey,
+		APIURL:           cred.LLMApiURL,
+		Model:            model,
+		SystemPrompt:     systemPrompt,
+		OpeningStatement: agent.OpeningStatement,
+		Temperature:      temperature,
 	}
-	voicedialog.Serve(context.Background(), conn, callID, cfg, fallback)
+	voicedialog.Serve(c.Request.Context(), conn, callID, cfg, fallback)
 }

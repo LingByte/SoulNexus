@@ -547,7 +547,7 @@ func (h *Handlers) knowledgeNamespaceCreateHandler(c *gin.Context) {
 	})
 	if err != nil {
 		if config.UsesQdrant() {
-			_ = kh.DeleteNamespace(context.Background(), strings.TrimSpace(req.Namespace))
+			_ = kh.DeleteNamespace(c.Request.Context(), strings.TrimSpace(req.Namespace))
 		}
 		response.Fail(c, "create failed", err.Error())
 		return

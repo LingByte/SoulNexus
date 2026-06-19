@@ -5,9 +5,13 @@ package server
 
 import (
 	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"io"
+	"strings"
 
 	workflowdef "github.com/LingByte/SoulNexus/internal/workflow"
 	"github.com/LingByte/SoulNexus/pkg/response"
@@ -131,8 +135,21 @@ func (h *Handlers) WebhookTriggerWorkflow(c *gin.Context) {
 			response.Fail(c, "missing webhook signature", nil)
 			return
 		}
-		// TODO: 实现签名验证逻辑
-		// 这里可以添加 HMAC 验证等
+
+		// 读取请求体用于 HMAC 验证
+		bodyBytes, err := io.ReadAll(c.Request.Body)
+		if err != nil {
+			response.Fail(c, "failed to read request body", nil)
+			return
+		}
+		// 恢复请求体供后续解析使用
+		c.Request.Body = io.NopCloser(strings.NewReader(string(bodyBytes)))
+
+		// HMAC-SHA256 签名验证
+		if !verifyHMACSignature(config.Webhook.Secret, bodyBytes, signature) {
+			response.Fail(c, "invalid webhook signature", nil)
+			return
+		}
 	}
 
 	// 解析请求体作为参数
@@ -178,4 +195,17 @@ func GenerateAPIKey() (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(bytes), nil
+}
+
+// verifyHMACSignature verifies an HMAC-SHA256 signature against the raw body.
+// The expected signature format is "sha256=<hex>" (common in webhook providers like GitHub, Stripe, etc.).
+func verifyHMACSignature(secret string, body []byte, signature string) bool {
+	const prefix = "sha256="
+	if strings.HasPrefix(strings.ToLower(signature), prefix) {
+		signature = signature[len(prefix):]
+	}
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write(body)
+	expected := hex.EncodeToString(mac.Sum(nil))
+	return hmac.Equal([]byte(expected), []byte(signature))
 }

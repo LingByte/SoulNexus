@@ -18,6 +18,7 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/llm"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/response"
+	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/LingByte/SoulNexus/pkg/utils/cache"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -1368,10 +1369,19 @@ func (h *Handlers) ServeRecordingFile(c *gin.Context) {
 		return
 	}
 
-	// 构建完整的文件路径
-	// 使用lingstorage作为录音文件的存储根目录
-	recordingBasePath := "./lingstorage" // 与录音管理器的存储路径一致
+	// 构建完整的文件路径 — 优先 lingstorage（历史路径），再尝试 UPLOAD_DIR（VoiceServer 录音）
+	recordingBasePath := "./lingstorage"
 	fullPath := filepath.Join(recordingBasePath, decodedPath)
+	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+		uploadDir := utils.GetEnv("UPLOAD_DIR")
+		if uploadDir == "" {
+			uploadDir = "uploads"
+		}
+		alt := filepath.Join(uploadDir, decodedPath)
+		if _, err2 := os.Stat(alt); err2 == nil {
+			fullPath = alt
+		}
+	}
 
 	// 检查文件是否存在
 	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
