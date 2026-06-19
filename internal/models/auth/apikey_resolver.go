@@ -13,7 +13,6 @@ import (
 )
 
 // APIKeyUserResolver resolves a user from API key + secret without requiring Gin DB middleware.
-// cmd/server registers a gRPC-backed resolver; cmd/auth uses the default DB lookup.
 type APIKeyUserResolver func(ctx context.Context, apiKey, apiSecret string) (*User, error)
 
 var apiKeyUserResolver APIKeyUserResolver

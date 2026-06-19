@@ -18,6 +18,20 @@ func CreateCallRecording(db *gorm.DB, recording *CallRecording) error {
 	return db.Create(recording).Error
 }
 
+// FindCallRecordingBySessionID returns an existing row keyed by voice_call.call_id.
+func FindCallRecordingBySessionID(db *gorm.DB, sessionID string) (*CallRecording, error) {
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return nil, gorm.ErrRecordNotFound
+	}
+	var recording CallRecording
+	err := db.Where("session_id = ? AND is_deleted = ?", sessionID, false).First(&recording).Error
+	if err != nil {
+		return nil, err
+	}
+	return &recording, nil
+}
+
 // GetCallRecordingsByAgent 获取 Agent 的通话录音列表
 func GetCallRecordingsByAgent(db *gorm.DB, groupID, agentID uint, limit, offset int) ([]CallRecording, int64, error) {
 	var recordings []CallRecording

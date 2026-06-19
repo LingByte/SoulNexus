@@ -819,6 +819,15 @@ func (s *session) ttsSink(pcm []byte) error {
 
 // teardown closes everything in reverse build order. Idempotent.
 func (s *session) teardown(reason string) {
+	if s.closed.Load() {
+		return
+	}
+	// Push accumulated assistant text before closing the WS so browser
+	// clients still receive llm_response when hangup arrives mid-turn.
+	if full := strings.TrimSpace(s.turnLLMText); full != "" {
+		s.writeText(MakeLLMReply(full))
+		s.turnLLMText = ""
+	}
 	if !s.closed.CompareAndSwap(false, true) {
 		return
 	}

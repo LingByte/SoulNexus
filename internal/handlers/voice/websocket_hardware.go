@@ -63,9 +63,20 @@ func (h *Handlers) mountXiaozhi(r gin.IRoutes) bool {
 		OnSessionStart: func(_ context.Context, callID, deviceID string) {
 			logger.Info(fmt.Sprintf("[xiaozhi] session start call=%s device=%s", callID, deviceID))
 		},
-		OnSessionEnd: func(_ context.Context, callID, reason string) {
-			logger.Info(fmt.Sprintf("[xiaozhi] session end   call=%s reason=%s", callID, reason))
-		},
+	}
+
+	syncCallRecording := func(_ context.Context, callID, reason string) {
+		if h.cfg.DB == nil {
+			return
+		}
+		if err := app.SyncVoiceCallToCallRecording(h.cfg.DB, callID); err != nil {
+			logger.Info(fmt.Sprintf("[xiaozhi] call recording sync call=%s reason=%s: %v", callID, reason, err))
+		}
+	}
+
+	srvCfg.OnSessionEnd = func(ctx context.Context, callID, reason string) {
+		syncCallRecording(ctx, callID, reason)
+		logger.Info(fmt.Sprintf("[xiaozhi] session end   call=%s reason=%s", callID, reason))
 	}
 
 	var realtimeProvider string
@@ -89,7 +100,6 @@ func (h *Handlers) mountXiaozhi(r gin.IRoutes) bool {
 			logger.Info(fmt.Sprintf("[xiaozhi] disabled: %v", err))
 			return false
 		}
-		var agentFactory *app.AgentAwareFactory
 		if h.cfg.DB != nil {
 			agentFactory = app.NewAgentAwareFactory(h.cfg.DB, factory, nil, app.VoiceLogger("xiaozhi"))
 			srvCfg.SessionFactory = agentFactory
@@ -101,8 +111,11 @@ func (h *Handlers) mountXiaozhi(r gin.IRoutes) bool {
 	}
 
 	if agentFactory != nil {
+		prevEnd := srvCfg.OnSessionEnd
 		srvCfg.OnSessionEnd = func(ctx context.Context, callID, reason string) {
-			logger.Info(fmt.Sprintf("[xiaozhi] session end   call=%s reason=%s", callID, reason))
+			if prevEnd != nil {
+				prevEnd(ctx, callID, reason)
+			}
 			agentFactory.Release(callID)
 		}
 	}

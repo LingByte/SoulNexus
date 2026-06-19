@@ -20,12 +20,13 @@ import (
 
 // Config holds per-call LLM settings (typically from UserCredential + Agent).
 type Config struct {
-	Provider     string
-	APIKey       string
-	APIURL       string // OpenAI base URL, Alibaba AppID, Coze bot JSON or bot id, Ollama base URL
-	Model        string
-	SystemPrompt string
-	Temperature  float32 // 0 = caller should apply default (e.g. 0.7)
+	Provider         string
+	APIKey           string
+	APIURL           string // OpenAI base URL, Alibaba AppID, Coze bot JSON or bot id, Ollama base URL
+	Model            string
+	SystemPrompt     string
+	OpeningStatement string // Spoken via TTS when the call starts (before user speaks).
+	Temperature      float32 // 0 = caller should apply default (e.g. 0.7)
 }
 
 // Serve blocks until the WebSocket read loop ends or ctx is cancelled.
@@ -91,6 +92,7 @@ type callConn struct {
 	lastFinalM sync.Mutex
 
 	goodbyePending atomic.Bool
+	welcomeSent    atomic.Bool
 }
 
 func (c *callConn) dispatch(ctx context.Context, ev gateway.Event) {
@@ -99,6 +101,7 @@ func (c *callConn) dispatch(ctx context.Context, ev gateway.Event) {
 		logger.Info(fmt.Sprintf("[call=%s] started: from=%s to=%s codec=%s pcm_hz=%d",
 			c.callID, ev.From, ev.To, ev.Codec, ev.PCMHz))
 		go c.warmLLM(ctx)
+		c.speakWelcome()
 
 	case gateway.EvCallEnded:
 		logger.Info(fmt.Sprintf("[call=%s] ended: %s", c.callID, ev.Reason))
@@ -248,6 +251,22 @@ func (c *callConn) runTurn(ctx context.Context, userText string) {
 			})
 		}
 	}
+}
+
+func (c *callConn) speakWelcome() {
+	text := strings.TrimSpace(c.cfg.OpeningStatement)
+	if text == "" {
+		return
+	}
+	if !c.welcomeSent.CompareAndSwap(false, true) {
+		return
+	}
+	logger.Info(fmt.Sprintf("[call=%s] welcome tts: %q", c.callID, text))
+	c.sendCommand(gateway.Command{
+		Type:        gateway.CmdTTSSpeak,
+		Text:        text,
+		UtteranceID: "welcome",
+	})
 }
 
 type streamView struct {

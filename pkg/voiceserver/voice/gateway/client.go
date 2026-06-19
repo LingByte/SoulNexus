@@ -200,6 +200,15 @@ type Client struct {
 	ttsQueue chan ttsJob
 	ttsWg    sync.WaitGroup
 
+	// pendingHangupReason is set when the dialog plane sends hangup while
+	// TTS is still playing or the speak queue has pending jobs. OnHangup
+	// is deferred until playback drains so goodbye audio is not cut off.
+	hangupMu            sync.Mutex
+	pendingHangupReason string
+	// ttsBusy is true from when ttsWorker dequeues a job until that job's
+	// Speak finishes. Covers the gap before TTS.IsPlaying() flips true.
+	ttsBusy atomic.Bool
+
 	// asrFinalAt holds the wall-clock at which the most recent
 	// ASR-final transcript was forwarded to the dialog plane. The
 	// next ttsWorker iteration consumes (and clears) it to compute
@@ -740,9 +749,7 @@ func (c *Client) dispatch(cmd Command) {
 			zap.String("message", msg))
 
 	case CmdHangup:
-		if c.cfg.OnHangup != nil {
-			c.cfg.OnHangup(cmd.Reason)
-		}
+		c.scheduleHangup(cmd.Reason)
 	default:
 		c.log.Warn("voice/gateway unknown command",
 			zap.String("type", string(cmd.Type)),
@@ -767,6 +774,7 @@ func (c *Client) ttsWorker() {
 			if c.runCtx.Err() != nil {
 				return
 			}
+			c.ttsBusy.Store(true)
 			start := time.Now()
 			// Consume any pending ASR-final stamp so that E2EFirstByteMs
 			// is only reported on the FIRST Speak after a given final.
@@ -872,8 +880,55 @@ func (c *Client) ttsWorker() {
 					OK:               err == nil,
 				})
 			}
+			c.ttsBusy.Store(false)
+			c.tryFlushPendingHangup()
 		}
 	}
+}
+
+func (c *Client) scheduleHangup(reason string) {
+	if c == nil || c.cfg.OnHangup == nil {
+		return
+	}
+	if reason == "" {
+		reason = "goodbye"
+	}
+	c.hangupMu.Lock()
+	c.pendingHangupReason = reason
+	c.hangupMu.Unlock()
+	c.tryFlushPendingHangup()
+}
+
+func (c *Client) tryFlushPendingHangup() {
+	if c == nil || c.cfg.OnHangup == nil {
+		return
+	}
+	c.hangupMu.Lock()
+	reason := c.pendingHangupReason
+	c.hangupMu.Unlock()
+	if reason == "" {
+		return
+	}
+	if c.ttsBusy.Load() {
+		return
+	}
+	if c.ttsQueue != nil && len(c.ttsQueue) > 0 {
+		return
+	}
+	if c.cfg.Attached != nil && c.cfg.Attached.TTS != nil && c.cfg.Attached.TTS.IsPlaying() {
+		return
+	}
+	c.hangupMu.Lock()
+	if c.pendingHangupReason == "" {
+		c.hangupMu.Unlock()
+		return
+	}
+	reason = c.pendingHangupReason
+	c.pendingHangupReason = ""
+	c.hangupMu.Unlock()
+	// Never invoke OnHangup synchronously from ttsWorker — transports
+	// tear down the gateway (Close → ttsWg.Wait) inside OnHangup.
+	go c.cfg.OnHangup(reason)
 }
 
 // drainTTSQueue consumes any pending jobs without playing them, emitting a
