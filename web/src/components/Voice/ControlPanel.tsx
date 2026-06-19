@@ -19,10 +19,15 @@ interface ControlPanelProps {
 
     // TTS Provider配置
     ttsProvider?: string  // TTS平台提供商，如 "tencent", "qiniu", "baidu" 等
+    credentialResolving?: boolean
+    credentialLookupError?: string | null
+    resolvedAsrProvider?: string
+    resolvedLlmProvider?: string
 
     // 通话设置
     selectedSpeaker: string
     systemPrompt: string
+    openingStatement: string
     temperature: number
     maxTokens: number
     llmModel: string // LLM模型名称
@@ -30,6 +35,7 @@ interface ControlPanelProps {
     // 设置更新函数
     onSpeakerChange: (value: string) => void
     onSystemPromptChange: (value: string) => void
+    onOpeningStatementChange: (value: string) => void
     onTemperatureChange: (value: number) => void
     onMaxTokensChange: (value: number) => void
     onLlmModelChange: (value: string) => void
@@ -77,13 +83,19 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                                        onApiKeyChange,
                                                        onApiSecretChange,
                                                        ttsProvider,
+                                                       credentialResolving = false,
+                                                       credentialLookupError = null,
+                                                       resolvedAsrProvider,
+                                                       resolvedLlmProvider,
                                                        selectedSpeaker,
                                                        systemPrompt,
+                                                       openingStatement,
                                                        temperature,
                                                        maxTokens,
                                                        llmModel,
                                                        onSpeakerChange,
                                                        onSystemPromptChange,
+                                                       onOpeningStatementChange,
                                                        onTemperatureChange,
                                                        onMaxTokensChange,
                                                        onLlmModelChange,
@@ -121,9 +133,9 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
     const [jsTemplates, setJsTemplates] = useState<JSTemplate[]>([])
     const voiceFetchSeqRef = useRef(0)
 
-    // 根据 TTS Provider 加载音色列表
+    // 根据 TTS Provider 加载音色列表（须等凭证解析出 provider）
     useEffect(() => {
-        const provider = (ttsProvider || 'tencent').trim().toLowerCase()
+        const provider = ttsProvider?.trim().toLowerCase()
         if (!provider) {
             setVoiceOptions([])
             setLoadingVoices(false)
@@ -157,6 +169,17 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
             cancelled = true
         }
     }, [ttsProvider])
+
+    // 当前发音人不在该服务商音色列表中时，自动选第一个
+    useEffect(() => {
+        if (loadingVoices || credentialResolving || voiceOptions.length === 0) {
+            return
+        }
+        const hasCurrent = voiceOptions.some((v) => v.id === selectedSpeaker)
+        if (!hasCurrent) {
+            onSpeakerChange(voiceOptions[0].id)
+        }
+    }, [voiceOptions, loadingVoices, credentialResolving, selectedSpeaker, onSpeakerChange])
 
     useEffect(() => {
         const fetchJSTemplates = async () => {
@@ -227,6 +250,28 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                             placeholder={t('controlPanel.api.apiSecretPlaceholder')}
                                         />
                                     </div>
+                                    {(credentialResolving || ttsProvider || credentialLookupError) ? (
+                                        <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80 px-3 py-2 text-xs text-gray-600 dark:text-gray-400 space-y-1">
+                                            {credentialResolving ? (
+                                                <p>正在识别凭证对应的服务商…</p>
+                                            ) : credentialLookupError ? (
+                                                <p className="text-red-500 dark:text-red-400">{credentialLookupError}</p>
+                                            ) : (
+                                                <>
+                                                    <p>
+                                                        已识别 TTS：<span className="font-medium text-purple-600 dark:text-purple-400">{ttsProvider}</span>
+                                                        {resolvedAsrProvider ? (
+                                                            <span className="ml-2">ASR：{resolvedAsrProvider}</span>
+                                                        ) : null}
+                                                        {resolvedLlmProvider ? (
+                                                            <span className="ml-2">LLM：{resolvedLlmProvider}</span>
+                                                        ) : null}
+                                                    </p>
+                                                    <p className="text-gray-500">下方发音人列表已按该 TTS 平台加载</p>
+                                                </>
+                                            )}
+                                        </div>
+                                    ) : null}
                                 </div>
                             </motion.div>
                         )}
@@ -262,9 +307,9 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                         </span>
                                             )}
                                         </label>
-                                        {loadingVoices ? (
+                                        {credentialResolving || loadingVoices ? (
                                             <div className="w-full p-3 text-sm text-gray-500 dark:text-gray-400 text-center border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800">
-                                                {t('controlPanel.call.loadingVoices')}
+                                                {credentialResolving ? '正在识别凭证…' : t('controlPanel.call.loadingVoices')}
                                             </div>
                                         ) : voiceOptions.length > 0 ? (
                                             <ArcoSelect
@@ -311,6 +356,21 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                                 }}
                                             />
                                         )}
+                                    </div>
+
+                                    {/* 欢迎语 */}
+                                    <div className="space-y-1">
+                                        <label className="text-base font-medium">{t('controlPanel.assistant.openingStatement')}</label>
+                                        <Input.TextArea
+                                            className="!text-base min-h-[5rem]"
+                                            value={openingStatement}
+                                            onChange={(v) => onOpeningStatementChange(v)}
+                                            placeholder={t('controlPanel.assistant.openingStatementPlaceholder')}
+                                            rows={3}
+                                        />
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                                            {t('controlPanel.assistant.openingStatementHint')}
+                                        </p>
                                     </div>
 
                                     {/* Temperature 控制 */}

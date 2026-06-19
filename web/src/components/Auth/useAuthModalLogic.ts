@@ -534,6 +534,5 @@ export function useAuthModalLogic() {
     navigate,
     goToLoginMode,
     dismissRegisterSuccess,
-    setPendingAction,
   }
 }

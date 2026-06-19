@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, lazy, Suspense } from 'react'
 import { BrowserRouter as Router, Route, Routes, Navigate, useLocation } from 'react-router-dom';
 import { consumeAuthTokenFromURL } from '@/utils/authBootstrap'
 import { useAuthStore } from '@/stores/authStore'
@@ -6,8 +6,6 @@ import Home from '@/pages/Home.tsx';
 import NotFound from "@/pages/NotFound.tsx";
 import PWAInstaller from "@/components/PWA/PWAInstaller.tsx";
 import ErrorBoundary from "@/components/ErrorBoundary/ErrorBoundary.tsx";
-import VoiceAssistant from "@/pages/VoiceAssistant.tsx";
-import VoiceTrainingVolcengine from "@/pages/VoiceTraining/VoiceTrainingVolcengine.tsx";
 import DevErrorHandler from "@/components/Dev/DevErrorHandler.tsx";
 import GlobalSearch from "@/components/UI/GlobalSearch.tsx";
 import Profile from "@/pages/Profile.tsx";
@@ -15,28 +13,39 @@ import ProfileLayout from '@/pages/profile/ProfileLayout.tsx';
 import Layout from "@/components/Layout/Layout.tsx";
 import ResetPassword from "@/pages/ResetPassword.tsx";
 import ProtectedRoute from "@/components/Auth/ProtectedRoute.tsx";
-import JSTemplateManager from "@/pages/JSTemplateManager.tsx";
-import PetStudioPage from "@/pages/pet-market/PetStudioPage.tsx";
-import Assistants from '@/pages/Assistants.tsx';
-import GroupMembers from '@/pages/GroupMembers.tsx';
-import GroupSettings from '@/pages/GroupSettings.tsx';
-import GroupActivityLogs from '@/pages/GroupActivityLogs.tsx';
-import DeviceManagement from '@/pages/DeviceManagement.tsx';
-import DeviceDetail from '@/pages/DeviceDetail.tsx';
 import RedirectToDevices from '@/components/RedirectToDevices.tsx';
-import WorkflowManager from '@/pages/WorkflowManager.tsx';
-import KnowledgeListPage from '@/pages/knowledge/KnowledgeListPage.tsx';
-import KnowledgeSpaceDetailPage from '@/pages/knowledge/KnowledgeSpaceDetailPage.tsx';
-import KnowledgeDocumentDetailPage from '@/pages/knowledge/KnowledgeDocumentDetailPage.tsx';
-import CallRecordingAnalytics from '@/pages/CallRecordingAnalytics.tsx';
-import NodePluginMarket from '@/pages/NodePluginMarket.tsx';
-import VoiceprintManagement from '@/pages/VoiceprintManagement.tsx';
 import Privacy from '@/pages/Privacy.tsx';
 import Terms from '@/pages/Terms.tsx';
 import CookieConsent from '@/components/CookieConsent.tsx';
 import AuthModal from '@/components/Auth/AuthModal.tsx';
 import AccountDeletionRequest from '@/pages/AccountDeletionRequest.tsx';
-import Playground from '@/pages/Playground.tsx';
+
+// Lazy-loaded page components for code splitting (reduces initial bundle size)
+const VoiceAssistant = lazy(() => import('@/pages/VoiceAssistant.tsx'));
+const VoiceTrainingVolcengine = lazy(() => import('@/pages/VoiceTraining/VoiceTrainingVolcengine.tsx'));
+const JSTemplateManager = lazy(() => import('@/pages/JSTemplateManager.tsx'));
+const PetStudioPage = lazy(() => import('@/pages/pet-market/PetStudioPage.tsx'));
+const Assistants = lazy(() => import('@/pages/Assistants.tsx'));
+const GroupMembers = lazy(() => import('@/pages/GroupMembers.tsx'));
+const GroupSettings = lazy(() => import('@/pages/GroupSettings.tsx'));
+const GroupActivityLogs = lazy(() => import('@/pages/GroupActivityLogs.tsx'));
+const DeviceManagement = lazy(() => import('@/pages/DeviceManagement.tsx'));
+const DeviceDetail = lazy(() => import('@/pages/DeviceDetail.tsx'));
+const WorkflowManager = lazy(() => import('@/pages/WorkflowManager.tsx'));
+const KnowledgeListPage = lazy(() => import('@/pages/knowledge/KnowledgeListPage.tsx'));
+const KnowledgeSpaceDetailPage = lazy(() => import('@/pages/knowledge/KnowledgeSpaceDetailPage.tsx'));
+const KnowledgeDocumentDetailPage = lazy(() => import('@/pages/knowledge/KnowledgeDocumentDetailPage.tsx'));
+const CallRecordingAnalytics = lazy(() => import('@/pages/CallRecordingAnalytics.tsx'));
+const NodePluginMarket = lazy(() => import('@/pages/NodePluginMarket.tsx'));
+const VoiceprintManagement = lazy(() => import('@/pages/VoiceprintManagement.tsx'));
+const Playground = lazy(() => import('@/pages/Playground.tsx'));
+
+// Shared loading fallback for lazy routes
+const PageLoading = () => (
+    <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+    </div>
+);
 
 function AppRoutes() {
     const location = useLocation();
@@ -52,6 +61,7 @@ function AppRoutes() {
     
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+            <Suspense fallback={<PageLoading />}>
                     <Routes>
                         {/* 首页 - 独立布局，不需要 Layout */}
                         <Route path="/" element={<Home />} />
@@ -253,6 +263,7 @@ function AppRoutes() {
 
                     {/* 全局登录弹窗 */}
                     <AuthModal />
+            </Suspense>
         </div>
     );
 }

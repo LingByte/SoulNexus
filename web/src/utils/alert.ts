@@ -29,7 +29,7 @@ export function showAlert(
 
     const msgConfig = {
         content: message,
-        duration: duration / 1000,
+        duration,
         closable: options?.closable ?? true,
     }
 

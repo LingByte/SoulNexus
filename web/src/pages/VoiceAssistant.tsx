@@ -119,7 +119,6 @@ const VoiceAssistant = () => {
     const lastLLMResponseRef = useRef<string>('') // 上次已处理的LLM回复（用于去重）
     const lastSelectedAgentRef = useRef<number | null>(null) // 防止重复选择同一个助手
     const settingsDirtyRef = useRef(false) // 用户正在编辑配置面板时，避免被异步加载覆盖
-    const agentTtsProviderFromDbRef = useRef(false) // 助手已配置 TTS 平台时，不用凭证覆盖
 
     const NATURAL_SYSTEM_PROMPT_HINT =
         '你是一个亲切、自然的语音助手。用口语化短句交流，先听懂用户意图再回答；适当用语气词，避免书面语和列表式回复。'
@@ -183,35 +182,68 @@ const VoiceAssistant = () => {
         }
     }, [apiSecret])
 
-    // 根据API密钥查找对应的凭证，获取TTS Provider（助手已配置的平台优先）
-    useEffect(() => {
-        const fetchTTSProvider = async () => {
-            if (agentTtsProviderFromDbRef.current) {
-                return
-            }
-            if (!apiKey || !apiSecret) {
-                setTtsProvider(undefined)
-                return
-            }
+    const [ttsProvider, setTtsProvider] = useState<string | undefined>(undefined)
+    // 根据 API Key / Secret 解析凭证对应的服务商（输入后防抖查询）
+    const [credentialResolving, setCredentialResolving] = useState(false)
+    const [credentialLookupError, setCredentialLookupError] = useState<string | null>(null)
+    const [resolvedAsrProvider, setResolvedAsrProvider] = useState<string | undefined>(undefined)
+    const [resolvedLlmProvider, setResolvedLlmProvider] = useState<string | undefined>(undefined)
 
-            try {
-                const response = await getCredentialByKey(apiKey, apiSecret)
-                if (response.code === 200 && response.data) {
-                    setTtsProvider(response.data.ttsProvider?.toLowerCase() || 'tencent')
-                } else {
-                    setTtsProvider(undefined)
-                }
-            } catch (error) {
-                console.error('获取凭证信息失败:', error)
-                setTtsProvider(undefined)
-            }
+    useEffect(() => {
+        const key = apiKey.trim()
+        const secret = apiSecret.trim()
+        if (!key || !secret) {
+            setTtsProvider(undefined)
+            setResolvedAsrProvider(undefined)
+            setResolvedLlmProvider(undefined)
+            setCredentialLookupError(null)
+            setCredentialResolving(false)
+            return
         }
 
-        fetchTTSProvider()
+        let cancelled = false
+        const timer = window.setTimeout(async () => {
+            setCredentialResolving(true)
+            setCredentialLookupError(null)
+            try {
+                const response = await getCredentialByKey(key, secret)
+                if (cancelled) return
+                if (response.code === 200 && response.data) {
+                    const provider = response.data.ttsProvider?.trim().toLowerCase() || 'tencent'
+                    setTtsProvider(provider)
+                    setResolvedAsrProvider(response.data.asrProvider?.trim().toLowerCase() || undefined)
+                    setResolvedLlmProvider(response.data.llmProvider?.trim().toLowerCase() || undefined)
+                    setCredentialLookupError(null)
+                } else {
+                    setTtsProvider(undefined)
+                    setResolvedAsrProvider(undefined)
+                    setResolvedLlmProvider(undefined)
+                    setCredentialLookupError(response.msg || '未找到匹配的凭证')
+                }
+            } catch (error) {
+                if (cancelled) return
+                console.error('获取凭证信息失败:', error)
+                setTtsProvider(undefined)
+                setResolvedAsrProvider(undefined)
+                setResolvedLlmProvider(undefined)
+                setCredentialLookupError('凭证校验失败，请检查 API Key / Secret')
+            } finally {
+                if (!cancelled) {
+                    setCredentialResolving(false)
+                }
+            }
+        }, 500)
+
+        return () => {
+            cancelled = true
+            window.clearTimeout(timer)
+        }
     }, [apiKey, apiSecret])
+
     const [language, setLanguage] = useState('zh-cn')
     const [selectedSpeaker, setSelectedSpeaker] = useState('101016')
     const [systemPrompt, setSystemPrompt] = useState('')
+    const [openingStatement, setOpeningStatement] = useState('')
     const [temperature, setTemperature] = useState(0.6)
     const [maxTokens, setMaxTokens] = useState(512)
     const [llmModel, setLlmModel] = useState('')
@@ -254,6 +286,7 @@ const VoiceAssistant = () => {
         }
 
         setSystemPrompt(detail.systemPrompt ?? '')
+        setOpeningStatement(detail.openingStatement ?? '')
         setSelectedSpeaker(
             detail.speaker !== undefined && detail.speaker !== null && detail.speaker !== ''
                 ? detail.speaker
@@ -275,11 +308,7 @@ const VoiceAssistant = () => {
         setApiKey(detail.apiKey ?? '')
         setApiSecret(detail.apiSecret ?? '')
         if (detail.ttsProvider) {
-            agentTtsProviderFromDbRef.current = true
             setTtsProvider(detail.ttsProvider.trim().toLowerCase())
-        } else {
-            agentTtsProviderFromDbRef.current = false
-            setTtsProvider(undefined)
         }
         setAssistantName(detail.name ?? '')
         setEnableVAD(detail.enableVAD !== undefined ? detail.enableVAD : true)
@@ -318,9 +347,6 @@ const VoiceAssistant = () => {
             }
         }
     }, [agentId, assistants, isControlPanelCollapsed])
-
-    // 状态管理中新增
-    const [ttsProvider, setTtsProvider] = useState<string | undefined>(undefined)
 
     // 引导步骤配置（支持国际化）
     const onboardingSteps = [
@@ -1713,7 +1739,6 @@ const VoiceAssistant = () => {
         }
 
         settingsDirtyRef.current = false
-        agentTtsProviderFromDbRef.current = false
 
         try {
             const response = await getAssistant(selectedId)
@@ -1771,59 +1796,58 @@ const VoiceAssistant = () => {
         }
     }
 
-    // 保存设置（带防抖）
+    // 保存设置
     const handleSaveSettings = async () => {
         if (saveSettingsTimeoutRef.current) {
             clearTimeout(saveSettingsTimeoutRef.current)
+            saveSettingsTimeoutRef.current = null
         }
 
-        saveSettingsTimeoutRef.current = setTimeout(async () => {
-            try {
-                setIsSavingSettings(true)
+        try {
+            setIsSavingSettings(true)
 
-                const response = await updateAssistant(agentId, {
+            const response = await updateAssistant(agentId, {
                     name: assistantName,
                     systemPrompt,
+                    openingStatement,
                     persona_tag: ((assistants ?? []).find(a => a.id === agentId) as ApiAssistant | undefined)?.personaTag || '',
-                    temperature: temperature,
-                    maxTokens: maxTokens,
-                    language,
-                    speaker: selectedSpeaker,
-                    voiceCloneId: selectedVoiceCloneId,
-                    ttsProvider: ttsProvider || '',
-                    apiKey,
-                    apiSecret,
-                    llmModel,
-                    enableVAD,
-                    vadThreshold,
-                    vadConsecutiveFrames,
-                    enableJSONOutput,
-                    boundJsTemplateSourceId: boundJsTemplateSourceId || '',
-                })
+                temperature: temperature,
+                maxTokens: maxTokens,
+                language,
+                speaker: selectedSpeaker,
+                voiceCloneId: selectedVoiceCloneId,
+                ttsProvider: ttsProvider || '',
+                apiKey,
+                apiSecret,
+                llmModel,
+                enableVAD,
+                vadThreshold,
+                vadConsecutiveFrames,
+                enableJSONOutput,
+                boundJsTemplateSourceId: boundJsTemplateSourceId || '',
+            })
 
-                if (response.code === 200 && response.data) {
-                    settingsDirtyRef.current = false
-                    applyAgentDetail(response.data, agentId, true)
-                    setAssistants((assistants ?? []).map(a => a.id === agentId ? response.data! : a))
-                    showAlert('设置保存成功。语音通话需挂断后重新连接才会使用新提示词。', 'success')
-                } else {
-                    showAlert('设置保存成功', 'success')
-                }
-            } catch (err: any) {
-                console.error('保存设置失败:', err)
-
-                // 检查是否是API错误响应
-                if (err.response && err.response.data && err.response.data.msg) {
-                    showAlert(err.response.data.msg, 'error')
-                } else if (err.message) {
-                    showAlert(err.message, 'error')
-                } else {
-                    showAlert('保存设置失败', 'error')
-                }
-            } finally {
-                setIsSavingSettings(false)
+            if (response.code === 200 && response.data) {
+                settingsDirtyRef.current = false
+                applyAgentDetail(response.data, agentId, true)
+                setAssistants((assistants ?? []).map(a => a.id === agentId ? response.data! : a))
+                showAlert('设置保存成功。语音通话需挂断后重新连接才会使用新提示词。', 'success', undefined, { duration: 4000 })
+            } else {
+                showAlert('设置保存成功', 'success', undefined, { duration: 4000 })
             }
-        }, 500) // 500ms防抖延迟
+        } catch (err: any) {
+            console.error('保存设置失败:', err)
+
+            if (err.response && err.response.data && err.response.data.msg) {
+                showAlert(err.response.data.msg, 'error')
+            } else if (err.message) {
+                showAlert(err.message, 'error')
+            } else {
+                showAlert('保存设置失败', 'error')
+            }
+        } finally {
+            setIsSavingSettings(false)
+        }
     }
 
     // 删除助手
@@ -2038,8 +2062,13 @@ const VoiceAssistant = () => {
                                     onApiKeyChange={(v) => { markSettingsDirty(); setApiKey(v) }}
                                     onApiSecretChange={(v) => { markSettingsDirty(); setApiSecret(v) }}
                                     ttsProvider={ttsProvider}
+                                    credentialResolving={credentialResolving}
+                                    credentialLookupError={credentialLookupError}
+                                    resolvedAsrProvider={resolvedAsrProvider}
+                                    resolvedLlmProvider={resolvedLlmProvider}
                                     selectedSpeaker={selectedSpeaker}
                                     systemPrompt={systemPrompt}
+                                    openingStatement={openingStatement}
                                     temperature={temperature}
                                     maxTokens={maxTokens}
                                     llmModel={llmModel}
@@ -2047,6 +2076,7 @@ const VoiceAssistant = () => {
                                     onBoundJsTemplateSourceIdChange={(v) => { markSettingsDirty(); setBoundJsTemplateSourceId(v) }}
                                     onSpeakerChange={(v) => { markSettingsDirty(); setSelectedSpeaker(v) }}
                                     onSystemPromptChange={(v) => { markSettingsDirty(); setSystemPrompt(v) }}
+                                    onOpeningStatementChange={(v) => { markSettingsDirty(); setOpeningStatement(v) }}
                                     onTemperatureChange={(v) => { markSettingsDirty(); setTemperature(v) }}
                                     onMaxTokensChange={(v) => { markSettingsDirty(); setMaxTokens(v) }}
                                     onLlmModelChange={(v) => { markSettingsDirty(); setLlmModel(v) }}

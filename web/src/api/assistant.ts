@@ -27,6 +27,7 @@ export interface UpdateAssistantForm {
   jsSourceId?: string // loader.js 客户端 ID（勿与 JS 模板 jsSourceId 混用）
   boundJsTemplateSourceId?: string // 绑定的 JS 模板 jsSourceId
   enableJSONOutput?: boolean
+  openingStatement?: string
 }
 
 // 助手信息 - 对应后端Assistant模型的完整字段
@@ -54,6 +55,7 @@ export interface Assistant {
   createdAt: string
   updatedAt: string
   enableJSONOutput?: boolean
+  openingStatement?: string
 }
 
 // 助手列表项 - 对应ListAssistants返回的字段
