@@ -3,7 +3,8 @@ import type { LLMUsage } from '@/api/chat'
 export interface Assistant {
   id: number
   name: string
-  jsSourceId: string
+  jsSourceId?: string
+  boundJsTemplateSourceId?: string
   language?: string
   active?: boolean
 }

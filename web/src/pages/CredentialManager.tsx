@@ -1,9 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Select as ArcoSelect } from '@arco-design/web-react'
 import { 
-  Key, Plus, Trash2, Download, 
-  Settings, CheckCircle,
-  Brain, Globe, Lock
+  Key, Plus, CheckCircle,
+  Brain
 } from 'lucide-react'
 import { useAuthStore } from '../stores/authStore'
 import { useI18nStore } from '../stores/i18nStore'
@@ -371,9 +370,7 @@ const CredentialManager = () => {
             <div className="flex items-center space-x-2">
               <Button
                 variant="primary"
-                size="sm"
-                leftIcon={<Plus className="w-4 h-4" />}
-                onClick={() => setActiveTab('create')}
+                size="sm"onClick={() => setActiveTab('create')}
               >
                 {t('credential.create')}
               </Button>
@@ -442,9 +439,7 @@ const CredentialManager = () => {
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t('credential.myKeys')}</h3>
                         <Button
                           variant="outline"
-                          size="sm"
-                          leftIcon={<Plus className="w-4 h-4" />}
-                          onClick={() => setActiveTab('create')}
+                          size="sm"onClick={() => setActiveTab('create')}
                         >
                           {t('credential.newKey')}
                         </Button>
@@ -457,7 +452,6 @@ const CredentialManager = () => {
                           <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">{t('credential.emptyDesc')}</p>
                           <Button
                             variant="primary"
-                            leftIcon={<Plus className="w-4 h-4" />}
                             onClick={() => setActiveTab('create')}
                           >
                             {t('credential.create')}
@@ -521,9 +515,7 @@ const CredentialManager = () => {
                                 <div className="flex items-center space-x-2 ml-4">
                                   <Button
                                     variant="outline"
-                                    size="sm"
-                                    leftIcon={<Download className="w-4 h-4" />}
-                                    onClick={() => {
+                                    size="sm"onClick={() => {
                                       const blob = new Blob(
                                         [`Name: ${cred.name}\nProvider: ${cred.llmProvider || t('credential.notConfigured')}\nUpdated: ${cred.updatedAt ? new Date(cred.updatedAt).toLocaleString('zh-CN') : t('credential.unknown')}`],
                                         { type: "text/plain" }
@@ -540,9 +532,7 @@ const CredentialManager = () => {
                                   </Button>
                                   <Button
                                     variant="destructive"
-                                    size="sm"
-                                    leftIcon={<Trash2 className="w-4 h-4" />}
-                                    onClick={() => openDeleteConfirm(cred.id, cred.name)}
+                                    size="sm"onClick={() => openDeleteConfirm(cred.id, cred.name)}
                                   >
                                     {t('credential.delete')}
                                   </Button>
@@ -577,10 +567,10 @@ const CredentialManager = () => {
                           <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700 pb-1.5">
                             {t('credential.generalSettings')}
                           </h4>
-                          <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" label={t('credential.keyName')}
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('credential.keyName')}</label>
+                          <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                             value={form.name}
-                            onChange={(e) => handleFormChange("name", e.target.value)}
-                            leftIcon={<Key />}
+                            onChange={(val) => handleFormChange("name", val)}
                             placeholder={t('credential.keyNamePlaceholder')}
                           />
                         </div>
@@ -608,72 +598,77 @@ const CredentialManager = () => {
                               placeholder={t('credential.providerPlaceholder')}
                               helperText={t('credential.providerHelper')}
                             />
-                            <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" label={
-                                isCozeProvider(form.llmProvider) ? 'Coze API Token' : 
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                              {isCozeProvider(form.llmProvider) ? 'Coze API Token' :
                                 (isOllamaProvider(form.llmProvider) || isLMStudioProvider(form.llmProvider)) ? 'API Key (可选)' :
-                                t('credential.apiKeyLabel')
-                              }
+                                t('credential.apiKeyLabel')}
+                            </label>
+                            <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                               value={form.llmApiKey}
-                              onChange={(e) => handleFormChange("llmApiKey", e.target.value)}
-                              leftIcon={<Lock />}
+                              onChange={(val) => handleFormChange("llmApiKey", val)}
                               placeholder={
-                                isCozeProvider(form.llmProvider) ? '请输入 Coze API Token' : 
+                                isCozeProvider(form.llmProvider) ? '请输入 Coze API Token' :
                                 (isOllamaProvider(form.llmProvider) || isLMStudioProvider(form.llmProvider))
                                   ? '本地 OpenAI 兼容服务可留空 API Key' :
                                 t('credential.apiKeyPlaceholder')
                               }
                               type="password"
-                              helperText={
-                                isCozeProvider(form.llmProvider) ? '从 Coze 平台获取的个人访问令牌 (PAT)' : 
-                                (isOllamaProvider(form.llmProvider) || isLMStudioProvider(form.llmProvider))
-                                  ? 'Ollama/LM Studio 本地服务通常不要求 API Key，此字段可留空' :
-                                undefined
-                              }
                             />
+                            {(isCozeProvider(form.llmProvider) ? '从 Coze 平台获取的个人访问令牌 (PAT)' :
+                              (isOllamaProvider(form.llmProvider) || isLMStudioProvider(form.llmProvider))
+                                ? 'Ollama/LM Studio 本地服务通常不要求 API Key，此字段可留空' :
+                              null) && (
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                {isCozeProvider(form.llmProvider) ? '从 Coze 平台获取的个人访问令牌 (PAT)' :
+                                  'Ollama/LM Studio 本地服务通常不要求 API Key，此字段可留空'}
+                              </p>
+                            )}
                             {isCozeProvider(form.llmProvider) ? (
                               <>
-                                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" label="Bot ID"
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Bot ID</label>
+                                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                                   value={form.llmApiUrl}
-                                  onChange={(e) => handleFormChange("llmApiUrl", e.target.value)}
-                                  leftIcon={<Settings />}
+                                  onChange={(val) => handleFormChange("llmApiUrl", val)}
                                   placeholder="请输入 Coze Bot ID"
-                                  helperText="在 Coze 平台上创建的智能体 Bot ID（必需）"
                                 />
-                                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" label="User ID（可选）"
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">在 Coze 平台上创建的智能体 Bot ID（必需）</p>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">User ID（可选）</label>
+                                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                                   value={cozeConfig.userId}
-                                  onChange={(e) => setCozeConfig(prev => ({ ...prev, userId: e.target.value }))}
-                                  leftIcon={<Settings />}
+                                  onChange={(val) => setCozeConfig(prev => ({ ...prev, userId: val }))}
                                   placeholder="自定义 User ID（留空则自动生成）"
-                                  helperText="如果不填写，将自动使用 user_{您的用户ID} 格式"
                                 />
-                                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" label="Base URL（可选）"
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">如果不填写，将自动使用 user_{'{'}您的用户ID{'}'} 格式</p>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Base URL（可选）</label>
+                                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                                   value={cozeConfig.baseUrl}
-                                  onChange={(e) => setCozeConfig(prev => ({ ...prev, baseUrl: e.target.value }))}
-                                  leftIcon={<Globe />}
+                                  onChange={(val) => setCozeConfig(prev => ({ ...prev, baseUrl: val }))}
                                   placeholder="https://api.coze.com"
-                                  helperText="Coze API 基础地址（留空使用默认值）"
                                 />
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Coze API 基础地址（留空使用默认值）</p>
                               </>
                             ) : (
-                              <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" label={t('credential.apiUrl')}
-                                value={form.llmApiUrl}
-                                onChange={(e) => handleFormChange("llmApiUrl", e.target.value)}
-                                leftIcon={<Globe />}
-                                placeholder={
-                                  isOllamaProvider(form.llmProvider)
-                                    ? 'http://localhost:11434/v1'
-                                    : isLMStudioProvider(form.llmProvider)
-                                      ? 'http://localhost:1234/v1'
-                                    : t('credential.apiUrlPlaceholder')
-                                }
-                                helperText={
-                                  isOllamaProvider(form.llmProvider)
+                              <>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('credential.apiUrl')}</label>
+                                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
+                                  value={form.llmApiUrl}
+                                  onChange={(val) => handleFormChange("llmApiUrl", val)}
+                                  placeholder={
+                                    isOllamaProvider(form.llmProvider)
+                                      ? 'http://localhost:11434/v1'
+                                      : isLMStudioProvider(form.llmProvider)
+                                        ? 'http://localhost:1234/v1'
+                                      : t('credential.apiUrlPlaceholder')
+                                  }
+                                />
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                  {isOllamaProvider(form.llmProvider)
                                     ? 'Ollama 服务的 API 地址，默认为 http://localhost:11434/v1。如果 Ollama 运行在其他地址，请修改此值。'
                                     : isLMStudioProvider(form.llmProvider)
                                       ? 'LM Studio OpenAI 兼容服务地址，默认为 http://localhost:1234/v1。'
-                                    : t('credential.apiUrlHelper')
-                                }
-                              />
+                                    : t('credential.apiUrlHelper')}
+                                </p>
+                              </>
                             )}
                           </div>
                         </div>
@@ -759,9 +754,10 @@ const CredentialManager = () => {
                               <Button size="sm" variant="outline" onClick={() => handleFormChange("expiresAt", DATE_NEVER)}>1970-01-01 07:59:59</Button>
                               <Button size="sm" variant="ghost" onClick={() => handleFormChange("expiresAt", "")}>清空</Button>
                             </div>
-                            <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" label="过期时间"
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">过期时间</label>
+                            <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                               value={form.expiresAt || ""}
-                              onChange={(e) => handleFormChange("expiresAt", e.target.value)}
+                              onChange={(val) => handleFormChange("expiresAt", val)}
                               placeholder="YYYY-MM-DD HH:MM:SS"
                             />
                           </div>
@@ -783,15 +779,17 @@ const CredentialManager = () => {
                               />
                               <span>无限额度</span>
                             </label>
-                            <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" label="设置令牌可用额度"
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">设置令牌可用额度</label>
+                            <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                               type="number"
                               value={String(form.tokenQuota ?? 0)}
-                              onChange={(e) => setForm(prev => ({ ...prev, tokenQuota: Number(e.target.value || 0) }))}
+                              onChange={(val) => setForm(prev => ({ ...prev, tokenQuota: Number(val || 0) }))}
                             />
-                            <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" label="设置令牌可用数量"
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">设置令牌可用数量</label>
+                            <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                               type="number"
                               value={String(form.requestQuota ?? 0)}
-                              onChange={(e) => setForm(prev => ({ ...prev, requestQuota: Number(e.target.value || 0) }))}
+                              onChange={(val) => setForm(prev => ({ ...prev, requestQuota: Number(val || 0) }))}
                             />
                           </div>
                         </div>
@@ -817,6 +815,10 @@ const CredentialManager = () => {
                     </div>
                   </Card>
                 </TabsContent>
+        </Tabs>
+      </div>
+
+      {/*                 </TabsContent>
         </Tabs>
       </div>
 
@@ -856,9 +858,7 @@ const CredentialManager = () => {
               </div>
               <div className="flex justify-end space-x-3">
                 <Button
-                  variant="outline"
-                  leftIcon={<Download className="w-4 h-4" />}
-                  onClick={handleExport}
+                  variant="outline"onClick={handleExport}
                 >
                   导出
                 </Button>

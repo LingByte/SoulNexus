@@ -10,6 +10,7 @@ import { notification } from './modules/notification'
 import { credential } from './modules/credential'
 import { device } from './modules/device'
 import { jsTemplate } from './modules/jsTemplate'
+import { petMarket } from './modules/petMarket'
 import { resetPassword } from './modules/resetPassword'
 import { animation } from './modules/animation'
 import { knowledge } from './modules/knowledge'
@@ -57,6 +58,7 @@ export const translations = mergeTranslations(
   credential,
   device,
   jsTemplate,
+  petMarket,
   resetPassword,
   animation,
   knowledge,

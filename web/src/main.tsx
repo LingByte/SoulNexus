@@ -4,6 +4,7 @@ import App from '@/App.tsx'
 import './index.css'
 import '@arco-design/web-react/dist/css/arco.css'
 import { applyStoredThemeBeforeReact } from '@/stores/themeStore'
+import '@/lib/monacoSetup'
 
 applyStoredThemeBeforeReact()
 

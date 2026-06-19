@@ -28,6 +28,7 @@ import {
 import Button from '@/components/UI/Button'
 import { Input as ArcoInput } from '@arco-design/web-react'
 import Card from '@/components/UI/Card'
+import workflowService from '@/api/workflow'
 import Badge from '@/components/UI/Badge'
 import Modal from '@/components/UI/Modal'
 import ConfirmDialog from '@/components/UI/ConfirmDialog'
@@ -472,11 +473,11 @@ const NodePluginMarket: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="flex flex-col sm:flex-row gap-4 mb-6">
           {/* 搜索框 */}
-          <div className="flex-1">
-            <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" placeholder="搜索插件..."
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base !pl-9" placeholder="搜索插件..."
               value={searchKeyword}
-              onChange={(e) => setSearchKeyword(e.target.value)}
-              leftIcon={<Search />}
+              onChange={(val) => setSearchKeyword(val)}
             />
           </div>
 
@@ -856,7 +857,7 @@ const EditPluginModal: React.FC<{
         <label className="block text-sm font-medium mb-2">描述 *</label>
         <textarea
           value={formData.description}
-          onChange={(val) => setFormData({...formData, description: val})}
+          onChange={(e) => setFormData({...formData, description: e.target.value})}
           placeholder="插件功能描述..."
           className="w-full px-3 py-2 border border-gray-300 rounded-lg resize-none h-20"
         />
@@ -884,7 +885,7 @@ const EditPluginModal: React.FC<{
           <input
             type="color"
             value={formData.color}
-            onChange={(val) => setFormData({...formData, color: val})}
+            onChange={(e) => setFormData({...formData, color: e.target.value})}
             className="w-full h-10 border border-gray-300 rounded-lg"
           />
         </div>
@@ -927,7 +928,7 @@ const EditPluginModal: React.FC<{
         <label className="block text-sm font-medium mb-2">更新日志</label>
         <textarea
           value={formData.changeLog}
-          onChange={(val) => setFormData({...formData, changeLog: val})}
+          onChange={(e) => setFormData({...formData, changeLog: e.target.value})}
           placeholder="本次更新的内容..."
           className="w-full px-3 py-2 border border-gray-300 rounded-lg resize-none h-16"
         />
@@ -964,9 +965,9 @@ const EditPluginModal: React.FC<{
                 <div className="grid grid-cols-2 gap-2 mb-2">
                   <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" placeholder="参数名"
                     value={param.name}
-                    onChange={(e) => {
+                    onChange={(val) => {
                       const newParams = [...formData.inputSchema.parameters]
-                      newParams[index] = { ...param, name: e.target.value }
+                      newParams[index] = { ...param, name: val }
                       setFormData({
                         ...formData,
                         inputSchema: { parameters: newParams }
@@ -994,9 +995,9 @@ const EditPluginModal: React.FC<{
                 </div>
                 <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" placeholder="描述"
                   value={param.description}
-                  onChange={(e) => {
+                  onChange={(val) => {
                     const newParams = [...formData.inputSchema.parameters]
-                    newParams[index] = { ...param, description: e.target.value }
+                    newParams[index] = { ...param, description: val }
                     setFormData({
                       ...formData,
                       inputSchema: { parameters: newParams }
@@ -1068,9 +1069,9 @@ const EditPluginModal: React.FC<{
                 <div className="grid grid-cols-2 gap-2 mb-2">
                   <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" placeholder="参数名"
                     value={param.name}
-                    onChange={(e) => {
+                    onChange={(val) => {
                       const newParams = [...formData.outputSchema.parameters]
-                      newParams[index] = { ...param, name: e.target.value }
+                      newParams[index] = { ...param, name: val }
                       setFormData({
                         ...formData,
                         outputSchema: { parameters: newParams }
@@ -1098,9 +1099,9 @@ const EditPluginModal: React.FC<{
                 </div>
                 <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" placeholder="描述"
                   value={param.description}
-                  onChange={(e) => {
+                  onChange={(val) => {
                     const newParams = [...formData.outputSchema.parameters]
-                    newParams[index] = { ...param, description: e.target.value }
+                    newParams[index] = { ...param, description: val }
                     setFormData({
                       ...formData,
                       outputSchema: { parameters: newParams }
@@ -1506,7 +1507,7 @@ const PublishWorkflowModal: React.FC<{
         <label className="block text-sm font-medium mb-2">描述 *</label>
         <textarea
           value={formData.description}
-          onChange={(val) => setFormData({...formData, description: val})}
+          onChange={(e) => setFormData({...formData, description: e.target.value})}
           placeholder="工作流功能描述..."
           className="w-full px-3 py-2 border border-gray-300 rounded-lg resize-none h-20"
         />
@@ -1534,7 +1535,7 @@ const PublishWorkflowModal: React.FC<{
           <input
             type="color"
             value={formData.color}
-            onChange={(val) => setFormData({...formData, color: val})}
+            onChange={(e) => setFormData({...formData, color: e.target.value})}
             className="w-full h-10 border border-gray-300 rounded-lg"
           />
         </div>
@@ -1622,9 +1623,9 @@ const PublishWorkflowModal: React.FC<{
                 <div className="grid grid-cols-2 gap-2 mb-2">
                   <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" placeholder="参数名"
                     value={param.name}
-                    onChange={(e) => {
+                    onChange={(val) => {
                       const newParams = [...formData.inputSchema.parameters]
-                      newParams[index] = { ...param, name: e.target.value }
+                      newParams[index] = { ...param, name: val }
                       setFormData({
                         ...formData,
                         inputSchema: { parameters: newParams }
@@ -1652,9 +1653,9 @@ const PublishWorkflowModal: React.FC<{
                 </div>
                 <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" placeholder="描述"
                   value={param.description}
-                  onChange={(e) => {
+                  onChange={(val) => {
                     const newParams = [...formData.inputSchema.parameters]
-                    newParams[index] = { ...param, description: e.target.value }
+                    newParams[index] = { ...param, description: val }
                     setFormData({
                       ...formData,
                       inputSchema: { parameters: newParams }
@@ -1726,9 +1727,9 @@ const PublishWorkflowModal: React.FC<{
                 <div className="grid grid-cols-2 gap-2 mb-2">
                   <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" placeholder="参数名"
                     value={param.name}
-                    onChange={(e) => {
+                    onChange={(val) => {
                       const newParams = [...formData.outputSchema.parameters]
-                      newParams[index] = { ...param, name: e.target.value }
+                      newParams[index] = { ...param, name: val }
                       setFormData({
                         ...formData,
                         outputSchema: { parameters: newParams }
@@ -1737,9 +1738,9 @@ const PublishWorkflowModal: React.FC<{
                   />
                   <select
                     value={param.type}
-                    onChange={(e) => {
+                    onChange={(val) => {
                       const newParams = [...formData.outputSchema.parameters]
-                      newParams[index] = { ...param, type: e.target.value }
+                      newParams[index] = { ...param, type: val }
                       setFormData({
                         ...formData,
                         outputSchema: { parameters: newParams }
@@ -1756,9 +1757,9 @@ const PublishWorkflowModal: React.FC<{
                 </div>
                 <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" placeholder="描述"
                   value={param.description}
-                  onChange={(e) => {
+                  onChange={(val) => {
                     const newParams = [...formData.outputSchema.parameters]
-                    newParams[index] = { ...param, description: e.target.value }
+                    newParams[index] = { ...param, description: val }
                     setFormData({
                       ...formData,
                       outputSchema: { parameters: newParams }

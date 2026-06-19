@@ -5,7 +5,6 @@ package server
 
 import (
 	"github.com/LingByte/SoulNexus/internal/models/auth"
-	grpcclients "github.com/LingByte/SoulNexus/internal/grpc/clients"
 	"time"
 
 	"github.com/LingByte/SoulNexus/internal/config"
@@ -22,16 +21,12 @@ import (
 
 type Handlers struct {
 	db                *gorm.DB
-	rpc               *grpcclients.Bundle
 	wsHub             *websocket.Hub
 	SearchHandler     *search.SearchHandlers
 	ipLocationService *utils.IPLocationService
 }
 
-func NewHandlers(db *gorm.DB, rpc *grpcclients.Bundle) *Handlers {
-	if rpc == nil {
-		rpc = &grpcclients.Bundle{}
-	}
+func NewHandlers(db *gorm.DB) *Handlers {
 	wsConfig := websocket.LoadConfigFromEnv()
 	wsHub := websocket.NewHub(wsConfig)
 	var searchHandler *search.SearchHandlers
@@ -83,7 +78,6 @@ func NewHandlers(db *gorm.DB, rpc *grpcclients.Bundle) *Handlers {
 	ipLocationService := utils.NewIPLocationService(logger.Lg)
 	return &Handlers{
 		db:                db,
-		rpc:               rpc,
 		wsHub:             wsHub,
 		SearchHandler:     searchHandler,
 		ipLocationService: ipLocationService,
@@ -185,6 +179,8 @@ func (h *Handlers) Register(engine *gin.Engine) {
 	h.registerOpenAPIRoutes(r)        // Open API (apiKey + apiSecret auth)
 	h.registerLLMRelayRoutes(engine)  // OpenAI/Anthropic 兼容对外网关 /v1/*
 	h.RegisterPublicWorkflowRoutes(r)
+
+	h.registerAuthIntegratedRoutes(engine)
 }
 
 // registerLLMRelayRoutes 注册对外 OpenAI/Anthropic 兼容 API 网关。
@@ -417,23 +413,34 @@ func (h *Handlers) registerAgentRoutes(r *gin.RouterGroup) {
 
 // registerJSTemplateRoutes JSTemplate Module
 func (h *Handlers) registerJSTemplateRoutes(r *gin.RouterGroup) {
+	// Public embed — third-party pages inject pet.js by template jsSourceId
+	r.GET("/js-templates/embed/:jsSourceId/loader.js", h.ServeJSTemplatePetLoaderJS)
+	r.GET("/js-templates/embed/:jsSourceId/file/*filepath", h.ServeJSTemplateEmbedFile)
+
+	// Studio preview assets
+	r.POST("/pet/studio-preview", auth.AuthRequired, h.RegisterPetStudioPreview)
+	r.GET("/pet/studio-preview/:token/*filepath", h.ServePetStudioPreviewFile)
+
 	jsTemplate := r.Group("js-templates")
 	jsTemplate.Use(auth.AuthRequired)
 	{
 		jsTemplate.POST("", h.CreateJSTemplate)
-		jsTemplate.GET("/:id", h.GetJSTemplate)
-		jsTemplate.GET("/name/:name", h.GetJSTemplateByName)
-		jsTemplate.GET("", h.ListJSTemplates)
-		jsTemplate.PUT("/:id", h.UpdateJSTemplate)
-		jsTemplate.DELETE("/:id", h.DeleteJSTemplate)
+		jsTemplate.POST("/studio-project", h.CreateJSTemplateWithProject)
 		jsTemplate.GET("/default", h.ListDefaultJSTemplates)
 		jsTemplate.GET("/custom", h.ListCustomJSTemplates)
 		jsTemplate.GET("/search", h.SearchJSTemplates)
-
+		jsTemplate.GET("/name/:name", h.GetJSTemplateByName)
+		jsTemplate.GET("/:id/project", h.GetJSTemplateProject)
+		jsTemplate.GET("/:id/project/file/*filepath", h.ServeJSTemplateProjectFile)
+		jsTemplate.PUT("/:id/project", h.SaveJSTemplateProject)
 		jsTemplate.GET("/:id/versions", h.ListJSTemplateVersions)
 		jsTemplate.GET("/:id/versions/:versionId", h.GetJSTemplateVersion)
 		jsTemplate.POST("/:id/versions/:versionId/rollback", h.RollbackJSTemplateVersion)
 		jsTemplate.POST("/:id/versions/:versionId/publish", h.PublishJSTemplateVersion)
+		jsTemplate.GET("/:id", h.GetJSTemplate)
+		jsTemplate.GET("", h.ListJSTemplates)
+		jsTemplate.PUT("/:id", h.UpdateJSTemplate)
+		jsTemplate.DELETE("/:id", h.DeleteJSTemplate)
 	}
 
 	webhook := r.Group("js-templates/webhook")

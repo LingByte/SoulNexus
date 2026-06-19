@@ -28,6 +28,36 @@ export interface UpdateJSTemplateForm {
   usage?: string
 }
 
+export interface PetProjectPayload {
+  name?: string
+  usage?: string
+  entry: string
+  files: Record<string, string>
+}
+
+export interface PetProjectResponse {
+  storage: 'object' | 'inline' | 'pending'
+  prefix?: string
+  entry: string
+  files: Record<string, string>
+  name?: string
+  usage?: string
+}
+
+export interface PetProjectSaveResult {
+  storage: string
+  prefix?: string
+  entry: string
+  violations?: string[]
+}
+
+export interface CreateStudioProjectResult {
+  template: JSTemplate
+  storage: string
+  prefix?: string
+  entry: string
+}
+
 // JS模板列表响应
 export interface JSTemplateListResponse {
   data: JSTemplate[]
@@ -94,7 +124,22 @@ export const jsTemplateService = {
     limit?: number
   }): Promise<ApiResponse<JSTemplateListResponse>> {
     return get('/js-templates/search', { params })
-  }
+  },
+
+  /** Atomically create template metadata + upload project files to object storage. */
+  async createStudioProject(data: PetProjectPayload & { name: string }): Promise<ApiResponse<CreateStudioProjectResult>> {
+    return post('/js-templates/studio-project', data)
+  },
+
+  /** Load project files from object storage (or legacy inline) into browser memory. */
+  async getProject(id: string): Promise<ApiResponse<PetProjectResponse>> {
+    return get(`/js-templates/${id}/project`)
+  },
+
+  /** Persist project files to object storage; DB stores metadata pointer only. */
+  async saveProject(id: string, data: PetProjectPayload): Promise<ApiResponse<PetProjectSaveResult>> {
+    return put(`/js-templates/${id}/project`, data)
+  },
 }
 
 export default jsTemplateService

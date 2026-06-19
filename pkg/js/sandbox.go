@@ -19,6 +19,8 @@ type ASTWhitelist struct {
 	ForbiddenKeywords []string
 	// 禁止的函数调用
 	ForbiddenFunctions []string
+	// AllowDOMPainting allows innerHTML / outerHTML assignment (pet UI scripts).
+	AllowDOMPainting bool
 }
 
 // DefaultWhitelist 默认白名单配置
@@ -64,18 +66,28 @@ func ValidateAST(code string, whitelist ASTWhitelist) (bool, []string) {
 		}
 	}
 
-	// 检查危险的DOM操作
-	dangerousPatterns := []string{
-		`\.innerHTML\s*=`,
-		`\.outerHTML\s*=`,
-		`document\.write`,
-		`document\.writeln`,
-		`\.insertAdjacentHTML`,
-	}
-	for _, pattern := range dangerousPatterns {
-		matched, _ := regexp.MatchString(pattern, code)
-		if matched {
-			violations = append(violations, fmt.Sprintf("禁止的DOM操作: %s", pattern))
+	// 检查危险的DOM操作（桌宠脚本可渲染 DOM）
+	if !whitelist.AllowDOMPainting {
+		dangerousPatterns := []string{
+			`\.innerHTML\s*=`,
+			`\.outerHTML\s*=`,
+			`document\.write`,
+			`document\.writeln`,
+			`\.insertAdjacentHTML`,
+		}
+		for _, pattern := range dangerousPatterns {
+			matched, _ := regexp.MatchString(pattern, code)
+			if matched {
+				violations = append(violations, fmt.Sprintf("禁止的DOM操作: %s", pattern))
+			}
+		}
+	} else {
+		// Still block document.write — full page takeover
+		for _, pattern := range []string{`document\.write`, `document\.writeln`} {
+			matched, _ := regexp.MatchString(pattern, code)
+			if matched {
+				violations = append(violations, fmt.Sprintf("禁止的DOM操作: %s", pattern))
+			}
 		}
 	}
 

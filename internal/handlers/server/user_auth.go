@@ -1,0 +1,4104 @@
+package server
+
+// Copyright (c) 2026 LingByte. All rights reserved.
+// SPDX-License-Identifier: AGPL-3.0
+
+import (
+	"bytes"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
+	"crypto/sha1"
+	"encoding/base64"
+	"encoding/binary"
+	"encoding/hex"
+	"encoding/json"
+	"encoding/xml"
+	"errors"
+	"fmt"
+	"html"
+	"io"
+	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/LingByte/SoulNexus/internal/models"
+	authmodel "github.com/LingByte/SoulNexus/internal/models/auth"
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
+
+	SoulNexus "github.com/LingByte/SoulNexus"
+	"github.com/LingByte/SoulNexus/i18n"
+	"github.com/LingByte/SoulNexus/internal/config"
+	"github.com/LingByte/SoulNexus/pkg/constants"
+	"github.com/LingByte/SoulNexus/pkg/logger"
+	"github.com/LingByte/SoulNexus/pkg/middleware"
+	"github.com/LingByte/SoulNexus/pkg/notification"
+	"github.com/LingByte/SoulNexus/pkg/response"
+	"github.com/LingByte/SoulNexus/pkg/stores"
+	"github.com/LingByte/SoulNexus/pkg/utils"
+	"github.com/LingByte/SoulNexus/pkg/utils/cache"
+	utilscaptcha "github.com/LingByte/SoulNexus/pkg/utils/captcha"
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
+	"gorm.io/gorm"
+)
+
+type wechatLoginSession struct {
+	SceneID   string
+	Status    string
+	ExpiresAt time.Time
+	ScannedAt *time.Time
+	OpenID    string
+	UserID    uint
+	LoginCode string
+}
+
+type wechatBindSession struct {
+	SessionID string
+	Status    string
+	ExpiresAt time.Time
+	OpenID    string
+	UserID    uint
+	BindCode  string
+	Reason    string
+	BoundAt   *time.Time
+}
+
+type githubOAuthState struct {
+	Nonce       string
+	RedirectURL string
+	BindUserID  uint
+	ExpiresAt   time.Time
+}
+
+var wechatLoginSessions = struct {
+	sync.RWMutex
+	items map[string]*wechatLoginSession
+}{
+	items: make(map[string]*wechatLoginSession),
+}
+
+var wechatAccessTokenCache = struct {
+	sync.Mutex
+	Token     string
+	ExpiresAt time.Time
+}{}
+
+var githubOAuthStateStore = struct {
+	sync.RWMutex
+	items map[string]*githubOAuthState
+}{
+	items: make(map[string]*githubOAuthState),
+}
+
+var wechatBindSessions = struct {
+	sync.RWMutex
+	items map[string]*wechatBindSession
+}{
+	items: make(map[string]*wechatBindSession),
+}
+
+func verifyRequestCaptcha(captchaID, captchaCode, captchaData, captchaType string) (bool, error) {
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("LOGIN_CAPTCHA_DISABLED")), "true") {
+		return true, nil
+	}
+	if utilscaptcha.GlobalManager == nil {
+		return false, errors.New("captcha service not initialized")
+	}
+	if strings.TrimSpace(captchaID) == "" {
+		return false, errors.New("captcha is required")
+	}
+	cType := utilscaptcha.Type(strings.TrimSpace(captchaType))
+	if cType == "" {
+		cType = utilscaptcha.TypeImage
+	}
+	switch cType {
+	case utilscaptcha.TypeImage:
+		if strings.TrimSpace(captchaCode) == "" {
+			return false, errors.New("captcha is required")
+		}
+		return utilscaptcha.GlobalManager.VerifyImage(captchaID, captchaCode)
+	case utilscaptcha.TypeClick:
+		raw := strings.TrimSpace(captchaData)
+		if raw == "" {
+			raw = strings.TrimSpace(captchaCode)
+		}
+		var points []utilscaptcha.Point
+		if raw == "" {
+			return false, errors.New("click captcha data is required")
+		}
+		if err := json.Unmarshal([]byte(raw), &points); err != nil {
+			return false, errors.New("invalid click captcha data")
+		}
+		return utilscaptcha.GlobalManager.VerifyClick(captchaID, points)
+	default:
+		return false, errors.New("unsupported captcha type")
+	}
+}
+
+type wechatAccessTokenResp struct {
+	AccessToken string `json:"access_token"`
+	ExpiresIn   int    `json:"expires_in"`
+	ErrCode     int    `json:"errcode"`
+	ErrMsg      string `json:"errmsg"`
+}
+
+type wechatUserInfoResp struct {
+	Subscribe int    `json:"subscribe"`
+	OpenID    string `json:"openid"`
+	UnionID   string `json:"unionid"`
+	Nickname  string `json:"nickname"`
+	HeadImg   string `json:"headimgurl"`
+	ErrCode   int    `json:"errcode"`
+	ErrMsg    string `json:"errmsg"`
+}
+
+type wechatMessageXML struct {
+	XMLName      xml.Name `xml:"xml"`
+	ToUserName   string   `xml:"ToUserName"`
+	FromUserName string   `xml:"FromUserName"`
+	MsgType      string   `xml:"MsgType"`
+	Event        string   `xml:"Event"`
+	EventKey     string   `xml:"EventKey"`
+	Content      string   `xml:"Content"`
+}
+
+type githubOAuthTokenResp struct {
+	AccessToken string `json:"access_token"`
+	TokenType   string `json:"token_type"`
+	Scope       string `json:"scope"`
+	Error       string `json:"error"`
+	Description string `json:"error_description"`
+}
+
+type githubUserResp struct {
+	ID        int64  `json:"id"`
+	Login     string `json:"login"`
+	Email     string `json:"email"`
+	Name      string `json:"name"`
+	AvatarURL string `json:"avatar_url"`
+}
+
+type githubEmailResp struct {
+	Email    string `json:"email"`
+	Primary  bool   `json:"primary"`
+	Verified bool   `json:"verified"`
+}
+
+func revokeAccountDeletionBrowserURL(c *gin.Context, email string) string {
+	scheme := "http"
+	if c.Request.TLS != nil {
+		scheme = "https"
+	} else if strings.EqualFold(c.GetHeader("X-Forwarded-Proto"), "https") {
+		scheme = "https"
+	}
+	host := c.Request.Host
+	if fh := strings.TrimSpace(c.GetHeader("X-Forwarded-Host")); fh != "" {
+		host = strings.TrimSpace(strings.Split(fh, ",")[0])
+	}
+	u := url.URL{Scheme: scheme, Host: host, Path: "/login/revoke-account-deletion"}
+	if em := strings.TrimSpace(email); em != "" {
+		u.RawQuery = url.Values{"email": {em}}.Encode()
+	}
+	return u.String()
+}
+
+// RenderAccountDeletionRevokePage serves the account-deletion revoke HTML page.
+func (h *Handlers) RenderAccountDeletionRevokePage(c *gin.Context) {
+	ctx := SoulNexus.GetRenderPageContext(c)
+	apiP := config.GlobalConfig.Server.APIPrefix
+	if apiP == "" {
+		apiP = "/api"
+	}
+	authP := config.GlobalConfig.Server.AuthPrefix
+	if authP == "" {
+		authP = "/auth"
+	}
+	ctx["AuthAPIBase"] = strings.TrimRight(apiP, "/") + "/" + strings.TrimLeft(authP, "/")
+	ctx["PrefillEmail"] = strings.TrimSpace(c.Query("email"))
+	c.HTML(http.StatusOK, "account_deletion_revoke.html", ctx)
+}
+
+func newWechatSessionID() string {
+	buf := make([]byte, 16)
+	if _, err := rand.Read(buf); err != nil {
+		return fmt.Sprintf("wx_%d", time.Now().UnixNano())
+	}
+	return "wx_" + hex.EncodeToString(buf)
+}
+
+
+func newGitHubStateNonce() string {
+	b := make([]byte, 20)
+	if _, err := rand.Read(b); err != nil {
+		return fmt.Sprintf("gh_%d", time.Now().UnixNano())
+	}
+	return hex.EncodeToString(b)
+}
+
+
+func cleanExpiredGitHubStates() {
+	now := time.Now()
+	githubOAuthStateStore.Lock()
+	defer githubOAuthStateStore.Unlock()
+	for k, v := range githubOAuthStateStore.items {
+		if now.After(v.ExpiresAt) {
+			delete(githubOAuthStateStore.items, k)
+		}
+	}
+}
+
+func cleanExpiredWechatBindSessions() {
+	now := time.Now()
+	wechatBindSessions.Lock()
+	defer wechatBindSessions.Unlock()
+	for k, v := range wechatBindSessions.items {
+		if now.After(v.ExpiresAt) {
+			delete(wechatBindSessions.items, k)
+		}
+	}
+}
+
+func newWechatLoginCode() string {
+	b := make([]byte, 4)
+	if _, err := rand.Read(b); err != nil {
+		return fmt.Sprintf("%06d", time.Now().UnixNano()%1000000)
+	}
+	n := binary.BigEndian.Uint32(b) % 1000000
+	return fmt.Sprintf("%06d", n)
+}
+
+func getWechatMPConfig() (appID, appSecret, token string, err error) {
+	appID = strings.TrimSpace(os.Getenv("WECHAT_MP_APP_ID"))
+	appSecret = strings.TrimSpace(os.Getenv("WECHAT_MP_SECRET"))
+	token = strings.TrimSpace(os.Getenv("WECHAT_MP_TOKEN"))
+	if appID == "" || appSecret == "" {
+		return "", "", "", errors.New("missing WECHAT_MP_APP_ID or WECHAT_MP_SECRET")
+	}
+	return appID, appSecret, token, nil
+}
+
+func getWechatMPToken() string {
+	return strings.TrimSpace(os.Getenv("WECHAT_MP_TOKEN"))
+}
+
+func getGitHubOAuthConfig(c *gin.Context) (clientID, clientSecret, redirectURI string, err error) {
+	clientID = strings.TrimSpace(os.Getenv("GITHUB_CLIENT_ID"))
+	clientSecret = strings.TrimSpace(os.Getenv("GITHUB_CLIENT_SECRET"))
+	redirectURI = strings.TrimSpace(os.Getenv("GITHUB_OAUTH_REDIRECT_URI"))
+	if clientID == "" || clientSecret == "" {
+		return "", "", "", errors.New("missing GITHUB_CLIENT_ID or GITHUB_CLIENT_SECRET")
+	}
+	if redirectURI == "" {
+		scheme := c.Request.Header.Get("X-Forwarded-Proto")
+		if scheme == "" {
+			if c.Request.TLS != nil {
+				scheme = "https"
+			} else {
+				scheme = "http"
+			}
+		}
+		redirectURI = fmt.Sprintf("%s://%s/api/auth/github/callback", scheme, c.Request.Host)
+	}
+	return clientID, clientSecret, redirectURI, nil
+}
+
+func getWechatOAuthRedirectURI(c *gin.Context) string {
+	redirectURI := strings.TrimSpace(os.Getenv("WECHAT_OAUTH_REDIRECT_URI"))
+	if redirectURI != "" {
+		return redirectURI
+	}
+	scheme := c.Request.Header.Get("X-Forwarded-Proto")
+	if scheme == "" {
+		if c.Request.TLS != nil {
+			scheme = "https"
+		} else {
+			scheme = "http"
+		}
+	}
+	return fmt.Sprintf("%s://%s/api/auth/wechat/oauth/callback", scheme, c.Request.Host)
+}
+
+func getRefreshTokenTTL(db *gorm.DB) time.Duration {
+	// default 30 days
+	ttl := 30 * 24 * time.Hour
+	if val := strings.TrimSpace(os.Getenv("REFRESH_TOKEN_EXPIRED")); val != "" {
+		if d, err := time.ParseDuration(val); err == nil && d > 0 {
+			ttl = d
+		}
+	}
+	if db != nil {
+		// Keep access-token TTL behavior consistent with existing config table pattern.
+		if val := strings.TrimSpace(utils.GetValue(db, constants.KEY_AUTH_TOKEN_EXPIRED)); val != "" {
+			if d, err := time.ParseDuration(val); err == nil && d > 0 && d < ttl {
+				ttl = d * 10
+			}
+		}
+	}
+	return ttl
+}
+
+// durationFromConfigKey reads a duration from system_config. Supports Go duration strings ("168h")
+// and bare seconds ("86400"). Invalid or non-positive values fall back to def.
+func durationFromConfigKey(db *gorm.DB, key string, def time.Duration) time.Duration {
+	if def <= 0 {
+		def = 24 * time.Hour
+	}
+	val := strings.TrimSpace(utils.GetValue(db, key))
+	if val == "" {
+		return def
+	}
+	if d, err := time.ParseDuration(val); err == nil && d > 0 {
+		return d
+	}
+	if sec, err := strconv.ParseInt(val, 10, 64); err == nil && sec > 0 {
+		return time.Duration(sec) * time.Second
+	}
+	logger.Warn("invalid config duration, using default",
+		zap.String("key", key),
+		zap.String("raw", val),
+		zap.Duration("default", def))
+	return def
+}
+
+func jwtRoleForToken(db *gorm.DB, user *authmodel.User) string {
+	if user == nil {
+		return ""
+	}
+	if len(user.RoleSlugs) > 0 {
+		return authmodel.PrimaryJWTClaimRole(user.RoleSlugs)
+	}
+	if db != nil && user.ID != 0 {
+		slugs, err := authmodel.UserRoleSlugs(db, user.ID)
+		if err == nil && len(slugs) > 0 {
+			return authmodel.PrimaryJWTClaimRole(slugs)
+		}
+	}
+	return ""
+}
+
+func buildTokenPair(db *gorm.DB, user *authmodel.User, accessTTL time.Duration) (string, string, error) {
+	if accessTTL <= 0 {
+		accessTTL = 24 * time.Hour
+	}
+	km := utils.JWTKeyManager()
+	if km == nil {
+		return "", "", errors.New("jwt key manager not initialized")
+	}
+	roleClaim := jwtRoleForToken(db, user)
+	perms, _ := authmodel.EffectivePermissionKeys(db, user.ID)
+
+	accessToken, err := utils.SignAccessTokenWithKey(utils.AccessPayload{
+		UserID: user.ID,
+		Email:  user.Email,
+		Role:   roleClaim,
+		Perms:  perms,
+	}, km, accessTTL)
+	if err != nil {
+		logger.Error("jwt access token sign failed", zap.Error(err))
+		return "", "", err
+	}
+
+	refreshToken, err := utils.SignRefreshTokenWithKey(utils.RefreshPayload{
+		UserID: user.ID,
+		Email:  user.Email,
+		Role:   roleClaim,
+	}, km, getRefreshTokenTTL(db))
+	if err != nil {
+		logger.Error("jwt refresh token sign failed", zap.Error(err))
+		return "", "", err
+	}
+
+	return accessToken, refreshToken, nil
+}
+
+func getWechatAccessToken() (string, error) {
+	wechatAccessTokenCache.Lock()
+	defer wechatAccessTokenCache.Unlock()
+
+	if wechatAccessTokenCache.Token != "" && time.Now().Before(wechatAccessTokenCache.ExpiresAt) {
+		return wechatAccessTokenCache.Token, nil
+	}
+
+	appID, appSecret, _, err := getWechatMPConfig()
+	if err != nil {
+		return "", err
+	}
+	url := fmt.Sprintf("https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=%s&secret=%s", appID, appSecret)
+	resp, err := http.Get(url)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	var tokenResp wechatAccessTokenResp
+	if err = json.Unmarshal(body, &tokenResp); err != nil {
+		return "", err
+	}
+	if tokenResp.ErrCode != 0 || tokenResp.AccessToken == "" {
+		return "", fmt.Errorf("wechat token error: %d %s", tokenResp.ErrCode, tokenResp.ErrMsg)
+	}
+
+	exp := tokenResp.ExpiresIn - 300
+	if exp < 300 {
+		exp = tokenResp.ExpiresIn
+	}
+	wechatAccessTokenCache.Token = tokenResp.AccessToken
+	wechatAccessTokenCache.ExpiresAt = time.Now().Add(time.Duration(exp) * time.Second)
+	return tokenResp.AccessToken, nil
+}
+
+func cleanExpiredWechatSessions() {
+	now := time.Now()
+	wechatLoginSessions.Lock()
+	defer wechatLoginSessions.Unlock()
+	for k, v := range wechatLoginSessions.items {
+		if now.After(v.ExpiresAt) {
+			delete(wechatLoginSessions.items, k)
+		}
+	}
+}
+
+func verifyWechatSignature(token, signature, timestamp, nonce string) bool {
+	items := []string{token, timestamp, nonce}
+	sort.Strings(items)
+	sum := sha1.Sum([]byte(strings.Join(items, "")))
+	return fmt.Sprintf("%x", sum) == signature
+}
+
+func calcWechatSignature(token, timestamp, nonce string) string {
+	items := []string{token, timestamp, nonce}
+	sort.Strings(items)
+	sum := sha1.Sum([]byte(strings.Join(items, "")))
+	return fmt.Sprintf("%x", sum)
+}
+
+func calcWechatMsgSignature(token, timestamp, nonce, encrypted string) string {
+	items := []string{token, timestamp, nonce, encrypted}
+	sort.Strings(items)
+	sum := sha1.Sum([]byte(strings.Join(items, "")))
+	return fmt.Sprintf("%x", sum)
+}
+
+func pkcs7Unpad(data []byte) ([]byte, error) {
+	if len(data) == 0 {
+		return nil, errors.New("empty decrypted data")
+	}
+	padLen := int(data[len(data)-1])
+	if padLen < 1 || padLen > aes.BlockSize || padLen > len(data) {
+		return nil, errors.New("invalid padding")
+	}
+	for i := 0; i < padLen; i++ {
+		if data[len(data)-1-i] != byte(padLen) {
+			return nil, errors.New("invalid padding bytes")
+		}
+	}
+	return data[:len(data)-padLen], nil
+}
+
+func decryptWechatXML(encodingAESKey, appID, encrypted string) ([]byte, error) {
+	keyData, err := base64.StdEncoding.DecodeString(encodingAESKey + "=")
+	if err != nil {
+		return nil, err
+	}
+	if len(keyData) != 32 {
+		return nil, errors.New("invalid EncodingAESKey length")
+	}
+	cipherText, err := base64.StdEncoding.DecodeString(encrypted)
+	if err != nil {
+		return nil, err
+	}
+	if len(cipherText)%aes.BlockSize != 0 {
+		return nil, errors.New("invalid encrypted payload size")
+	}
+
+	block, err := aes.NewCipher(keyData)
+	if err != nil {
+		return nil, err
+	}
+	iv := keyData[:aes.BlockSize]
+	plain := make([]byte, len(cipherText))
+	cipher.NewCBCDecrypter(block, iv).CryptBlocks(plain, cipherText)
+	plain, err = pkcs7Unpad(plain)
+	if err != nil {
+		return nil, err
+	}
+	if len(plain) < 20 {
+		return nil, errors.New("invalid decrypted payload")
+	}
+
+	// 16 bytes random + 4 bytes msg length (big endian) + xml + appId
+	msgLen := binary.BigEndian.Uint32(plain[16:20])
+	if int(20+msgLen) > len(plain) {
+		return nil, errors.New("invalid message length")
+	}
+	xmlMsg := plain[20 : 20+msgLen]
+	recvAppID := string(plain[20+msgLen:])
+	if appID != "" && recvAppID != appID {
+		return nil, fmt.Errorf("appid mismatch, got %s", recvAppID)
+	}
+	return bytes.TrimSpace(xmlMsg), nil
+}
+
+func extractSceneID(eventKey string) string {
+	k := strings.TrimSpace(eventKey)
+	k = strings.TrimPrefix(k, "qrscene_")
+	k = strings.TrimPrefix(k, "login_")
+	return k
+}
+
+func sendWechatReplyText(c *gin.Context, toUser, fromUser, text string) {
+	reply := fmt.Sprintf("<xml><ToUserName><![CDATA[%s]]></ToUserName><FromUserName><![CDATA[%s]]></FromUserName><CreateTime>%d</CreateTime><MsgType><![CDATA[text]]></MsgType><Content><![CDATA[%s]]></Content></xml>",
+		toUser, fromUser, time.Now().Unix(), text)
+	c.Header("Content-Type", "application/xml; charset=utf-8")
+	c.String(http.StatusOK, reply)
+}
+
+func (h *Handlers) findOrCreateWechatUser(openID string, info *wechatUserInfoResp) (*authmodel.User, error) {
+	if openID == "" {
+		return nil, errors.New("empty openid")
+	}
+
+	var user authmodel.User
+	if err := h.db.Where("wechat_open_id = ?", openID).First(&user).Error; err == nil {
+		updates := map[string]any{
+			"wechat_union_id": info.UnionID,
+		}
+		if updateErr := h.db.Model(&user).Updates(updates).Error; updateErr != nil {
+			logger.Warn("failed to update existing wechat fields, continue login", zap.Error(updateErr))
+		}
+		if info.HeadImg != "" {
+			if perr := authmodel.UpdateUserProfileFields(h.db, user.ID, map[string]any{"avatar": info.HeadImg}); perr != nil {
+				logger.Warn("failed to update wechat avatar on profile", zap.Error(perr))
+			}
+		}
+		_ = h.db.First(&user, user.ID).Error
+		return &user, nil
+	}
+
+	nickname := strings.TrimSpace(info.Nickname)
+	suffix := openID
+	if len(suffix) > 6 {
+		suffix = suffix[len(suffix)-6:]
+	}
+	if nickname == "" {
+		nickname = fmt.Sprintf("微信用户%s", suffix)
+	}
+	displayName := fmt.Sprintf("%s_%s", nickname, suffix)
+	email := fmt.Sprintf("wechat_%s@temp.local", suffix)
+	password := newWechatSessionID()
+	created, err := authmodel.CreateUserByEmailWithMeta(h.db, displayName, displayName, email, password, authmodel.UserSourceWechat, authmodel.UserStatusActive)
+	if err != nil {
+		email = fmt.Sprintf("wechat_%d@temp.local", time.Now().UnixNano())
+		created, err = authmodel.CreateUserByEmailWithMeta(h.db, displayName, displayName, email, password, authmodel.UserSourceWechat, authmodel.UserStatusActive)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	updates := map[string]any{
+		"wechat_open_id":  openID,
+		"wechat_union_id": info.UnionID,
+	}
+	if err = h.db.Model(created).Updates(updates).Error; err != nil {
+		// Some old databases may not have wechat_* columns yet.
+		// Keep login working even if wechat field persistence fails.
+		logger.Warn("failed to persist wechat fields for new user, continue login", zap.Error(err))
+	}
+	if info.HeadImg != "" {
+		_ = authmodel.UpdateUserProfileFields(h.db, created.ID, map[string]any{"avatar": info.HeadImg})
+	}
+	_ = h.db.First(created, created.ID).Error
+	return created, nil
+}
+
+func (h *Handlers) findOrCreateGitHubUser(githubUser *githubUserResp, githubEmail string) (*authmodel.User, error) {
+	if githubUser == nil || githubUser.ID <= 0 {
+		return nil, errors.New("invalid github user")
+	}
+	githubID := strconv.FormatInt(githubUser.ID, 10)
+	var user authmodel.User
+	if err := h.db.Where("github_id = ?", githubID).First(&user).Error; err == nil {
+		updates := map[string]any{
+			"github_login": strings.TrimSpace(githubUser.Login),
+		}
+		if updateErr := h.db.Model(&user).Updates(updates).Error; updateErr != nil {
+			logger.Warn("failed to update github user fields", zap.Error(updateErr))
+		}
+		if githubUser.AvatarURL != "" {
+			_ = authmodel.UpdateUserProfileFields(h.db, user.ID, map[string]any{"avatar": githubUser.AvatarURL})
+		}
+		_ = h.db.First(&user, user.ID).Error
+		return &user, nil
+	}
+
+	normalizedEmail := strings.ToLower(strings.TrimSpace(githubEmail))
+	if normalizedEmail != "" {
+		if existing, err := authmodel.GetUserByEmail(h.db, normalizedEmail); err == nil && existing != nil {
+			updates := map[string]any{
+				"github_id":    githubID,
+				"github_login": strings.TrimSpace(githubUser.Login),
+			}
+			if updateErr := h.db.Model(existing).Updates(updates).Error; updateErr != nil {
+				return nil, updateErr
+			}
+			if githubUser.AvatarURL != "" {
+				_ = authmodel.UpdateUserProfileFields(h.db, existing.ID, map[string]any{"avatar": githubUser.AvatarURL})
+			}
+			_ = h.db.First(existing, existing.ID).Error
+			return existing, nil
+		}
+	}
+
+	displayName := strings.TrimSpace(githubUser.Name)
+	if displayName == "" {
+		displayName = strings.TrimSpace(githubUser.Login)
+	}
+	if displayName == "" {
+		displayName = "GitHub 用户"
+	}
+	if normalizedEmail == "" {
+		normalizedEmail = fmt.Sprintf("github_%s@temp.local", githubID)
+	}
+
+	password := newGitHubStateNonce()
+	created, err := authmodel.CreateUserByEmailWithMeta(h.db, displayName, displayName, normalizedEmail, password, authmodel.UserSourceGithub, authmodel.UserStatusActive)
+	if err != nil {
+		normalizedEmail = fmt.Sprintf("github_%d@temp.local", time.Now().UnixNano())
+		created, err = authmodel.CreateUserByEmailWithMeta(h.db, displayName, displayName, normalizedEmail, password, authmodel.UserSourceGithub, authmodel.UserStatusActive)
+		if err != nil {
+			return nil, err
+		}
+	}
+	updates := map[string]any{
+		"github_id":    githubID,
+		"github_login": strings.TrimSpace(githubUser.Login),
+	}
+	if err = h.db.Model(created).Updates(updates).Error; err != nil {
+		logger.Warn("failed to persist github fields for new user", zap.Error(err))
+	}
+	if githubUser.AvatarURL != "" {
+		_ = authmodel.UpdateUserProfileFields(h.db, created.ID, map[string]any{"avatar": githubUser.AvatarURL})
+	}
+	_ = h.db.First(created, created.ID).Error
+	return created, nil
+}
+
+func (h *Handlers) finishWechatSessionSuccess(c *gin.Context, session *wechatLoginSession) (gin.H, error) {
+	user, err := authmodel.GetUserByID(h.db, session.UserID)
+	if err != nil || user == nil {
+		return nil, errors.New("wechat user is not bound")
+	}
+	if err := authmodel.CheckUserAllowLogin(h.db, user); err != nil {
+		return nil, errors.New("wechat user is not bound")
+	}
+	var wxFresh authmodel.User
+	if err := h.db.Where("id = ? AND is_deleted = ?", user.ID, models.SoftDeleteStatusActive).First(&wxFresh).Error; err == nil && authmodel.AccountDeletionPending(&wxFresh) {
+		effective := ""
+		if wxFresh.AccountDeletionEffectiveAt != nil {
+			effective = wxFresh.AccountDeletionEffectiveAt.UTC().Format(time.RFC3339)
+		}
+		return gin.H{
+			"status":                     "account_deletion_pending",
+			"accountDeletionPending":     true,
+			"accountDeletionEffectiveAt": effective,
+			"email":                      wxFresh.Email,
+			"message":                    "账号处于注销冷静期，暂无法登录。请使用撤销注销流程恢复。",
+		}, nil
+	}
+	authmodel.Login(c, user)
+	accessToken, refreshToken, err := buildTokenPair(h.db, user, 7*24*time.Hour)
+	if err != nil {
+		return nil, err
+	}
+	user.AuthToken = accessToken
+	return gin.H{
+		"status":       "success",
+		"token":        user.AuthToken,
+		"refreshToken": refreshToken,
+		"user":         user,
+	}, nil
+}
+
+func (h *Handlers) handleWechatLoginCode(c *gin.Context) {
+	sceneID := newWechatSessionID()
+	loginCode := newWechatLoginCode()
+	expiresIn := 600
+	if expiresIn <= 0 {
+		expiresIn = 600
+	}
+	expiresAt := time.Now().Add(time.Duration(expiresIn) * time.Second)
+	session := &wechatLoginSession{
+		SceneID:   sceneID,
+		Status:    "pending",
+		ExpiresAt: expiresAt,
+		LoginCode: loginCode,
+	}
+	wechatLoginSessions.Lock()
+	wechatLoginSessions.items[sceneID] = session
+	wechatLoginSessions.Unlock()
+	cleanExpiredWechatSessions()
+	response.Success(c, i18n.T(c, i18n.MsgHandlerAuthWechatLoginCode), gin.H{
+		"sessionId":    sceneID,
+		"loginCode":    loginCode,
+		"expiresAt":    expiresAt.Unix(),
+		"expiresInSec": expiresIn,
+		"expiresIn":    expiresIn,
+		"mode":         "message_push",
+	})
+}
+
+func (h *Handlers) handleWechatConfigCheck(c *gin.Context) {
+	appID := strings.TrimSpace(os.Getenv("WECHAT_MP_APP_ID"))
+	appSecret := strings.TrimSpace(os.Getenv("WECHAT_MP_SECRET"))
+	token := strings.TrimSpace(os.Getenv("WECHAT_MP_TOKEN"))
+	aesKey := strings.TrimSpace(os.Getenv("WECHAT_MP_AES_KEY"))
+	tokenFingerprint := ""
+	if token != "" {
+		sum := sha1.Sum([]byte(token))
+		tokenFingerprint = fmt.Sprintf("%x", sum)
+		if len(tokenFingerprint) > 12 {
+			tokenFingerprint = tokenFingerprint[:12]
+		}
+	}
+	response.Success(c, i18n.T(c, i18n.MsgHandlerAuthWechatConfigCheck), gin.H{
+		"appId":               appID,
+		"appIdLength":         len(appID),
+		"appSecretConfigured": appSecret != "",
+		"appSecretLength":     len(appSecret),
+		"tokenConfigured":     token != "",
+		"tokenFingerprint":    tokenFingerprint,
+		"aesKeyConfigured":    aesKey != "",
+	})
+}
+
+func (h *Handlers) handleWechatLoginStatus(c *gin.Context) {
+	sessionID := strings.TrimSpace(c.Query("sessionId"))
+	if sessionID == "" {
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("sessionId is required"))
+		return
+	}
+	wechatLoginSessions.RLock()
+	session, ok := wechatLoginSessions.items[sessionID]
+	wechatLoginSessions.RUnlock()
+	if !ok {
+		response.Success(c, i18n.T(c, i18n.MsgHandlerAuthWechatSessionStatus), gin.H{"status": "expired"})
+		return
+	}
+	if time.Now().After(session.ExpiresAt) {
+		response.Success(c, i18n.T(c, i18n.MsgHandlerAuthWechatSessionStatus), gin.H{"status": "expired"})
+		return
+	}
+	if session.Status != "success" {
+		status := session.Status
+		if status == "" {
+			status = "pending"
+		}
+		response.Success(c, i18n.T(c, i18n.MsgHandlerAuthWechatSessionStatus), gin.H{
+			"status":    status,
+			"expiresAt": session.ExpiresAt.Unix(),
+		})
+		return
+	}
+
+	data, err := h.finishWechatSessionSuccess(c, session)
+	if err != nil {
+		response.Success(c, i18n.T(c, i18n.MsgHandlerAuthWechatSessionStatus), gin.H{"status": "authorized_but_unbound"})
+		return
+	}
+	wechatLoginSessions.Lock()
+	delete(wechatLoginSessions.items, sessionID)
+	wechatLoginSessions.Unlock()
+	response.Success(c, i18n.T(c, i18n.MsgHandlerAuthWechatSessionStatus), data)
+}
+
+func (h *Handlers) handleWechatCheckLogin(c *gin.Context) {
+	sceneID := strings.TrimSpace(c.Param("sceneId"))
+	if sceneID == "" {
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("sceneId is required"))
+		return
+	}
+	wechatLoginSessions.RLock()
+	session, ok := wechatLoginSessions.items[sceneID]
+	wechatLoginSessions.RUnlock()
+	if !ok || time.Now().After(session.ExpiresAt) {
+		response.Success(c, i18n.T(c, i18n.MsgHandlerAuthWechatCheckLogin), gin.H{"status": "expired"})
+		return
+	}
+	if session.Status != "success" {
+		status := session.Status
+		if status == "" {
+			status = "pending"
+		}
+		response.Success(c, i18n.T(c, i18n.MsgHandlerAuthWechatCheckLogin), gin.H{"status": status})
+		return
+	}
+	data, err := h.finishWechatSessionSuccess(c, session)
+	if err != nil {
+		response.Success(c, i18n.T(c, i18n.MsgHandlerAuthWechatCheckLogin), gin.H{"status": "pending"})
+		return
+	}
+	wechatLoginSessions.Lock()
+	delete(wechatLoginSessions.items, sceneID)
+	wechatLoginSessions.Unlock()
+	response.Success(c, i18n.T(c, i18n.MsgHandlerAuthWechatCheckLogin), data)
+}
+
+func (h *Handlers) handleWechatOAuthCallback(c *gin.Context) {
+	code := strings.TrimSpace(c.Query("code"))
+	sceneID := strings.TrimSpace(c.Query("state"))
+	if code == "" || sceneID == "" {
+		redirectWebAuthFailure(c, "wechat_failed")
+		return
+	}
+
+	appID := strings.TrimSpace(os.Getenv("WECHAT_MP_APP_ID"))
+	appSecret := strings.TrimSpace(os.Getenv("WECHAT_MP_SECRET"))
+	if appID == "" || appSecret == "" {
+		redirectWebAuthFailure(c, "wechat_failed")
+		return
+	}
+
+	tokenURL := fmt.Sprintf("https://api.weixin.qq.com/sns/oauth2/access_token?appid=%s&secret=%s&code=%s&grant_type=authorization_code",
+		url.QueryEscape(appID), url.QueryEscape(appSecret), url.QueryEscape(code))
+	resp, err := http.Get(tokenURL)
+	if err != nil {
+		redirectWebAuthFailure(c, "wechat_failed")
+		return
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		redirectWebAuthFailure(c, "wechat_failed")
+		return
+	}
+	var oauthResp struct {
+		OpenID  string `json:"openid"`
+		UnionID string `json:"unionid"`
+		ErrCode int    `json:"errcode"`
+		ErrMsg  string `json:"errmsg"`
+	}
+	if err = json.Unmarshal(body, &oauthResp); err != nil || oauthResp.ErrCode != 0 || oauthResp.OpenID == "" {
+		redirectWebAuthFailure(c, "wechat_failed")
+		return
+	}
+
+	user, userErr := h.findOrCreateWechatUser(oauthResp.OpenID, &wechatUserInfoResp{
+		OpenID:  oauthResp.OpenID,
+		UnionID: oauthResp.UnionID,
+	})
+	if userErr != nil {
+		redirectWebAuthFailure(c, "wechat_failed")
+		return
+	}
+
+	wechatLoginSessions.Lock()
+	if session, ok := wechatLoginSessions.items[sceneID]; ok {
+		session.OpenID = oauthResp.OpenID
+		session.UserID = user.ID
+		session.Status = "success"
+	}
+	wechatLoginSessions.Unlock()
+
+	c.Redirect(http.StatusFound, webAppOrigin()+"/?wechat=ok")
+}
+
+func (h *Handlers) handleRefreshToken(c *gin.Context) {
+	var req struct {
+		RefreshToken string `json:"refresh_token"`
+	}
+	_ = c.ShouldBindJSON(&req)
+	req.RefreshToken = strings.TrimSpace(req.RefreshToken)
+	if req.RefreshToken == "" {
+		req.RefreshToken = strings.TrimSpace(c.PostForm("refresh_token"))
+	}
+	if req.RefreshToken == "" {
+		req.RefreshToken = strings.TrimSpace(c.GetHeader("X-Refresh-Token"))
+	}
+	if req.RefreshToken == "" {
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("refresh_token is required"))
+		return
+	}
+	km := utils.JWTKeyManager()
+	if km == nil {
+		response.AbortWithJSONError(c, http.StatusInternalServerError, errors.New("jwt key manager not initialized"))
+		return
+	}
+	payload, err := utils.ParseRefreshTokenWithKey(req.RefreshToken, km)
+	if err != nil || payload == nil || payload.UserID == 0 {
+		response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("invalid refresh token"))
+		return
+	}
+	user := &authmodel.User{
+		BaseModel: models.BaseModel{ID: payload.UserID},
+		Email:     payload.Email,
+		RoleSlugs: authmodel.RoleSlugsFromJWTClaim(payload.Role),
+		Status:    authmodel.UserStatusActive,
+	}
+	accessToken, refreshToken, err := buildTokenPair(h.db, user, 24*time.Hour)
+	if err != nil {
+		response.AbortWithJSONError(c, http.StatusInternalServerError, err)
+		return
+	}
+	response.Success(c, i18n.T(c, i18n.MsgHandlerAuthTokenRefreshed), gin.H{
+		"token":         accessToken,
+		"access_token":  accessToken,
+		"refreshToken":  refreshToken,
+		"refresh_token": refreshToken,
+		"user":          user,
+	})
+}
+
+func (h *Handlers) handleGitHubLogin(c *gin.Context) {
+	clientID, _, redirectURI, err := getGitHubOAuthConfig(c)
+	if err != nil {
+		response.AbortWithJSONError(c, http.StatusBadRequest, err)
+		return
+	}
+	nonce := newGitHubStateNonce()
+	stateData := &githubOAuthState{
+		Nonce:        nonce,
+		RedirectURL:  strings.TrimSpace(c.Query("redirecturl")),
+		ExpiresAt:    time.Now().Add(10 * time.Minute),
+	}
+	if strings.EqualFold(strings.TrimSpace(c.Query("bind")), "1") {
+		if u := authmodel.CurrentUser(c); u != nil {
+			stateData.BindUserID = u.ID
+		}
+	}
+	githubOAuthStateStore.Lock()
+	githubOAuthStateStore.items[nonce] = stateData
+	githubOAuthStateStore.Unlock()
+	cleanExpiredGitHubStates()
+
+	target, _ := url.Parse("https://github.com/login/oauth/authorize")
+	q := target.Query()
+	q.Set("client_id", clientID)
+	q.Set("redirect_uri", redirectURI)
+	q.Set("scope", "read:user user:email")
+	q.Set("state", nonce)
+	target.RawQuery = q.Encode()
+	c.Redirect(http.StatusFound, target.String())
+}
+
+func (h *Handlers) handleGitHubCallback(c *gin.Context) {
+	code := strings.TrimSpace(c.Query("code"))
+	state := strings.TrimSpace(c.Query("state"))
+	if code == "" || state == "" {
+		redirectWebAuthFailure(c, "github_failed")
+		return
+	}
+	githubOAuthStateStore.Lock()
+	stateData, ok := githubOAuthStateStore.items[state]
+	if ok {
+		delete(githubOAuthStateStore.items, state)
+	}
+	githubOAuthStateStore.Unlock()
+	if !ok || time.Now().After(stateData.ExpiresAt) {
+		redirectWebAuthFailure(c, "github_failed")
+		return
+	}
+
+	clientID, clientSecret, redirectURI, err := getGitHubOAuthConfig(c)
+	if err != nil {
+		redirectWebAuthFailure(c, "github_failed")
+		return
+	}
+
+	tokenReqBody := url.Values{}
+	tokenReqBody.Set("client_id", clientID)
+	tokenReqBody.Set("client_secret", clientSecret)
+	tokenReqBody.Set("code", code)
+	tokenReqBody.Set("redirect_uri", redirectURI)
+
+	tokenReq, _ := http.NewRequest(http.MethodPost, "https://github.com/login/oauth/access_token", strings.NewReader(tokenReqBody.Encode()))
+	tokenReq.Header.Set("Accept", "application/json")
+	tokenReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	tokenResp, err := http.DefaultClient.Do(tokenReq)
+	if err != nil {
+		redirectWebAuthFailure(c, "github_failed")
+		return
+	}
+	defer tokenResp.Body.Close()
+	tokenRaw, err := io.ReadAll(tokenResp.Body)
+	if err != nil {
+		redirectWebAuthFailure(c, "github_failed")
+		return
+	}
+	var tokenData githubOAuthTokenResp
+	if err = json.Unmarshal(tokenRaw, &tokenData); err != nil || tokenData.AccessToken == "" || tokenData.Error != "" {
+		redirectWebAuthFailure(c, "github_failed")
+		return
+	}
+
+	userReq, _ := http.NewRequest(http.MethodGet, "https://api.github.com/user", nil)
+	userReq.Header.Set("Accept", "application/vnd.github+json")
+	userReq.Header.Set("Authorization", "Bearer "+tokenData.AccessToken)
+	userReq.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	userResp, err := http.DefaultClient.Do(userReq)
+	if err != nil {
+		redirectWebAuthFailure(c, "github_failed")
+		return
+	}
+	defer userResp.Body.Close()
+	userRaw, err := io.ReadAll(userResp.Body)
+	if err != nil {
+		redirectWebAuthFailure(c, "github_failed")
+		return
+	}
+	var githubUser githubUserResp
+	if err = json.Unmarshal(userRaw, &githubUser); err != nil || githubUser.ID <= 0 {
+		redirectWebAuthFailure(c, "github_failed")
+		return
+	}
+
+	githubEmail := strings.TrimSpace(githubUser.Email)
+	if githubEmail == "" {
+		emailReq, _ := http.NewRequest(http.MethodGet, "https://api.github.com/user/emails", nil)
+		emailReq.Header.Set("Accept", "application/vnd.github+json")
+		emailReq.Header.Set("Authorization", "Bearer "+tokenData.AccessToken)
+		emailReq.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+		emailResp, reqErr := http.DefaultClient.Do(emailReq)
+		if reqErr == nil {
+			defer emailResp.Body.Close()
+			if emailRaw, readErr := io.ReadAll(emailResp.Body); readErr == nil {
+				var emails []githubEmailResp
+				if unmarshalErr := json.Unmarshal(emailRaw, &emails); unmarshalErr == nil {
+					for _, em := range emails {
+						if em.Email != "" && em.Primary && em.Verified {
+							githubEmail = strings.TrimSpace(em.Email)
+							break
+						}
+					}
+					if githubEmail == "" {
+						for _, em := range emails {
+							if em.Email != "" && em.Verified {
+								githubEmail = strings.TrimSpace(em.Email)
+								break
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	user, userErr := h.findOrCreateGitHubUser(&githubUser, githubEmail)
+	if userErr != nil {
+		redirectWebAuthFailure(c, "github_failed")
+		return
+	}
+	if stateData.BindUserID > 0 {
+		bindUser, err := authmodel.GetUserByID(h.db, stateData.BindUserID)
+		if err == nil && bindUser != nil {
+			newGithubID := strconv.FormatInt(githubUser.ID, 10)
+			redirectURL := strings.TrimSpace(stateData.RedirectURL)
+			if redirectURL == "" {
+				redirectURL = "/profile"
+			}
+			buildBindRedirect := func(bindStatus string) string {
+				target, parseErr := url.Parse(redirectURL)
+				if parseErr != nil {
+					return "/profile?bind=" + url.QueryEscape(bindStatus)
+				}
+				q := target.Query()
+				q.Set("bind", bindStatus)
+				target.RawQuery = q.Encode()
+				return target.String()
+			}
+			// A user can only bind one GitHub account.
+			if strings.TrimSpace(bindUser.GithubID) != "" && strings.TrimSpace(bindUser.GithubID) != newGithubID {
+				c.Redirect(http.StatusFound, buildBindRedirect("github_already_bound"))
+				return
+			}
+			// A GitHub account can only belong to one local user.
+			var existing authmodel.User
+			if findErr := h.db.Where("github_id = ?", newGithubID).First(&existing).Error; findErr == nil && existing.ID != bindUser.ID {
+				c.Redirect(http.StatusFound, buildBindRedirect("github_bound_other"))
+				return
+			}
+			updates := map[string]any{
+				"github_id":    newGithubID,
+				"github_login": strings.TrimSpace(githubUser.Login),
+			}
+			_ = h.db.Model(bindUser).Updates(updates).Error
+			if githubUser.AvatarURL != "" {
+				_ = authmodel.UpdateUserProfileFields(h.db, bindUser.ID, map[string]any{"avatar": githubUser.AvatarURL})
+			}
+			c.Redirect(http.StatusFound, buildBindRedirect("github_ok"))
+			return
+		}
+	}
+	var ghFresh authmodel.User
+	if err := h.db.Where("id = ? AND is_deleted = ?", user.ID, models.SoftDeleteStatusActive).First(&ghFresh).Error; err == nil && authmodel.AccountDeletionPending(&ghFresh) {
+		c.Redirect(http.StatusFound, revokeAccountDeletionBrowserURL(c, user.Email))
+		return
+	}
+	authmodel.Login(c, user)
+	token, refreshToken, err := buildTokenPair(h.db, user, 7*24*time.Hour)
+	if err != nil {
+		response.AbortWithJSONError(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	redirectWebAuthSuccess(c, stateData.RedirectURL, token, refreshToken)
+}
+
+func (h *Handlers) handleWechatBindCode(c *gin.Context) {
+	user := authmodel.CurrentUser(c)
+	if user == nil {
+		response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("authorization required"))
+		return
+	}
+	sessionID := newWechatSessionID()
+	bindCode := newWechatLoginCode()
+	expiresIn := 600
+	expiresAt := time.Now().Add(time.Duration(expiresIn) * time.Second)
+	session := &wechatBindSession{
+		SessionID: sessionID,
+		Status:    "pending",
+		ExpiresAt: expiresAt,
+		UserID:    user.ID,
+		BindCode:  bindCode,
+	}
+	wechatBindSessions.Lock()
+	wechatBindSessions.items[sessionID] = session
+	wechatBindSessions.Unlock()
+	cleanExpiredWechatBindSessions()
+	response.Success(c, i18n.T(c, i18n.MsgHandlerAuthWechatBindCodeGenerated), gin.H{
+		"sessionId":    sessionID,
+		"bindCode":     bindCode,
+		"expiresAt":    expiresAt.Unix(),
+		"expiresInSec": expiresIn,
+	})
+}
+
+func (h *Handlers) handleWechatBindStatus(c *gin.Context) {
+	user := authmodel.CurrentUser(c)
+	if user == nil {
+		response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("authorization required"))
+		return
+	}
+	sessionID := strings.TrimSpace(c.Query("sessionId"))
+	if sessionID == "" {
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("sessionId is required"))
+		return
+	}
+	wechatBindSessions.RLock()
+	session, ok := wechatBindSessions.items[sessionID]
+	wechatBindSessions.RUnlock()
+	if !ok || time.Now().After(session.ExpiresAt) {
+		response.Success(c, i18n.T(c, i18n.MsgHandlerAuthWechatBindStatus), gin.H{"status": "expired"})
+		return
+	}
+	if session.UserID != user.ID {
+		response.AbortWithJSONError(c, http.StatusForbidden, errors.New("invalid bind session owner"))
+		return
+	}
+	payload := gin.H{
+		"status":    session.Status,
+		"expiresAt": session.ExpiresAt.Unix(),
+	}
+	if session.Reason != "" {
+		payload["reason"] = session.Reason
+	}
+	if session.Status == "success" {
+		wechatBindSessions.Lock()
+		delete(wechatBindSessions.items, sessionID)
+		wechatBindSessions.Unlock()
+	}
+	response.Success(c, i18n.T(c, i18n.MsgHandlerAuthWechatBindStatus), payload)
+}
+
+func (h *Handlers) handleWechatLogin(c *gin.Context) {
+	c.Redirect(http.StatusFound, webAppOrigin()+"/")
+}
+
+func (h *Handlers) handleWechatLoginCallback(c *gin.Context) {
+	signature := c.Query("signature")
+	timestamp := c.Query("timestamp")
+	nonce := c.Query("nonce")
+	echostr := c.Query("echostr")
+	token := getWechatMPToken()
+	if token == "" {
+		c.Header("Content-Type", "text/html; charset=utf-8")
+		c.String(http.StatusBadRequest, "error")
+		return
+	}
+	if !verifyWechatSignature(token, signature, timestamp, nonce) {
+		expected := calcWechatSignature(token, timestamp, nonce)
+		logger.Warn("wechat verify token failed",
+			zap.String("path", c.Request.URL.Path),
+			zap.String("signature", signature),
+			zap.String("expected", expected),
+			zap.String("timestamp", timestamp),
+			zap.String("nonce", nonce),
+			zap.String("echostr", echostr),
+			zap.String("query", c.Request.URL.RawQuery),
+			zap.String("remoteIP", c.ClientIP()))
+		c.Header("Content-Type", "text/html; charset=utf-8")
+		c.String(http.StatusForbidden, "error")
+		return
+	}
+	c.Header("Content-Type", "text/html; charset=utf-8")
+	c.String(http.StatusOK, html.EscapeString(echostr))
+}
+
+func (h *Handlers) handleWechatLoginMessage(c *gin.Context) {
+	signature := c.Query("signature")
+	timestamp := c.Query("timestamp")
+	nonce := c.Query("nonce")
+	raw, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		c.String(http.StatusOK, "success")
+		return
+	}
+
+	token := getWechatMPToken()
+	if token == "" {
+		c.String(http.StatusForbidden, "invalid signature")
+		return
+	}
+
+	encryptType := strings.ToLower(strings.TrimSpace(c.Query("encrypt_type")))
+	if encryptType == "aes" {
+		var envelope struct {
+			Encrypt string `xml:"Encrypt"`
+		}
+		if err = xml.Unmarshal(raw, &envelope); err != nil || envelope.Encrypt == "" {
+			logger.Warn("wechat aes envelope invalid", zap.Error(err))
+			c.String(http.StatusOK, "success")
+			return
+		}
+
+		msgSignature := c.Query("msg_signature")
+		expected := calcWechatMsgSignature(token, timestamp, nonce, envelope.Encrypt)
+		if msgSignature == "" || msgSignature != expected {
+			logger.Warn("wechat aes signature invalid",
+				zap.String("msg_signature", msgSignature),
+				zap.String("expected", expected),
+				zap.String("timestamp", timestamp),
+				zap.String("nonce", nonce),
+				zap.String("query", c.Request.URL.RawQuery))
+			c.String(http.StatusForbidden, "invalid signature")
+			return
+		}
+
+		appID := strings.TrimSpace(os.Getenv("WECHAT_MP_APP_ID"))
+		aesKey := strings.TrimSpace(os.Getenv("WECHAT_MP_AES_KEY"))
+		if aesKey == "" {
+			logger.Warn("wechat aes key missing")
+			c.String(http.StatusOK, "success")
+			return
+		}
+		raw, err = decryptWechatXML(aesKey, appID, envelope.Encrypt)
+		if err != nil {
+			logger.Warn("wechat aes decrypt failed", zap.Error(err))
+			c.String(http.StatusOK, "success")
+			return
+		}
+	} else {
+		if !verifyWechatSignature(token, signature, timestamp, nonce) {
+			expected := calcWechatSignature(token, timestamp, nonce)
+			logger.Warn("wechat message signature invalid",
+				zap.String("path", c.Request.URL.Path),
+				zap.String("signature", signature),
+				zap.String("expected", expected),
+				zap.String("timestamp", timestamp),
+				zap.String("nonce", nonce),
+				zap.String("query", c.Request.URL.RawQuery),
+				zap.String("remoteIP", c.ClientIP()))
+			c.String(http.StatusForbidden, "invalid signature")
+			return
+		}
+	}
+
+	var msg wechatMessageXML
+	if err = xml.Unmarshal(raw, &msg); err != nil {
+		c.String(http.StatusOK, "success")
+		return
+	}
+	if strings.ToLower(msg.MsgType) != "event" {
+		// 纯消息推送登录：用户在公众号发送登录码（文本消息）
+		if strings.ToLower(msg.MsgType) == "text" {
+			inputCode := strings.ToUpper(strings.TrimSpace(msg.Content))
+			if inputCode == "" {
+				sendWechatReplyText(c, msg.FromUserName, msg.ToUserName, "请发送登录码完成登录")
+				return
+			}
+
+			var bindMatched *wechatBindSession
+			wechatBindSessions.Lock()
+			for _, s := range wechatBindSessions.items {
+				if time.Now().Before(s.ExpiresAt) && strings.EqualFold(s.BindCode, inputCode) {
+					bindMatched = s
+					break
+				}
+			}
+			if bindMatched != nil {
+				bindMatched.OpenID = msg.FromUserName
+				// If the OpenID is already bound to another account, reject this bind.
+				var existing authmodel.User
+				if err := h.db.Where("wechat_open_id = ?", msg.FromUserName).First(&existing).Error; err == nil && existing.ID != bindMatched.UserID {
+					bindMatched.Status = "failed"
+					bindMatched.Reason = "already_bound"
+				} else {
+					updates := map[string]any{
+						"wechat_open_id": msg.FromUserName,
+					}
+					if wechatUserInfo, userInfoErr := func() (*wechatUserInfoResp, error) {
+						var info wechatUserInfoResp
+						accessToken, tokenErr := getWechatAccessToken()
+						if tokenErr != nil {
+							return &info, tokenErr
+						}
+						userInfoURL := fmt.Sprintf("https://api.weixin.qq.com/cgi-bin/user/info?access_token=%s&openid=%s&lang=zh_CN", accessToken, msg.FromUserName)
+						userResp, reqErr := http.Get(userInfoURL)
+						if reqErr != nil {
+							return &info, reqErr
+						}
+						defer userResp.Body.Close()
+						raw, readErr := io.ReadAll(userResp.Body)
+						if readErr != nil {
+							return &info, readErr
+						}
+						_ = json.Unmarshal(raw, &info)
+						return &info, nil
+					}(); userInfoErr == nil && wechatUserInfo != nil && wechatUserInfo.UnionID != "" {
+						updates["wechat_union_id"] = wechatUserInfo.UnionID
+					}
+					if err := h.db.Model(&authmodel.User{}).Where("id = ?", bindMatched.UserID).Updates(updates).Error; err != nil {
+						bindMatched.Status = "failed"
+						bindMatched.Reason = "bind_failed"
+					} else {
+						now := time.Now()
+						bindMatched.BoundAt = &now
+						bindMatched.Status = "success"
+					}
+				}
+			}
+			wechatBindSessions.Unlock()
+			if bindMatched != nil {
+				if bindMatched.Status == "success" {
+					sendWechatReplyText(c, msg.FromUserName, msg.ToUserName, "微信绑定成功，请返回网页查看")
+				} else if bindMatched.Reason == "already_bound" {
+					sendWechatReplyText(c, msg.FromUserName, msg.ToUserName, "该微信已绑定其他账号，无法重复绑定")
+				} else {
+					sendWechatReplyText(c, msg.FromUserName, msg.ToUserName, "微信绑定失败，请稍后重试")
+				}
+				return
+			}
+
+			var matched *wechatLoginSession
+			wechatLoginSessions.Lock()
+			// 精确匹配一次性登录码
+			for _, s := range wechatLoginSessions.items {
+				if time.Now().Before(s.ExpiresAt) && strings.EqualFold(s.LoginCode, inputCode) {
+					matched = s
+					break
+				}
+			}
+			if matched != nil {
+				now := time.Now()
+				matched.ScannedAt = &now
+				matched.Status = "scanned"
+				matched.OpenID = msg.FromUserName
+			}
+			wechatLoginSessions.Unlock()
+
+			if matched == nil {
+				sendWechatReplyText(c, msg.FromUserName, msg.ToUserName, "验证码无效或已过期，请刷新页面获取最新验证码")
+				return
+			}
+
+			var wechatUserInfo wechatUserInfoResp
+			if accessToken, tokenErr := getWechatAccessToken(); tokenErr == nil && msg.FromUserName != "" {
+				userInfoURL := fmt.Sprintf("https://api.weixin.qq.com/cgi-bin/user/info?access_token=%s&openid=%s&lang=zh_CN", accessToken, msg.FromUserName)
+				if userResp, reqErr := http.Get(userInfoURL); reqErr == nil {
+					defer userResp.Body.Close()
+					if userRaw, readErr := io.ReadAll(userResp.Body); readErr == nil {
+						_ = json.Unmarshal(userRaw, &wechatUserInfo)
+					}
+				}
+			}
+
+			user, userErr := h.findOrCreateWechatUser(msg.FromUserName, &wechatUserInfo)
+			if userErr != nil {
+				sendWechatReplyText(c, msg.FromUserName, msg.ToUserName, "登录处理失败，请稍后重试")
+				return
+			}
+
+			wechatLoginSessions.Lock()
+			if s, ok := wechatLoginSessions.items[matched.SceneID]; ok {
+				s.UserID = user.ID
+				s.Status = "success"
+			}
+			wechatLoginSessions.Unlock()
+			sendWechatReplyText(c, msg.FromUserName, msg.ToUserName, "登录确认成功，请返回网页")
+			return
+		}
+		c.String(http.StatusOK, "success")
+		return
+	}
+	event := strings.ToUpper(strings.TrimSpace(msg.Event))
+	if event != "SCAN" && event != "SUBSCRIBE" {
+		c.String(http.StatusOK, "success")
+		return
+	}
+
+	sceneID := extractSceneID(msg.EventKey)
+	if sceneID == "" {
+		c.String(http.StatusOK, "success")
+		return
+	}
+	wechatLoginSessions.Lock()
+	session, ok := wechatLoginSessions.items[sceneID]
+	if !ok || time.Now().After(session.ExpiresAt) {
+		wechatLoginSessions.Unlock()
+		c.String(http.StatusOK, "success")
+		return
+	}
+	now := time.Now()
+	session.ScannedAt = &now
+	session.Status = "scanned"
+	session.OpenID = msg.FromUserName
+	wechatLoginSessions.Unlock()
+
+	var wechatUserInfo wechatUserInfoResp
+	if accessToken, tokenErr := getWechatAccessToken(); tokenErr == nil && msg.FromUserName != "" {
+		userInfoURL := fmt.Sprintf("https://api.weixin.qq.com/cgi-bin/user/info?access_token=%s&openid=%s&lang=zh_CN", accessToken, msg.FromUserName)
+		if userResp, reqErr := http.Get(userInfoURL); reqErr == nil {
+			defer userResp.Body.Close()
+			if userRaw, readErr := io.ReadAll(userResp.Body); readErr == nil {
+				_ = json.Unmarshal(userRaw, &wechatUserInfo)
+			}
+		}
+	}
+
+	var loginUser *authmodel.User
+	if bindEmail := strings.TrimSpace(os.Getenv("WECHAT_LOGIN_BIND_EMAIL")); bindEmail != "" {
+		if u, findErr := authmodel.GetUserByEmail(h.db, bindEmail); findErr == nil && u != nil {
+			loginUser = u
+		}
+	}
+	if loginUser == nil {
+		openID := msg.FromUserName
+		if wechatUserInfo.OpenID != "" {
+			openID = wechatUserInfo.OpenID
+		}
+		if u, userErr := h.findOrCreateWechatUser(openID, &wechatUserInfo); userErr == nil {
+			loginUser = u
+		}
+	}
+	if loginUser != nil {
+		wechatLoginSessions.Lock()
+		if s, exists := wechatLoginSessions.items[sceneID]; exists {
+			s.UserID = loginUser.ID
+			s.Status = "success"
+		}
+		wechatLoginSessions.Unlock()
+	}
+
+	if event == "SUBSCRIBE" {
+		sendWechatReplyText(c, msg.FromUserName, msg.ToUserName, "欢迎关注，正在为您登录...")
+		return
+	}
+	sendWechatReplyText(c, msg.FromUserName, msg.ToUserName, "正在为您登录...")
+}
+
+// handleUserLogout handle user logout
+func (h *Handlers) handleUserLogout(c *gin.Context) {
+	user := authmodel.CurrentUser(c)
+	if user != nil {
+		authmodel.Logout(c, user)
+	} else {
+		session := sessions.Default(c)
+		session.Delete(constants.UserField)
+		_ = session.Save()
+	}
+	next := c.Query("next")
+	if next != "" {
+		c.Redirect(http.StatusFound, next)
+		return
+	}
+	response.Success(c, i18n.T(c, i18n.MsgHandlerAuthLogoutSuccess), nil)
+}
+
+// handleUserInfo handle user info
+func (h *Handlers) handleUserInfo(c *gin.Context) {
+	ctxUser := authmodel.CurrentUser(c)
+	if ctxUser == nil {
+		response.AbortWithStatus(c, http.StatusUnauthorized)
+		return
+	}
+	db := c.MustGet(constants.DbField).(*gorm.DB)
+	user, err := authmodel.GetUserByID(db, ctxUser.ID)
+	if err != nil || user == nil {
+		response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("user not found"))
+		return
+	}
+	if keys, err := authmodel.EffectivePermissionKeys(db, user.ID); err == nil {
+		user.PermissionKeys = keys
+	}
+	if slugs, err := authmodel.UserRoleSlugs(db, user.ID); err == nil {
+		user.RoleSlugs = slugs
+	}
+	withToken := c.Query("with_token")
+	if withToken != "" {
+		expired, err := time.ParseDuration(withToken)
+		if err == nil {
+			if expired >= 24*time.Hour {
+				expired = 24 * time.Hour
+			}
+			km := utils.JWTKeyManager()
+			if km != nil {
+				if tok, signErr := utils.SignAccessTokenWithKey(utils.AccessPayload{
+					UserID: user.ID,
+					Email:  user.Email,
+					Role:   jwtRoleForToken(db, user),
+				}, km, expired); signErr == nil {
+					user.AuthToken = tok
+				}
+			}
+		}
+	}
+	response.Success(c, i18n.T(c, i18n.MsgHandlerAuthLoginSuccessful), user)
+}
+
+// handleUserSigninByEmail handle user signin by email
+func (h *Handlers) handleUserSigninByEmail(c *gin.Context) {
+	var form authmodel.EmailOperatorForm
+	if err := c.BindJSON(&form); err != nil {
+		response.AbortWithJSONError(c, http.StatusBadRequest, err)
+		return
+	}
+	clientIP := c.ClientIP()
+	userAgent := c.Request.UserAgent()
+	db := c.MustGet(constants.DbField).(*gorm.DB)
+
+	// 1. IP限流检查
+	if utils.GlobalLoginSecurityManager != nil {
+		if err := utils.GlobalLoginSecurityManager.CheckIPRateLimit(clientIP); err != nil {
+			response.AbortWithJSONError(c, http.StatusTooManyRequests, err)
+			return
+		}
+	}
+
+	// 2. 账号锁定检查
+	if utils.GlobalLoginSecurityManager != nil {
+		checkLockFunc := func(db *gorm.DB, email string, userID uint) (*utils.AccountLockInfo, error) {
+			lock, err := authmodel.GetAccountLock(db, email, userID)
+			if err != nil {
+				return nil, err
+			}
+			if lock == nil {
+				return nil, nil
+			}
+			return &utils.AccountLockInfo{
+				IsLocked: lock.IsLocked(),
+				UnlockAt: lock.UnlockAt,
+			}, nil
+		}
+		if err := utils.GlobalLoginSecurityManager.CheckAccountLock(db, form.Email, 0, checkLockFunc); err != nil {
+			response.AbortWithJSONError(c, http.StatusForbidden, err)
+			return
+		}
+	}
+
+	// 3. 验证码验证（随机图形/点击）
+	if utilscaptcha.GlobalManager != nil {
+		valid, err := verifyRequestCaptcha(form.CaptchaID, form.CaptchaCode, form.CaptchaData, form.CaptchaType)
+		if err != nil || !valid {
+			if utils.GlobalLoginSecurityManager != nil {
+				recordFunc := func(db *gorm.DB, email string, userID uint, ipAddress string, failedCount int) error {
+					_, err := authmodel.CreateOrUpdateAccountLock(db, email, userID, ipAddress, failedCount)
+					return err
+				}
+				utils.GlobalLoginSecurityManager.RecordFailedLogin(db, form.Email, 0, clientIP, recordFunc)
+			}
+			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid captcha"))
+			return
+		}
+	}
+
+	// 检查邮箱是否为空
+	if form.Email == "" {
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("email is required"))
+		return
+	}
+
+	// 4. 获取用户
+	user, err := authmodel.GetUserByEmail(db, form.Email)
+	if err != nil {
+		if utils.GlobalLoginSecurityManager != nil {
+			recordFunc := func(db *gorm.DB, email string, userID uint, ipAddress string, failedCount int) error {
+				_, err := authmodel.CreateOrUpdateAccountLock(db, email, userID, ipAddress, failedCount)
+				return err
+			}
+			utils.GlobalLoginSecurityManager.RecordFailedLogin(db, form.Email, 0, clientIP, recordFunc)
+		}
+		response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthUserNotExists), errors.New("user not exists"))
+		return
+	}
+
+	// 5. 校验验证码
+	if form.Code == "" {
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("verification code is required"))
+		return
+	}
+
+	// 从缓存中获取验证码
+	cachedCode, ok := utils.GlobalCache.Get(form.Email)
+	if !ok || cachedCode != form.Code {
+		if utils.GlobalLoginSecurityManager != nil {
+			recordFunc := func(db *gorm.DB, email string, userID uint, ipAddress string, failedCount int) error {
+				_, err := authmodel.CreateOrUpdateAccountLock(db, email, userID, ipAddress, failedCount)
+				return err
+			}
+			utils.GlobalLoginSecurityManager.RecordFailedLogin(db, form.Email, user.ID, clientIP, recordFunc)
+		}
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid verification code"))
+		return
+	}
+
+	// 清除已用验证码
+	utils.GlobalCache.Remove(form.Email)
+
+	// 6. 检查用户是否允许登录（激活、启用等）
+	err = authmodel.CheckUserAllowLogin(db, user)
+	if err != nil {
+		if utils.GlobalLoginSecurityManager != nil {
+			recordFunc := func(db *gorm.DB, email string, userID uint, ipAddress string, failedCount int) error {
+				_, err := authmodel.CreateOrUpdateAccountLock(db, email, userID, ipAddress, failedCount)
+				return err
+			}
+			utils.GlobalLoginSecurityManager.RecordFailedLogin(db, form.Email, user.ID, clientIP, recordFunc)
+		}
+		response.AbortWithJSONError(c, http.StatusForbidden, err)
+		return
+	}
+
+	if h.loginBlockedByAccountDeletion(c, db, user) {
+		return
+	}
+
+	// 7. 获取IP地理位置
+	country, city, location := "Unknown", "Unknown", "Unknown"
+	if h.ipLocationService != nil {
+		country, city, location, _ = h.ipLocationService.GetLocation(clientIP)
+	}
+
+	// 8. 检测异地登录
+	isSuspicious := false
+	if utils.GlobalLoginSecurityManager != nil {
+		getLocationsFunc := func(db *gorm.DB, userID uint, limit int) ([]utils.LoginLocation, error) {
+			histories, err := authmodel.GetRecentLoginLocations(db, userID, limit)
+			if err != nil {
+				return nil, err
+			}
+			locations := make([]utils.LoginLocation, len(histories))
+			for i, h := range histories {
+				locations[i] = utils.LoginLocation{
+					Country: h.Country,
+					City:    h.City,
+				}
+			}
+			return locations, nil
+		}
+		isSuspicious, _ = utils.GlobalLoginSecurityManager.DetectSuspiciousLogin(db, user.ID, clientIP, location, country, getLocationsFunc)
+		if isSuspicious {
+			logger.Warn("Suspicious login detected",
+				zap.Uint("userID", user.ID),
+				zap.String("email", user.Email),
+				zap.String("ip", clientIP),
+				zap.String("location", location))
+		}
+	}
+
+	// 9. 解析设备信息
+	deviceType, os, browser := utils.ParseUserAgent(userAgent)
+	deviceID := utils.GetDeviceID(userAgent, clientIP)
+
+	// 10. 检查设备信任状态
+	isTrusted, err := authmodel.CheckDeviceTrust(db, user.ID, deviceID)
+	if err != nil {
+		logger.Warn("Failed to check device trust", zap.Error(err))
+	}
+
+	logger.Info("Device trust check result",
+		zap.String("deviceID", deviceID),
+		zap.Bool("isTrusted", isTrusted),
+		zap.Bool("isSuspicious", isSuspicious),
+		zap.Error(err))
+
+	// 11. 创建设备记录
+	if _, err := authmodel.CreateOrUpdateUserDevice(db, user.ID, deviceID, fmt.Sprintf("%s on %s", browser, os), deviceType, os, browser, userAgent, clientIP, location); err != nil {
+		logger.Warn("Failed to create/update user device", zap.Error(err))
+	}
+
+	// 邮箱验证码本身已证明邮箱控制权：登录成功后信任该设备，避免每次都被当作新设备发告警/风控。
+	if err := authmodel.TrustUserDevice(db, user.ID, deviceID); err != nil {
+		logger.Warn("Failed to auto-trust device after email login", zap.Error(err), zap.Uint("userID", user.ID), zap.String("deviceID", deviceID))
+	} else {
+		isTrusted = true
+	}
+
+	// 12. 记录登录历史
+	if err := authmodel.RecordLoginHistory(db, user.ID, form.Email, clientIP, location, country, city, userAgent, deviceID, "email", true, "", isSuspicious); err != nil {
+		logger.Warn("Failed to record login history", zap.Error(err))
+	}
+
+	// 13. 发送新设备登录警告邮件（异步）
+	logger.Info("Checking new device login alert conditions",
+		zap.Bool("isTrusted", isTrusted),
+		zap.Bool("isSuspicious", isSuspicious),
+		zap.String("deviceID", deviceID))
+
+	if !isTrusted || isSuspicious {
+		logger.Info("Sending new device login alert signal",
+			zap.String("email", user.Email),
+			zap.String("deviceID", deviceID),
+			zap.Bool("isTrusted", isTrusted),
+			zap.Bool("isSuspicious", isSuspicious))
+
+		// 使用信号发送新设备登录警告邮件
+		deviceInfo := map[string]interface{}{
+			"deviceID":     deviceID,
+			"clientIP":     clientIP,
+			"location":     location,
+			"deviceType":   deviceType,
+			"os":           os,
+			"browser":      browser,
+			"isSuspicious": isSuspicious,
+			"loginTime":    time.Now().Format("2006-01-02 15:04:05"),
+		}
+		utils.Sig().Emit(constants.SigUserNewDeviceLogin, user, deviceInfo, db)
+	} else {
+		logger.Info("Skipping new device login alert - device is trusted and not suspicious",
+			zap.String("email", user.Email),
+			zap.String("deviceID", deviceID))
+	}
+
+	// 14. 邮箱验证码登录成功后，重置密码登录限制
+	// 删除最近的密码登录记录，允许用户重新使用密码登录
+	if utils.GlobalLoginSecurityManager != nil {
+		// 删除最近7天的密码登录记录，给用户一个重新开始的机会
+		if err := db.Where("user_id = ? AND login_type = ? AND created_at > ?",
+			user.ID, "password", time.Now().AddDate(0, 0, -7)).
+			Delete(&authmodel.LoginHistory{}).Error; err != nil {
+			logger.Warn("Failed to reset password login history", zap.Error(err))
+		} else {
+			logger.Info("Password login history reset after email verification",
+				zap.Uint("userID", user.ID),
+				zap.String("email", user.Email))
+		}
+	}
+
+	// 15. 清除失败登录计数
+	if utils.GlobalLoginSecurityManager != nil {
+		utils.GlobalLoginSecurityManager.ClearFailedLoginCount(form.Email)
+	}
+
+	// 设置时区（如果有的话）
+	if form.Timezone != "" {
+		authmodel.InTimezone(c, form.Timezone)
+	}
+
+	// 登录用户，设置 Session
+	authmodel.Login(c, user)
+
+	// 检查是否被中止
+	if c.IsAborted() {
+		return
+	}
+
+	// 重新从数据库加载用户信息，确保获取最新的LastLogin等信息
+	updatedUser, err := authmodel.GetUserByID(db, user.ID)
+	if err != nil {
+		logger.Warn("Failed to reload user after login, using original user object", zap.Error(err))
+		updatedUser = user // 如果加载失败，使用原始user对象
+	} else {
+		user = updatedUser // 使用更新后的用户信息
+	}
+
+	// 如果需要 Token，生成 AuthToken
+	var refreshToken string
+	if form.AuthToken {
+		expired := durationFromConfigKey(db, constants.KEY_AUTH_TOKEN_EXPIRED, 24*time.Hour)
+		if expired < 24*time.Hour {
+			expired = 24 * time.Hour
+		}
+		var err error
+		user.AuthToken, refreshToken, err = buildTokenPair(db, user, expired)
+		if err != nil {
+			response.AbortWithJSONError(c, http.StatusInternalServerError, err)
+			return
+		}
+	}
+
+	// 返回登录结果（包含可疑登录警告）
+	responseData := gin.H{
+		"user":         user,
+		"token":        user.AuthToken, // 为了兼容前端，同时返回token字段
+		"refreshToken": refreshToken,
+	}
+	if isSuspicious {
+		responseData["suspiciousLogin"] = true
+		responseData["message"] = "Login from new location or untrusted device detected. Please verify your identity."
+	}
+
+	response.Success(c, i18n.T(c, i18n.MsgHandlerAuthLoginSuccess), responseData)
+}
+
+// handleUserSignin handle user signin
+func (h *Handlers) handleUserSigninByPassword(c *gin.Context) {
+	var form authmodel.LoginForm
+	if err := c.BindJSON(&form); err != nil {
+		logger.Error("Failed to bind login form", zap.Error(err))
+		response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthLoginFailed), err)
+		return
+	}
+
+	clientIP := c.ClientIP()
+	userAgent := c.Request.UserAgent()
+	db := c.MustGet(constants.DbField).(*gorm.DB)
+
+	// 1. IP限流检查
+	if utils.GlobalLoginSecurityManager != nil {
+		if err := utils.GlobalLoginSecurityManager.CheckIPRateLimit(clientIP); err != nil {
+			response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthTooManyAttempts), err)
+			return
+		}
+	}
+
+	// 2. 代理IP检测
+	if utils.GlobalLoginSecurityManager != nil {
+		isProxy, err := utils.GlobalLoginSecurityManager.CheckProxyIP(clientIP)
+		if err != nil {
+			logger.Warn("Failed to check proxy IP", zap.String("ip", clientIP), zap.Error(err))
+		}
+		if isProxy {
+			logger.Warn("Login attempt from proxy IP", zap.String("ip", clientIP), zap.String("email", form.Email))
+		}
+	}
+
+	// 3. 账号锁定检查
+	if utils.GlobalLoginSecurityManager != nil {
+		checkLockFunc := func(db *gorm.DB, email string, userID uint) (*utils.AccountLockInfo, error) {
+			lock, err := authmodel.GetAccountLock(db, email, userID)
+			if err != nil {
+				return nil, err
+			}
+			if lock == nil {
+				return nil, nil
+			}
+			return &utils.AccountLockInfo{
+				IsLocked: lock.IsLocked(),
+				UnlockAt: lock.UnlockAt,
+			}, nil
+		}
+		if err := utils.GlobalLoginSecurityManager.CheckAccountLock(db, form.Email, 0, checkLockFunc); err != nil {
+			response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthAccountLocked), err)
+			return
+		}
+	}
+
+	if form.AuthToken == "" && form.Email == "" {
+		logger.Warn("Login attempt without email or token", zap.String("ip", clientIP))
+		response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthLoginFailed), errors.New("email is required"))
+		return
+	}
+
+	if form.Password == "" && form.AuthToken == "" {
+		logger.Warn("Login attempt without password or token", zap.String("ip", clientIP), zap.String("email", form.Email))
+		response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthLoginFailed), errors.New("empty password"))
+		return
+	}
+
+	// 4. 获取用户
+	var user *authmodel.User
+	var err error
+	if form.Password != "" {
+		user, err = authmodel.GetUserByEmail(db, form.Email)
+		if err != nil {
+			logger.Warn("Login attempt with non-existent email", zap.String("email", form.Email), zap.String("ip", clientIP), zap.Error(err))
+			// 记录失败登录
+			if utils.GlobalLoginSecurityManager != nil {
+				recordFunc := func(db *gorm.DB, email string, userID uint, ipAddress string, failedCount int) error {
+					_, err := authmodel.CreateOrUpdateAccountLock(db, email, userID, ipAddress, failedCount)
+					return err
+				}
+				utils.GlobalLoginSecurityManager.RecordFailedLogin(db, form.Email, 0, clientIP, recordFunc)
+			}
+			response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthUserNotFoundEmail), nil)
+			return
+		}
+
+		// 5. 检查密码登录次数限制（需要邮箱验证）
+		if utils.GlobalLoginSecurityManager != nil {
+			checkLimitFunc := func(db *gorm.DB, userID uint) (int64, error) {
+				// 检查最近是否有邮箱验证码登录
+				var recentEmailLogin int64
+				err := db.Table("login_histories").
+					Where("user_id = ? AND login_type = ? AND success = ? AND created_at > ?",
+						userID, "email", true, time.Now().AddDate(0, 0, -7)). // 最近7天
+					Count(&recentEmailLogin).Error
+				if err != nil {
+					return 0, err
+				}
+
+				// 如果最近7天内有邮箱登录，则重置密码登录限制
+				if recentEmailLogin > 0 {
+					return 0, nil // 返回0，表示没有达到限制
+				}
+
+				// 否则正常检查密码登录次数
+				var count int64
+				err = db.Table("login_histories").
+					Where("user_id = ? AND login_type = ? AND success = ? AND created_at > ?",
+						userID, "password", true, time.Now().AddDate(0, 0, -30)). // 最近30天
+					Count(&count).Error
+				return count, err
+			}
+			needsEmailVerification, err := utils.GlobalLoginSecurityManager.CheckPasswordLoginLimit(db, user.ID, form.Email, checkLimitFunc)
+			if err != nil {
+				logger.Warn("Failed to check password login limit", zap.Error(err))
+			}
+			if needsEmailVerification {
+				// 需要邮箱验证码，但这里先检查密码是否正确
+				// 密码仅接受加密传输格式：passwordHash:encryptedHash:salt:timestamp。
+				// 明文密码在此路径一律被拒（安全加固：防中间人/日志泄露）。
+				passwordValid := false
+				if strings.Contains(form.Password, ":") && len(strings.Split(form.Password, ":")) == 4 {
+					passwordValid = authmodel.VerifyEncryptedPassword(form.Password, user.Password)
+				} else {
+					logger.Warn("login rejected: plaintext password submission is no longer accepted",
+						zap.String("email", form.Email), zap.Uint("userID", user.ID), zap.String("ip", clientIP))
+				}
+
+				if !passwordValid {
+					logger.Warn("Login failed: incorrect password (email verification required)", zap.String("email", form.Email), zap.Uint("userID", user.ID), zap.String("ip", clientIP))
+					if utils.GlobalLoginSecurityManager != nil {
+						recordFunc := func(db *gorm.DB, email string, userID uint, ipAddress string, failedCount int) error {
+							_, err := authmodel.CreateOrUpdateAccountLock(db, email, userID, ipAddress, failedCount)
+							return err
+						}
+						utils.GlobalLoginSecurityManager.RecordFailedLogin(db, form.Email, user.ID, clientIP, recordFunc)
+					}
+					response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthPasswordError), nil)
+					return
+				}
+				// 密码正确，但需要邮箱验证
+				response.Success(c, i18n.T(c, i18n.MsgHandlerAuthEmailVerificationRequired), gin.H{
+					"requiresEmailVerification": true,
+					"message":                   "Password login limit reached. Please verify with email code.",
+				})
+				return
+			}
+		}
+
+		// 6. 验证码验证（随机图形/点击）
+		// 如果已经进入2FA提交阶段(twoFactorCode存在)，跳过验证码二次校验，避免同一验证码重复消费导致失败
+		isTwoFactorSubmit := strings.TrimSpace(form.TwoFactorCode) != ""
+		skipCaptchaAfterDeviceVerify := false
+		if utils.GlobalCache != nil {
+			deviceID := utils.GetDeviceID(userAgent, clientIP)
+			skipKey := fmt.Sprintf("device_verified_login:%s:%s", form.Email, deviceID)
+			if _, ok := utils.GlobalCache.Get(skipKey); ok {
+				skipCaptchaAfterDeviceVerify = true
+				utils.GlobalCache.Remove(skipKey)
+			}
+		}
+		if utilscaptcha.GlobalManager != nil && !isTwoFactorSubmit && !skipCaptchaAfterDeviceVerify {
+			valid, err := verifyRequestCaptcha(form.CaptchaID, form.CaptchaCode, form.CaptchaData, form.CaptchaType)
+			if err != nil || !valid {
+				logger.Warn("Login failed: invalid captcha", zap.String("email", form.Email), zap.Uint("userID", user.ID), zap.String("ip", clientIP), zap.String("captchaID", form.CaptchaID), zap.Error(err))
+				if utils.GlobalLoginSecurityManager != nil {
+					recordFunc := func(db *gorm.DB, email string, userID uint, ipAddress string, failedCount int) error {
+						_, err := authmodel.CreateOrUpdateAccountLock(db, email, userID, ipAddress, failedCount)
+						return err
+					}
+					utils.GlobalLoginSecurityManager.RecordFailedLogin(db, form.Email, user.ID, clientIP, recordFunc)
+				}
+				response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthCaptchaError), nil)
+				return
+			}
+		}
+
+		// 7. 验证密码：仅接受前端加密传输格式 passwordHash:encryptedHash:salt:timestamp。
+		// 明文密码在这里会被拒；老客户端必须升级。
+		passwordValid := false
+		if strings.Contains(form.Password, ":") && len(strings.Split(form.Password, ":")) == 4 {
+			passwordValid = authmodel.VerifyEncryptedPassword(form.Password, user.Password)
+		} else {
+			logger.Warn("login rejected: plaintext password submission is no longer accepted",
+				zap.String("email", form.Email), zap.Uint("userID", user.ID), zap.String("ip", clientIP))
+		}
+
+		if !passwordValid {
+			logger.Warn("Login failed: incorrect password", zap.String("email", form.Email), zap.Uint("userID", user.ID), zap.String("ip", clientIP))
+			// 记录失败登录
+			if utils.GlobalLoginSecurityManager != nil {
+				recordFunc := func(db *gorm.DB, email string, userID uint, ipAddress string, failedCount int) error {
+					_, err := authmodel.CreateOrUpdateAccountLock(db, email, userID, ipAddress, failedCount)
+					return err
+				}
+				utils.GlobalLoginSecurityManager.RecordFailedLogin(db, form.Email, user.ID, clientIP, recordFunc)
+			}
+			response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthPasswordError), nil)
+			return
+		}
+	} else {
+		km := utils.JWTKeyManager()
+		if km == nil {
+			response.AbortWithJSONError(c, http.StatusInternalServerError, errors.New("jwt key manager not initialized"))
+			return
+		}
+		p, err := utils.ParseAccessTokenWithKey(form.AuthToken, km)
+		if err != nil || p == nil || p.UserID == 0 {
+			logger.Warn("Login failed: invalid auth token", zap.String("ip", clientIP), zap.Error(err))
+			response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthLoginFailed), errors.New("invalid auth token"))
+			return
+		}
+		user, err = authmodel.GetUserByID(db, p.UserID)
+		if err != nil {
+			logger.Warn("Login failed: user not found by auth token", zap.String("ip", clientIP), zap.Error(err))
+			response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthLoginFailed), errors.New("user not found"))
+			return
+		}
+	}
+
+	err = authmodel.CheckUserAllowLogin(db, user)
+	if err != nil {
+		logger.Warn("Login failed: user not allowed to login", zap.String("email", form.Email), zap.Uint("userID", user.ID), zap.String("ip", clientIP), zap.Error(err))
+		response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthUserNoAuth), err)
+		return
+	}
+
+	// 7.5. 两步验证应在真正登录流程前完成
+	if user.TwoFactorEnabled {
+		code := strings.TrimSpace(form.TwoFactorCode)
+		if code == "" {
+			response.Success(c, i18n.T(c, i18n.MsgHandlerAuthTwoFARequired), gin.H{
+				"requiresTwoFactor": true,
+				"message":           "Please enter your two-factor authentication code",
+			})
+			return
+		}
+		valid := utils.ValidateTOTP(code, user.TwoFactorSecret)
+		if !valid {
+			response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthTwoFACodeInvalid), errors.New("invalid 2fa code"))
+			return
+		}
+	}
+
+	if h.loginBlockedByAccountDeletion(c, db, user) {
+		return
+	}
+
+	// 8. 获取IP地理位置
+	country, city, location := "Unknown", "Unknown", "Unknown"
+	if h.ipLocationService != nil {
+		country, city, location, _ = h.ipLocationService.GetLocation(clientIP)
+	}
+
+	// 9. 检测异地登录
+	isSuspicious := false
+	if utils.GlobalLoginSecurityManager != nil {
+		getLocationsFunc := func(db *gorm.DB, userID uint, limit int) ([]utils.LoginLocation, error) {
+			histories, err := authmodel.GetRecentLoginLocations(db, userID, limit)
+			if err != nil {
+				return nil, err
+			}
+			locations := make([]utils.LoginLocation, len(histories))
+			for i, h := range histories {
+				locations[i] = utils.LoginLocation{
+					Country: h.Country,
+					City:    h.City,
+				}
+			}
+			return locations, nil
+		}
+		isSuspicious, _ = utils.GlobalLoginSecurityManager.DetectSuspiciousLogin(db, user.ID, clientIP, location, country, getLocationsFunc)
+		if isSuspicious {
+			logger.Warn("Suspicious login detected",
+				zap.Uint("userID", user.ID),
+				zap.String("email", user.Email),
+				zap.String("ip", clientIP),
+				zap.String("location", location))
+		}
+	}
+
+	// 10. 解析设备信息
+	deviceType, os, browser := utils.ParseUserAgent(userAgent)
+	deviceID := utils.GetDeviceID(userAgent, clientIP)
+
+	// 11. 检查设备信任状态
+	isTrusted, err := authmodel.CheckDeviceTrust(db, user.ID, deviceID)
+	if err != nil {
+		logger.Warn("Failed to check device trust", zap.Error(err))
+	}
+	if !isTrusted {
+		isTokenLogin := form.AuthToken != ""
+
+		// 仅当「异地 / 可疑登录」（基于历史登录国家与当前 IP 解析结果）才要求邮箱设备验证；
+		// 同区域内仅未信任设备时，密码+图形验证码通过后直接信任该 UA 设备，避免 IP 抖动反复弹验证。
+		if !isTokenLogin && isSuspicious {
+			if _, err := authmodel.CreateOrUpdateUserDevice(db, user.ID, deviceID, fmt.Sprintf("%s on %s", browser, os), deviceType, os, browser, userAgent, clientIP, location); err != nil {
+				logger.Warn("Failed to create/update user device before verification", zap.Error(err))
+			}
+
+			if err := authmodel.RecordLoginHistory(db, user.ID, form.Email, clientIP, location, country, city, userAgent, deviceID, "password", false, "suspicious location untrusted device", true); err != nil {
+				logger.Warn("Failed to record login history for untrusted device", zap.Error(err))
+			}
+
+			logger.Warn("Login attempt from untrusted device in suspicious location",
+				zap.Uint("userID", user.ID),
+				zap.String("email", user.Email),
+				zap.String("deviceID", deviceID),
+				zap.String("ip", clientIP),
+				zap.String("country", country))
+
+			response.Success(c, i18n.T(c, i18n.MsgHandlerAuthDeviceVerificationRequired), gin.H{
+				"requiresDeviceVerification": true,
+				"deviceId":                   deviceID,
+				"message":                    "New login location detected. Please verify this device by email code.",
+			})
+			return
+		}
+
+		if !isTokenLogin && !isSuspicious {
+			if _, err := authmodel.CreateOrUpdateUserDevice(db, user.ID, deviceID, fmt.Sprintf("%s on %s", browser, os), deviceType, os, browser, userAgent, clientIP, location); err != nil {
+				logger.Warn("Failed to create/update user device before auto-trust", zap.Error(err))
+			}
+			if err := authmodel.TrustUserDevice(db, user.ID, deviceID); err != nil {
+				logger.Warn("Failed to auto-trust device after password login", zap.Error(err), zap.Uint("userID", user.ID), zap.String("deviceID", deviceID))
+			} else {
+				isTrusted = true
+			}
+		} else if isTokenLogin {
+			logger.Info("Token login from untrusted device allowed",
+				zap.Uint("userID", user.ID),
+				zap.String("email", user.Email),
+				zap.String("deviceID", deviceID),
+				zap.String("ip", clientIP))
+		}
+	}
+
+	// 12. 创建设备记录
+	if _, err := authmodel.CreateOrUpdateUserDevice(db, user.ID, deviceID, fmt.Sprintf("%s on %s", browser, os), deviceType, os, browser, userAgent, clientIP, location); err != nil {
+		logger.Warn("Failed to create/update user device", zap.Error(err))
+	}
+
+	// 13. 记录登录历史
+	if err := authmodel.RecordLoginHistory(db, user.ID, form.Email, clientIP, location, country, city, userAgent, deviceID, "password", true, "", isSuspicious); err != nil {
+		logger.Warn("Failed to record login history", zap.Error(err))
+	}
+
+	// 14. 发送新设备登录警告邮件
+	logger.Info("Checking new device login alert conditions",
+		zap.Bool("isTrusted", isTrusted),
+		zap.Bool("isSuspicious", isSuspicious),
+		zap.String("deviceID", deviceID))
+
+	if !isTrusted || isSuspicious {
+		logger.Info("Sending new device login alert signal",
+			zap.String("email", user.Email),
+			zap.String("deviceID", deviceID),
+			zap.Bool("isTrusted", isTrusted),
+			zap.Bool("isSuspicious", isSuspicious))
+		deviceInfo := map[string]interface{}{
+			"deviceID":     deviceID,
+			"clientIP":     clientIP,
+			"location":     location,
+			"deviceType":   deviceType,
+			"os":           os,
+			"browser":      browser,
+			"isSuspicious": isSuspicious,
+			"loginTime":    time.Now().Format("2006-01-02 15:04:05"),
+		}
+		utils.Sig().Emit(constants.SigUserNewDeviceLogin, user, deviceInfo, db)
+	} else {
+		logger.Info("Skipping new device login alert - device is trusted and not suspicious",
+			zap.String("email", user.Email),
+			zap.String("deviceID", deviceID))
+	}
+
+	// 15. 清除失败登录计数
+	if utils.GlobalLoginSecurityManager != nil {
+		utils.GlobalLoginSecurityManager.ClearFailedLoginCount(form.Email)
+	}
+
+	if form.Timezone != "" {
+		authmodel.InTimezone(c, form.Timezone)
+	}
+
+	// 执行登录操作（设置session等）
+	authmodel.Login(c, user)
+
+	// 检查是否被中止（models.Login内部可能出错并中止请求）
+	if c.IsAborted() {
+		logger.Error("Login failed: authmodel.Login aborted the request", zap.String("email", form.Email), zap.Uint("userID", user.ID), zap.String("ip", clientIP))
+		return
+	}
+	updatedUser, err := authmodel.GetUserByID(db, user.ID)
+	if err != nil {
+		logger.Warn("Failed to reload user after login, using original user object", zap.Error(err))
+		updatedUser = user // 如果加载失败，使用原始user对象
+	} else {
+		user = updatedUser // 使用更新后的用户信息
+	}
+
+	// 生成认证Token
+	expired := durationFromConfigKey(db, constants.KEY_AUTH_TOKEN_EXPIRED, 7*24*time.Hour)
+	accessToken, refreshToken, err := buildTokenPair(db, user, expired)
+	if err != nil {
+		response.AbortWithJSONError(c, http.StatusInternalServerError, err)
+		return
+	}
+	user.AuthToken = accessToken
+
+	// 17. 返回登录结果（包含可疑登录警告）
+	responseData := gin.H{
+		"user":         user,
+		"token":        user.AuthToken, // 为了兼容前端，同时返回token字段
+		"refreshToken": refreshToken,
+	}
+	if isSuspicious {
+		responseData["suspiciousLogin"] = true
+		responseData["message"] = "Login from new location detected. Please verify your identity."
+	}
+
+	logger.Info("Login successful", zap.String("email", form.Email), zap.Uint("userID", user.ID), zap.String("ip", clientIP))
+	response.Success(c, i18n.T(c, i18n.MsgHandlerAuthLoginSuccessful), responseData)
+}
+
+// handleUserSignin handle user signin
+func (h *Handlers) handleUserSignin(c *gin.Context) {
+	var form authmodel.LoginForm
+	if err := c.BindJSON(&form); err != nil {
+		response.AbortWithJSONError(c, http.StatusBadRequest, err)
+		return
+	}
+
+	if form.AuthToken == "" && form.Email == "" {
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("email is required"))
+		return
+	}
+
+	if form.Password == "" && form.AuthToken == "" {
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("empty password"))
+		return
+	}
+
+	db := c.MustGet(constants.DbField).(*gorm.DB)
+	var user *authmodel.User
+	var err error
+	if form.Password != "" {
+		user, err = authmodel.GetUserByEmail(db, form.Email)
+		if err != nil {
+			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("user not exists"))
+			return
+		}
+		if !authmodel.CheckPassword(user, form.Password) {
+			response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("unauthorized"))
+			return
+		}
+	} else {
+		km := utils.JWTKeyManager()
+		if km == nil {
+			response.AbortWithJSONError(c, http.StatusInternalServerError, errors.New("jwt key manager not initialized"))
+			return
+		}
+		p, err := utils.ParseAccessTokenWithKey(form.AuthToken, km)
+		if err != nil || p == nil || p.UserID == 0 {
+			response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("invalid auth token"))
+			return
+		}
+		user, err = authmodel.GetUserByID(db, p.UserID)
+		if err != nil {
+			response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("user not found"))
+			return
+		}
+	}
+
+	err = authmodel.CheckUserAllowLogin(db, user)
+	if err != nil {
+		response.AbortWithJSONError(c, http.StatusForbidden, err)
+		return
+	}
+
+	// 检查是否启用了两步验证
+	if user.TwoFactorEnabled {
+		// 如果提供了两步验证码，验证它
+		if form.TwoFactorCode != "" {
+			valid := utils.ValidateTOTP(form.TwoFactorCode, user.TwoFactorSecret)
+			if !valid {
+				response.AbortWithJSONError(c, http.StatusUnauthorized, errors.New("invalid 2fa code"))
+				return
+			}
+		} else {
+			// 需要两步验证码
+			c.JSON(http.StatusOK, gin.H{
+				"code": 200,
+				"msg":  "Two-factor authentication required",
+				"data": gin.H{
+					"requiresTwoFactor": true,
+					"message":           "Please enter your two-factor authentication code",
+				},
+			})
+			return
+		}
+	}
+
+	if form.Timezone != "" {
+		authmodel.InTimezone(c, form.Timezone)
+	}
+
+	if h.loginBlockedByAccountDeletion(c, db, user) {
+		return
+	}
+
+	authmodel.Login(c, user)
+
+	if form.Remember {
+		expired := durationFromConfigKey(db, constants.KEY_AUTH_TOKEN_EXPIRED, 7*24*time.Hour)
+		km := utils.JWTKeyManager()
+		if km != nil {
+			if tok, signErr := utils.SignAccessTokenWithKey(utils.AccessPayload{
+				UserID: user.ID,
+				Email:  user.Email,
+				Role:   jwtRoleForToken(db, user),
+			}, km, expired); signErr == nil {
+				user.AuthToken = tok
+			}
+		}
+	}
+	c.JSON(http.StatusOK, user)
+}
+
+// handleUserSignup handle user signup
+func (h *Handlers) handleUserSignup(c *gin.Context) {
+	var form authmodel.RegisterUserForm
+	if err := c.BindJSON(&form); err != nil {
+		response.AbortWithJSONError(c, http.StatusBadRequest, err)
+		return
+	}
+
+	clientIP := c.ClientIP()
+
+	// 1. 输入清理和验证
+	var err error
+	form.Email, err = utils.SanitizeAndValidate(form.Email, "email")
+	if err != nil {
+		response.AbortWithJSONError(c, http.StatusBadRequest, err)
+		return
+	}
+
+	form.Password, err = utils.SanitizeAndValidate(form.Password, "password")
+	if err != nil {
+		response.AbortWithJSONError(c, http.StatusBadRequest, err)
+		return
+	}
+
+	if form.DisplayName != "" {
+		form.DisplayName, err = utils.SanitizeAndValidate(form.DisplayName, "displayname")
+		if err != nil {
+			response.AbortWithJSONError(c, http.StatusBadRequest, err)
+			return
+		}
+	}
+
+	// 2. 智能风控检查
+	if utils.GlobalIntelligentRiskControl != nil {
+		// 解析行为数据
+		var mouseTrack []utils.MouseTrackPoint
+		if form.MouseTrack != "" {
+			if err := json.Unmarshal([]byte(form.MouseTrack), &mouseTrack); err != nil {
+				logger.Warn("Failed to parse mouse track data", zap.Error(err))
+			}
+		}
+
+		// 准备表单数据用于分析
+		formData := map[string]string{
+			"email":       form.Email,
+			"displayName": form.DisplayName,
+			"firstName":   form.FirstName,
+			"lastName":    form.LastName,
+		}
+
+		// 执行智能风控检查
+		if err := utils.GlobalIntelligentRiskControl.CheckRegistrationRisk(
+			mouseTrack,
+			form.FormFillTime,
+			form.KeystrokePattern,
+			formData,
+		); err != nil {
+			if utils.GlobalRegistrationGuard != nil {
+				utils.GlobalRegistrationGuard.RecordRegistrationAttempt(clientIP, form.Email, false, "intelligent risk control blocked")
+			}
+			logger.Warn("Registration blocked by intelligent risk control",
+				zap.String("email", form.Email),
+				zap.String("ip", clientIP),
+				zap.Error(err))
+			response.AbortWithJSONError(c, http.StatusForbidden, errors.New("registration blocked due to suspicious behavior"))
+			return
+		}
+	}
+
+	// 3. 验证码验证（随机图形/点击）
+	if utilscaptcha.GlobalManager != nil {
+		valid, err := verifyRequestCaptcha(form.CaptchaID, form.CaptchaCode, form.CaptchaData, form.CaptchaType)
+		if err != nil || !valid {
+			if utils.GlobalRegistrationGuard != nil {
+				utils.GlobalRegistrationGuard.RecordRegistrationAttempt(clientIP, form.Email, false, "invalid captcha")
+			}
+			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid captcha"))
+			return
+		}
+	}
+
+	// 4. 获取并发注册锁
+	lockAcquired, err := utils.AcquireRegistrationLock(form.Email)
+	if err != nil || !lockAcquired {
+		if utils.GlobalRegistrationGuard != nil {
+			utils.GlobalRegistrationGuard.RecordRegistrationAttempt(clientIP, form.Email, false, "registration in progress")
+		}
+		response.AbortWithJSONError(c, http.StatusConflict, errors.New("registration in progress for this email, please try again later"))
+		return
+	}
+	defer utils.ReleaseRegistrationLock(form.Email)
+
+	// 5. 注册防护检查
+	if utils.GlobalRegistrationGuard != nil {
+		if err := utils.GlobalRegistrationGuard.CheckRegistrationAllowed(clientIP, form.Email, form.Password); err != nil {
+			utils.GlobalRegistrationGuard.RecordRegistrationAttempt(clientIP, form.Email, false, err.Error())
+			response.AbortWithJSONError(c, http.StatusTooManyRequests, err)
+			return
+		}
+	}
+
+	db := c.MustGet(constants.DbField).(*gorm.DB)
+	if authmodel.IsExistsByEmail(db, form.Email) {
+		if utils.GlobalRegistrationGuard != nil {
+			utils.GlobalRegistrationGuard.RecordRegistrationAttempt(clientIP, form.Email, false, "email already exists")
+		}
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("email has exists"))
+		return
+	}
+
+	passwordToStore := authmodel.PasswordForStorageFromClient(form.Password)
+
+	user, err := authmodel.CreateUserWithMeta(db, form.Email, passwordToStore, form.Source, authmodel.UserStatusActive)
+	if err != nil {
+		if utils.GlobalRegistrationGuard != nil {
+			utils.GlobalRegistrationGuard.RecordRegistrationAttempt(clientIP, form.Email, false, err.Error())
+		}
+		logger.Warn("create user failed", zap.Any("email", form.Email), zap.Error(err))
+		response.AbortWithJSONError(c, http.StatusBadRequest, err)
+		return
+	}
+
+	// 记录成功注册
+	if utils.GlobalRegistrationGuard != nil {
+		utils.GlobalRegistrationGuard.RecordRegistrationAttempt(clientIP, form.Email, true, "registration successful")
+	}
+
+	n := time.Now().Truncate(1 * time.Second)
+	coreVals := map[string]any{
+		"LastLogin":   &n,
+		"LastLoginIP": c.ClientIP(),
+	}
+	user.LastLogin = &n
+	user.LastLoginIP = c.ClientIP()
+
+	if err = authmodel.UpdateUserFields(db, user, coreVals); err != nil {
+		logger.Warn("update user fields fail id:", zap.Uint("userId", user.ID), zap.Any("vals", coreVals), zap.Error(err))
+	}
+
+	profVals := map[string]any{}
+	if form.DisplayName != "" {
+		profVals["display_name"] = form.DisplayName
+	}
+	if form.FirstName != "" {
+		profVals["first_name"] = form.FirstName
+	}
+	if form.LastName != "" {
+		profVals["last_name"] = form.LastName
+	}
+	if len(profVals) > 0 {
+		if err = authmodel.UpdateUserProfileFields(db, user.ID, profVals); err != nil {
+			logger.Warn("update user profile fail id:", zap.Uint("userId", user.ID), zap.Any("vals", profVals), zap.Error(err))
+		}
+	}
+	uiVals := map[string]any{}
+	if form.Locale != "" {
+		uiVals["preferred_locale"] = strings.TrimSpace(form.Locale)
+	}
+	if form.Timezone != "" {
+		uiVals["preferred_timezone"] = strings.TrimSpace(form.Timezone)
+	}
+	if len(uiVals) > 0 {
+		if err = authmodel.UpdateUserFields(db, user, uiVals); err != nil {
+			logger.Warn("update user ui prefs fail", zap.Uint("userId", user.ID), zap.Error(err))
+		}
+	}
+	if ru, rerr := authmodel.GetUserByID(db, user.ID); rerr == nil && ru != nil {
+		user = ru
+	}
+
+	utils.Sig().Emit(constants.SigUserCreate, user, db)
+	if _, err := svcmodels.EnsurePersonalGroupForUser(db, user.ID); err != nil {
+		logger.Warn("EnsurePersonalGroupForUser failed after signup", zap.Uint("userId", user.ID), zap.Error(err))
+	}
+
+	if form.Timezone != "" {
+		authmodel.InTimezone(c, form.Timezone)
+	}
+
+	// Check if user is allowed to login before auto-login
+	err = authmodel.CheckUserAllowLogin(db, user)
+	if err != nil {
+		response.AbortWithJSONError(c, http.StatusForbidden, err)
+		return
+	}
+	authmodel.Login(c, user)
+	if c.IsAborted() {
+		logger.Error("Signup auto-login aborted", zap.String("email", form.Email), zap.Uint("userID", user.ID))
+		return
+	}
+
+	if updatedUser, err := authmodel.GetUserByID(db, user.ID); err == nil && updatedUser != nil {
+		user = updatedUser
+	}
+
+	expired := durationFromConfigKey(db, constants.KEY_AUTH_TOKEN_EXPIRED, 7*24*time.Hour)
+	accessToken, refreshToken, err := buildTokenPair(db, user, expired)
+	if err != nil {
+		response.AbortWithJSONError(c, http.StatusInternalServerError, err)
+		return
+	}
+	user.AuthToken = accessToken
+
+	response.Success(c, i18n.T(c, i18n.MsgHandlerAuthSignupSuccess), gin.H{
+		"email":        user.Email,
+		"user":         user,
+		"token":        accessToken,
+		"refreshToken": refreshToken,
+	})
+}
+
+// handleUserSignupByEmail email register email activation
+func (h *Handlers) handleUserSignupByEmail(c *gin.Context) {
+	var form authmodel.EmailOperatorForm
+	if err := c.BindJSON(&form); err != nil {
+		response.AbortWithJSONError(c, http.StatusBadRequest, err)
+		return
+	}
+
+	clientIP := c.ClientIP()
+	// 1. 输入清理和验证
+	var err error
+	form.Email, err = utils.SanitizeAndValidate(form.Email, "email")
+	if err != nil {
+		response.AbortWithJSONError(c, http.StatusBadRequest, err)
+		return
+	}
+
+	form.Password, err = utils.SanitizeAndValidate(form.Password, "password")
+	if err != nil {
+		response.AbortWithJSONError(c, http.StatusBadRequest, err)
+		return
+	}
+
+	if form.UserName != "" {
+		form.UserName, err = utils.SanitizeAndValidate(form.UserName, "username")
+		if err != nil {
+			response.AbortWithJSONError(c, http.StatusBadRequest, err)
+			return
+		}
+	}
+
+	if form.DisplayName != "" {
+		form.DisplayName, err = utils.SanitizeAndValidate(form.DisplayName, "displayname")
+		if err != nil {
+			response.AbortWithJSONError(c, http.StatusBadRequest, err)
+			return
+		}
+	}
+
+	// 2. 验证码验证（随机图形/点击）
+	if utilscaptcha.GlobalManager != nil {
+		valid, err := verifyRequestCaptcha(form.CaptchaID, form.CaptchaCode, form.CaptchaData, form.CaptchaType)
+		if err != nil || !valid {
+			if utils.GlobalRegistrationGuard != nil {
+				utils.GlobalRegistrationGuard.RecordRegistrationAttempt(clientIP, form.Email, false, "invalid captcha")
+			}
+			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid captcha"))
+			return
+		}
+	}
+
+	// 3. 获取并发注册锁
+	lockAcquired, err := utils.AcquireRegistrationLock(form.Email)
+	if err != nil || !lockAcquired {
+		if utils.GlobalRegistrationGuard != nil {
+			utils.GlobalRegistrationGuard.RecordRegistrationAttempt(clientIP, form.Email, false, "registration in progress")
+		}
+		response.AbortWithJSONError(c, http.StatusConflict, errors.New("registration in progress for this email, please try again later"))
+		return
+	}
+	defer utils.ReleaseRegistrationLock(form.Email)
+
+	// 4. 注册防护检查
+	if utils.GlobalRegistrationGuard != nil {
+		if err := utils.GlobalRegistrationGuard.CheckRegistrationAllowed(clientIP, form.Email, form.Password); err != nil {
+			utils.GlobalRegistrationGuard.RecordRegistrationAttempt(clientIP, form.Email, false, err.Error())
+			response.AbortWithJSONError(c, http.StatusTooManyRequests, err)
+			return
+		}
+	}
+
+	db := c.MustGet(constants.DbField).(*gorm.DB)
+	if authmodel.IsExistsByEmail(db, form.Email) {
+		if utils.GlobalRegistrationGuard != nil {
+			utils.GlobalRegistrationGuard.RecordRegistrationAttempt(clientIP, form.Email, false, "email already exists")
+		}
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("email has exists"))
+		return
+	}
+	// 从缓存中获取验证码（假设你使用的是 util.GlobalCache）
+	cachedCode, ok := utils.GlobalCache.Get(form.Email)
+	if !ok || cachedCode != form.Code {
+		if utils.GlobalRegistrationGuard != nil {
+			utils.GlobalRegistrationGuard.RecordRegistrationAttempt(clientIP, form.Email, false, "invalid verification code")
+		}
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid verification code"))
+		return
+	}
+
+	// 清除已用验证码
+	utils.GlobalCache.Remove(form.Email)
+
+	passwordToStore := authmodel.PasswordForStorageFromClient(form.Password)
+
+	user, err := authmodel.CreateUserByEmailWithMeta(db, form.UserName, form.DisplayName, form.Email, passwordToStore, authmodel.UserSourceSystem, authmodel.UserStatusActive)
+	if err != nil {
+		if utils.GlobalRegistrationGuard != nil {
+			utils.GlobalRegistrationGuard.RecordRegistrationAttempt(clientIP, form.Email, false, err.Error())
+		}
+		logger.Warn("create user failed", zap.Any("email", form.Email), zap.Error(err))
+		response.AbortWithJSONError(c, http.StatusBadRequest, err)
+		return
+	}
+
+	// 记录成功注册
+	if utils.GlobalRegistrationGuard != nil {
+		utils.GlobalRegistrationGuard.RecordRegistrationAttempt(clientIP, form.Email, true, "registration successful")
+	}
+	profVals := map[string]any{}
+	if form.DisplayName != "" {
+		profVals["display_name"] = form.DisplayName
+	}
+	if form.FirstName != "" {
+		profVals["first_name"] = form.FirstName
+	}
+	if form.LastName != "" {
+		profVals["last_name"] = form.LastName
+	}
+	if len(profVals) > 0 {
+		if err = authmodel.UpdateUserProfileFields(db, user.ID, profVals); err != nil {
+			logger.Warn("update user profile fail id:", zap.Uint("userId", user.ID), zap.Any("vals", profVals), zap.Error(err))
+		}
+	}
+	uiVals := map[string]any{}
+	if form.Locale != "" {
+		uiVals["preferred_locale"] = strings.TrimSpace(form.Locale)
+	}
+	if form.Timezone != "" {
+		uiVals["preferred_timezone"] = strings.TrimSpace(form.Timezone)
+	}
+	if len(uiVals) > 0 {
+		if err = authmodel.UpdateUserFields(db, user, uiVals); err != nil {
+			logger.Warn("update user ui prefs fail", zap.Uint("userId", user.ID), zap.Error(err))
+		}
+	}
+	if ru, rerr := authmodel.GetUserByID(db, user.ID); rerr == nil && ru != nil {
+		user = ru
+	}
+	utils.Sig().Emit(constants.SigUserCreate, user, db)
+	if _, err := svcmodels.EnsurePersonalGroupForUser(db, user.ID); err != nil {
+		logger.Warn("EnsurePersonalGroupForUser failed after email signup", zap.Uint("userId", user.ID), zap.Error(err))
+	}
+
+	if err := authmodel.UpdateUser(db, user, map[string]interface{}{
+		"email_verified": true,
+		"update_by":      strings.ToLower(strings.TrimSpace(form.Email)),
+	}); err != nil {
+		logger.Warn("mark email verified after signup failed", zap.Uint("userId", user.ID), zap.Error(err))
+	}
+
+	if err := authmodel.CheckUserAllowLogin(db, user); err != nil {
+		response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthLoginFailed), err)
+		return
+	}
+
+	if form.Timezone != "" {
+		authmodel.InTimezone(c, form.Timezone)
+	}
+
+	authmodel.Login(c, user)
+	if c.IsAborted() {
+		logger.Error("Signup auto-login aborted", zap.String("email", form.Email), zap.Uint("userID", user.ID))
+		return
+	}
+
+	if updatedUser, err := authmodel.GetUserByID(db, user.ID); err == nil && updatedUser != nil {
+		user = updatedUser
+	}
+
+	expired := durationFromConfigKey(db, constants.KEY_AUTH_TOKEN_EXPIRED, 7*24*time.Hour)
+	accessToken, refreshToken, err := buildTokenPair(db, user, expired)
+	if err != nil {
+		response.AbortWithJSONError(c, http.StatusInternalServerError, err)
+		return
+	}
+	user.AuthToken = accessToken
+
+	response.Success(c, i18n.T(c, i18n.MsgHandlerAuthSignupSuccess), gin.H{
+		"user":         user,
+		"token":        accessToken,
+		"refreshToken": refreshToken,
+	})
+}
+
+// handleUserUpdate Update User Info
+func (h *Handlers) handleUserUpdate(c *gin.Context) {
+	var req authmodel.UpdateUserRequest
+	if err := c.ShouldBind(&req); err != nil {
+		response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthInvalidRequest), err)
+		return
+	}
+
+	user := authmodel.CurrentUser(c)
+	if user == nil {
+		response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthUserNotFound), errors.New("user not found"))
+		return
+	}
+
+	coreVals := make(map[string]interface{})
+	profVals := make(map[string]interface{})
+
+	// 邮箱、手机号需在「账号与安全」中绑定/换绑，不允许通过资料接口修改
+	if req.FirstName != "" {
+		profVals["first_name"] = req.FirstName
+	}
+	if req.LastName != "" {
+		profVals["last_name"] = req.LastName
+	}
+	if req.DisplayName != "" {
+		profVals["display_name"] = req.DisplayName
+	}
+	if req.Locale != "" {
+		coreVals["preferred_locale"] = strings.TrimSpace(req.Locale)
+	}
+	if req.Timezone != "" {
+		coreVals["preferred_timezone"] = strings.TrimSpace(req.Timezone)
+	}
+	if req.ThemeMode != "" {
+		tm := strings.ToLower(strings.TrimSpace(req.ThemeMode))
+		switch tm {
+		case "light", "dark", "system":
+			coreVals["theme_mode"] = tm
+		}
+	}
+	if req.Gender != "" {
+		profVals["gender"] = req.Gender
+	}
+	if req.Extra != "" {
+		profVals["extra"] = req.Extra
+	}
+	if req.Avatar != "" {
+		profVals["avatar"] = req.Avatar
+	}
+	if req.City != "" {
+		profVals["city"] = req.City
+	}
+	if req.Region != "" {
+		profVals["region"] = req.Region
+	}
+	operator := fmt.Sprintf("uid:%d", user.ID)
+	if user.Email != "" {
+		operator = user.Email
+	}
+
+	if len(coreVals) > 0 {
+		coreVals["update_by"] = operator
+		if err := authmodel.UpdateUser(h.db, user, coreVals); err != nil {
+			response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthUpdateUserFailed), err)
+			return
+		}
+	}
+	if len(profVals) > 0 {
+		if err := authmodel.UpdateUserProfileFields(h.db, user.ID, profVals); err != nil {
+			response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthUpdateProfileFailed), err)
+			return
+		}
+	}
+
+	// 重新获取更新后的用户信息
+	updatedUser, err := authmodel.GetUserByID(h.db, user.ID)
+	if err != nil {
+		response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthGetUserFailed), err)
+		return
+	}
+	cache.GetGlobalCache().Delete(c, constants.CacheKeyUserByID+strconv.Itoa(int(user.ID)))
+	response.Success(c, i18n.T(c, i18n.MsgHandlerAuthUpdateUserSuccess), updatedUser)
+}
+
+// handleUserUpdate Update User Info
+func (h *Handlers) handleUserUpdateBasicInfo(c *gin.Context) {
+	var req authmodel.UserBasicInfoUpdate
+	if err := c.ShouldBind(&req); err != nil {
+		response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthInvalidRequest), err)
+		return
+	}
+	user := authmodel.CurrentUser(c)
+	if user == nil {
+		response.Fail(c, i18n.T(c, i18n.MsgHandlerAuthUserNotFound), errors.New("user not found"))
+		return
+	}
+	vals := make(map[string]interface{})
+
+	if req.WifiName != "" {
+		vals["wifi_name"] = req.WifiName
+	}
+	if req.WifiPassword != "" {
+		vals["wifi_password"] = req.WifiPassword
+	}
+	if req.FatherCallName != "" {
+		vals["father_call_name"] = req.FatherCallName
+	}
+	if req.MotherCallName != "" {
+		vals["mother_call_name"] = req.MotherCallName
+	}
+	if len(vals) == 0 {
+		response.Success(c, "handle update user success", nil)
+		return
+	}
+	if err := authmodel.UpdateUserProfileFields(h.db, user.ID, vals); err != nil {
+		response.Fail(c, "update user failed", err)
+		return
+	}
+	response.Success(c, "handle update user success", nil)
+}
+
+func (h *Handlers) handleUserUpdatePreferences(c *gin.Context) {
+	var preferences struct {
+		EmailNotifications *bool `json:"emailNotifications"`
+		PushNotifications  *bool `json:"pushNotifications"`
+	}
+	if err := c.ShouldBindJSON(&preferences); err != nil {
+		response.Fail(c, "Invalid request", err)
+		return
+	}
+
+	vals := make(map[string]any)
+	if preferences.EmailNotifications != nil {
+		vals["email_notifications"] = *preferences.EmailNotifications
+	}
+	if preferences.PushNotifications != nil {
+		vals["push_notifications"] = *preferences.PushNotifications
+	}
+	if len(vals) == 0 {
+		response.Success(c, "No preferences changed", nil)
+		return
+	}
+
+	user := authmodel.CurrentUser(c)
+	if user == nil {
+		response.Fail(c, "User not found", errors.New("user not found"))
+		return
+	}
+	if err := authmodel.UpdateUserProfileFields(h.db, user.ID, vals); err != nil {
+		response.Fail(c, "update user failed", err)
+		return
+	}
+	response.Success(c, "Update user preferences successfully", nil)
+}
+
+// handleChangePassword 修改密码
+func (h *Handlers) handleChangePassword(c *gin.Context) {
+	// 兼容前端字段：currentPassword/newPassword/confirmPassword
+	// 以及旧字段：oldPassword/newPassword
+	var form struct {
+		OldPassword     string `json:"oldPassword"`
+		CurrentPassword string `json:"currentPassword"`
+		NewPassword     string `json:"newPassword"`
+		ConfirmPassword string `json:"confirmPassword"`
+	}
+
+	if err := c.ShouldBindJSON(&form); err != nil {
+		response.Fail(c, "Invalid request", err)
+		return
+	}
+
+	// 归一化旧密码字段
+	oldPassword := form.OldPassword
+	if oldPassword == "" {
+		oldPassword = form.CurrentPassword
+	}
+
+	// 校验必填与确认密码一致
+	if oldPassword == "" {
+		response.Fail(c, "Old password is required", errors.New("old password is required"))
+		return
+	}
+	if form.NewPassword == "" {
+		response.Fail(c, "New password is required", errors.New("new password is required"))
+		return
+	}
+	if len(form.NewPassword) < 6 {
+		response.Fail(c, "New password must be at least 6 characters", errors.New("password too short"))
+		return
+	}
+	if form.ConfirmPassword != "" && form.ConfirmPassword != form.NewPassword {
+		response.Fail(c, "Confirm password does not match", errors.New("confirm password mismatch"))
+		return
+	}
+
+	user := authmodel.CurrentUser(c)
+	if user == nil {
+		response.Fail(c, "User not found", errors.New("user not found"))
+		return
+	}
+
+	if err := authmodel.ChangePassword(h.db, user, oldPassword, form.NewPassword); err != nil {
+		response.Fail(c, "Change password failed", err)
+		return
+	}
+
+	// 修改密码成功后强制下线，要求重新登录
+	authmodel.Logout(c, user)
+	response.Success(c, "Password changed successfully", map[string]any{"logout": true})
+}
+
+// handleChangePasswordByEmail 通过邮箱验证码修改密码
+func (h *Handlers) handleChangePasswordByEmail(c *gin.Context) {
+	var form struct {
+		EmailCode       string `json:"emailCode" binding:"required"`
+		NewPassword     string `json:"newPassword" binding:"required"`
+		ConfirmPassword string `json:"confirmPassword"`
+	}
+
+	if err := c.ShouldBindJSON(&form); err != nil {
+		response.Fail(c, "Invalid request", err)
+		return
+	}
+
+	// 校验必填与确认密码一致
+	if form.NewPassword == "" {
+		response.Fail(c, "新密码不能为空", errors.New("new password is required"))
+		return
+	}
+	if len(form.NewPassword) < 6 {
+		response.Fail(c, "新密码至少需要6个字符", errors.New("password too short"))
+		return
+	}
+	if form.ConfirmPassword != "" && form.ConfirmPassword != form.NewPassword {
+		response.Fail(c, "确认密码不匹配", errors.New("confirm password mismatch"))
+		return
+	}
+
+	user := authmodel.CurrentUser(c)
+	if user == nil {
+		response.Fail(c, "用户未找到", errors.New("user not found"))
+		return
+	}
+
+	// 验证邮箱验证码
+	if form.EmailCode == "" {
+		response.Fail(c, "邮箱验证码不能为空", errors.New("email code is required"))
+		return
+	}
+
+	// 从缓存中获取验证码
+	cachedCode, ok := utils.GlobalCache.Get(user.Email)
+	if !ok || cachedCode != form.EmailCode {
+		response.Fail(c, "邮箱验证码无效或已过期", errors.New("invalid or expired email code"))
+		return
+	}
+
+	// 清除已用验证码
+	utils.GlobalCache.Remove(user.Email)
+
+	// 设置新密码（不验证旧密码）
+	err := authmodel.SetPassword(h.db, user, form.NewPassword)
+	if err != nil {
+		response.Fail(c, "密码修改失败", err)
+		return
+	}
+
+	// 更新最后密码修改时间
+	now := time.Now()
+	err = authmodel.UpdateUserFields(h.db, user, map[string]any{
+		"LastPasswordChange": &now,
+	})
+	if err != nil {
+		response.Fail(c, "更新密码修改时间失败", err)
+		return
+	}
+
+	user.LastPasswordChange = &now
+
+	// 修改密码成功后强制下线，要求重新登录
+	authmodel.Logout(c, user)
+	response.Success(c, "密码修改成功", map[string]any{"logout": true})
+}
+
+// handleGetUserDevices 获取用户的登录设备列表
+func (h *Handlers) handleGetUserDevices(c *gin.Context) {
+	user := authmodel.CurrentUser(c)
+	if user == nil {
+		response.Fail(c, "用户未找到", errors.New("user not found"))
+		return
+	}
+
+	devices, err := authmodel.GetUserLoginDevices(h.db, user.ID)
+	if err != nil {
+		response.Fail(c, "获取设备列表失败", err)
+		return
+	}
+
+	response.Success(c, "获取设备列表成功", gin.H{
+		"devices": devices,
+	})
+}
+
+// handleDeleteUserDevice 删除用户设备
+func (h *Handlers) handleDeleteUserDevice(c *gin.Context) {
+	user := authmodel.CurrentUser(c)
+	if user == nil {
+		response.Fail(c, "用户未找到", errors.New("user not found"))
+		return
+	}
+
+	deviceID := c.Param("deviceId")
+	if deviceID == "" {
+		response.Fail(c, "设备ID不能为空", errors.New("deviceId is required"))
+		return
+	}
+
+	err := authmodel.DeleteUserDevice(h.db, user.ID, deviceID)
+	if err != nil {
+		response.Fail(c, "删除设备失败", err)
+		return
+	}
+
+	response.Success(c, "删除设备成功", nil)
+}
+
+// handleTrustUserDevice 信任用户设备
+func (h *Handlers) handleTrustUserDevice(c *gin.Context) {
+	user := authmodel.CurrentUser(c)
+	if user == nil {
+		response.Fail(c, "用户未找到", errors.New("user not found"))
+		return
+	}
+
+	var form struct {
+		DeviceID string `json:"deviceId" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&form); err != nil {
+		response.Fail(c, "Invalid request", err)
+		return
+	}
+
+	err := authmodel.TrustUserDevice(h.db, user.ID, form.DeviceID)
+	if err != nil {
+		response.Fail(c, "信任设备失败", err)
+		return
+	}
+
+	response.Success(c, "信任设备成功", nil)
+}
+
+// handleUntrustUserDevice 取消信任用户设备
+func (h *Handlers) handleUntrustUserDevice(c *gin.Context) {
+	user := authmodel.CurrentUser(c)
+	if user == nil {
+		response.Fail(c, "用户未找到", errors.New("user not found"))
+		return
+	}
+
+	var form struct {
+		DeviceID string `json:"deviceId" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&form); err != nil {
+		response.Fail(c, "Invalid request", err)
+		return
+	}
+
+	err := authmodel.UntrustUserDevice(h.db, user.ID, form.DeviceID)
+	if err != nil {
+		response.Fail(c, "取消信任设备失败", err)
+		return
+	}
+
+	response.Success(c, "取消信任设备成功", nil)
+}
+
+// handleVerifyDeviceForLogin 验证设备用于登录（无需认证）
+func (h *Handlers) handleVerifyDeviceForLogin(c *gin.Context) {
+	var form struct {
+		Email      string `json:"email" binding:"required"`
+		DeviceID   string `json:"deviceId" binding:"required"`
+		VerifyCode string `json:"verifyCode" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&form); err != nil {
+		response.Fail(c, "Invalid request", err)
+		return
+	}
+
+	db := c.MustGet(constants.DbField).(*gorm.DB)
+
+	// 验证邮箱验证码
+	cachedCode, ok := utils.GlobalCache.Get(form.Email + ":device_verify")
+	if !ok || cachedCode != form.VerifyCode {
+		response.Fail(c, "验证码无效或已过期", errors.New("invalid or expired verification code"))
+		return
+	}
+
+	// 清除验证码
+	utils.GlobalCache.Remove(form.Email + ":device_verify")
+
+	// 获取用户
+	user, err := authmodel.GetUserByEmail(db, form.Email)
+	if err != nil {
+		response.Fail(c, "用户不存在", err)
+		return
+	}
+
+	// 信任设备
+	err = authmodel.TrustUserDevice(db, user.ID, form.DeviceID)
+	if err != nil {
+		response.Fail(c, "信任设备失败", err)
+		return
+	}
+
+	// 设备验证通过后，允许同设备在短时内免图形验证码完成登录（验证码已在首次登录时校验过）
+	if utils.GlobalCache != nil {
+		skipKey := fmt.Sprintf("device_verified_login:%s:%s", form.Email, form.DeviceID)
+		utils.GlobalCache.Add(skipKey, true)
+	}
+
+	logger.Info("Device verified and trusted for login",
+		zap.Uint("userID", user.ID),
+		zap.String("email", user.Email),
+		zap.String("deviceID", form.DeviceID))
+
+	response.Success(c, "设备验证成功，现在可以使用此设备登录", nil)
+}
+
+// handleSendDeviceVerificationCode 发送设备验证码
+func (h *Handlers) handleSendDeviceVerificationCode(c *gin.Context) {
+	var form struct {
+		Email    string `json:"email" binding:"required"`
+		DeviceID string `json:"deviceId" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&form); err != nil {
+		response.Fail(c, "Invalid request", err)
+		return
+	}
+
+	db := c.MustGet(constants.DbField).(*gorm.DB)
+
+	// 验证用户存在
+	user, err := authmodel.GetUserByEmail(db, form.Email)
+	if err != nil {
+		response.Fail(c, "用户不存在", err)
+		return
+	}
+
+	// 生成验证码
+	code := utils.RandNumberText(6)
+	cacheKey := form.Email + ":device_verify"
+	utils.GlobalCache.Add(cacheKey, code)
+
+	// 发送邮件
+	go func() {
+		err := notification.NewMailer(db, 0, user.ID, "").SendDeviceVerificationCode(user.Email, user.EffectiveDisplayName(), code, form.DeviceID)
+		if err != nil {
+			logger.Error("Failed to send device verification email", zap.Error(err), zap.String("email", user.Email))
+		}
+	}()
+
+	logger.Info("Device verification code sent",
+		zap.Uint("userID", user.ID),
+		zap.String("email", user.Email),
+		zap.String("deviceID", form.DeviceID))
+
+	response.Success(c, "设备验证码已发送到您的邮箱", nil)
+}
+
+// handleResetPassword 重置密码请求
+func (h *Handlers) handleResetPassword(c *gin.Context) {
+	var form struct {
+		Email string `json:"email" binding:"required,email"`
+	}
+
+	if err := c.ShouldBindJSON(&form); err != nil {
+		response.Fail(c, "Invalid request", err)
+		return
+	}
+
+	user, err := authmodel.GetUserByEmail(h.db, form.Email)
+	if err != nil {
+		response.Success(c, "If the email exists, a reset link has been sent", nil)
+		return
+	}
+
+	token, err := authmodel.GeneratePasswordResetToken(h.db, user)
+	if err != nil {
+		response.Fail(c, "Failed to generate reset token", err)
+		return
+	}
+
+	// 发射密码重置信号
+	utils.Sig().Emit(constants.SigUserResetPassword, user, token, c.ClientIP(), c.Request.UserAgent(), h.db)
+
+	response.Success(c, "If the email exists, a reset link has been sent", nil)
+}
+
+// handleResetPasswordConfirm 确认重置密码
+func (h *Handlers) handleResetPasswordConfirm(c *gin.Context) {
+	var form struct {
+		Token    string `json:"token" binding:"required"`
+		Password string `json:"password" binding:"required,min=6"`
+	}
+
+	if err := c.ShouldBindJSON(&form); err != nil {
+		response.Fail(c, "Invalid request", err)
+		return
+	}
+
+	user, err := authmodel.VerifyPasswordResetToken(h.db, form.Token)
+	if err != nil {
+		response.Fail(c, "Invalid or expired token", err)
+		return
+	}
+
+	err = authmodel.ResetPassword(h.db, user, form.Password)
+	if err != nil {
+		response.Fail(c, "Reset password failed", err)
+		return
+	}
+
+	response.Success(c, "Password reset successfully", nil)
+}
+
+func verifyCachedEmailOTP(email, code string) bool {
+	key := strings.ToLower(strings.TrimSpace(email))
+	input := strings.TrimSpace(code)
+	if key == "" || input == "" || utils.GlobalCache == nil {
+		return false
+	}
+	cached, ok := utils.GlobalCache.Get(key)
+	if !ok {
+		return false
+	}
+	if fmt.Sprint(cached) != input {
+		return false
+	}
+	utils.GlobalCache.Remove(key)
+	return true
+}
+
+func currentEmailChangeCacheKey(userID uint, email string) string {
+	return fmt.Sprintf("email_change:%d:%s", userID, strings.ToLower(strings.TrimSpace(email)))
+}
+
+func verifyCurrentEmailChangeOTP(userID uint, email, code string) bool {
+	key := currentEmailChangeCacheKey(userID, email)
+	input := strings.TrimSpace(code)
+	if input == "" || utils.GlobalCache == nil {
+		return false
+	}
+	cached, ok := utils.GlobalCache.Get(key)
+	if !ok {
+		return false
+	}
+	if fmt.Sprint(cached) != input {
+		return false
+	}
+	utils.GlobalCache.Remove(key)
+	return true
+}
+
+// handleSendCurrentEmailCode 向当前账号邮箱发送换绑验证码
+func (h *Handlers) handleSendCurrentEmailCode(c *gin.Context) {
+	user := authmodel.CurrentUser(c)
+	if user == nil {
+		response.Fail(c, "User not found", errors.New("user not found"))
+		return
+	}
+	if authmodel.IsPlaceholderEmail(user.Email) {
+		response.Fail(c, "请先绑定邮箱", errors.New("email not bound"))
+		return
+	}
+
+	code := utils.RandNumberText(6)
+	key := currentEmailChangeCacheKey(user.ID, user.Email)
+	if utils.GlobalCache != nil {
+		utils.GlobalCache.Add(key, code)
+	}
+
+	clientIP := c.ClientIP()
+	go func() {
+		mailer := notification.NewMailer(h.db, 0, user.ID, clientIP)
+		if err := mailer.SendVerificationCode(user.Email, code); err != nil {
+			logger.Error("send current email change code failed",
+				zap.Uint("userId", user.ID), zap.String("email", user.Email), zap.Error(err))
+		}
+	}()
+
+	response.Success(c, "验证码已发送到当前邮箱", nil)
+}
+
+// handleBindEmail 为未绑定真实邮箱的账号绑定邮箱
+func (h *Handlers) handleBindEmail(c *gin.Context) {
+	var form struct {
+		Email string `json:"email" binding:"required,email"`
+		Code  string `json:"code" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&form); err != nil {
+		response.Fail(c, "Invalid request", err)
+		return
+	}
+
+	user := authmodel.CurrentUser(c)
+	if user == nil {
+		response.Fail(c, "User not found", errors.New("user not found"))
+		return
+	}
+	if !authmodel.IsPlaceholderEmail(user.Email) {
+		response.Fail(c, "已绑定邮箱，请使用换绑功能", errors.New("email already bound"))
+		return
+	}
+
+	newEmail, err := utils.SanitizeAndValidate(form.Email, "email")
+	if err != nil {
+		response.Fail(c, "Invalid email", err)
+		return
+	}
+	newEmail = strings.ToLower(strings.TrimSpace(newEmail))
+	if authmodel.IsExistsByEmail(h.db, newEmail) {
+		response.Fail(c, "该邮箱已被使用", errors.New("email already exists"))
+		return
+	}
+	if !verifyCachedEmailOTP(newEmail, form.Code) {
+		response.Fail(c, "验证码无效或已过期", errors.New("invalid verification code"))
+		return
+	}
+
+	if err := authmodel.UpdateUser(h.db, user, map[string]interface{}{
+		"email":          newEmail,
+		"email_verified": true,
+		"update_by":      fmt.Sprintf("uid:%d", user.ID),
+	}); err != nil {
+		response.Fail(c, "绑定邮箱失败", err)
+		return
+	}
+
+	updatedUser, err := authmodel.GetUserByID(h.db, user.ID)
+	if err != nil {
+		response.Fail(c, "获取用户信息失败", err)
+		return
+	}
+	cache.GetGlobalCache().Delete(c, constants.CacheKeyUserByID+strconv.Itoa(int(user.ID)))
+	response.Success(c, "邮箱绑定成功", updatedUser)
+}
+
+// handleChangeEmail 换绑邮箱（需验证当前邮箱与新邮箱验证码）
+func (h *Handlers) handleChangeEmail(c *gin.Context) {
+	var form struct {
+		NewEmail         string `json:"newEmail" binding:"required,email"`
+		NewEmailCode     string `json:"newEmailCode" binding:"required"`
+		CurrentEmailCode string `json:"currentEmailCode" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&form); err != nil {
+		response.Fail(c, "Invalid request", err)
+		return
+	}
+
+	user := authmodel.CurrentUser(c)
+	if user == nil {
+		response.Fail(c, "User not found", errors.New("user not found"))
+		return
+	}
+	if authmodel.IsPlaceholderEmail(user.Email) {
+		response.Fail(c, "请先绑定邮箱", errors.New("email not bound"))
+		return
+	}
+
+	newEmail, err := utils.SanitizeAndValidate(form.NewEmail, "email")
+	if err != nil {
+		response.Fail(c, "Invalid email", err)
+		return
+	}
+	newEmail = strings.ToLower(strings.TrimSpace(newEmail))
+	oldEmail := strings.ToLower(strings.TrimSpace(user.Email))
+	if newEmail == oldEmail {
+		response.Fail(c, "新邮箱不能与当前邮箱相同", utils.ErrSameEmail)
+		return
+	}
+	if authmodel.IsExistsByEmail(h.db, newEmail) {
+		response.Fail(c, "该邮箱已被使用", errors.New("email already exists"))
+		return
+	}
+	if !verifyCurrentEmailChangeOTP(user.ID, user.Email, form.CurrentEmailCode) {
+		response.Fail(c, "当前邮箱验证码无效或已过期", errors.New("invalid current email code"))
+		return
+	}
+	if !verifyCachedEmailOTP(newEmail, form.NewEmailCode) {
+		response.Fail(c, "新邮箱验证码无效或已过期", errors.New("invalid new email code"))
+		return
+	}
+
+	if err := authmodel.UpdateUser(h.db, user, map[string]interface{}{
+		"email":          newEmail,
+		"email_verified": true,
+		"update_by":      fmt.Sprintf("uid:%d", user.ID),
+	}); err != nil {
+		response.Fail(c, "换绑邮箱失败", err)
+		return
+	}
+
+	utils.Sig().Emit(constants.SigUserChangeEmailDone, user, oldEmail, newEmail)
+
+	updatedUser, err := authmodel.GetUserByID(h.db, user.ID)
+	if err != nil {
+		response.Fail(c, "获取用户信息失败", err)
+		return
+	}
+	cache.GetGlobalCache().Delete(c, constants.CacheKeyUserByID+strconv.Itoa(int(user.ID)))
+	response.Success(c, "邮箱换绑成功", updatedUser)
+}
+
+// handleVerifyPhone 验证手机
+func (h *Handlers) handleVerifyPhone(c *gin.Context) {
+	var form struct {
+		Code string `json:"code" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&form); err != nil {
+		response.Fail(c, "Invalid request", err)
+		return
+	}
+
+	user := authmodel.CurrentUser(c)
+	if user == nil {
+		response.Fail(c, "User not found", errors.New("user not found"))
+		return
+	}
+
+	err := authmodel.VerifyPhone(h.db, user, form.Code)
+	if err != nil {
+		response.Fail(c, "Invalid verification code", err)
+		return
+	}
+
+	response.Success(c, "Phone verified successfully", nil)
+}
+
+// handleGetSalt 获取随机盐（用于密码加密）
+func (h *Handlers) handleGetSalt(c *gin.Context) {
+	// 生成随机盐（32字符）
+	salt := utils.GenerateRandomString(32)
+	timestamp := time.Now().Unix()
+	expiresIn := int64(300) // 5分钟有效期
+
+	// 将盐和时间戳存储到缓存中，用于验证
+	key := fmt.Sprintf("password_salt:%s", salt)
+	if utils.GlobalCache != nil {
+		utils.GlobalCache.Add(key, timestamp)
+	}
+
+	response.Success(c, "success", gin.H{
+		"salt":      salt,
+		"timestamp": timestamp,
+		"expiresIn": expiresIn,
+	})
+}
+
+// handleSendPhoneVerification 发送手机验证码
+func (h *Handlers) handleSendPhoneVerification(c *gin.Context) {
+	ctxUser := authmodel.CurrentUser(c)
+	if ctxUser == nil {
+		response.Fail(c, "User not found", errors.New("user not found"))
+		return
+	}
+	user, err := authmodel.GetUserByID(h.db, ctxUser.ID)
+	if err != nil || user == nil {
+		response.Fail(c, "User not found", err)
+		return
+	}
+
+	if strings.TrimSpace(user.Phone) == "" {
+		response.Fail(c, "Phone number not set", errors.New("phone number not set"))
+		return
+	}
+
+	if user.PhoneVerified {
+		response.Fail(c, "Phone already verified", errors.New("phone already verified"))
+		return
+	}
+
+	token, err := authmodel.GeneratePhoneVerifyToken(h.db, user)
+	if err != nil {
+		response.Fail(c, "Failed to generate verification code", err)
+		return
+	}
+
+	// 这里可以集成短信服务发送验证码
+	// 目前只是记录日志
+	logger.Info("Phone verification code", zap.String("phone", user.Phone), zap.String("code", token))
+
+	response.Success(c, "Verification code sent", nil)
+}
+
+// handleUpdateNotificationSettings 更新通知设置
+func (h *Handlers) handleUpdateNotificationSettings(c *gin.Context) {
+	var settings map[string]bool
+
+	if err := c.ShouldBindJSON(&settings); err != nil {
+		response.Fail(c, "Invalid request", err)
+		return
+	}
+
+	user := authmodel.CurrentUser(c)
+	if user == nil {
+		response.Fail(c, "User not found", errors.New("user not found"))
+		return
+	}
+
+	err := authmodel.UpdateNotificationSettings(h.db, user, settings)
+	if err != nil {
+		response.Fail(c, "Update notification settings failed", err)
+		return
+	}
+
+	response.Success(c, "Notification settings updated successfully", nil)
+}
+
+// handleUpdateUserPreferences 更新用户偏好设置
+func (h *Handlers) handleUpdateUserPreferences(c *gin.Context) {
+	var preferences map[string]string
+
+	if err := c.ShouldBindJSON(&preferences); err != nil {
+		response.Fail(c, "Invalid request", err)
+		return
+	}
+
+	user := authmodel.CurrentUser(c)
+	if user == nil {
+		response.Fail(c, "User not found", errors.New("user not found"))
+		return
+	}
+
+	err := authmodel.UpdatePreferences(h.db, user, preferences)
+	if err != nil {
+		response.Fail(c, "Update preferences failed", err)
+		return
+	}
+
+	// 更新资料完整度
+	err = authmodel.UpdateProfileComplete(h.db, user)
+	if err != nil {
+		logger.Warn("Failed to update profile complete", zap.Error(err))
+	}
+
+	response.Success(c, "Preferences updated successfully", nil)
+}
+
+// handleGetUserStats 获取用户统计信息
+func (h *Handlers) handleGetUserStats(c *gin.Context) {
+	user := authmodel.CurrentUser(c)
+	if user == nil {
+		response.Fail(c, "User not found", errors.New("user not found"))
+		return
+	}
+	full, err := authmodel.GetUserByID(h.db, user.ID)
+	if err != nil || full == nil {
+		response.Fail(c, "User not found", err)
+		return
+	}
+	user = full
+
+	// 更新资料完整度
+	err = authmodel.UpdateProfileComplete(h.db, user)
+	if err != nil {
+		logger.Warn("Failed to update profile complete", zap.Error(err))
+	}
+
+	stats := map[string]interface{}{
+		"loginCount":         user.LoginCount,
+		"profileComplete":    user.Profile.ProfileComplete,
+		"emailVerified":      user.EmailVerified,
+		"phoneVerified":      user.PhoneVerified,
+		"twoFactorEnabled":   user.TwoFactorEnabled,
+		"lastLogin":          user.LastLogin,
+		"lastPasswordChange": user.LastPasswordChange,
+		"createdAt":          user.CreatedAt,
+	}
+
+	response.Success(c, "User stats retrieved successfully", stats)
+}
+
+// handleUploadAvatar 处理用户头像上传
+func (h *Handlers) handleUploadAvatar(c *gin.Context) {
+	user := authmodel.CurrentUser(c)
+	if user == nil {
+		response.Fail(c, "User not found", errors.New("user not found"))
+		return
+	}
+
+	// 获取上传的文件
+	file, header, err := c.Request.FormFile("avatar")
+	if err != nil {
+		response.Fail(c, "Failed to get uploaded file", err)
+		return
+	}
+	defer file.Close()
+
+	// 验证文件类型
+	allowedTypes := map[string]bool{
+		"image/jpeg": true,
+		"image/jpg":  true,
+		"image/png":  true,
+		"image/gif":  true,
+		"image/webp": true,
+	}
+
+	// 从文件头获取Content-Type
+	contentType := header.Header.Get("Content-Type")
+	if contentType == "" {
+		// 如果header中没有Content-Type，尝试从文件扩展名判断
+		fileExt := strings.ToLower(filepath.Ext(header.Filename))
+		extToType := map[string]string{
+			".jpg":  "image/jpeg",
+			".jpeg": "image/jpeg",
+			".png":  "image/png",
+			".gif":  "image/gif",
+			".webp": "image/webp",
+		}
+		if mappedType, exists := extToType[fileExt]; exists {
+			contentType = mappedType
+		}
+	}
+
+	if !allowedTypes[contentType] {
+		response.Fail(c, "Invalid file type", errors.New("only jpeg, jpg, png, gif, webp files are allowed"))
+		return
+	}
+
+	// 验证文件大小 (最大5MB)
+	maxSize := int64(5 * 1024 * 1024)
+	if header.Size > maxSize {
+		response.Fail(c, "File too large", errors.New("file size must be less than 5MB"))
+		return
+	}
+
+	// 生成文件名
+	fileExt := getFileExtension(header.Filename)
+	fileName := fmt.Sprintf("avatars/%d_%d%s", user.ID, time.Now().Unix(), fileExt)
+
+	st := stores.Default()
+	if err := st.Write(fileName, file); err != nil {
+		response.Fail(c, "Failed to upload avatar", err)
+		return
+	}
+	// 更新用户头像URL
+	avatarURL := strings.TrimSpace(st.PublicURL(fileName))
+
+	// 保存相对路径用于返回
+	avatarRelativePath := avatarURL
+
+	// 如果是相对路径，转换为完整URL用于数据库存储
+	if strings.HasPrefix(avatarURL, "/") {
+		// 获取请求的Host和Scheme
+		scheme := "http"
+		if c.Request.TLS != nil {
+			scheme = "https"
+		}
+		host := c.Request.Host
+		if host == "" {
+			host = "localhost:7072" // 默认host
+		}
+		avatarURL = fmt.Sprintf("%s://%s%s", scheme, host, avatarURL)
+	}
+
+	err = authmodel.UpdateUserProfileFields(h.db, user.ID, map[string]any{
+		"avatar": avatarURL,
+	})
+	if err != nil {
+		// 如果数据库更新失败，删除已上传的文件
+		//store.Delete(fileName)
+		response.Fail(c, "Failed to update user avatar", err)
+		return
+	}
+
+	user.Profile.Avatar = avatarURL
+
+	// 更新资料完整度
+	err = authmodel.UpdateProfileComplete(h.db, user)
+	if err != nil {
+		logger.Warn("Failed to update profile complete", zap.Error(err))
+	}
+
+	// 返回相对路径，方便反向代理
+	response.Success(c, "Avatar uploaded successfully", gin.H{
+		"avatar": avatarRelativePath,
+	})
+}
+
+// getFileExtension 获取文件扩展名
+func getFileExtension(filename string) string {
+	ext := filepath.Ext(filename)
+	if ext == "" {
+		return ".jpg" // 默认扩展名
+	}
+	return ext
+}
+
+// isDefaultAvatar 检查是否为默认头像
+func isDefaultAvatar(avatarURL string) bool {
+	// 检查是否包含默认头像的标识
+	return strings.Contains(avatarURL, "default") ||
+		strings.Contains(avatarURL, "placeholder") ||
+		strings.Contains(avatarURL, "gravatar")
+}
+
+// handleSendEmailCode Send Email Code
+func (h *Handlers) handleSendEmailCode(context *gin.Context) {
+	var req authmodel.SendEmailVerifyEmail
+	if err := context.BindJSON(&req); err != nil {
+		response.AbortWithJSONError(context, http.StatusBadRequest, err)
+		return
+	}
+	req.UserAgent = context.Request.UserAgent()
+	req.ClientIp = context.ClientIP()
+	text := utils.RandNumberText(6)
+	utils.GlobalCache.Add(req.Email, text)
+	go func() {
+		mailNotif := notification.NewMailer(h.db, 0, 0, req.ClientIp)
+		if err := mailNotif.SendVerificationCode(req.Email, text); err != nil {
+			logger.Error("send email verification code failed",
+				zap.String("email", req.Email), zap.String("ip", req.ClientIp), zap.Error(err))
+		}
+	}()
+	response.Success(context, "success", "Send Email Successful, Must be verified within the valid time [5 minutes]")
+	return
+}
+
+// handleTwoFactorSetup 设置两步验证
+func (h *Handlers) handleTwoFactorSetup(c *gin.Context) {
+	user := authmodel.CurrentUser(c)
+	if user == nil {
+		response.Fail(c, "User not found", errors.New("user not found"))
+		return
+	}
+
+	// 如果已经启用两步验证，返回错误
+	if user.TwoFactorEnabled {
+		response.Fail(c, "Two-factor authentication is already enabled", errors.New("two-factor already enabled"))
+		return
+	}
+
+	setup, err := utils.GenerateTOTPSetup("", user.Email, 0)
+	if err != nil {
+		response.Fail(c, "Failed to generate two-factor secret", err)
+		return
+	}
+
+	// 保存密钥到数据库（不启用）
+	err = authmodel.UpdateUser(h.db, user, map[string]interface{}{
+		"two_factor_secret": setup.Secret,
+	})
+	if err != nil {
+		response.Fail(c, "Failed to save two-factor secret", err)
+		return
+	}
+
+	response.Success(c, "Two-factor setup initiated", gin.H{
+		"secret": setup.Secret,
+		"qrCode": setup.QRDataURL,
+		"url":    setup.URL,
+	})
+}
+
+// handleTwoFactorEnable 启用两步验证
+func (h *Handlers) handleTwoFactorEnable(c *gin.Context) {
+	var req struct {
+		Code string `json:"code" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, "Invalid request", err)
+		return
+	}
+
+	user := authmodel.CurrentUser(c)
+	if user == nil {
+		response.Fail(c, "User not found", errors.New("user not found"))
+		return
+	}
+
+	if !utils.ValidateTOTP(req.Code, user.TwoFactorSecret) {
+		response.Fail(c, "Invalid verification code", errors.New("invalid code"))
+		return
+	}
+
+	// 启用两步验证
+	err := authmodel.UpdateUser(h.db, user, map[string]interface{}{
+		"two_factor_enabled": true,
+	})
+	if err != nil {
+		response.Fail(c, "Failed to enable two-factor authentication", err)
+		return
+	}
+
+	response.Success(c, "Two-factor authentication enabled successfully", nil)
+}
+
+// handleTwoFactorDisable 禁用两步验证
+func (h *Handlers) handleTwoFactorDisable(c *gin.Context) {
+	var req struct {
+		Code string `json:"code" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, "Invalid request", err)
+		return
+	}
+
+	user := authmodel.CurrentUser(c)
+	if user == nil {
+		response.Fail(c, "User not found", errors.New("user not found"))
+		return
+	}
+
+	if !utils.ValidateTOTP(req.Code, user.TwoFactorSecret) {
+		response.Fail(c, "Invalid verification code", errors.New("invalid code"))
+		return
+	}
+
+	// 禁用两步验证并清除密钥
+	err := authmodel.UpdateUser(h.db, user, map[string]interface{}{
+		"two_factor_enabled": false,
+		"two_factor_secret":  "",
+	})
+	if err != nil {
+		response.Fail(c, "Failed to disable two-factor authentication", err)
+		return
+	}
+
+	response.Success(c, "Two-factor authentication disabled successfully", nil)
+}
+
+// handleTwoFactorStatus 获取两步验证状态
+func (h *Handlers) handleTwoFactorStatus(c *gin.Context) {
+	user := authmodel.CurrentUser(c)
+	if user == nil {
+		response.Fail(c, "User not found", errors.New("user not found"))
+		return
+	}
+
+	response.Success(c, "Two-factor status retrieved", gin.H{
+		"enabled":   user.TwoFactorEnabled,
+		"hasSecret": user.TwoFactorSecret != "",
+	})
+}
+
+// handleGetCaptcha 获取图形验证码
+func (h *Handlers) handleGetCaptcha(c *gin.Context) {
+	if utilscaptcha.GlobalManager == nil {
+		response.Fail(c, "Captcha service not available", errors.New("captcha service not initialized"))
+		return
+	}
+	captchaType := utilscaptcha.TypeImage
+	if time.Now().UnixNano()%2 == 0 {
+		captchaType = utilscaptcha.TypeClick
+	}
+	capt, err := utilscaptcha.GlobalManager.Generate(captchaType)
+	if err != nil {
+		response.Fail(c, "Failed to generate captcha", err)
+		return
+	}
+	image, _ := capt.Data["image"]
+	response.Success(c, "Captcha generated", gin.H{
+		"id":        capt.ID,
+		"type":      capt.Type,
+		"image":     image,
+		"count":     capt.Data["count"],
+		"tolerance": capt.Data["tolerance"],
+		"words":     capt.Data["words"],
+	})
+}
+
+// handleVerifyCaptcha 验证图形验证码
+func (h *Handlers) handleVerifyCaptcha(c *gin.Context) {
+	var req struct {
+		ID          string               `json:"id" binding:"required"`
+		Type        string               `json:"type"`
+		Code        string               `json:"code"`
+		CaptchaData string               `json:"captchaData"`
+		Positions   []utilscaptcha.Point `json:"positions"`
+	}
+
+	if err := c.BindJSON(&req); err != nil {
+		response.Fail(c, "Invalid request", err)
+		return
+	}
+
+	if utilscaptcha.GlobalManager == nil {
+		response.Fail(c, "Captcha service not available", errors.New("captcha service not initialized"))
+		return
+	}
+	captchaType := utilscaptcha.Type(strings.TrimSpace(req.Type))
+	if captchaType == "" {
+		captchaType = utilscaptcha.TypeImage
+	}
+	var verifyData interface{}
+	switch captchaType {
+	case utilscaptcha.TypeClick:
+		verifyData = req.Positions
+		if len(req.Positions) == 0 && strings.TrimSpace(req.Code) != "" {
+			var points []utilscaptcha.Point
+			if err := json.Unmarshal([]byte(req.Code), &points); err == nil {
+				verifyData = points
+			}
+		}
+		if len(req.Positions) == 0 && strings.TrimSpace(req.CaptchaData) != "" {
+			var points []utilscaptcha.Point
+			if err := json.Unmarshal([]byte(req.CaptchaData), &points); err == nil {
+				verifyData = points
+			}
+		}
+	case utilscaptcha.TypeImage:
+		verifyData = req.Code
+	default:
+		response.Fail(c, "Invalid captcha type", errors.New("unsupported captcha type"))
+		return
+	}
+	valid, err := utilscaptcha.GlobalManager.Verify(captchaType, req.ID, verifyData)
+	if err != nil {
+		response.Fail(c, "Failed to verify captcha", err)
+		return
+	}
+
+	if valid {
+		response.Success(c, "Captcha verified", gin.H{"valid": true})
+	} else {
+		response.Fail(c, "Invalid captcha code", errors.New("invalid captcha code"))
+	}
+}
+
+// handleGetUserActivity 获取用户活动记录（审计日志，支持筛选与 180 天保留窗口）
+func (h *Handlers) handleGetUserActivity(c *gin.Context) {
+	user, exists := c.Get(constants.UserField)
+	if !exists {
+		response.Fail(c, "User not found", errors.New("user not found"))
+		return
+	}
+	u := user.(*authmodel.User)
+
+	if op := strings.TrimSpace(c.Query("operatorId")); op != "" {
+		opID, err := strconv.ParseUint(op, 10, 64)
+		if err != nil || uint(opID) != u.ID {
+			response.Success(c, "Activities retrieved", gin.H{
+				"activities": []gin.H{},
+				"pagination": gin.H{"page": 1, "limit": 20, "total": int64(0), "totalPages": int64(0)},
+			})
+			return
+		}
+	}
+
+	pageInt, err := strconv.Atoi(c.DefaultQuery("page", "1"))
+	if err != nil || pageInt < 1 {
+		pageInt = 1
+	}
+	limitInt, err := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	if err != nil || limitInt < 1 || limitInt > 100 {
+		limitInt = 20
+	}
+	offset := (pageInt - 1) * limitInt
+
+	base := h.db.Model(&middleware.OperationLog{})
+	query := applyUserActivityFilters(c, base, u.ID)
+
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		response.Fail(c, "Failed to count activities", err)
+		return
+	}
+
+	var activities []middleware.OperationLog
+	if err := query.Order("created_at DESC").Limit(limitInt).Offset(offset).Find(&activities).Error; err != nil {
+		response.Fail(c, "Failed to get activities", err)
+		return
+	}
+
+	activityList := make([]gin.H, 0, len(activities))
+	for _, activity := range activities {
+		activityList = append(activityList, gin.H{
+			"id":              activity.ID,
+			"userId":          activity.UserID,
+			"username":        activity.Username,
+			"action":          activity.Action,
+			"target":          activity.Target,
+			"details":         activity.Details,
+			"ipAddress":       activity.IPAddress,
+			"userAgent":       activity.UserAgent,
+			"referer":         activity.Referer,
+			"requestMethod":   activity.RequestMethod,
+			"device":          activity.Device,
+			"browser":         activity.Browser,
+			"os":              activity.OperatingSystem,
+			"location":        activity.Location,
+			"createdAt":       activity.CreatedAt,
+			"serviceName":     inferAuditServiceName(activity.Target),
+			"eventCode":       inferAuditEventCode(activity.Action, activity.Target),
+			"resourceSummary": auditResourceHint(activity.Target, activity.Details),
+		})
+	}
+
+	totalPages := int64(0)
+	if limitInt > 0 {
+		totalPages = (total + int64(limitInt) - 1) / int64(limitInt)
+	}
+
+	response.Success(c, "Activities retrieved", gin.H{
+		"activities": activityList,
+		"pagination": gin.H{
+			"page":       pageInt,
+			"limit":      limitInt,
+			"total":      total,
+			"totalPages": totalPages,
+		},
+		"retentionDays": userActivityRetentionDays,
+	})
+}

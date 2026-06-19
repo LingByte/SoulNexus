@@ -28,7 +28,7 @@ import { useI18nStore } from "@/stores/i18nStore";
 import Footer from "@/components/Layout/Footer.tsx";
 import PageSEO from "@/components/SEO/PageSEO.tsx";
 import ContentCarousel from "@/components/Home/ContentCarousel.tsx";
-import { beginSSOLogin } from '@/utils/sso'
+import { openLoginModal } from '@/utils/authRedirect'
 import ConfirmDialog from '@/components/UI/ConfirmDialog';
 
 const iconMap: Record<string, any> = {
@@ -264,7 +264,7 @@ const Home = () => {
                             ) : (
                                 <Button
                                     variant="primary"
-                                    onClick={() => beginSSOLogin('/assistants')}
+                                    onClick={() => openLoginModal('/assistants')}
                                     leftIcon={<UserIcon className="w-4 h-4" />}
                                 >
                                     {t('nav.login')}
@@ -349,7 +349,7 @@ const Home = () => {
                                         variant="primary"
                                         className="w-full"
                                         onClick={() => {
-                                            beginSSOLogin('/assistants')
+                                            openLoginModal('/assistants')
                                             setShowMobileMenu(false)
                                         }}
                                         leftIcon={<UserIcon className="w-4 h-4" />}

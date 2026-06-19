@@ -28,7 +28,7 @@ const TextInputBox: React.FC<TextInputBoxProps> = ({
   onSend,
   textMode = 'voice',
   onTextModeChange,
-  inputRef,
+  inputRef: _inputRef,
   textInputRef,
   attachmentName = '',
   isParsingAttachment = false,

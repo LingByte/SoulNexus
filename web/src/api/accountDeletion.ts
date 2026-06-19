@@ -1,9 +1,4 @@
 import { get, post, del } from '@/utils/request'
-import { getUserServiceBaseURL } from '@/config/apiConfig'
-
-const userServiceConfig = {
-  baseURL: getUserServiceBaseURL(),
-}
 
 export interface AccountDeletionEligibility {
   eligible: boolean
@@ -21,31 +16,31 @@ export interface AccountDeletionEligibility {
 }
 
 export const getAccountDeletionEligibility = () =>
-  get<AccountDeletionEligibility>('/auth/account-deletion/eligibility', userServiceConfig)
+  get<AccountDeletionEligibility>('/auth/account-deletion/eligibility')
 
 export const sendAccountDeletionEmailCode = () =>
-  post<null>('/auth/account-deletion/send-email-code', undefined, userServiceConfig)
+  post<null>('/auth/account-deletion/send-email-code', undefined)
 
 export const requestAccountDeletion = (body: {
   password: string
   emailCode: string
   acknowledgeConsequences: boolean
-}) => post<unknown>('/auth/account-deletion/request', body, userServiceConfig)
+}) => post<unknown>('/auth/account-deletion/request', body)
 
 export const cancelAccountDeletion = (body: { emailCode: string }) =>
-  post<null>('/auth/account-deletion/cancel', body, userServiceConfig)
+  post<null>('/auth/account-deletion/cancel', body)
 
 export const sendAccountDeletionCancelCode = (email: string) =>
-  post<null>('/auth/account-deletion/send-cancel-code', { email }, userServiceConfig)
+  post<null>('/auth/account-deletion/send-cancel-code', { email })
 
 export const cancelAccountDeletionByEmail = (body: {
   email: string
   password: string
   emailCode: string
-}) => post<null>('/auth/account-deletion/cancel-by-email', body, userServiceConfig)
+}) => post<null>('/auth/account-deletion/cancel-by-email', body)
 
 export const unbindGithubAccount = () =>
-  del<null>('/auth/bindings/github', userServiceConfig)
+  del<null>('/auth/bindings/github')
 
 export const unbindWechatAccount = () =>
-  del<null>('/auth/bindings/wechat', userServiceConfig)
+  del<null>('/auth/bindings/wechat')

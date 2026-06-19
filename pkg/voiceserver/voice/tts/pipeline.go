@@ -7,6 +7,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -50,6 +53,10 @@ type Config struct {
 
 	// Logger optional.
 	Logger *zap.Logger
+
+	// TailSilence is appended after each utterance (zeros PCM) so decoders /
+	// speakers do not clip the last phoneme. 0 = use default (200ms or env).
+	TailSilence time.Duration
 }
 
 // Pipeline turns text → streaming PCM16 frames.
@@ -363,6 +370,72 @@ func (p *Pipeline) SpeakWithService(text string, svc Service) error {
 	// Drain tail.
 	if err := flush(true); err != nil && !errors.Is(err, context.Canceled) {
 		return err
+	}
+	if err := p.emitTailSilence(ctx, &nextDeadline); err != nil && !errors.Is(err, context.Canceled) {
+		return err
+	}
+	return nil
+}
+
+func defaultTailSilence() time.Duration {
+	if s := strings.TrimSpace(os.Getenv("VOICE_TTS_TAIL_SILENCE_MS")); s != "" {
+		if ms, err := strconv.Atoi(s); err == nil && ms >= 0 {
+			return time.Duration(ms) * time.Millisecond
+		}
+	}
+	return 200 * time.Millisecond
+}
+
+func (p *Pipeline) emitTailSilence(ctx context.Context, nextDeadline *time.Time) error {
+	if p == nil {
+		return nil
+	}
+	dur := p.cfg.TailSilence
+	if dur < 0 {
+		return nil
+	}
+	if dur == 0 {
+		dur = defaultTailSilence()
+	}
+	if dur <= 0 {
+		return nil
+	}
+	frameDur := p.cfg.FrameDuration
+	if frameDur <= 0 {
+		frameDur = 20 * time.Millisecond
+	}
+	n := int(dur / frameDur)
+	if n <= 0 {
+		n = 1
+	}
+	silence := make([]byte, p.frameBytes)
+	for i := 0; i < n; i++ {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		out := silence
+		if p.cfg.InputSampleRate != p.cfg.OutputSampleRate {
+			r, err := media.ResamplePCM(silence, p.cfg.InputSampleRate, p.cfg.OutputSampleRate)
+			if err == nil && len(r) > 0 {
+				out = r
+			}
+		}
+		if p.cfg.PaceRealtime && nextDeadline != nil {
+			wait := time.Until(*nextDeadline)
+			if wait > 0 {
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-time.After(wait):
+				}
+			}
+			*nextDeadline = nextDeadline.Add(frameDur)
+		} else if err := ctx.Err(); err != nil {
+			return err
+		}
+		if err := p.cfg.Sink(out); err != nil {
+			return err
+		}
 	}
 	return nil
 }

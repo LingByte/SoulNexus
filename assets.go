@@ -54,6 +54,9 @@ var NewDeviceLoginHTML string
 //go:embed static/js/client.js
 var AssistantJsModule string
 
+//go:embed static/js/pet-voice-bridge.js
+var PetVoiceBridgeJS string
+
 type CombineEmbedFS struct {
 	embeds    []EmbedFS
 	assertDir string

@@ -1,4 +1,4 @@
-import { get, post, put, del, ApiResponse } from '@/utils/request'
+import { get, post, put, del } from '@/utils/request'
 
 export interface LLMToken {
   id: number

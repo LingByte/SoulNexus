@@ -13,6 +13,12 @@ export default defineConfig({
     port: 3000,
     open: true,
     host: true, // 允许外部访问
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:7072',
+        changeOrigin: true,
+      },
+    },
     watch: {
       // 启用文件系统监听
       usePolling: false, // 在 macOS 上通常不需要轮询
@@ -65,6 +71,8 @@ export default defineConfig({
       'framer-motion',
       'react-router-dom',
       'zustand',
+      'monaco-editor',
+      '@monaco-editor/react',
     ],
   },
 })

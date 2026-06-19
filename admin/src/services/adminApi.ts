@@ -884,66 +884,6 @@ export const batchUpdateConfigs = async (configs: BatchUpdateConfig[]) => {
   return res.data
 }
 
-// ==================== OAuth Clients API ====================
-const OAUTH_CLIENTS_API_BASE = `${AUTH_SERVICE_BASE}/oauth-clients`
-
-export interface OAuthClient {
-  id: number
-  clientId: string
-  clientSecret: string
-  name: string
-  redirectUri: string
-  status: number
-  createdAt: string
-}
-
-export interface OAuthClientListResponse {
-  clients: OAuthClient[]
-  total: number
-  page: number
-  pageSize: number
-}
-
-export interface ListOAuthClientsParams {
-  page?: number
-  pageSize?: number
-}
-
-export interface UpsertOAuthClientRequest {
-  clientId?: string
-  clientSecret?: string
-  name?: string
-  redirectUri?: string
-  status?: number
-}
-
-export const listOAuthClients = async (params?: ListOAuthClientsParams): Promise<OAuthClientListResponse> => {
-  const queryParams: any = {}
-  if (params?.page) queryParams.page = params.page
-  if (params?.pageSize) queryParams.pageSize = params.pageSize
-  const res = await get<OAuthClientListResponse>(OAUTH_CLIENTS_API_BASE, { params: queryParams })
-  return res.data
-}
-
-export const getOAuthClient = async (id: number): Promise<OAuthClient> => {
-  const res = await get<OAuthClient>(`${OAUTH_CLIENTS_API_BASE}/${id}`)
-  return res.data
-}
-
-export const createOAuthClient = async (data: UpsertOAuthClientRequest): Promise<OAuthClient> => {
-  const res = await post<OAuthClient>(OAUTH_CLIENTS_API_BASE, data)
-  return res.data
-}
-
-export const updateOAuthClient = async (id: number, data: UpsertOAuthClientRequest): Promise<OAuthClient> => {
-  const res = await put<OAuthClient>(`${OAUTH_CLIENTS_API_BASE}/${id}`, data)
-  return res.data
-}
-
-export const deleteOAuthClient = async (id: number): Promise<void> => {
-  await del(`${OAUTH_CLIENTS_API_BASE}/${id}`)
-}
-
 // ==================== Admin Groups API ====================
 const ADMIN_GROUPS_API_BASE = `${BACKEND_BASE}/admin/groups`
 

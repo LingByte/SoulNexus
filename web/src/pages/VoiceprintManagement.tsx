@@ -6,7 +6,6 @@ import Button from '@/components/UI/Button'
 import { Input as ArcoInput } from '@arco-design/web-react'
 import Modal, { ModalContent, ModalHeader, ModalTitle } from '@/components/UI/Modal'
 import VoiceprintDeleteConfirm from '@/components/Voice/VoiceprintDeleteConfirm'
-import CollapsibleSectionHeader from '@/components/UI/CollapsibleSectionHeader'
 import PageHeader from '@/components/Layout/PageHeader'
 import { showAlert } from '@/utils/notification'
 import { getSystemInit, SystemInitInfo } from '@/api/system'
@@ -570,7 +569,7 @@ const VoiceprintManagement = () => {
               </label>
               <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" type="text"
                 value={newSpeaker.name}
-                onChange={(e) => setNewSpeaker(prev => ({ ...prev, name: e.target.value }))}
+                onChange={(val) => setNewSpeaker(prev => ({ ...prev, name: val }))}
                 placeholder="输入说话人的姓名，如：张三"
               />
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -1007,7 +1006,7 @@ const VoiceprintManagement = () => {
                   </label>
                   <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" type="text"
                     value={editingSpeaker.name}
-                    onChange={(e) => setEditingSpeaker(prev => ({ ...prev, name: e.target.value }))}
+                    onChange={(val) => setEditingSpeaker(prev => ({ ...prev, name: val }))}
                     placeholder="输入说话人的姓名"
                   />
                 </div>

@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
 import { Select as ArcoSelect, Input as ArcoInput } from '@arco-design/web-react'
 import { 
-  FileText, Download, RefreshCw, Brain, Mic, Volume2,
+  FileText, Download, Brain, Mic, Volume2,
   Globe, Plus, Eye, ChevronLeft, ChevronRight,
   BarChart3, List, User, Building2
 } from 'lucide-react'
@@ -40,14 +39,20 @@ import { getGroupList, type Group } from '@/api/group'
 const Select = ({ children, onValueChange, ...props }: any) => (
   <ArcoSelect {...props} onChange={onValueChange} />
 )
-const SelectTrigger = ({ children, ...props }: any) => <>{children}</>
-const SelectValue = ({ children, ...props }: any) => <>{children}</>
-const SelectContent = ({ children, ...props }: any) => <>{children}</>
-const SelectItem = ({ children, value, ...props }: any) => <>{children}</>
+const SelectTrigger = ({ children, className }: { children?: React.ReactNode; className?: string }) => (
+  <div className={className}>{children}</div>
+)
+const SelectValue = ({ children, placeholder }: { children?: React.ReactNode; placeholder?: string }) => (
+  <>{children ?? placeholder}</>
+)
+const SelectContent = ({ children }: { children?: React.ReactNode }) => <>{children}</>
+const SelectItem = ({ children, value, ...props }: { children: React.ReactNode; value: string; [key: string]: unknown }) => (
+  <ArcoSelect.Option value={value} {...props}>{children}</ArcoSelect.Option>
+)
 
 const Billing = () => {
   const { t } = useI18nStore()
-  const { user } = useAuthStore()
+  const { user: _user } = useAuthStore()
   
   // 状态管理
   const [activeTab, setActiveTab] = useState<'statistics' | 'records' | 'bills'>('statistics')
@@ -483,7 +488,7 @@ const Billing = () => {
                   <label className="text-xs text-muted-foreground mb-1 block">组织</label>
                   <Select 
                     value={selectedGroupId?.toString() || ''} 
-                    onValueChange={(value) => setSelectedGroupId(value ? parseInt(value) : null)}
+                    onValueChange={(value: string) => setSelectedGroupId(value ? parseInt(value) : null)}
                   >
                     <SelectTrigger className="h-9 text-sm">
                       <SelectValue placeholder="请选择组织" />
@@ -983,7 +988,7 @@ const Billing = () => {
                 <label className="text-sm font-medium mb-2 block">{t('billing.generate.credential')}</label>
                 <Select
                   value={generateBillForm.credentialId?.toString() || 'all'}
-                  onValueChange={(value) => setGenerateBillForm({
+                  onValueChange={(value: string) => setGenerateBillForm({
                     ...generateBillForm,
                     credentialId: value === 'all' ? undefined : parseInt(value)
                   })}
@@ -1007,7 +1012,7 @@ const Billing = () => {
                   <label className="text-sm font-medium mb-2 block">选择组织</label>
                   <Select
                     value={selectedGroupId?.toString() || ''}
-                    onValueChange={(value) => {
+                    onValueChange={(value: string) => {
                       setSelectedGroupId(value ? parseInt(value) : null)
                       setGenerateBillForm({
                         ...generateBillForm,

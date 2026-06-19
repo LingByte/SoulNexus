@@ -96,7 +96,7 @@ export function mergeUserPartial<T extends Record<string, unknown>>(user: T, pat
         changed = true
       }
     }
-    if (changed) next.profile = p as typeof prof
+    if (changed) (next as Record<string, unknown>).profile = p
   }
   return next as T
 }

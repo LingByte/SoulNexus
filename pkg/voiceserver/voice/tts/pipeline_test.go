@@ -50,6 +50,7 @@ func TestPipelineSpeakDeliversFrames(t *testing.T) {
 		Service:         svc,
 		InputSampleRate: 16000, OutputSampleRate: 16000,
 		FrameDuration: 20 * time.Millisecond,
+		TailSilence:     -1,
 		Sink: func(frame []byte) error {
 			sinkBytes.Add(int64(len(frame)))
 			frameCount.Add(1)
@@ -81,7 +82,8 @@ func TestPipelineTailPadding(t *testing.T) {
 	svc := &staticService{chunks: [][]byte{make([]byte, 700)}}
 	p, _ := New(Config{
 		Service: svc, InputSampleRate: 16000, FrameDuration: 20 * time.Millisecond,
-		Sink: func([]byte) error { frames++; return nil },
+		TailSilence: -1,
+		Sink:        func([]byte) error { frames++; return nil },
 	})
 	p.Start(context.Background())
 	if err := p.Speak("x"); err != nil {

@@ -10,6 +10,19 @@ export type PcmFormat = {
 
 type PcmStreamPlayerOptions = {
     onIdle?: () => void
+    /** 0~1 RMS volume per scheduled frame (for sprite lip sync) */
+    onVolume?: (level: number) => void
+}
+
+/** RMS loudness of mono PCM samples, normalized 0~1 */
+export function computeMonoRms(mono: Float32Array): number {
+    if (mono.length === 0) return 0
+    let sum = 0
+    for (let i = 0; i < mono.length; i++) {
+        const s = mono[i]
+        sum += s * s
+    }
+    return Math.min(1, Math.sqrt(sum / mono.length) * 2.8)
 }
 
 function pcm16ToFloat32(bytes: Uint8Array, bitDepth: number): Float32Array | null {
@@ -33,6 +46,7 @@ export class PcmStreamPlayer {
     private readonly ctx: AudioContext
     private readonly format: PcmFormat
     private readonly onIdle?: () => void
+    private readonly onVolume?: (level: number) => void
     private readonly sources = new Set<AudioBufferSourceNode>()
 
     private receiveEnded = false
@@ -45,6 +59,7 @@ export class PcmStreamPlayer {
         this.ctx = ctx
         this.format = format
         this.onIdle = opts?.onIdle
+        this.onVolume = opts?.onVolume
     }
 
     /** Start scheduling audio to the destination (call once when this segment is at the head of the queue). */
@@ -90,6 +105,7 @@ export class PcmStreamPlayer {
         }
         this.sources.clear()
         this.pending = new Uint8Array(0)
+        this.onVolume?.(0)
         this.notifyIdle()
     }
 
@@ -128,6 +144,10 @@ export class PcmStreamPlayer {
             const mono = pcm16ToFloat32(slice, bitDepth)
             if (!mono) {
                 continue
+            }
+
+            if (this.onVolume) {
+                this.onVolume(computeMonoRms(mono))
             }
 
             const samplesPerChannel = Math.floor(mono.length / channels)
@@ -191,20 +211,32 @@ export class PcmStreamPlayer {
 }
 
 /** Queues multiple xiaozhi TTS utterances; each streams while PCM arrives. */
+export type PcmUtteranceQueueOptions = {
+    onVolume?: (level: number) => void
+    onIdle?: () => void
+}
+
 export class PcmUtteranceQueue {
     private readonly ctx: AudioContext
+    private readonly opts: PcmUtteranceQueueOptions
     private readonly segments: PcmStreamPlayer[] = []
     private playIndex = 0
 
-    constructor(ctx: AudioContext) {
+    constructor(ctx: AudioContext, opts?: PcmUtteranceQueueOptions) {
         this.ctx = ctx
+        this.opts = opts ?? {}
     }
 
     beginUtterance(format: PcmFormat): void {
         const player = new PcmStreamPlayer(this.ctx, format, {
+            onVolume: this.opts.onVolume,
             onIdle: () => {
+                this.opts.onVolume?.(0)
                 this.playIndex++
                 this.startNext()
+                if (this.playIndex >= this.segments.length) {
+                    this.opts.onIdle?.()
+                }
             },
         })
         this.segments.push(player)
@@ -229,6 +261,8 @@ export class PcmUtteranceQueue {
         }
         this.segments.length = 0
         this.playIndex = 0
+        this.opts.onVolume?.(0)
+        this.opts.onIdle?.()
     }
 
     private startNext(): void {

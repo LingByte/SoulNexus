@@ -7,23 +7,20 @@ import (
 	"context"
 	"errors"
 
-	"github.com/LingByte/SoulNexus/internal/grpc"
 	"github.com/LingByte/SoulNexus/internal/models/auth"
+	"gorm.io/gorm"
 )
 
 var errInvalidAPICredential = errors.New("invalid api credentials")
 
-// resolveCredential loads API key credentials via the auth gRPC service.
-func (h *Handlers) resolveCredential(ctx context.Context, apiKey, apiSecret string) (*auth.UserCredential, error) {
-	if h.rpc == nil || h.rpc.Auth == nil {
-		return nil, errors.New("auth service unavailable")
-	}
+// resolveCredential loads API key credentials from the local database.
+func (h *Handlers) resolveCredential(_ context.Context, apiKey, apiSecret string) (*auth.UserCredential, error) {
 	if apiKey == "" || apiSecret == "" {
 		return nil, errInvalidAPICredential
 	}
-	cred, err := h.rpc.Auth.ResolveCredential(ctx, apiKey, apiSecret)
+	cred, err := auth.GetUserCredentialByApiSecretAndApiKey(h.db, apiKey, apiSecret)
 	if err != nil {
-		if grpc.IsNotFound(err) {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errInvalidAPICredential
 		}
 		return nil, err
@@ -34,15 +31,15 @@ func (h *Handlers) resolveCredential(ctx context.Context, apiKey, apiSecret stri
 	return cred, nil
 }
 
-// resolveCredentialOwner resolves credentials and the owning active user (auth DB via gRPC).
+// resolveCredentialOwner resolves credentials and the owning active user.
 func (h *Handlers) resolveCredentialOwner(ctx context.Context, apiKey, apiSecret string) (*auth.User, *auth.UserCredential, error) {
 	cred, err := h.resolveCredential(ctx, apiKey, apiSecret)
 	if err != nil {
 		return nil, nil, err
 	}
-	user, err := h.rpc.Auth.GetUser(ctx, cred.CreatedBy)
+	user, err := auth.GetUserByID(h.db, cred.CreatedBy)
 	if err != nil {
-		if grpc.IsNotFound(err) {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil, errInvalidAPICredential
 		}
 		return nil, nil, err

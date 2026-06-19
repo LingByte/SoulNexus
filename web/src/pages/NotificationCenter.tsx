@@ -4,7 +4,6 @@ import { useAuthStore } from '@/stores/authStore'
 import { useI18nStore } from '@/stores/i18nStore'
 import { Input as ArcoInput, Pagination, Checkbox, Tag } from '@arco-design/web-react'
 import Button from '@/components/UI/Button'
-import Badge from '@/components/UI/Badge'
 import Modal from '@/components/UI/Modal'
 import { showAlert } from '@/utils/notification'
 import { formatDistanceToNow } from 'date-fns'
@@ -24,7 +23,7 @@ const NotificationCenter = () => {
   const [selectedNotification, setSelectedNotification] = useState<any | null>(null)
 
   const { isAuthenticated } = useAuthStore()
-  const { searchKeyword, highlightFragments, highlightResultId } = useSearchHighlight()
+  const { searchKeyword, highlightFragments, highlightResultId: _highlightResultId } = useSearchHighlight()
 
   const {
     notifications, isLoading, total, totalUnread, totalRead, totalPages,
@@ -36,7 +35,7 @@ const NotificationCenter = () => {
     fetchNotifications({
       page: currentPage, size: pageSize,
       filter: filter === 'all' ? undefined : filter,
-      title: searchQuery || undefined, sort: 'newest',
+      title: searchQuery || undefined,
     })
   }
 

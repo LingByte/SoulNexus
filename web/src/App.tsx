@@ -1,4 +1,7 @@
+import { useEffect } from 'react'
 import { BrowserRouter as Router, Route, Routes, Navigate, useLocation } from 'react-router-dom';
+import { consumeAuthTokenFromURL } from '@/utils/authBootstrap'
+import { useAuthStore } from '@/stores/authStore'
 import Home from '@/pages/Home.tsx';
 import NotFound from "@/pages/NotFound.tsx";
 import PWAInstaller from "@/components/PWA/PWAInstaller.tsx";
@@ -13,6 +16,7 @@ import Layout from "@/components/Layout/Layout.tsx";
 import ResetPassword from "@/pages/ResetPassword.tsx";
 import ProtectedRoute from "@/components/Auth/ProtectedRoute.tsx";
 import JSTemplateManager from "@/pages/JSTemplateManager.tsx";
+import PetStudioPage from "@/pages/pet-market/PetStudioPage.tsx";
 import Assistants from '@/pages/Assistants.tsx';
 import GroupMembers from '@/pages/GroupMembers.tsx';
 import GroupSettings from '@/pages/GroupSettings.tsx';
@@ -30,13 +34,21 @@ import VoiceprintManagement from '@/pages/VoiceprintManagement.tsx';
 import Privacy from '@/pages/Privacy.tsx';
 import Terms from '@/pages/Terms.tsx';
 import CookieConsent from '@/components/CookieConsent.tsx';
-import OIDCCallback from '@/pages/OIDCCallback.tsx';
+import AuthModal from '@/components/Auth/AuthModal.tsx';
 import AccountDeletionRequest from '@/pages/AccountDeletionRequest.tsx';
 import Playground from '@/pages/Playground.tsx';
 
 function AppRoutes() {
     const location = useLocation();
     const isHomePage = location.pathname === '/';
+    const login = useAuthStore((s) => s.login)
+
+    useEffect(() => {
+        const token = consumeAuthTokenFromURL()
+        if (token) {
+            void login(token)
+        }
+    }, [login])
     
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
@@ -50,7 +62,6 @@ function AppRoutes() {
                         
                         {/* 重置密码页面 - 不需要登录 */}
                         <Route path="/reset-password" element={<ResetPassword />} />
-                        <Route path="/auth/callback" element={<OIDCCallback />} />
 
                         <Route path="/account-deletion/request" element={
                             <ProtectedRoute>
@@ -120,11 +131,22 @@ function AppRoutes() {
                             </ProtectedRoute>
                         } />
                         <Route path="/credential" element={<Navigate to="/profile/credential" replace />} />
+                        <Route path="/js-template" element={<Navigate to="/js-templates" replace />} />
                         <Route path="/js-templates" element={
                             <ProtectedRoute>
                                 <Layout>
                                     <JSTemplateManager />
                                 </Layout>
+                            </ProtectedRoute>
+                        } />
+                        <Route path="/js-templates/new/edit" element={
+                            <ProtectedRoute>
+                                <PetStudioPage />
+                            </ProtectedRoute>
+                        } />
+                        <Route path="/js-templates/:id/edit" element={
+                            <ProtectedRoute>
+                                <PetStudioPage />
                             </ProtectedRoute>
                         } />
                         <Route path="/billing" element={
@@ -228,6 +250,9 @@ function AppRoutes() {
 
                     {/* Cookie 同意弹窗 */}
                     <CookieConsent />
+
+                    {/* 全局登录弹窗 */}
+                    <AuthModal />
         </div>
     );
 }

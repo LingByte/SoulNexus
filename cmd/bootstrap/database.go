@@ -72,6 +72,9 @@ func SetupDatabase(logWriter io.Writer, opts *Options) (*gorm.DB, error) {
 		if err := svcmodels.MigrateAgentsDropIconColumn(db); err != nil {
 			logger.Warn("agents drop icon column migrate", zap.Error(err))
 		}
+		if err := svcmodels.MigrateAgentsBoundJsTemplate(db); err != nil {
+			logger.Warn("agents bound js template migrate", zap.Error(err))
+		}
 		logger.Info("migration success",
 			zap.String("database", config.GlobalConfig.Database.Driver),
 			zap.String("dsn", config.GlobalConfig.Database.DSN),

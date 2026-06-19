@@ -94,6 +94,8 @@ VOICE_TTS_PREWARM=true
 # VOICE_TTS_SYNTH_MAX=1
 # Max concurrent segment prefetches; default 1 (prefetch runs when a segment is about to play).
 # VOICE_TTS_PREFETCH_MAX=1
+# Post-utterance silence (ms) so the last syllable is not clipped by decoders/speakers. Default 200.
+# VOICE_TTS_TAIL_SILENCE_MS=200
 
 VOICE_BARGE_IN=true
 VOICE_BARGE_IN_THRESHOLD=4500

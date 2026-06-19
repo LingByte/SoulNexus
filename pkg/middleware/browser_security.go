@@ -18,10 +18,16 @@ import (
 //
 // CSP is optional only via HTTP_CSP: do not inject a default strict CSP on /api/* — many HTML pages
 // (e.g. SSO sign-in under /api/auth/login) live under the API prefix and need scripts, styles, fonts, and images.
+//
+// Pet embed pages (/api/static/pet/embed/*) must be frameable on third-party sites.
 func SecureResponseHeaders() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Header("X-Content-Type-Options", "nosniff")
-		c.Header("X-Frame-Options", "DENY")
+		if isEmbeddableFramePath(c.Request.URL.Path) {
+			c.Header("Content-Security-Policy", "frame-ancestors *")
+		} else {
+			c.Header("X-Frame-Options", "DENY")
+		}
 		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
 		if csp := strings.TrimSpace(os.Getenv("HTTP_CSP")); csp != "" {
 			c.Header("Content-Security-Policy", csp)
@@ -39,6 +45,24 @@ func isHTTPSRequest(c *gin.Context) bool {
 		return true
 	}
 	return strings.EqualFold(c.GetHeader("X-Forwarded-Proto"), "https")
+}
+
+// isEmbeddableFramePath returns true for Soul Pet SDK pages meant to run inside third-party iframes.
+func isEmbeddableFramePath(path string) bool {
+	prefixes := []string{
+		"/api/static/pet/embed/",
+		"/api/static/pet/host-demo",
+		"/api/static/pet/demo",
+		"/static/pet/embed/",
+		"/static/pet/host-demo",
+		"/static/pet/demo",
+	}
+	for _, p := range prefixes {
+		if strings.HasPrefix(path, p) {
+			return true
+		}
+	}
+	return false
 }
 
 // MutatingRequestTrustedOrigin blocks cross-site browser POSTs that rely on ambient credentials

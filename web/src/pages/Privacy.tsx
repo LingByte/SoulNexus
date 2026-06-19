@@ -1,6 +1,5 @@
 import { motion } from 'framer-motion'
 import { Shield, ChevronRight } from 'lucide-react'
-import { Link } from 'react-router-dom'
 
 const Privacy = () => {
   const currentDate = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })

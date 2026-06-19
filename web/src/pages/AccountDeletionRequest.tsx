@@ -11,7 +11,7 @@ import {
   unbindGithubAccount,
   unbindWechatAccount,
 } from '@/api/accountDeletion'
-import { getUserServiceLoginPageURL } from '@/config/apiConfig'
+import { getAccountDeletionRevokePageURL } from '@/config/apiConfig'
 
 const AccountDeletionRequest = () => {
   const [warnings, setWarnings] = useState<string[]>([])
@@ -40,7 +40,7 @@ const AccountDeletionRequest = () => {
       setWechatBound(!!d.wechatBound)
       setEligible(!!d.eligible)
       if (d.deletionPending) {
-        window.location.assign(getUserServiceLoginPageURL())
+        window.location.assign(getAccountDeletionRevokePageURL())
       }
     } catch (e: any) {
       showAlert(e?.msg || e?.message || '加载失败', 'error', '错误')
@@ -117,7 +117,7 @@ const AccountDeletionRequest = () => {
       } catch {
         //
       }
-      window.location.assign(getUserServiceLoginPageURL())
+      window.location.assign(getAccountDeletionRevokePageURL())
     } catch (e: any) {
       showAlert(e?.msg || e?.message || '申请失败', 'error', '错误')
     } finally {
@@ -161,12 +161,12 @@ const AccountDeletionRequest = () => {
                 <p className="text-gray-600 dark:text-gray-400">需先解绑 GitHub / 微信后再申请注销。</p>
                 <div className="flex flex-wrap gap-2">
                   {githubBound && (
-                    <Button type="button" size="sm" variant="outline" onClick={unbindGh}>
+                    <Button size="sm" variant="outline" onClick={unbindGh}>
                       解绑 GitHub
                     </Button>
                   )}
                   {wechatBound && (
-                    <Button type="button" size="sm" variant="outline" onClick={unbindWx}>
+                    <Button size="sm" variant="outline" onClick={unbindWx}>
                       解绑微信
                     </Button>
                   )}
@@ -182,21 +182,25 @@ const AccountDeletionRequest = () => {
             )}
 
             <div className="space-y-3 pt-2">
-              <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" label="登录密码"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="用于核验身份"
-              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">登录密码</label>
+                <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
+                  type="password"
+                  value={password}
+                  onChange={(val) => setPassword(val)}
+                  placeholder="用于核验身份"
+                />
+              </div>
               <div className="flex gap-2 items-end">
                 <div className="flex-1">
-                  <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" label="邮箱验证码"
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">邮箱验证码</label>
+                  <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                     value={emailCode}
-                    onChange={(e) => setEmailCode(e.target.value)}
+                    onChange={(val) => setEmailCode(val)}
                     placeholder="6 位数字"
                   />
                 </div>
-                <Button type="button" variant="outline" onClick={sendCode} disabled={sendingCode}>
+                <Button variant="outline" onClick={sendCode} disabled={sendingCode}>
                   {sendingCode ? '发送中…' : '发送验证码'}
                 </Button>
               </div>
@@ -209,7 +213,7 @@ const AccountDeletionRequest = () => {
                 />
                 <span>我已知晓：数据不可恢复、权益清零、无法通过原账号找回。</span>
               </label>
-              <Button type="button" variant="destructive" onClick={submit} disabled={submitting || !eligible}>
+              <Button variant="destructive" onClick={submit} disabled={submitting || !eligible}>
                 {submitting ? '提交中…' : '确认申请注销'}
               </Button>
             </div>

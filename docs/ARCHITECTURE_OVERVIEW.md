@@ -242,7 +242,7 @@ A: 查看日志中的 `[Session]` 和 `[AudioManager]` 标记的日志
 - `pkg/recognizer/` - ASR识别
 - `pkg/synthesizer/` - TTS合成
 - `pkg/llm/` - LLM服务
-- `pkg/vad/` - VAD服务
+- `github.com/LingByte/lingllm/vad` - VAD（RMS 本地检测 + HTTP/WebSocket 远程服务）
 - `internal/handler/` - HTTP处理器
 - `internal/models/` - 数据模型
 

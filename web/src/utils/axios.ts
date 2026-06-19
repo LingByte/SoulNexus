@@ -3,7 +3,6 @@ import { useAuthStore } from '../stores/authStore'
 import {
   getAccountDeletionRevokePageURL,
   getApiBaseURL,
-  getUserServiceBaseURL,
   isAccountDeletionRevokeStandalonePage,
 } from '../config/apiConfig'
 
@@ -29,7 +28,7 @@ const requestTokenRefresh = async (): Promise<string> => {
   if (!refreshToken) {
     throw new Error('missing refresh token')
   }
-  const resp = await axios.post(`${getUserServiceBaseURL()}/auth/refresh`, {
+  const resp = await axios.post(`${getApiBaseURL()}/auth/refresh`, {
     refresh_token: refreshToken,
   }, {
     headers: {

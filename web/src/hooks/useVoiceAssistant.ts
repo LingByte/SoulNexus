@@ -34,7 +34,7 @@ export const useVoiceAssistant = (options: UseVoiceAssistantOptions) => {
     agentId,
     language,
     systemPrompt,
-    selectedVoiceCloneId,
+    selectedVoiceCloneId: _selectedVoiceCloneId,
     selectedSpeaker,
     currentSessionId,
     setCurrentSessionId,

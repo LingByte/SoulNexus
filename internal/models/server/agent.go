@@ -17,7 +17,8 @@ type Agent struct {
 	SystemPrompt         string    `json:"systemPrompt"`
 	PersonaTag           string    `json:"personaTag"`
 	Temperature          float32   `json:"temperature"`
-	JsSourceID           string    `json:"jsSourceId" gorm:"index:idx_agent_js_source"`
+	JsSourceID             string    `json:"jsSourceId" gorm:"index:idx_agent_js_source"`
+	BoundJsTemplateSourceID string   `json:"boundJsTemplateSourceId" gorm:"column:bound_js_template_source_id;size:64"`
 	MaxTokens            int       `json:"maxTokens"`
 	Speaker              string    `json:"speaker" gorm:"column:speaker"`
 	VoiceCloneID         *int      `json:"voiceCloneId" gorm:"column:voice_clone_id"`
@@ -38,7 +39,7 @@ func (Agent) TableName() string { return "agents" }
 // GetAgentByJSTemplateID 根据 JS 模板 ID 获取关联的 Agent
 func GetAgentByJSTemplateID(db *gorm.DB, jsTemplateID string) (*Agent, error) {
 	var agent Agent
-	err := db.Where("js_source_id = ?", jsTemplateID).First(&agent).Error
+	err := db.Where("bound_js_template_source_id = ?", jsTemplateID).First(&agent).Error
 	if err != nil {
 		return nil, err
 	}

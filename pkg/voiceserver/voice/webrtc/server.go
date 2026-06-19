@@ -21,6 +21,7 @@ import (
 	"time"
 
 	voicegateway "github.com/LingByte/SoulNexus/pkg/voiceserver/voice/gateway"
+	"github.com/LingByte/SoulNexus/pkg/voiceserver/persist"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/recorder"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/vad"
 	pionwebrtc "github.com/pion/webrtc/v4"
@@ -102,6 +103,11 @@ type ServerConfig struct {
 	// prompts) without ServerConfig having to grow a field for every
 	// new gateway knob. nil = no extra configuration.
 	ConfigureClient func(*voicegateway.ClientConfig)
+
+	// TurnsLookup loads persisted dialog turns for a call. When nil the
+	// /turns endpoint responds with 503. The cmd layer wires this to the
+	// voice_call table so browsers can poll transcripts during WebRTC calls.
+	TurnsLookup func(ctx context.Context, callID string) ([]persist.VoiceCallDialogTurn, error)
 
 	// Logger optional.
 	Logger *zap.Logger
@@ -267,6 +273,47 @@ func (s *Server) HandleHangup(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+type turnsResponse struct {
+	CallID string                        `json:"call_id"`
+	Turns  []persist.VoiceCallDialogTurn `json:"turns"`
+}
+
+// HandleTurns returns persisted ASR/LLM turns for an active or ended call.
+//
+//	GET /webrtc/v1/turns?call_id=wrtc-...
+func (s *Server) HandleTurns(w http.ResponseWriter, r *http.Request) {
+	s.applyCORS(w, r)
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if s.cfg.TurnsLookup == nil {
+		http.Error(w, "turns lookup unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	id := strings.TrimSpace(r.URL.Query().Get("call_id"))
+	if id == "" {
+		http.Error(w, "missing call_id", http.StatusBadRequest)
+		return
+	}
+	turns, err := s.cfg.TurnsLookup(r.Context(), id)
+	if err != nil {
+		http.Error(w, "turns: "+err.Error(), http.StatusNotFound)
+		return
+	}
+	if turns == nil {
+		turns = []persist.VoiceCallDialogTurn{}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(turnsResponse{CallID: id, Turns: turns}); err != nil {
+		s.cfg.Logger.Warn("webrtc: write turns", zap.Error(err))
+	}
+}
+
 // cleanupOnClose blocks until the PeerConnection state machine reports
 // Closed/Failed (which fires teardown which closes session.done), then
 // deletes the registry entry so it doesn't leak across long uptimes.
@@ -300,7 +347,7 @@ func (s *Server) applyCORS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Access-Control-Allow-Origin", origin)
-	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 	w.Header().Set("Vary", "Origin")
 }

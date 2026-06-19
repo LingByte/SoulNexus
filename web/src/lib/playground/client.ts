@@ -189,14 +189,14 @@ function buildMetrics(
 async function consumeOpenAISSE(
   res: Response,
   handlers: StreamHandlers,
-): Promise<{ content: string; usage?: StreamHandlers extends { onUsage?: infer U } ? U : never; raw: string }> {
+): Promise<{ content: string; usage?: { input_tokens?: number; output_tokens?: number; total_tokens?: number }; raw: string }> {
   const reader = res.body?.getReader()
   if (!reader) throw new Error('无响应流')
   const decoder = new TextDecoder()
   let buffer = ''
   let content = ''
   let raw = ''
-  let usage: { input_tokens: number | undefined; output_tokens: number | undefined; total_tokens: number | undefined }
+  let usage: { input_tokens?: number; output_tokens?: number; total_tokens?: number } | undefined
 
   while (true) {
     const { done, value } = await reader.read()

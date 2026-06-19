@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"text/template"
 	"time"
 
@@ -177,7 +178,8 @@ func (h *Handlers) UpdateAgent(c *gin.Context) {
 		VADThreshold         *float64 `json:"vadThreshold"`         // VAD阈值
 		VADConsecutiveFrames *int     `json:"vadConsecutiveFrames"` // VAD连续帧数
 		EnableJSONOutput     *bool    `json:"enableJSONOutput"`     // 是否启用JSON格式化输出
-		JsSourceId           string   `json:"jsSourceId"`           // JS模板ID
+		JsSourceId               string   `json:"jsSourceId"`
+		BoundJsTemplateSourceId  string   `json:"boundJsTemplateSourceId"`
 		OpeningStatement     string   `json:"openingStatement"`     // 开场白
 	}
 
@@ -251,14 +253,16 @@ func (h *Handlers) UpdateAgent(c *gin.Context) {
 		updateData["enable_json_output"] = *input.EnableJSONOutput
 	}
 
-	// Handle JS template ID - verify it exists if provided
-	if input.JsSourceId != "" {
-		_, err := svcmodels.GetJSTemplateByJsSourceID(h.db, input.JsSourceId)
-		if err != nil {
-			response.Fail(c, "Specified JS template does not exist", nil)
-			return
+	// Bound JS template (loader client id stays in js_source_id).
+	if _, boundTplProvided := rawBody["boundJsTemplateSourceId"]; boundTplProvided {
+		tplID := strings.TrimSpace(input.BoundJsTemplateSourceId)
+		if tplID != "" {
+			if _, err := svcmodels.GetJSTemplateByJsSourceID(h.db, tplID); err != nil {
+				response.Fail(c, "Specified JS template does not exist", nil)
+				return
+			}
 		}
-		updateData["js_source_id"] = input.JsSourceId
+		updateData["bound_js_template_source_id"] = tplID
 	}
 
 	if err := h.db.Model(&assistant).Where("id = ?", id).Updates(updateData).Error; err != nil {
@@ -326,10 +330,13 @@ func (h *Handlers) ServeVoiceSculptorLoaderJS(c *gin.Context) {
 
 	// Check if there is a bound JS template
 	var templateContent string
-	if agent.JsSourceID != "" {
+	var boundPetTemplate *svcmodels.JSTemplate
+	tplSourceID := strings.TrimSpace(agent.BoundJsTemplateSourceID)
+	if tplSourceID != "" {
 		// Try to get the bound JS template
-		jsTemplate, err := svcmodels.GetJSTemplateByJsSourceID(h.db, agent.JsSourceID)
+		jsTemplate, err := svcmodels.GetJSTemplateByJsSourceID(h.db, tplSourceID)
 		if err == nil && jsTemplate.Content != "" {
+			boundPetTemplate = jsTemplate
 			// 检查是否有灰度版本
 			activeVersion, err := svcmodels.GetActiveJSTemplateVersion(h.db, jsTemplate.ID)
 			if err == nil && activeVersion != nil && activeVersion.Grayscale > 0 {
@@ -338,15 +345,26 @@ func (h *Handlers) ServeVoiceSculptorLoaderJS(c *gin.Context) {
 				// 实际可以根据用户ID、IP等做更精细的灰度控制
 				userHash := hashString(c.ClientIP() + c.GetHeader("User-Agent"))
 				if userHash%100 < activeVersion.Grayscale {
-					templateContent = activeVersion.Content
-				} else {
-					templateContent = jsTemplate.Content
+					boundPetTemplate = &svcmodels.JSTemplate{
+						ID:         jsTemplate.ID,
+						Content:    activeVersion.Content,
+						Name:       jsTemplate.Name,
+						JsSourceID: jsTemplate.JsSourceID,
+					}
 				}
-			} else {
-				// Use the bound JS template
-				templateContent = jsTemplate.Content
 			}
 		}
+	}
+
+	if boundPetTemplate != nil {
+		agentCfgJS := fmt.Sprintf(
+			"window.__AIPetConfig=window.__AIPetConfig||{};Object.assign(window.__AIPetConfig,{agentId:%d,speaker:%q,ttsProvider:%q,cmdVoiceBase:%q});",
+			agent.ID,
+			agent.Speaker,
+			agent.TtsProvider,
+			"http://127.0.0.1:7080",
+		)
+		templateContent = h.buildPetEmbedLoaderJS(c, boundPetTemplate, agentCfgJS)
 	}
 
 	// If there is no bound JS template, use the default client.js

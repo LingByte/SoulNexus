@@ -2,7 +2,7 @@ import { ReactNode, useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import PageLoadingScreen from '@/components/PageLoadingScreen.tsx'
 import { useAuthStore } from '@/stores/authStore'
-import { beginSSOLogin } from '@/utils/sso'
+import { openLoginModal } from '@/utils/authRedirect'
 import {
   getAccountDeletionRevokePageURL,
   isAccountDeletionRevokeStandalonePage,
@@ -28,7 +28,7 @@ const ProtectedRoute = ({ children, requireAuth = true }: ProtectedRouteProps) =
     if (isLoading || isLoggingOut) return
     if (requireAuth && !isAuthenticated) {
       const currentPath = location.pathname + location.search
-      beginSSOLogin(currentPath)
+      openLoginModal(currentPath, true)
     }
   }, [isAuthenticated, isLoading, isLoggingOut, requireAuth, location])
 
@@ -77,7 +77,7 @@ const ProtectedRoute = ({ children, requireAuth = true }: ProtectedRouteProps) =
       <div className="min-h-screen flex items-center justify-center text-gray-600 dark:text-gray-300">
         {isAccountDeletionRevokeStandalonePage()
           ? '账号处于注销冷静期，请在本页完成撤销验证。'
-          : '账号处于注销冷静期，正在跳转至用户服务撤销页…'}
+          : '账号处于注销冷静期，正在跳转至撤销页…'}
       </div>
     )
   }

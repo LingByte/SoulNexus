@@ -69,14 +69,24 @@ const ProviderConfigForm: React.FC<ProviderConfigFormProps> = ({
       case 'password':
         return (
           <div key={field.key} className="space-y-1">
-            <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" label={field.label}
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              {field.label}
+              {field.required && <span className="text-red-500 ml-1">*</span>}
+            </label>
+            <ArcoInput
+              size="large"
+              className="!h-10 !text-base ![&::placeholder]:text-base"
               type="password"
               value={value}
-              onChange={(e) => onChange(fieldKey, e.target.value)}
+              onChange={(val) => onChange(fieldKey, val)}
               placeholder={field.placeholder}
-              required={field.required}
-              helperText={field.description}
             />
+            {field.description && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 mt-1">
+                <Info className="w-3 h-3" />
+                {field.description}
+              </p>
+            )}
           </div>
         )
 
@@ -107,14 +117,24 @@ const ProviderConfigForm: React.FC<ProviderConfigFormProps> = ({
       default:
         return (
           <div key={field.key} className="space-y-1">
-            <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" label={field.label}
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              {field.label}
+              {field.required && <span className="text-red-500 ml-1">*</span>}
+            </label>
+            <ArcoInput
+              size="large"
+              className="!h-10 !text-base ![&::placeholder]:text-base"
               type="text"
               value={value}
-              onChange={(e) => onChange(fieldKey, e.target.value)}
+              onChange={(val) => onChange(fieldKey, val)}
               placeholder={field.placeholder}
-              required={field.required}
-              helperText={field.description}
             />
+            {field.description && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 mt-1">
+                <Info className="w-3 h-3" />
+                {field.description}
+              </p>
+            )}
           </div>
         )
     }

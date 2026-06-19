@@ -44,7 +44,7 @@ const GroupSettings: React.FC = () => {
   const [loadingQuotas, setLoadingQuotas] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deletingQuotaType, setDeletingQuotaType] = useState<string | null>(null);
-  const [deletingLoading, setDeletingLoading] = useState(false);
+  const [, setDeletingLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     type: '',
@@ -594,7 +594,7 @@ const GroupSettings: React.FC = () => {
               <div>
                 <h3 className="text-lg font-medium text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-2">
                   <Bot className="w-5 h-5" />
-                  {t('groupSettings.assistants')} ({resources?.assistants?.length || 0})
+                  {t('groupSettings.assistants')} ({resources?.agents?.length || 0})
                 </h3>
                 {resources?.agents && resources.agents.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

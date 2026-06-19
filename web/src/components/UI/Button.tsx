@@ -5,7 +5,7 @@ import {cn} from '@/utils/cn.ts'
 // @ts-ignore
 import {playClickSound, playHoverSound} from '@/utils/audioEffects.ts'
 
-interface ButtonProps extends Omit<ArcoButtonProps, 'type' | 'size' | 'loading'> {
+interface ButtonProps extends Omit<ArcoButtonProps, 'type' | 'size' | 'loading' | 'htmlType'> {
     variant?: 'default' | 'primary' | 'secondary' | 'outline' | 'ghost' | 'destructive' | 'success' | 'warning'
     size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'icon'
     loading?: boolean
@@ -14,6 +14,7 @@ interface ButtonProps extends Omit<ArcoButtonProps, 'type' | 'size' | 'loading'>
     fullWidth?: boolean
     animation?: 'none' | 'scale' | 'bounce' | 'pulse' | 'slide'
     enableAudio?: boolean
+    htmlType?: 'button' | 'submit' | 'reset'
 }
 
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(
@@ -27,6 +28,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
          fullWidth = false,
          animation = 'scale',
          enableAudio = true,
+         htmlType = 'button',
          children,
          disabled,
          onClick,
@@ -35,7 +37,6 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
      }, ref) => {
         // 深紫色主题 RGB: (109, 40, 217)
         const PURPLE_PRIMARY = '#6d28d9'
-        const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
 
         // 映射variant到Arco Design的type和自定义样式
         const variantConfig: Record<string, { type: any, customStyle?: React.CSSProperties }> = {
@@ -170,6 +171,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
                 <ArcoButton
                     ref={ref}
                     type={config.type}
+                    htmlType={htmlType}
                     size={arcoSize as any}
                     loading={loading}
                     disabled={disabled || loading}

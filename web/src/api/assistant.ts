@@ -24,7 +24,8 @@ export interface UpdateAssistantForm {
   enableVAD?: boolean // 是否启用VAD
   vadThreshold?: number // VAD阈值
   vadConsecutiveFrames?: number // VAD连续帧数
-  jsSourceId?: string // JS模板ID
+  jsSourceId?: string // loader.js 客户端 ID（勿与 JS 模板 jsSourceId 混用）
+  boundJsTemplateSourceId?: string // 绑定的 JS 模板 jsSourceId
   enableJSONOutput?: boolean
 }
 
@@ -40,6 +41,7 @@ export interface Assistant {
   maxTokens: number
   language?: string
   jsSourceId: string
+  boundJsTemplateSourceId?: string
   speaker?: string
   voiceCloneId?: number | null
   ttsProvider?: string

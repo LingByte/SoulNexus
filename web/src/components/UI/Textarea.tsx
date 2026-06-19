@@ -29,7 +29,7 @@ const Textarea = forwardRef<any, TextareaProps>(function Textarea(
     value,
     onChange,
     onValueChange,
-    size = 'default',
+    size: _size = 'default',
     disabled,
     readOnly,
     rows = 3,

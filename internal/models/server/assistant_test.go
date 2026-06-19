@@ -536,10 +536,11 @@ func TestGetAssistantByJSTemplateID(t *testing.T) {
 	gid := ensureTestTeamGroup(t, db, user.ID)
 
 	assistant := &Agent{
-		GroupID:    gid,
-		CreatedBy:  user.ID,
-		Name:       "Test Assistant",
-		JsSourceID: "js-test-123",
+		GroupID:                 gid,
+		CreatedBy:               user.ID,
+		Name:                    "Test Assistant",
+		JsSourceID:              "loader-client-123",
+		BoundJsTemplateSourceID: "js-test-123",
 	}
 	err = db.Create(assistant).Error
 	require.NoError(t, err)

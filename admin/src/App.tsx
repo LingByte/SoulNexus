@@ -23,7 +23,6 @@ const LlmUsage = lazy(() => import('@/pages/LlmUsage'))
 const LlmTokens = lazy(() => import('@/pages/LlmTokens'))
 const SpeechChannels = lazy(() => import('@/pages/SpeechChannels'))
 const SpeechUsage = lazy(() => import('@/pages/SpeechUsage'))
-const OAuthClients = lazy(() => import('@/pages/OAuthClients'))
 const Users = lazy(() => import('@/pages/Users'))
 const Permissions = lazy(() => import('@/pages/Permissions'))
 const Roles = lazy(() => import('@/pages/Roles'))
@@ -133,7 +132,6 @@ function App() {
                   <Route path="/llm-tokens" element={<LlmTokens />} />
                   <Route path="/speech-channels" element={<SpeechChannels />} />
                   <Route path="/speech-usage" element={<SpeechUsage />} />
-                  <Route path="/oauth-clients" element={<OAuthClients />} />
                   <Route path="/users" element={<Users />} />
                   <Route path="/permissions" element={<Permissions />} />
                   <Route path="/roles" element={<Roles />} />

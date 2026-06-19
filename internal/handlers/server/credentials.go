@@ -5,6 +5,7 @@ package server
 
 import (
 	"github.com/LingByte/SoulNexus/internal/models/auth"
+	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"fmt"
 
 	"github.com/LingByte/SoulNexus/pkg/response"
@@ -25,7 +26,7 @@ func (h *Handlers) handleCreateCredential(c *gin.Context) {
 		return
 	}
 
-	userCredential, err := h.rpc.Auth.CreateUserCredential(c.Request.Context(), user.ID, &credential)
+	userCredential, err := svcmodels.CreateUserCredential(h.db, user.ID, &credential)
 	if err != nil {
 		response.Fail(c, "create user credential failed", err)
 		return
@@ -44,7 +45,7 @@ func (h *Handlers) handleGetCredential(c *gin.Context) {
 		response.Fail(c, "User is not logged in.", nil)
 		return
 	}
-	credentials, err := h.rpc.Auth.ListUserCredentials(c.Request.Context(), user.ID)
+	credentials, err := svcmodels.GetUserCredentials(h.db, user.ID)
 	if err != nil {
 		response.Fail(c, "get user credentials failed", err)
 		return
@@ -98,7 +99,7 @@ func (h *Handlers) handleDeleteCredential(c *gin.Context) {
 	}
 
 	// Delete credential
-	err = h.rpc.Auth.DeleteUserCredentialForUser(c.Request.Context(), user.ID, credentialID)
+	err = svcmodels.DeleteUserCredential(h.db, user.ID, credentialID)
 	if err != nil {
 		response.Fail(c, "Failed to delete credential", err)
 		return

@@ -5,7 +5,6 @@ package server
 
 import (
 	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
-	authv1 "github.com/LingByte/SoulNexus/internal/grpc/auth/pb/auth/v1"
 	"errors"
 	"net/http"
 	"strconv"
@@ -182,7 +181,7 @@ func (h *Handlers) handleAdminListCredentials(c *gin.Context) {
 			filterUserID = uint(uid)
 		}
 	}
-	creds, total, err := h.rpc.Auth.AdminListCredentials(c.Request.Context(), page, pageSize, search, status, filterUserID)
+	creds, total, err := svcmodels.AdminListCredentials(h.db, page, pageSize, search, status, filterUserID)
 	if err != nil {
 		response.Fail(c, "list credentials failed", err)
 		return
@@ -202,7 +201,7 @@ func (h *Handlers) handleAdminGetCredential(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid credential id"))
 		return
 	}
-	cred, err := h.rpc.Auth.GetCredential(c.Request.Context(), uint(id))
+	cred, err := svcmodels.GetCredentialByID(h.db, uint(id))
 	if err != nil {
 		response.Fail(c, "credential not found", err)
 		return
@@ -226,35 +225,7 @@ func (h *Handlers) handleAdminUpdateCredentialStatus(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("status is required"))
 		return
 	}
-	rpcReq := &authv1.UpdateCredentialStatusRequest{
-		Id:           id,
-		Status:       status,
-		BannedReason: req.BannedReason,
-	}
-	if req.ExpiresAt != nil {
-		rpcReq.ExpiresAt = req.ExpiresAt
-	}
-	if req.TokenQuota != nil {
-		if *req.TokenQuota < 0 {
-			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("tokenQuota must be >= 0"))
-			return
-		}
-		rpcReq.TokenQuota = req.TokenQuota
-	}
-	if req.RequestQuota != nil {
-		if *req.RequestQuota < 0 {
-			response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("requestQuota must be >= 0"))
-			return
-		}
-		rpcReq.RequestQuota = req.RequestQuota
-	}
-	if req.UseNativeQuota != nil {
-		rpcReq.UseNativeQuota = req.UseNativeQuota
-	}
-	if req.UnlimitedQuota != nil {
-		rpcReq.UnlimitedQuota = req.UnlimitedQuota
-	}
-	cred, err := h.rpc.Auth.UpdateCredentialStatus(c.Request.Context(), rpcReq)
+	cred, err := svcmodels.AdminUpdateCredentialStatus(h.db, uint(id), status, req.BannedReason, req.ExpiresAt, req.TokenQuota, req.RequestQuota, req.UseNativeQuota, req.UnlimitedQuota)
 	if err != nil {
 		response.Fail(c, "update credential status failed", err)
 		return
@@ -268,7 +239,7 @@ func (h *Handlers) handleAdminDeleteCredential(c *gin.Context) {
 		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid credential id"))
 		return
 	}
-	if err = h.rpc.Auth.DeleteCredential(c.Request.Context(), uint(id)); err != nil {
+	if err = svcmodels.AdminDeleteCredential(h.db, uint(id)); err != nil {
 		response.Fail(c, "delete credential failed", err)
 		return
 	}

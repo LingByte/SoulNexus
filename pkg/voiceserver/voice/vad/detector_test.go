@@ -23,15 +23,6 @@ func quietPCMFrame() []byte {
 	return bytes.Repeat([]byte{0x00, 0x00}, 80)
 }
 
-func TestCalculateRMS_Edges(t *testing.T) {
-	if calculateRMS(nil) != 0 || calculateRMS([]byte{1}) != 0 {
-		t.Fatal("empty/short buffer should RMS 0")
-	}
-	if v := calculateRMS([]byte{0x00, 0x10}); v <= 0 {
-		t.Fatalf("rms for non-zero sample should be > 0, got %v", v)
-	}
-}
-
 func TestDetector_CheckBargeIn_DisabledOrNotPlaying(t *testing.T) {
 	d := NewDetector()
 	d.SetEnabled(false)

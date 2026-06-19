@@ -1,10 +1,5 @@
 import { get, put, post, del, ApiResponse } from '@/utils/request'
-import { getUserServiceBaseURL } from '@/config/apiConfig'
 import { normalizeAuthUser } from '@/utils/authUserProfile'
-
-const userServiceConfig = {
-  baseURL: getUserServiceBaseURL(),
-}
 
 // 用户资料更新表单 - 对应后端 UpdateUserRequest
 export interface UpdateProfileForm {
@@ -52,7 +47,7 @@ export interface AvatarUploadResponse {
 
 // 获取用户资料
 export const getProfile = async (): Promise<ApiResponse<any>> => {
-  const res = await get<any>('/auth/info', userServiceConfig)
+  const res = await get<any>('/auth/info')
   if (res.code === 200 && res.data) {
     return { ...res, data: normalizeAuthUser(res.data as Record<string, unknown>) }
   }
@@ -61,22 +56,22 @@ export const getProfile = async (): Promise<ApiResponse<any>> => {
 
 // 更新用户资料 - 对应 PUT /auth/update
 export const updateProfile = async (data: UpdateProfileForm): Promise<ApiResponse<null>> => {
-  return put('/auth/update', data, userServiceConfig)
+  return put('/auth/update', data)
 }
 
 // 更新用户基本信息 - 对应 POST /auth/update/basic/info
 export const updateBasicInfo = async (data: UpdateBasicInfoForm): Promise<ApiResponse<null>> => {
-  return post('/auth/update/basic/info', data, userServiceConfig)
+  return post('/auth/update/basic/info', data)
 }
 
 // 更新用户偏好设置 - 对应 PUT /auth/update/preferences
 export const updatePreferences = async (data: UpdatePreferencesForm): Promise<ApiResponse<null>> => {
-  return put('/auth/update/preferences', data, userServiceConfig)
+  return put('/auth/update/preferences', data)
 }
 
 // 修改密码
 export const changePassword = async (data: ChangePasswordForm): Promise<ApiResponse<null>> => {
-  return post('/auth/change-password', data, userServiceConfig)
+  return post('/auth/change-password', data)
 }
 
 // 通过邮箱验证码修改密码
@@ -87,14 +82,14 @@ export interface ChangePasswordByEmailForm {
 }
 
 export const changePasswordByEmail = async (data: ChangePasswordByEmailForm): Promise<ApiResponse<null>> => {
-  return post('/auth/change-password/email', data, userServiceConfig)
+  return post('/auth/change-password/email', data)
 }
 
 // 上传头像
 export const uploadAvatar = async (file: File): Promise<ApiResponse<AvatarUploadResponse>> => {
   const formData = new FormData()
   formData.append('avatar', file)
-  return post('/auth/avatar/upload', formData, userServiceConfig)
+  return post('/auth/avatar/upload', formData)
 }
 
 // 删除头像
@@ -117,22 +112,22 @@ export interface TwoFactorCodeRequest {
 
 // 设置两步验证（生成密钥和QR码）
 export const setupTwoFactor = async (): Promise<ApiResponse<TwoFactorSetupResponse>> => {
-  return post('/auth/two-factor/setup', {}, userServiceConfig)
+  return post('/auth/two-factor/setup', {})
 }
 
 // 启用两步验证
 export const enableTwoFactor = async (code: string): Promise<ApiResponse<null>> => {
-  return post('/auth/two-factor/enable', { code }, userServiceConfig)
+  return post('/auth/two-factor/enable', { code })
 }
 
 // 禁用两步验证
 export const disableTwoFactor = async (code: string): Promise<ApiResponse<null>> => {
-  return post('/auth/two-factor/disable', { code }, userServiceConfig)
+  return post('/auth/two-factor/disable', { code })
 }
 
 // 获取两步验证状态
 export const getTwoFactorStatus = async (): Promise<ApiResponse<TwoFactorStatusResponse>> => {
-  return get('/auth/two-factor/status', userServiceConfig)
+  return get('/auth/two-factor/status')
 }
 
 // 活动记录相关接口
@@ -196,7 +191,7 @@ export const getUserActivity = async (params?: {
 
   const queryString = queryParams.toString()
   const url = queryString ? `/auth/activity?${queryString}` : '/auth/activity'
-  return get(url, userServiceConfig)
+  return get(url)
 }
 
 // 设备管理相关接口
@@ -224,22 +219,22 @@ export interface UserDevicesResponse {
 
 // 获取用户设备列表
 export const getUserDevices = async (): Promise<ApiResponse<UserDevicesResponse>> => {
-  return get('/auth/devices', userServiceConfig)
+  return get('/auth/devices')
 }
 
 // 删除用户设备
 export const deleteUserDevice = async (deviceId: string): Promise<ApiResponse<null>> => {
-  return del(`/auth/devices/${deviceId}`, userServiceConfig)
+  return del(`/auth/devices/${deviceId}`)
 }
 
 // 信任用户设备
 export const trustUserDevice = async (deviceId: string): Promise<ApiResponse<null>> => {
-  return post('/auth/devices/trust', { deviceId }, userServiceConfig)
+  return post('/auth/devices/trust', { deviceId })
 }
 
 // 取消信任用户设备
 export const untrustUserDevice = async (deviceId: string): Promise<ApiResponse<null>> => {
-  return post('/auth/devices/untrust', { deviceId }, userServiceConfig)
+  return post('/auth/devices/untrust', { deviceId })
 }
 
 export interface BindEmailForm {
@@ -255,12 +250,12 @@ export interface ChangeEmailForm {
 
 /** 向当前账号邮箱发送换绑验证码 */
 export const sendCurrentEmailCode = async (): Promise<ApiResponse<null>> => {
-  return post('/auth/email/send-current-code', {}, userServiceConfig)
+  return post('/auth/email/send-current-code', {})
 }
 
 /** 绑定邮箱（未绑定真实邮箱时使用） */
 export const bindEmail = async (data: BindEmailForm): Promise<ApiResponse<any>> => {
-  const res = await post<any>('/auth/email/bind', data, userServiceConfig)
+  const res = await post<any>('/auth/email/bind', data)
   if (res.code === 200 && res.data) {
     return { ...res, data: normalizeAuthUser(res.data as Record<string, unknown>) }
   }
@@ -269,7 +264,7 @@ export const bindEmail = async (data: BindEmailForm): Promise<ApiResponse<any>> 
 
 /** 换绑邮箱 */
 export const changeEmail = async (data: ChangeEmailForm): Promise<ApiResponse<any>> => {
-  const res = await post<any>('/auth/email/change', data, userServiceConfig)
+  const res = await post<any>('/auth/email/change', data)
   if (res.code === 200 && res.data) {
     return { ...res, data: normalizeAuthUser(res.data as Record<string, unknown>) }
   }

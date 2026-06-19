@@ -4,15 +4,16 @@
 package voice
 
 import (
-	"fmt"
 	"context"
-	"github.com/LingByte/SoulNexus/pkg/logger"
+	"fmt"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/app"
+	"github.com/LingByte/SoulNexus/pkg/voiceserver/persist"
 	"github.com/LingByte/SoulNexus/pkg/voiceserver/voice/gateway"
 	voicertc "github.com/LingByte/SoulNexus/pkg/voiceserver/voice/webrtc"
 )
@@ -49,6 +50,17 @@ func (h *Handlers) mountWebRTC(r gin.IRoutes) bool {
 		return false
 	}
 	publicIPs := app.SplitCSV(utils.GetEnv("WEBRTC_PUBLIC_IPS"))
+	var turnsLookup func(context.Context, string) ([]persist.VoiceCallDialogTurn, error)
+	if h.cfg.DB != nil {
+		db := h.cfg.DB
+		turnsLookup = func(ctx context.Context, callID string) ([]persist.VoiceCallDialogTurn, error) {
+			row, err := persist.FindVoiceCallByCallID(ctx, db, strings.TrimSpace(callID))
+			if err != nil {
+				return nil, err
+			}
+			return persist.UnmarshalVoiceCallTurns(row.Turns)
+		}
+	}
 	srv, err := voicertc.NewServer(voicertc.ServerConfig{
 		SessionFactory: sessionFactory,
 		DialogWSURL:    dialogWS,
@@ -71,6 +83,7 @@ func (h *Handlers) mountWebRTC(r gin.IRoutes) bool {
 		OnSessionEnd: func(_ context.Context, callID, reason string) {
 			logger.Info(fmt.Sprintf("[webrtc] session end   call=%s reason=%s", callID, reason))
 		},
+		TurnsLookup: turnsLookup,
 	})
 	if err != nil {
 		logger.Info(fmt.Sprintf("[webrtc] init failed: %v", err))
@@ -80,7 +93,8 @@ func (h *Handlers) mountWebRTC(r gin.IRoutes) bool {
 	r.Any(offerPath, gin.WrapF(srv.HandleOffer))
 	rootPath := strings.TrimSuffix(offerPath, "/offer")
 	r.Any(rootPath+"/hangup", gin.WrapF(srv.HandleHangup))
-	logger.Info(fmt.Sprintf("[webrtc] mounted: offer=%s hangup=%s (ice=%d public=%v) -> dialog=%s",
-		offerPath, rootPath+"/hangup", len(iceServers), publicIPs, gateway.RedactDialogDialURL(dialogWS)))
+	r.Any(rootPath+"/turns", gin.WrapF(srv.HandleTurns))
+	logger.Info(fmt.Sprintf("[webrtc] mounted: offer=%s hangup=%s turns=%s (ice=%d public=%v) -> dialog=%s",
+		offerPath, rootPath+"/hangup", rootPath+"/turns", len(iceServers), publicIPs, gateway.RedactDialogDialURL(dialogWS)))
 	return true
 }

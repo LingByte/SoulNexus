@@ -14,11 +14,25 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/utils"
 )
 
-// ServerEntities is the business API schema for cmd/server (and SIP when sharing the main API database).
-// User identity/RBAC tables are owned by cmd/auth (AuthEntities); server validates JWT permission claims only.
+// ServerEntities is the unified schema for cmd/server (business API + user auth/RBAC).
 func ServerEntities() []any {
-	return []any{
+	entities := []any{
 		&utils.Config{},
+		&auth.User{},
+		&auth.UserProfile{},
+		&auth.Role{},
+		&auth.Permission{},
+		&auth.RolePermission{},
+		&auth.UserRole{},
+		&auth.UserPermission{},
+		&auth.UserCredential{},
+		&auth.TwoFA{},
+		&auth.TwoFABackupCode{},
+		&auth.Passkey{},
+		&auth.PasskeyChallenge{},
+		&auth.LoginHistory{},
+		&auth.AccountLock{},
+		&auth.UserDevice{},
 		&svcmodels.Group{},
 		&svcmodels.GroupMember{},
 		&svcmodels.GroupInvitation{},
@@ -69,6 +83,7 @@ func ServerEntities() []any {
 		&svcmodels.KnowledgeNamespace{},
 		&svcmodels.KnowledgeDocument{},
 	}
+	return entities
 }
 
 // AuthEntities is the subset migrated by cmd/auth when running as a standalone user service.
@@ -97,7 +112,6 @@ func AuthEntities() []any {
 		&svcmodels.MailTemplate{},
 		&mail.MailLog{},
 		&sms.SMSLog{},
-		&auth.OAuthClient{},
 		&auth.UserDevice{},
 		&svcmodels.Device{},
 	}

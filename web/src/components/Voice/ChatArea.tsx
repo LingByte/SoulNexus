@@ -407,6 +407,16 @@ const ChatArea: React.FC<ChatAreaProps> = ({
               <p className="text-sm">点击左侧语音按钮开始聊天</p>
             </div>
           </div>
+        ) : isCalling && messages.length === 0 ? (
+          <div className="flex items-center justify-center h-full text-gray-400 dark:text-gray-500">
+            <div className="text-center">
+              <div className="flex justify-center mb-4">
+                <Bot className="w-12 h-12 opacity-30 animate-pulse" />
+              </div>
+              <p className="text-lg font-medium">通话中</p>
+              <p className="text-sm">对话内容将显示在这里</p>
+            </div>
+          </div>
         ) : (
           messages.map((msg, index) => (
             <motion.div

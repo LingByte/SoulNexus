@@ -41,6 +41,8 @@ import type { Assistant, ChatMessage, VoiceChatSession, LineMode } from './Voice
 // 导入自定义 Hooks
 import { useVoiceAssistant } from '@/hooks/useVoiceAssistant'
 import { PcmUtteranceQueue } from '@/lib/voice/pcmStreamPlayer'
+import { applyPetLipSync, resetPetLipSync } from '@/lib/voice/petLipSyncBridge'
+import { AudioElementLipSyncAnalyzer, MediaStreamLipSyncAnalyzer } from '@/lib/voice/mediaStreamLipSync'
 /** cmd/voice `-http` 访问前缀，可包含反向代理路径前缀。 */
 function getCmdVoiceBase(): string {
     const raw = ((import.meta.env.VITE_CMD_VOICE_BASE as string | undefined) || 'http://127.0.0.1:7080').trim()
@@ -69,6 +71,18 @@ function buildCmdVoiceBrowserVoiceURL(payload: Record<string, unknown>): string 
     }
 }
 
+declare global {
+  interface Window {
+    __SOUL_PET_VOICE_HOST__?: {
+      startCall?: () => void | Promise<void>
+      stopCall?: () => void | Promise<void>
+      toggleCall?: () => void | Promise<void>
+      isCalling?: () => boolean
+      isConnecting?: () => boolean
+    }
+  }
+}
+
 const VoiceAssistant = () => {
     const WS_AUDIO_DEBUG = false
     const { t } = useI18nStore()
@@ -87,7 +101,7 @@ const VoiceAssistant = () => {
     const [assistants, setAssistants] = useState<Assistant[]>([])
     const [chatHistory, setChatHistory] = useState<VoiceChatSession[]>([])
     const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
-    const [loading, setLoading] = useState(true)
+    const [, setLoading] = useState(true)
     const [historyLoading, setHistoryLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
@@ -99,6 +113,8 @@ const VoiceAssistant = () => {
     /** xiaozhi 边收边播 + 多段 utterance 顺序队列 */
     const pcmTTSQueueRef = useRef<PcmUtteranceQueue | null>(null)
     const wsAudioContextRef = useRef<AudioContext | null>(null)
+    const webrtcLipSyncRef = useRef<MediaStreamLipSyncAnalyzer | null>(null)
+    const audioLipSyncRef = useRef<AudioElementLipSyncAnalyzer | null>(null)
     const lastASRTextRef = useRef<string>('') // 上次已处理的ASR文本（用于去重）
     const lastLLMResponseRef = useRef<string>('') // 上次已处理的LLM回复（用于去重）
     const lastSelectedAgentRef = useRef<number | null>(null) // 防止重复选择同一个助手
@@ -119,7 +135,7 @@ const VoiceAssistant = () => {
     const [socket, setSocket] = useState<WebSocket | null>(null)
     const [peerConnection, setPeerConnection] = useState<RTCPeerConnection | null>(null)
     const [localStream, setLocalStream] = useState<MediaStream | null>(null)
-    const [callDuration, setCallDuration] = useState(0)
+    const [, setCallDuration] = useState(0)
     const [callTimer, setCallTimer] = useState<NodeJS.Timeout | null>(null)
 
     // 线路选择：WebRTC / ASR+TTS
@@ -127,6 +143,8 @@ const VoiceAssistant = () => {
     const mediaRecorderRef = useRef<MediaRecorder | null>(null)
     /** cmd/voice WebRTC：与 React state 同步，便于卸载/挂断时可靠清理 */
     const webrtcCallIdRef = useRef<string | null>(null)
+    const [webrtcCallId, setWebrtcCallId] = useState<string | null>(null)
+    const webrtcTurnsSigRef = useRef('')
     const webrtcPcRef = useRef<RTCPeerConnection | null>(null)
     const webrtcLocalStreamRef = useRef<MediaStream | null>(null)
     const webrtcRemoteAudioRef = useRef<HTMLAudioElement | null>(null)
@@ -197,7 +215,7 @@ const VoiceAssistant = () => {
     const [temperature, setTemperature] = useState(0.6)
     const [maxTokens, setMaxTokens] = useState(512)
     const [llmModel, setLlmModel] = useState('')
-    const [jsSourceIdState, setJsSourceIdState] = useState('')
+    const [boundJsTemplateSourceId, setBoundJsTemplateSourceId] = useState('')
 
     // 助手基本信息
     const [assistantName, setAssistantName] = useState('')
@@ -258,7 +276,7 @@ const VoiceAssistant = () => {
         setApiSecret(detail.apiSecret ?? '')
         if (detail.ttsProvider) {
             agentTtsProviderFromDbRef.current = true
-            setTtsProvider(detail.ttsProvider)
+            setTtsProvider(detail.ttsProvider.trim().toLowerCase())
         } else {
             agentTtsProviderFromDbRef.current = false
             setTtsProvider(undefined)
@@ -268,7 +286,7 @@ const VoiceAssistant = () => {
         setVadThreshold(detail.vadThreshold ?? 500)
         setVadConsecutiveFrames(detail.vadConsecutiveFrames ?? 2)
         setEnableJSONOutput(detail.enableJSONOutput !== undefined ? detail.enableJSONOutput : false)
-        setJsSourceIdState(detail.jsSourceId ?? '')
+        setBoundJsTemplateSourceId(detail.boundJsTemplateSourceId ?? '')
     }
 
     const markSettingsDirty = () => {
@@ -296,7 +314,6 @@ const VoiceAssistant = () => {
                 }
                 if (ext.enableJSONOutput !== undefined) {
                     setEnableJSONOutput(ext.enableJSONOutput)
-                    setJsSourceIdState(ext.jsSourceId || '')
                 }
             }
         }
@@ -636,6 +653,9 @@ const VoiceAssistant = () => {
     const stopCurrentTTSPlayback = () => {
         pcmTTSQueueRef.current?.stopAll()
         pcmTTSQueueRef.current = null
+        audioLipSyncRef.current?.stop()
+        audioLipSyncRef.current = null
+        resetPetLipSync()
 
         if (currentPlayingAudioRef.current) {
             currentPlayingAudioRef.current.pause()
@@ -861,7 +881,10 @@ const VoiceAssistant = () => {
                             void wsAudioContextRef.current.resume()
                         }
                         if (!pcmTTSQueueRef.current) {
-                            pcmTTSQueueRef.current = new PcmUtteranceQueue(wsAudioContextRef.current)
+                            pcmTTSQueueRef.current = new PcmUtteranceQueue(wsAudioContextRef.current, {
+                                onVolume: applyPetLipSync,
+                                onIdle: resetPetLipSync,
+                            })
                         }
                         pcmTTSQueueRef.current.beginUtterance({ sampleRate, channels, bitDepth })
                     } else if (data.state === 'stop') {
@@ -1044,7 +1067,12 @@ const VoiceAssistant = () => {
                 })
         }
 
-        audio.play().catch(err => {
+        audio.play().then(() => {
+            if (!audioLipSyncRef.current) {
+                audioLipSyncRef.current = new AudioElementLipSyncAnalyzer()
+            }
+            audioLipSyncRef.current.start(audio)
+        }).catch(err => {
             console.error('TTS音频播放失败:', err)
             console.error('音频URL:', audioUrl)
             currentPlayingAudioRef.current = null
@@ -1068,7 +1096,11 @@ const VoiceAssistant = () => {
         let stream: MediaStream | null = null
 
         const cleanupLocal = () => {
+            webrtcLipSyncRef.current?.stop()
+            webrtcLipSyncRef.current = null
             webrtcCallIdRef.current = null
+            setWebrtcCallId(null)
+            webrtcTurnsSigRef.current = ''
             const c = webrtcPcRef.current
             if (c) {
                 try {
@@ -1122,8 +1154,13 @@ const VoiceAssistant = () => {
 
         conn.ontrack = (evt) => {
             const el = webrtcRemoteAudioRef.current
-            if (el && evt.streams[0]) {
-                el.srcObject = evt.streams[0]
+            const stream = evt.streams[0]
+            if (el && stream) {
+                el.srcObject = stream
+                if (!webrtcLipSyncRef.current) {
+                    webrtcLipSyncRef.current = new MediaStreamLipSyncAnalyzer()
+                }
+                webrtcLipSyncRef.current.start(stream)
             }
         }
 
@@ -1228,6 +1265,7 @@ const VoiceAssistant = () => {
         }
 
         webrtcCallIdRef.current = callId || null
+        setWebrtcCallId(callId || null)
 
         try {
             await conn.setRemoteDescription({ type: 'answer', sdp: answer.sdp })
@@ -1242,6 +1280,71 @@ const VoiceAssistant = () => {
         setIsConnecting(false)
         setIsCalling(true)
     }
+
+    useEffect(() => {
+        if (!isCalling || lineMode !== 'webrtc' || !webrtcCallId) {
+            return
+        }
+
+        let cancelled = false
+
+        const syncWebRTCTurns = async () => {
+            try {
+                const resp = await fetch(
+                    `${getCmdVoiceBase()}/webrtc/v1/turns?call_id=${encodeURIComponent(webrtcCallId)}`
+                )
+                if (!resp.ok || cancelled) {
+                    return
+                }
+                const data = await resp.json()
+                const turns: Array<{ asrText?: string; llmText?: string; at?: string }> = data.turns || []
+                const signature = JSON.stringify(
+                    turns.map((turn) => [turn.asrText ?? '', turn.llmText ?? '']),
+                )
+                if (signature === webrtcTurnsSigRef.current) {
+                    return
+                }
+                webrtcTurnsSigRef.current = signature
+                const messages: ChatMessage[] = []
+                turns.forEach((turn, index) => {
+                    const timestamp = turn.at || new Date().toISOString()
+                    const asrText = turn.asrText?.trim()
+                    const llmText = turn.llmText?.trim()
+                    if (asrText) {
+                        messages.push({
+                            type: 'user',
+                            content: asrText,
+                            timestamp,
+                            id: `webrtc-u-${index}`,
+                        })
+                    }
+                    if (llmText) {
+                        messages.push({
+                            type: 'agent',
+                            content: llmText,
+                            timestamp,
+                            id: `webrtc-a-${index}`,
+                        })
+                    }
+                })
+                if (!cancelled) {
+                    setChatMessages(messages)
+                }
+            } catch {
+                /* poll errors are non-fatal */
+            }
+        }
+
+        void syncWebRTCTurns()
+        const timer = window.setInterval(() => {
+            void syncWebRTCTurns()
+        }, 1500)
+
+        return () => {
+            cancelled = true
+            window.clearInterval(timer)
+        }
+    }, [isCalling, lineMode, webrtcCallId])
 
     // 使用 ref 防止 StrictMode 导致的重复请求
     const initializedRef = useRef(false)
@@ -1387,6 +1490,8 @@ const VoiceAssistant = () => {
                 const hangUrl = `${getCmdVoiceBase()}/webrtc/v1/hangup?call_id=${encodeURIComponent(hangId)}`
                 fetch(hangUrl, { method: 'POST', keepalive: true }).catch(() => {})
                 webrtcCallIdRef.current = null
+                setWebrtcCallId(null)
+                webrtcTurnsSigRef.current = ''
             }
             if (webrtcPcRef.current) {
                 try {
@@ -1403,6 +1508,9 @@ const VoiceAssistant = () => {
             if (webrtcRemoteAudioRef.current) {
                 webrtcRemoteAudioRef.current.srcObject = null
             }
+            webrtcLipSyncRef.current?.stop()
+            webrtcLipSyncRef.current = null
+            resetPetLipSync()
             if (peerConnection && peerConnection.connectionState !== 'closed') {
                 peerConnection.close()
             }
@@ -1439,6 +1547,7 @@ const VoiceAssistant = () => {
             setIsConnecting(true)
             setCallDuration(0)
             setChatMessages([]) // 清空当前聊天记录
+            webrtcTurnsSigRef.current = ''
 
             // 根据线路选择连接方式
             if (lineMode === 'webrtc') {
@@ -1479,6 +1588,8 @@ const VoiceAssistant = () => {
             if (lineMode === 'webrtc') {
                 const id = webrtcCallIdRef.current
                 webrtcCallIdRef.current = null
+                setWebrtcCallId(null)
+                webrtcTurnsSigRef.current = ''
                 if (id) {
                     try {
                         await fetch(
@@ -1506,6 +1617,9 @@ const VoiceAssistant = () => {
                 if (webrtcRemoteAudioRef.current) {
                     webrtcRemoteAudioRef.current.srcObject = null
                 }
+                webrtcLipSyncRef.current?.stop()
+                webrtcLipSyncRef.current = null
+                resetPetLipSync()
             } else if (lineMode === 'websocket') {
                 // 停止WebSocket录音
                 if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
@@ -1554,6 +1668,32 @@ const VoiceAssistant = () => {
             return false
         }
     }
+
+    const startCallRef = useRef(startCall)
+    const stopCallRef = useRef(stopCall)
+    startCallRef.current = startCall
+    stopCallRef.current = stopCall
+
+    /** 桌宠右击「开始对话」委托给本页，避免 embed voice bridge 重复 WebRTC 建连 */
+    useEffect(() => {
+        window.__SOUL_PET_VOICE_HOST__ = {
+            startCall: () => {
+                void startCallRef.current()
+            },
+            stopCall: () => {
+                void stopCallRef.current()
+            },
+            toggleCall: () => {
+                if (isCalling || isConnecting) void stopCallRef.current()
+                else void startCallRef.current()
+            },
+            isCalling: () => isCalling,
+            isConnecting: () => isConnecting,
+        }
+        return () => {
+            delete window.__SOUL_PET_VOICE_HOST__
+        }
+    }, [isCalling, isConnecting])
 
     // 开始新会话
     const startNewSession = async () => {
@@ -1658,7 +1798,7 @@ const VoiceAssistant = () => {
                     vadThreshold,
                     vadConsecutiveFrames,
                     enableJSONOutput,
-                    jsSourceId: jsSourceIdState || '',
+                    boundJsTemplateSourceId: boundJsTemplateSourceId || '',
                 })
 
                 if (response.code === 200 && response.data) {
@@ -1903,13 +2043,13 @@ const VoiceAssistant = () => {
                                     temperature={temperature}
                                     maxTokens={maxTokens}
                                     llmModel={llmModel}
-                                    jsSourceId={jsSourceIdState}
+                                    boundJsTemplateSourceId={boundJsTemplateSourceId}
+                                    onBoundJsTemplateSourceIdChange={(v) => { markSettingsDirty(); setBoundJsTemplateSourceId(v) }}
                                     onSpeakerChange={(v) => { markSettingsDirty(); setSelectedSpeaker(v) }}
                                     onSystemPromptChange={(v) => { markSettingsDirty(); setSystemPrompt(v) }}
                                     onTemperatureChange={(v) => { markSettingsDirty(); setTemperature(v) }}
                                     onMaxTokensChange={(v) => { markSettingsDirty(); setMaxTokens(v) }}
                                     onLlmModelChange={(v) => { markSettingsDirty(); setLlmModel(v) }}
-                                    onJsSourceIdChange={(v) => { markSettingsDirty(); setJsSourceIdState(v) }}
                                     assistantName={assistantName}
                                     onAssistantNameChange={(v) => { markSettingsDirty(); setAssistantName(v) }}
                                     enableVAD={enableVAD}

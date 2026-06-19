@@ -91,7 +91,7 @@ export default function UsageCharts({ dailyData, statistics }: UsageChartsProps)
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey="date" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} tickFormatter={formatNumber} />
-              <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => formatNumber(v)} />
+              <Tooltip contentStyle={tooltipStyle} formatter={(v) => formatNumber(Number(v ?? 0))} />
               <Bar dataKey="tokens" fill={COLORS[0]} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
@@ -120,7 +120,7 @@ export default function UsageCharts({ dailyData, statistics }: UsageChartsProps)
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
             <XAxis dataKey="date" tick={{ fontSize: 11 }} />
             <YAxis tick={{ fontSize: 11 }} tickFormatter={formatDuration} />
-            <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => formatDuration(v)} />
+            <Tooltip contentStyle={tooltipStyle} formatter={(v) => formatDuration(Number(v ?? 0))} />
             <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
             <Line type="monotone" dataKey="asr" stroke={COLORS[1]} name={t('billing.charts.asrDuration')} strokeWidth={2} dot={false} />
             <Line type="monotone" dataKey="tts" stroke={COLORS[2]} name={t('billing.charts.ttsDuration')} strokeWidth={2} dot={false} />

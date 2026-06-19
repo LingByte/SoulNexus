@@ -41,7 +41,6 @@ import PageHeader from '@/components/Layout/PageHeader';
 import { Select as ArcoSelect } from '@arco-design/web-react';
 import EmptyState from '@/components/UI/EmptyState';
 import Badge from '@/components/UI/Badge';
-import CollapsibleSectionHeader from '@/components/UI/CollapsibleSectionHeader';
 
 const DeviceManagement: React.FC = () => {
     const { t } = useI18nStore();
@@ -529,7 +528,7 @@ const DeviceManagement: React.FC = () => {
                             </label>
                             <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" type="text"
                                 value={activationCode}
-                                onChange={(e) => setActivationCode(e.target.value)}
+                                onChange={(val) => setActivationCode(val)}
                                 placeholder={t('device.bindModal.activationCodePlaceholder')}
                                 maxLength={6}
                             />
@@ -574,7 +573,7 @@ const DeviceManagement: React.FC = () => {
                             </label>
                             <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" type="text"
                                 value={addForm.macAddress}
-                                onChange={(e) => setAddForm({ ...addForm, macAddress: e.target.value })}
+                                onChange={(val) => setAddForm({ ...addForm, macAddress: val })}
                                 placeholder={t('device.addModal.macAddressPlaceholder')}
                             />
                         </div>
@@ -584,7 +583,7 @@ const DeviceManagement: React.FC = () => {
                             </label>
                             <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" type="text"
                                 value={addForm.board}
-                                onChange={(e) => setAddForm({ ...addForm, board: e.target.value })}
+                                onChange={(val) => setAddForm({ ...addForm, board: val })}
                                 placeholder={t('device.addModal.boardPlaceholder')}
                             />
                         </div>
@@ -594,7 +593,7 @@ const DeviceManagement: React.FC = () => {
                             </label>
                             <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" type="text"
                                 value={addForm.appVersion}
-                                onChange={(e) => setAddForm({ ...addForm, appVersion: e.target.value })}
+                                onChange={(val) => setAddForm({ ...addForm, appVersion: val })}
                                 placeholder={t('device.addModal.appVersionPlaceholder')}
                             />
                         </div>
@@ -633,7 +632,7 @@ const DeviceManagement: React.FC = () => {
                                 </label>
                                 <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" type="text"
                                     value={editForm.alias}
-                                    onChange={(e) => setEditForm({ ...editForm, alias: e.target.value })}
+                                    onChange={(val) => setEditForm({ ...editForm, alias: val })}
                                     placeholder={t('device.editModal.aliasPlaceholder')}
                                 />
                             </div>

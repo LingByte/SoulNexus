@@ -19,7 +19,7 @@ interface UseNodeOperationsProps {
  * 包含添加、删除、更新节点等操作
  */
 export const useNodeOperations = ({
-  nodes,
+  nodes: _nodes,
   connections,
   setNodes,
   setConnections,

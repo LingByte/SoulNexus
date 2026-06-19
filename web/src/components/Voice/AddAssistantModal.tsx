@@ -125,22 +125,19 @@ const AddAssistantModal: React.FC<AddAssistantModalProps> = ({ isOpen, onClose, 
                     </span>
                   </label>
                   {shareToGroup && (
-                    <Select
-                      value={selectedGroupId != null ? String(selectedGroupId) : ''}
-                      onValueChange={(v) => setSelectedGroupId(v ? Number(v) : null)}
+                    <ArcoSelect
+                      className="w-full"
+                      placeholder={t('assistants.selectGroup') || '选择组织'}
+                      value={selectedGroupId != null ? String(selectedGroupId) : undefined}
+                      onChange={(v: string) => setSelectedGroupId(v ? Number(v) : null)}
+                      allowClear
                     >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder={t('assistants.selectGroup') || '选择组织'} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="">{t('assistants.selectGroup') || '选择组织'}</SelectItem>
-                        {groups.map((group) => (
-                          <SelectItem key={group.id} value={String(group.id)}>
-                            {group.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      {groups.map((group) => (
+                        <ArcoSelect.Option key={group.id} value={String(group.id)}>
+                          {group.name}
+                        </ArcoSelect.Option>
+                      ))}
+                    </ArcoSelect>
                   )}
                 </div>
               )}

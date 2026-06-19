@@ -1196,11 +1196,7 @@ func (h *Handlers) getFishSpeechVoices(c *gin.Context) {
 
 	// 如果没有从查询参数获取，尝试从 user_credential 中获取
 	if apiKey == "" {
-		if h.rpc == nil || h.rpc.Auth == nil {
-			response.Fail(c, "auth 服务不可用", "请先启动 auth 服务")
-			return
-		}
-		credentials, err := h.rpc.Auth.ListUserCredentials(c.Request.Context(), user.ID)
+		credentials, err := svcmodels.GetUserCredentials(h.db, user.ID)
 		if err != nil {
 			logrus.WithError(err).Errorf("获取用户凭证失败")
 			response.Fail(c, "获取用户凭证失败", nil)
@@ -1262,11 +1258,7 @@ func (h *Handlers) getFishAudioVoices(c *gin.Context) {
 
 	// 如果没有从查询参数获取，尝试从 user_credential 中获取
 	if apiKey == "" {
-		if h.rpc == nil || h.rpc.Auth == nil {
-			response.Fail(c, "auth 服务不可用", "请先启动 auth 服务")
-			return
-		}
-		credentials, err := h.rpc.Auth.ListUserCredentials(c.Request.Context(), user.ID)
+		credentials, err := svcmodels.GetUserCredentials(h.db, user.ID)
 		if err != nil {
 			logrus.WithError(err).Errorf("获取用户凭证失败")
 			response.Fail(c, "获取用户凭证失败", nil)

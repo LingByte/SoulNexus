@@ -20,7 +20,6 @@ import { canBindEmail, canChangeEmail, isPlaceholderEmail } from '@/utils/emailA
 import Modal from '../components/UI/Modal'
 import { motion, AnimatePresence } from 'framer-motion'
 import ConfirmDialog from '../components/UI/ConfirmDialog'
-import { beginSSOLogin } from '@/utils/sso'
 import { Link, useParams, Navigate } from 'react-router-dom'
 import Billing from '@/pages/Billing.tsx'
 import NotificationCenter from '@/pages/NotificationCenter.tsx'
@@ -30,7 +29,7 @@ import LLMUsagePanel from '@/pages/profile/LLMUsagePanel.tsx'
 import TeamWorkspacePage from '@/pages/profile/TeamWorkspacePage.tsx'
 import ProfileAuditLogPanel from '@/pages/profile/ProfileAuditLogPanel.tsx'
 import { resolveDeviceVisualKind, type DeviceVisualKind } from '@/pages/profile/profileDeviceVisual'
-import { getUserServiceBaseURL } from '@/config/apiConfig'
+import { getApiBaseURL } from '@/config/apiConfig'
 
 const DEVICE_VISUAL: Record<
   DeviceVisualKind,
@@ -208,13 +207,9 @@ const Profile = () => {
   }, [isAuthenticated, user, updateAuthStore])
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      beginSSOLogin('/profile/personal')
+    if (!isAuthenticated || !user) {
+      return
     }
-  }, [isAuthenticated])
-
-  useEffect(() => {
-    if (!user) return
     setFormData((prev) => ({
       ...prev,
       locale: user.locale || prev.locale,
@@ -745,14 +740,14 @@ const Profile = () => {
 
   const handleBindGithub = () => {
     const target = `${window.location.origin}/profile/personal`
-    window.location.href = `${getUserServiceBaseURL()}/auth/github/login?bind=1&redirecturl=${encodeURIComponent(target)}`
+    window.location.href = `${getApiBaseURL()}/auth/github/login?bind=1&redirecturl=${encodeURIComponent(target)}`
   }
 
   const handleBindWechat = () => {
     const run = async () => {
       setIsWechatBinding(true)
       try {
-        const resp = await fetch(`${getUserServiceBaseURL()}/auth/wechat/bind/code`, {
+        const resp = await fetch(`${getApiBaseURL()}/auth/wechat/bind/code`, {
           method: 'GET',
           headers: {
             Authorization: `Bearer ${localStorage.getItem('auth_token') || ''}`,
@@ -775,7 +770,7 @@ const Profile = () => {
         }
         const poll = window.setInterval(async () => {
           try {
-            const statusResp = await fetch(`${getUserServiceBaseURL()}/auth/wechat/bind/status?sessionId=${encodeURIComponent(sessionId)}`, {
+            const statusResp = await fetch(`${getApiBaseURL()}/auth/wechat/bind/status?sessionId=${encodeURIComponent(sessionId)}`, {
               method: 'GET',
               headers: {
                 Authorization: `Bearer ${localStorage.getItem('auth_token') || ''}`,

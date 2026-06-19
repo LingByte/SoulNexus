@@ -133,10 +133,11 @@
         document.body.classList.add('app-loaded');
       });
       
-      // 错误监控
+      // 错误监控（忽略浏览器扩展注入的 live2d-widgets 脚本）
       window.addEventListener('error', function(e) {
-        console.error('Global error:', e.error);
-      });
+        if (e.filename && String(e.filename).indexOf('live2d-widgets') >= 0) return
+        console.error('Global error:', e.error)
+      })
       
       window.addEventListener('unhandledrejection', function(e) {
         console.error('Unhandled promise rejection:', e.reason);

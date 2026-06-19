@@ -10,6 +10,8 @@
 *.xml
 *.iml
 .idea
+.DS_Store
+.cache/
 /logs/*.log
 
 # Test binary, built with `go test -c`
@@ -120,3 +122,4 @@ dist/
 SoulNexusDoc/
 LingEchoX/
 keys/
+Open-LLM-VTuber-main/

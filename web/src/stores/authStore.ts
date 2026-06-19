@@ -3,7 +3,6 @@ import { persist } from 'zustand/middleware'
 import { registerUser, getUserInfo, logoutUser, type User, type RegisterUserForm, type RegisterResponseData } from '../api/auth'
 import { mergeUserPartial } from '@/utils/authUserProfile'
 import { applyAuthUserUIPreferences } from '@/utils/userUiPreferences'
-import { buildSSOLogoutURL } from '@/utils/sso'
 
 interface AuthState {
   user: User | null
@@ -99,11 +98,9 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: async (next?: string) => {
-        const nextURL = next || `${window.location.origin}/`
-        const currentToken = localStorage.getItem('auth_token') || undefined
+        const nextURL = next || `${window.location.origin}/login`
         set({ isLoggingOut: true })
         try {
-          // 调用登出API
           const response = await logoutUser(nextURL)
           if (response.code !== 200) {
             console.warn('Logout API warning:', response.msg)
@@ -111,12 +108,10 @@ export const useAuthStore = create<AuthState>()(
         } catch (error) {
           console.error('Logout API error:', error)
         } finally {
-          // 清除本地存储
           localStorage.removeItem('auth_token')
           localStorage.removeItem('refresh_token')
-          set({ user: null, isAuthenticated: false, token: null, currentOrganizationId: null })
-          // 通过浏览器重定向触发 SSO 端会话清理，避免再次无感登录
-          window.location.assign(buildSSOLogoutURL(nextURL, currentToken))
+          set({ user: null, isAuthenticated: false, token: null, currentOrganizationId: null, isLoggingOut: false })
+          window.location.assign(nextURL)
         }
       },
 
@@ -148,7 +143,7 @@ export const useAuthStore = create<AuthState>()(
       updateProfile: (data: Partial<User>) => {
         const { user } = get()
         if (user) {
-          set({ user: mergeUserPartial(user as unknown as Record<string, unknown>, data as Partial<Record<string, unknown>>) as User })
+          set({ user: mergeUserPartial(user as unknown as Record<string, unknown>, data as Partial<Record<string, unknown>>) as unknown as User })
         }
       },
 

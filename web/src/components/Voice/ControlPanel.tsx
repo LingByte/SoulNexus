@@ -33,8 +33,8 @@ interface ControlPanelProps {
     onTemperatureChange: (value: number) => void
     onMaxTokensChange: (value: number) => void
     onLlmModelChange: (value: string) => void
-    jsSourceId?: string
-    onJsSourceIdChange?: (value: string) => void
+    boundJsTemplateSourceId?: string
+    onBoundJsTemplateSourceIdChange?: (value: string) => void
 
     // 助手设置
     assistantName: string
@@ -87,8 +87,8 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                                        onTemperatureChange,
                                                        onMaxTokensChange,
                                                        onLlmModelChange,
-                                                       jsSourceId = '',
-                                                       onJsSourceIdChange,
+                                                       boundJsTemplateSourceId = '',
+                                                       onBoundJsTemplateSourceIdChange,
                                                        assistantName,
                                                        onAssistantNameChange,
                                                        enableVAD = true,
@@ -119,26 +119,23 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
     const [voiceOptions, setVoiceOptions] = useState<VoiceOption[]>([]);
     const [loadingVoices, setLoadingVoices] = useState(false);
     const [jsTemplates, setJsTemplates] = useState<JSTemplate[]>([])
-    const lastVoiceProviderRef = useRef<string | undefined>(undefined)
+    const voiceFetchSeqRef = useRef(0)
 
-    // 根据 TTS Provider 加载音色列表（不自动改写父组件已选音色，避免触发整页重渲染）
+    // 根据 TTS Provider 加载音色列表
     useEffect(() => {
-        const provider = ttsProvider || 'tencent'
-        if (lastVoiceProviderRef.current === provider) {
-            return
-        }
-        lastVoiceProviderRef.current = provider
-
+        const provider = (ttsProvider || 'tencent').trim().toLowerCase()
         if (!provider) {
             setVoiceOptions([])
+            setLoadingVoices(false)
             return
         }
 
+        const fetchSeq = ++voiceFetchSeqRef.current
         let cancelled = false
         setLoadingVoices(true)
         getVoiceOptions(provider)
             .then((response) => {
-                if (cancelled) return
+                if (cancelled || fetchSeq !== voiceFetchSeqRef.current) return
                 if (response.code === 200 && response.data?.voices) {
                     setVoiceOptions(response.data.voices)
                 } else {
@@ -146,13 +143,12 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                 }
             })
             .catch((error) => {
-                if (!cancelled) {
-                    console.error('获取音色列表失败:', error)
-                    setVoiceOptions([])
-                }
+                if (cancelled || fetchSeq !== voiceFetchSeqRef.current) return
+                console.error('获取音色列表失败:', error)
+                setVoiceOptions([])
             })
             .finally(() => {
-                if (!cancelled) {
+                if (!cancelled && fetchSeq === voiceFetchSeqRef.current) {
                     setLoadingVoices(false)
                 }
             })
@@ -166,7 +162,8 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         const fetchJSTemplates = async () => {
             try {
                 const response = await jsTemplateService.getTemplates({ page: 1, limit: 200 })
-                const templates = response?.data?.data || []
+                const payload = response?.data as { data?: JSTemplate[] } | JSTemplate[] | undefined
+                const templates = Array.isArray(payload) ? payload : (payload?.data ?? [])
                 setJsTemplates(templates)
             } catch (error) {
                 console.error('获取JS模板失败:', error)
@@ -416,8 +413,8 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                                 {t('controlPanel.assistant.jsTemplate')}
                                             </label>
                                             <ArcoSelect
-                                                value={jsSourceId || ''}
-                                                onChange={(value) => onJsSourceIdChange?.(value)}
+                                                value={boundJsTemplateSourceId || ''}
+                                                onChange={(value) => onBoundJsTemplateSourceIdChange?.(value)}
                                                 className="w-full"
                                                 placeholder={t('controlPanel.assistant.jsTemplatePlaceholder')}
                                                 options={[

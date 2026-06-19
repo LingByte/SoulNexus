@@ -18,7 +18,6 @@ import (
 	"github.com/LingByte/SoulNexus"
 	"github.com/LingByte/SoulNexus/cmd/bootstrap"
 	"github.com/LingByte/SoulNexus/internal/config"
-	grpcclients "github.com/LingByte/SoulNexus/internal/grpc/clients"
 	handlers "github.com/LingByte/SoulNexus/internal/handlers/server"
 	"github.com/LingByte/SoulNexus/internal/listeners"
 	"github.com/LingByte/SoulNexus/internal/schema"
@@ -42,10 +41,10 @@ type SoulNexusService struct {
 	handlers *handlers.Handlers
 }
 
-func NewSoulNexusService(db *gorm.DB, rpc *grpcclients.Bundle) *SoulNexusService {
+func NewSoulNexusService(db *gorm.DB) *SoulNexusService {
 	return &SoulNexusService{
 		db:       db,
-		handlers: handlers.NewHandlers(db, rpc),
+		handlers: handlers.NewHandlers(db),
 	}
 }
 
@@ -153,26 +152,7 @@ func main() {
 		return
 	}
 
-	authGRPC := config.GlobalConfig.Services.AuthRPC.GRPCAddr
-	if authGRPC == "" {
-		authGRPC = "127.0.0.1:7075"
-	}
-	var rpcClients *grpcclients.Bundle
-	authClient, err := grpcclients.DialAuth(context.Background(), authGRPC)
-	if err != nil {
-		logger.Warn("auth gRPC client unavailable; API key resolution via auth service disabled",
-			zap.String("addr", authGRPC),
-			zap.Error(err),
-		)
-		rpcClients = &grpcclients.Bundle{}
-	} else {
-		rpcClients = &grpcclients.Bundle{Auth: authClient}
-		defer rpcClients.Close()
-		rpcClients.InstallAPIKeyUserResolver()
-		logger.Info("auth gRPC client connected", zap.String("addr", authGRPC))
-	}
-
-	app := NewSoulNexusService(db, rpcClients)
+	app := NewSoulNexusService(db)
 
 	// 12. Initialize Global Middleware Manager
 	middleware.InitGlobalMiddlewareManager(config.GlobalConfig.Middleware)

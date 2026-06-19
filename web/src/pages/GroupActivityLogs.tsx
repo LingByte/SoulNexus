@@ -116,47 +116,45 @@ const GroupActivityLogs: React.FC = () => {
 
         <div className="bg-white dark:bg-neutral-800 rounded-xl border border-gray-200 dark:border-neutral-700 p-4 mb-6">
           <div className="flex flex-col sm:flex-row gap-4">
-            <Select value={actionFilter} onValueChange={setActionFilter}>
-              <SelectTrigger className="w-full sm:w-[200px]">
-                <SelectValue placeholder={t('activityLog.filterByAction')}>
-                  {actionFilter === '' ? t('activityLog.allActions') : getActionLabel(actionFilter)}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">{t('activityLog.allActions')}</SelectItem>
-                <SelectItem value="member_invited">{t('activityLog.action.member_invited')}</SelectItem>
-                <SelectItem value="member_joined">{t('activityLog.action.member_joined')}</SelectItem>
-                <SelectItem value="member_removed">{t('activityLog.action.member_removed')}</SelectItem>
-                <SelectItem value="member_role_changed">{t('activityLog.action.member_role_changed')}</SelectItem>
-                <SelectItem value="resource_added">{t('activityLog.action.resource_added')}</SelectItem>
-                <SelectItem value="resource_removed">{t('activityLog.action.resource_removed')}</SelectItem>
-                <SelectItem value="group_created">{t('activityLog.action.group_created')}</SelectItem>
-                <SelectItem value="group_updated">{t('activityLog.action.group_updated')}</SelectItem>
-                <SelectItem value="group_archived">{t('activityLog.action.group_archived')}</SelectItem>
-                <SelectItem value="group_restored">{t('activityLog.action.group_restored')}</SelectItem>
-                <SelectItem value="group_exported">{t('activityLog.action.group_exported')}</SelectItem>
-                <SelectItem value="group_cloned">{t('activityLog.action.group_cloned')}</SelectItem>
-                <SelectItem value="quota_added">{t('activityLog.action.quota_added')}</SelectItem>
-                <SelectItem value="quota_updated">{t('activityLog.action.quota_updated')}</SelectItem>
-                <SelectItem value="quota_deleted">{t('activityLog.action.quota_deleted')}</SelectItem>
-              </SelectContent>
-            </Select>
+            <ArcoSelect
+              className="w-full sm:w-[200px]"
+              placeholder={t('activityLog.filterByAction')}
+              value={actionFilter || undefined}
+              onChange={(v: string) => setActionFilter(v || '')}
+              allowClear
+            >
+              <ArcoSelect.Option value="">{t('activityLog.allActions')}</ArcoSelect.Option>
+              <ArcoSelect.Option value="member_invited">{t('activityLog.action.member_invited')}</ArcoSelect.Option>
+              <ArcoSelect.Option value="member_joined">{t('activityLog.action.member_joined')}</ArcoSelect.Option>
+              <ArcoSelect.Option value="member_removed">{t('activityLog.action.member_removed')}</ArcoSelect.Option>
+              <ArcoSelect.Option value="member_role_changed">{t('activityLog.action.member_role_changed')}</ArcoSelect.Option>
+              <ArcoSelect.Option value="resource_added">{t('activityLog.action.resource_added')}</ArcoSelect.Option>
+              <ArcoSelect.Option value="resource_removed">{t('activityLog.action.resource_removed')}</ArcoSelect.Option>
+              <ArcoSelect.Option value="group_created">{t('activityLog.action.group_created')}</ArcoSelect.Option>
+              <ArcoSelect.Option value="group_updated">{t('activityLog.action.group_updated')}</ArcoSelect.Option>
+              <ArcoSelect.Option value="group_archived">{t('activityLog.action.group_archived')}</ArcoSelect.Option>
+              <ArcoSelect.Option value="group_restored">{t('activityLog.action.group_restored')}</ArcoSelect.Option>
+              <ArcoSelect.Option value="group_exported">{t('activityLog.action.group_exported')}</ArcoSelect.Option>
+              <ArcoSelect.Option value="group_cloned">{t('activityLog.action.group_cloned')}</ArcoSelect.Option>
+              <ArcoSelect.Option value="quota_added">{t('activityLog.action.quota_added')}</ArcoSelect.Option>
+              <ArcoSelect.Option value="quota_updated">{t('activityLog.action.quota_updated')}</ArcoSelect.Option>
+              <ArcoSelect.Option value="quota_deleted">{t('activityLog.action.quota_deleted')}</ArcoSelect.Option>
+            </ArcoSelect>
 
-            <Select value={resourceFilter} onValueChange={setResourceFilter}>
-              <SelectTrigger className="w-full sm:w-[200px]">
-                <SelectValue placeholder={t('activityLog.filterByResource')}>
-                  {resourceFilter === '' ? t('activityLog.allResources') : getResourceLabel(resourceFilter)}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">{t('activityLog.allResources')}</SelectItem>
-                <SelectItem value="assistant">{t('activityLog.resource.assistant')}</SelectItem>
-                <SelectItem value="knowledge">{t('activityLog.resource.knowledge')}</SelectItem>
-                <SelectItem value="member">{t('activityLog.resource.member')}</SelectItem>
-                <SelectItem value="quota">{t('activityLog.resource.quota')}</SelectItem>
-                <SelectItem value="group">{t('activityLog.resource.group')}</SelectItem>
-              </SelectContent>
-            </Select>
+            <ArcoSelect
+              className="w-full sm:w-[200px]"
+              placeholder={t('activityLog.filterByResource')}
+              value={resourceFilter || undefined}
+              onChange={(v: string) => setResourceFilter(v || '')}
+              allowClear
+            >
+              <ArcoSelect.Option value="">{t('activityLog.allResources')}</ArcoSelect.Option>
+              <ArcoSelect.Option value="assistant">{t('activityLog.resource.assistant')}</ArcoSelect.Option>
+              <ArcoSelect.Option value="knowledge">{t('activityLog.resource.knowledge')}</ArcoSelect.Option>
+              <ArcoSelect.Option value="member">{t('activityLog.resource.member')}</ArcoSelect.Option>
+              <ArcoSelect.Option value="quota">{t('activityLog.resource.quota')}</ArcoSelect.Option>
+              <ArcoSelect.Option value="group">{t('activityLog.resource.group')}</ArcoSelect.Option>
+            </ArcoSelect>
 
             <Button
               variant="outline"

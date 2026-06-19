@@ -25,6 +25,21 @@ func TestSecureResponseHeaders_SetsBaseline(t *testing.T) {
 	assert.Equal(t, "DENY", h.Get("X-Frame-Options"))
 }
 
+func TestSecureResponseHeaders_PetEmbedAllowsFraming(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(SecureResponseHeaders())
+	r.GET("/api/static/pet/embed/index.html", func(c *gin.Context) { c.Status(200) })
+
+	req := httptest.NewRequest(http.MethodGet, "/api/static/pet/embed/index.html", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	h := w.Result().Header
+	assert.Equal(t, "", h.Get("X-Frame-Options"))
+	assert.Contains(t, h.Get("Content-Security-Policy"), "frame-ancestors *")
+}
+
 func TestMutatingRequestTrustedOrigin_NoEnv_NoOp(t *testing.T) {
 	_ = os.Unsetenv("TRUSTED_BROWSER_ORIGINS")
 	gin.SetMode(gin.TestMode)

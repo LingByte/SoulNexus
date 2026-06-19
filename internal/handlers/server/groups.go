@@ -508,7 +508,7 @@ func (h *Handlers) InviteUser(c *gin.Context) {
 	}
 
 	// 查找被邀请用户（含 profile，用于通知与邮件偏好）
-	invitee, err := h.rpc.Auth.GetUser(c.Request.Context(), req.UserID)
+	invitee, err := auth.GetUserByID(h.db, req.UserID)
 	if err != nil || invitee == nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, "用户不存在", nil)

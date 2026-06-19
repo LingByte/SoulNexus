@@ -21,7 +21,8 @@ import { useI18nStore } from '@/stores/i18nStore'
 import Button from '../UI/Button'
 import ConfirmDialog from '../UI/ConfirmDialog'
 import { getSystemInit, type SystemInitInfo } from '@/api/system'
-import { beginSSOLogin } from '@/utils/sso'
+
+import { openLoginModal } from '@/utils/authRedirect'
 
 const Sidebar = () => {
   const [isCollapsed, setIsCollapsed] = useState(false)
@@ -376,7 +377,7 @@ const Sidebar = () => {
             <Button
               variant="primary"
               className="w-full justify-center"
-              onClick={() => beginSSOLogin(location.pathname + location.search)}
+              onClick={() => openLoginModal(location.pathname + location.search)}
               leftIcon={<UserIcon className="w-4 h-4" />}
             >
               {!isCollapsed && t('nav.loginRegister')}
@@ -467,7 +468,7 @@ const Sidebar = () => {
               <Button
                 variant="primary"
                 size="sm"
-                onClick={() => beginSSOLogin(location.pathname + location.search)}
+                onClick={() => openLoginModal(location.pathname + location.search)}
                 leftIcon={<UserIcon className="w-4 h-4" />}
               >
                 {t('nav.loginRegister')}

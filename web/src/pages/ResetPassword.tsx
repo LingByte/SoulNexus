@@ -218,7 +218,7 @@ const ResetPassword = () => {
               </div>
 
               <Button
-                type="submit"
+                htmlType="submit"
                 variant="primary"
                 className="w-full"
                 disabled={isLoading}

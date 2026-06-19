@@ -1266,12 +1266,17 @@ const WorkflowEditor: React.FC<WorkflowEditorProps> = ({
                   </p>
                   {node.inputs.map((input, idx) => (
                     <div key={idx}>
-                      <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" label={input || `参数 ${idx + 1}`}
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        {input || `参数 ${idx + 1}`}
+                      </label>
+                      <ArcoInput
+                        size="large"
+                        className="!h-10 !text-base ![&::placeholder]:text-base"
                         value={nodeTestParameters[input] || ''}
-                        onChange={(e) => {
+                        onChange={(value) => {
                           setNodeTestParameters(prev => ({
                             ...prev,
-                            [input]: e.target.value
+                            [input]: value
                           }))
                         }}
                         placeholder={`请输入 ${input || `参数 ${idx + 1}`} 的值`}
@@ -1763,7 +1768,7 @@ const PublishWorkflowPluginModal: React.FC<{
               </label>
               <textarea
                 value={formData.description}
-                onChange={(val) => setFormData({...formData, description: val})}
+                onChange={(e) => setFormData({...formData, description: e.target.value})}
                 placeholder="详细描述这个工作流插件的功能和用途..."
                 className="w-full px-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg resize-none bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 rows={4}
@@ -1794,7 +1799,7 @@ const PublishWorkflowPluginModal: React.FC<{
                   <input
                     type="color"
                     value={formData.color}
-                    onChange={(val) => setFormData({...formData, color: val})}
+                    onChange={(e) => setFormData({...formData, color: e.target.value})}
                     className="w-12 h-10 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer"
                   />
                   <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.color}
@@ -1872,7 +1877,7 @@ const PublishWorkflowPluginModal: React.FC<{
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">许可证</label>
             <select
               value={formData.license}
-              onChange={(val) => setFormData({...formData, license: val})}
+              onChange={(e) => setFormData({...formData, license: e.target.value})}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="MIT">MIT License</option>
@@ -1939,17 +1944,17 @@ const PublishWorkflowPluginModal: React.FC<{
                       <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                         placeholder="参数名"
                         value={param.name}
-                        onChange={(e) => {
+                        onChange={(value) => {
                           const newParams = [...inputParameters]
-                          newParams[index] = { ...param, name: e.target.value }
+                          newParams[index] = { ...param, name: value }
                           setInputParameters(newParams)
                         }}
                       />
                       <select
                         value={param.type}
-                        onChange={(e) => {
+                        onChange={(val) => {
                           const newParams = [...inputParameters]
-                          newParams[index] = { ...param, type: e.target.value }
+                          newParams[index] = { ...param, type: val }
                           setInputParameters(newParams)
                         }}
                         className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
@@ -1964,9 +1969,9 @@ const PublishWorkflowPluginModal: React.FC<{
                     <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                       placeholder="描述"
                       value={param.description}
-                      onChange={(e) => {
+                      onChange={(value) => {
                         const newParams = [...inputParameters]
-                        newParams[index] = { ...param, description: e.target.value }
+                        newParams[index] = { ...param, description: value }
                         setInputParameters(newParams)
                       }}
                     />
@@ -2022,9 +2027,9 @@ const PublishWorkflowPluginModal: React.FC<{
                       <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                         placeholder="参数名"
                         value={param.name}
-                        onChange={(e) => {
+                        onChange={(value) => {
                           const newParams = [...outputParameters]
-                          newParams[index] = { ...param, name: e.target.value }
+                          newParams[index] = { ...param, name: value }
                           setOutputParameters(newParams)
                         }}
                       />
@@ -2047,9 +2052,9 @@ const PublishWorkflowPluginModal: React.FC<{
                     <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base"
                       placeholder="描述"
                       value={param.description}
-                      onChange={(e) => {
+                      onChange={(value) => {
                         const newParams = [...outputParameters]
-                        newParams[index] = { ...param, description: e.target.value }
+                        newParams[index] = { ...param, description: value }
                         setOutputParameters(newParams)
                       }}
                     />

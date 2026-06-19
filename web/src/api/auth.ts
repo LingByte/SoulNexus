@@ -1,10 +1,5 @@
 import { post, get, ApiResponse } from '@/utils/request'
-import { getUserServiceBaseURL } from '@/config/apiConfig'
 import { normalizeAuthUser } from '@/utils/authUserProfile'
-
-const userServiceConfig = {
-  baseURL: getUserServiceBaseURL(),
-}
 
 // 用户注册表单类型
 export interface RegisterUserForm {
@@ -213,47 +208,47 @@ export interface User {
 
 // 用户注册
 export const registerUser = async (data: RegisterUserForm): Promise<ApiResponse<RegisterResponseData>> => {
-  return post<RegisterResponseData>('/auth/register', data, userServiceConfig)
+  return post<RegisterResponseData>('/auth/register', data)
 }
 
 // 邮箱验证码注册
 export const registerUserByEmail = async (data: EmailRegisterForm): Promise<ApiResponse<RegisterResponseData>> => {
-  return post<RegisterResponseData>('/auth/register/email', data, userServiceConfig)
+  return post<RegisterResponseData>('/auth/register/email', data)
 }
 
 // 发送邮箱验证码
 export const sendEmailCode = async (data: SendEmailCodeRequest): Promise<ApiResponse<null>> => {
-  return post<null>('/auth/send/email', data, userServiceConfig)
+  return post<null>('/auth/send/email', data)
 }
 
 // 用户登录
 export const loginUser = async (data: LoginForm): Promise<ApiResponse<LoginResponseData>> => {
-  return post<LoginResponseData>('/auth/login/password', data, userServiceConfig)
+  return post<LoginResponseData>('/auth/login/password', data)
 }
 
 // 密码登录
 export const loginWithPassword = async (data: PasswordLoginForm): Promise<ApiResponse<LoginResponseData>> => {
-  return post<LoginResponseData>('/auth/login/password', data, userServiceConfig)
+  return post<LoginResponseData>('/auth/login/password', data)
 }
 
 // 邮箱验证码登录
 export const loginWithEmailCode = async (data: EmailCodeLoginForm): Promise<ApiResponse<LoginResponseData>> => {
-  return post<LoginResponseData>('/auth/login/email', data, userServiceConfig)
+  return post<LoginResponseData>('/auth/login/email', data)
 }
 
 // 发送设备验证码
 export const sendDeviceVerificationCode = async (data: { email: string; deviceId: string }): Promise<ApiResponse<null>> => {
-  return post('/auth/devices/send-verification', data, userServiceConfig)
+  return post('/auth/devices/send-verification', data)
 }
 
 // 验证设备
 export const verifyDevice = async (data: { email: string; deviceId: string; verifyCode: string }): Promise<ApiResponse<null>> => {
-  return post('/auth/devices/verify', data, userServiceConfig)
+  return post('/auth/devices/verify', data)
 }
 
 // 获取用户信息
 export const getUserInfo = async (): Promise<ApiResponse<User>> => {
-  const res = await get<User>('/auth/info', userServiceConfig)
+  const res = await get<User>('/auth/info')
   if (res.code === 200 && res.data) {
     return { ...res, data: normalizeAuthUser(res.data as unknown as Record<string, unknown>) as unknown as User }
   }
@@ -264,18 +259,18 @@ export const getUserInfo = async (): Promise<ApiResponse<User>> => {
 export const refreshToken = async (): Promise<ApiResponse<{ token: string; refreshToken: string }>> => {
   return post<{ token: string; refreshToken: string }>('/auth/refresh', {
     refresh_token: localStorage.getItem('refresh_token') || '',
-  }, userServiceConfig)
+  })
 }
 
 // 登出 - 对应 GET /auth/logout
 export const logoutUser = async (next?: string): Promise<ApiResponse<null>> => {
   const params = next ? { next } : undefined
-  return get<null>('/auth/logout', { ...userServiceConfig, params })
+  return get<null>('/auth/logout', { params })
 }
 
 // 获取图形验证码
 export const getCaptcha = async (): Promise<ApiResponse<CaptchaResponse>> => {
-  return get<CaptchaResponse>('/auth/captcha', userServiceConfig)
+  return get<CaptchaResponse>('/auth/captcha')
 }
 
 // 验证图形验证码
@@ -284,15 +279,15 @@ export const verifyCaptcha = async (
   code: string,
   type: 'image' | 'click' = 'image'
 ): Promise<ApiResponse<{ valid: boolean }>> => {
-  return post<{ valid: boolean }>('/auth/captcha/verify', { id, code, type }, userServiceConfig)
+  return post<{ valid: boolean }>('/auth/captcha/verify', { id, code, type })
 }
 
 // 忘记密码 - 发送重置密码邮件
 export const forgotPassword = async (email: string): Promise<ApiResponse<null>> => {
-  return post<null>('/auth/reset-password', { email }, userServiceConfig)
+  return post<null>('/auth/reset-password', { email })
 }
 
 // 重置密码确认
 export const resetPasswordConfirm = async (token: string, password: string): Promise<ApiResponse<null>> => {
-  return post<null>('/auth/reset-password/confirm', { token, password }, userServiceConfig)
+  return post<null>('/auth/reset-password/confirm', { token, password })
 }

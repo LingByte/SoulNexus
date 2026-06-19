@@ -1,4 +1,4 @@
-import { useCallback, RefObject } from 'react'
+import React, { useCallback, RefObject } from 'react'
 import type { WorkflowNode } from '../types/workflow'
 
 interface UseCanvasControlProps {
@@ -7,7 +7,7 @@ interface UseCanvasControlProps {
   canvasOffset: { x: number; y: number }
   canvasScale: number
   setCanvasOffset: (offset: { x: number; y: number }) => void
-  setCanvasScale: (scale: number) => void
+  setCanvasScale: React.Dispatch<React.SetStateAction<number>>
 }
 
 /**

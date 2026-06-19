@@ -217,11 +217,7 @@ func (h *Handlers) openGetMe(c *gin.Context) {
 		response.AbortWithStatus(c, http.StatusUnauthorized)
 		return
 	}
-	user, err := h.rpc.Auth.GetUser(c.Request.Context(), ctxUser.ID)
-	if err != nil || user == nil {
-		response.AbortWithStatus(c, http.StatusUnauthorized)
-		return
-	}
+	user := ctxUser
 	response.Success(c, "ok", gin.H{
 		"id":       user.ID,
 		"username": user.EffectiveDisplayName(),
