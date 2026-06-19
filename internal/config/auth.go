@@ -73,10 +73,9 @@ type AuthServiceConfig struct {
 	Cache      cache.Config
 	Auth       AuthConfig
 	Middleware MiddlewareConfig
-	Server     ServerConfig
-	Services   ServicesConfig
-	Features   FeaturesConfig
-	GRPCListenAddr string
+	Server   ServerConfig
+	Services ServicesConfig
+	Features FeaturesConfig
 }
 
 // AuthGlobalConfig is populated by LoadAuth() after Load(); safe to read from cmd/auth only.
@@ -102,10 +101,9 @@ func LoadAuth() error {
 		Cache:      g.Cache,
 		Auth:       g.Auth,
 		Middleware: g.Middleware,
-		Server:     g.Server,
-		Services:   g.Services,
-		Features:   g.Features,
-		GRPCListenAddr: getStringOrDefault("AUTH_GRPC_ADDR", ":7075"),
+		Server:   g.Server,
+		Services: g.Services,
+		Features: g.Features,
 	}
 	return nil
 }

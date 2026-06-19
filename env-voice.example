@@ -107,12 +107,17 @@ VOICE_ASR_SENTENCE_FILTER_SIMILARITY=0.85   # range [0, 1]
 
 VOICE_HOLD_MESSAGES=scripts/hold/hold_messages.json
 
+# Stereo WAV recording (L=device R=AI). Required for hardware 通话记录 playback.
+# Uses STORAGE_* below; syncs into call_recordings when DSN matches cmd/server.
+VOICE_RECORD=true
+
 # ---------------------------------------------------------------------------
 # 6) Persistence (shared DB_DRIVER + DSN with main / auth services)
 # ---------------------------------------------------------------------------
+# Use the SAME database as cmd/server so voice_call + call_recordings stay together.
 # Set DSN=off (or none) to disable voice persistence entirely.
 DB_DRIVER=sqlite
-DSN=voiceserver.db
+DSN=./ling.db
 
 # ---------------------------------------------------------------------------
 # 7a) Realtime multimodal (XIAOZHIMODE=realtime only)

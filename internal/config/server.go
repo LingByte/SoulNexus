@@ -69,14 +69,8 @@ type DatabaseConfig struct {
 
 // ServicesConfig services configuration
 type ServicesConfig struct {
-	LLM     LLMConfig     `mapstructure:"llm"`
-	Voice   VoiceConfig   `mapstructure:"voice"`
-	AuthRPC AuthRPCConfig `mapstructure:"auth_rpc"`
-}
-
-// AuthRPCConfig points cmd/server at the internal auth gRPC service.
-type AuthRPCConfig struct {
-	GRPCAddr string `env:"AUTH_SERVICE_GRPC_ADDR"`
+	LLM   LLMConfig   `mapstructure:"llm"`
+	Voice VoiceConfig `mapstructure:"voice"`
 }
 
 // LLMConfig LLM service configuration
@@ -205,9 +199,6 @@ func buildGlobalConfig() error {
 					LogEnabled:          getBoolOrDefault("VOICEPRINT_LOG_ENABLED", true),
 					LogLevel:            getStringOrDefault("VOICEPRINT_LOG_LEVEL", "info"),
 				},
-			},
-			AuthRPC: AuthRPCConfig{
-				GRPCAddr: getStringOrDefault("AUTH_SERVICE_GRPC_ADDR", "127.0.0.1:7075"),
 			},
 		},
 		Features: FeaturesConfig{
