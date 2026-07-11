@@ -45,6 +45,13 @@ interface ControlPanelProps {
     // 助手设置
     assistantName: string
     onAssistantNameChange: (value: string) => void
+    // 角色卡字段
+    personaTag?: string
+    description?: string
+    avatarUrl?: string
+    onPersonaTagChange?: (value: string) => void
+    onDescriptionChange?: (value: string) => void
+    onAvatarUrlChange?: (value: string) => void
     // VAD 配置
     enableVAD?: boolean
     vadThreshold?: number
@@ -57,7 +64,7 @@ interface ControlPanelProps {
     onEnableJSONOutputChange?: (value: boolean) => void
     onSaveSettings: () => void
     isSavingSettings?: boolean // 保存状态
-    onDeleteAssistant: () => void
+    onConfirmDelete: () => void
     // 训练音色配置
     selectedVoiceCloneId: number | null
     onVoiceCloneChange: (value: number | null) => void
@@ -103,6 +110,12 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                                        onBoundJsTemplateSourceIdChange,
                                                        assistantName,
                                                        onAssistantNameChange,
+                                                       personaTag = '',
+                                                       description = '',
+                                                       avatarUrl = '',
+                                                       onPersonaTagChange,
+                                                       onDescriptionChange,
+                                                       onAvatarUrlChange,
                                                        enableVAD = true,
                                                        vadThreshold = 500,
                                                        vadConsecutiveFrames = 2,
@@ -113,7 +126,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                                        onEnableJSONOutputChange,
                                                        onSaveSettings,
                                                        isSavingSettings = false,
-                                                       onDeleteAssistant,
+                                                       onConfirmDelete,
                                                        onMethodClick,
                                                        selectedVoiceCloneId,
                                                        onVoiceCloneChange,
@@ -443,6 +456,54 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                 className="overflow-hidden"
                             >
                                 <div className="pt-4 border-t dark:border-neutral-700 mb-6 space-y-6">
+                                    {/* 头像 */}
+                                    {onAvatarUrlChange && (
+                                        <div className="flex items-center gap-4 pb-4 border-b dark:border-neutral-700">
+                                            <div className="relative group">
+                                                {avatarUrl ? (
+                                                    <img
+                                                        src={avatarUrl}
+                                                        alt="头像"
+                                                        className="w-16 h-16 rounded-2xl object-cover border-2 border-gray-200 dark:border-neutral-600 shadow-sm"
+                                                    />
+                                                ) : (
+                                                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-100 to-purple-200 dark:from-purple-900/40 dark:to-purple-800/40 border-2 border-dashed border-gray-300 dark:border-neutral-600 flex items-center justify-center shadow-sm">
+                                                        <Settings className="w-6 h-6 text-gray-400 dark:text-gray-500" />
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">头像</p>
+                                                <p className="text-xs text-gray-400 mt-0.5">
+                                                    {avatarUrl ? '点击下方按钮更换头像' : '留空则使用默认头像'}
+                                                </p>
+                                                <div className="flex items-center gap-2 mt-2">
+                                                    <ArcoButton
+                                                        size="small"
+                                                        onClick={() => {
+                                                            const url = prompt('请输入头像 URL：', avatarUrl || '')
+                                                            if (url !== null) {
+                                                                onAvatarUrlChange(url.trim())
+                                                            }
+                                                        }}
+                                                    >
+                                                        设置 URL
+                                                    </ArcoButton>
+                                                    {avatarUrl && (
+                                                        <ArcoButton
+                                                            size="small"
+                                                            type="text"
+                                                            status="default"
+                                                            onClick={() => onAvatarUrlChange('')}
+                                                        >
+                                                            清除
+                                                        </ArcoButton>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {/* 助手基本信息 */}
                                     <div className="space-y-4">
                                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -468,6 +529,35 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                             )}
                                         </div>
 
+                                        {/* 角色标签 */}
+                                        {onPersonaTagChange && (
+                                            <div className="space-y-2">
+                                                <label className="text-xs text-gray-500 dark:text-gray-400">角色标签</label>
+                                                <Input
+                                                    size="large"
+                                                    className="!h-10 !text-base"
+                                                    value={personaTag}
+                                                    onChange={(v) => { onPersonaTagChange(v) }}
+                                                    placeholder="如: 懒懒、小助手"
+                                                />
+                                                <p className="text-xs text-gray-400">简短的角色身份标签，用于对话上下文中引用</p>
+                                            </div>
+                                        )}
+
+                                        {/* 角色描述 */}
+                                        {onDescriptionChange && (
+                                            <div className="space-y-2">
+                                                <label className="text-xs text-gray-500 dark:text-gray-400">角色描述</label>
+                                                <Input.TextArea
+                                                    className="!text-base min-h-[5rem]"
+                                                    value={description}
+                                                    onChange={(v) => { onDescriptionChange(v) }}
+                                                    placeholder="简要描述角色的身份、性格和背景…"
+                                                    rows={3}
+                                                />
+                                            </div>
+                                        )}
+
                                         <div className="space-y-2">
                                             <label className="text-xs text-gray-500 dark:text-gray-400">
                                                 {t('controlPanel.assistant.jsTemplate')}
@@ -488,12 +578,13 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                         </div>
                                     </div>
 
+
                                     <div className="flex justify-between pt-4 border-t dark:border-neutral-700 gap-3">
                                         <ArcoButton
-                                            onClick={onDeleteAssistant}
                                             type="primary"
                                             status="danger"
                                             className="flex-1"
+                                            onClick={onConfirmDelete}
                                         >
                                             {t('controlPanel.assistant.delete')}
                                         </ArcoButton>
@@ -759,6 +850,5 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         </div>
     )
 }
-
 
 export default ControlPanel

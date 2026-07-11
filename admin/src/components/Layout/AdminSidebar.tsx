@@ -28,6 +28,10 @@ import {
   UserCog,
   Settings,
   Library,
+  LayoutTemplate,
+  Store,
+  Globe,
+  UserCircle,
 } from 'lucide-react'
 import faviconUrl from '/favicon.png'
 import { useSiteConfig } from '@/contexts/SiteConfigContext'
@@ -58,6 +62,10 @@ const NAVIGATION: NavItem[] = [
     ],
   },
   { key: '/assistants', name: '智能体管理', icon: Bot },
+  { key: '/presets', name: '预设模板', icon: LayoutTemplate },
+  { key: '/market', name: '角色市场', icon: Store },
+  { key: '/world-info', name: 'World Info', icon: Globe },
+  { key: '/personas', name: 'User Personas', icon: UserCircle },
   { key: '/groups', name: '组织管理', icon: Building2 },
   { key: '/knowledge-bases', name: '知识库', icon: Library },
   { key: '/credentials', name: '密钥管理', icon: Key },

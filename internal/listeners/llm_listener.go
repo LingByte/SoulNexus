@@ -123,17 +123,24 @@ func initSignalConnections(db *gorm.DB) {
 		if !ok {
 			return
 		}
+		var parentMsgID *string
+		if data.ParentMessageID != "" {
+			parentMsgID = &data.ParentMessageID
+		}
 		message := &svcmodels.ChatMessage{
-			ID:         utils.SnowflakeUtil.GenID(),
-			SessionID:  data.SessionID,
-			Role:       data.Role,
-			Content:    data.Content,
-			TokenCount: data.TokenCount,
-			Model:      data.Model,
-			Provider:   data.Provider,
-			RequestID:  data.RequestID,
-			CreatedAt:  toTimeFromMillis(data.CreatedAt),
-			UpdatedAt:  toTimeFromMillis(data.CreatedAt),
+			ID:              utils.SnowflakeUtil.GenID(),
+			SessionID:       data.SessionID,
+			Role:            data.Role,
+			Content:         data.Content,
+			TokenCount:      data.TokenCount,
+			Model:           data.Model,
+			Provider:        data.Provider,
+			RequestID:       data.RequestID,
+			ParentMessageID: parentMsgID,
+			BranchIndex:     data.BranchIndex,
+			IsActiveBranch:  data.IsActiveBranch,
+			CreatedAt:       toTimeFromMillis(data.CreatedAt),
+			UpdatedAt:       toTimeFromMillis(data.CreatedAt),
 		}
 		_ = db.Create(message).Error
 	})

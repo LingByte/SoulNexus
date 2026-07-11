@@ -122,15 +122,15 @@ const templates: PetStarterTemplate[] = [
     badge: '新',
     nameKey: 'petMarket.template.spritePandaLanlan.name',
     descKey: 'petMarket.template.spritePandaLanlan.desc',
-    name: '懒懒熊猫 · 网格雪碧',
-    description: '4 列网格精灵图裁剪，idle / hello / coy / cry / angry',
+    name: '懒懒熊猫 · 逐帧',
+    description: 'resources 四动作逐帧 — idle / hello / coy / angry',
     previewType: 'sprite',
     create: (petName = '懒懒熊猫') =>
-      buildSpriteProject(petName, '懒懒熊猫 · 网格雪碧', {
+      buildSpriteProject(petName, '懒懒熊猫 · 逐帧', {
         animations: buildPandaLanlanAnimations(),
         emotionMap: PANDA_LANLAN_EMOTION_MAP,
         behaviors: PANDA_LANLAN_BEHAVIORS,
-        layout: { scale: 0.55 },
+        layout: { scale: 0.32 },
       }),
   },
 ]

@@ -97,6 +97,9 @@ export default function PetAvatarPanel({ templateJsSourceId, className = '' }: P
     loadTimer = window.setTimeout(() => {
       if (cancelled || loadGen !== loadGenRef.current) return
 
+      window.__PET_EMBED_MODE__ = 'widget'
+      window.__PET_MOUNT_ID__ = 'app'
+
       const script = document.createElement('script')
       script.async = true
       script.src = `${getApiBaseURL()}/js-templates/embed/${encodeURIComponent(id)}/loader.js?_=${loadGen}`

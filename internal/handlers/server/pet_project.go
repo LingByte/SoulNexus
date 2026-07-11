@@ -10,22 +10,48 @@ import (
 	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"github.com/LingByte/SoulNexus"
 	"github.com/LingByte/SoulNexus/internal/config"
-	"github.com/LingByte/SoulNexus/internal/models/auth"
-	"github.com/LingByte/SoulNexus/pkg/constants"
 	jsPkg "github.com/LingByte/SoulNexus/pkg/js"
 	"github.com/LingByte/SoulNexus/pkg/petproject"
-	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/stores"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"gorm.io/gorm"
 )
 
 type petProjectSaveBody struct {
-	Name  string            `json:"name"`
-	Usage string            `json:"usage"`
-	Entry string            `json:"entry"`
-	Files map[string]string `json:"files"`
+	Name        string            `json:"name"`
+	Usage       string            `json:"usage"`
+	Entry       string            `json:"entry"`
+	Files       map[string]string `json:"files"`
+	ChangeNote  string            `json:"changeNote"`
+	BumpVersion *bool             `json:"bumpVersion"`
+}
+
+func (h *Handlers) archivePetTemplateVersion(template *svcmodels.JSTemplate, userID uint, changeNote string) error {
+	if changeNote == "" {
+		changeNote = "项目更新"
+	}
+	snapshot := svcmodels.JSTemplateVersion{
+		ID:         uuid.New().String(),
+		TemplateID: template.ID,
+		Version:    template.Version,
+		Name:       template.Name,
+		Content:    template.Content,
+		Status:     template.Status,
+		Grayscale:  100,
+		ChangeNote: changeNote,
+		CreatedBy:  userID,
+	}
+	if err := svcmodels.CreateJSTemplateVersion(h.db, &snapshot); err != nil {
+		return err
+	}
+	return h.db.Model(template).Update("version", template.Version+1).Error
+}
+
+func shouldBumpPetVersion(body petProjectSaveBody) bool {
+	if body.BumpVersion != nil {
+		return *body.BumpVersion
+	}
+	return strings.TrimSpace(body.ChangeNote) != ""
 }
 
 func validatePetEntryScript(entry string, files map[string]string) (string, []string) {
@@ -44,10 +70,10 @@ func validatePetEntryScript(entry string, files map[string]string) (string, []st
 	return entry, nil
 }
 
-func (h *Handlers) persistPetProject(template *svcmodels.JSTemplate, entry string, files map[string]string, name, usage string) (string, error) {
+func (h *Handlers) persistPetProject(template *svcmodels.JSTemplate, entry string, files map[string]string, name, usage string, zipRaw []byte) (string, error) {
 	prefix := petproject.DefaultPrefix(template.ID)
 	store := stores.Default()
-	if err := petproject.WriteFiles(store, prefix, files); err != nil {
+	if err := writePetProjectFiles(store, prefix, template.ID, files, zipRaw); err != nil {
 		return "", err
 	}
 	metaJSON, err := petproject.MarshalMeta(prefix, entry, petproject.PathsFromFiles(files))
@@ -70,197 +96,12 @@ func (h *Handlers) persistPetProject(template *svcmodels.JSTemplate, entry strin
 	return prefix, nil
 }
 
-// CreateJSTemplateWithProject atomically creates metadata + uploads files to object storage.
-func (h *Handlers) CreateJSTemplateWithProject(c *gin.Context) {
-	user := auth.CurrentUser(c)
-	if user == nil {
-		response.Fail(c, "User not logged in", nil)
-		return
+func writePetProjectFiles(store petproject.FullStore, prefix, packageID string, files map[string]string, zipRaw []byte) error {
+	if len(zipRaw) > 0 {
+		_, err := petproject.PublishZip(store, packageID, zipRaw, prefix)
+		return err
 	}
-
-	var body petProjectSaveBody
-	if err := c.ShouldBindJSON(&body); err != nil {
-		response.Fail(c, "Invalid parameters", err.Error())
-		return
-	}
-	if strings.TrimSpace(body.Name) == "" {
-		response.Fail(c, "Project name is required", nil)
-		return
-	}
-	if err := petproject.ValidateFiles(body.Files); err != nil {
-		response.Fail(c, "Invalid project files", err.Error())
-		return
-	}
-	entry, violations := validatePetEntryScript(body.Entry, body.Files)
-	if len(violations) > 0 {
-		response.Fail(c, "代码不符合安全规范", gin.H{"violations": violations})
-		return
-	}
-
-	gid, err := svcmodels.ResolveWriteGroupID(h.db, user.ID, nil)
-	if err != nil {
-		response.Fail(c, err.Error(), nil)
-		return
-	}
-
-	template := svcmodels.JSTemplate{
-		Name:      strings.TrimSpace(body.Name),
-		Type:      "custom",
-		Usage:     body.Usage,
-		GroupID:   gid,
-		CreatedBy: user.ID,
-		Version:   1,
-		Status:    "active",
-	}
-	db := c.MustGet(constants.DbField).(*gorm.DB)
-	if err := svcmodels.CreateJSTemplate(db, &template); err != nil {
-		response.Fail(c, "Failed to create template", err.Error())
-		return
-	}
-
-	prefix, err := h.persistPetProject(&template, entry, body.Files, body.Name, body.Usage)
-	if err != nil {
-		_ = svcmodels.DeleteJSTemplate(db, template.ID)
-		response.Fail(c, "Failed to upload project files", err.Error())
-		return
-	}
-
-	updated, _ := svcmodels.GetJSTemplateByID(db, template.ID)
-	versionContent := ""
-	if updated != nil {
-		versionContent = updated.Content
-	}
-
-	version := svcmodels.JSTemplateVersion{
-		ID:         uuid.New().String(),
-		TemplateID: template.ID,
-		Version:    template.Version,
-		Name:       template.Name,
-		Content:    versionContent,
-		Status:     template.Status,
-		Grayscale:  100,
-		ChangeNote: "初始版本",
-		CreatedBy:  user.ID,
-	}
-	_ = svcmodels.CreateJSTemplateVersion(db, &version)
-
-	response.Success(c, "Project created", gin.H{
-		"template": updated,
-		"storage":  petproject.StorageObject,
-		"prefix":   prefix,
-		"entry":    entry,
-	})
-}
-
-// GetJSTemplateProject loads pet project files from object storage into API response.
-func (h *Handlers) GetJSTemplateProject(c *gin.Context) {
-	id := c.Param("id")
-	user := auth.CurrentUser(c)
-	if user == nil {
-		response.Fail(c, "User not logged in", nil)
-		return
-	}
-
-	template, err := svcmodels.GetJSTemplateByID(h.db, id)
-	if err != nil {
-		response.Fail(c, "Template not found", nil)
-		return
-	}
-	if !jsTemplateVisibleToUser(h.db, user.ID, template) {
-		response.Fail(c, "Insufficient permissions", nil)
-		return
-	}
-
-	store := stores.Default()
-	meta, _ := petproject.ParseMeta(template.Content)
-	if meta != nil {
-		paths := meta.ResolvePaths()
-		files, err := petproject.ReadFiles(store, meta.Prefix, paths)
-		if err != nil {
-			response.Fail(c, "Failed to load project files", err.Error())
-			return
-		}
-		response.Success(c, "ok", gin.H{
-			"storage": petproject.StorageObject,
-			"prefix":  meta.Prefix,
-			"entry":   meta.Entry,
-			"files":   files,
-			"name":    template.Name,
-			"usage":   template.Usage,
-		})
-		return
-	}
-
-	if inline, ok := petproject.ParseInlineProject(template.Content); ok {
-		response.Success(c, "ok", gin.H{
-			"storage": "inline",
-			"entry":   inline.Entry,
-			"files":   inline.Files,
-			"name":    template.Name,
-			"usage":   template.Usage,
-		})
-		return
-	}
-
-	response.Success(c, "ok", gin.H{
-		"storage": "pending",
-		"entry":   petproject.DefaultEntry,
-		"files":   map[string]string{},
-		"name":    template.Name,
-		"usage":   template.Usage,
-	})
-}
-
-// SaveJSTemplateProject persists project files to object storage; DB keeps metadata pointer only.
-func (h *Handlers) SaveJSTemplateProject(c *gin.Context) {
-	id := c.Param("id")
-	user := auth.CurrentUser(c)
-	if user == nil {
-		response.Fail(c, "User not logged in", nil)
-		return
-	}
-
-	template, err := svcmodels.GetJSTemplateByID(h.db, id)
-	if err != nil {
-		response.Fail(c, "Template not found", nil)
-		return
-	}
-	if template.Type == "default" {
-		response.Fail(c, "Cannot update default template", nil)
-		return
-	}
-	if !jsTemplateMutableByUser(h.db, user.ID, template) {
-		response.Fail(c, "Insufficient permissions", nil)
-		return
-	}
-
-	var body petProjectSaveBody
-	if err := c.ShouldBindJSON(&body); err != nil {
-		response.Fail(c, "Invalid parameters", err.Error())
-		return
-	}
-	if err := petproject.ValidateFiles(body.Files); err != nil {
-		response.Fail(c, "Invalid project files", err.Error())
-		return
-	}
-
-	entry, violations := validatePetEntryScript(body.Entry, body.Files)
-	if len(violations) > 0 {
-		response.Fail(c, "代码不符合安全规范", gin.H{"violations": violations})
-		return
-	}
-
-	prefix, err := h.persistPetProject(template, entry, body.Files, body.Name, body.Usage)
-	if err != nil {
-		response.Fail(c, "Failed to upload project files", err.Error())
-		return
-	}
-
-	response.Success(c, "Project saved", gin.H{
-		"storage": petproject.StorageObject,
-		"prefix":  prefix,
-		"entry":   entry,
-	})
+	return petproject.WriteFiles(store, prefix, files)
 }
 
 // resolveTemplateLoaderContent returns JS for loader.js (object storage or legacy inline).
@@ -314,7 +155,74 @@ func (h *Handlers) resolveTemplateManifestJSON(template *svcmodels.JSTemplate) s
 }
 
 // embedPetCSS is injected for JS embed — scoped only, must not touch host page layout.
-const embedPetCSS = `.soul-pet-mount{position:relative;width:100%;height:100%;overflow:hidden;background:transparent}.soul-pet-mount .soul-pet-stage{position:absolute;inset:0;width:100%;height:100%;overflow:hidden}.soul-pet-mount .soul-pet-canvas{display:block;touch-action:none;width:100%;height:100%}`
+const embedPetCSS = `.soul-pet-mount{position:relative;width:100%;height:100%;overflow:hidden;background:transparent}.soul-pet-mount.soul-pet-desktop{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;max-width:none!important;max-height:none!important;pointer-events:none!important;z-index:2147483645!important;background:transparent!important}.soul-pet-mount.soul-pet-desktop .soul-pet-stage{pointer-events:auto;width:100%!important;height:100%!important;max-width:none!important;max-height:none!important}.soul-pet-mount .soul-pet-stage{position:absolute;inset:0;width:100%;height:100%;overflow:hidden}.soul-pet-mount .soul-pet-canvas{display:block;touch-action:none;width:100%;height:100%}`
+
+// embedDesktopBootstrapJS forces full-viewport mount for third-party embed (no host div required).
+const embedDesktopBootstrapJS = `(function soulPetDesktopEmbedBootstrap(){
+if(window.__SOUL_PET_DESKTOP_BOOTSTRAP__)return;
+window.__SOUL_PET_DESKTOP_BOOTSTRAP__=true;
+var cfg=window.__AIPetConfig||{};
+if(cfg.mode==='widget'||window.__PET_EMBED_MODE__==='widget')return;
+window.__PET_EMBED_MODE__='desktop';
+window.__PET_MOUNT_ID__='soul-pet-desktop-root';
+var DESKTOP_STYLE='position:fixed;inset:0;width:100vw;height:100vh;overflow:hidden;pointer-events:none;z-index:2147483645;background:transparent;';
+function ensureRoot(){
+  var r=document.getElementById('soul-pet-desktop-root');
+  if(!r){r=document.createElement('div');r.id='soul-pet-desktop-root';document.body.appendChild(r);}
+  if(r.dataset.soulDesktopReady==='1'&&r.style.position==='fixed')return;
+  r.dataset.soulDesktopReady='1';
+  r.className='soul-pet-mount soul-pet-desktop';
+  r.style.cssText=DESKTOP_STYLE;
+  var st=r.querySelector('.soul-pet-stage');
+  if(st)st.style.pointerEvents='auto';
+}
+ensureRoot();
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',ensureRoot);
+setTimeout(ensureRoot,0);
+setTimeout(ensureRoot,120);
+setTimeout(ensureRoot,500);
+})();`
+
+// embedPandaManifestPatchJS points panda frame sequences at bundled static sprites.
+const embedPandaManifestPatchJS = `(function(){
+try{
+  var m=window.__PET_MANIFEST__;
+  if(!m||!m.assets||!m.assets.sprite)return;
+  if((m.assets.sprite.baseUrl||'').indexOf('http')===0)return;
+  var anims=m.assets.sprite.animations||{};
+  var idle=anims.idle||{};
+  var f=(idle.files&&idle.files[0])||'';
+  if(f.indexOf('panda/action_')!==0)return;
+  var base=(window.SERVER_BASE||'').replace(/\/+$/, '');
+  m.assets.sprite.baseUrl=base+'/static/pet/examples/sprites/';
+}catch(e){}
+})();`
+
+const embedSpriteLazyHelpersJS = `
+  function ensureLazyFrame(entry, idx) {
+    if (!entry.lazyFiles) return entry.imgs && entry.imgs[idx]
+    if (!entry.imgs) entry.imgs = []
+    if (entry.imgs[idx]) return entry.imgs[idx]
+    if (!entry._loading) entry._loading = {}
+    if (entry._loading[idx]) return null
+    var path = entry.lazyFiles[idx]
+    if (path == null) return null
+    entry._loading[idx] = true
+    var img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload = function () { entry.imgs[idx] = img; delete entry._loading[idx] }
+    img.onerror = function () { loadErrors.push(path); delete entry._loading[idx] }
+    img.src = assetUrl(path)
+    return null
+  }
+  function prefetchLazyFrames(entry, idx, ahead) {
+    var max = Math.max(1, (entry.def && entry.def.frames) || (entry.lazyFiles && entry.lazyFiles.length) || 1)
+    for (var d = 0; d < ahead; d++) {
+      var i = idx + d
+      if (i >= 0 && i < max) ensureLazyFrame(entry, i)
+    }
+  }
+`
 
 // guardLegacyPetJS patches legacy pet.js for resize crashes and sprite frame timing.
 func guardLegacyPetJS(script string) string {
@@ -339,6 +247,37 @@ func guardLegacyPetJS(script string) string {
 	return script
 }
 
+func patchEmbedSpriteRuntime(script string) string {
+	if strings.Contains(script, "LAZY_FRAME_THRESHOLD") || !strings.Contains(script, "function loadSheet") {
+		return script
+	}
+	script = strings.Replace(script, "var loadErrors = []", "var loadErrors = []\n  var LAZY_FRAME_THRESHOLD = 16", 1)
+	if idx := strings.Index(script, "function loadSheet"); idx > 0 {
+		script = script[:idx] + embedSpriteLazyHelpersJS + "\n" + script[idx:]
+	}
+	script = strings.Replace(script,
+		"if (def.files && def.files.length) {\n        Promise.all(def.files.map(function (path) {",
+		"if (def.files && def.files.length) {\n        if (def.files.length > LAZY_FRAME_THRESHOLD) {\n          resolve({ name: name, def: def, lazyFiles: def.files, imgs: [] })\n          return\n        }\n        Promise.all(def.files.map(function (path) {",
+		1)
+	script = strings.Replace(script,
+		"var count = Math.max(1, def.frames || (entry.imgs && entry.imgs.length) || 1)",
+		"var count = Math.max(1, def.frames || (entry.lazyFiles && entry.lazyFiles.length) || (entry.imgs && entry.imgs.length) || 1)",
+		1)
+	script = strings.Replace(script,
+		"if (layout.offsetY) dy += layout.offsetY\n    if (entry.imgs && entry.imgs.length) {",
+		"if (layout.offsetY) dy += layout.offsetY\n    if (entry.lazyFiles && entry.lazyFiles.length) {\n      prefetchLazyFrames(entry, idx, 4)\n      var lazyImg = ensureLazyFrame(entry, idx)\n      if (lazyImg) ctx.drawImage(lazyImg, 0, 0, fw, fh, dx, dy, dw, dh)\n      return\n    }\n    if (entry.imgs && entry.imgs.length) {",
+		1)
+	script = strings.Replace(script,
+		"if (entry && (entry.img || (entry.imgs && entry.imgs.length))) drawFrameSheet(entry, w, h)",
+		"if (entry && (entry.img || (entry.imgs && entry.imgs.length) || (entry.lazyFiles && entry.lazyFiles.length))) drawFrameSheet(entry, w, h)",
+		1)
+	script = strings.Replace(script,
+		"if (root.style.position !== 'fixed' && root.style.position !== 'absolute') {",
+		"if (window.__PET_EMBED_MODE__ !== 'desktop' && root.style.position !== 'fixed' && root.style.position !== 'absolute') {",
+		-1)
+	return script
+}
+
 func (h *Handlers) apiBaseURL(c *gin.Context) string {
 	scheme := "http"
 	if c.Request.TLS != nil {
@@ -360,6 +299,11 @@ func (h *Handlers) buildPetEmbedLoaderJS(c *gin.Context, template *svcmodels.JST
 	if strings.TrimSpace(script) == "" {
 		return ""
 	}
+	if !strings.Contains(script, "soul-pet-desktop-capable") {
+		script = strings.ReplaceAll(script, "getElementById('app')", "getElementById(window.__PET_MOUNT_ID__||'soul-pet-desktop-root')")
+		script = strings.ReplaceAll(script, "getElementById(\"app\")", "getElementById(window.__PET_MOUNT_ID__||'soul-pet-desktop-root')")
+	}
+	script = patchEmbedSpriteRuntime(script)
 
 	manifestJSON := h.resolveTemplateManifestJSON(template)
 	baseURL := h.apiBaseURL(c)
@@ -373,6 +317,9 @@ func (h *Handlers) buildPetEmbedLoaderJS(c *gin.Context, template *svcmodels.JST
 		manifestJSON,
 		baseURL+"/js-templates/embed/"+jsSourceID+"/file/",
 	)
+	preamble += "(function(){var c=window.__AIPetConfig||{};if(c.mode!=='widget'&&!window.__PET_EMBED_MODE__)window.__PET_EMBED_MODE__='desktop';})();\n"
+	preamble += embedPandaManifestPatchJS + "\n"
+	preamble += embedDesktopBootstrapJS + "\n"
 	if strings.TrimSpace(extraJS) != "" {
 		preamble += strings.TrimSpace(extraJS) + "\n"
 	}
@@ -380,6 +327,13 @@ func (h *Handlers) buildPetEmbedLoaderJS(c *gin.Context, template *svcmodels.JST
 		"(function(){var el=document.getElementById('soul-pet-embed-style');if(el)return;var s=document.createElement('style');s.id='soul-pet-embed-style';s.textContent=%q;document.head.appendChild(s)})();\n",
 		embedPetCSS,
 	)
+	sdkJS := strings.TrimRight(SoulNexus.SoulPetSDKJS, " \t\r\n")
+	if sdkJS != "" && !strings.HasSuffix(sdkJS, ";") {
+		sdkJS += ";"
+	}
+	if sdkJS != "" {
+		preamble += sdkJS + "\n"
+	}
 	voiceBridge := strings.TrimRight(SoulNexus.PetVoiceBridgeJS, " \t\r\n")
 	if voiceBridge != "" && !strings.HasSuffix(voiceBridge, ";") {
 		voiceBridge += ";"
@@ -435,7 +389,7 @@ func (h *Handlers) ServeJSTemplatePetLoaderJS(c *gin.Context) {
 
 	body := h.buildPetEmbedLoaderJS(c, template, "")
 	if strings.TrimSpace(body) == "" {
-		c.Data(http.StatusNotFound, "application/javascript; charset=utf-8", []byte("console.error('[SoulPet] empty project — save in Studio first');"))
+		c.Data(http.StatusNotFound, "application/javascript; charset=utf-8", []byte("console.error('[SoulPet] empty project — import a .soulpet.zip first');"))
 		return
 	}
 

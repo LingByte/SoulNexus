@@ -24,7 +24,6 @@ import AccountDeletionRequest from '@/pages/AccountDeletionRequest.tsx';
 const VoiceAssistant = lazy(() => import('@/pages/VoiceAssistant.tsx'));
 const VoiceTrainingVolcengine = lazy(() => import('@/pages/VoiceTraining/VoiceTrainingVolcengine.tsx'));
 const JSTemplateManager = lazy(() => import('@/pages/JSTemplateManager.tsx'));
-const PetStudioPage = lazy(() => import('@/pages/pet-market/PetStudioPage.tsx'));
 const Assistants = lazy(() => import('@/pages/Assistants.tsx'));
 const GroupMembers = lazy(() => import('@/pages/GroupMembers.tsx'));
 const GroupSettings = lazy(() => import('@/pages/GroupSettings.tsx'));
@@ -38,8 +37,10 @@ const KnowledgeDocumentDetailPage = lazy(() => import('@/pages/knowledge/Knowled
 const CallRecordingAnalytics = lazy(() => import('@/pages/CallRecordingAnalytics.tsx'));
 const NodePluginMarket = lazy(() => import('@/pages/NodePluginMarket.tsx'));
 const VoiceprintManagement = lazy(() => import('@/pages/VoiceprintManagement.tsx'));
-const Playground = lazy(() => import('@/pages/Playground.tsx'));
-
+const Market = lazy(() => import('@/pages/Market.tsx'));
+const Presets = lazy(() => import('@/pages/Presets.tsx'));
+const WorldInfo = lazy(() => import('@/pages/WorldInfo.tsx'));
+const Personas = lazy(() => import('@/pages/Personas.tsx'));
 // Shared loading fallback for lazy routes
 const PageLoading = () => (
     <div className="flex items-center justify-center min-h-[60vh]">
@@ -106,13 +107,6 @@ function AppRoutes() {
                         {/* Redirect old device-management URLs to new devices URLs */}
                         <Route path="/device-management" element={<Navigate to="/devices" replace />} />
                         <Route path="/device-management/:deviceId" element={<RedirectToDevices />} />
-                        <Route path="/playground" element={
-                            <ProtectedRoute>
-                                <Layout>
-                                    <Playground />
-                                </Layout>
-                            </ProtectedRoute>
-                        } />
                         <Route path="/assistants" element={
                             <ProtectedRoute>
                                 <Layout>
@@ -149,16 +143,8 @@ function AppRoutes() {
                                 </Layout>
                             </ProtectedRoute>
                         } />
-                        <Route path="/js-templates/new/edit" element={
-                            <ProtectedRoute>
-                                <PetStudioPage />
-                            </ProtectedRoute>
-                        } />
-                        <Route path="/js-templates/:id/edit" element={
-                            <ProtectedRoute>
-                                <PetStudioPage />
-                            </ProtectedRoute>
-                        } />
+                        <Route path="/js-templates/new/edit" element={<Navigate to="/js-templates" replace />} />
+                        <Route path="/js-templates/:id/edit" element={<Navigate to="/js-templates" replace />} />
                         <Route path="/billing" element={
                             <ProtectedRoute>
                                 <Navigate to="/profile/billing" replace />
@@ -236,6 +222,30 @@ function AppRoutes() {
                             <ProtectedRoute>
                                 <Layout>
                                     <CallRecordingAnalytics />
+                                </Layout>
+                            </ProtectedRoute>
+                        } />
+                        <Route path="/market" element={
+                            <Layout>
+                                <Market />
+                            </Layout>
+                        } />
+                        <Route path="/presets" element={
+                            <Layout>
+                                <Presets />
+                            </Layout>
+                        } />
+                        <Route path="/world-info" element={
+                            <ProtectedRoute>
+                                <Layout>
+                                    <WorldInfo />
+                                </Layout>
+                            </ProtectedRoute>
+                        } />
+                        <Route path="/personas" element={
+                            <ProtectedRoute>
+                                <Layout>
+                                    <Personas />
                                 </Layout>
                             </ProtectedRoute>
                         } />

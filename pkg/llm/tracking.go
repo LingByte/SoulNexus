@@ -265,16 +265,24 @@ func CreateSession(sessionID, userID string, assistantID int64, title, provider,
 
 // CreateMessage 创建消息并发送信号
 func CreateMessage(messageID, sessionID, role, content string, tokenCount int, model, provider, requestID string) {
+	CreateMessageWithBranch(messageID, sessionID, role, content, tokenCount, model, provider, requestID, "", 0, true)
+}
+
+// CreateMessageWithBranch 创建带分支信息的消息并发送信号
+func CreateMessageWithBranch(messageID, sessionID, role, content string, tokenCount int, model, provider, requestID, parentMessageID string, branchIndex int, isActiveBranch bool) {
 	startData := MessageCreatedData{
-		MessageID:  messageID,
-		SessionID:  sessionID,
-		Role:       role,
-		Content:    content,
-		TokenCount: tokenCount,
-		Model:      model,
-		Provider:   provider,
-		RequestID:  requestID,
-		CreatedAt:  time.Now().UnixMilli(),
+		MessageID:       messageID,
+		SessionID:       sessionID,
+		Role:            role,
+		Content:         content,
+		TokenCount:      tokenCount,
+		Model:           model,
+		Provider:        provider,
+		RequestID:       requestID,
+		ParentMessageID: parentMessageID,
+		BranchIndex:     branchIndex,
+		IsActiveBranch:  isActiveBranch,
+		CreatedAt:       time.Now().UnixMilli(),
 	}
 	utils.Sig().Emit(SignalMessageCreated, nil, startData)
 }

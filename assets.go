@@ -57,6 +57,9 @@ var AssistantJsModule string
 //go:embed static/js/pet-voice-bridge.js
 var PetVoiceBridgeJS string
 
+//go:embed static/js/soul-pet-sdk.js
+var SoulPetSDKJS string
+
 type CombineEmbedFS struct {
 	embeds    []EmbedFS
 	assertDir string

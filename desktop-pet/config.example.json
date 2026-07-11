@@ -1,0 +1,10 @@
+{
+  "serverBase": "http://127.0.0.1:7072/api",
+  "jsSourceId": "YOUR_JS_SOURCE_ID",
+  "settingsHotkey": "CommandOrControl+Alt+P",
+  "voiceHotkey": "CommandOrControl+Alt+V",
+  "cmdVoiceBase": "http://127.0.0.1:7080",
+  "agentId": null,
+  "apiKey": "",
+  "apiSecret": ""
+}

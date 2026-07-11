@@ -27,18 +27,25 @@ type ChatSession struct {
 }
 
 // ChatMessage 聊天消息表
+// Supports message tree branching (Swipe/Alternatives):
+//   - parent_message_id: references the parent user message (nil for root messages)
+//   - branch_index:     ordinal within siblings sharing the same parent (0 = first/active branch)
+//   - is_active_branch: when true, this message is the currently displayed branch
 type ChatMessage struct {
-	ID         string     `json:"id" gorm:"primaryKey;type:varchar(64)"`
-	SessionID  string     `json:"session_id" gorm:"type:varchar(64);not null;index"`
-	Role       string     `json:"role" gorm:"type:varchar(20);not null"`
-	Content    string     `json:"content" gorm:"type:text;not null"`
-	TokenCount int        `json:"token_count" gorm:"default:0"`
-	Model      string     `json:"model" gorm:"type:varchar(100);not null"`
-	Provider   string     `json:"provider" gorm:"type:varchar(50);not null"`
-	RequestID  string     `json:"request_id" gorm:"type:varchar(64);index"`
-	CreatedAt  time.Time  `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt  time.Time  `json:"updated_at" gorm:"autoUpdateTime"`
-	DeletedAt  *time.Time `json:"deleted_at,omitempty" gorm:"index"`
+	ID              string     `json:"id" gorm:"primaryKey;type:varchar(64)"`
+	SessionID       string     `json:"session_id" gorm:"type:varchar(64);not null;index"`
+	Role            string     `json:"role" gorm:"type:varchar(20);not null"`
+	Content         string     `json:"content" gorm:"type:text;not null"`
+	TokenCount      int        `json:"token_count" gorm:"default:0"`
+	Model           string     `json:"model" gorm:"type:varchar(100);not null"`
+	Provider        string     `json:"provider" gorm:"type:varchar(50);not null"`
+	RequestID       string     `json:"request_id" gorm:"type:varchar(64);index"`
+	ParentMessageID *string    `json:"parent_message_id,omitempty" gorm:"type:varchar(64);index"`
+	BranchIndex     int        `json:"branch_index" gorm:"default:0"`
+	IsActiveBranch  bool       `json:"is_active_branch" gorm:"default:true"`
+	CreatedAt       time.Time  `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt       time.Time  `json:"updated_at" gorm:"autoUpdateTime"`
+	DeletedAt       *time.Time `json:"deleted_at,omitempty" gorm:"index"`
 }
 
 // LLMUsage LLM用量统计表
@@ -798,3 +805,52 @@ type TemplateManager struct {
 	defaultTemplates map[string]string
 	customTemplates  map[string]*JSTemplate
 }
+
+// ---------------------------------------------------------------------------
+// World Info / Lorebook — lightweight context injection on keyword/regex trigger
+// ---------------------------------------------------------------------------
+
+// WorldInfoEntry is a lorebook entry that gets injected into the prompt when
+// its activation keys match the recent conversation context.
+type WorldInfoEntry struct {
+	ID              string    `json:"id" gorm:"primaryKey;type:varchar(64)"`
+	AgentID         int64     `json:"agent_id" gorm:"index;not null"`
+	UserID          string    `json:"user_id" gorm:"type:varchar(64);index"`
+	Name            string    `json:"name" gorm:"type:varchar(255);not null"`
+	Content         string    `json:"content" gorm:"type:text;not null"`
+	Keys            string    `json:"keys" gorm:"type:text"`            // comma-separated trigger keywords
+	Regex           string    `json:"regex" gorm:"type:varchar(512)"`   // optional regex trigger
+	Selective       bool      `json:"selective" gorm:"default:false"`   // chain with previous entry
+	Constant        bool      `json:"constant" gorm:"default:false"`    // always active
+	Depth           int       `json:"depth" gorm:"default:4"`           // recursion depth (how many subsequent entries can chain)
+	Order           int       `json:"order" gorm:"default:0"`           // insertion priority
+	Enabled         bool      `json:"enabled" gorm:"default:true"`
+	GroupID         uint      `json:"group_id" gorm:"index;default:0"`  // for org-level shared lorebooks
+	CreatedAt       time.Time `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt       time.Time `json:"updated_at" gorm:"autoUpdateTime"`
+	DeletedAt       *time.Time `json:"deleted_at,omitempty" gorm:"index"`
+}
+
+func (WorldInfoEntry) TableName() string { return "world_info_entries" }
+
+// ---------------------------------------------------------------------------
+// User Persona — user identity/profile definition for role-play scenarios
+// ---------------------------------------------------------------------------
+
+// UserPersona defines a user's identity, appearance, personality, and
+// background that gets injected into the system prompt.
+type UserPersona struct {
+	ID          string    `json:"id" gorm:"primaryKey;type:varchar(64)"`
+	UserID      string    `json:"user_id" gorm:"type:varchar(64);index;not null"`
+	Name        string    `json:"name" gorm:"type:varchar(255);not null"`
+	Description string    `json:"description" gorm:"type:text"`         // physical appearance, background
+	Personality string    `json:"personality" gorm:"type:text"`         // traits, temperament, speech patterns
+	Scenario    string    `json:"scenario" gorm:"type:text"`            // current situation / context
+	AvatarURL   string    `json:"avatar_url" gorm:"type:varchar(512)"`  // avatar image URL
+	IsDefault   bool      `json:"is_default" gorm:"default:false"`      // default persona for the user
+	CreatedAt   time.Time `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt   time.Time `json:"updated_at" gorm:"autoUpdateTime"`
+	DeletedAt   *time.Time `json:"deleted_at,omitempty" gorm:"index"`
+}
+
+func (UserPersona) TableName() string { return "user_personas" }

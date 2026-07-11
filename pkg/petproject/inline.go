@@ -7,6 +7,7 @@ import (
 
 // StandardPaths are loaded/saved with every pet project.
 var StandardPaths = []string{
+	SoulpetYamlFile,
 	"manifest.json",
 	"pet.js",
 	"style.css",

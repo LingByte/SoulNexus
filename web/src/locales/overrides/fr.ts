@@ -11,7 +11,6 @@ export const frOverrides: Record<string, string> = {
   'nav.enterSystem': 'Entrer dans le systeme',
   'nav.logout': 'Deconnexion',
   'nav.loginRegister': 'Connexion / Inscription',
-  'nav.sidebar.playground': 'Bac a sable',
   'nav.sidebar.smartAssistant': 'Agent intelligent',
   'nav.sidebar.voiceTraining': 'Entrainement vocal',
   'nav.sidebar.knowledgeBase': 'Base de connaissances',

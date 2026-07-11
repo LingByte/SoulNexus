@@ -47,9 +47,13 @@ const MailLogs = lazy(() => import('@/pages/MailLogs'))
 const SMSLogs = lazy(() => import('@/pages/SMSLogs'))
 const Devices = lazy(() => import('@/pages/Devices'))
 const ChatData = lazy(() => import('@/pages/ChatData'))
+const Presets = lazy(() => import('@/pages/Presets'))
+const Market = lazy(() => import('@/pages/Market'))
 const KnowledgeListPage = lazy(() => import('@/pages/knowledge/KnowledgeListPage'))
 const KnowledgeSpaceDetailPage = lazy(() => import('@/pages/knowledge/KnowledgeSpaceDetailPage'))
 const KnowledgeDocumentDetailPage = lazy(() => import('@/pages/knowledge/KnowledgeDocumentDetailPage'))
+const WorldInfo = lazy(() => import('@/pages/WorldInfo'))
+const Personas = lazy(() => import('@/pages/Personas'))
 
 function App() {
   const { refreshUserInfo, isAuthenticated } = useAuthStore()
@@ -158,9 +162,13 @@ function App() {
                   <Route path="/sms-logs" element={<SMSLogs />} />
                   <Route path="/devices" element={<Devices />} />
                   <Route path="/chat-data" element={<ChatData />} />
+                  <Route path="/presets" element={<Presets />} />
+                  <Route path="/market" element={<Market />} />
                   <Route path="/knowledge-bases" element={<KnowledgeListPage />} />
                   <Route path="/knowledge-bases/:id" element={<KnowledgeSpaceDetailPage />} />
                   <Route path="/knowledge-bases/documents/:docId" element={<KnowledgeDocumentDetailPage />} />
+                  <Route path="/world-info" element={<WorldInfo />} />
+                  <Route path="/personas" element={<Personas />} />
                 </Route>
 
               <Route path="/" element={<Navigate to="/users" replace />} />

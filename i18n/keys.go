@@ -310,7 +310,6 @@ const (
 	MsgDistributorTokenNoModelAccess  = "distributor.token_no_model_access"
 	MsgDistributorTokenModelForbidden = "distributor.token_model_forbidden"
 	MsgDistributorModelNameRequired   = "distributor.model_name_required"
-	MsgDistributorInvalidPlayground   = "distributor.invalid_playground_request"
 	MsgDistributorGroupAccessDenied   = "distributor.group_access_denied"
 	MsgDistributorGetChannelFailed    = "distributor.get_channel_failed"
 	MsgDistributorNoAvailableChannel  = "distributor.no_available_channel"
@@ -433,4 +432,45 @@ const (
 	MsgGroupQueryFailed        = "handler.group.query_failed"
 	MsgGroupPermissionDenied   = "handler.group.permission_denied"
 	MsgGroupQueryMembersFailed = "handler.group.query_members_failed"
+)
+
+// Chat handler messages (Swipe / Branch / WorldInfo / Persona)
+const (
+	// Swipe / Branching
+	MsgChatAlternativesFetched   = "handler.chat.alternatives_fetched"
+	MsgChatAlternativesFailed    = "handler.chat.alternatives_failed"
+	MsgChatAlternativeActivated  = "handler.chat.alternative_activated"
+	MsgChatActivateFailed        = "handler.chat.activate_failed"
+	MsgChatRegenerateFailed      = "handler.chat.regenerate_failed"
+	MsgChatRegenerated           = "handler.chat.regenerated"
+	MsgChatBranchCreated         = "handler.chat.branch_created"
+	MsgChatBranchFailed          = "handler.chat.branch_failed"
+
+	// World Info
+	MsgWorldInfoListFetched     = "handler.chat.world_info_list_fetched"
+	MsgWorldInfoListFailed      = "handler.chat.world_info_list_failed"
+	MsgWorldInfoCreated         = "handler.chat.world_info_created"
+	MsgWorldInfoCreateFailed    = "handler.chat.world_info_create_failed"
+	MsgWorldInfoUpdated         = "handler.chat.world_info_updated"
+	MsgWorldInfoUpdateFailed    = "handler.chat.world_info_update_failed"
+	MsgWorldInfoDeleted         = "handler.chat.world_info_deleted"
+	MsgWorldInfoDeleteFailed    = "handler.chat.world_info_delete_failed"
+	MsgWorldInfoActivateFailed  = "handler.chat.world_info_activate_failed"
+	MsgWorldInfoActivated       = "handler.chat.world_info_activated"
+	MsgWorldInfoInjectFailed    = "handler.chat.world_info_inject_failed"
+	MsgWorldInfoInjected        = "handler.chat.world_info_injected"
+
+	// Persona
+	MsgPersonaListFetched       = "handler.chat.persona_list_fetched"
+	MsgPersonaListFailed        = "handler.chat.persona_list_failed"
+	MsgPersonaCreated           = "handler.chat.persona_created"
+	MsgPersonaCreateFailed      = "handler.chat.persona_create_failed"
+	MsgPersonaUpdated           = "handler.chat.persona_updated"
+	MsgPersonaUpdateFailed      = "handler.chat.persona_update_failed"
+	MsgPersonaDeleted           = "handler.chat.persona_deleted"
+	MsgPersonaDeleteFailed      = "handler.chat.persona_delete_failed"
+	MsgPersonaDefaultSet        = "handler.chat.persona_default_set"
+	MsgPersonaDefaultSetFailed  = "handler.chat.persona_default_set_failed"
+	MsgPersonaInjectFailed      = "handler.chat.persona_inject_failed"
+	MsgPersonaInjected          = "handler.chat.persona_injected"
 )

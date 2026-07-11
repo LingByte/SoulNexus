@@ -1,48 +1,30 @@
-import { BINARY_PREFIX } from './projectAssetUtils'
-import { getApiBaseURL } from '@/config/apiConfig'
 import { SPRITE_ASSETS_PREFIX } from './templates/spriteShared'
-import { PANDA_LANLAN_FILENAMES } from './pandaSpriteCatalog'
+import { PANDA_SEQUENCE_MARKER } from './pandaSpriteCatalog'
+import { getApiBaseURL } from '@/config/apiConfig'
 
 export function defaultPandaSpriteStaticBase(): string {
   const api = getApiBaseURL().replace(/\/$/, '')
   return `${api}/static/pet/examples/sprites/`
 }
 
-async function fetchSpriteAsBase64(filename: string): Promise<string | null> {
-  const url = `${defaultPandaSpriteStaticBase()}${encodeURIComponent(filename)}`
-  try {
-    const res = await fetch(url, { credentials: 'omit' })
-    if (!res.ok) return null
-    const blob = await res.blob()
-    return await new Promise((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onload = () => {
-        const result = reader.result
-        if (typeof result !== 'string') {
-          reject(new Error('read failed'))
-          return
-        }
-        const comma = result.indexOf(',')
-        resolve(BINARY_PREFIX + (comma >= 0 ? result.slice(comma + 1) : result))
-      }
-      reader.onerror = () => reject(reader.error ?? new Error('read failed'))
-      reader.readAsDataURL(blob)
-    })
-  } catch {
-    return null
-  }
-}
-
+/**
+ * 懒懒熊猫逐帧资源体积过大（~250MB），不嵌入 project base64。
+ * 运行时从 /static/pet/examples/sprites/panda/action_* 加载。
+ * 本地开发请先运行：node scripts/sync-pet-sprites.mjs
+ */
 export async function fetchDefaultPandaSpriteAssets(): Promise<Record<string, string>> {
-  const out: Record<string, string> = {}
-  const results = await Promise.all(
-    PANDA_LANLAN_FILENAMES.map(async (name) => {
-      const content = await fetchSpriteAsBase64(name)
-      return content ? ([`${SPRITE_ASSETS_PREFIX}${name}`, content] as const) : null
-    }),
-  )
-  for (const row of results) {
-    if (row) out[row[0]] = row[1]
+  return {
+    [`${SPRITE_ASSETS_PREFIX}README.md`]: `# 懒懒熊猫 · 逐帧动画
+
+动作帧位于 \`${PANDA_SEQUENCE_MARKER}\` 等路径，由静态资源目录提供。
+
+同步命令（仓库根目录）：
+
+\`\`\`bash
+node scripts/sync-pet-sprites.mjs
+\`\`\`
+
+动作：action_1=idle · action_2=hello · action_3=coy · action_4=angry
+`,
   }
-  return out
 }

@@ -33,6 +33,8 @@ export interface PetProjectPayload {
   usage?: string
   entry: string
   files: Record<string, string>
+  changeNote?: string
+  bumpVersion?: boolean
 }
 
 export interface PetProjectResponse {

@@ -181,6 +181,17 @@ func (h *Handlers) UpdateAgent(c *gin.Context) {
 		JsSourceId               string   `json:"jsSourceId"`
 		BoundJsTemplateSourceId  string   `json:"boundJsTemplateSourceId"`
 		OpeningStatement     string   `json:"openingStatement"`     // 开场白
+
+		// === 角色卡字段 ===
+		AvatarURL        string  `json:"avatarUrl"`
+		Description      string  `json:"description"`
+		Personality      string  `json:"personality"`
+		Scenario         string  `json:"scenario"`
+		ExampleDialogues string  `json:"exampleDialogues"`
+		Tags             string  `json:"tags"`
+		CreatorNote      string  `json:"creatorNote"`
+		SpecVersion      string  `json:"specVersion"`
+		Visibility       string  `json:"visibility"`
 	}
 
 	// Convert raw body back to JSON and bind to struct
@@ -266,6 +277,38 @@ func (h *Handlers) UpdateAgent(c *gin.Context) {
 	}
 	if _, openingProvided := rawBody["openingStatement"]; openingProvided {
 		updateData["opening_statement"] = input.OpeningStatement
+	}
+
+	// Character card fields
+	if _, avatarUrlProvided := rawBody["avatarUrl"]; avatarUrlProvided {
+		updateData["avatar_url"] = strings.TrimSpace(input.AvatarURL)
+	}
+	if _, descProvided := rawBody["description"]; descProvided {
+		updateData["description"] = input.Description
+	}
+	if _, personalityProvided := rawBody["personality"]; personalityProvided {
+		updateData["personality"] = input.Personality
+	}
+	if _, scenarioProvided := rawBody["scenario"]; scenarioProvided {
+		updateData["scenario"] = input.Scenario
+	}
+	if _, exampleDialoguesProvided := rawBody["exampleDialogues"]; exampleDialoguesProvided {
+		updateData["example_dialogues"] = input.ExampleDialogues
+	}
+	if _, tagsProvided := rawBody["tags"]; tagsProvided {
+		updateData["tags"] = input.Tags
+	}
+	if _, creatorNoteProvided := rawBody["creatorNote"]; creatorNoteProvided {
+		updateData["creator_note"] = input.CreatorNote
+	}
+	if _, specVersionProvided := rawBody["specVersion"]; specVersionProvided {
+		updateData["spec_version"] = input.SpecVersion
+	}
+	if _, visibilityProvided := rawBody["visibility"]; visibilityProvided {
+		v := strings.TrimSpace(input.Visibility)
+		if v == "private" || v == "group" || v == "public" {
+			updateData["visibility"] = v
+		}
 	}
 
 	if err := h.db.Model(&assistant).Where("id = ?", id).Updates(updateData).Error; err != nil {

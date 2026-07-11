@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "type": "live2d",
+  "name": "Live2D 占位",
+  "assets": {
+    "live2d": {
+      "baseUrl": "assets/live2d/",
+      "model": "model.model3.json",
+      "motions": {
+        "idle": "motions/idle.motion3.json",
+        "tap": "motions/tap.motion3.json"
+      },
+      "expressions": {
+        "happy": "expressions/happy.exp3.json",
+        "sad": "expressions/sad.exp3.json"
+      }
+    }
+  },
+  "layout": {
+    "scale": 0.35,
+    "anchor": "bottom-center"
+  },
+  "emotionMap": {
+    "joy": "happy",
+    "sad": "sad"
+  },
+  "behaviors": {
+    "lipSync": "volume",
+    "talkMotion": "idle",
+    "dragEnabled": true
+  }
+}

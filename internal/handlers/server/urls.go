@@ -176,6 +176,8 @@ func (h *Handlers) Register(engine *gin.Engine) {
 	h.registerWorkflowRoutes(r)
 	h.registerWorkflowPluginRoutes(r) // Add workflow plugin routes
 	h.registerNodePluginRoutes(r)     // Add node plugin routes
+	h.registerPresetRoutes(r)         // Preset template system
+	h.registerMarketRoutes(r)         // Character card market
 	h.registerOpenAPIRoutes(r)        // Open API (apiKey + apiSecret auth)
 	h.registerLLMRelayRoutes(engine)  // OpenAI/Anthropic 兼容对外网关 /v1/*
 	h.RegisterPublicWorkflowRoutes(r)
@@ -408,6 +410,24 @@ func (h *Handlers) registerAgentRoutes(r *gin.RouterGroup) {
 
 		agents.GET("/lingecho/client/:id/loader.js", h.ServeVoiceSculptorLoaderJS)
 
+		// Character Card endpoints
+		agents.POST("/import", auth.AuthRequired, h.handleImportCharacterCard)
+		agents.POST("/:id/export", auth.AuthRequired, h.handleExportCharacterCard)
+		agents.GET("/:id/export", auth.AuthRequired, h.handleExportCharacterCard)
+		agents.POST("/:id/avatar", auth.AuthRequired, h.handleUploadAgentAvatar)
+
+	}
+}
+
+// registerMarketRoutes Character Card Market (public)
+func (h *Handlers) registerMarketRoutes(r *gin.RouterGroup) {
+	market := r.Group("market/agents")
+	{
+		market.GET("", h.handleMarketListAgents)
+		market.GET("/:id", h.handleMarketGetAgent)
+		market.POST("/:id/fork", auth.AuthRequired, h.handleMarketForkAgent)
+		market.POST("/:id/rate", auth.AuthRequired, h.handleMarketRateAgent)
+		market.GET("/:id/share", h.handleMarketShareAgent)
 	}
 }
 
@@ -417,22 +437,39 @@ func (h *Handlers) registerJSTemplateRoutes(r *gin.RouterGroup) {
 	r.GET("/js-templates/embed/:jsSourceId/loader.js", h.ServeJSTemplatePetLoaderJS)
 	r.GET("/js-templates/embed/:jsSourceId/file/*filepath", h.ServeJSTemplateEmbedFile)
 
-	// Studio preview assets
-	r.POST("/pet/studio-preview", auth.AuthRequired, h.RegisterPetStudioPreview)
-	r.GET("/pet/studio-preview/:token/*filepath", h.ServePetStudioPreviewFile)
+	petPackages := r.Group("pet-packages")
+	petPackages.Use(auth.AuthRequired)
+	{
+		petPackages.POST("/validate", h.ValidatePetPackage)
+		petPackages.POST("/import", h.ImportPetPackage)
+	}
+
+	// Public pet marketplace (marketId — no jsSourceId)
+	r.GET("/pet-market/:marketId/preview/loader.js", h.ServePetMarketPreviewLoaderJS)
+	r.GET("/pet-market/:marketId/preview/file/*filepath", h.ServePetMarketPreviewFile)
+	r.GET("/pet-market/listings", h.ListPetMarketListings)
+	r.GET("/pet-market/listings/:marketId", h.GetPetMarketListing)
+	r.GET("/pet-market/listings/:marketId/download.zip", h.DownloadPetMarketListingZip)
+
+	petMarket := r.Group("pet-market")
+	petMarket.Use(auth.AuthRequired)
+	{
+		petMarket.POST("/listings", h.PublishPetMarketListing)
+		petMarket.POST("/listings/:marketId/fork", h.ForkPetMarketListing)
+		petMarket.POST("/listings/:marketId/rate", h.RatePetMarketListing)
+	}
 
 	jsTemplate := r.Group("js-templates")
 	jsTemplate.Use(auth.AuthRequired)
 	{
 		jsTemplate.POST("", h.CreateJSTemplate)
-		jsTemplate.POST("/studio-project", h.CreateJSTemplateWithProject)
 		jsTemplate.GET("/default", h.ListDefaultJSTemplates)
 		jsTemplate.GET("/custom", h.ListCustomJSTemplates)
 		jsTemplate.GET("/search", h.SearchJSTemplates)
 		jsTemplate.GET("/name/:name", h.GetJSTemplateByName)
-		jsTemplate.GET("/:id/project", h.GetJSTemplateProject)
-		jsTemplate.GET("/:id/project/file/*filepath", h.ServeJSTemplateProjectFile)
-		jsTemplate.PUT("/:id/project", h.SaveJSTemplateProject)
+		jsTemplate.GET("/:id/export.zip", h.ExportJSTemplateProjectZip)
+		jsTemplate.GET("/:id/pull", h.PullPetPackage)
+		jsTemplate.PUT("/:id/push", h.PushPetPackage)
 		jsTemplate.GET("/:id/versions", h.ListJSTemplateVersions)
 		jsTemplate.GET("/:id/versions/:versionId", h.GetJSTemplateVersion)
 		jsTemplate.POST("/:id/versions/:versionId/rollback", h.RollbackJSTemplateVersion)
@@ -464,6 +501,28 @@ func (h *Handlers) registerChatRoutes(r *gin.RouterGroup) {
 		chat.GET("chat-session-log/by-session/:sessionId", h.getChatSessionLogsBySession)
 
 		chat.GET("chat-session-log/by-agent/:agentId", h.getChatSessionLogByAgent)
+
+		// Swipe / Branching API
+		chat.GET("messages/:id/alternatives", h.getMessageAlternatives)
+		chat.POST("messages/:id/activate", h.activateMessageAlternative)
+		chat.POST("messages/:id/regenerate", h.regenerateMessage)
+		chat.POST("messages/:id/branch", h.branchFromMessage)
+
+		// World Info / Lorebook API
+		chat.GET("world-info", h.listWorldInfoEntries)
+		chat.POST("world-info", h.createWorldInfoEntry)
+		chat.PUT("world-info/:id", h.updateWorldInfoEntry)
+		chat.DELETE("world-info/:id", h.deleteWorldInfoEntry)
+		chat.POST("world-info/activate", h.activateWorldInfo)
+		chat.POST("world-info/inject", h.injectWorldInfo)
+
+		// User Persona API
+		chat.GET("personas", h.listPersonas)
+		chat.POST("personas", h.createPersona)
+		chat.PUT("personas/:id", h.updatePersona)
+		chat.DELETE("personas/:id", h.deletePersona)
+		chat.PUT("personas/:id/default", h.setDefaultPersona)
+		chat.GET("personas/:id/inject", h.injectPersona)
 	}
 }
 
@@ -818,5 +877,21 @@ func (h *Handlers) registerAdminManagementRoutes(r *gin.RouterGroup) {
 		devices.GET("", h.handleAdminListDevices)
 		devices.GET("/:id", h.handleAdminGetDevice)
 		devices.DELETE("/:id", h.handleAdminDeleteDevice)
+	}
+
+	worldInfo := r.Group("admin/world-info", adminGuard...)
+	{
+		worldInfo.GET("", h.handleAdminListWorldInfo)
+		worldInfo.GET("/:id", h.handleAdminGetWorldInfo)
+		worldInfo.PUT("/:id", h.handleAdminUpdateWorldInfo)
+		worldInfo.DELETE("/:id", h.handleAdminDeleteWorldInfo)
+	}
+
+	personas := r.Group("admin/personas", adminGuard...)
+	{
+		personas.GET("", h.handleAdminListPersonas)
+		personas.GET("/:id", h.handleAdminGetPersona)
+		personas.PUT("/:id", h.handleAdminUpdatePersona)
+		personas.DELETE("/:id", h.handleAdminDeletePersona)
 	}
 }

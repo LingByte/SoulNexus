@@ -6,7 +6,11 @@ import {
   GHOST_SPRITE_FILENAMES,
 } from './ghostSpriteCatalog'
 
+/** Bootstrap URL for copying default ghost PNGs into project files (not runtime). */
 export function defaultGhostSpriteStaticBase(): string {
+  if (typeof window !== 'undefined') {
+    return `${window.location.origin}/pet-examples/sprites/`
+  }
   const api = getApiBaseURL().replace(/\/$/, '')
   return `${api}/static/pet/examples/sprites/`
 }
@@ -14,28 +18,36 @@ export function defaultGhostSpriteStaticBase(): string {
 export { buildGhostAnimations as DEFAULT_GHOST_ANIMATIONS }
 
 async function fetchSpriteAsBase64(filename: string): Promise<string | null> {
-  const url = `${defaultGhostSpriteStaticBase()}${encodeURIComponent(filename)}`
-  try {
-    const res = await fetch(url, { credentials: 'omit' })
-    if (!res.ok) return null
-    const blob = await res.blob()
-    return await new Promise((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onload = () => {
-        const result = reader.result
-        if (typeof result !== 'string') {
-          reject(new Error('read failed'))
-          return
+  const bases = [
+    defaultGhostSpriteStaticBase(),
+    `${getApiBaseURL().replace(/\/$/, '')}/static/pet/examples/sprites/`,
+  ]
+  for (const base of bases) {
+    const url = `${base}${encodeURIComponent(filename)}`
+    try {
+      const res = await fetch(url, { credentials: 'omit' })
+      if (!res.ok) continue
+      const blob = await res.blob()
+      const encoded = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => {
+          const result = reader.result
+          if (typeof result !== 'string') {
+            reject(new Error('read failed'))
+            return
+          }
+          const comma = result.indexOf(',')
+          resolve(BINARY_PREFIX + (comma >= 0 ? result.slice(comma + 1) : result))
         }
-        const comma = result.indexOf(',')
-        resolve(BINARY_PREFIX + (comma >= 0 ? result.slice(comma + 1) : result))
-      }
-      reader.onerror = () => reject(reader.error ?? new Error('read failed'))
-      reader.readAsDataURL(blob)
-    })
-  } catch {
-    return null
+        reader.onerror = () => reject(reader.error ?? new Error('read failed'))
+        reader.readAsDataURL(blob)
+      })
+      return encoded
+    } catch {
+      /* try next base */
+    }
   }
+  return null
 }
 
 /** Load default ghost PNGs into project files (assets/sprites/*). */

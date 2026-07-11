@@ -6,6 +6,7 @@ import {
   PANDA_LANLAN_BEHAVIORS,
   PANDA_LANLAN_EMOTION_MAP,
   PANDA_LANLAN_IDLE_FPS,
+  PANDA_SEQUENCE_MARKER,
 } from './pandaSpriteCatalog'
 import { fetchDefaultPandaSpriteAssets } from './defaultPandaSprites'
 import { fetchDefaultGhostSpriteAssets } from './defaultGhostSprites'
@@ -13,6 +14,18 @@ import { buildSpriteManifest, buildSpritePetJs } from './templates/spriteShared'
 import { petNameFromProject } from './projectUtils'
 
 const SPRITE_RUNTIME_MARKER = 'forcedAnim'
+const DESKTOP_RUNTIME_MARKER = 'soul-pet-desktop-capable'
+
+export function isLive2dProject(project: PetProjectV1): boolean {
+  try {
+    const raw = project.files[PROJECT_FILES.manifest]
+    if (!raw) return false
+    const m = JSON.parse(raw) as { type?: string }
+    return m.type === 'live2d'
+  } catch {
+    return false
+  }
+}
 
 export function isSpriteProject(project: PetProjectV1): boolean {
   try {
@@ -26,7 +39,9 @@ export function isSpriteProject(project: PetProjectV1): boolean {
 }
 
 export function hasSpriteAssets(project: PetProjectV1): boolean {
-  return Object.keys(project.files).some((p) => p.startsWith('assets/sprites/'))
+  return Object.keys(project.files).some(
+    (p) => p.startsWith('assets/sprites/') && /\.(png|jpe?g|webp|gif)$/i.test(p),
+  )
 }
 
 export function ensureSpriteAssetsInProject(project: PetProjectV1): PetProjectV1 {
@@ -50,7 +65,7 @@ export function ensureSpriteAssetsInProject(project: PetProjectV1): PetProjectV1
 
 export function isPandaLanlanProject(project: PetProjectV1): boolean {
   const raw = project.files[PROJECT_FILES.manifest] || ''
-  return raw.includes('panda_lanlan')
+  return raw.includes(PANDA_SEQUENCE_MARKER) || raw.includes('panda_lanlan')
 }
 
 export async function fetchDefaultSpriteAssetsForProject(
@@ -65,14 +80,19 @@ export async function fetchDefaultSpriteAssetsForProject(
 
 export function needsSpriteRuntimeUpgrade(project: PetProjectV1): boolean {
   const entry = project.files[PROJECT_FILES.entry] || ''
+  const manifestRaw = project.files[PROJECT_FILES.manifest] || ''
   if (isSpriteProject(project) && !entry.includes(SPRITE_RUNTIME_MARKER)) return true
+  if (isSpriteProject(project) && !entry.includes(DESKTOP_RUNTIME_MARKER)) return true
   if (isPandaLanlanProject(project)) {
+    if (manifestRaw.includes('panda_lanlan_') && !manifestRaw.includes(PANDA_SEQUENCE_MARKER)) return true
     try {
       const m = JSON.parse(project.files[PROJECT_FILES.manifest] || '{}') as {
-        assets?: { sprite?: { animations?: { idle?: { fps?: number } } } }
+        assets?: { sprite?: { animations?: { idle?: { fps?: number } }; baseUrl?: string } }
       }
       const idleFps = m.assets?.sprite?.animations?.idle?.fps
       if (idleFps != null && idleFps < PANDA_LANLAN_IDLE_FPS) return true
+      const baseUrl = m.assets?.sprite?.baseUrl || ''
+      if (baseUrl.startsWith('http')) return true
     } catch {
       /* ignore */
     }
@@ -89,7 +109,8 @@ export function upgradeSpriteRuntime(project: PetProjectV1, displayName?: string
     animations: panda ? buildPandaLanlanAnimations() : buildGhostAnimations(),
     emotionMap: panda ? PANDA_LANLAN_EMOTION_MAP : undefined,
     behaviors: panda ? PANDA_LANLAN_BEHAVIORS : undefined,
-    layout: panda ? { scale: 0.55 } : undefined,
+    layout: panda ? { scale: 0.32 } : undefined,
+    spriteBaseUrl: undefined,
   })
   return {
     ...project,

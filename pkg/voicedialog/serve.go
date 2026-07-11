@@ -27,6 +27,9 @@ type Config struct {
 	SystemPrompt     string
 	OpeningStatement string // Spoken via TTS when the call starts (before user speaks).
 	Temperature      float32 // 0 = caller should apply default (e.g. 0.7)
+	SessionID        string  // For message persistence and tracking
+	AgentID          int64   // For message persistence and tracking
+	UserID           string  // For message persistence and tracking
 }
 
 // Serve blocks until the WebSocket read loop ends or ctx is cancelled.
@@ -196,6 +199,13 @@ func (c *callConn) runTurn(ctx context.Context, userText string) {
 		Temperature: temp,
 	}
 
+	// Persist user message if session tracking is configured
+	userMsgID := ""
+	if c.cfg.SessionID != "" && c.cfg.UserID != "" {
+		userMsgID = fmt.Sprintf("ws_%s_%d", c.callID, turn)
+		llm.CreateMessageWithBranch(userMsgID, c.cfg.SessionID, "user", userText, 0, c.cfg.Model, c.cfg.Provider, "", "", 0, true)
+	}
+
 	_, err := c.provider.QueryStream(userText, opts, func(piece string, isComplete bool) error {
 		if ctx.Err() != nil {
 			return ctx.Err()
@@ -216,6 +226,12 @@ func (c *callConn) runTurn(ctx context.Context, userText string) {
 		}
 		return nil
 	})
+
+	// Persist assistant response if session tracking is configured
+	if c.cfg.SessionID != "" && c.cfg.UserID != "" && sv.seen != "" {
+		llm.CreateMessageWithBranch(fmt.Sprintf("ws_%s_%d_a", c.callID, turn), c.cfg.SessionID, "assistant", sv.seen, 0, c.cfg.Model, c.cfg.Provider, "", userMsgID, 0, true)
+	}
+
 	if err != nil {
 		logger.Info(fmt.Sprintf("[call=%s] llm stream failed: %v (fullSeen=%q)",
 			c.callID, err, ellipsize(sv.seen, 200)))

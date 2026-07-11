@@ -3,7 +3,7 @@ import { AlertCircle, Eye, RefreshCw } from 'lucide-react'
 import { PROJECT_FILES, type PetProjectV1 } from '@/pages/pet-market/types'
 import { getApiBaseURL } from '@/config/apiConfig'
 import { petProjectService } from '@/api/petProject'
-import { hasSpriteAssets } from '@/pages/pet-market/spriteProjectUtils'
+import { isLive2dProject } from '@/pages/pet-market/spriteProjectUtils'
 import { guardLegacyPetJs, previewApiBase, previewRewriteApiUrl } from '@/lib/voice/guardLegacyPetJs'
 
 const PREVIEW_CHANNEL = 'soul-pet-preview'
@@ -13,9 +13,7 @@ interface PreviewPanelProps {
   project: PetProjectV1
   visible: boolean
   templateId?: string | null
-  /** Public embed id — used when model files are already saved to object storage */
   jsSourceId?: string | null
-  /** True when assets/sprites/ is missing from the in-memory project */
   missingModelAssets?: boolean
   onToggle: () => void
 }
@@ -30,9 +28,14 @@ function projectToPayload(project: PetProjectV1, projectBase: string) {
   }
 }
 
-/** Public embed base — no auth, works from Vite preview iframe (cross-origin). */
 function embedProjectBase(jsSourceId: string): string {
   return previewRewriteApiUrl(`${getApiBaseURL()}/js-templates/embed/${encodeURIComponent(jsSourceId)}/file/`)
+}
+
+function hasInMemoryBinaryAssets(project: PetProjectV1): boolean {
+  return Object.keys(project.files).some(
+    (p) => p.startsWith('assets/') && /\.(png|jpe?g|webp|gif|moc3|model3\.json)$/i.test(p),
+  )
 }
 
 export default function PreviewPanel({
@@ -68,16 +71,14 @@ export default function PreviewPanel({
   useEffect(() => {
     const onMessage = (e: MessageEvent) => {
       if (e.data?.channel !== PREVIEW_CHANNEL) return
-      if (e.data?.type === 'ready') {
-        setIframeReady(true)
-      }
+      if (e.data?.type === 'ready') setIframeReady(true)
       if (e.data?.type === 'error' && typeof e.data.message === 'string') {
         setPreviewError(e.data.message)
       }
     }
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
-  }, [postRender])
+  }, [])
 
   useEffect(() => {
     if (!visible || !iframeReady) return
@@ -85,23 +86,30 @@ export default function PreviewPanel({
     const run = async () => {
       setRegistering(true)
       try {
-        const hasSprites = hasSpriteAssets(projectRef.current)
+        projectBaseRef.current = ''
 
-        if (hasSprites || !jsSourceId?.trim()) {
-          const res = await petProjectService.registerPreviewSession(projectRef.current.files)
-          if (cancelled) return
-          if (res.code !== 200 || !res.data?.baseUrl) {
-            setPreviewError(
-              missingModelAssets
-                ? '缺少 assets/sprites/ 帧图，请上传 PNG 后重试'
-                : '预览资源注册失败，请先保存项目或确认已登录',
-            )
-            return
-          }
-          projectBaseRef.current = previewRewriteApiUrl(res.data.baseUrl)
-        } else {
+        const useEmbed =
+          Boolean(jsSourceId?.trim()) &&
+          !isLive2dProject(projectRef.current) &&
+          !hasInMemoryBinaryAssets(projectRef.current)
+
+        if (useEmbed) {
           projectBaseRef.current = embedProjectBase(jsSourceId!.trim())
+          postRender()
+          return
         }
+
+        const res = await petProjectService.registerPreviewSession(projectRef.current.files)
+        if (cancelled) return
+        if (res.code !== 200 || !res.data?.baseUrl) {
+          setPreviewError(
+            missingModelAssets
+              ? '缺少 assets/sprites/ 帧图，请上传 PNG 或等待默认资源加载完成'
+              : '预览资源注册失败，请先保存项目或确认已登录',
+          )
+          return
+        }
+        projectBaseRef.current = previewRewriteApiUrl(res.data.baseUrl)
         postRender()
       } catch {
         if (!cancelled) setPreviewError('预览资源加载失败')
@@ -166,7 +174,7 @@ export default function PreviewPanel({
         />
       </div>
       <p className="px-2 py-1 text-[10px] text-[#666] border-t border-[#2b2b2c] shrink-0">
-        精灵帧图从 assets/sprites/ 加载；未保存时走临时预览会话
+        精灵帧从项目 assets/sprites/ 加载；未保存时走临时预览会话
       </p>
     </div>
   )

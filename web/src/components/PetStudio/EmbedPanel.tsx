@@ -14,12 +14,10 @@ export default function EmbedPanel({ jsSourceId, templateName, onClose }: EmbedP
   const staticBase = apiBase.replace(/\/api$/, '') + '/api/static/pet'
 
   const snippets = useMemo(() => ({
-    script: `<!-- ${templateName} — JS 注入（需 HTTP 页面） -->
-<div class="soul-pet-widget" style="position:fixed;right:24px;bottom:24px;width:360px;height:480px;z-index:9999;pointer-events:auto;overflow:hidden">
-  <div id="app" style="width:100%;height:100%"></div>
-</div>
+    script: `<!-- ${templateName} — 全屏桌宠，无需 div 容器，可拖遍整页 -->
+<script src="${apiBase}/js-templates/embed/${jsSourceId}/loader.js"></script>`,
+    scriptVoice: `<!-- ${templateName} — 全屏桌宠 + 语音对话 -->
 <script>
-  window.SERVER_BASE = '${apiBase}';
   window.__AIPetConfig = {
     agentId: YOUR_AGENT_ID,
     apiKey: 'yourApiKey',
@@ -28,14 +26,9 @@ export default function EmbedPanel({ jsSourceId, templateName, onClose }: EmbedP
   };
 </script>
 <script src="${apiBase}/js-templates/embed/${jsSourceId}/loader.js"></script>`,
-    iframe: `<!-- ${templateName} — iframe 桌宠 SDK（需 HTTP 页面，勿用 file://） -->
+    iframe: `<!-- ${templateName} — iframe 全屏（宿主页无需任何 div） -->
 <script>
-  window.__AIPetConfig = {
-    jsSourceId: '${jsSourceId}',
-    position: 'bottom-right',
-    width: 360,
-    height: 480
-  };
+  window.__AIPetConfig = { jsSourceId: '${jsSourceId}' };
 </script>
 <script src="${staticBase}/loader.js"></script>`,
     agent: `<!-- 绑定到语音智能体后，用智能体 loader（含桌宠 + 聊天按钮） -->
@@ -80,15 +73,16 @@ export default function EmbedPanel({ jsSourceId, templateName, onClose }: EmbedP
             </a>
           </p>
           <p className="text-[#858585] text-xs leading-relaxed">
-            桌宠代码保存在对象存储；第三方页面通过 <code className="text-[#9cdcfe]">loader.js</code> 注入即可运行。
-            推荐先在本 Studio 保存成功，再复制下方代码。帧动画桌宠右下角有<strong className="text-[#ccc]">聊天按钮</strong>，点击即可开始对话（需配置 apiKey / apiSecret）。
+            桌宠在<strong className="text-[#ccc]">本地按 .soulpet 规范开发</strong>，zip 上传云端后仅用于运行与嵌入。
+            点击下方复制 <code className="text-[#9cdcfe]">loader.js</code> 一行即可；修改请在本地下载 zip 或导出后编辑再上传。
           </p>
 
           {(
             [
-              ['script', '方式一：JS 注入（推荐）', '直接执行你编辑的 pet.js + 帧动画'],
-              ['iframe', '方式二：iframe SDK', '透明浮窗桌宠，适合不改动宿主 DOM'],
-              ['agent', '方式三：语音智能体', '需在智能体里绑定此桌宠模板'],
+              ['script', '方式一：JS 注入（推荐）', '一行 script，无 div，全页跑动'],
+              ['scriptVoice', '方式二：JS 注入 + 语音', '同上，并配置 apiKey 开启对话按钮'],
+              ['iframe', '方式三：iframe SDK', '宿主页同样无需 div'],
+              ['agent', '方式四：语音智能体', '需在智能体里绑定此桌宠模板'],
             ] as const
           ).map(([key, title, desc]) => (
             <section key={key}>

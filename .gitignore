@@ -12,6 +12,9 @@
 .idea
 .DS_Store
 .cache/
+# 懒懒熊猫逐帧资源（由 resources/ 同步，体积 ~250MB）
+static/pet/examples/sprites/panda/
+我的桌宠.soulpet/assets/sprites/panda/
 /logs/*.log
 
 # Test binary, built with `go test -c`
@@ -123,3 +126,8 @@ SoulNexusDoc/
 LingEchoX/
 keys/
 Open-LLM-VTuber-main/
+SillyTavern-release/
+
+# Electron desktop pet
+desktop-pet/node_modules/
+desktop-pet/config.local.json

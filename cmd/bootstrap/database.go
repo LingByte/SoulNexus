@@ -59,9 +59,15 @@ func SetupDatabase(logWriter io.Writer, opts *Options) (*gorm.DB, error) {
 	if opts.AutoMigrate {
 		if opts.MigrateModels == nil {
 			logger.Warn("AutoMigrate enabled but MigrateModels callback is nil; skipping GORM AutoMigrate")
-		} else if err := RunMigrations(db, opts.MigrateModels()); err != nil {
-			logger.Error("migration failed", zap.Error(err))
-			return nil, err
+		} else {
+			if err := svcmodels.MigrateAgentsWidenTextColumns(db); err != nil {
+				logger.Error("agents text column widen failed", zap.Error(err))
+				return nil, err
+			}
+			if err := RunMigrations(db, opts.MigrateModels()); err != nil {
+				logger.Error("migration failed", zap.Error(err))
+				return nil, err
+			}
 		}
 		if err := svcmodels.MigrateGroupTenancyResources(db); err != nil {
 			logger.Warn("group tenancy data migrate", zap.Error(err))

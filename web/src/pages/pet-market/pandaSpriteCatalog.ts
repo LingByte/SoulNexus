@@ -1,58 +1,59 @@
 import type { SpriteAnimationDef } from './templates/spriteShared'
 
-/** 1280px 宽，4 列网格雪碧图 */
-const COLS = 4
-const FW = 320
+/** resources/action_* 逐帧 PNG（968×948） */
+export const PANDA_FRAME_WIDTH = 968
+export const PANDA_FRAME_HEIGHT = 948
+export const PANDA_FRAME_COUNT = 121
 
-/** idle: 1280×2219 → 4×7 格，每格 320×317，实际使用 26 帧 */
-const IDLE_FH = 317
-export const PANDA_LANLAN_IDLE_FPS = 10
+export const PANDA_LANLAN_IDLE_FPS = 12
 
-/** 其它动作: 1280×3443 → 4×11 格，每格 320×313，共 44 帧 */
-const ACTION_FH = 313
-const ACTION_FRAMES = 44
+function pandaFramePaths(actionIndex: 1 | 2 | 3 | 4): string[] {
+  return Array.from(
+    { length: PANDA_FRAME_COUNT },
+    (_, i) => `panda/action_${actionIndex}/frame_${String(i + 1).padStart(6, '0')}.png`,
+  )
+}
 
-function sheetAnim(
-  sheet: string,
-  frames: number,
-  frameHeight: number,
+function sequenceAnim(
+  actionIndex: 1 | 2 | 3 | 4,
   fps: number,
   loop: boolean,
 ): SpriteAnimationDef {
+  const files = pandaFramePaths(actionIndex)
   return {
-    sheet,
-    frameWidth: FW,
-    frameHeight,
-    frames,
-    columns: COLS,
+    files,
+    frameWidth: PANDA_FRAME_WIDTH,
+    frameHeight: PANDA_FRAME_HEIGHT,
+    frames: PANDA_FRAME_COUNT,
     fps,
     loop,
   }
 }
 
+/**
+ * 四个动作映射（resources/action_1 … action_4）：
+ * - idle：待机循环
+ * - hello：打招呼 / TTS 说话
+ * - coy：害羞 / 点击互动
+ * - angry：生气
+ */
 export function buildPandaLanlanAnimations(): Record<string, SpriteAnimationDef> {
   return {
-    idle: sheetAnim('panda_lanlan_idle.png', 26, IDLE_FH, PANDA_LANLAN_IDLE_FPS, true),
-    hello: sheetAnim('panda_lanlan_hello.png', ACTION_FRAMES, ACTION_FH, 20, false),
-    coy: sheetAnim('panda_lanlan_coy.png', ACTION_FRAMES, ACTION_FH, 20, false),
-    cry: sheetAnim('panda_lanlan_cry.png', ACTION_FRAMES, ACTION_FH, 18, false),
-    angry: sheetAnim('panda_lanlan_angry.png', ACTION_FRAMES, ACTION_FH, 20, false),
+    idle: sequenceAnim(1, PANDA_LANLAN_IDLE_FPS, true),
+    hello: sequenceAnim(2, 24, true),
+    coy: sequenceAnim(3, 20, false),
+    angry: sequenceAnim(4, 20, false),
   }
 }
 
-export const PANDA_LANLAN_FILENAMES = [
-  'panda_lanlan_idle.png',
-  'panda_lanlan_hello.png',
-  'panda_lanlan_coy.png',
-  'panda_lanlan_cry.png',
-  'panda_lanlan_angry.png',
-] as const
+/** 用于检测项目是否使用新版逐帧熊猫资源 */
+export const PANDA_SEQUENCE_MARKER = 'panda/action_1/'
 
 export const PANDA_LANLAN_EMOTION_MAP: Record<string, string> = {
   neutral: 'idle',
   speaking: 'hello',
   joy: 'coy',
-  sad: 'cry',
+  sad: 'coy',
   angry: 'angry',
 }
 
@@ -61,7 +62,7 @@ export const PANDA_LANLAN_BEHAVIORS: Record<string, unknown> = {
   talkAnimation: 'hello',
   dragEnabled: true,
   bounceOnTap: true,
-  clickActions: ['hello', 'coy', 'cry', 'angry'],
+  clickActions: ['hello', 'coy', 'angry'],
   doubleTapAnimation: 'hello',
   ambientAnimations: ['hello', 'coy'],
   ambientIntervalMs: [12000, 28000],

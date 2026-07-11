@@ -1118,6 +1118,22 @@ export interface AdminAssistant {
   ttsProvider?: string
   llmModel?: string
   enableJSONOutput?: boolean
+  // 角色卡字段
+  avatarUrl?: string
+  description?: string
+  personality?: string
+  scenario?: string
+  exampleDialogues?: string
+  tags?: string
+  creatorNote?: string
+  specVersion?: string
+  visibility?: string
+  downloadCount?: number
+  rating?: number
+  ratingCount?: number
+  forkedFrom?: number
+  openingStatement?: string
+  personaTag?: string
   createdAt: string
   updatedAt?: string
 }
@@ -1139,7 +1155,7 @@ export const listAdminAssistants = async (params?: { page?: number; pageSize?: n
 }
 
 export const getAdminAssistant = async (id: number): Promise<AdminAssistant> => {
-  const res = await get<AdminAssistant>(`${ADMIN_ASSISTANTS_API_BASE}/${id}`)
+  const res = await get<AdminAssistant>(`${ADMIN_AGENTS_API_BASE}/${id}`)
   return res.data
 }
 
@@ -1937,4 +1953,404 @@ export const runKnowledgeRecallTest = async (
     throw new Error((res as { msg?: string }).msg || '召回失败')
   }
   return res.data as Record<string, unknown>
+}
+
+// ==================== Preset Templates API ====================
+// Routes: /api/presets (session auth).
+
+export interface PresetTemplateRow {
+  id: string
+  groupId: number
+  createdBy: number
+  name: string
+  description?: string
+  type: string // agent | system_prompt | voice | knowledge
+  category?: string
+  tags?: string
+  visibility: string // private | group | public
+  content: string // JSON string
+  useCount: number
+  isBuiltin: boolean
+  status: string // active | archived
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface PresetTemplateListPayload {
+  list: PresetTemplateRow[]
+  total: number
+  page: number
+  pageSize: number
+  totalPage: number
+}
+
+export const listPresetTemplates = async (params?: {
+  page?: number
+  pageSize?: number
+  type?: string
+  category?: string
+  keyword?: string
+  visibility?: string
+}): Promise<PresetTemplateListPayload> => {
+  const res = await get<PresetTemplateListPayload>(`${BACKEND_BASE}/presets`, { params })
+  if (res.code !== 200) {
+    throw new Error(res.msg || '加载预设模板失败')
+  }
+  return res.data as PresetTemplateListPayload
+}
+
+export const getPresetTemplate = async (id: string | number): Promise<PresetTemplateRow> => {
+  const res = await get<PresetTemplateRow>(`${BACKEND_BASE}/presets/${id}`)
+  if (res.code !== 200) {
+    throw new Error(res.msg || '获取模板详情失败')
+  }
+  return res.data as PresetTemplateRow
+}
+
+export const createPresetTemplate = async (body: {
+  name: string
+  description?: string
+  type: string
+  category?: string
+  tags?: string
+  visibility?: string
+  content: string
+}): Promise<PresetTemplateRow> => {
+  const res = await post<PresetTemplateRow>(`${BACKEND_BASE}/presets`, body)
+  if (res.code !== 200) {
+    throw new Error((res as { msg?: string }).msg || '创建模板失败')
+  }
+  return res.data as PresetTemplateRow
+}
+
+export const updatePresetTemplate = async (id: string | number, body: {
+  name?: string
+  description?: string
+  category?: string
+  tags?: string
+  visibility?: string
+  content?: string
+}): Promise<PresetTemplateRow> => {
+  const res = await put<PresetTemplateRow>(`${BACKEND_BASE}/presets/${id}`, body)
+  if (res.code !== 200) {
+    throw new Error((res as { msg?: string }).msg || '更新模板失败')
+  }
+  return res.data as PresetTemplateRow
+}
+
+export const deletePresetTemplate = async (id: string | number): Promise<void> => {
+  const res = await del(`${BACKEND_BASE}/presets/${id}`)
+  if (res.code !== 200) {
+    throw new Error((res as { msg?: string }).msg || '删除模板失败')
+  }
+}
+
+export interface ApplyPresetResult {
+  agentId?: number
+  systemPrompt?: string
+  personaTag?: string
+  variables?: any[]
+  voice?: any
+  agent?: any
+  namespace?: any
+  message?: string
+}
+
+export const applyPresetTemplate = async (
+  id: string | number,
+  body?: { variables?: Record<string, string>; agentId?: number },
+): Promise<ApplyPresetResult> => {
+  const res = await post<ApplyPresetResult>(`${BACKEND_BASE}/presets/${id}/apply`, body || {})
+  if (res.code !== 200) {
+    throw new Error((res as { msg?: string }).msg || '应用模板失败')
+  }
+  return res.data as ApplyPresetResult
+}
+
+// ==================== Character Card API ====================
+// Routes: /api/agents/import, /api/agents/:id/export, /api/agents/:id/avatar
+
+export interface CharacterCardExportResult {
+  data: string  // base64 encoded PNG or JSON string
+  format: string
+  filename: string
+}
+
+export const importCharacterCard = async (payload: {
+  format?: string   // "json" | "png" | "yaml"
+  data?: string     // base64 or raw JSON/YAML string
+  file?: File       // file upload
+  groupId?: number
+  overrideName?: string
+}): Promise<Record<string, unknown>> => {
+  if (payload.file) {
+    // Multipart form upload
+    const formData = new FormData()
+    formData.append('file', payload.file)
+    if (payload.groupId) formData.append('groupId', String(payload.groupId))
+    if (payload.overrideName) formData.append('overrideName', payload.overrideName)
+    const res = await post<Record<string, unknown>>(`${BACKEND_BASE}/agents/import`, formData)
+    if (res.code !== 200) {
+      throw new Error((res as { msg?: string }).msg || '导入角色卡失败')
+    }
+    return res.data as Record<string, unknown>
+  }
+  // JSON body mode
+  const res = await post<Record<string, unknown>>(`${BACKEND_BASE}/agents/import`, {
+    format: payload.format || 'json',
+    data: payload.data,
+    groupId: payload.groupId,
+    overrideName: payload.overrideName,
+  })
+  if (res.code !== 200) {
+    throw new Error((res as { msg?: string }).msg || '导入角色卡失败')
+  }
+  return res.data as Record<string, unknown>
+}
+
+export const exportCharacterCard = async (
+  id: string | number,
+  format: 'json' | 'png' = 'json',
+): Promise<Blob> => {
+  const res = await fetch(`${BACKEND_BASE}/agents/${id}/export?format=${format}`, {
+    method: 'POST',
+    credentials: 'include',
+  })
+  if (!res.ok) throw new Error('导出角色卡失败')
+  return res.blob()
+}
+
+export const uploadAgentAvatar = async (
+  id: string | number,
+  file: File,
+): Promise<{ avatarUrl: string; agentId: number }> => {
+  const formData = new FormData()
+  formData.append('avatar', file)
+  const res = await post<{ avatarUrl: string; agentId: number }>(
+    `${BACKEND_BASE}/agents/${id}/avatar`,
+    formData,
+  )
+  if (res.code !== 200) {
+    throw new Error((res as { msg?: string }).msg || '上传头像失败')
+  }
+  return res.data as { avatarUrl: string; agentId: number }
+}
+
+// ==================== Market API ====================
+// Routes: /api/market/agents
+
+export interface MarketAgentRow {
+  id: number
+  groupId: number
+  createdBy: number
+  name: string
+  systemPrompt?: string
+  description?: string
+  personality?: string
+  scenario?: string
+  exampleDialogues?: string
+  tags?: string
+  creatorNote?: string
+  specVersion?: string
+  visibility: string
+  downloadCount: number
+  rating: number
+  ratingCount: number
+  forkedFrom?: number
+  avatarUrl?: string
+  openingStatement?: string
+  personaTag?: string
+  temperature?: number
+  maxTokens?: number
+  llmModel?: string
+  createdAt: string
+  updatedAt?: string
+}
+
+export interface MarketAgentListResponse {
+  agents: MarketAgentRow[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+export const listMarketAgents = async (params?: {
+  page?: number
+  pageSize?: number
+  search?: string
+  sortBy?: string // download_count | rating | created_at
+}): Promise<MarketAgentListResponse> => {
+  const queryParams: any = {}
+  if (params?.page) queryParams.page = params.page
+  if (params?.pageSize) queryParams.pageSize = params.pageSize
+  if (params?.search) queryParams.search = params.search
+  if (params?.sortBy) queryParams.sortBy = params.sortBy
+  const res = await get<MarketAgentListResponse>(`${BACKEND_BASE}/market/agents`, { params: queryParams })
+  if (res.code !== 200) {
+    throw new Error(res.msg || '获取市场角色列表失败')
+  }
+  return res.data as MarketAgentListResponse
+}
+
+export const getMarketAgent = async (id: string | number): Promise<MarketAgentRow> => {
+  const res = await get<MarketAgentRow>(`${BACKEND_BASE}/market/agents/${id}`)
+  if (res.code !== 200) {
+    throw new Error(res.msg || '获取角色详情失败')
+  }
+  return res.data as MarketAgentRow
+}
+
+export const forkMarketAgent = async (id: string | number, groupId?: number): Promise<MarketAgentRow> => {
+  const res = await post<MarketAgentRow>(`${BACKEND_BASE}/market/agents/${id}/fork`, { groupId })
+  if (res.code !== 200) {
+    throw new Error((res as { msg?: string }).msg || 'Fork 角色失败')
+  }
+  return res.data as MarketAgentRow
+}
+
+export const rateMarketAgent = async (
+  id: string | number,
+  score: number,
+): Promise<{ rating: number; ratingCount: number }> => {
+  const res = await post<{ rating: number; ratingCount: number }>(
+    `${BACKEND_BASE}/market/agents/${id}/rate`,
+    { score },
+  )
+  if (res.code !== 200) {
+    throw new Error((res as { msg?: string }).msg || '评分失败')
+  }
+  return res.data as { rating: number; ratingCount: number }
+}
+
+// ==================== Admin World Info (Lorebook) API ====================
+// Routes: /api/admin/world-info
+
+export interface AdminWorldInfoEntry {
+  id: string
+  agentId: number
+  userId: string
+  name: string
+  content: string
+  keys: string
+  regex: string
+  selective: boolean
+  constant: boolean
+  depth: number
+  order: number
+  enabled: boolean
+  groupId: number
+  createdAt: string
+  updatedAt?: string
+}
+
+export interface AdminWorldInfoListResponse {
+  items: AdminWorldInfoEntry[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+export const listAdminWorldInfo = async (params?: {
+  page?: number
+  pageSize?: number
+  search?: string
+}): Promise<AdminWorldInfoListResponse> => {
+  const queryParams: any = {}
+  if (params?.page) queryParams.page = params.page
+  if (params?.pageSize) queryParams.pageSize = params.pageSize
+  if (params?.search) queryParams.search = params.search
+  const res = await get<AdminWorldInfoListResponse>(`${BACKEND_BASE}/admin/world-info`, { params: queryParams })
+  if (res.code !== 200) {
+    throw new Error(res.msg || '获取 World Info 列表失败')
+  }
+  return res.data as AdminWorldInfoListResponse
+}
+
+export const getAdminWorldInfo = async (id: string | number): Promise<AdminWorldInfoEntry> => {
+  const res = await get<AdminWorldInfoEntry>(`${BACKEND_BASE}/admin/world-info/${id}`)
+  if (res.code !== 200) {
+    throw new Error(res.msg || '获取 World Info 详情失败')
+  }
+  return res.data as AdminWorldInfoEntry
+}
+
+export const updateAdminWorldInfo = async (
+  id: string | number,
+  body: Partial<AdminWorldInfoEntry>,
+): Promise<void> => {
+  const res = await put(`${BACKEND_BASE}/admin/world-info/${id}`, body)
+  if (res.code !== 200) {
+    throw new Error((res as { msg?: string }).msg || '更新 World Info 失败')
+  }
+}
+
+export const deleteAdminWorldInfo = async (id: string | number): Promise<void> => {
+  const res = await del(`${BACKEND_BASE}/admin/world-info/${id}`)
+  if (res.code !== 200) {
+    throw new Error((res as { msg?: string }).msg || '删除 World Info 失败')
+  }
+}
+
+// ==================== Admin User Persona API ====================
+// Routes: /api/admin/personas
+
+export interface AdminUserPersona {
+  id: string
+  userId: string
+  name: string
+  description: string
+  personality: string
+  scenario: string
+  avatarUrl: string
+  isDefault: boolean
+  createdAt: string
+  updatedAt?: string
+}
+
+export interface AdminPersonaListResponse {
+  items: AdminUserPersona[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+export const listAdminPersonas = async (params?: {
+  page?: number
+  pageSize?: number
+  search?: string
+}): Promise<AdminPersonaListResponse> => {
+  const queryParams: any = {}
+  if (params?.page) queryParams.page = params.page
+  if (params?.pageSize) queryParams.pageSize = params.pageSize
+  if (params?.search) queryParams.search = params.search
+  const res = await get<AdminPersonaListResponse>(`${BACKEND_BASE}/admin/personas`, { params: queryParams })
+  if (res.code !== 200) {
+    throw new Error(res.msg || '获取 Personas 列表失败')
+  }
+  return res.data as AdminPersonaListResponse
+}
+
+export const getAdminPersona = async (id: string | number): Promise<AdminUserPersona> => {
+  const res = await get<AdminUserPersona>(`${BACKEND_BASE}/admin/personas/${id}`)
+  if (res.code !== 200) {
+    throw new Error(res.msg || '获取 Persona 详情失败')
+  }
+  return res.data as AdminUserPersona
+}
+
+export const updateAdminPersona = async (
+  id: string | number,
+  body: Partial<AdminUserPersona>,
+): Promise<void> => {
+  const res = await put(`${BACKEND_BASE}/admin/personas/${id}`, body)
+  if (res.code !== 200) {
+    throw new Error((res as { msg?: string }).msg || '更新 Persona 失败')
+  }
+}
+
+export const deleteAdminPersona = async (id: string | number): Promise<void> => {
+  const res = await del(`${BACKEND_BASE}/admin/personas/${id}`)
+  if (res.code !== 200) {
+    throw new Error((res as { msg?: string }).msg || '删除 Persona 失败')
+  }
 }

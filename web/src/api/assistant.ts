@@ -28,6 +28,16 @@ export interface UpdateAssistantForm {
   boundJsTemplateSourceId?: string // 绑定的 JS 模板 jsSourceId
   enableJSONOutput?: boolean
   openingStatement?: string
+  // 角色卡字段
+  avatarUrl?: string
+  description?: string
+  personality?: string
+  scenario?: string
+  exampleDialogues?: string
+  tags?: string
+  creatorNote?: string
+  specVersion?: string
+  visibility?: string
 }
 
 // 助手信息 - 对应后端Assistant模型的完整字段
@@ -56,6 +66,20 @@ export interface Assistant {
   updatedAt: string
   enableJSONOutput?: boolean
   openingStatement?: string
+  // 角色卡字段
+  avatarUrl?: string
+  description?: string
+  personality?: string
+  scenario?: string
+  exampleDialogues?: string
+  tags?: string
+  creatorNote?: string
+  specVersion?: string
+  visibility?: string
+  downloadCount?: number
+  rating?: number
+  ratingCount?: number
+  forkedFrom?: number
 }
 
 // 助手列表项 - 对应ListAssistants返回的字段
@@ -70,6 +94,16 @@ export interface AssistantListItem {
   maxTokens?: number
   createdAt?: string
   updatedAt?: string
+  // 角色卡字段（列表展示用）
+  avatarUrl?: string
+  description?: string
+  tags?: string
+  visibility?: string
+  downloadCount?: number
+  rating?: number
+  specVersion?: string
+  llmModel?: string
+  speaker?: string
 }
 
 // 创建助手
@@ -295,3 +329,217 @@ export const getFishSpeechVoices = async (): Promise<ApiResponse<FishSpeechVoice
   return get('/voice/voice-options', { params: { provider: 'fishspeech' } })
 }
 
+// ==================== 角色卡导入/导出/头像 ====================
+
+export interface ImportCharacterCardResponse {
+  id: number
+  name: string
+  message?: string
+}
+
+// 导入角色卡（文件上传）
+export const importCharacterCard = async (
+  file: File,
+  groupId?: number
+): Promise<ApiResponse<ImportCharacterCardResponse>> => {
+  const formData = new FormData()
+  formData.append('file', file)
+  if (groupId) formData.append('groupId', String(groupId))
+  return post('/agents/import', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+}
+
+// 导出角色卡（JSON 或 PNG）
+export const exportCharacterCard = async (
+  id: number,
+  format: 'json' | 'png' = 'json'
+): Promise<Blob> => {
+  const baseURL = getApiBaseURL()
+  const token = localStorage.getItem('auth_token') || localStorage.getItem('token') || ''
+  const res = await fetch(`${baseURL}/agents/${id}/export?format=${format}`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  })
+  if (!res.ok) throw new Error('导出失败')
+  return res.blob()
+}
+
+// 上传智能体头像
+export const uploadAgentAvatar = async (id: number, file: File): Promise<ApiResponse<{ avatarUrl: string }>> => {
+  const formData = new FormData()
+  formData.append('avatar', file)
+  return post(`/agents/${id}/avatar`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+}
+
+// ==================== 角色市场 API ====================
+
+export interface MarketListParams {
+  page?: number
+  pageSize?: number
+  search?: string
+  sortBy?: 'download_count' | 'rating' | 'created_at'
+}
+
+export interface MarketAgent extends AssistantListItem {
+  rating?: number
+  ratingCount?: number
+  downloadCount?: number
+  forkedFrom?: number
+}
+
+export interface MarketListResponse {
+  agents?: MarketAgent[]
+  items?: MarketAgent[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+// 浏览市场角色（无需登录）
+export const listMarketAgents = async (params?: MarketListParams): Promise<ApiResponse<MarketListResponse>> => {
+  return get('/market/agents', { params })
+}
+
+// 查看公开角色详情（无需登录）
+export const getMarketAgent = async (id: number): Promise<ApiResponse<Assistant>> => {
+  return get(`/market/agents/${id}`)
+}
+
+// Fork 角色到当前组织（需登录）
+export const forkMarketAgent = async (id: number): Promise<ApiResponse<{ id: number; name: string }>> => {
+  return post(`/market/agents/${id}/fork`)
+}
+
+// 评分（需登录）
+export const rateMarketAgent = async (id: number, rating: number): Promise<ApiResponse<{ rating: number; ratingCount: number }>> => {
+  return post(`/market/agents/${id}/rate`, { score: rating })
+}
+
+export interface ShareInfo {
+  url: string
+  title: string
+  description: string
+  avatar: string
+  rating: number
+  ratingCount: number
+  downloadCount: number
+  agentId: number
+}
+
+// 获取分享链接（无需登录）
+export const getMarketShareInfo = async (id: number): Promise<ApiResponse<ShareInfo>> => {
+  return get(`/market/agents/${id}/share`)
+}
+
+// ==================== 预设模板 API ====================
+
+export type PresetType = 'agent' | 'system_prompt' | 'voice' | 'knowledge'
+
+export interface PresetTemplate {
+  id: string
+  groupId: number
+  createdBy: number
+  name: string
+  description: string
+  type: PresetType
+  category: string
+  tags: string
+  visibility: 'private' | 'group' | 'public'
+  content: string // JSON string
+  useCount: number
+  isBuiltin: boolean
+  status: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface PresetListParams {
+  type?: PresetType
+  category?: string
+  visibility?: string
+  keyword?: string
+  page?: number
+  pageSize?: number
+}
+
+export interface PresetListResult {
+  list: PresetTemplate[]
+  total: number
+  page: number
+  pageSize: number
+  totalPage: number
+}
+
+export interface CreatePresetReq {
+  name: string
+  description?: string
+  type: PresetType
+  category?: string
+  tags?: string
+  visibility?: string
+  content: string
+}
+
+export interface UpdatePresetReq {
+  name?: string
+  description?: string
+  category?: string
+  tags?: string
+  visibility?: string
+  content?: string
+}
+
+export interface ApplyPresetReq {
+  presetId: number
+  variables?: Record<string, string>
+  agentId?: number
+}
+
+export interface SystemPromptPresetPayload {
+  systemPrompt: string
+  personaTag?: string
+  variables?: PresetVariable[]
+}
+
+export interface PresetVariable {
+  name: string
+  label: string
+  defaultVal: string
+  description: string
+  required: boolean
+}
+
+// 列出可用预设模板（可选登录）
+export const listPresets = async (params?: PresetListParams): Promise<ApiResponse<PresetListResult>> => {
+  return get('/presets', { params })
+}
+
+// 获取单个预设模板详情（可选登录）
+export const getPreset = async (id: number): Promise<ApiResponse<PresetTemplate>> => {
+  return get(`/presets/${id}`)
+}
+
+// 创建新预设（需登录）
+export const createPreset = async (data: CreatePresetReq): Promise<ApiResponse<PresetTemplate>> => {
+  return post('/presets', data)
+}
+
+// 更新预设（需登录）
+export const updatePreset = async (id: number, data: UpdatePresetReq): Promise<ApiResponse<PresetTemplate>> => {
+  return put(`/presets/${id}`, data)
+}
+
+// 删除（归档）预设（需登录）
+export const deletePreset = async (id: number): Promise<ApiResponse<null>> => {
+  return del(`/presets/${id}`)
+}
+
+// 应用模板到 Agent（需登录）
+export const applyPreset = async (id: number, data: ApplyPresetReq): Promise<ApiResponse<{ agentId?: number; systemPrompt?: string }>> => {
+  return post(`/presets/${id}/apply`, data)
+}

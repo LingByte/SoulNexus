@@ -1,0 +1,80 @@
+{
+  "name": "soul-pet-desktop",
+  "version": "0.1.0",
+  "description": "SoulNexus 桌宠 — Electron 透明全屏壳，加载 Studio 导出的 loader.js",
+  "main": "main.js",
+  "author": "SoulNexus",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --enable-logging",
+    "setup": "node scripts/ensure-electron.js",
+    "postinstall": "node scripts/ensure-electron.js || true",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "dist:mac": "electron-builder --mac",
+    "dist:win": "electron-builder --win --x64",
+    "dist:win:arm64": "electron-builder --win --arm64",
+    "dist:linux": "electron-builder --linux"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron"
+    ]
+  },
+  "build": {
+    "appId": "com.soulneuxs.pet-desktop",
+    "productName": "Soul Pet",
+    "copyright": "Copyright © SoulNexus",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "mac": {
+      "category": "public.app-category.entertainment",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "identity": null,
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false
+    },
+    "dmg": {
+      "title": "Soul Pet ${version}",
+      "writeUpdateInfo": false
+    },
+    "win": {
+      "target": [
+        "portable",
+        "zip"
+      ],
+      "signAndEditExecutable": false
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Utility",
+      "maintainer": "SoulNexus"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "Soul Pet"
+    }
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  }
+}

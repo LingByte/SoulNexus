@@ -42,6 +42,16 @@ type adminAgentUpdateReq struct {
 	TtsProvider      string   `json:"ttsProvider"`
 	LLMModel         string   `json:"llmModel"`
 	EnableJSONOutput *bool    `json:"enableJSONOutput"`
+	// Character card fields
+	AvatarURL        string  `json:"avatarUrl"`
+	Description      string  `json:"description"`
+	Personality      string  `json:"personality"`
+	Scenario         string  `json:"scenario"`
+	ExampleDialogues string  `json:"exampleDialogues"`
+	Tags             string  `json:"tags"`
+	CreatorNote      string  `json:"creatorNote"`
+	SpecVersion      string  `json:"specVersion"`
+	Visibility       string  `json:"visibility"`
 }
 func (h *Handlers) handleAdminListGroups(c *gin.Context) {
 	page, pageSize := utils.ParsePagination(c)
@@ -541,6 +551,38 @@ func (h *Handlers) handleAdminUpdateAgent(c *gin.Context) {
 		updateVals["enable_json_output"] = *req.EnableJSONOutput
 	}
 
+	// Character card fields
+	if req.AvatarURL != "" {
+		updateVals["avatar_url"] = strings.TrimSpace(req.AvatarURL)
+	}
+	if req.Description != "" {
+		updateVals["description"] = req.Description
+	}
+	if req.Personality != "" {
+		updateVals["personality"] = req.Personality
+	}
+	if req.Scenario != "" {
+		updateVals["scenario"] = req.Scenario
+	}
+	if req.ExampleDialogues != "" {
+		updateVals["example_dialogues"] = req.ExampleDialogues
+	}
+	if req.Tags != "" {
+		updateVals["tags"] = req.Tags
+	}
+	if req.CreatorNote != "" {
+		updateVals["creator_note"] = req.CreatorNote
+	}
+	if req.SpecVersion != "" {
+		updateVals["spec_version"] = req.SpecVersion
+	}
+	if req.Visibility != "" {
+		v := strings.TrimSpace(req.Visibility)
+		if v == "private" || v == "group" || v == "public" {
+			updateVals["visibility"] = v
+		}
+	}
+
 	if len(updateVals) == 0 {
 		response.Success(c, "nothing changed", assistant)
 		return
@@ -841,4 +883,157 @@ func (h *Handlers) handleAdminDeleteDevice(c *gin.Context) {
 		return
 	}
 	response.Success(c, "device deleted", nil)
+}
+
+// ---------- Admin World Info (Lorebook) ----------
+
+func (h *Handlers) handleAdminListWorldInfo(c *gin.Context) {
+	page, pageSize := utils.ParsePagination(c)
+	search := strings.TrimSpace(c.Query("search"))
+
+	query := h.db.Model(&svcmodels.WorldInfoEntry{})
+	if search != "" {
+		like := "%" + search + "%"
+		query = query.Where("name LIKE ? OR content LIKE ? OR keys LIKE ?", like, like, like)
+	}
+
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		response.Fail(c, "list world info entries failed", err)
+		return
+	}
+	var items []svcmodels.WorldInfoEntry
+	if err := query.Order("created_at DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&items).Error; err != nil {
+		response.Fail(c, "list world info entries failed", err)
+		return
+	}
+	response.Success(c, "world info entries fetched", gin.H{
+		"items":    items,
+		"total":    total,
+		"page":     page,
+		"pageSize": pageSize,
+	})
+}
+
+func (h *Handlers) handleAdminGetWorldInfo(c *gin.Context) {
+	id := strings.TrimSpace(c.Param("id"))
+	if id == "" {
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid id"))
+		return
+	}
+	var item svcmodels.WorldInfoEntry
+	if err := h.db.Where("id = ?", id).First(&item).Error; err != nil {
+		response.Fail(c, "world info entry not found", err)
+		return
+	}
+	response.Success(c, "world info entry fetched", item)
+}
+
+func (h *Handlers) handleAdminUpdateWorldInfo(c *gin.Context) {
+	id := strings.TrimSpace(c.Param("id"))
+	if id == "" {
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid id"))
+		return
+	}
+	var body map[string]interface{}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid request body"))
+		return
+	}
+	// Prevent overwriting primary key
+	delete(body, "id")
+	if err := h.db.Model(&svcmodels.WorldInfoEntry{}).Where("id = ?", id).Updates(body).Error; err != nil {
+		response.Fail(c, "update world info entry failed", err)
+		return
+	}
+	response.Success(c, "world info entry updated", nil)
+}
+
+func (h *Handlers) handleAdminDeleteWorldInfo(c *gin.Context) {
+	id := strings.TrimSpace(c.Param("id"))
+	if id == "" {
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid id"))
+		return
+	}
+	if err := h.db.Where("id = ?", id).Delete(&svcmodels.WorldInfoEntry{}).Error; err != nil {
+		response.Fail(c, "delete world info entry failed", err)
+		return
+	}
+	response.Success(c, "world info entry deleted", nil)
+}
+
+// ---------- Admin User Persona ----------
+
+func (h *Handlers) handleAdminListPersonas(c *gin.Context) {
+	page, pageSize := utils.ParsePagination(c)
+	search := strings.TrimSpace(c.Query("search"))
+
+	query := h.db.Model(&svcmodels.UserPersona{})
+	if search != "" {
+		like := "%" + search + "%"
+		query = query.Where("name LIKE ? OR description LIKE ? OR personality LIKE ?", like, like, like)
+	}
+
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		response.Fail(c, "list personas failed", err)
+		return
+	}
+	var items []svcmodels.UserPersona
+	if err := query.Order("created_at DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&items).Error; err != nil {
+		response.Fail(c, "list personas failed", err)
+		return
+	}
+	response.Success(c, "personas fetched", gin.H{
+		"items":    items,
+		"total":    total,
+		"page":     page,
+		"pageSize": pageSize,
+	})
+}
+
+func (h *Handlers) handleAdminGetPersona(c *gin.Context) {
+	id := strings.TrimSpace(c.Param("id"))
+	if id == "" {
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid id"))
+		return
+	}
+	var item svcmodels.UserPersona
+	if err := h.db.Where("id = ?", id).First(&item).Error; err != nil {
+		response.Fail(c, "persona not found", err)
+		return
+	}
+	response.Success(c, "persona fetched", item)
+}
+
+func (h *Handlers) handleAdminUpdatePersona(c *gin.Context) {
+	id := strings.TrimSpace(c.Param("id"))
+	if id == "" {
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid id"))
+		return
+	}
+	var body map[string]interface{}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid request body"))
+		return
+	}
+	delete(body, "id")
+	if err := h.db.Model(&svcmodels.UserPersona{}).Where("id = ?", id).Updates(body).Error; err != nil {
+		response.Fail(c, "update persona failed", err)
+		return
+	}
+	response.Success(c, "persona updated", nil)
+}
+
+func (h *Handlers) handleAdminDeletePersona(c *gin.Context) {
+	id := strings.TrimSpace(c.Param("id"))
+	if id == "" {
+		response.AbortWithJSONError(c, http.StatusBadRequest, errors.New("invalid id"))
+		return
+	}
+	if err := h.db.Where("id = ?", id).Delete(&svcmodels.UserPersona{}).Error; err != nil {
+		response.Fail(c, "delete persona failed", err)
+		return
+	}
+	response.Success(c, "persona deleted", nil)
 }

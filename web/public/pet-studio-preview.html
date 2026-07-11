@@ -66,13 +66,24 @@
       document.head.appendChild(s)
     }
 
+    function manifestUsesAbsoluteAssetBase(manifestRaw) {
+      try {
+        var m = JSON.parse(manifestRaw || '{}')
+        var sprite = m.assets && m.assets.sprite
+        var live2d = m.assets && m.assets.live2d
+        if (sprite && sprite.baseUrl && sprite.baseUrl.indexOf('http') === 0) return true
+        if (live2d && live2d.baseUrl && live2d.baseUrl.indexOf('http') === 0) return true
+      } catch (e) { /* ignore */ }
+      return false
+    }
+
     function render(payload) {
       clearError()
       if (!payload || !payload.apiBase) {
         showError('预览缺少 apiBase')
         return
       }
-      if (!payload.projectBase) {
+      if (!payload.projectBase && !manifestUsesAbsoluteAssetBase(payload.manifest)) {
         showError('预览缺少 projectBase')
         return
       }
@@ -88,10 +99,33 @@
       styleEl.textContent = payload.css || ''
       document.head.appendChild(styleEl)
 
+      window.__PET_EMBED_MODE__ = 'widget'
+      window.__PET_MOUNT_ID__ = 'app'
+
+      try {
+        var manifestRaw = payload.manifest || '{}'
+        var m = JSON.parse(manifestRaw)
+        if (m.assets && m.assets.sprite) {
+          var bu = m.assets.sprite.baseUrl || ''
+          if (bu.indexOf('http') !== 0) {
+            var idle = (m.assets.sprite.animations && m.assets.sprite.animations.idle) || {}
+            var f = (idle.files && idle.files[0]) || ''
+            if (f.indexOf('panda/action_') === 0) {
+              var base = (payload.apiBase || '').replace(/\/+$/, '')
+              m.assets.sprite.baseUrl = base + '/static/pet/examples/sprites/'
+              manifestRaw = JSON.stringify(m)
+            }
+          }
+        }
+        payload = Object.assign({}, payload, { manifest: manifestRaw })
+      } catch (e) { /* ignore */ }
+
       try { window.__PET_MANIFEST__ = JSON.parse(payload.manifest || '{}') } catch (e) { window.__PET_MANIFEST__ = {} }
       window.SERVER_BASE = payload.apiBase || ''
       window.ASSISTANT_NAME = 'preview'
       window.__PET_PROJECT_BASE__ = payload.projectBase || ''
+      window.__PET_EMBED_MODE__ = 'widget'
+      window.__PET_MOUNT_ID__ = 'app'
 
       try {
         var entry = guardLegacyPetJs(payload.entry || '')

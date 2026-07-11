@@ -7,7 +7,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Bot,
-  Beaker,
   User as UserIcon,
   LogOut,
   Smartphone, // 设备管理图标
@@ -15,6 +14,10 @@ import {
   Package, // 插件市场图标
   Mic, // 声纹识别图标
   BookOpen,
+  Store, // 角色市场图标
+  Layers, // 预设模板图标
+  Globe, // World Info 图标
+  UserCircle, // Persona 图标
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import { useI18nStore } from '@/stores/i18nStore'
@@ -78,11 +81,14 @@ const Sidebar = () => {
   }
 
   const navigation = [
-    { name: t('nav.sidebar.playground'), href: '/playground', icon: Beaker },
     { name: t('nav.sidebar.smartAssistant'), href: '/voice-assistant', icon: Bot },
     { name: t('nav.sidebar.voiceTraining'), href: '/voice-training', icon: Settings },
     { name: t('nav.sidebar.knowledgeBase'), href: '/knowledge', icon: BookOpen },
     ...(systemInfo?.features?.voiceprintEnabled ? [{ name: t('voiceprint.title'), href: '/voiceprint-management', icon: Mic }] : []),
+    { name: 'World Info', href: '/world-info', icon: Globe },
+    { name: 'Personas', href: '/personas', icon: UserCircle },
+    { name: '角色市场', href: '/market', icon: Store },
+    { name: '预设模板', href: '/presets', icon: Layers },
     { name: t('nav.sidebar.workflow'), href: '/workflows', icon: GitBranch },
     { name: t('nav.sidebar.pluginMarket'), href: '/node-plugins', icon: Package },
     { name: t('nav.sidebar.jsTemplate'), href: '/js-templates', icon: Component },
@@ -92,10 +98,14 @@ const Sidebar = () => {
   const navigationSections = [
     {
       title: '核心功能',
-      items: navigation.filter((item) => ['/playground', '/voice-assistant', '/voice-training', '/voiceprint-management', '/knowledge'].includes(item.href)),
+      items: navigation.filter((item) => ['/voice-assistant', '/voice-training', '/voiceprint-management', '/knowledge'].includes(item.href)),
     },
     {
-      title: '工作流',
+      title: '角色与内容',
+      items: navigation.filter((item) => ['/world-info', '/personas', '/market', '/presets'].includes(item.href)),
+    },
+    {
+      title: '社区与工作流',
       items: navigation.filter((item) => ['/workflows', '/node-plugins'].includes(item.href)),
     },
     {
@@ -104,9 +114,9 @@ const Sidebar = () => {
     },
   ].filter((section) => section.items.length > 0)
 
-  const publicNavs = [t('nav.docs')]
+  const publicNavs = [t('nav.docs'), '角色市场', '预设模板']
   // 受保护页面名称
-  const privateNavs = [t('nav.sidebar.playground'), t('nav.sidebar.smartAssistant'), t('nav.sidebar.voiceTraining'), t('nav.sidebar.knowledgeBase'), t('voiceprint.title'), t('nav.sidebar.workflow'), t('nav.sidebar.pluginMarket'), t('nav.sidebar.jsTemplate'), t('nav.sidebar.deviceManagement')]
+  const privateNavs = [t('nav.sidebar.smartAssistant'), t('nav.sidebar.voiceTraining'), t('nav.sidebar.knowledgeBase'), t('voiceprint.title'), 'World Info', 'Personas', t('nav.sidebar.workflow'), t('nav.sidebar.pluginMarket'), t('nav.sidebar.jsTemplate'), t('nav.sidebar.deviceManagement')]
 
   const isActive = (path: string) => location.pathname === path
   const isExternalHref = (href: string) => href.startsWith('http')

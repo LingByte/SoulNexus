@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import PetStudioLayout from '@/components/PetStudio/PetStudioLayout'
+import SaveChangeNoteModal from '@/components/PetStudio/SaveChangeNoteModal'
 import { jsTemplateService } from '@/api/jsTemplate'
 import { notifyApiError, notifyApiResult } from '@/utils/apiFeedback'
 import { showAlert } from '@/utils/notification'
@@ -76,6 +77,7 @@ export default function PetStudioPage() {
   const [project, setProject] = useState<PetProjectV1>(() => createProjectFromTemplate(starterTemplateId))
   const [savedRevision, setSavedRevision] = useState(0)
   const [storageHint, setStorageHint] = useState<string | null>(null)
+  const [saveModalOpen, setSaveModalOpen] = useState(false)
   const draftTimer = useRef<number | null>(null)
   const templateIdRef = useRef<string | null>(null)
   const savingRef = useRef(false)
@@ -161,56 +163,78 @@ export default function PetStudioPage() {
     [id, templateId],
   )
 
-  const handleSave = useCallback(async () => {
-    if (savingRef.current || loading) return
+  const performSave = useCallback(
+    async (changeNote?: string, bumpVersion?: boolean) => {
+      if (savingRef.current || loading) return
 
-    const name = petNameFromProject(project, templateName).trim() || templateName.trim()
-    if (!name) {
-      showAlert('请在 manifest.json 中设置 name 或填写项目名称', 'warning')
-      return
-    }
-
-    const readme = project.files[PROJECT_FILES.readme] || ''
-    const projectPayload = {
-      name,
-      usage: readme,
-      entry: project.entry || PROJECT_FILES.entry,
-      files: project.files,
-    }
-
-    savingRef.current = true
-    setSaving(true)
-    try {
-      let tid = resolveTemplateId(id, templateId, templateIdRef.current)
-
-      if (!tid) {
-        const res = await jsTemplateService.createStudioProject(projectPayload)
-        if (!notifyApiResult(res, { successMessage: '桌宠项目已创建并保存到对象存储' })) return
-        if (!res.data?.template?.id) return
-        tid = res.data.template.id
-        setTemplateId(tid)
-        setJsSourceId(res.data.template.jsSourceId)
-        templateIdRef.current = tid
-        if (res.data.prefix) setStorageHint(`对象存储 · ${res.data.prefix}`)
-        clearPetDraft(tid)
-        setSavedRevision((r) => r + 1)
-        navigate(`/js-templates/${tid}/edit`, { replace: true })
+      const name = petNameFromProject(project, templateName).trim() || templateName.trim()
+      if (!name) {
+        showAlert('请在 manifest.json 中设置 name 或填写项目名称', 'warning')
         return
       }
 
-      const saveRes = await jsTemplateService.saveProject(tid, projectPayload)
-      if (!notifyApiResult(saveRes, { successMessage: '已保存到对象存储' })) return
+      const readme = project.files[PROJECT_FILES.readme] || ''
+      const projectPayload = {
+        name,
+        usage: readme,
+        entry: project.entry || PROJECT_FILES.entry,
+        files: project.files,
+        ...(changeNote ? { changeNote } : {}),
+        ...(bumpVersion !== undefined ? { bumpVersion } : {}),
+      }
 
-      if (saveRes.data?.prefix) setStorageHint(`对象存储 · ${saveRes.data.prefix}`)
-      clearPetDraft(tid)
-      setSavedRevision((r) => r + 1)
-    } catch (e: unknown) {
-      notifyApiError(e, '保存失败')
-    } finally {
-      savingRef.current = false
-      setSaving(false)
+      savingRef.current = true
+      setSaving(true)
+      try {
+        let tid = resolveTemplateId(id, templateId, templateIdRef.current)
+
+        if (!tid) {
+          const res = await jsTemplateService.createStudioProject(projectPayload)
+          if (!notifyApiResult(res, { successMessage: '桌宠项目已创建并保存到对象存储' })) return
+          if (!res.data?.template?.id) return
+          tid = res.data.template.id
+          setTemplateId(tid)
+          setJsSourceId(res.data.template.jsSourceId)
+          templateIdRef.current = tid
+          if (res.data.prefix) setStorageHint(`对象存储 · ${res.data.prefix}`)
+          clearPetDraft(tid)
+          setSavedRevision((r) => r + 1)
+          setSaveModalOpen(false)
+          navigate(`/js-templates/${tid}/edit`, { replace: true })
+          return
+        }
+
+        const saveRes = await jsTemplateService.saveProject(tid, projectPayload)
+        if (!notifyApiResult(saveRes, { successMessage: '已保存到对象存储' })) return
+
+        if (saveRes.data?.prefix) setStorageHint(`对象存储 · ${saveRes.data.prefix}`)
+        clearPetDraft(tid)
+        setSavedRevision((r) => r + 1)
+        setSaveModalOpen(false)
+      } catch (e: unknown) {
+        notifyApiError(e, '保存失败')
+      } finally {
+        savingRef.current = false
+        setSaving(false)
+      }
+    },
+    [project, templateName, id, templateId, loading, navigate],
+  )
+
+  const handleSaveClick = useCallback(() => {
+    const tid = resolveTemplateId(id, templateId, templateIdRef.current)
+    if (tid) {
+      setSaveModalOpen(true)
+    } else {
+      void performSave()
     }
-  }, [project, templateName, id, templateId, loading, navigate])
+  }, [id, templateId, performSave])
+
+  const handleQuickSave = useCallback(() => {
+    void performSave(undefined, false)
+  }, [performSave])
+
+  const handleSave = handleSaveClick
 
   const missingSpriteAssets = useMemo(
     () => isSpriteProject(project) && !hasSpriteAssets(project),
@@ -231,23 +255,32 @@ export default function PetStudioPage() {
   }
 
   return (
-    <PetStudioLayout
-      project={project}
-      templateName={templateName}
-      isNew={isNewRoute && !templateIdRef.current}
-      saving={saving}
-      savedRevision={savedRevision}
-      storageHint={storageHint}
-      jsSourceId={jsSourceId}
-      templateId={templateId}
-      starterTemplateLabel={isNewRoute ? `${starterTemplate.badge} · ${starterTemplate.name}` : undefined}
-      missingModelAssets={missingSpriteAssets}
-      importingModelAssets={false}
-      onImportModelAssets={handleImportSpriteReadme}
-      onProjectChange={handleProjectChange}
-      onTemplateNameChange={setTemplateName}
-      onSave={handleSave}
-      onBack={() => navigate('/js-templates')}
-    />
+    <>
+      <PetStudioLayout
+        project={project}
+        templateName={templateName}
+        isNew={isNewRoute && !templateIdRef.current}
+        saving={saving}
+        savedRevision={savedRevision}
+        storageHint={storageHint}
+        jsSourceId={jsSourceId}
+        templateId={templateId}
+        starterTemplateLabel={isNewRoute ? `${starterTemplate.badge} · ${starterTemplate.name}` : undefined}
+        missingModelAssets={missingSpriteAssets}
+        importingModelAssets={false}
+        onImportModelAssets={handleImportSpriteReadme}
+        onProjectChange={handleProjectChange}
+        onTemplateNameChange={setTemplateName}
+        onSave={handleSave}
+        onQuickSave={handleQuickSave}
+        onBack={() => navigate('/js-templates')}
+      />
+      <SaveChangeNoteModal
+        open={saveModalOpen}
+        saving={saving}
+        onCancel={() => setSaveModalOpen(false)}
+        onConfirm={(note, bump) => void performSave(note || undefined, bump)}
+      />
+    </>
   )
 }

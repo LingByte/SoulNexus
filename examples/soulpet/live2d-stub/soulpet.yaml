@@ -1,0 +1,9 @@
+specVersion: 1
+name: Live2D 占位桌宠
+description: Live2D Cubism 模型包结构示例
+kind: live2d
+version: "1.0.0"
+
+market:
+  tags: [live2d, 示例]
+  previewEmoji: "🎭"

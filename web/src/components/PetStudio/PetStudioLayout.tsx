@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ArrowLeft, Code2, Files, PanelRight, Play, Save, Settings2 } from 'lucide-react'
+import { ArrowLeft, Code2, Files, PanelRight, Play, Save, Settings2, Sparkles } from 'lucide-react'
 import Button from '@/components/UI/Button'
 import FileExplorer from './FileExplorer'
 import EditorTabs from './EditorTabs'
 import PreviewPanel from './PreviewPanel'
 import EmbedPanel from './EmbedPanel'
+import ManifestAiPanel from './ManifestAiPanel'
 import { PROJECT_FILES, type PetProjectV1 } from '@/pages/pet-market/types'
 import { petNameFromProject } from '@/pages/pet-market/projectUtils'
 import {
@@ -35,6 +36,7 @@ interface PetStudioLayoutProps {
   onProjectChange: (project: PetProjectV1) => void
   onTemplateNameChange: (name: string) => void
   onSave: () => void
+  onQuickSave?: () => void
   onBack: () => void
 }
 
@@ -54,6 +56,7 @@ export default function PetStudioLayout({
   onProjectChange,
   onTemplateNameChange,
   onSave,
+  onQuickSave,
   onBack,
 }: PetStudioLayoutProps) {
   const fileList = useMemo(() => Object.keys(project.files), [project.files])
@@ -63,6 +66,24 @@ export default function PetStudioLayout({
   const [showPreview, setShowPreview] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [showEmbed, setShowEmbed] = useState(false)
+  const [showAiPanel, setShowAiPanel] = useState(false)
+
+  const assetFiles = useMemo(
+    () =>
+      Object.keys(project.files).filter(
+        (p) => /\.(png|jpe?g|webp|gif|moc3|model3\.json)$/i.test(p) && !p.endsWith('.gitkeep'),
+      ),
+    [project.files],
+  )
+
+  const manifestKind = useMemo(() => {
+    try {
+      const m = JSON.parse(project.files[PROJECT_FILES.manifest] || '{}') as { kind?: string }
+      return m.kind
+    } catch {
+      return undefined
+    }
+  }, [project.files])
 
   useEffect(() => {
     if (savedRevision > 0) setDirtyFiles(new Set())
@@ -182,7 +203,7 @@ export default function PetStudioLayout({
     const onKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault()
-        if (!saving) onSave()
+        if (!saving) (onQuickSave ?? onSave)()
         return
       }
       const tag = (e.target as HTMLElement | null)?.tagName
@@ -196,7 +217,7 @@ export default function PetStudioLayout({
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [onSave, saving, activeFile, project.files])
+  }, [onSave, onQuickSave, saving, activeFile, project.files])
 
   return (
     <div className="h-screen w-full flex flex-col bg-[#1e1e1e] text-[#cccccc] overflow-hidden">
@@ -231,7 +252,18 @@ export default function PetStudioLayout({
               嵌入
             </Button>
           )}
-          <Button size="sm" variant="primary" leftIcon={<Save className="w-3.5 h-3.5" />} onClick={onSave} disabled={saving} title="保存到对象存储 (Ctrl+S)">
+          {activeFile === PROJECT_FILES.manifest && (
+            <Button
+              size="sm"
+              variant="ghost"
+              leftIcon={<Sparkles className="w-3.5 h-3.5 text-amber-400" />}
+              onClick={() => setShowAiPanel((v) => !v)}
+              title="AI 辅助编辑 manifest"
+            >
+              AI
+            </Button>
+          )}
+          <Button size="sm" variant="primary" leftIcon={<Save className="w-3.5 h-3.5" />} onClick={onSave} disabled={saving} title="保存到对象存储 (Ctrl+S 快速保存)">
             {saving ? '保存中…' : '保存'}
           </Button>
         </div>
@@ -287,7 +319,7 @@ export default function PetStudioLayout({
         )}
 
         {/* Editor */}
-        <main className="flex flex-1 min-w-0 min-h-0 overflow-hidden">
+        <main className="relative flex flex-1 min-w-0 min-h-0 overflow-hidden">
           <EditorTabs
             openFiles={openFiles}
             activeFile={activeFile}
@@ -296,8 +328,19 @@ export default function PetStudioLayout({
             onSelect={selectFile}
             onClose={closeFile}
             onChange={updateFile}
-            onSave={onSave}
+            onSave={onQuickSave ?? onSave}
           />
+          {showAiPanel && activeFile === PROJECT_FILES.manifest && (
+            <ManifestAiPanel
+              manifest={project.files[PROJECT_FILES.manifest] || '{}'}
+              kind={manifestKind}
+              assetFiles={assetFiles}
+              onApply={(manifest) => {
+                updateFile(PROJECT_FILES.manifest, manifest)
+              }}
+              onClose={() => setShowAiPanel(false)}
+            />
+          )}
           <AnimatePresence initial={false}>
             {showPreview && (
               <motion.div

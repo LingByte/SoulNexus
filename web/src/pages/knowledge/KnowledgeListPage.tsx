@@ -228,7 +228,7 @@ const KnowledgeListPage: React.FC = () => {
       </div>
 
       <KnowledgeCreateDrawer
-        open={drawerOpen}
+        visible={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         onCreated={(row) => navigate(`/knowledge/ns/${row.id}`)}
       />

@@ -148,6 +148,10 @@ func (h *Handlers) loadSessionShortTermMessages(sessionID string, limit int) []l
 	if err := h.db.Where("session_id = ?", sessionID).Order("created_at ASC").Find(&msgs).Error; err != nil {
 		return nil
 	}
+
+	// Filter to only active-branch messages
+	msgs = filterActiveBranchMessages(msgs)
+
 	if len(msgs) > limit {
 		msgs = msgs[len(msgs)-limit:]
 	}
@@ -162,6 +166,35 @@ func (h *Handlers) loadSessionShortTermMessages(sessionID string, limit int) []l
 	return out
 }
 
+// filterActiveBranchMessages keeps only active-branch messages from a session.
+// User messages are always included; assistant messages only if is_active_branch = true.
+func filterActiveBranchMessages(msgs []svcmodels.ChatMessage) []svcmodels.ChatMessage {
+	activeParents := make(map[string]bool)
+	for _, m := range msgs {
+		if m.Role == "assistant" && m.IsActiveBranch {
+			if m.ParentMessageID != nil && *m.ParentMessageID != "" {
+				activeParents[*m.ParentMessageID] = true
+			}
+		}
+	}
+
+	filtered := make([]svcmodels.ChatMessage, 0, len(msgs))
+	for _, m := range msgs {
+		if m.Role == "user" {
+			filtered = append(filtered, m)
+		} else if m.Role == "assistant" {
+			// Include assistant only if its parent is an active-branch parent
+			if m.ParentMessageID != nil && activeParents[*m.ParentMessageID] {
+				filtered = append(filtered, m)
+			}
+		} else {
+			// system / tool messages are always included
+			filtered = append(filtered, m)
+		}
+	}
+	return filtered
+}
+
 func (h *Handlers) compressSessionMessagesIfNeeded(llmHandler llm.LLMHandler, sessionID, model, provider string) error {
 	if llmHandler == nil || strings.TrimSpace(sessionID) == "" {
 		return nil
@@ -170,6 +203,10 @@ func (h *Handlers) compressSessionMessagesIfNeeded(llmHandler llm.LLMHandler, se
 	if err := h.db.Where("session_id = ?", sessionID).Order("created_at ASC").Find(&msgs).Error; err != nil {
 		return err
 	}
+
+	// Filter to only active-branch messages before compression
+	msgs = filterActiveBranchMessages(msgs)
+
 	if len(msgs) <= getMemoryCompressThreshold() {
 		return nil
 	}
@@ -1415,6 +1452,62 @@ type OneShotTextRequest struct {
 	AttachmentName    string  `json:"attachmentName"`
 }
 
+// injectWorldInfoForChat 为聊天注入 WorldInfo/Lorebook 上下文到 system prompt
+func (h *Handlers) injectWorldInfoForChat(ctx context.Context, agentID int64, userText, systemPrompt, userID string) string {
+	if agentID <= 0 || userText == "" || userID == "" {
+		return systemPrompt
+	}
+
+	var entries []svcmodels.WorldInfoEntry
+	query := h.db.WithContext(ctx).Where("deleted_at IS NULL AND enabled = true").
+		Where("(user_id = ? OR group_id IN (SELECT group_id FROM group_members WHERE user_id = ?))", userID, userID)
+	if agentID > 0 {
+		query = query.Where("agent_id = ?", agentID)
+	}
+	if err := query.Order("\"order\" ASC").Find(&entries).Error; err != nil || len(entries) == 0 {
+		return systemPrompt
+	}
+
+	// Match entries against user text
+	activated, _ := activateEntriesForText(entries, userText)
+	if len(activated) == 0 {
+		return systemPrompt
+	}
+
+	var sb strings.Builder
+	sb.WriteString("[World Information]\n")
+	for _, e := range activated {
+		sb.WriteString(fmt.Sprintf("## %s\n%s\n\n", e.Name, e.Content))
+	}
+	return sb.String() + "\n" + systemPrompt
+}
+
+// injectPersonaForChat 为聊天注入用户 Persona 到 system prompt
+func (h *Handlers) injectPersonaForChat(ctx context.Context, userID, systemPrompt string) string {
+	if userID == "" {
+		return systemPrompt
+	}
+
+	var persona svcmodels.UserPersona
+	if err := h.db.WithContext(ctx).Where("user_id = ? AND is_default = true AND deleted_at IS NULL", userID).First(&persona).Error; err != nil {
+		return systemPrompt
+	}
+
+	var sb strings.Builder
+	sb.WriteString("[User Persona]\n")
+	sb.WriteString(fmt.Sprintf("Name: %s\n", persona.Name))
+	if persona.Description != "" {
+		sb.WriteString(fmt.Sprintf("Description: %s\n", persona.Description))
+	}
+	if persona.Personality != "" {
+		sb.WriteString(fmt.Sprintf("Personality: %s\n", persona.Personality))
+	}
+	if persona.Scenario != "" {
+		sb.WriteString(fmt.Sprintf("Scenario: %s\n", persona.Scenario))
+	}
+	return sb.String() + "\n" + systemPrompt
+}
+
 func buildQueryTextWithAttachment(text, attachmentContent, attachmentName string) string {
 	question := strings.TrimSpace(text)
 	content := strings.TrimSpace(attachmentContent)
@@ -1540,10 +1633,25 @@ func (h *Handlers) OneShotText(c *gin.Context) {
 		}
 		queryText := buildQueryTextWithAttachment(req.Text, req.AttachmentContent, req.AttachmentName)
 
+		// Inject WorldInfo into system prompt before LLM call
+		enrichedPrompt := h.injectWorldInfoForChat(c.Request.Context(), int64(req.AgentID), queryText, systemPrompt, fmt.Sprintf("%d", user.ID))
+		// Inject Persona (use default persona) into system prompt
+		enrichedPrompt = h.injectPersonaForChat(c.Request.Context(), fmt.Sprintf("%d", user.ID), enrichedPrompt)
+
+		// Re-create LLM handler with enriched prompt
+		if enrichedPrompt != systemPrompt {
+			enrichedHandler, enrichedErr := llm.NewLLMProvider(c.Request.Context(), credential.LLMProvider, credential.LLMApiKey, credential.LLMApiURL, enrichedPrompt)
+			if enrichedErr == nil {
+				llmHandler = enrichedHandler
+				systemPrompt = enrichedPrompt
+			}
+		}
+
 		llm.CreateSession(sessionID, fmt.Sprintf("%d", user.ID), int64(req.AgentID), assistant.Name, credential.LLMProvider, llmModel, systemPrompt)
 		_ = h.compressSessionMessagesIfNeeded(llmHandler, sessionID, llmModel, credential.LLMProvider)
 		historyMessages := h.loadSessionShortTermMessages(sessionID, getShortTermMessageLimit())
-		llm.CreateMessage(utils.SnowflakeUtil.GenID(), sessionID, "user", queryText, 0, llmModel, credential.LLMProvider, "")
+		userMsgID := utils.SnowflakeUtil.GenID()
+		llm.CreateMessageWithBranch(userMsgID, sessionID, "user", queryText, 0, llmModel, credential.LLMProvider, "", "", 0, true)
 		respLLM, errLLM := llmHandler.QueryWithOptions(queryText, &llm.QueryOptions{
 			Model:            llmModel,
 			Temperature:      derefFloat32(temp),
@@ -1561,7 +1669,7 @@ func (h *Handlers) OneShotText(c *gin.Context) {
 			if respLLM.Usage != nil {
 				completionTokens = respLLM.Usage.CompletionTokens
 			}
-			llm.CreateMessage(utils.SnowflakeUtil.GenID(), sessionID, "assistant", llmResponse, completionTokens, llmModel, credential.LLMProvider, respLLM.RequestID)
+			llm.CreateMessageWithBranch(utils.SnowflakeUtil.GenID(), sessionID, "assistant", llmResponse, completionTokens, llmModel, credential.LLMProvider, respLLM.RequestID, userMsgID, 0, true)
 		}
 		if errLLM != nil {
 			// 提取更友好的错误信息
@@ -1690,27 +1798,32 @@ func (h *Handlers) SimpleTextChat(c *gin.Context) {
 		systemPrompt = systemPrompt + lengthGuidance
 	}
 
-	// 10. 初始化LLM处理器
-	llmHandler, err := llm.NewLLMProvider(c.Request.Context(), credential.LLMProvider, credential.LLMApiKey, credential.LLMApiURL, systemPrompt)
+	// 10. Inject WorldInfo + Persona into system prompt
+	enrichedPrompt := h.injectWorldInfoForChat(c.Request.Context(), int64(req.AgentID), req.Text, systemPrompt, fmt.Sprintf("%d", user.ID))
+	enrichedPrompt = h.injectPersonaForChat(c.Request.Context(), fmt.Sprintf("%d", user.ID), enrichedPrompt)
+
+	// 11. 初始化LLM处理器
+	llmHandler, err := llm.NewLLMProvider(c.Request.Context(), credential.LLMProvider, credential.LLMApiKey, credential.LLMApiURL, enrichedPrompt)
 	if err != nil {
 		response.Fail(c, "初始化LLM失败", err.Error())
 		return
 	}
 
-	// 11. 构建查询文本
+	// 12. 构建查询文本
 	queryText := req.Text
 
-	// 12. 生成会话ID
+	// 13. 生成会话ID
 	sessionID := req.SessionID
 	if sessionID == "" {
 		sessionID = fmt.Sprintf("simple_text_%d_%d", user.ID, time.Now().Unix())
 	}
-	llm.CreateSession(sessionID, fmt.Sprintf("%d", user.ID), int64(req.AgentID), assistant.Name, credential.LLMProvider, llmModel, systemPrompt)
+	llm.CreateSession(sessionID, fmt.Sprintf("%d", user.ID), int64(req.AgentID), assistant.Name, credential.LLMProvider, llmModel, enrichedPrompt)
 	_ = h.compressSessionMessagesIfNeeded(llmHandler, sessionID, llmModel, credential.LLMProvider)
 	historyMessages := h.loadSessionShortTermMessages(sessionID, getShortTermMessageLimit())
-	llm.CreateMessage(utils.SnowflakeUtil.GenID(), sessionID, "user", queryText, 0, llmModel, credential.LLMProvider, "")
+	userMsgID := utils.SnowflakeUtil.GenID()
+	llm.CreateMessageWithBranch(userMsgID, sessionID, "user", queryText, 0, llmModel, credential.LLMProvider, "", "", 0, true)
 
-	// 13. 调用LLM
+	// 14. 调用LLM
 	respLLM, err := llmHandler.QueryWithOptions(queryText, &llm.QueryOptions{
 		Model:            llmModel,
 		Temperature:      derefFloat32(temp),
@@ -1729,7 +1842,7 @@ func (h *Handlers) SimpleTextChat(c *gin.Context) {
 		if respLLM.Usage != nil {
 			completionTokens = respLLM.Usage.CompletionTokens
 		}
-		llm.CreateMessage(utils.SnowflakeUtil.GenID(), sessionID, "assistant", llmResponse, completionTokens, llmModel, credential.LLMProvider, respLLM.RequestID)
+		llm.CreateMessageWithBranch(utils.SnowflakeUtil.GenID(), sessionID, "assistant", llmResponse, completionTokens, llmModel, credential.LLMProvider, respLLM.RequestID, userMsgID, 0, true)
 	}
 	if err != nil {
 		errMsg := err.Error()
@@ -1835,6 +1948,17 @@ func (h *Handlers) PlainText(c *gin.Context) {
 
 		_ = maxTokens
 
+		// Inject WorldInfo + Persona into system prompt
+		enrichedPrompt := h.injectWorldInfoForChat(c.Request.Context(), int64(req.AgentID), req.Text, systemPrompt, fmt.Sprintf("%d", user.ID))
+		enrichedPrompt = h.injectPersonaForChat(c.Request.Context(), fmt.Sprintf("%d", user.ID), enrichedPrompt)
+		if enrichedPrompt != systemPrompt {
+			enrichedHandler, enrichedErr := llm.NewLLMProvider(c.Request.Context(), credential.LLMProvider, credential.LLMApiKey, credential.LLMApiURL, enrichedPrompt)
+			if enrichedErr == nil {
+				llmHandler = enrichedHandler
+				systemPrompt = enrichedPrompt
+			}
+		}
+
 		sessionID := req.SessionID
 		if sessionID == "" {
 			sessionID = fmt.Sprintf("plain_text_%d_%d", user.ID, time.Now().Unix())
@@ -1844,7 +1968,8 @@ func (h *Handlers) PlainText(c *gin.Context) {
 		llm.CreateSession(sessionID, fmt.Sprintf("%d", user.ID), int64(req.AgentID), assistant.Name, credential.LLMProvider, llmModel, systemPrompt)
 		_ = h.compressSessionMessagesIfNeeded(llmHandler, sessionID, llmModel, credential.LLMProvider)
 		historyMessages := h.loadSessionShortTermMessages(sessionID, getShortTermMessageLimit())
-		llm.CreateMessage(utils.SnowflakeUtil.GenID(), sessionID, "user", queryText, 0, llmModel, credential.LLMProvider, "")
+		userMsgID := utils.SnowflakeUtil.GenID()
+		llm.CreateMessageWithBranch(userMsgID, sessionID, "user", queryText, 0, llmModel, credential.LLMProvider, "", "", 0, true)
 		respLLM, errLLM := llmHandler.QueryWithOptions(queryText, &llm.QueryOptions{
 			Model:            llmModel,
 			Temperature:      derefFloat32(temp),
@@ -1862,7 +1987,7 @@ func (h *Handlers) PlainText(c *gin.Context) {
 			if respLLM.Usage != nil {
 				completionTokens = respLLM.Usage.CompletionTokens
 			}
-			llm.CreateMessage(utils.SnowflakeUtil.GenID(), sessionID, "assistant", llmResponse, completionTokens, llmModel, credential.LLMProvider, respLLM.RequestID)
+			llm.CreateMessageWithBranch(utils.SnowflakeUtil.GenID(), sessionID, "assistant", llmResponse, completionTokens, llmModel, credential.LLMProvider, respLLM.RequestID, userMsgID, 0, true)
 		}
 		if errLLM != nil {
 			errMsg := errLLM.Error()

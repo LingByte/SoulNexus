@@ -46,6 +46,8 @@ export function buildSpriteManifest(opts: {
   emotionMap?: Record<string, string>
   behaviors?: Record<string, unknown>
   layout?: { scale?: number; anchor?: 'bottom-center' | 'center'; offsetY?: number }
+  /** Absolute or relative sprite directory; panda uses bundled /static/ URL. */
+  spriteBaseUrl?: string
 }) {
   const animations = opts.animations ?? buildDefaultGhostAnimations()
 
@@ -56,7 +58,7 @@ export function buildSpriteManifest(opts: {
     fieldGuide: MANIFEST_FIELD_GUIDE,
     assets: {
       sprite: {
-        baseUrl: SPRITE_ASSETS_PREFIX,
+        baseUrl: opts.spriteBaseUrl ?? SPRITE_ASSETS_PREFIX,
         animations,
         defaultAnimation: opts.defaultAnimation ?? 'idle',
       },
@@ -77,7 +79,7 @@ export function buildSpriteManifest(opts: {
 }
 
 export function buildSpritePetJs(name: string): string {
-  return `// ${name} — 帧动画桌宠
+  return `// ${name} — 帧动画桌宠 · soul-pet-desktop-capable
 (function initFrameSpritePet() {
   if (window.__PET_SPRITE__ && window.__PET_SPRITE__.stop) {
     window.__PET_SPRITE__.stop()
@@ -93,21 +95,42 @@ export function buildSpritePetJs(name: string): string {
   var talkAnim = behaviors.talkAnimation || 'talk'
   var lipSync = behaviors.lipSync !== 'none'
   var projectBase = window.__PET_PROJECT_BASE__ || ''
-
-  var root = document.getElementById(window.__PET_MOUNT_ID__ || 'app') || document.body
-  root.classList.add('soul-pet-mount')
-  root.innerHTML = ''
-  if (root.style.position !== 'fixed' && root.style.position !== 'absolute') {
-    root.style.position = 'relative'
-    root.style.width = root.style.width || '100%'
-    root.style.height = root.style.height || '100%'
-    root.style.minHeight = root.style.minHeight || '100%'
+  var cfgEmbed = window.__AIPetConfig || {}
+  var embedMode = window.__PET_EMBED_MODE__ || cfgEmbed.mode || 'desktop'
+  var desktopMode = embedMode !== 'widget'
+  var mountId = desktopMode ? 'soul-pet-desktop-root' : (window.__PET_MOUNT_ID__ || 'app')
+  var mountEl = document.getElementById(mountId)
+  var root
+  if (desktopMode) {
+    root = document.getElementById('soul-pet-desktop-root')
+    if (!root) {
+      root = document.createElement('div')
+      root.id = 'soul-pet-desktop-root'
+      document.body.appendChild(root)
+    }
+    root.innerHTML = ''
+    root.className = 'soul-pet-mount soul-pet-desktop'
+    root.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;overflow:hidden;pointer-events:none;z-index:2147483645;background:transparent;'
+  } else if (mountEl) {
+    root = mountEl
+    root.classList.add('soul-pet-mount')
+    root.innerHTML = ''
+    if (root.style.position !== 'fixed' && root.style.position !== 'absolute') {
+      root.style.position = 'relative'
+      root.style.width = root.style.width || '100%'
+      root.style.height = root.style.height || '100%'
+      root.style.minHeight = root.style.minHeight || '100%'
+    }
+    root.style.overflow = 'hidden'
+  } else {
+    root = document.body
+    root.classList.add('soul-pet-mount')
+    root.innerHTML = ''
   }
-  root.style.overflow = 'hidden'
 
   var stage = document.createElement('div')
   stage.className = 'soul-pet-stage'
-  stage.style.cssText = 'position:absolute;inset:0;overflow:hidden;touch-action:none;'
+  stage.style.cssText = 'position:absolute;inset:0;overflow:hidden;touch-action:none;' + (desktopMode ? 'pointer-events:auto;' : '')
   root.appendChild(stage)
 
   var canvas = document.createElement('canvas')
@@ -140,6 +163,7 @@ export function buildSpritePetJs(name: string): string {
   var bounce = 0
   var sheets = {}
   var loadErrors = []
+  var LAZY_FRAME_THRESHOLD = 16
 
   function assetUrl(path) {
     if (!path) return path
@@ -157,10 +181,45 @@ export function buildSpritePetJs(name: string): string {
     return o + '/' + (base.charAt(0) === '/' ? base.slice(1) : base) + path.replace(/^\\/+/, '')
   }
 
+  function ensureLazyFrame(entry, idx) {
+    if (!entry.lazyFiles) return entry.imgs && entry.imgs[idx]
+    if (!entry.imgs) entry.imgs = []
+    if (entry.imgs[idx]) return entry.imgs[idx]
+    if (!entry._loading) entry._loading = {}
+    if (entry._loading[idx]) return null
+    var path = entry.lazyFiles[idx]
+    if (path == null) return null
+    entry._loading[idx] = true
+    var img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload = function () {
+      entry.imgs[idx] = img
+      delete entry._loading[idx]
+    }
+    img.onerror = function () {
+      loadErrors.push(path)
+      delete entry._loading[idx]
+    }
+    img.src = assetUrl(path)
+    return null
+  }
+
+  function prefetchLazyFrames(entry, idx, ahead) {
+    var max = Math.max(1, (entry.def && entry.def.frames) || (entry.lazyFiles && entry.lazyFiles.length) || 1)
+    for (var d = 0; d < ahead; d++) {
+      var i = idx + d
+      if (i >= 0 && i < max) ensureLazyFrame(entry, i)
+    }
+  }
+
   function loadSheet(name, def) {
     return new Promise(function (resolve) {
       if (!def) { resolve(null); return }
       if (def.files && def.files.length) {
+        if (def.files.length > LAZY_FRAME_THRESHOLD) {
+          resolve({ name: name, def: def, lazyFiles: def.files, imgs: [] })
+          return
+        }
         Promise.all(def.files.map(function (path) {
           return new Promise(function (res) {
             var img = new Image()
@@ -202,8 +261,12 @@ export function buildSpritePetJs(name: string): string {
   }
 
   function resize() {
-    var w = stage.clientWidth || root.clientWidth || 280
-    var h = stage.clientHeight || root.clientHeight || 320
+    var w = desktopMode
+      ? (window.innerWidth || document.documentElement.clientWidth || 280)
+      : (stage.clientWidth || root.clientWidth || 280)
+    var h = desktopMode
+      ? (window.innerHeight || document.documentElement.clientHeight || 320)
+      : (stage.clientHeight || root.clientHeight || 320)
     var dpr = Math.min(window.devicePixelRatio || 1, 2)
     canvas.width = Math.max(1, Math.floor(w * dpr))
     canvas.height = Math.max(1, Math.floor(h * dpr))
@@ -275,6 +338,12 @@ export function buildSpritePetJs(name: string): string {
       dy = h / 2 + posY + bounce - dh / 2
     }
     if (layout.offsetY) dy += layout.offsetY
+    if (entry.lazyFiles && entry.lazyFiles.length) {
+      prefetchLazyFrames(entry, idx, 4)
+      var lazyImg = ensureLazyFrame(entry, idx)
+      if (lazyImg) ctx.drawImage(lazyImg, 0, 0, fw, fh, dx, dy, dw, dh)
+      return
+    }
     if (entry.imgs && entry.imgs.length) {
       var frameImg = entry.imgs[idx] || entry.imgs[0]
       if (frameImg) ctx.drawImage(frameImg, 0, 0, fw, fh, dx, dy, dw, dh)
@@ -309,7 +378,7 @@ export function buildSpritePetJs(name: string): string {
     if (bounce > 0) bounce = Math.max(0, bounce - 0.6)
     var animName = pickAnim()
     var entry = animName ? sheets[animName] : null
-    if (entry && (entry.img || (entry.imgs && entry.imgs.length))) drawFrameSheet(entry, w, h)
+    if (entry && (entry.img || (entry.imgs && entry.imgs.length) || (entry.lazyFiles && entry.lazyFiles.length))) drawFrameSheet(entry, w, h)
     else drawProcedural(w, h)
   }
 
@@ -464,7 +533,11 @@ export function buildSpritePetJs(name: string): string {
     stage.removeEventListener('pointercancel', onPointerUp)
     stage.removeEventListener('click', onTap)
     stage.removeEventListener('dblclick', onDoubleClick)
-    root.innerHTML = ''
+    if (desktopMode && root && root.id === 'soul-pet-desktop-root') {
+      root.remove()
+    } else {
+      root.innerHTML = ''
+    }
   }
 
   resize()
@@ -502,6 +575,17 @@ export function buildSpriteStyle(): string {
   height: 100%;
   overflow: hidden;
   background: transparent;
+}
+.soul-pet-mount.soul-pet-desktop {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 2147483645;
+}
+.soul-pet-mount.soul-pet-desktop .soul-pet-stage {
+  pointer-events: auto;
 }
 .soul-pet-mount .soul-pet-stage,
 .soul-pet-mount .soul-pet-canvas {

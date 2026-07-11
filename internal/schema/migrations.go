@@ -62,6 +62,8 @@ func ServerEntities() []any {
 		&middleware.OperationLog{},
 		&svcmodels.JSTemplate{},
 		&svcmodels.JSTemplateVersion{},
+		&svcmodels.PetMarketListing{},
+		&svcmodels.PetMarketRating{},
 		&svcmodels.Device{},
 		&svcmodels.OTA{},
 		&svcmodels.UsageRecord{},
@@ -82,6 +84,9 @@ func ServerEntities() []any {
 		&svcmodels.CallRecording{},
 		&svcmodels.KnowledgeNamespace{},
 		&svcmodels.KnowledgeDocument{},
+		&svcmodels.PresetTemplate{},
+		&svcmodels.WorldInfoEntry{},
+		&svcmodels.UserPersona{},
 	}
 	return entities
 }

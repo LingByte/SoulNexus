@@ -5,9 +5,10 @@ import { Button as ArcoButton, Spin } from '@arco-design/web-react'
 import { cn } from '@/utils/cn'
 import MarkdownPreview from '@/components/UI/MarkdownPreview.tsx'
 import { Typewriter } from '@/components/UX/MicroInteractions'
+import SwipeAlternatives from '@/components/Voice/SwipeAlternatives'
 import { getApiBaseURL } from '@/config/apiConfig'
 import type { ChatMessage } from '@/pages/VoiceAssistant/types'
-import type { LLMUsage } from '@/api/chat'
+import type { LLMUsage, MessageAlternative } from '@/api/chat'
 import { formatChatMessageTime } from '@/utils/formatChatMessageTime'
 
 interface ChatAreaProps {
@@ -20,6 +21,11 @@ interface ChatAreaProps {
   onNewSession?: () => void
   onSettingsClick?: () => void
   assistantName?: string
+  /** Swipe/Branch callbacks */
+  onSwipeChange?: (messageId: string, alternative: MessageAlternative) => void
+  onRegenerateStart?: (parentMessageId: string) => void
+  onRegenerateComplete?: (parentMessageId: string, result: { id: string; content: string; branchIndex: number }) => void
+  onBranch?: (parentMessageId: string, branchSessionId: string, title: string) => void
 }
 
 function displayTime(ts: string): string {
@@ -107,7 +113,11 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   onStopAudio,
   onNewSession,
   onSettingsClick,
-  assistantName
+  assistantName,
+  onSwipeChange,
+  onRegenerateStart,
+  onRegenerateComplete,
+  onBranch,
 }) => {
   const [typingMessages, setTypingMessages] = useState<Set<string>>(new Set())
   const [playingAudio, setPlayingAudio] = useState<string | null>(null)
@@ -307,12 +317,26 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     )
   }
 
+  // Find parent user message ID for a given agent message
+  const findParentUserMessageId = (msg: ChatMessage, index: number): string | null => {
+    // If the message already has parentId set, use it
+    if (msg.parentId) return msg.parentId
+    // Otherwise find the nearest preceding user message
+    for (let i = index - 1; i >= 0; i--) {
+      if (messages[i].type === 'user' && messages[i].id) {
+        return messages[i].id!
+      }
+    }
+    return null
+  }
+
   const renderMessageContent = (msg: ChatMessage, index: number) => {
     const messageId = msg.id || `msg-${index}`
     const isTyping = typingMessages.has(messageId)
 
     if (msg.type === 'agent') {
       const isPlaying = playingAudio === messageId
+      const parentUserId = findParentUserMessageId(msg, index)
 
       if (msg.isLoading) {
         return (
@@ -340,10 +364,51 @@ const ChatArea: React.FC<ChatAreaProps> = ({
         )
       }
 
+      // Determine the current alternative info
+      const currentAlt: MessageAlternative | null = msg.id ? {
+        id: msg.id,
+        content: msg.content,
+        branchIndex: msg.branchIndex ?? 0,
+        isActiveBranch: msg.isActiveBranch ?? true,
+        tokenCount: 0,
+        model: '',
+        provider: '',
+        createdAt: msg.timestamp,
+      } : null
+
+      const alts: MessageAlternative[] = msg.alternatives?.length
+        ? msg.alternatives
+        : currentAlt ? [currentAlt] : []
+
       return (
         <div className="bg-gray-100 dark:bg-neutral-700 rounded-2xl p-3 text-sm">
           <MarkdownPreview content={msg.content || ''} className="prose prose-sm max-w-none dark:prose-invert" />
           {renderAgentFooterAndLlm(msg, messageId, isPlaying)}
+
+          {/* Swipe / Branch controls */}
+          {parentUserId && onSwipeChange && (
+            <SwipeAlternatives
+              parentMessageId={parentUserId}
+              currentAlternative={currentAlt}
+              alternatives={alts}
+              onAlternativeChange={(alt) => onSwipeChange(parentUserId, alt)}
+              onRegenerateStart={() => onRegenerateStart?.(parentUserId)}
+              onRegenerateComplete={(result) => onRegenerateComplete?.(parentUserId, result)}
+              onBranch={(branchSessionId, title) => onBranch?.(parentUserId, branchSessionId, title)}
+              disabled={msg.isLoading}
+              className="mt-2 pt-2 border-t border-gray-200/80 dark:border-neutral-600"
+            />
+          )}
+        </div>
+      )
+    }
+
+    // User message rendering with optional branch button
+    const renderUserFooter = () => {
+      const hasBranch = onBranch && msg.id
+      return (
+        <div className={cn('mt-1 flex items-center gap-2', hasBranch && 'border-t border-purple-200/50 dark:border-purple-700/50 pt-1.5 mt-1.5')}>
+          <div className="text-xs text-purple-500 dark:text-purple-300 tabular-nums">{displayTime(msg.timestamp)}</div>
         </div>
       )
     }
@@ -351,7 +416,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     return (
       <div className="bg-purple-100 dark:bg-purple-900 rounded-2xl p-3 text-sm">
         <p className="whitespace-pre-wrap">{msg.content}</p>
-        <div className="mt-1 text-xs text-purple-500 dark:text-purple-300 tabular-nums">{displayTime(msg.timestamp)}</div>
+        {renderUserFooter()}
       </div>
     )
   }

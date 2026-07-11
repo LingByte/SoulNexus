@@ -251,6 +251,10 @@ const VoiceAssistant = () => {
 
     // 助手基本信息
     const [assistantName, setAssistantName] = useState('')
+    // 角色卡字段
+    const [personaTag, setPersonaTag] = useState('')
+    const [description, setDescription] = useState('')
+    const [avatarUrl, setAvatarUrl] = useState('')
     // VAD 配置
     const [enableVAD, setEnableVAD] = useState(true)
     const [vadThreshold, setVadThreshold] = useState(500)
@@ -267,7 +271,6 @@ const VoiceAssistant = () => {
     const [showAddAssistantModal, setShowAddAssistantModal] = useState(false)
     const [showIntegrationDrawer, setShowIntegrationDrawer] = useState(false)
     const [showConfirmModal, setShowConfirmModal] = useState(false)
-    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
     const [selectedMethod, setSelectedMethod] = useState<string | null>(null)
     const [pendingAgent, setPendingAgent] = useState<number | null>(null)
 
@@ -311,6 +314,9 @@ const VoiceAssistant = () => {
             setTtsProvider(detail.ttsProvider.trim().toLowerCase())
         }
         setAssistantName(detail.name ?? '')
+        setPersonaTag(detail.personaTag ?? '')
+        setDescription(detail.description ?? '')
+        setAvatarUrl(detail.avatarUrl ?? '')
         setEnableVAD(detail.enableVAD !== undefined ? detail.enableVAD : true)
         setVadThreshold(detail.vadThreshold ?? 500)
         setVadConsecutiveFrames(detail.vadConsecutiveFrames ?? 2)
@@ -429,12 +435,25 @@ const VoiceAssistant = () => {
         }
 
         const messageId = `ai-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-        const newMessage = {
+
+        // Find the last user message to set as parent
+        let parentId: string | undefined
+        for (let i = chatMessages.length - 1; i >= 0; i--) {
+          if (chatMessages[i].type === 'user' && chatMessages[i].id) {
+            parentId = chatMessages[i].id
+            break
+          }
+        }
+
+        const newMessage: ChatMessage = {
             type: 'agent' as const,
             content: text,
             timestamp: new Date().toISOString(),
             id: messageId,
-            audioUrl: audioUrl
+            audioUrl: audioUrl,
+            parentId,
+            branchIndex: 0,
+            isActiveBranch: true,
         }
         console.log('新消息对象:', newMessage)
         setChatMessages(prev => {
@@ -476,6 +495,70 @@ const VoiceAssistant = () => {
     const removeLoadingMessage = (messageId: string) => {
         setChatMessages(prev => prev.filter(msg => msg.id !== messageId))
     }
+
+    // =========================================================================
+    // Swipe / Branch callbacks
+    // =========================================================================
+    const handleSwipeChange = useCallback((parentUserId: string, alt: { id: string; content: string; branchIndex: number }) => {
+      setChatMessages(prev => prev.map(msg => {
+        // Deactivate all siblings under the same parent
+        if (msg.type === 'agent' && msg.parentId === parentUserId) {
+          return {
+            ...msg,
+            isActiveBranch: msg.id === alt.id,
+            content: msg.id === alt.id ? alt.content : msg.content,
+          }
+        }
+        return msg
+      }))
+    }, [])
+
+    const handleRegenerateStart = useCallback((parentMessageId: string) => {
+      // Could add loading indicator here
+      console.log('[Swipe] Regenerate started for parent:', parentMessageId)
+    }, [])
+
+    const handleRegenerateComplete = useCallback((parentMessageId: string, result: { id: string; content: string; branchIndex: number }) => {
+      // Add the new alternative to the messages list
+      const newMsg: ChatMessage = {
+        type: 'agent',
+        content: result.content,
+        timestamp: new Date().toISOString(),
+        id: result.id,
+        parentId: parentMessageId,
+        branchIndex: result.branchIndex,
+        isActiveBranch: true,
+      }
+
+      setChatMessages(prev => {
+        // Deactivate all existing siblings
+        const updated = prev.map(msg =>
+          msg.type === 'agent' && msg.parentId === parentMessageId
+            ? { ...msg, isActiveBranch: false }
+            : msg
+        )
+        return [...updated, newMsg]
+      })
+    }, [])
+
+    const handleBranch = useCallback(async (_parentMessageId: string, branchSessionId: string, title: string) => {
+      // Navigate to the new branch session
+      console.log('[Swipe] Branch created:', branchSessionId, title)
+      setCurrentSessionId(branchSessionId)
+      // Load the branch session history
+      try {
+        const response = await getChatSessionLogsBySession(branchSessionId)
+        if (response?.data) {
+          const loadedMessages = chatSessionLogsToChatMessages(response.data as ChatSessionLogDetail[])
+          setChatMessages(loadedMessages)
+        } else {
+          setChatMessages([])
+        }
+      } catch (err) {
+        console.error('[Swipe] Failed to load branch session history:', err)
+        setChatMessages([])
+      }
+    }, [])
 
     // 轮询获取音频URL
     const pollAudioStatus = async (requestId: string, messageId: string) => {
@@ -1810,7 +1893,9 @@ const VoiceAssistant = () => {
                     name: assistantName,
                     systemPrompt,
                     openingStatement,
-                    persona_tag: ((assistants ?? []).find(a => a.id === agentId) as ApiAssistant | undefined)?.personaTag || '',
+                    persona_tag: personaTag || ((assistants ?? []).find(a => a.id === agentId) as ApiAssistant | undefined)?.personaTag || '',
+                    description: description || '',
+                    avatarUrl: avatarUrl || '',
                 temperature: temperature,
                 maxTokens: maxTokens,
                 language,
@@ -1854,7 +1939,6 @@ const VoiceAssistant = () => {
     const handleDeleteAssistant = async () => {
         try {
             await deleteAssistant(agentId)
-            setShowDeleteConfirm(false)
             setSystemPrompt('')
             setLlmModel('')
 
@@ -2001,6 +2085,10 @@ const VoiceAssistant = () => {
                             onNewSession={startNewSession}
                             onSettingsClick={() => setIsControlPanelCollapsed(false)}
                             assistantName={(assistants ?? []).find(a => a.id === agentId)?.name}
+                            onSwipeChange={handleSwipeChange}
+                            onRegenerateStart={handleRegenerateStart}
+                            onRegenerateComplete={handleRegenerateComplete}
+                            onBranch={handleBranch}
                         />
                         {showOnboarding && highlightedElement === 'chat-area' && (
                             <GuideTooltip
@@ -2082,6 +2170,12 @@ const VoiceAssistant = () => {
                                     onLlmModelChange={(v) => { markSettingsDirty(); setLlmModel(v) }}
                                     assistantName={assistantName}
                                     onAssistantNameChange={(v) => { markSettingsDirty(); setAssistantName(v) }}
+                                    personaTag={personaTag}
+                                    description={description}
+                                    avatarUrl={avatarUrl}
+                                    onPersonaTagChange={(v) => { markSettingsDirty(); setPersonaTag(v) }}
+                                    onDescriptionChange={(v) => { markSettingsDirty(); setDescription(v) }}
+                                    onAvatarUrlChange={(v) => { markSettingsDirty(); setAvatarUrl(v) }}
                                     enableVAD={enableVAD}
                                     vadThreshold={vadThreshold}
                                     vadConsecutiveFrames={vadConsecutiveFrames}
@@ -2092,7 +2186,7 @@ const VoiceAssistant = () => {
                                     onEnableJSONOutputChange={(v) => { markSettingsDirty(); setEnableJSONOutput(v) }}
                                     onSaveSettings={handleSaveSettings}
                                     isSavingSettings={isSavingSettings}
-                                    onDeleteAssistant={() => setShowDeleteConfirm(true)}
+                                    onConfirmDelete={handleDeleteAssistant}
                                     searchKeyword={searchKeyword}
                                     highlightFragments={highlightFragments}
                                     highlightResultId={highlightResultId}
@@ -2176,32 +2270,6 @@ const VoiceAssistant = () => {
                                 className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
                             >
                                 确定切换
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* 删除确认模态框 */}
-            {showDeleteConfirm && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white dark:bg-neutral-800 p-6 rounded-xl max-w-md w-full mx-4">
-                        <h3 className="text-lg font-semibold mb-4">删除确认</h3>
-                        <p className="text-gray-600 dark:text-gray-300 mb-6">
-                            确定要删除当前助手吗？此操作不可撤销。
-                        </p>
-                        <div className="flex justify-end space-x-4">
-                            <button
-                                onClick={() => setShowDeleteConfirm(false)}
-                                className="px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-700 rounded-lg"
-                            >
-                                取消
-                            </button>
-                            <button
-                                onClick={handleDeleteAssistant}
-                                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-                            >
-                                确定删除
                             </button>
                         </div>
                     </div>

@@ -292,15 +292,18 @@ type SessionCreatedData struct {
 
 // MessageCreatedData 消息创建信号数据
 type MessageCreatedData struct {
-	MessageID  string `json:"message_id"`
-	SessionID  string `json:"session_id"`
-	Role       string `json:"role"`
-	Content    string `json:"content"`
-	TokenCount int    `json:"token_count"`
-	Model      string `json:"model"`
-	Provider   string `json:"provider"`
-	RequestID  string `json:"request_id"`
-	CreatedAt  int64  `json:"created_at"`
+	MessageID       string `json:"message_id"`
+	SessionID       string `json:"session_id"`
+	Role            string `json:"role"`
+	Content         string `json:"content"`
+	TokenCount      int    `json:"token_count"`
+	Model           string `json:"model"`
+	Provider        string `json:"provider"`
+	RequestID       string `json:"request_id"`
+	ParentMessageID string `json:"parent_message_id,omitempty"`
+	BranchIndex     int    `json:"branch_index"`
+	IsActiveBranch  bool   `json:"is_active_branch"`
+	CreatedAt       int64  `json:"created_at"`
 }
 
 // UsageChannelAttempt 多渠道路由/重试时单次走向（失败后再换渠道成功时形成数组）。

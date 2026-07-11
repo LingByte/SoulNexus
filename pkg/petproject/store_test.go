@@ -33,7 +33,7 @@ func TestWriteAndReadFilesLocal(t *testing.T) {
 		}
 	}
 
-	got, err := petproject.ReadFiles(store, prefix, petproject.StandardPaths[:2])
+	got, err := petproject.ReadFiles(store, prefix, []string{"manifest.json", "pet.js"})
 	if err != nil {
 		t.Fatal(err)
 	}

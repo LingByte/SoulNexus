@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/LingByte/SoulNexus/pkg/llm"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/voicedialog"
 	"github.com/gin-gonic/gin"
@@ -219,11 +220,24 @@ func (h *Handlers) getChatSessionLogsBySession(c *gin.Context) {
 		}
 		userMsg := messages[i]
 
+		// Find the active assistant message under this user message (respect branch)
 		var agentMsg *svcmodels.ChatMessage
 		for j := i + 1; j < len(messages); j++ {
-			if messages[j].Role == "assistant" {
+			if messages[j].Role == "assistant" &&
+				messages[j].ParentMessageID != nil &&
+				*messages[j].ParentMessageID == userMsg.ID &&
+				messages[j].IsActiveBranch {
 				agentMsg = &messages[j]
 				break
+			}
+		}
+		// Fallback: if no active branch found, pick the first assistant after this user message
+		if agentMsg == nil {
+			for j := i + 1; j < len(messages); j++ {
+				if messages[j].Role == "assistant" {
+					agentMsg = &messages[j]
+					break
+				}
 			}
 		}
 
@@ -393,6 +407,14 @@ func (h *Handlers) handleConnection(c *gin.Context) {
 		return
 	}
 
+	// Get user from credential
+	user, err := auth.GetUserByID(h.db, cred.CreatedBy)
+	if err != nil || user == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user"})
+		c.Abort()
+		return
+	}
+
 	agentID, err := strconv.ParseInt(agentIDStr, 10, 64)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid agentId format"})
@@ -433,6 +455,12 @@ func (h *Handlers) handleConnection(c *gin.Context) {
 		systemPrompt = "你是一个友好的助手，请用自然、口语化的方式和用户交流。"
 	}
 
+	userIDStr := fmt.Sprintf("%d", user.ID)
+
+	// Inject WorldInfo + Persona into system prompt
+	systemPrompt = h.injectWorldInfoForChat(c.Request.Context(), agentID, "", systemPrompt, userIDStr)
+	systemPrompt = h.injectPersonaForChat(c.Request.Context(), userIDStr, systemPrompt)
+
 	temperature := agent.Temperature
 	if temperature == 0 {
 		temperature = 0.7
@@ -444,6 +472,10 @@ func (h *Handlers) handleConnection(c *gin.Context) {
 	}
 
 	fallback := "您好，我现在没法回答这个问题，请稍后再试。"
+
+	// Create session for tracking
+	sessionID := fmt.Sprintf("ws_%s_%d", callID, agentID)
+	llm.CreateSession(sessionID, userIDStr, agentID, agent.Name, cred.LLMProvider, model, systemPrompt)
 
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
@@ -460,6 +492,9 @@ func (h *Handlers) handleConnection(c *gin.Context) {
 		SystemPrompt:     systemPrompt,
 		OpeningStatement: agent.OpeningStatement,
 		Temperature:      temperature,
+		SessionID:        sessionID,
+		AgentID:          agentID,
+		UserID:           userIDStr,
 	}
 	voicedialog.Serve(c.Request.Context(), conn, callID, cfg, fallback)
 }
