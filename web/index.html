@@ -2,68 +2,21 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="icon" type="image/png" href="/icon-lingyu.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-    <meta name="theme-color" content="#3b82f6" />
-    
-    <!-- SEO Meta Tags -->
-    <title>SoulMy - 智能AI语音通话平台 | WebRTC实时通信解决方案</title>
-    <meta name="description" content="SoulMy是基于WebRTC的智能AI语音通话平台，提供低延迟实时通信、AI语音助手、声音克隆、知识库管理等企业级解决方案。支持多模态交互，助力企业数字化转型。" />
-    <meta name="keywords" content="AI语音通话,WebRTC,实时通信,语音助手,声音克隆,AI对话,智能客服,语音识别,TTS,ASR,低延迟通话,企业通信,SoulMy" />
-    <meta name="author" content="SoulMy Team - 成都解忧造物科技有限责任公司" />
-    <meta name="robots" content="index, follow" />
-    <link rel="canonical" href="https://SoulMy.com/" />
-    
-    <!-- Open Graph / Facebook -->
-    <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://SoulMy.com/" />
-    <meta property="og:title" content="SoulMy - 智能AI语音通话平台" />
-    <meta property="og:description" content="基于WebRTC的企业级AI语音通话解决方案，提供低延迟实时通信、智能语音助手、声音克隆等功能" />
-    <meta property="og:image" content="/icon-512x512.png" />
-    <meta property="og:site_name" content="SoulMy" />
-    <meta property="og:locale" content="zh_CN" />
-    
-    <!-- Twitter Card -->
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:url" content="https://SoulMy.com/" />
-    <meta name="twitter:title" content="SoulMy - 智能AI语音通话平台" />
-    <meta name="twitter:description" content="基于WebRTC的企业级AI语音通话解决方案" />
-    <meta name="twitter:image" content="/icon-512x512.png" />
-    
-    <!-- Structured Data (JSON-LD) -->
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "SoftwareApplication",
-      "name": "SoulMy",
-      "applicationCategory": "BusinessApplication",
-      "operatingSystem": "Web",
-      "description": "智能AI语音通话平台，提供WebRTC实时通信、AI语音助手、声音克隆等企业级解决方案",
-      "offers": {
-        "@type": "Offer",
-        "price": "0",
-        "priceCurrency": "CNY"
-      },
-      "aggregateRating": {
-        "@type": "AggregateRating",
-        "ratingValue": "4.8",
-        "ratingCount": "156"
-      },
-      "author": {
-        "@type": "Organization",
-        "name": "成都解忧造物科技有限责任公司"
-      }
-    }
-    </script>
-    
+    <meta name="theme-color" content="#8B5CF6" />
+    <meta name="description" content="SoulNexus" />
+    <meta name="keywords" content="SoulNexus" />
+    <meta name="author" content="SoulNexus Team" />
     <!-- PWA 相关 -->
     <link rel="manifest" href="/manifest.json" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="SoulMy" />
-    <link rel="apple-touch-icon" href="/icon-192x192.png" />
+    <meta name="apple-mobile-web-app-title" content="SoulNexus" />
+    <link rel="apple-touch-icon" href="/icon-lingyu.png" />
     
-    <title>SoulMy</title>
+    <title>SoulNexus</title>
     
     <!-- 字体预加载 - 使用本地字体作为后备 -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -94,35 +47,42 @@
         min-height: 100vh;
         background: linear-gradient(135deg, #f8fafc 0%, #ffffff 50%, #eff6ff 100%);
       }
-      
+
+      .app-loading {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
       /* 加载动画 */
       .loading-spinner {
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
         width: 40px;
         height: 40px;
         border: 4px solid #f3f4f6;
-        border-top: 4px solid #3b82f6;
+        border-top: 4px solid #1671EF;
         border-radius: 50%;
         animation: spin 1s linear infinite;
       }
       
       @keyframes spin {
-        0% { transform: translate(-50%, -50%) rotate(0deg); }
-        100% { transform: translate(-50%, -50%) rotate(360deg); }
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
       }
       
       /* 隐藏加载动画 */
-      .app-loaded .loading-spinner {
+      .app-loaded .app-loading {
         display: none;
       }
     </style>
   </head>
   <body>
     <div id="root">
-      <div class="loading-spinner"></div>
+      <div class="app-loading">
+        <div class="loading-spinner"></div>
+      </div>
     </div>
     <script type="module" src="/src/main.tsx"></script>
     
@@ -133,11 +93,10 @@
         document.body.classList.add('app-loaded');
       });
       
-      // 错误监控（忽略浏览器扩展注入的 live2d-widgets 脚本）
+      // 错误监控
       window.addEventListener('error', function(e) {
-        if (e.filename && String(e.filename).indexOf('live2d-widgets') >= 0) return
-        console.error('Global error:', e.error)
-      })
+        console.error('Global error:', e.error);
+      });
       
       window.addEventListener('unhandledrejection', function(e) {
         console.error('Unhandled promise rejection:', e.reason);
