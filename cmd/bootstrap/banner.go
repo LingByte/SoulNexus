@@ -7,11 +7,8 @@ import (
 	"net/url"
 	"os"
 	"strings"
-	"time"
 
-	"github.com/LingByte/SoulNexus/internal/config"
-	"github.com/LingByte/SoulNexus/pkg/logger"
-	"go.uber.org/zap"
+	pkgconst "github.com/LingByte/SoulNexus/pkg/constants"
 )
 
 // GenerateBannerWithDoomFont generates ASCII art banner using Doom font and saves to file
@@ -27,17 +24,17 @@ func GenerateBannerWithDoomFont(text, filename string) error {
 		}
 	}
 	// Save to file
-	return os.WriteFile(filename, []byte(banner), 0644)
+	return os.WriteFile(filename, []byte(banner), pkgconst.BannerFilePerm)
 }
 
 // generateBannerFromAPI tries to generate banner using online figlet API
 func generateBannerFromAPI(text string) (string, error) {
 	// Use patorjk.com API - convert text to URL encoded format
 	encodedText := url.QueryEscape(text)
-	apiURL := fmt.Sprintf("https://patorjk.com/software/taag/ajax/convert.php?text=%s&font=doom", encodedText)
+	apiURL := fmt.Sprintf(pkgconst.BannerAPIURLTemplate, encodedText)
 
 	client := &http.Client{
-		Timeout: 10 * time.Second,
+		Timeout: pkgconst.BannerAPITimeout,
 	}
 
 	req, err := http.NewRequest("GET", apiURL, nil)
@@ -45,9 +42,9 @@ func generateBannerFromAPI(text string) (string, error) {
 		return "", err
 	}
 	// Set headers to mimic browser request
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-	req.Header.Set("Accept", "text/plain, */*")
-	req.Header.Set("Referer", "https://patorjk.com/software/taag/")
+	req.Header.Set("User-Agent", pkgconst.BannerUserAgent)
+	req.Header.Set("Accept", pkgconst.BannerAcceptHeader)
+	req.Header.Set("Referer", pkgconst.BannerRefererURL)
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", err
@@ -62,7 +59,7 @@ func generateBannerFromAPI(text string) (string, error) {
 	}
 	// Check if response is HTML (API error)
 	bodyStr := string(body)
-	if strings.Contains(bodyStr, "<!DOCTYPE") || strings.Contains(bodyStr, "<html") || strings.Contains(bodyStr, "404 Error") {
+	if strings.Contains(bodyStr, pkgconst.HTMLDoctypePrefix) || strings.Contains(bodyStr, pkgconst.HTMLTagPrefix) || strings.Contains(bodyStr, pkgconst.HTML404Error) {
 		return "", fmt.Errorf("API returned HTML error page instead of ASCII art")
 	}
 	// The API returns plain text ASCII art
@@ -71,11 +68,11 @@ func generateBannerFromAPI(text string) (string, error) {
 		return "", fmt.Errorf("empty response from API")
 	}
 	// Clean up the response - remove any HTML tags if present
-	banner = strings.ReplaceAll(banner, "<br>", "\n")
-	banner = strings.ReplaceAll(banner, "<br/>", "\n")
-	banner = strings.ReplaceAll(banner, "<br />", "\n")
+	banner = strings.ReplaceAll(banner, pkgconst.HTMLBrTag, "\n")
+	banner = strings.ReplaceAll(banner, pkgconst.HTMLBrSelfClose, "\n")
+	banner = strings.ReplaceAll(banner, pkgconst.HTMLBrCloseSpace, "\n")
 	// Verify it's actually ASCII art (should contain common ASCII art characters)
-	if !strings.ContainsAny(banner, "|_/\\-=") {
+	if !strings.ContainsAny(banner, pkgconst.ASCIIArtChars) {
 		return "", fmt.Errorf("API response doesn't appear to be ASCII art")
 	}
 	return banner, nil
@@ -86,7 +83,7 @@ func generateBannerWithLocalDoom(text string) (string, error) {
 	// Doom font character mappings
 	doomChars := getDoomFontChars()
 	text = strings.ToUpper(text)
-	lines := make([]string, 8) // Doom font height is 8
+	lines := make([]string, pkgconst.DoomFontHeight)
 	for _, char := range text {
 		if charArt, ok := doomChars[char]; ok {
 			charLines := strings.Split(charArt, "\n")
@@ -102,7 +99,7 @@ func generateBannerWithLocalDoom(text string) (string, error) {
 				}
 			}
 			// Pad lines to ensure consistent width
-			for i := 0; i < 8; i++ {
+			for i := 0; i < pkgconst.DoomFontHeight; i++ {
 				if i < len(charLines) {
 					// Pad the line to maxWidth
 					paddedLine := charLines[i]
@@ -116,14 +113,14 @@ func generateBannerWithLocalDoom(text string) (string, error) {
 				}
 			}
 		} else if char == ' ' {
-			// Add space (2 characters wide for Doom font)
-			for i := 0; i < 8; i++ {
-				lines[i] += "  "
+			// Add space (DoomFontSpaceWidth characters wide for Doom font)
+			for i := 0; i < pkgconst.DoomFontHeight; i++ {
+				lines[i] += strings.Repeat(" ", pkgconst.DoomFontSpaceWidth)
 			}
 		} else {
 			// Unknown character, use placeholder
-			for i := 0; i < 8; i++ {
-				lines[i] += "? "
+			for i := 0; i < pkgconst.DoomFontHeight; i++ {
+				lines[i] += pkgconst.DoomFontUnknownChar
 			}
 		}
 	}
@@ -373,7 +370,7 @@ func EnsureBannerFile(filename, defaultText string) error {
 	if _, err := os.Stat(filename); os.IsNotExist(err) {
 		// File doesn't exist, generate it
 		if defaultText == "" {
-			defaultText = "LingStorage"
+			defaultText = pkgconst.DefaultBannerText
 		}
 		fmt.Printf("Banner file not found, generating %s with Doom font...\n", filename)
 		err := GenerateBannerWithDoomFont(defaultText, filename)
@@ -383,81 +380,4 @@ func EnsureBannerFile(filename, defaultText string) error {
 		fmt.Printf("Banner file generated successfully: %s\n", filename)
 	}
 	return nil
-}
-
-// PrintBannerFromFile Read file and print, auto-generate if file doesn't exist
-func PrintBannerFromFile(filename string, defaultText string) error {
-	// Ensure banner file exists, generate if it doesn't
-	if err := EnsureBannerFile(filename, defaultText); err != nil {
-		return fmt.Errorf("failed to ensure banner file: %w", err)
-	}
-	data, err := os.ReadFile(filename)
-	if err != nil {
-		return err
-	}
-	lines := strings.Split(string(data), "\n")
-	colors := []string{
-		"\x1b[38;5;117m", // light blue
-		"\x1b[38;5;111m",
-		"\x1b[38;5;75m",
-		"\x1b[38;5;39m",
-		"\x1b[38;5;33m",
-		"\x1b[38;5;27m", // dark blue
-	}
-	for i, line := range lines {
-		if strings.TrimSpace(line) == "" {
-			continue
-		}
-		color := colors[i%len(colors)]
-		fmt.Println(color + line + "\x1b[0m")
-	}
-	return nil
-}
-
-// LogConfigInfo Print global configuration information
-func LogConfigInfo() {
-	logger.Info("system config load finished")
-	logger.Info("global config",
-		zap.String("server_desc", config.GlobalConfig.Server.Desc),
-		zap.String("server_logo", config.GlobalConfig.Server.Logo),
-		zap.String("server_url", config.GlobalConfig.Server.URL),
-		zap.String("server_terms_url", config.GlobalConfig.Server.TermsURL),
-		zap.String("mode", config.GlobalConfig.Server.Mode),
-	)
-
-	logger.Info("base config",
-		zap.Int64("machine_id", config.GlobalConfig.MachineID),
-		zap.String("addr", config.GlobalConfig.Server.Addr),
-		zap.String("db_driver", config.GlobalConfig.Database.Driver),
-		zap.String("dsn", config.GlobalConfig.Database.DSN),
-		zap.Bool("language_enabled", config.GlobalConfig.Features.LanguageEnabled),
-		zap.String("api_secret_key", config.GlobalConfig.Auth.APISecretKey),
-	)
-
-	logger.Info("api config",
-		zap.String("api_prefix", config.GlobalConfig.Server.APIPrefix),
-		zap.String("docs_prefix", config.GlobalConfig.Server.DocsPrefix),
-		zap.String("auth_prefix", config.GlobalConfig.Server.AuthPrefix),
-		zap.String("secret_expire_days", config.GlobalConfig.Auth.SecretExpireDays),
-		zap.String("session_secret", config.GlobalConfig.Auth.SessionSecret),
-	)
-
-	logger.Info("log config",
-		zap.String("log_level", config.GlobalConfig.Log.Level),
-		zap.String("log_filename", config.GlobalConfig.Log.Filename),
-		zap.Int("log_max_size", config.GlobalConfig.Log.MaxSize),
-		zap.Int("log_max_age", config.GlobalConfig.Log.MaxAge),
-		zap.Int("log_max_backups", config.GlobalConfig.Log.MaxBackups),
-	)
-
-	logger.Info("search config",
-		zap.Bool("search_enabled", config.GlobalConfig.Features.SearchEnabled),
-		zap.String("search_path", config.GlobalConfig.Features.SearchPath),
-		zap.Int("search_batch_size", config.GlobalConfig.Features.SearchBatchSize),
-	)
-	logger.Info("backup config",
-		zap.Bool("backup_enabled", config.GlobalConfig.Features.BackupEnabled),
-		zap.String("backup_path", config.GlobalConfig.Features.BackupPath),
-		zap.String("backup_schedule", config.GlobalConfig.Features.BackupSchedule),
-	)
 }

@@ -10,33 +10,35 @@ import (
 	"time"
 
 	"github.com/LingByte/SoulNexus/internal/config"
+	pkgconst "github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/logger"
-	"github.com/LingByte/SoulNexus/pkg/utils"
+	"github.com/LingByte/SoulNexus/pkg/utils/access"
+	"go.uber.org/zap"
 )
 
 var (
 	// GlobalKeyManager is the global key manager for JWT signing
-	GlobalKeyManager *utils.KeyManager
+	GlobalKeyManager *access.KeyManager
 	stopRotationChan chan struct{}
 )
 
 func minKeysToProvision() int {
 	n := config.GlobalConfig.JWT.KeepOldKeys
-	if n < 2 {
-		return 2
+	if n < pkgconst.DefaultMinJWKSKeys {
+		return pkgconst.DefaultMinJWKSKeys
 	}
 	return n
 }
 
 // ensureMinimumKeyPairs generates additional key pairs so verification can overlap during rotation
 // (JWKS exposes several kids; new tokens use the newest key).
-func ensureMinimumKeyPairs(km *utils.KeyManager, keyFile string) error {
+func ensureMinimumKeyPairs(km *access.KeyManager, keyFile string) error {
 	start := km.KeyCount()
 	for km.KeyCount() < minKeysToProvision() {
 		if _, err := km.GenerateKey(); err != nil {
 			return err
 		}
-		logger.Infof("Provisioned extra signing key (%d/%d)", km.KeyCount(), minKeysToProvision())
+		logger.Info(fmt.Sprintf("Provisioned extra signing key (%d/%d)", km.KeyCount(), minKeysToProvision()))
 	}
 	if km.KeyCount() > start {
 		if err := km.SaveKeysToFile(keyFile); err != nil {
@@ -46,32 +48,32 @@ func ensureMinimumKeyPairs(km *utils.KeyManager, keyFile string) error {
 	return nil
 }
 
-func publishKeyManager(km *utils.KeyManager) {
+func publishKeyManager(km *access.KeyManager) {
 	GlobalKeyManager = km
-	utils.InstallJWTKeyManager(km)
+	access.InstallJWTKeyManager(km)
 }
 
 // InitializeKeyManager initializes the global KeyManager with key persistence
 func InitializeKeyManager() error {
-	keyManager := utils.NewKeyManager(config.GlobalConfig.JWT.Algorithm)
+	keyManager := access.NewKeyManager(config.GlobalConfig.JWT.Algorithm)
 	keyFile := config.GlobalConfig.JWT.KeyFile
 
 	keyDir := filepath.Dir(keyFile)
-	if err := os.MkdirAll(keyDir, 0700); err != nil {
+	if err := os.MkdirAll(keyDir, pkgconst.KeyDirPerm); err != nil {
 		return fmt.Errorf("failed to create key directory: %w", err)
 	}
 
 	loaded := false
 	if _, err := os.Stat(keyFile); err == nil {
 		if loadErr := keyManager.LoadKeysFromFile(keyFile); loadErr != nil {
-			logger.Warnf("failed to load keys from file, will generate new keys: %v", loadErr)
+			logger.Warn("failed to load keys from file, will generate new keys:", zap.Error(loadErr))
 		} else {
 			loaded = true
-			logger.Infof("Loaded existing keys from %s", keyFile)
+			logger.Info("Loaded existing keys from", zap.String("keyfile", keyFile))
 			if shouldRotateKey(keyManager) {
-				logger.Infof("Key rotation needed, rotating now...")
+				logger.Info("Key rotation needed, rotating now...")
 				if err := rotateKeys(keyManager, keyFile); err != nil {
-					logger.Warnf("failed to rotate keys: %v", err)
+					logger.Warn("failed to rotate keys: %v", zap.Error(err))
 				}
 			}
 		}
@@ -82,9 +84,9 @@ func InitializeKeyManager() error {
 			return fmt.Errorf("failed to generate new key: %w", err)
 		}
 		if saveErr := keyManager.SaveKeysToFile(keyFile); saveErr != nil {
-			logger.Warnf("failed to save keys to file: %v", saveErr)
+			logger.Warn("failed to save keys to file:", zap.Error(saveErr))
 		} else {
-			logger.Infof("Generated and saved new keys to %s", keyFile)
+			logger.Info("Generated and saved new keys to %s", zap.String("keys", keyFile))
 		}
 	}
 
@@ -98,7 +100,7 @@ func InitializeKeyManager() error {
 }
 
 // shouldRotateKey checks if the current key needs rotation
-func shouldRotateKey(km *utils.KeyManager) bool {
+func shouldRotateKey(km *access.KeyManager) bool {
 	currentKey, err := km.GetCurrentKey()
 	if err != nil {
 		return false
@@ -114,7 +116,7 @@ func shouldRotateKey(km *utils.KeyManager) bool {
 }
 
 // rotateKeys performs key rotation
-func rotateKeys(km *utils.KeyManager, keyFile string) error {
+func rotateKeys(km *access.KeyManager, keyFile string) error {
 	keepOldKeys := config.GlobalConfig.JWT.KeepOldKeys
 	if keepOldKeys <= 0 {
 		keepOldKeys = 2
@@ -133,7 +135,7 @@ func rotateKeys(km *utils.KeyManager, keyFile string) error {
 }
 
 // startKeyRotationChecker starts a background goroutine to check for key rotation
-func startKeyRotationChecker(km *utils.KeyManager, keyFile string) {
+func startKeyRotationChecker(km *access.KeyManager, keyFile string) {
 	stopRotationChan = make(chan struct{})
 
 	go func() {
@@ -146,7 +148,7 @@ func startKeyRotationChecker(km *utils.KeyManager, keyFile string) {
 				if shouldRotateKey(km) {
 					logger.Infof("Scheduled key rotation triggered")
 					if err := rotateKeys(km, keyFile); err != nil {
-						logger.Errorf("failed to rotate keys: %v", err)
+						logger.Error("failed to rotate keys:", zap.Error(err))
 					}
 				}
 			case <-stopRotationChan:
