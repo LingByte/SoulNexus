@@ -1,0 +1,16 @@
+/**
+ * Arco popup layers: keep above layout chrome and ensure clicks reach options.
+ * z-index baseline is set via ConfigProvider; this covers edge cases (stacking contexts).
+ */
+.arco-trigger {
+  pointer-events: auto;
+}
+
+.arco-select-popup,
+.arco-select-popup-inner,
+.arco-cascader-popup,
+.arco-tree-select-popup,
+.arco-picker-container,
+.arco-dropdown-popup {
+  pointer-events: auto;
+}

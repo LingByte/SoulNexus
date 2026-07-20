@@ -27,66 +27,54 @@ export const useThemeStore = create<ThemeState>()(
           theme.mode === 'dark' ||
           (theme.mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
         set({ isDark })
-
-        updateThemeClasses(theme.mode, isDark)
+        updateThemeClasses(isDark)
       },
 
       setMode: (mode: ThemeMode) => {
-        const { theme } = get()
-        const newTheme = { ...theme, mode }
-        get().setTheme(newTheme)
+        get().setTheme({ mode })
       },
 
-      // 从 system 切换时也必须按「当前实际明暗」翻转，否则 mode=system 时一点永远是 light
       toggleMode: () => {
-        const { theme } = get()
-        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-        const currentlyDark = theme.mode === 'dark' || (theme.mode === 'system' && prefersDark)
-        get().setMode(currentlyDark ? 'light' : 'dark')
+        const { theme, isDark } = get()
+        const newMode =
+          theme.mode === 'system' ? (isDark ? 'light' : 'dark') : theme.mode === 'light' ? 'dark' : 'light'
+        get().setMode(newMode)
       },
     }),
     {
       name: 'theme-storage',
-      partialize: (state) => ({ theme: state.theme }),
+      partialize: (state) => ({ theme: { mode: state.theme.mode } }),
       onRehydrateStorage: () => (state) => {
         if (state) {
           const isDark =
             state.theme.mode === 'dark' ||
             (state.theme.mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
           state.isDark = isDark
-
-          updateThemeClasses(state.theme.mode, isDark)
+          updateThemeClasses(isDark)
         }
       },
     },
   ),
 )
 
-/** 在 React 首帧前调用：从 localStorage 同步 `html` 的 class，避免先亮后暗的闪烁 */
-export function applyStoredThemeBeforeReact(): void {
-  if (typeof window === 'undefined') return
-  try {
-    const raw = localStorage.getItem('theme-storage')
-    if (!raw) return
-    const parsed = JSON.parse(raw) as { state?: { theme?: Theme & { color?: string } }; theme?: Theme }
-    const theme = parsed.state?.theme ?? parsed.theme
-    if (!theme) return
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-    const isDark = theme.mode === 'dark' || (theme.mode === 'system' && prefersDark)
-    updateThemeClasses(theme.mode, isDark)
-  } catch {
-    /* ignore corrupt storage */
+function updateThemeClasses(isDark: boolean) {
+  const root = document.documentElement
+  const body = document.body
+  root.classList.remove('dark', 'light', 'arco-theme-dark', 'cherry', 'ocean', 'nature', 'fresh', 'sunset', 'lavender')
+  if (isDark) {
+    root.classList.add('dark')
+    body.setAttribute('arco-theme', 'dark')
+  } else {
+    root.classList.add('light')
+    body.removeAttribute('arco-theme')
   }
 }
 
-function updateThemeClasses(_mode: ThemeMode, isDark: boolean) {
-  const root = document.documentElement
-
-  root.classList.remove('dark', 'light', 'cherry', 'ocean', 'nature', 'fresh', 'sunset', 'lavender')
-
-  if (isDark) {
-    root.classList.add('dark')
-  } else {
-    root.classList.add('light')
-  }
+if (typeof window !== 'undefined') {
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    const state = useThemeStore.getState()
+    if (state.theme.mode === 'system') {
+      state.setTheme({ mode: 'system' })
+    }
+  })
 }

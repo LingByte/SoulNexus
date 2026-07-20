@@ -1,72 +1,22 @@
-/* 深色主题优化 */
+/* 语义色与阴影（页面背景/主色由 index.css 的 --background / --primary 驱动，经 html 桥接到 --color-bg-*） */
 :root {
-  /* 基础颜色变量 */
-  --color-bg-primary: #ffffff;
-  --color-bg-secondary: #f8fafc;
-  --color-bg-tertiary: #f1f5f9;
-  --color-text-primary: #1e293b;
-  --color-text-secondary: #64748b;
-  --color-text-tertiary: #94a3b8;
-  --color-border: #e2e8f0;
-  --color-border-light: #f1f5f9;
-
-  /* 语义化颜色 */
   --color-success: #10b981;
   --color-warning: #f59e0b;
   --color-error: #ef4444;
-  --color-info: #3b82f6;
+  --color-info: hsl(var(--primary));
 
-  /* 阴影 */
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
   --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
   --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
 }
 
-/* 深色主题 */
 .dark {
-  --color-bg-primary: #1a1a1a;
-  --color-bg-secondary: #2d2d2d;
-  --color-bg-tertiary: #404040;
-  --color-text-primary: #ffffff;
-  --color-text-secondary: #e5e5e5;
-  --color-text-tertiary: #cccccc;
-  --color-border: #404040;
-  --color-border-light: #525252;
-
-  /* Tailwind CSS 变量 - 更亮的深色模式 */
-  --background: 0 0% 10%;
-  --foreground: 0 0% 100%;
-  --card: 0 0% 18%;
-  --card-foreground: 0 0% 100%;
-  --popover: 0 0% 18%;
-  --popover-foreground: 0 0% 100%;
-  --primary: 217 91% 60%;
-  --primary-foreground: 0 0% 100%;
-  --secondary: 0 0% 25%;
-  --secondary-foreground: 0 0% 100%;
-  --muted: 0 0% 25%;
-  --muted-foreground: 0 0% 80%;
-  --accent: 0 0% 25%;
-  --accent-foreground: 0 0% 100%;
-  --destructive: 0 84% 60%;
-  --destructive-foreground: 0 0% 100%;
-  --border: 0 0% 25%;
-  --input: 0 0% 25%;
-  --ring: 217 91% 60%;
-
-  /* 自定义主题色支持 */
-  --color-primary: #3b82f6;
-  --color-primary-hover: #2563eb;
-  --color-primary-foreground: #ffffff;
-
-  /* 深色主题下的语义化颜色 */
   --color-success: #34d399;
   --color-warning: #fbbf24;
   --color-error: #f87171;
-  --color-info: #60a5fa;
+  --color-info: hsl(var(--primary));
 
-  /* 深色主题阴影 */
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.4);
   --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.4), 0 4px 6px -4px rgb(0 0 0 / 0.4);
@@ -112,17 +62,11 @@
   border-color: var(--color-border) !important;
 }
 
-/* 确保没有蒙层效果 */
-.dark {
-  background-color: var(--color-bg-primary) !important;
-}
-
-.dark body {
-  background-color: var(--color-bg-primary) !important;
-}
-
+/* 页面底色跟随 --background（由 index.css 主题类提供） */
+.dark body,
 .dark #root {
-  background-color: var(--color-bg-primary) !important;
+  background-color: hsl(var(--background)) !important;
+  color: hsl(var(--foreground));
 }
 
 /* 深色主题下的卡片背景 */
@@ -234,28 +178,23 @@
   background-color: var(--color-bg-secondary) !important;
 }
 
-.dark .backdrop-blur {
+/* 保留 backdrop-blur 效果 */
+/* .dark .backdrop-blur {
   backdrop-filter: none !important;
-}
+} */
 
 /* 深色主题下的容器背景 */
 .dark .max-w-6xl,
 .dark .max-w-4xl,
 .dark .max-w-2xl {
-  background-color: transparent !important;
+  /* background-color: transparent !important; */
 }
 
 /* 深色主题下的按钮样式优化 */
-.dark .bg-blue-600 {
-  background-color: var(--color-primary) !important;
-}
-
-.dark .bg-blue-700 {
-  background-color: var(--color-primary-hover) !important;
-}
-
+.dark .bg-blue-600,
+.dark .bg-blue-700,
 .dark .hover\:bg-blue-700:hover {
-  background-color: var(--color-primary-hover) !important;
+  background-color: hsl(var(--primary)) !important;
 }
 
 /* 深色主题下的输入框样式优化 */
@@ -273,17 +212,17 @@
 .dark input:focus,
 .dark textarea:focus,
 .dark select:focus {
-  border-color: var(--color-primary) !important;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
+  border-color: hsl(var(--primary)) !important;
+  box-shadow: 0 0 0 3px hsl(var(--primary) / 0.15) !important;
 }
 
 /* 确保Header和Layout使用正确的颜色 */
 .header-bg {
-  background-color: var(--color-bg-primary);
+  background-color: hsl(var(--card));
 }
 
 .main-bg {
-  background-color: var(--color-bg-secondary);
+  background-color: hsl(var(--background));
 }
 
 .dark .text-gray-900 {
@@ -306,13 +245,13 @@
   border-color: var(--color-border) !important;
 }
 
-/* 深色主题下的按钮样式 */
+/* 深色主题下的按钮样式（跟随当前主题 primary） */
 .dark .bg-blue-600 {
-  background-color: #3b82f6 !important;
+  background-color: hsl(var(--primary)) !important;
 }
 
 .dark .bg-blue-700 {
-  background-color: #2563eb !important;
+  background-color: hsl(var(--primary) / 0.85) !important;
 }
 
 .dark .text-white {
@@ -409,22 +348,22 @@
 
 /* 深色主题下的选择文本 */
 .dark ::selection {
-  background-color: rgba(59, 130, 246, 0.3);
+  background-color: hsl(var(--primary) / 0.35);
   color: var(--color-text-primary);
 }
 
 /* 深色主题下的焦点样式 */
 .dark *:focus {
-  outline-color: #3b82f6 !important;
+  outline-color: hsl(var(--primary)) !important;
 }
 
 /* 深色主题下的链接样式 */
 .dark a {
-  color: #60a5fa !important;
+  color: hsl(var(--primary)) !important;
 }
 
 .dark a:hover {
-  color: #93c5fd !important;
+  color: hsl(var(--primary) / 0.8) !important;
 }
 
 /* 深色主题下的代码样式 */

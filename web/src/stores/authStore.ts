@@ -1,117 +1,52 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { registerUser, getUserInfo, logoutUser, type User, type RegisterUserForm, type RegisterResponseData } from '../api/auth'
-import { mergeUserPartial } from '@/utils/authUserProfile'
-import { applyAuthUserUIPreferences } from '@/utils/userUiPreferences'
+import { fetchMe, logoutApi } from '@/api/me'
+import { syncAuthToken } from '@/utils/authToken'
+
+// 用户类型定义（可以根据实际需求修改）
+export interface User {
+  id: string | number
+  username?: string
+  email?: string
+  avatar?: string
+  [key: string]: any
+}
 
 interface AuthState {
   user: User | null
   isAuthenticated: boolean
   isLoading: boolean
-  isLoggingOut: boolean
   token: string | null
-  currentOrganizationId: number | null
-  login: (token: string) => Promise<boolean>
-  register: (data: RegisterUserForm) => Promise<boolean>
-  logout: (next?: string) => Promise<void>
+  login: (token: string, user?: User) => Promise<boolean>
+  logout: () => Promise<void>
   setLoading: (loading: boolean) => void
-  refreshUserInfo: () => Promise<void>
   updateProfile: (data: Partial<User>) => void
   clearUser: () => void
-  setCurrentOrganization: (organizationId: number | null) => void
+  refreshUserInfo: () => Promise<void>
 }
 
-// @ts-ignore
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
       user: null,
       isAuthenticated: false,
       isLoading: false,
-      isLoggingOut: false,
       token: null,
-      currentOrganizationId: null,
 
-      login: async (token: string) => {
-        set({ isLoading: true })
-        try {
-          // 存储token
-          localStorage.setItem('auth_token', token)
-          
-          set({
-            isAuthenticated: true, 
-            isLoading: false,
-            token: token
-          })
-          
-          // 从token中解析用户信息或调用API获取
-          const userResponse = await getUserInfo()
-          if (userResponse.code === 200) {
-            set({
-              user: userResponse.data
-            })
-            applyAuthUserUIPreferences(userResponse.data as unknown as Record<string, unknown>)
-            return true
-          } else {
-            throw new Error(userResponse.msg || '获取用户信息失败')
-          }
-        } catch (error) {
-          localStorage.removeItem('auth_token')
-          localStorage.removeItem('refresh_token')
-          set({ user: null, isAuthenticated: false, token: null })
-          set({ isLoading: false })
-          console.error('Login failed:', error)
-          return false
-        }
+      login: async (token: string, user?: User) => {
+        syncAuthToken(token)
+        set({ isLoading: false, isAuthenticated: true, token, user: user || null })
+        return true
       },
 
-      register: async (data: RegisterUserForm) => {
-        set({ isLoading: true })
+      logout: async () => {
         try {
-          const response = await registerUser(data)
-          
-          if (response.code === 200) {
-            const result = response.data as RegisterResponseData & { token?: string; refreshToken?: string }
-            const token = result?.token || (result as any)?.authToken
-            const refreshToken = result?.refreshToken
-            if (token) {
-              localStorage.setItem('auth_token', token)
-              if (refreshToken) localStorage.setItem('refresh_token', refreshToken)
-              set({ isAuthenticated: true, token, isLoading: false })
-              const userResponse = await getUserInfo()
-              if (userResponse.code === 200 && userResponse.data) {
-                set({ user: userResponse.data })
-                applyAuthUserUIPreferences(userResponse.data as unknown as Record<string, unknown>)
-              }
-              return true
-            }
-            set({ isLoading: false })
-            return true
-          } else {
-            throw new Error(response.msg || '注册失败')
-          }
-        } catch (error) {
-          set({ isLoading: false })
-          console.error('Registration failed:', error)
-          return false
-        }
-      },
-
-      logout: async (next?: string) => {
-        const nextURL = next || `${window.location.origin}/login`
-        set({ isLoggingOut: true })
-        try {
-          const response = await logoutUser(nextURL)
-          if (response.code !== 200) {
-            console.warn('Logout API warning:', response.msg)
-          }
-        } catch (error) {
-          console.error('Logout API error:', error)
+          await logoutApi()
+        } catch {
+          // ignore — clear local state regardless
         } finally {
-          localStorage.removeItem('auth_token')
-          localStorage.removeItem('refresh_token')
-          set({ user: null, isAuthenticated: false, token: null, currentOrganizationId: null, isLoggingOut: false })
-          window.location.assign(nextURL)
+          syncAuthToken(null)
+          set({ user: null, isAuthenticated: false, token: null })
         }
       },
 
@@ -119,57 +54,77 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: loading })
       },
 
-      refreshUserInfo: async () => {
-        const token = localStorage.getItem('auth_token')
-        if (!token) return
-
-        try {
-          const response = await getUserInfo()
-          if (response.code === 200) {
-            set({ user: response.data, isAuthenticated: true, token })
-            applyAuthUserUIPreferences(response.data as unknown as Record<string, unknown>)
-          } else {
-            throw new Error(response.msg || '获取用户信息失败')
-          }
-        } catch (error) {
-          console.error('Failed to refresh user info:', error)
-          // 如果获取用户信息失败，清除认证状态
-          localStorage.removeItem('auth_token')
-          localStorage.removeItem('refresh_token')
-          set({ user: null, isAuthenticated: false, token: null })
-        }
-      },
-
       updateProfile: (data: Partial<User>) => {
         const { user } = get()
         if (user) {
-          set({ user: mergeUserPartial(user as unknown as Record<string, unknown>, data as Partial<Record<string, unknown>>) as unknown as User })
+          set({ user: { ...user, ...data } })
         }
       },
 
-        // 新增的清除用户信息方法
-        clearUser: () => {
-            localStorage.removeItem('auth_token')
-            localStorage.removeItem('refresh_token')
-            set({ user: null, isAuthenticated: false, token: null, currentOrganizationId: null, isLoggingOut: false })
-        },
+      // 清除用户信息方法
+      clearUser: () => {
+        syncAuthToken(null)
+        set({ user: null, isAuthenticated: false, token: null })
+      },
 
-        // 设置当前选择的组织
-        setCurrentOrganization: (organizationId: number | null) => {
-            set({ currentOrganizationId: organizationId })
+      // 从 token 恢复，并尽量使用 /me 刷新当前用户信息
+      refreshUserInfo: async () => {
+        const state = get()
+        const token = state.token
+        if (!token) return
+        try {
+          const res = await fetchMe()
+          if (res.code === 200 && res.data) {
+            const data = res.data
+            if (data.principal === 'platform' && data.platformAdmin) {
+              const a = data.platformAdmin
+              syncAuthToken(token)
+              set({
+                user: {
+                  id: a.id,
+                  email: a.email,
+                  displayName: a.displayName,
+                  isPlatformAdmin: true,
+                  principal: 'platform' as const,
+                  permissionCodes: [],
+                },
+                isAuthenticated: true,
+                token,
+              })
+              return
+            }
+            if (data.principal === 'tenant' && data.user) {
+              syncAuthToken(token)
+              set({
+                user: {
+                  ...data.user,
+                  tenantSlug: data.tenant?.slug,
+                  tenantName: data.tenant?.name,
+                  tenantVoiceMode: data.tenant?.voiceMode,
+                  principal: 'tenant' as const,
+                  permissionCodes: data.permissionCodes ?? [],
+                },
+                isAuthenticated: true,
+                token,
+              })
+              return
+            }
+          }
+        } catch {
+          // fallthrough — zustand persist keeps last known state
         }
+      }
     }),
     {
       name: 'auth-storage',
-      partialize: (state) => ({ 
-        user: state.user, 
+      partialize: (state) => ({
+        user: state.user,
         isAuthenticated: state.isAuthenticated,
         token: state.token,
-        currentOrganizationId: state.currentOrganizationId
       }),
+      onRehydrateStorage: () => (state) => {
+        syncAuthToken(state?.token ?? null)
+      },
     }
   )
 )
-
-// 导出User类型供其他组件使用
-export type { User }
