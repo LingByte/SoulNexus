@@ -1,0 +1,8 @@
+{
+  "provider": "volcengine_clone",
+  "modes": ["tts"],
+  "voiceField": "assetId",
+  "docUrl": "https://www.volcengine.com/docs/6561/1257584",
+  "updatedAt": "2026-07-10",
+  "voices": []
+}

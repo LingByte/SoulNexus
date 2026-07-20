@@ -1,0 +1,8 @@
+{
+  "provider": "xunfei_clone",
+  "modes": ["tts"],
+  "voiceField": "assetId",
+  "docUrl": "https://www.xfyun.cn/doc/spark/voiceclone.html",
+  "updatedAt": "2026-07-10",
+  "voices": []
+}

@@ -1,43 +1,19 @@
-[
-  {
-    "id": "0",
-    "name": "度小宇",
-    "description": "温暖亲和男声",
-    "type": "男声",
-    "language": "zh-CN",
-    "sampleRate": "16k",
-    "emotion": "中性",
-    "scene": "通用场景"
-  },
-  {
-    "id": "1",
-    "name": "度小美",
-    "description": "温柔知性女声",
-    "type": "女声",
-    "language": "zh-CN",
-    "sampleRate": "16k",
-    "emotion": "中性",
-    "scene": "通用场景"
-  },
-  {
-    "id": "3",
-    "name": "度逍遥",
-    "description": "成熟稳重男声",
-    "type": "男声",
-    "language": "zh-CN",
-    "sampleRate": "16k",
-    "emotion": "中性",
-    "scene": "通用场景"
-  },
-  {
-    "id": "4",
-    "name": "度丫丫",
-    "description": "活泼甜美童声",
-    "type": "童声",
-    "language": "zh-CN",
-    "sampleRate": "16k",
-    "emotion": "中性",
-    "scene": "通用场景"
-  }
-]
-
+{
+  "provider": "baidu",
+  "modes": ["tts"],
+  "voiceField": "voice",
+  "docUrl": "https://ai.baidu.com/ai-doc/SPEECH/Qk38y8jsg",
+  "updatedAt": "2026-07-10",
+  "voices": [
+    { "id": "0", "name": "度小宇", "label": "度小宇 · 温暖男声", "gender": "male", "locale": "zh-CN", "category": "基础音库" },
+    { "id": "1", "name": "度小美", "label": "度小美 · 温柔女声", "gender": "female", "locale": "zh-CN", "category": "基础音库" },
+    { "id": "3", "name": "度逍遥", "label": "度逍遥 · 成熟男声", "gender": "male", "locale": "zh-CN", "category": "基础音库" },
+    { "id": "4", "name": "度丫丫", "label": "度丫丫 · 活泼童声", "gender": "female", "locale": "zh-CN", "category": "基础音库" },
+    { "id": "5003", "name": "度逍遥精品", "label": "度逍遥 · 精品男声", "gender": "male", "locale": "zh-CN", "category": "精品音库" },
+    { "id": "5118", "name": "度小鹿", "label": "度小鹿 · 甜美女声", "gender": "female", "locale": "zh-CN", "category": "精品音库" },
+    { "id": "106", "name": "度博文", "label": "度博文 · 情感男声", "gender": "male", "locale": "zh-CN", "category": "精品音库" },
+    { "id": "110", "name": "度小童", "label": "度小童 · 童声", "gender": "male", "locale": "zh-CN", "category": "精品音库" },
+    { "id": "111", "name": "度小萌", "label": "度小萌 · 萝莉女声", "gender": "female", "locale": "zh-CN", "category": "精品音库" },
+    { "id": "103", "name": "度米朵", "label": "度米朵 · 女童声", "gender": "female", "locale": "zh-CN", "category": "精品音库" }
+  ]
+}

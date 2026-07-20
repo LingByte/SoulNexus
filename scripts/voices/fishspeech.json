@@ -1,0 +1,23 @@
+{
+  "provider": "fishspeech",
+  "modes": ["tts"],
+  "voiceField": "reference_id",
+  "docUrl": "https://docs.fish.audio",
+  "updatedAt": "2026-07-11",
+  "voices": [
+    { "id": "933563129e564b19a115bedd57b7406a", "label": "Sarah · 对话女声", "gender": "female", "locale": "en-US", "category": "conversational" },
+    { "id": "acc8237220d8470985ec9be6c4c480a9", "label": "Hatsune Miku (TTS) · 初音未来", "gender": "female", "locale": "ja-JP", "category": "character" },
+    { "id": "ca3007f96ae7499ab87d27ea3599956a", "label": "E-girl · 少女对话", "gender": "female", "locale": "multi", "category": "conversational" },
+    { "id": "802e3bc2b27e49c2995d23ef70e6ac89", "label": "Energetic Male · 活力男声", "gender": "male", "locale": "multi", "category": "conversational" },
+    { "id": "6717a74323274cb296ea9a0da654c977", "label": "Hatsune Miku · 初音未来", "gender": "neutral", "locale": "ja-JP", "category": "character" },
+    { "id": "b545c585f631496c914815291da4e893", "label": "Friendly Women · 亲和女声", "gender": "female", "locale": "en-US", "category": "social" },
+    { "id": "70d4df5aeec945d39faa29447252fee5", "label": "Hatsune Miku · 角色女声", "gender": "female", "locale": "ja-JP", "category": "character" },
+    { "id": "ad96c6df05794fc7b5458b7a26fc3ca7", "label": "Hatsune Miku (Eng) · 英文初音", "gender": "female", "locale": "en-US", "category": "character" },
+    { "id": "15c6d03c681044e4a789989e2ebae49d", "label": "Hatsune Miku (Vocaloid) · Vocaloid", "gender": "neutral", "locale": "ja-JP", "category": "character" },
+    { "id": "9e9257118f2b4775bfe32edba341b081", "label": "Cote de Pablo · 叙事女声", "gender": "female", "locale": "en-US", "category": "narration" },
+    { "id": "6cea87a0605b48a280aa6eb2ab961357", "label": "Zoe Saldana · 温暖对话", "gender": "female", "locale": "en-US", "category": "conversational" },
+    { "id": "6c0ae30fdc374b76a1f6b9ccd4340f18", "label": "Orpheus IDV · 沉稳男声", "gender": "male", "locale": "en-US", "category": "narration" },
+    { "id": "06b6c76dba514584b8a4fa51a66b717f", "label": "音声モデル01 · 日语男声", "gender": "male", "locale": "ja-JP", "category": "narration" },
+    { "id": "9b1041732d1b4c2686d695c8bba3b149", "label": "EN_A1_P0_P0A · 英语男声", "gender": "male", "locale": "en-US", "category": "entertainment" }
+  ]
+}

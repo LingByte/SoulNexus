@@ -1,0 +1,19 @@
+{
+  "provider": "google",
+  "modes": ["tts"],
+  "voiceField": "voice",
+  "docUrl": "https://cloud.google.com/text-to-speech/docs/voices",
+  "updatedAt": "2026-07-10",
+  "voices": [
+    { "id": "cmn-CN-Wavenet-A", "label": "cmn-CN-Wavenet-A · 中文女声", "gender": "female", "locale": "cmn-CN" },
+    { "id": "cmn-CN-Wavenet-B", "label": "cmn-CN-Wavenet-B · 中文男声", "gender": "male", "locale": "cmn-CN" },
+    { "id": "cmn-CN-Wavenet-C", "label": "cmn-CN-Wavenet-C · 中文男声", "gender": "male", "locale": "cmn-CN" },
+    { "id": "cmn-CN-Wavenet-D", "label": "cmn-CN-Wavenet-D · 中文女声", "gender": "female", "locale": "cmn-CN" },
+    { "id": "cmn-CN-Standard-A", "label": "cmn-CN-Standard-A · 中文女声", "gender": "female", "locale": "cmn-CN" },
+    { "id": "cmn-CN-Standard-B", "label": "cmn-CN-Standard-B · 中文男声", "gender": "male", "locale": "cmn-CN" },
+    { "id": "cmn-TW-Wavenet-A", "label": "cmn-TW-Wavenet-A · 台湾女声", "gender": "female", "locale": "cmn-TW" },
+    { "id": "en-US-Neural2-A", "label": "en-US-Neural2-A · EN 女声", "gender": "female", "locale": "en-US" },
+    { "id": "en-US-Neural2-D", "label": "en-US-Neural2-D · EN 男声", "gender": "male", "locale": "en-US" },
+    { "id": "ja-JP-Neural2-B", "label": "ja-JP-Neural2-B · 日语女声", "gender": "female", "locale": "ja-JP" }
+  ]
+}

@@ -1,33 +1,29 @@
-[
-  {
-    "id": "zh-CN-XiaoxiaoNeural",
-    "name": "晓晓",
-    "description": "年轻女声",
-    "type": "女声",
-    "language": "zh-CN",
-    "sampleRate": "24k",
-    "emotion": "中性",
-    "scene": "通用场景"
-  },
-  {
-    "id": "zh-CN-YunxiNeural",
-    "name": "云希",
-    "description": "温暖男声",
-    "type": "男声",
-    "language": "zh-CN",
-    "sampleRate": "24k",
-    "emotion": "中性",
-    "scene": "通用场景"
-  },
-  {
-    "id": "zh-CN-YunyangNeural",
-    "name": "云扬",
-    "description": "成熟男声",
-    "type": "男声",
-    "language": "zh-CN",
-    "sampleRate": "24k",
-    "emotion": "中性",
-    "scene": "通用场景"
-  }
-]
-
+{
+  "provider": "azure",
+  "modes": ["tts"],
+  "voiceField": "voice",
+  "docUrl": "https://learn.microsoft.com/azure/ai-services/speech-service/language-support",
+  "updatedAt": "2026-03-15",
+  "voices": [
+    { "id": "zh-CN-XiaoxiaoNeural", "name": "晓晓", "label": "晓晓 Xiaoxiao · 女声", "gender": "female", "locale": "zh-CN" },
+    { "id": "zh-CN-XiaoyiNeural", "name": "晓伊", "label": "晓伊 Xiaoyi · 女声", "gender": "female", "locale": "zh-CN" },
+    { "id": "zh-CN-XiaohanNeural", "name": "晓涵", "label": "晓涵 Xiaohan · 女声", "gender": "female", "locale": "zh-CN" },
+    { "id": "zh-CN-XiaomengNeural", "name": "晓梦", "label": "晓梦 Xiaomeng · 女声", "gender": "female", "locale": "zh-CN" },
+    { "id": "zh-CN-XiaomoNeural", "name": "晓墨", "label": "晓墨 Xiaomo · 女声", "gender": "female", "locale": "zh-CN" },
+    { "id": "zh-CN-XiaoqiuNeural", "name": "晓秋", "label": "晓秋 Xiaoqiu · 女声", "gender": "female", "locale": "zh-CN" },
+    { "id": "zh-CN-XiaoruiNeural", "name": "晓睿", "label": "晓睿 Xiaorui · 女声", "gender": "female", "locale": "zh-CN" },
+    { "id": "zh-CN-XiaoshuangNeural", "name": "晓双", "label": "晓双 Xiaoshuang · 女童声", "gender": "female", "locale": "zh-CN" },
+    { "id": "zh-CN-XiaoxuanNeural", "name": "晓萱", "label": "晓萱 Xiaoxuan · 女声", "gender": "female", "locale": "zh-CN" },
+    { "id": "zh-CN-XiaoyanNeural", "name": "晓颜", "label": "晓颜 Xiaoyan · 女声", "gender": "female", "locale": "zh-CN" },
+    { "id": "zh-CN-XiaoyouNeural", "name": "晓悠", "label": "晓悠 Xiaoyou · 女童声", "gender": "female", "locale": "zh-CN" },
+    { "id": "zh-CN-XiaozhenNeural", "name": "晓甄", "label": "晓甄 Xiaozhen · 女声", "gender": "female", "locale": "zh-CN" },
+    { "id": "zh-CN-YunxiNeural", "name": "云希", "label": "云希 Yunxi · 男声", "gender": "male", "locale": "zh-CN" },
+    { "id": "zh-CN-YunjianNeural", "name": "云健", "label": "云健 Yunjian · 男声", "gender": "male", "locale": "zh-CN" },
+    { "id": "zh-CN-YunxiaNeural", "name": "云夏", "label": "云夏 Yunxia · 男童声", "gender": "male", "locale": "zh-CN" },
+    { "id": "zh-CN-YunyangNeural", "name": "云扬", "label": "云扬 Yunyang · 男声", "gender": "male", "locale": "zh-CN" },
+    { "id": "zh-CN-YunyeNeural", "name": "云野", "label": "云野 Yunye · 男声", "gender": "male", "locale": "zh-CN" },
+    { "id": "zh-CN-YunzeNeural", "name": "云泽", "label": "云泽 Yunze · 男声", "gender": "male", "locale": "zh-CN" },
+    { "id": "en-US-JennyNeural", "name": "Jenny", "label": "Jenny · EN 女声", "gender": "female", "locale": "en-US" },
+    { "id": "en-US-GuyNeural", "name": "Guy", "label": "Guy · EN 男声", "gender": "male", "locale": "en-US" }
+  ]
+}

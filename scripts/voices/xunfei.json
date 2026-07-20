@@ -1,33 +1,34 @@
-[
-  {
-    "id": "xiaoyan",
-    "name": "小燕",
-    "description": "温柔女声",
-    "type": "女声",
-    "language": "zh-CN",
-    "sampleRate": "16k",
-    "emotion": "中性",
-    "scene": "通用场景"
-  },
-  {
-    "id": "aisjiuxu",
-    "name": "许久",
-    "description": "温和男声",
-    "type": "男声",
-    "language": "zh-CN",
-    "sampleRate": "16k",
-    "emotion": "中性",
-    "scene": "通用场景"
-  },
-  {
-    "id": "aisxping",
-    "name": "小萍",
-    "description": "亲切女声",
-    "type": "女声",
-    "language": "zh-CN",
-    "sampleRate": "16k",
-    "emotion": "中性",
-    "scene": "通用场景"
-  }
-]
-
+{
+  "provider": "xunfei",
+  "modes": ["tts"],
+  "voiceField": "assetId",
+  "docUrl": "https://www.xfyun.cn/doc/tts/online_tts/API.html",
+  "updatedAt": "2026-07-10",
+  "voices": [
+    { "id": "x4_xiaoyan", "name": "小燕", "label": "x4_xiaoyan · 普通话女声", "gender": "female", "locale": "zh-CN", "category": "超拟人" },
+    { "id": "x4_yezi", "name": "叶子", "label": "x4_yezi · 普通话女声", "gender": "female", "locale": "zh-CN", "category": "超拟人" },
+    { "id": "x4_lingxiaoxuan", "name": "灵萧萱", "label": "x4_lingxiaoxuan · 粤语女声", "gender": "female", "locale": "yue-CN", "category": "超拟人" },
+    { "id": "x4_lingxiaoying", "name": "灵萧莹", "label": "x4_lingxiaoying · 普通话女声", "gender": "female", "locale": "zh-CN", "category": "超拟人" },
+    { "id": "x4_lingfeizhe_zl", "name": "灵飞哲", "label": "x4_lingfeizhe_zl · 普通话男声", "gender": "male", "locale": "zh-CN", "category": "超拟人" },
+    { "id": "x4_lingyouyou", "name": "灵悠悠", "label": "x4_lingyouyou · 儿童女声", "gender": "female", "locale": "zh-CN", "category": "超拟人" },
+    { "id": "x4_qige", "name": "七哥", "label": "x4_qige · 普通话男声", "gender": "male", "locale": "zh-CN", "category": "超拟人" },
+    { "id": "x4_mingge", "name": "明哥", "label": "x4_mingge · 普通话男声", "gender": "male", "locale": "zh-CN", "category": "超拟人" },
+    { "id": "x4_chaoge", "name": "超哥", "label": "x4_chaoge · 普通话男声", "gender": "male", "locale": "zh-CN", "category": "超拟人" },
+    { "id": "x4_panting", "name": "潘婷", "label": "x4_panting · 普通话女声", "gender": "female", "locale": "zh-CN", "category": "超拟人" },
+    { "id": "x4_doudou", "name": "豆豆", "label": "x4_doudou · 儿童男声", "gender": "male", "locale": "zh-CN", "category": "超拟人" },
+    { "id": "x4_nannan", "name": "楠楠", "label": "x4_nannan · 儿童女声", "gender": "female", "locale": "zh-CN", "category": "超拟人" },
+    { "id": "x4_enus_lila_assist", "name": "Lila", "label": "x4_enus_lila_assist · 英语女声", "gender": "female", "locale": "en-US", "category": "超拟人" },
+    { "id": "x3_yilin", "name": "依琳", "label": "x3_yilin · 普通话女声", "gender": "female", "locale": "zh-CN", "category": "精品" },
+    { "id": "x3_yezi", "name": "叶子", "label": "x3_yezi · 普通话女声", "gender": "female", "locale": "zh-CN", "category": "精品" },
+    { "id": "x3_qige", "name": "七哥", "label": "x3_qige · 普通话男声", "gender": "male", "locale": "zh-CN", "category": "精品" },
+    { "id": "x2_xiaojuan", "name": "小娟", "label": "x2_xiaojuan · 普通话女声", "gender": "female", "locale": "zh-CN", "category": "经典" },
+    { "id": "x2_xiaoguo", "name": "小果", "label": "x2_xiaoguo · 普通话女声", "gender": "female", "locale": "zh-CN", "category": "经典" },
+    { "id": "x2_minglei", "name": "明磊", "label": "x2_minglei · 普通话男声", "gender": "male", "locale": "zh-CN", "category": "经典" },
+    { "id": "x2_enus_catherine", "name": "Catherine", "label": "x2_enus_catherine · 英语女声", "gender": "female", "locale": "en-US", "category": "经典" },
+    { "id": "x2_enus_mary", "name": "Mary", "label": "x2_enus_mary · 英语女声", "gender": "female", "locale": "en-US", "category": "经典" },
+    { "id": "aisjiuxu", "name": "许久", "label": "aisjiuxu · 普通话男声", "gender": "male", "locale": "zh-CN", "category": "精品" },
+    { "id": "aisxping", "name": "小萍", "label": "aisxping · 普通话女声", "gender": "female", "locale": "zh-CN", "category": "精品" },
+    { "id": "aisjinger", "name": "靖儿", "label": "aisjinger · 普通话女声", "gender": "female", "locale": "zh-CN", "category": "精品" },
+    { "id": "aisbabyxu", "name": "许小宝", "label": "aisbabyxu · 儿童男声", "gender": "male", "locale": "zh-CN", "category": "精品" }
+  ]
+}

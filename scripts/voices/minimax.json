@@ -1,0 +1,18 @@
+{
+  "provider": "minimax",
+  "modes": ["tts"],
+  "voiceField": "voice",
+  "docUrl": "https://platform.minimaxi.com/document/guides/T2A-model",
+  "updatedAt": "2026-07-10",
+  "voices": [
+    { "id": "female-shaonv", "label": "female-shaonv · 少女音", "gender": "female", "locale": "zh-CN" },
+    { "id": "female-yujie", "label": "female-yujie · 御姐音", "gender": "female", "locale": "zh-CN" },
+    { "id": "female-tianmei", "label": "female-tianmei · 甜美女声", "gender": "female", "locale": "zh-CN" },
+    { "id": "male-qn-qingse", "label": "male-qn-qingse · 青涩男声", "gender": "male", "locale": "zh-CN" },
+    { "id": "male-qn-jingying", "label": "male-qn-jingying · 精英男声", "gender": "male", "locale": "zh-CN" },
+    { "id": "presenter_male", "label": "presenter_male · 男主播", "gender": "male", "locale": "zh-CN" },
+    { "id": "presenter_female", "label": "presenter_female · 女主播", "gender": "female", "locale": "zh-CN" },
+    { "id": "audiobook_male_1", "label": "audiobook_male_1 · 有声书男声", "gender": "male", "locale": "zh-CN" },
+    { "id": "audiobook_female_1", "label": "audiobook_female_1 · 有声书女声", "gender": "female", "locale": "zh-CN" }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "provider": "volcengine_dialogue",
+  "modes": ["realtime"],
+  "voiceField": "speaker",
+  "docUrl": "https://www.volcengine.com/docs/6561/1329505",
+  "updatedAt": "2026-03-15",
+  "voices": [
+    { "id": "zh_female_vv_jupiter_bigtts", "name": "VV", "label": "VV · O 版默认女声", "gender": "female", "locale": "zh-CN", "category": "O/O2" },
+    { "id": "zh_male_jupiter_bigtts", "name": "Jupiter", "label": "Jupiter · O 版男声", "gender": "male", "locale": "zh-CN", "category": "O/O2" },
+    { "id": "zh_female_qingxin_bigtts", "name": "清新", "label": "清新 · 女声", "gender": "female", "locale": "zh-CN", "category": "O/O2" },
+    { "id": "zh_male_chunhou_bigtts", "name": "醇厚", "label": "醇厚 · 男声", "gender": "male", "locale": "zh-CN", "category": "O/O2" },
+    { "id": "zh_female_shuangkuai_bigtts", "name": "爽快", "label": "爽快 · 女声", "gender": "female", "locale": "zh-CN", "category": "O/O2" },
+    { "id": "zh_male_wennuan_bigtts", "name": "温暖", "label": "温暖 · 男声", "gender": "male", "locale": "zh-CN", "category": "O/O2" }
+  ]
+}

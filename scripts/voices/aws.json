@@ -1,0 +1,14 @@
+{
+  "provider": "aws",
+  "modes": ["tts"],
+  "voiceField": "voiceId",
+  "docUrl": "https://docs.aws.amazon.com/polly/latest/dg/available-voices.html",
+  "updatedAt": "2026-03-15",
+  "voices": [
+    { "id": "Zhiyu", "label": "Zhiyu · 中文女声", "gender": "female", "locale": "cmn-CN" },
+    { "id": "Joanna", "label": "Joanna · EN 女声", "gender": "female", "locale": "en-US" },
+    { "id": "Matthew", "label": "Matthew · EN 男声", "gender": "male", "locale": "en-US" },
+    { "id": "Amy", "label": "Amy · EN-GB 女声", "gender": "female", "locale": "en-GB" },
+    { "id": "Brian", "label": "Brian · EN-GB 男声", "gender": "male", "locale": "en-GB" }
+  ]
+}

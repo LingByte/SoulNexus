@@ -1,43 +1,15 @@
-[
-  {
-    "id": "lingshu_zh_female_tmjxxy",
-    "name": "甜美女声",
-    "description": "标准中文女声",
-    "type": "女声",
-    "language": "zh-CN",
-    "sampleRate": "16k",
-    "emotion": "中性",
-    "scene": "通用场景"
-  },
-  {
-    "id": "lingshu_zh_male_tmjxxy",
-    "name": "浑厚男声",
-    "description": "标准中文男声",
-    "type": "男声",
-    "language": "zh-CN",
-    "sampleRate": "16k",
-    "emotion": "中性",
-    "scene": "通用场景"
-  },
-  {
-    "id": "female_cn_001",
-    "name": "中文女声1号",
-    "description": "清晰女声",
-    "type": "女声",
-    "language": "zh-CN",
-    "sampleRate": "16k",
-    "emotion": "中性",
-    "scene": "通用场景"
-  },
-  {
-    "id": "male_cn_001",
-    "name": "中文男声1号",
-    "description": "稳重男声",
-    "type": "男声",
-    "language": "zh-CN",
-    "sampleRate": "16k",
-    "emotion": "中性",
-    "scene": "通用场景"
-  }
-]
-
+{
+  "provider": "qiniu",
+  "modes": ["tts"],
+  "voiceField": "voice",
+  "docUrl": "https://developer.qiniu.com/aitts",
+  "updatedAt": "2026-07-10",
+  "voices": [
+    { "id": "lingshu_zh_female_tmjxxy", "name": "甜美女声", "label": "甜美女声 · 标准中文", "gender": "female", "locale": "zh-CN" },
+    { "id": "lingshu_zh_male_tmjxxy", "name": "浑厚男声", "label": "浑厚男声 · 标准中文", "gender": "male", "locale": "zh-CN" },
+    { "id": "female_cn_001", "name": "中文女声1号", "label": "中文女声1号", "gender": "female", "locale": "zh-CN" },
+    { "id": "male_cn_001", "name": "中文男声1号", "label": "中文男声1号", "gender": "male", "locale": "zh-CN" },
+    { "id": "female_en_001", "name": "英文女声", "label": "英文女声", "gender": "female", "locale": "en-US" },
+    { "id": "male_en_001", "name": "英文男声", "label": "英文男声", "gender": "male", "locale": "en-US" }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "provider": "elevenlabs",
+  "modes": ["tts"],
+  "voiceField": "voiceId",
+  "docUrl": "https://elevenlabs.io/docs/api-reference/text-to-speech",
+  "updatedAt": "2026-07-10",
+  "voices": [
+    { "id": "21m00Tcm4TlvDq8ikWAM", "name": "Rachel", "label": "Rachel · EN 女声", "gender": "female", "locale": "en-US" },
+    { "id": "AZnzlk1XvdvUeBnXmlld", "name": "Domi", "label": "Domi · EN 女声", "gender": "female", "locale": "en-US" },
+    { "id": "EXAVITQu4vr4xnSDxMaL", "name": "Bella", "label": "Bella · EN 女声", "gender": "female", "locale": "en-US" },
+    { "id": "ErXwobaYiN019PkySvjV", "name": "Antoni", "label": "Antoni · EN 男声", "gender": "male", "locale": "en-US" },
+    { "id": "MF3mGyEYCl7XYWbV9V6O", "name": "Elli", "label": "Elli · EN 女声", "gender": "female", "locale": "en-US" },
+    { "id": "TxGEqnHWrfWFTfGW9XjX", "name": "Josh", "label": "Josh · EN 男声", "gender": "male", "locale": "en-US" },
+    { "id": "VR6AewLTigWG4xSOukaG", "name": "Arnold", "label": "Arnold · EN 男声", "gender": "male", "locale": "en-US" },
+    { "id": "pNInz6obpgDQGcFmaJgB", "name": "Adam", "label": "Adam · EN 男声", "gender": "male", "locale": "en-US" },
+    { "id": "yoZ06aMxZJJ28mfd3POQ", "name": "Sam", "label": "Sam · EN 男声", "gender": "male", "locale": "en-US" }
+  ]
+}

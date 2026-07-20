@@ -1,0 +1,523 @@
+{
+  "provider": "aliyun_omni",
+  "modes": [
+    "realtime"
+  ],
+  "voiceField": "voice",
+  "docUrl": "https://help.aliyun.com/zh/model-studio/omni-voice-list",
+  "updatedAt": "2026-07-10",
+  "voices": [
+    {
+      "id": "Tina",
+      "name": "甜甜",
+      "label": "甜甜 Tina · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Cindy",
+      "name": "林欣宜",
+      "label": "林欣宜 Cindy · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Liora Mira",
+      "name": "清欢",
+      "label": "清欢 Liora Mira · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Sunnybobi",
+      "name": "知芝",
+      "label": "知芝 Sunnybobi · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Raymond",
+      "name": "林川野",
+      "label": "林川野 Raymond · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Ethan",
+      "name": "晨煦",
+      "label": "晨煦 Ethan · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Theo Calm",
+      "name": "予安",
+      "label": "予安 Theo Calm · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Serena",
+      "name": "苏瑶",
+      "label": "苏瑶 Serena · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Harvey",
+      "name": "厚",
+      "label": "厚 Harvey · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Maia",
+      "name": "四月",
+      "label": "四月 Maia · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Evan",
+      "name": "江晨",
+      "label": "江晨 Evan · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Qiao",
+      "name": "小乔妹",
+      "label": "小乔妹 Qiao · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Momo",
+      "name": "茉兔",
+      "label": "茉兔 Momo · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Wil",
+      "name": "伟伦",
+      "label": "伟伦 Wil · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Angel",
+      "name": "台普",
+      "label": "台普 - 安琪 Angel · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-TW",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Li Cassian",
+      "name": "东厂",
+      "label": "东厂 - 李公公 Li Cassian · Qwen3.5-Omni-Realtime",
+      "gender": "male",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Mia",
+      "name": "温柔生活博主",
+      "label": "温柔生活博主 - 舒然 Mia · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Joyner",
+      "name": "喜剧担当",
+      "label": "喜剧担当 - 阿逗 Joyner · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Gold",
+      "name": "金爷",
+      "label": "金爷 Gold · Qwen3.5-Omni-Realtime",
+      "gender": "male",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Katerina",
+      "name": "卡捷琳娜",
+      "label": "卡捷琳娜 Katerina · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Ryan",
+      "name": "甜茶",
+      "label": "甜茶 Ryan · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Jennifer",
+      "name": "詹妮弗",
+      "label": "詹妮弗 Jennifer · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Aiden",
+      "name": "艾登",
+      "label": "艾登 Aiden · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Mione",
+      "name": "敏儿",
+      "label": "敏儿 Mione · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Sunny",
+      "name": "四川",
+      "label": "四川 - 晴儿 Sunny · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Dylan",
+      "name": "北京",
+      "label": "北京 - 晓东 Dylan · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Eric",
+      "name": "四川",
+      "label": "四川 - 程川 Eric · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Peter",
+      "name": "天津",
+      "label": "天津 - 李彼得 Peter · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Joseph Chen",
+      "name": "阿樸伯",
+      "label": "阿樸伯 Joseph Chen · Qwen3.5-Omni-Realtime",
+      "gender": "male",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Marcus",
+      "name": "陕西",
+      "label": "陕西 - 秦川 Marcus · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Li",
+      "name": "南京",
+      "label": "南京 - 老李 Li · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Rocky",
+      "name": "粤语",
+      "label": "粤语 - 阿强 Rocky · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-YUE",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Sohee",
+      "name": "素熙",
+      "label": "素熙 Sohee · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Lenn",
+      "name": "莱恩",
+      "label": "莱恩 Lenn · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Ono Anna",
+      "name": "小野杏",
+      "label": "小野杏 Ono Anna · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Sonrisa",
+      "name": "索尼莎",
+      "label": "索尼莎 Sonrisa · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Bodega",
+      "name": "博德加",
+      "label": "博德加 Bodega · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Emilien",
+      "name": "埃米尔安",
+      "label": "埃米尔安 Emilien · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Andre",
+      "name": "安德雷",
+      "label": "安德雷 Andre · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Radio Gol",
+      "name": "拉迪奥·戈尔",
+      "label": "拉迪奥·戈尔 Radio Gol · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Alek",
+      "name": "阿列克",
+      "label": "阿列克 Alek · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Rizky",
+      "name": "阿力",
+      "label": "阿力 Rizky · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Roya",
+      "name": "萝雅",
+      "label": "萝雅 Roya · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Arda",
+      "name": "阿尔达",
+      "label": "阿尔达 Arda · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Hana",
+      "name": "阿幸",
+      "label": "阿幸 Hana · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Dolce",
+      "name": "多尔切",
+      "label": "多尔切 Dolce · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Jakub",
+      "name": "雅克",
+      "label": "雅克 Jakub · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Griet",
+      "name": "海娜",
+      "label": "海娜 Griet · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Eliška",
+      "name": "艾莉卡",
+      "label": "艾莉卡 Eliška · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Marina",
+      "name": "玛丽娜",
+      "label": "玛丽娜 Marina · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Siiri",
+      "name": "西芮",
+      "label": "西芮 Siiri · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Ingrid",
+      "name": "林恩",
+      "label": "林恩 Ingrid · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Sigga",
+      "name": "海娜",
+      "label": "海娜 Sigga · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Bea",
+      "name": "雅娜",
+      "label": "雅娜 Bea · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Chloe",
+      "name": "思怡",
+      "label": "思怡 Chloe · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Kiki",
+      "name": "阿清",
+      "label": "粤语-阿清 · Qwen3.5-Omni-Realtime",
+      "gender": "female",
+      "locale": "zh-YUE",
+      "category": "Qwen3.5-Omni-Realtime"
+    },
+    {
+      "id": "Cherry",
+      "name": "芊悦",
+      "label": "芊悦 · Qwen3-Omni-Flash-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3-Omni-Flash-Realtime"
+    },
+    {
+      "id": "Nofish",
+      "name": "不吃鱼",
+      "label": "不吃鱼 · Qwen3-Omni-Flash-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3-Omni-Flash-Realtime"
+    },
+    {
+      "id": "Jada",
+      "name": "上海-阿珍",
+      "label": "上海-阿珍 · Qwen3-Omni-Flash-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3-Omni-Flash-Realtime"
+    },
+    {
+      "id": "Dylan",
+      "name": "北京-晓东",
+      "label": "北京-晓东 · Qwen3-Omni-Flash-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3-Omni-Flash-Realtime"
+    },
+    {
+      "id": "Sunny",
+      "name": "四川-晴儿",
+      "label": "四川-晴儿 · Qwen3-Omni-Flash-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3-Omni-Flash-Realtime"
+    },
+    {
+      "id": "Peter",
+      "name": "天津-李彼得",
+      "label": "天津-李彼得 · Qwen3-Omni-Flash-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3-Omni-Flash-Realtime"
+    },
+    {
+      "id": "Kiki",
+      "name": "粤语-阿清",
+      "label": "粤语-阿清 · Qwen3-Omni-Flash-Realtime",
+      "gender": "female",
+      "locale": "zh-YUE",
+      "category": "Qwen3-Omni-Flash-Realtime"
+    },
+    {
+      "id": "Eric",
+      "name": "四川-程川",
+      "label": "四川-程川 · Qwen3-Omni-Flash-Realtime",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "Qwen3-Omni-Flash-Realtime"
+    }
+  ]
+}

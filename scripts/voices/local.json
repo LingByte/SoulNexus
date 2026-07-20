@@ -1,0 +1,29 @@
+{
+  "provider": "local",
+  "modes": ["tts"],
+  "voiceField": "voice",
+  "docUrl": "https://ss64.com/osx/say.html",
+  "updatedAt": "2026-07-11",
+  "voices": [
+    { "id": "Samantha", "label": "Samantha · 美式女声", "gender": "female", "locale": "en-US", "category": "say" },
+    { "id": "Alex", "label": "Alex · 美式男声", "gender": "male", "locale": "en-US", "category": "say" },
+    { "id": "Victoria", "label": "Victoria · 澳式女声", "gender": "female", "locale": "en-AU", "category": "say" },
+    { "id": "Daniel", "label": "Daniel · 英式男声", "gender": "male", "locale": "en-GB", "category": "say" },
+    { "id": "Karen", "label": "Karen · 澳式女声", "gender": "female", "locale": "en-AU", "category": "say" },
+    { "id": "Moira", "label": "Moira · 爱尔兰女声", "gender": "female", "locale": "en-IE", "category": "say" },
+    { "id": "Rishi", "label": "Rishi · 印度男声", "gender": "male", "locale": "en-IN", "category": "say" },
+    { "id": "Tessa", "label": "Tessa · 南非女声", "gender": "female", "locale": "en-ZA", "category": "say" },
+    { "id": "Veena", "label": "Veena · 印度女声", "gender": "female", "locale": "en-IN", "category": "say" },
+    { "id": "Ting-Ting", "label": "Ting-Ting · 普通话女声", "gender": "female", "locale": "zh-CN", "category": "say" },
+    { "id": "Sin-Ji", "label": "Sin-Ji · 粤语女声", "gender": "female", "locale": "zh-HK", "category": "say" },
+    { "id": "Mei-Jia", "label": "Mei-Jia · 台湾女声", "gender": "female", "locale": "zh-TW", "category": "say" },
+    { "id": "Yuri", "label": "Yuri · 俄语男声", "gender": "male", "locale": "ru-RU", "category": "say" },
+    { "id": "Kyoko", "label": "Kyoko · 日语女声", "gender": "female", "locale": "ja-JP", "category": "say" },
+    { "id": "Yuna", "label": "Yuna · 韩语女声", "gender": "female", "locale": "ko-KR", "category": "say" },
+    { "id": "Thomas", "label": "Thomas · 法语男声", "gender": "male", "locale": "fr-FR", "category": "say" },
+    { "id": "Anna", "label": "Anna · 德语女声", "gender": "female", "locale": "de-DE", "category": "say" },
+    { "id": "Monica", "label": "Monica · 西班牙语女声", "gender": "female", "locale": "es-ES", "category": "say" },
+    { "id": "Luca", "label": "Luca · 意大利语男声", "gender": "male", "locale": "it-IT", "category": "say" },
+    { "id": "Fred", "label": "Fred · 美式男声（低沉）", "gender": "male", "locale": "en-US", "category": "say" }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "provider": "openai",
+  "modes": ["tts"],
+  "voiceField": "voice",
+  "docUrl": "https://platform.openai.com/docs/guides/text-to-speech",
+  "updatedAt": "2026-03-15",
+  "voices": [
+    { "id": "alloy", "label": "Alloy", "gender": "neutral", "locale": "multi" },
+    { "id": "ash", "label": "Ash", "gender": "neutral", "locale": "multi" },
+    { "id": "coral", "label": "Coral", "gender": "female", "locale": "multi" },
+    { "id": "echo", "label": "Echo", "gender": "male", "locale": "multi" },
+    { "id": "fable", "label": "Fable", "gender": "neutral", "locale": "multi" },
+    { "id": "onyx", "label": "Onyx", "gender": "male", "locale": "multi" },
+    { "id": "nova", "label": "Nova", "gender": "female", "locale": "multi" },
+    { "id": "sage", "label": "Sage", "gender": "neutral", "locale": "multi" },
+    { "id": "shimmer", "label": "Shimmer", "gender": "female", "locale": "multi" }
+  ]
+}
