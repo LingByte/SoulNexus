@@ -34,19 +34,19 @@ func TestTextCensorRequest_Marshal(t *testing.T) {
 }
 
 func TestNewQiniuTextCensor(t *testing.T) {
-	accessKey := utils.GetEnv("QINIU_ACCESS_KEY")
-	secretKey := utils.GetEnv("QINIU_SECRET_KEY")
+	accessKey := utils.GetEnv("QINIU_CENSOR_ACCESS_KEY")
+	secretKey := utils.GetEnv("QINIU_CENSOR_SECRET_KEY")
 	if accessKey == "" || secretKey == "" {
-		t.Skipf("not found QINIU_ACCESS_KEY or QINIU_SECRET_KEY")
+		t.Skip("QINIU_CENSOR_ACCESS_KEY or QINIU_CENSOR_SECRET_KEY not set")
 	}
 	client, err := NewQiniuTextCensor()
 	if err != nil {
 		t.Fatalf("Failed to create client: %v", err)
 	}
-	if client.AccessKey != utils.GetEnv("QINIU_ACCESS_KEY") {
+	if client.AccessKey != accessKey {
 		t.Error("AccessKey was set incorrectly")
 	}
-	if client.SecretKey != utils.GetEnv("QINIU_SECRET_KEY") {
+	if client.SecretKey != secretKey {
 		t.Error("SecretKey was set incorrectly")
 	}
 	if client.Host != TextCensorHost {

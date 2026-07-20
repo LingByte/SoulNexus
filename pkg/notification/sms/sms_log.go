@@ -15,7 +15,6 @@ const (
 // SMSLog is a persisted record of an outbound SMS (optional when DB is wired).
 type SMSLog struct {
 	ID          uint      `gorm:"primaryKey;autoIncrement:false" json:"id,string"`
-	OrgID       uint      `gorm:"index;not null;default:0" json:"org_id"`
 	UserID      uint      `gorm:"index;not null;default:0" json:"user_id"`
 	Provider    string    `gorm:"size:32;index" json:"provider"`
 	ChannelName string    `gorm:"size:128;index" json:"channel_name"`
@@ -34,10 +33,9 @@ type SMSLog struct {
 
 func (SMSLog) TableName() string { return "sms_logs" }
 
-func CreateSMSLog(db *gorm.DB, orgID, userID uint, provider, channelName, toPhone, template, content, messageID, status, raw, ip string) (*SMSLog, error) {
+func CreateSMSLog(db *gorm.DB, userID uint, provider, channelName, toPhone, template, content, messageID, status, raw, ip string) (*SMSLog, error) {
 	row := &SMSLog{
-		ID:          uint(utils.SnowflakeUtil.NextID()),
-		OrgID:       orgID,
+		ID:          utils.NextSnowflakeUint(),
 		UserID:      userID,
 		Provider:    provider,
 		ChannelName: channelName,
@@ -56,10 +54,9 @@ func CreateSMSLog(db *gorm.DB, orgID, userID uint, provider, channelName, toPhon
 	return row, nil
 }
 
-func CreateFailedSMSLog(db *gorm.DB, orgID, userID uint, provider, channelName, toPhone, template, content, errMsg, raw, ip string) (*SMSLog, error) {
+func CreateFailedSMSLog(db *gorm.DB, userID uint, provider, channelName, toPhone, template, content, errMsg, raw, ip string) (*SMSLog, error) {
 	row := &SMSLog{
-		ID:          uint(utils.SnowflakeUtil.NextID()),
-		OrgID:       orgID,
+		ID:          utils.NextSnowflakeUint(),
 		UserID:      userID,
 		Provider:    provider,
 		ChannelName: channelName,

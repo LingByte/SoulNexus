@@ -13,8 +13,8 @@ import (
 // Copyright (c) 2026 LingByte
 // SPDX-License-Identifier: MIT
 
-// SMTP: after a successful handoff to the server we only record StatusSent (no callbacks).
-// SendCloud: starts as StatusSent after API success; webhooks may refine to delivered, opened, etc.
+// SMTP: after a successful handoff to the server we record StatusDelivered (no async callbacks).
+// SendCloud: starts as StatusSent after API accept; webhooks refine to delivered, opened, etc.
 const (
 	StatusSent         = "sent"
 	StatusDelivered    = "delivered"
@@ -80,7 +80,13 @@ func defaultRetryPolicy() RetryPolicy {
 	}
 }
 
-func (p RetryPolicy) normalized() RetryPolicy {
+// DefaultRetryPolicy returns the default multi-channel retry policy.
+func DefaultRetryPolicy() RetryPolicy {
+	return defaultRetryPolicy()
+}
+
+// Normalized fills zero fields with defaults.
+func (p RetryPolicy) Normalized() RetryPolicy {
 	if p.MaxAttempts < 1 {
 		p.MaxAttempts = 1
 	}
@@ -101,8 +107,7 @@ type MailerOption func(*mailerOptions)
 
 type mailerOptions struct {
 	retry         RetryPolicy
-	mailLogUserID *uint // 写入 mail_logs.user_id；与 NewMailerMultiWithDB 的显式 userID 同时存在时以后者为准
-	mailLogOrgID  *uint // 写入 mail_logs.org_id；默认 0（系统/未绑定）
+	mailLogUserID *uint // 写入 mail_logs.user_id
 }
 
 // WithRetry sets retry policy (merged with defaults for zero fields if you only set MaxAttempts).
@@ -112,7 +117,7 @@ func WithRetry(p RetryPolicy) MailerOption {
 	}
 }
 
-// WithMailLogUserID sets mail_logs.user_id for sends that use NewMailerMultiWithIP (no session user on mailer).
+// WithMailLogUserID sets mail_logs.user_id when no session user is bound on the mailer runtime.
 func WithMailLogUserID(uid uint) MailerOption {
 	return func(o *mailerOptions) {
 		if uid == 0 {
@@ -124,23 +129,11 @@ func WithMailLogUserID(uid uint) MailerOption {
 	}
 }
 
-// WithMailLogOrgID sets mail_logs.org_id for DB logging.
-func WithMailLogOrgID(orgID uint) MailerOption {
-	return func(o *mailerOptions) {
-		if orgID == 0 {
-			o.mailLogOrgID = nil
-			return
-		}
-		v := orgID
-		o.mailLogOrgID = &v
-	}
-}
-
 // InitialMailStatus returns the DB status right after a successful provider send.
 func InitialMailStatus(kind string) string {
 	switch kind {
 	case ProviderSMTP:
-		return StatusSent
+		return StatusDelivered
 	case ProviderSendCloud:
 		return StatusSent
 	default:
@@ -158,8 +151,10 @@ func SendCloudEventToStatus(event string) string {
 		return StatusSpam
 	case "4", "invalid":
 		return StatusInvalid
-	case "5", "soft_bounce", "softbounce":
+	case "5", "soft_bounce", "softbounce", "hard_bounce", "hardbounce", "bounce":
 		return StatusSoftBounce
+	case "2", "reject", "rejected", "failed", "fail":
+		return StatusFailed
 	case "10", "click", "clicked":
 		return StatusClicked
 	case "11", "open", "opened":

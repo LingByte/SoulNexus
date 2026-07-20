@@ -4,8 +4,6 @@ package mail
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
-	"context"
-	"errors"
 	"strings"
 )
 
@@ -36,6 +34,9 @@ var permanentMailErrorKeywords = []string{
 	"黑名单",
 	"invalid recipient",
 	"recipient rejected",
+	"invalid from",
+	"invalid sender",
+	"发件",
 	"收件人",
 	"不存在",
 	"rate limit exceeded",
@@ -62,34 +63,4 @@ func isPermanentMailError(err error) bool {
 		}
 	}
 	return false
-}
-
-// isTransientMailError reports errors worth retrying on the same channel (network blips, 5xx).
-func isTransientMailError(err error) bool {
-	if err == nil {
-		return false
-	}
-	if isPermanentMailError(err) {
-		return false
-	}
-	msg := strings.ToLower(err.Error())
-	transient := []string{
-		"timeout",
-		"timed out",
-		"temporary",
-		"connection reset",
-		"connection refused",
-		"eof",
-		"network",
-		"http 5",
-		"http 502",
-		"http 503",
-		"http 504",
-	}
-	for _, kw := range transient {
-		if strings.Contains(msg, kw) {
-			return true
-		}
-	}
-	return errors.Is(err, context.DeadlineExceeded)
 }

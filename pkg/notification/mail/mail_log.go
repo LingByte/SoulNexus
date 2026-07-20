@@ -7,12 +7,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"gorm.io/gorm"
 )
 
 // isFourByteEncodingErr 判断 DB 错误是否为 utf8mb3 列遇到 4 字节字符（emoji 等）所致。
-// 命中后调用方应去掉 4 字节字符再重试，避免日志彻底丢失。
 func isFourByteEncodingErr(err error) bool {
 	if err == nil {
 		return false
@@ -42,7 +42,6 @@ func sanitizeForMailLog(log *MailLog) {
 var alterAttempted bool
 
 // ensureMailLogsUtf8mb4 在遇到 utf8mb3 兼容错误时，尝试把 mail_logs 升级为 utf8mb4。
-// 该操作幂等，但只在 MySQL 上执行。失败也不报错，由调用方自行 fallback 到 sanitize 重写。
 func ensureMailLogsUtf8mb4(db *gorm.DB) {
 	if db == nil || alterAttempted {
 		return
@@ -57,7 +56,6 @@ func ensureMailLogsUtf8mb4(db *gorm.DB) {
 // MailLog is a persisted record of an outbound email (optional when DB is wired).
 type MailLog struct {
 	ID          uint      `gorm:"primaryKey;autoIncrement:false" json:"id,string"`
-	OrgID       uint      `gorm:"index;not null;default:0" json:"org_id"`
 	UserID      uint      `gorm:"index" json:"user_id"`
 	Provider    string    `gorm:"size:32;index" json:"provider"`      // smtp | sendcloud | multi
 	ChannelName string    `gorm:"size:128;index" json:"channel_name"` // MailConfig.Name when set
@@ -76,14 +74,13 @@ type MailLog struct {
 
 // TableName returns the GORM table name.
 func (MailLog) TableName() string {
-	return "mail_logs"
+	return constants.MAIL_LOGS_TABLE_NAME
 }
 
 // CreateMailLog records a successful send (or send accepted by provider).
-func CreateMailLog(db *gorm.DB, orgID uint, userID uint, provider, channelName, toEmail, subject, htmlBody, messageID, status string, ip string) (*MailLog, error) {
+func CreateMailLog(db *gorm.DB, userID uint, provider, channelName, toEmail, subject, htmlBody, messageID, status string, ip string) (*MailLog, error) {
 	log := &MailLog{
-		ID:          uint(utils.SnowflakeUtil.NextID()),
-		OrgID:       orgID,
+		ID:          utils.NextSnowflakeUint(),
 		UserID:      userID,
 		Provider:    provider,
 		ChannelName: channelName,
@@ -112,10 +109,9 @@ func CreateMailLog(db *gorm.DB, orgID uint, userID uint, provider, channelName, 
 }
 
 // CreateFailedMailLog records a send that failed after all retries.
-func CreateFailedMailLog(db *gorm.DB, orgID uint, userID uint, provider, channelName, toEmail, subject, htmlBody, errMsg string, retries int, ip string) (*MailLog, error) {
+func CreateFailedMailLog(db *gorm.DB, userID uint, provider, channelName, toEmail, subject, htmlBody, errMsg string, retries int, ip string) (*MailLog, error) {
 	log := &MailLog{
-		ID:          uint(utils.SnowflakeUtil.NextID()),
-		OrgID:       orgID,
+		ID:          utils.NextSnowflakeUint(),
 		UserID:      userID,
 		Provider:    provider,
 		ChannelName: channelName,
@@ -146,6 +142,7 @@ func CreateFailedMailLog(db *gorm.DB, orgID uint, userID uint, provider, channel
 
 // UpdateMailLogStatusByMessageID updates status for SendCloud (and any provider keyed by message id).
 // Only rows with matching provider are updated when provider is non-empty.
+// Status transitions follow lifecycle ordering so late webhooks cannot downgrade opened/clicked rows.
 func UpdateMailLogStatusByMessageID(db *gorm.DB, messageID, provider, status, errorMsg string) error {
 	if messageID == "" {
 		return nil
@@ -154,10 +151,19 @@ func UpdateMailLogStatusByMessageID(db *gorm.DB, messageID, provider, status, er
 	if provider != "" {
 		q = q.Where("provider = ?", provider)
 	}
-	return q.Updates(map[string]interface{}{
-		"status":    status,
-		"error_msg": errorMsg,
-	}).Error
+	var row MailLog
+	if err := q.First(&row).Error; err != nil {
+		return err
+	}
+	next, apply := ResolveMailLogStatusTransition(row.Status, status)
+	if !apply {
+		return nil
+	}
+	updates := map[string]interface{}{"status": next}
+	if errorMsg != "" {
+		updates["error_msg"] = errorMsg
+	}
+	return db.Model(&MailLog{}).Where("id = ?", row.ID).Updates(updates).Error
 }
 
 // GetMailLogByMessageID returns a log by provider message id.

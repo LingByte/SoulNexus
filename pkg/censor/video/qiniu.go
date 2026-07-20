@@ -7,7 +7,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/LingByte/SoulNexus/pkg/utils/qiniu/auth"
+	"github.com/LingByte/SoulNexus/pkg/utils/access"
 )
 
 const (
@@ -135,7 +135,7 @@ func (c *QiniuVideoCensor) SubmitCensor(req VideoCensorRequest) (*VideoCensorSub
 	}
 
 	// Generate authentication token
-	authReq := auth.QiniuAuthRequest{
+	authReq := access.QiniuAuthRequest{
 		Method:      "POST",
 		Path:        VideoCensorEndpoint,
 		Host:        c.Host,
@@ -143,7 +143,7 @@ func (c *QiniuVideoCensor) SubmitCensor(req VideoCensorRequest) (*VideoCensorSub
 		Body:        bodyJSON,
 	}
 
-	token, err := auth.GenerateQiniuToken(c.AccessKey, c.SecretKey, authReq)
+	token, err := access.GenerateQiniuToken(c.AccessKey, c.SecretKey, authReq)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate authentication token: %w", err)
 	}
@@ -208,13 +208,13 @@ func (c *QiniuVideoCensor) GetCensorResultFull(jobID string) (*VideoCensorJobRes
 	}
 
 	// Generate authentication token (GET request, no body)
-	authReq := auth.QiniuAuthRequest{
+	authReq := access.QiniuAuthRequest{
 		Method: "GET",
 		Path:   fmt.Sprintf("%s/%s", VideoJobEndpoint, jobID),
 		Host:   c.Host,
 	}
 
-	token, err := auth.GenerateQiniuToken(c.AccessKey, c.SecretKey, authReq)
+	token, err := access.GenerateQiniuToken(c.AccessKey, c.SecretKey, authReq)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate authentication token: %w", err)
 	}

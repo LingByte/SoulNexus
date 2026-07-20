@@ -7,7 +7,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/LingByte/SoulNexus/pkg/utils/qiniu/auth"
+	"github.com/LingByte/SoulNexus/pkg/utils/access"
 )
 
 const (
@@ -81,7 +81,7 @@ func (c *QiniuImageCensor) Censor(req ImageCensorRequest) (*ImageCensorResponse,
 	}
 
 	// Generate authentication token
-	authReq := auth.QiniuAuthRequest{
+	authReq := access.QiniuAuthRequest{
 		Method:      "POST",
 		Path:        ImageCensorEndpoint,
 		Host:        c.Host,
@@ -89,7 +89,7 @@ func (c *QiniuImageCensor) Censor(req ImageCensorRequest) (*ImageCensorResponse,
 		Body:        bodyJSON,
 	}
 
-	token, err := auth.GenerateQiniuToken(c.AccessKey, c.SecretKey, authReq)
+	token, err := access.GenerateQiniuToken(c.AccessKey, c.SecretKey, authReq)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate authentication token: %w", err)
 	}

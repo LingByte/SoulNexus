@@ -18,6 +18,10 @@ type AliyunConfig struct {
 	AccessKeySecret string `json:"accessKeySecret"`
 	SignName        string `json:"signName"`
 	Endpoint        string `json:"endpoint,omitempty"` // default dysmsapi.aliyuncs.com
+	// ContentTemplate is used when SendRequest only provides Message.Content
+	// (Aliyun has no free-text API). Template params use ContentParamKey (default "content").
+	ContentTemplate string `json:"contentTemplate,omitempty"`
+	ContentParamKey string `json:"contentParamKey,omitempty"`
 }
 
 type AliyunProvider struct {
@@ -41,9 +45,34 @@ func (p *AliyunProvider) Send(ctx context.Context, req SendRequest) (*SendResult
 	if err := ValidateBasic(req); err != nil {
 		return nil, err
 	}
-	// Aliyun uses template + data. Content mode is not implemented here.
-	if strings.TrimSpace(req.Message.Template) == "" {
-		return nil, fmt.Errorf("%w: aliyun requires template", ErrInvalidArgument)
+	template := strings.TrimSpace(req.Message.Template)
+	data := req.Message.Data
+	if data == nil {
+		data = map[string]string{}
+	} else {
+		// copy so we don't mutate caller's map
+		cp := make(map[string]string, len(data)+1)
+		for k, v := range data {
+			cp[k] = v
+		}
+		data = cp
+	}
+	content := strings.TrimSpace(req.Message.Content)
+	if template == "" {
+		if content == "" {
+			return nil, fmt.Errorf("%w: aliyun requires template or content", ErrInvalidArgument)
+		}
+		template = strings.TrimSpace(p.cfg.ContentTemplate)
+		if template == "" {
+			return nil, fmt.Errorf("%w: aliyun content mode requires contentTemplate in channel config", ErrInvalidArgument)
+		}
+		key := strings.TrimSpace(p.cfg.ContentParamKey)
+		if key == "" {
+			key = "content"
+		}
+		if _, ok := data[key]; !ok {
+			data[key] = content
+		}
 	}
 
 	endpoint := strings.TrimSpace(p.cfg.Endpoint)
@@ -81,8 +110,8 @@ func (p *AliyunProvider) Send(ctx context.Context, req SendRequest) (*SendResult
 		if b, err := json.Marshal(m); err == nil {
 			tplParam = string(b)
 		}
-	} else if len(req.Message.Data) > 0 {
-		if b, err := json.Marshal(req.Message.Data); err == nil {
+	} else if len(data) > 0 {
+		if b, err := json.Marshal(data); err == nil {
 			tplParam = string(b)
 		}
 	}
@@ -94,7 +123,7 @@ func (p *AliyunProvider) Send(ctx context.Context, req SendRequest) (*SendResult
 	r := &dysmsapi.SendSmsRequest{
 		PhoneNumbers:  tea.String(to),
 		SignName:      tea.String(sign),
-		TemplateCode:  tea.String(strings.TrimSpace(req.Message.Template)),
+		TemplateCode:  tea.String(template),
 		TemplateParam: tea.String(tplParam),
 	}
 	resp, err := client.SendSms(r)

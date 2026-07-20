@@ -5,6 +5,7 @@ package mail
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -193,21 +194,36 @@ func ParseSendCloudWebhookEvent(data []byte) (*SendCloudWebhookEvent, error) {
 	return &event, nil
 }
 
-// ApplySendCloudWebhookToMailLog maps a webhook to MailLog status and updates the row (SendCloud only).
+// ApplySendCloudWebhookEvent maps one normalized webhook event to a mail_logs row.
+func ApplySendCloudWebhookEvent(db *gorm.DB, ev *SendCloudWebhookEvent) error {
+	if ev == nil || ev.MessageID == "" {
+		return nil
+	}
+	status := SendCloudEventToStatus(ev.Event)
+	errMsg := sendCloudWebhookErrorDetail(ev)
+	return updateSendCloudMailLogStatus(db, ev.MessageID, status, errMsg)
+}
+
+func sendCloudWebhookErrorDetail(ev *SendCloudWebhookEvent) string {
+	if ev.SmtpError != "" {
+		return ev.SmtpError
+	}
+	return ev.SmtpStatus
+}
+
+func updateSendCloudMailLogStatus(db *gorm.DB, messageID, status, errMsg string) error {
+	err := UpdateMailLogStatusByMessageID(db, messageID, ProviderSendCloud, status, errMsg)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil
+	}
+	return err
+}
+
+// ApplySendCloudWebhookToMailLog parses raw webhook body and updates mail_logs (SendCloud only).
 func ApplySendCloudWebhookToMailLog(db *gorm.DB, raw []byte) error {
 	ev, err := ParseSendCloudWebhookEvent(raw)
 	if err != nil {
 		return err
 	}
-	if ev.MessageID == "" {
-		return nil
-	}
-	status := SendCloudEventToStatus(ev.Event)
-	errMsg := ""
-	if ev.SmtpError != "" {
-		errMsg = ev.SmtpError
-	} else if ev.SmtpStatus != "" {
-		errMsg = ev.SmtpStatus
-	}
-	return UpdateMailLogStatusByMessageID(db, ev.MessageID, string(ProviderSendCloud), status, errMsg)
+	return ApplySendCloudWebhookEvent(db, ev)
 }

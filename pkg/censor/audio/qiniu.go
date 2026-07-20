@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
-	"github.com/LingByte/SoulNexus/pkg/utils/qiniu/auth"
+	"github.com/LingByte/SoulNexus/pkg/utils/access"
 )
 
 const (
@@ -117,7 +118,7 @@ func (c *QiniuAudioCensor) SubmitCensor(req AudioCensorRequest) (*AudioCensorSub
 	}
 
 	// Generate authentication token
-	authReq := auth.QiniuAuthRequest{
+	authReq := access.QiniuAuthRequest{
 		Method:      "POST",
 		Path:        AudioCensorEndpoint,
 		Host:        c.Host,
@@ -125,7 +126,7 @@ func (c *QiniuAudioCensor) SubmitCensor(req AudioCensorRequest) (*AudioCensorSub
 		Body:        bodyJSON,
 	}
 
-	token, err := auth.GenerateQiniuToken(c.AccessKey, c.SecretKey, authReq)
+	token, err := access.GenerateQiniuToken(c.AccessKey, c.SecretKey, authReq)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate authentication token: %w", err)
 	}
@@ -171,16 +172,52 @@ func (c *QiniuAudioCensor) SubmitCensor(req AudioCensorRequest) (*AudioCensorSub
 // GetCensorResult retrieves the audio moderation result
 // This method implements the AudioCensor interface
 func (c *QiniuAudioCensor) GetCensorResult(taskID string) (interface{}, error) {
-	if taskID == "" {
-		return nil, fmt.Errorf("taskID cannot be empty")
-	}
+	return c.PollCensorAudio(taskID)
+}
 
-	resp, err := c.GetCensorResultFull(taskID)
+// PollCensorAudio normalizes Qiniu job status into JobSnapshot.
+func (c *QiniuAudioCensor) PollCensorAudio(taskID string) (*JobSnapshot, error) {
+	job, err := c.GetCensorResultFull(taskID)
 	if err != nil {
 		return nil, err
 	}
-
-	return resp, nil
+	snap := &JobSnapshot{Raw: job, Error: job.Error}
+	status := strings.ToUpper(strings.TrimSpace(job.Status))
+	switch status {
+	case "WAITING":
+		snap.Status = JobWaiting
+	case "DOING":
+		snap.Status = JobDoing
+	case "FINISHED":
+		snap.Status = JobFinished
+	case "FAILED":
+		snap.Status = JobFailed
+		if snap.Error == "" {
+			snap.Error = "qiniu audio job failed"
+		}
+	default:
+		snap.Status = JobDoing
+		snap.Msg = job.Status
+	}
+	if snap.Status == JobFinished && job.Response != nil && job.Response.Result != nil {
+		snap.Suggestion = strings.ToLower(strings.TrimSpace(job.Response.Result.Suggestion))
+		if scene, ok := job.Response.Result.Scenes["antispam"]; ok {
+			for _, cut := range scene.Cuts {
+				for _, d := range cut.Details {
+					if d.Label != "" {
+						snap.Label = d.Label
+						snap.Score = d.Score
+						break
+					}
+				}
+				if snap.Label != "" {
+					break
+				}
+			}
+		}
+		snap.Msg = job.Response.Message
+	}
+	return snap, nil
 }
 
 // GetCensorResultFull retrieves the audio moderation result with full details
@@ -190,13 +227,13 @@ func (c *QiniuAudioCensor) GetCensorResultFull(taskID string) (*AudioCensorJobRe
 	}
 
 	// Generate authentication token (GET request, no body)
-	authReq := auth.QiniuAuthRequest{
+	authReq := access.QiniuAuthRequest{
 		Method: "GET",
 		Path:   fmt.Sprintf("%s/%s", AudioJobEndpoint, taskID),
 		Host:   c.Host,
 	}
 
-	token, err := auth.GenerateQiniuToken(c.AccessKey, c.SecretKey, authReq)
+	token, err := access.GenerateQiniuToken(c.AccessKey, c.SecretKey, authReq)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate authentication token: %w", err)
 	}

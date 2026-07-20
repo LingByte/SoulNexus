@@ -22,14 +22,11 @@ type providerSlot struct {
 
 type mailerRuntime struct {
 	db        *gorm.DB
-	orgID     uint
 	userID    uint
 	ipAddress string
 }
 
 // Mailer sends HTML mail over one or more channels: each send round-robins the starting channel,
-// then fails over to the next when the current channel is exhausted. Per-channel retries use RetryPolicy
-// for transient errors; definitive upstream errors (quota, auth, invalid recipient) skip retries and fail over immediately.
 type Mailer struct {
 	channels  []providerSlot
 	retry     RetryPolicy
@@ -65,9 +62,13 @@ func NewMailer(channels []MailConfig, db *gorm.DB, ip string, opts ...MailerOpti
 	for i, cfg := range channels {
 		provider, err := NewProviderFromConfig(cfg)
 		if err != nil {
-			return nil, fmt.Errorf("notification: channel %d (%s): %w", i, channelLabel(cfg), err)
+			logger.Warnf("notification: skip invalid mail channel %d (%s): %v", i, channelLabel(cfg), err)
+			continue
 		}
 		slots = append(slots, providerSlot{label: channelLabel(cfg), provider: provider})
+	}
+	if len(slots) == 0 {
+		return nil, errors.New("notification: no valid mail channels after filtering invalid configs")
 	}
 	o := mailerOptions{retry: defaultRetryPolicy()}
 	for _, fn := range opts {
@@ -77,12 +78,9 @@ func NewMailer(channels []MailConfig, db *gorm.DB, ip string, opts ...MailerOpti
 	if rt.userID == 0 && o.mailLogUserID != nil {
 		rt.userID = *o.mailLogUserID
 	}
-	if rt.orgID == 0 && o.mailLogOrgID != nil {
-		rt.orgID = *o.mailLogOrgID
-	}
 	return &Mailer{
 		channels: slots,
-		retry:    o.retry.normalized(),
+		retry:    o.retry.Normalized(),
 		rt:       rt,
 	}, nil
 }
@@ -120,7 +118,7 @@ func (m *Mailer) SendHTML(ctx context.Context, to, subject, htmlBody string) err
 					to, subject, messageID, slot.label, m.rt.userID, string(slot.provider.Kind()))
 				if m.rt.db != nil {
 					status := InitialMailStatus(slot.provider.Kind())
-					_, dbErr := CreateMailLog(m.rt.db, m.rt.orgID, m.rt.userID, string(slot.provider.Kind()), slot.label, to, subject, htmlBody, messageID, status, m.rt.ipAddress)
+					_, dbErr := CreateMailLog(m.rt.db, m.rt.userID, string(slot.provider.Kind()), slot.label, to, subject, htmlBody, messageID, status, m.rt.ipAddress)
 					if dbErr != nil {
 						logger.Errorf("notification: mail log create failed - to=%s messageId=%s channel=%s err=%v",
 							to, messageID, slot.label, dbErr)
@@ -161,7 +159,7 @@ func (m *Mailer) SendHTML(ctx context.Context, to, subject, htmlBody string) err
 		channelSummary = "multi"
 	}
 	if m.rt.db != nil {
-		_, dbErr := CreateFailedMailLog(m.rt.db, m.rt.orgID, m.rt.userID, "multi", channelSummary, to, subject, htmlBody, errMsg, totalAttempts, m.rt.ipAddress)
+		_, dbErr := CreateFailedMailLog(m.rt.db, m.rt.userID, "multi", channelSummary, to, subject, htmlBody, errMsg, totalAttempts, m.rt.ipAddress)
 		if dbErr != nil {
 			logger.Errorf("notification: failed mail log create failed - to=%s err=%v", to, dbErr)
 		}

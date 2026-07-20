@@ -2,77 +2,173 @@ package audio
 
 import (
 	"fmt"
+	"os"
+	"strings"
 
-	asr "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/asr/v20190614"
+	ams "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ams/v20201229"
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common"
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common/profile"
 )
 
 const (
-	// QCloud default region for ASR
-	QCloudASRDefaultRegion = "ap-guangzhou"
+	QCloudAMSDefaultRegion = "ap-guangzhou"
 )
 
-// QCloudAudioCensor is the client for Tencent Cloud audio content moderation
+// QCloudAudioCensor uses Tencent AMS CreateAudioModerationTask / DescribeTaskDetail.
 type QCloudAudioCensor struct {
 	SecretID  string
 	SecretKey string
 	Region    string
-	Client    *asr.Client
+	BizType   string
+	Client    *ams.Client
 }
 
-// NewQCloudAudioCensor creates a new Tencent Cloud audio moderation client
+// NewQCloudAudioCensor creates an AMS audio moderation client.
 func NewQCloudAudioCensor(secretID, secretKey, region string) (*QCloudAudioCensor, error) {
 	if secretID == "" || secretKey == "" {
 		return nil, fmt.Errorf("secretID and secretKey cannot be empty")
 	}
-
 	if region == "" {
-		region = QCloudASRDefaultRegion
+		region = strings.TrimSpace(os.Getenv("QCLOUD_CENSOR_REGION"))
 	}
-
-	// Create credential
+	if region == "" {
+		region = QCloudAMSDefaultRegion
+	}
+	biz := strings.TrimSpace(os.Getenv("QCLOUD_CENSOR_AUDIO_BIZ_TYPE"))
+	if biz == "" {
+		biz = "default"
+	}
 	credential := common.NewCredential(secretID, secretKey)
-
-	// Create client profile
 	cpf := profile.NewClientProfile()
-
-	// Create ASR client
-	client, err := asr.NewClient(credential, region, cpf)
+	cpf.HttpProfile.Endpoint = "ams.tencentcloudapi.com"
+	client, err := ams.NewClient(credential, region, cpf)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create Tencent Cloud ASR client: %w", err)
+		return nil, fmt.Errorf("failed to create Tencent AMS client: %w", err)
 	}
-
 	return &QCloudAudioCensor{
 		SecretID:  secretID,
 		SecretKey: secretKey,
 		Region:    region,
+		BizType:   biz,
 		Client:    client,
 	}, nil
 }
 
-// SubmitCensorAudio submits an audio moderation task
+// SubmitCensorAudio creates a point-of-presence AUDIO moderation task.
 func (c *QCloudAudioCensor) SubmitCensorAudio(audioURL string) (string, error) {
 	if audioURL == "" {
 		return "", fmt.Errorf("audioURL cannot be empty")
 	}
-
-	// For Tencent Cloud, audio moderation is handled through the TMS service
-	// This is a placeholder implementation that returns a generated task ID
-	// In production, you would need to implement the actual API call based on Tencent Cloud's documentation
-	taskID := fmt.Sprintf("qcloud-audio-%d", int64(len(audioURL)))
-	return taskID, nil
+	req := ams.NewCreateAudioModerationTaskRequest()
+	req.BizType = common.StringPtr(c.BizType)
+	req.Type = common.StringPtr("AUDIO")
+	req.Tasks = []*ams.TaskInput{{
+		Input: &ams.StorageInfo{
+			Type: common.StringPtr("URL"),
+			Url:  common.StringPtr(audioURL),
+		},
+	}}
+	resp, err := c.Client.CreateAudioModerationTask(req)
+	if err != nil {
+		return "", fmt.Errorf("qcloud CreateAudioModerationTask: %w", err)
+	}
+	if resp == nil || resp.Response == nil || len(resp.Response.Results) == 0 {
+		return "", fmt.Errorf("qcloud CreateAudioModerationTask: empty results")
+	}
+	r0 := resp.Response.Results[0]
+	if r0 == nil {
+		return "", fmt.Errorf("qcloud CreateAudioModerationTask: nil result")
+	}
+	if r0.Code != nil && strings.ToUpper(strings.TrimSpace(*r0.Code)) != "OK" {
+		msg := ""
+		if r0.Message != nil {
+			msg = *r0.Message
+		}
+		return "", fmt.Errorf("qcloud CreateAudioModerationTask: code=%s message=%s", *r0.Code, msg)
+	}
+	if r0.TaskId == nil || strings.TrimSpace(*r0.TaskId) == "" {
+		return "", fmt.Errorf("qcloud CreateAudioModerationTask: missing TaskId")
+	}
+	return strings.TrimSpace(*r0.TaskId), nil
 }
 
-// GetCensorResult retrieves the audio moderation result
+// GetCensorResult returns a JobSnapshot.
 func (c *QCloudAudioCensor) GetCensorResult(taskID string) (interface{}, error) {
+	return c.PollCensorAudio(taskID)
+}
+
+// PollCensorAudio queries DescribeTaskDetail.
+func (c *QCloudAudioCensor) PollCensorAudio(taskID string) (*JobSnapshot, error) {
 	if taskID == "" {
 		return nil, fmt.Errorf("taskID cannot be empty")
 	}
-
-	// Placeholder for retrieving results
-	return map[string]interface{}{
-		"taskId": taskID,
-		"status": "completed",
-	}, nil
+	req := ams.NewDescribeTaskDetailRequest()
+	req.TaskId = common.StringPtr(taskID)
+	req.ShowAllSegments = common.BoolPtr(false)
+	resp, err := c.Client.DescribeTaskDetail(req)
+	if err != nil {
+		return nil, fmt.Errorf("qcloud DescribeTaskDetail: %w", err)
+	}
+	if resp == nil || resp.Response == nil {
+		return nil, fmt.Errorf("qcloud DescribeTaskDetail: empty response")
+	}
+	body := resp.Response
+	snap := &JobSnapshot{Raw: body}
+	status := ""
+	if body.Status != nil {
+		status = strings.ToUpper(strings.TrimSpace(*body.Status))
+	}
+	switch status {
+	case "PENDING":
+		snap.Status = JobWaiting
+	case "RUNNING":
+		snap.Status = JobDoing
+	case "FINISH":
+		snap.Status = JobFinished
+	case "ERROR", "CANCELLED":
+		snap.Status = JobFailed
+		snap.Error = status
+	default:
+		if status == "" {
+			snap.Status = JobDoing
+		} else {
+			snap.Status = JobDoing
+			snap.Msg = status
+		}
+	}
+	if snap.Status != JobFinished {
+		return snap, nil
+	}
+	sug := ""
+	if body.Suggestion != nil {
+		sug = strings.TrimSpace(*body.Suggestion)
+	}
+	switch strings.ToLower(sug) {
+	case "pass":
+		snap.Suggestion = SuggestionPass
+	case "review":
+		snap.Suggestion = SuggestionReview
+	case "block":
+		snap.Suggestion = SuggestionBlock
+	default:
+		snap.Suggestion = SuggestionPass
+	}
+	if len(body.Labels) > 0 && body.Labels[0] != nil {
+		if body.Labels[0].Label != nil {
+			snap.Label = strings.ToLower(strings.TrimSpace(*body.Labels[0].Label))
+		}
+		if body.Labels[0].Score != nil {
+			snap.Score = float64(*body.Labels[0].Score) / 100.0
+		}
+	}
+	if snap.Label == "" {
+		snap.Label = "normal"
+	}
+	if body.AudioText != nil {
+		snap.Msg = strings.TrimSpace(*body.AudioText)
+		if len(snap.Msg) > 200 {
+			snap.Msg = snap.Msg[:200]
+		}
+	}
+	return snap, nil
 }

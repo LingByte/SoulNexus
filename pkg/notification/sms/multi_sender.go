@@ -19,7 +19,6 @@ type SenderChannel struct {
 
 type senderRuntime struct {
 	db        *gorm.DB
-	orgID     uint
 	userID    uint
 	ipAddress string
 }
@@ -32,9 +31,6 @@ type MultiSender struct {
 
 type SenderOption func(*senderRuntime)
 
-func WithSMSLogOrgID(orgID uint) SenderOption {
-	return func(rt *senderRuntime) { rt.orgID = orgID }
-}
 func WithSMSLogUserID(userID uint) SenderOption {
 	return func(rt *senderRuntime) { rt.userID = userID }
 }
@@ -70,7 +66,6 @@ func (s *MultiSender) Send(ctx context.Context, req SendRequest) error {
 				}
 				_, _ = CreateSMSLog(
 					s.rt.db,
-					s.rt.orgID,
 					s.rt.userID,
 					string(slot.Provider.Kind()),
 					slot.Label,
@@ -100,7 +95,6 @@ func (s *MultiSender) Send(ctx context.Context, req SendRequest) error {
 		}
 		_, _ = CreateFailedSMSLog(
 			s.rt.db,
-			s.rt.orgID,
 			s.rt.userID,
 			"multi",
 			"",
