@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LingLLM Voice Demo</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+    }
+    body {
+      max-width: 720px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+      line-height: 1.5;
+    }
+    button {
+      font: inherit;
+      padding: 0.6rem 1.2rem;
+      margin-right: 0.5rem;
+      cursor: pointer;
+    }
+    .note {
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      background: #f5a62333;
+      border: 1px solid #f5a62366;
+      margin-bottom: 1rem;
+      font-size: 0.95rem;
+    }
+    #status { margin: 1rem 0; min-height: 1.5rem; font-weight: 600; }
+    #log {
+      border: 1px solid #8884;
+      border-radius: 8px;
+      padding: 1rem;
+      min-height: 200px;
+      white-space: pre-wrap;
+      background: #8881;
+      font-size: 0.9rem;
+    }
+    audio { width: 100%; margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <h1>LingLLM Voice Demo</h1>
+  <div class="note">
+    <strong>浏览器 WebRTC</strong> 走 <strong>pipeline</strong> 模式（ASR → dialogue LLM → TTS）。<br>
+    需要同时运行：<code>dialogue</code> + <code>voice -mode pipeline</code>，并配置 <code>ASR_CONFIG_JSON</code> / <code>TTS_CONFIG_JSON</code>。<br>
+    <code>-mode realtime</code> 只给小智 WebSocket 设备用，和这个页面无关。
+  </div>
+
+  <div>
+    <button id="connectBtn">Connect</button>
+    <button id="hangupBtn" disabled>Hang Up</button>
+  </div>
+  <div id="status">Idle</div>
+  <div id="log"></div>
+  <audio id="remoteAudio" autoplay playsinline></audio>
+
+  <script>
+    const statusEl = document.getElementById('status');
+    const logEl = document.getElementById('log');
+    const connectBtn = document.getElementById('connectBtn');
+    const hangupBtn = document.getElementById('hangupBtn');
+    const remoteAudio = document.getElementById('remoteAudio');
+
+    let pc = null;
+    let callId = null;
+    let localStream = null;
+
+    function log(msg) {
+      const line = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      logEl.textContent = line + '\n' + logEl.textContent;
+    }
+
+    function setStatus(text) {
+      statusEl.textContent = text;
+    }
+
+    async function connect() {
+      connectBtn.disabled = true;
+      await cleanup(false);
+      setStatus('Requesting microphone…');
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+
+        localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+
+        pc.ontrack = (ev) => {
+          remoteAudio.srcObject = ev.streams[0];
+          log('Receiving assistant audio track');
+        };
+        pc.onconnectionstatechange = () => {
+          log('PeerConnection: ' + pc.connectionState);
+          if (pc.connectionState === 'connected') {
+            setStatus('Media connected — speak now (' + callId + ')');
+          }
+          if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+            setStatus('Disconnected (' + pc.connectionState + ')');
+          }
+        };
+        pc.oniceconnectionstatechange = () => {
+          log('ICE: ' + pc.iceConnectionState);
+          if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+            log('ICE connected — waiting for voice pipeline (ASR/TTS/dialogue)');
+          }
+        };
+
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        await waitForICEGathering(pc);
+
+        setStatus('Sending offer…');
+        const resp = await fetch('/webrtc/v1/offer', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'offer', sdp: pc.localDescription.sdp }),
+        });
+        if (!resp.ok) {
+          const body = await resp.text();
+          throw new Error('offer failed: ' + resp.status + ' ' + body);
+        }
+        const answer = await resp.json();
+        callId = answer.call_id;
+        await pc.setRemoteDescription({ type: 'answer', sdp: answer.sdp });
+        setStatus('Signaling OK — ICE connecting (' + callId + ')');
+        hangupBtn.disabled = false;
+        log('Call ID: ' + callId);
+        log('SDP answer received — if no AI reply, check voice server ASR/TTS/dialogue logs');
+      } catch (err) {
+        log('Error: ' + err.message);
+        setStatus('Failed');
+        await cleanup(false);
+        connectBtn.disabled = false;
+      }
+    }
+
+    function waitForICEGathering(pc) {
+      if (pc.iceGatheringState === 'complete') return Promise.resolve();
+      return new Promise(resolve => {
+        const check = () => {
+          if (pc.iceGatheringState === 'complete') {
+            pc.removeEventListener('icegatheringstatechange', check);
+            resolve();
+          }
+        };
+        pc.addEventListener('icegatheringstatechange', check);
+        setTimeout(resolve, 3000);
+      });
+    }
+
+    async function hangup() {
+      await cleanup(true);
+      connectBtn.disabled = false;
+      hangupBtn.disabled = true;
+      setStatus('Idle');
+    }
+
+    async function cleanup(notifyServer) {
+      const id = callId;
+      if (notifyServer && id) {
+        try {
+          const resp = await fetch('/webrtc/v1/hangup?call_id=' + encodeURIComponent(id), { method: 'POST' });
+          log('Hangup ' + id.slice(-8) + ': HTTP ' + resp.status);
+        } catch (e) {
+          log('Hangup error: ' + e.message);
+        }
+      }
+      if (pc) {
+        pc.close();
+        pc = null;
+      }
+      if (localStream) {
+        localStream.getTracks().forEach(t => t.stop());
+        localStream = null;
+      }
+      remoteAudio.srcObject = null;
+      callId = null;
+    }
+
+    connectBtn.addEventListener('click', connect);
+    hangupBtn.addEventListener('click', hangup);
+  </script>
+</body>
+</html>

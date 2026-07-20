@@ -1,0 +1,17 @@
+[package]
+name = "levad"
+version = "0.1.0"
+edition = "2024"
+authors = ["LingByte <https://github.com/LingByte>"]
+description = "SoulNexus TinySilero / TinyTen VAD (C ABI for Go)"
+license = "MIT"
+readme = "README.md"
+
+[lib]
+name = "levad"
+crate-type = ["rlib", "staticlib", "cdylib"]
+
+[dependencies]
+anyhow = "1"
+ndarray = "0.17"
+realfft = "3.3"

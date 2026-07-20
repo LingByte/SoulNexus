@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LingLLM Realtime Demo</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+    }
+    body {
+      max-width: 760px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+      line-height: 1.5;
+    }
+    button {
+      font: inherit;
+      padding: 0.6rem 1.2rem;
+      margin-right: 0.5rem;
+      cursor: pointer;
+    }
+    .note {
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      background: #4a90e233;
+      border: 1px solid #4a90e266;
+      margin-bottom: 1rem;
+      font-size: 0.95rem;
+    }
+    #status { margin: 1rem 0; min-height: 1.5rem; font-weight: 600; }
+    .panel {
+      border: 1px solid #8884;
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      margin: 0.75rem 0;
+      min-height: 2.5rem;
+      background: #8881;
+    }
+    .panel h3 { margin: 0 0 0.35rem; font-size: 0.85rem; opacity: 0.75; }
+    #log {
+      border: 1px solid #8884;
+      border-radius: 8px;
+      padding: 1rem;
+      min-height: 160px;
+      white-space: pre-wrap;
+      background: #8881;
+      font-size: 0.85rem;
+    }
+    label { display: block; margin: 0.5rem 0 0.25rem; font-size: 0.9rem; }
+    input[type=text] {
+      width: 100%;
+      box-sizing: border-box;
+      font: inherit;
+      padding: 0.4rem 0.6rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>LingLLM Realtime Demo</h1>
+  <div class="note">
+    <strong>端到端 realtime 模型</strong>（Qwen-Omni / 豆包实时对话等）经 <strong>xiaozhi WebSocket</strong>，无需 dialogue / ASR / TTS。<br>
+    先运行：<code>go run ./examples/voice-demo/realtime</code>，并设置 <code>REALTIME_CONFIG_JSON</code>。<br>
+    助手说话时麦克风仍上传，回声由服务端过滤；需要打断时点 <strong>Interrupt</strong>。
+  </div>
+
+  <label for="wsUrl">WebSocket URL</label>
+  <input id="wsUrl" type="text" />
+
+  <div style="margin-top: 1rem;">
+    <button id="connectBtn">Connect</button>
+    <button id="disconnectBtn" disabled>Disconnect</button>
+    <button id="interruptBtn" disabled>Interrupt</button>
+  </div>
+  <div id="status">Idle</div>
+
+  <div class="panel"><h3>You said</h3><div id="userText">—</div></div>
+  <div class="panel"><h3>Assistant</h3><div id="assistantText">—</div></div>
+  <div id="log"></div>
+
+  <script>
+    const SAMPLE_RATE = 16000;
+    const FRAME_MS = 20;
+    const FRAME_SAMPLES = Math.floor(SAMPLE_RATE * FRAME_MS / 1000);
+    const FRAME_BYTES = FRAME_SAMPLES * 2;
+
+    const wsUrlEl = document.getElementById('wsUrl');
+    const statusEl = document.getElementById('status');
+    const logEl = document.getElementById('log');
+    const userTextEl = document.getElementById('userText');
+    const assistantTextEl = document.getElementById('assistantText');
+    const connectBtn = document.getElementById('connectBtn');
+    const disconnectBtn = document.getElementById('disconnectBtn');
+    const interruptBtn = document.getElementById('interruptBtn');
+
+    const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    wsUrlEl.value = `${wsProto}//${location.host}/xiaozhi/v1/?device-id=web1-demo`;
+
+    let ws = null;
+    let sessionId = null;
+    let listening = false;
+    let micStream = null;
+    let captureCtx = null;
+    let playbackRate = SAMPLE_RATE;
+    let playbackCtx = null;
+    let processor = null;
+    let pcmSendBuf = new Int16Array(0);
+    let nextPlayTime = 0;
+    let playbackSources = [];
+    let sentFrames = 0;
+    let sentBytes = 0;
+
+    function log(msg) {
+      const line = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      logEl.textContent = line + '\n' + logEl.textContent;
+    }
+
+    function setStatus(text) {
+      statusEl.textContent = text;
+    }
+
+    function downsample(input, fromRate, toRate) {
+      if (fromRate === toRate) return input;
+      const ratio = fromRate / toRate;
+      const outLen = Math.floor(input.length / ratio);
+      const out = new Float32Array(outLen);
+      for (let i = 0; i < outLen; i++) {
+        out[i] = input[Math.floor(i * ratio)] || 0;
+      }
+      return out;
+    }
+
+    function floatToInt16(floats) {
+      const out = new Int16Array(floats.length);
+      for (let i = 0; i < floats.length; i++) {
+        const s = Math.max(-1, Math.min(1, floats[i]));
+        out[i] = s < 0 ? s * 32768 : s * 32767;
+      }
+      return out;
+    }
+
+    function appendPCM(int16) {
+      const merged = new Int16Array(pcmSendBuf.length + int16.length);
+      merged.set(pcmSendBuf);
+      merged.set(int16, pcmSendBuf.length);
+      pcmSendBuf = merged;
+      while (pcmSendBuf.length >= FRAME_SAMPLES) {
+        const frame = pcmSendBuf.slice(0, FRAME_SAMPLES);
+        pcmSendBuf = pcmSendBuf.slice(FRAME_SAMPLES);
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(frame.buffer);
+          sentFrames++;
+          sentBytes += frame.byteLength;
+        }
+      }
+    }
+
+    function stopPlayback() {
+      playbackSources.forEach(s => {
+        try { s.stop(); } catch (_) {}
+      });
+      playbackSources = [];
+      nextPlayTime = playbackCtx ? playbackCtx.currentTime : 0;
+    }
+
+    function beginPlaybackTurn() {
+      stopPlayback();
+    }
+
+    function playPCM(bytes) {
+      if (!playbackCtx || playbackCtx.sampleRate !== playbackRate) {
+        if (playbackCtx) {
+          stopPlayback();
+          playbackCtx.close();
+        }
+        playbackCtx = new AudioContext({ sampleRate: playbackRate });
+      }
+      if (playbackCtx.state === 'suspended') {
+        playbackCtx.resume();
+      }
+      const int16 = new Int16Array(bytes.buffer, bytes.byteOffset, bytes.byteLength / 2);
+      const floats = new Float32Array(int16.length);
+      for (let i = 0; i < int16.length; i++) {
+        floats[i] = int16[i] / 32768;
+      }
+      const buffer = playbackCtx.createBuffer(1, floats.length, playbackRate);
+      buffer.copyToChannel(floats, 0);
+      const src = playbackCtx.createBufferSource();
+      src.buffer = buffer;
+      src.connect(playbackCtx.destination);
+      const now = playbackCtx.currentTime;
+      if (nextPlayTime < now) nextPlayTime = now;
+      src.start(nextPlayTime);
+      nextPlayTime += buffer.duration;
+      playbackSources.push(src);
+      src.onended = () => {
+        playbackSources = playbackSources.filter(x => x !== src);
+      };
+    }
+
+    async function startMic() {
+      micStream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 },
+        video: false
+      });
+      captureCtx = new AudioContext({ sampleRate: SAMPLE_RATE });
+      if (captureCtx.state === 'suspended') {
+        await captureCtx.resume();
+      }
+      const source = captureCtx.createMediaStreamSource(micStream);
+      processor = captureCtx.createScriptProcessor(4096, 1, 1);
+      processor.onaudioprocess = (ev) => {
+        // Uplink echo suppression is handled server-side (ttsActive gate).
+        if (!listening || !ws || ws.readyState !== WebSocket.OPEN) return;
+        const input = ev.inputBuffer.getChannelData(0);
+        const down = downsample(input, captureCtx.sampleRate, SAMPLE_RATE);
+        appendPCM(floatToInt16(down));
+      };
+      source.connect(processor);
+      const mute = captureCtx.createGain();
+      mute.gain.value = 0;
+      processor.connect(mute);
+      mute.connect(captureCtx.destination);
+      log('Mic ready (ctx ' + captureCtx.sampleRate + ' Hz → ' + SAMPLE_RATE + ' Hz)');
+    }
+
+    function stopMic() {
+      if (processor) {
+        processor.disconnect();
+        processor.onaudioprocess = null;
+        processor = null;
+      }
+      if (captureCtx) {
+        captureCtx.close();
+        captureCtx = null;
+      }
+      if (micStream) {
+        micStream.getTracks().forEach(t => t.stop());
+        micStream = null;
+      }
+      pcmSendBuf = new Int16Array(0);
+    }
+
+    function sendJSON(obj) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(obj));
+      }
+    }
+
+    function handleText(raw) {
+      let msg;
+      try { msg = JSON.parse(raw); } catch { return; }
+      switch (msg.type) {
+        case 'hello':
+          sessionId = msg.session_id || sessionId;
+          const ap = msg.audio_params || {};
+          if (ap.sample_rate > 0) {
+            playbackRate = ap.sample_rate;
+          }
+          log('Server hello, session=' + sessionId + ', playback=' + playbackRate + 'Hz');
+          setStatus('Connected — speak now');
+          sendJSON({ type: 'listen', state: 'start', mode: 'auto' });
+          listening = true;
+          sentFrames = 0;
+          sentBytes = 0;
+          if (!window._uplinkTimer) {
+            window._uplinkTimer = setInterval(() => {
+              if (listening && sentFrames > 0) {
+                log('Uplink: ' + sentFrames + ' frames / ' + sentBytes + ' bytes');
+                sentFrames = 0;
+                sentBytes = 0;
+              }
+            }, 3000);
+          }
+          break;
+        case 'stt':
+          userTextEl.textContent = msg.text || '—';
+          log('STT: ' + msg.text);
+          break;
+        case 'llm_response':
+          assistantTextEl.textContent = msg.text || '—';
+          log('Assistant: ' + msg.text);
+          break;
+        case 'tts':
+          if (msg.state === 'start') {
+            beginPlaybackTurn();
+            log('TTS start');
+          } else if (msg.state === 'stop') {
+            log('TTS stop');
+          }
+          break;
+        case 'error':
+          log('Error: ' + (msg.message || 'unknown') + (msg.fatal ? ' (fatal)' : ''));
+          if (msg.fatal) disconnect();
+          break;
+        case 'pong':
+          break;
+        default:
+          log('Event: ' + msg.type);
+      }
+    }
+
+    async function connect() {
+      connectBtn.disabled = true;
+      await disconnect(false);
+      setStatus('Connecting…');
+      try {
+        await startMic();
+        ws = new WebSocket(wsUrlEl.value.trim());
+        ws.binaryType = 'arraybuffer';
+
+        ws.onopen = () => {
+          log('WebSocket open');
+          sendJSON({
+            type: 'hello',
+            version: 1,
+            transport: 'websocket',
+            audio_params: {
+              format: 'pcm',
+              sample_rate: SAMPLE_RATE,
+              channels: 1,
+              frame_duration: FRAME_MS,
+              bit_depth: 16
+            }
+          });
+        };
+
+        ws.onmessage = (ev) => {
+          if (typeof ev.data === 'string') {
+            handleText(ev.data);
+          } else if (ev.data instanceof ArrayBuffer) {
+            playPCM(new Uint8Array(ev.data));
+          }
+        };
+
+        ws.onerror = () => log('WebSocket error');
+        ws.onclose = (ev) => {
+          log('WebSocket closed code=' + ev.code);
+          setStatus('Disconnected');
+          cleanupLocal(false);
+          connectBtn.disabled = false;
+          disconnectBtn.disabled = true;
+          interruptBtn.disabled = true;
+        };
+
+        disconnectBtn.disabled = false;
+        interruptBtn.disabled = false;
+      } catch (err) {
+        log('Error: ' + err.message);
+        setStatus('Failed');
+        await disconnect(false);
+        connectBtn.disabled = false;
+      }
+    }
+
+    function cleanupLocal(notifyStop) {
+      listening = false;
+      if (window._uplinkTimer) {
+        clearInterval(window._uplinkTimer);
+        window._uplinkTimer = null;
+      }
+      if (notifyStop) {
+        sendJSON({ type: 'listen', state: 'stop' });
+      }
+      stopMic();
+      stopPlayback();
+      if (ws) {
+        ws.onclose = null;
+        if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+          ws.close();
+        }
+        ws = null;
+      }
+      sessionId = null;
+    }
+
+    async function disconnect(userInitiated) {
+      cleanupLocal(userInitiated);
+      if (userInitiated) {
+        connectBtn.disabled = false;
+        disconnectBtn.disabled = true;
+        interruptBtn.disabled = true;
+        setStatus('Idle');
+      }
+    }
+
+    function interruptAssistant() {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      sendJSON({ type: 'abort' });
+      stopPlayback();
+      log('Sent abort (barge-in)');
+    }
+
+    connectBtn.addEventListener('click', connect);
+    disconnectBtn.addEventListener('click', () => disconnect(true));
+    interruptBtn.addEventListener('click', interruptAssistant);
+  </script>
+</body>
+</html>
