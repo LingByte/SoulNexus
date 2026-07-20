@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master, feat/**]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2.1.6
+          args: --timeout=5m
+          # First-pass: do not fail the whole CI on historical lint debt.
+          # Tighten to fail later once the backlog is cleared.
+          only-new-issues: true
+
+  go-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+      - name: Install CGO dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends pkg-config gcc libc6-dev libopus-dev libopusfile-dev
+      - name: Go test (expanded packages)
+        run: |
+          go test ./internal/... ./pkg/billing/... ./pkg/censor/... ./pkg/dialog/ ./pkg/voice/ \
+            ./pkg/middleware/ ./pkg/health/ ./pkg/otelx/ ./pkg/knowledge/... ./pkg/notification/... ./pkg/utils/redislock/ \
+            ./pkg/websocket/ ./pkg/workflow/ ./cmd/bootstrap/ \
+            -count=1 -timeout 12m
+      - name: Go test coverage (core)
+        run: |
+          go test ./pkg/health/ ./pkg/middleware/ ./cmd/bootstrap/ ./pkg/censor/audio/ ./pkg/utils/redislock/ \
+            -coverprofile=coverage.out -count=1 -timeout 5m
+          go tool cover -func=coverage.out | tail -n 5
+      # New packages / touched paths should stay clean; historical debt remains only-new-issues for lint.
+
+  web-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run build
