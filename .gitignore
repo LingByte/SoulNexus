@@ -141,4 +141,7 @@ lingecho.db-shm
 lingecho.db-wal
 audio-cache/
 data/
+# Local desktop pet samples (do not commit)
+*.soulpet.zip
+我的桌宠.soulpet/
 .cursor/
