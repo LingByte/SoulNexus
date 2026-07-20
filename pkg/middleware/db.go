@@ -4,7 +4,7 @@ package middleware
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
-	"github.com/LingByte/SoulNexus/pkg/constants"
+	"github.com/LingByte/SoulNexus/internal/constants"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )

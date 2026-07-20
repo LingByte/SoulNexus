@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LingByte/SoulNexus/pkg/constants"
+	"github.com/LingByte/SoulNexus/internal/constants"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -60,6 +60,12 @@ func TestCorsMiddleware_SetsHeadersAndPassesThrough(t *testing.T) {
 		!strings.Contains(h.Get("Access-Control-Allow-Headers"), "Content-Type") {
 		t.Errorf("Access-Control-Allow-Headers missing expected headers, got %q", h.Get("Access-Control-Allow-Headers"))
 	}
+	if !strings.Contains(h.Get("Access-Control-Allow-Headers"), "X-Reqid") {
+		t.Errorf("Access-Control-Allow-Headers should allow X-Reqid, got %q", h.Get("Access-Control-Allow-Headers"))
+	}
+	if !strings.Contains(h.Get("Access-Control-Allow-Headers"), "X-Device-Id") {
+		t.Errorf("Access-Control-Allow-Headers should allow X-Device-Id, got %q", h.Get("Access-Control-Allow-Headers"))
+	}
 }
 
 func TestCorsMiddleware_OptionsPreflightAbortsWith204(t *testing.T) {
@@ -98,6 +104,34 @@ func TestInjectDB_SetsDBInContext(t *testing.T) {
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", w.Code)
+	}
+}
+
+// ===== GetCarrotSessionField =====
+
+func TestGetCarrotSessionField_DefaultWhenEnvEmpty(t *testing.T) {
+	// 清理后备份
+	key := constants.ENV_SESSION_FIELD
+	old := os.Getenv(key)
+	t.Cleanup(func() { _ = os.Setenv(key, old) })
+
+	_ = os.Unsetenv(key)
+
+	if got := GetCarrotSessionField(); got != "lingecho" {
+		t.Fatalf("expected default session field 'lingecho', got %q", got)
+	}
+}
+
+func TestGetCarrotSessionField_FromEnv(t *testing.T) {
+	key := constants.ENV_SESSION_FIELD
+	old := os.Getenv(key)
+	t.Cleanup(func() { _ = os.Setenv(key, old) })
+
+	want := "sess_field_from_env"
+	_ = os.Setenv(key, want)
+
+	if got := GetCarrotSessionField(); got != want {
+		t.Fatalf("expected session field %q from env, got %q", want, got)
 	}
 }
 
@@ -199,8 +233,8 @@ func TestWithCookieSession_SetsPersistentCookie(t *testing.T) {
 
 func TestSecurityMiddlewareChain_LengthAndNoPanic(t *testing.T) {
 	mws := SecurityMiddlewareChain()
-	if len(mws) != 4 {
-		t.Fatalf("expected 4 security middlewares, got %d", len(mws))
+	if len(mws) != 3 {
+		t.Fatalf("expected 3 security middlewares, got %d", len(mws))
 	}
 
 	r := newEngine()
@@ -222,8 +256,9 @@ func TestSecurityMiddlewareChain_LengthAndNoPanic(t *testing.T) {
 func TestApplySecurityMiddleware_NoPanicAndWorks(t *testing.T) {
 	r := newEngine()
 	grp := r.Group("/secure2")
-	// 不应 panic
-	ApplySecurityMiddleware(grp)
+	for _, mw := range SecurityMiddlewareChain() {
+		grp.Use(mw)
+	}
 	grp.GET("/ok", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
 
 	w := httptest.NewRecorder()

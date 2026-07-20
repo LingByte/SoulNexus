@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/gorilla/csrf"
+	csrf "filippo.io/csrf/gorilla"
 )
 
 // SecurityConfig 安全配置
@@ -50,7 +50,7 @@ func DefaultSecurityConfig() *SecurityConfig {
 		CSRFMaxAge:         24 * time.Hour,
 		CSRFSecure:         true,
 		CSRFHttpOnly:       true,
-		CSRFSameSite:       csrf.SameSiteStrictMode,
+		CSRFSameSite:       csrf.SameSiteDefaultMode,
 		XSSProtection:      true,
 		ContentTypeNosniff: true,
 		XFrameOptions:      "DENY",

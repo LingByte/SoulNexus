@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"io"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -106,16 +107,20 @@ func SignVerifyMiddleware() gin.HandlerFunc {
 			signatureData.WriteString(nonce)
 		}
 
-		// 添加关键的自定义头部信息到签名数据中
-		for key, values := range c.Request.Header {
-			// 只包含以X-开头的自定义头部
+		// 添加关键的自定义头部信息到签名数据中（按 key 排序以保证确定性）
+		var xHeaders []string
+		for key := range c.Request.Header {
 			if strings.HasPrefix(strings.ToLower(key), "x-") &&
 				!strings.EqualFold(key, "X-Signature") {
-				for _, value := range values {
-					signatureData.WriteString(key)
-					signatureData.WriteString(":")
-					signatureData.WriteString(value)
-				}
+				xHeaders = append(xHeaders, key)
+			}
+		}
+		sort.Strings(xHeaders)
+		for _, key := range xHeaders {
+			for _, value := range c.Request.Header[key] {
+				signatureData.WriteString(key)
+				signatureData.WriteString(":")
+				signatureData.WriteString(value)
 			}
 		}
 

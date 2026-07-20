@@ -242,9 +242,8 @@ func Test_isOriginAllowed(t *testing.T) {
 	}
 }
 
-// 覆盖 CSRFMiddleware 的“错误 token 处理器”为 403 的分支（已在主测试里覆盖）
-// 这里再做一个轻量 smoke：无 token 直接 POST
-func TestCSRFMiddleware_ForbiddenWhenNoToken(t *testing.T) {
+// 覆盖 CSRFMiddleware 对跨站浏览器 POST 返回 403 的分支。
+func TestCSRFMiddleware_ForbiddenOnCrossSitePost(t *testing.T) {
 	r := newGin()
 	cfg := DefaultSecurityConfig()
 	cfg.CSRFSecure = false
@@ -255,9 +254,10 @@ func TestCSRFMiddleware_ForbiddenWhenNoToken(t *testing.T) {
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/csrf2/p", strings.NewReader("x=1"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Sec-Fetch-Site", "cross-site")
+	req.Header.Set("Origin", "https://evil.example")
 	r.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusForbidden, w.Code)
-	assert.Contains(t, w.Body.String(), "CSRF token mismatch")
 }
 
 // 验证 generateRandomKey 在随机失败时的兜底逻辑（无法直接触发 rand.Read 错误，做基本断言即可）

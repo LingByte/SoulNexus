@@ -4,55 +4,75 @@ package middleware
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"net/http"
 	"strings"
 	"time"
 
+	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
 
-// LoggerMiddleware 请求日志中间件
-func LoggerMiddleware(logger *zap.Logger) gin.HandlerFunc {
+const slowHTTPThreshold = 300 * time.Millisecond
+
+// skipAccessLogPaths are high-churn paths that should not emit access logs.
+var skipAccessLogPaths = []string{
+	"/metrics",
+	"/monitor",
+	"/static",
+	"/favicon.ico",
+	"/uploads",
+}
+
+func shouldSkipAccessLog(path string) bool {
+	for _, p := range skipAccessLogPaths {
+		if strings.Contains(path, p) {
+			return true
+		}
+	}
+	return false
+}
+
+// LoggerMiddleware logs completed HTTP requests (requires RequestIDMiddleware first).
+// log is kept for API compatibility; logging uses logger.*Ctx on the global logger.
+func LoggerMiddleware(log *zap.Logger) gin.HandlerFunc {
+	_ = log
 	return func(c *gin.Context) {
 		start := time.Now()
 		path := c.Request.URL.Path
 		query := c.Request.URL.RawQuery
 		method := c.Request.Method
 
-		// 处理请求
 		c.Next()
 
-		// 过滤规则：
-		// 1. 过滤监控相关的路径（/metrics, /monitor 等）
-		// 2. 过滤一般的 GET 请求（只记录 POST, PUT, DELETE, PATCH 等）
-		shouldLog := true
-
-		// 过滤监控相关路径
-		if strings.Contains(path, "/metrics") ||
-			strings.Contains(path, "/monitor") ||
-			strings.Contains(path, "/static") ||
-			strings.Contains(path, "/favicon.ico") {
-			shouldLog = false
+		// 读数据的 GET 不打访问日志；变更类请求仍记录。
+		if method == http.MethodGet || shouldSkipAccessLog(path) {
+			return
+		}
+		if logger.Lg == nil {
+			return
 		}
 
-		// 过滤一般的 GET 请求（只记录非 GET 请求）
-		if method == "GET" && shouldLog {
-			shouldLog = false
+		latency := time.Since(start)
+		status := c.Writer.Status()
+		fields := []zap.Field{
+			zap.Int("status", status),
+			zap.String("method", method),
+			zap.String("path", path),
+			zap.String("query", query),
+			zap.String("ip", c.ClientIP()),
+			zap.String("user-agent", c.Request.UserAgent()),
+			zap.Duration("latency", latency),
+		}
+		if errMsg := c.Errors.ByType(gin.ErrorTypePrivate).String(); errMsg != "" {
+			fields = append(fields, zap.String("errors", errMsg))
 		}
 
-		// 记录日志
-		if shouldLog {
-			end := time.Now()
-			latency := end.Sub(start)
-			logger.Info("Request",
-				zap.Int("status", c.Writer.Status()),
-				zap.String("method", method),
-				zap.String("path", path),
-				zap.String("query", query),
-				zap.String("ip", c.ClientIP()),
-				zap.String("user-agent", c.Request.UserAgent()),
-				zap.Duration("latency", latency),
-			)
+		ctx := c.Request.Context()
+		logger.InfoCtx(ctx, "http request", fields...)
+
+		if latency > slowHTTPThreshold {
+			logger.WarnCtx(ctx, "http slow request", fields...)
 		}
 	}
 }
