@@ -1,282 +1,391 @@
-import {
-    forwardRef,
-    useEffect,
-    useId,
-    useImperativeHandle,
-    useMemo,
-    useRef,
-    useState,
-} from 'react'
-import { motion, type HTMLMotionProps } from 'framer-motion'
-import { Eye, EyeOff, X, Loader2 } from 'lucide-react'
-import { clsx } from 'clsx'
+import { forwardRef, useId, type ReactNode } from 'react'
+import { Input as ArcoInput } from '@arco-design/web-react'
+import type { InputProps as ArcoInputProps, TextAreaProps as ArcoTextAreaProps } from '@arco-design/web-react'
+import { cn } from '@/utils/utils.ts'
 
+export type InputSize = 'sm' | 'md' | 'lg'
+export type ArcoInputSize = 'mini' | 'small' | 'default' | 'large'
+export type AnyInputSize = InputSize | ArcoInputSize
 
-type Size = 'sm' | 'md' | 'lg'
+export type InputVariant = 'default' | 'filled' | 'outline' | 'underline' | 'wave'
 
-// 以 HTMLMotionProps<'input'> 作为基础，移除我们要自定义的 size
-type BaseMotionInputProps = Omit<HTMLMotionProps<'input'>, 'size'>
+export type InputStatus = 'error' | 'success' | 'warning'
 
-// 我们的最终 Props：在 Base 上扩展并覆盖 onChange 的签名
-interface InputProps extends BaseMotionInputProps {
-    label?: string
-    error?: string
-    helperText?: string
-    leftIcon?: React.ReactNode
-    rightIcon?: React.ReactNode
-    clearable?: boolean
-    onClear?: () => void
-    size?: Size
-    loading?: boolean
-    showCount?: boolean
-    countMax?: number
-    onValueChange?: (value: string) => void
-    changeDebounceMs?: number
-    wrapperClassName?: string
-    inputClassName?: string
-    // 关键：覆盖 onChange 的类型，供内部解构与调用
-    onChange?: React.ChangeEventHandler<HTMLInputElement>
+export interface InputProps extends Omit<ArcoInputProps, 'size' | 'status'> {
+  size?: AnyInputSize
+  variant?: InputVariant
+  status?: InputStatus
+  block?: boolean
+  prefix?: ReactNode
+  suffix?: ReactNode
+  allowClear?: boolean
+  /** Floating label text — used with variant="wave" */
+  label?: string
 }
 
-const sizeMap: Record<Size, { px: string; py: string; text: string; icon: string }> = {
-    sm: { px: 'px-3',   py: 'py-1.5', text: 'text-sm',  icon: 'w-4 h-4' },
-    md: { px: 'px-3.5', py: 'py-2.5', text: 'text-base',icon: 'w-4 h-4' },
-    lg: { px: 'px-4',   py: 'py-3',   text: 'text-lg',  icon: 'w-5 h-5' },
+export interface TextAreaProps extends Omit<ArcoTextAreaProps, 'size' | 'status'> {
+  size?: AnyInputSize
+  variant?: InputVariant
+  status?: InputStatus
+  block?: boolean
 }
 
-// 简易节流
-function useDebouncedCallback<T extends (...args: any[]) => void>(cb: T | undefined, delay = 0) {
-    const timer = useRef<number | null>(null)
-    return (...args: Parameters<T>) => {
-        if (!cb) return
-        if (delay <= 0) return cb(...args)
-        if (timer.current) window.clearTimeout(timer.current)
-        timer.current = window.setTimeout(() => cb(...args), delay)
-    }
+function normalizeSize(size: AnyInputSize): InputSize {
+  switch (size) {
+    case 'mini':
+    case 'small':
+      return 'sm'
+    case 'default':
+    case 'md':
+      return 'md'
+    case 'large':
+    case 'lg':
+      return 'lg'
+    default:
+      return 'md'
+  }
 }
 
-const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
-    {
-        className,
-        inputClassName,
-        wrapperClassName,
-        type = 'text',
-        label,
-        error,
-        helperText,
-        leftIcon,
-        rightIcon,
-        clearable = false,
-        onClear,
-        value,
-        defaultValue,
-        onChange,
-        onValueChange,
-        size = 'md',
-        loading = false,
-        showCount = false,
-        countMax,
-        maxLength,
-        disabled,
-        readOnly,
-        changeDebounceMs = 0,
-        ...restProps // 其余作为 HTMLMotionProps<'input'> 传给 motion.input
-    },
-    ref
+const sizeToArcoSize: Record<InputSize, ArcoInputProps['size']> = {
+  sm: 'small',
+  md: 'default',
+  lg: 'large',
+}
+
+const sizeClassMap: Record<InputSize, string> = {
+  sm: 'h-8 min-h-[32px] text-xs px-2.5',
+  md: 'h-9 min-h-[36px] text-sm px-3',
+  lg: 'h-10 min-h-[40px] text-base px-4',
+}
+
+const variantClassMap: Record<Exclude<InputVariant, 'wave'>, string> = {
+  default: cn(
+    'ui-input',
+    'bg-[hsl(var(--background))] border border-[hsl(var(--border))]',
+    'text-[hsl(var(--foreground))]',
+    'placeholder:text-[hsl(var(--muted-foreground))]',
+    'hover:border-[hsl(var(--primary)/0.4)]',
+    'focus:border-[hsl(var(--primary))] focus:ring-1 focus:ring-[hsl(var(--primary)/0.2)]',
+  ),
+  filled: cn(
+    'ui-input',
+    'bg-[hsl(var(--secondary)/0.5)] border border-transparent',
+    'text-[hsl(var(--foreground))]',
+    'placeholder:text-[hsl(var(--muted-foreground))]',
+    'hover:bg-[hsl(var(--secondary)/0.7)]',
+    'focus:bg-[hsl(var(--background))] focus:border-[hsl(var(--primary))] focus:ring-1 focus:ring-[hsl(var(--primary)/0.2)]',
+  ),
+  outline: cn(
+    'ui-input',
+    'bg-transparent border border-[hsl(var(--border))]',
+    'text-[hsl(var(--foreground))]',
+    'placeholder:text-[hsl(var(--muted-foreground))]',
+    'hover:border-[hsl(var(--primary)/0.4)]',
+    'focus:border-[hsl(var(--primary))] focus:ring-1 focus:ring-[hsl(var(--primary)/0.2)]',
+  ),
+  underline: cn(
+    'ui-input',
+    'bg-transparent border-0 border-b border-[hsl(var(--border))]',
+    'text-[hsl(var(--foreground))]',
+    'placeholder:text-[hsl(var(--muted-foreground))]',
+    'hover:border-[hsl(var(--primary)/0.4)]',
+    'focus:border-[hsl(var(--primary))] focus:ring-0',
+  ),
+}
+
+const statusClassMap: Record<InputStatus, string> = {
+  error: 'border-red-500! focus:border-red-500! focus:ring-red-500/15',
+  success: 'border-green-500! focus:border-green-500! focus:ring-green-500/15',
+  warning: 'border-amber-500! focus:border-amber-500! focus:ring-amber-500/15',
+}
+
+const sharedBase = cn(
+  'ui-input-base',
+  'rounded-md transition-colors duration-150',
+  'focus-visible:outline-none',
+  'disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-[hsl(var(--border))]',
+  'read-only:opacity-80',
+)
+
+function resolveInputClasses(
+  variant: Exclude<InputVariant, 'wave'>,
+  size: InputSize,
+  status?: InputStatus,
+  block?: boolean,
+  className?: string | string[],
 ) {
-    const generatedId = useId()
-    const inputId = restProps.id ?? `input-${generatedId}`
-    const errorId = `${inputId}-error`
-    const helpId = `${inputId}-help`
+  return cn(
+    sharedBase,
+    variantClassMap[variant],
+    sizeClassMap[size],
+    status && statusClassMap[status],
+    block && 'w-full',
+    className,
+  )
+}
 
-    const isControlled = value !== undefined
-    const [inner, setInner] = useState<string>(String(defaultValue ?? ''))
-    const currentValue = String(isControlled ? value ?? '' : inner)
+function WaveInputField({
+  id,
+  label,
+  block,
+  status,
+  className,
+  disabled,
+  readOnly,
+  value,
+  defaultValue,
+  onChange,
+  onBlur,
+  onFocus,
+  placeholder,
+  ...rest
+}: InputProps & { id: string }) {
+  const labelText = label ?? placeholder ?? ''
+  const hasValue =
+    (value != null && String(value).length > 0) ||
+    (defaultValue != null && String(defaultValue).length > 0)
 
-    const [showPassword, setShowPassword] = useState(false)
+  return (
+    <div className={cn('ui-wave-group', block !== false && 'w-full', className)}>
+      <ArcoInput
+        id={id}
+        className={cn(
+          'ui-wave-input',
+          status === 'error' && 'ui-wave-input-error',
+          status === 'success' && 'ui-wave-input-success',
+          status === 'warning' && 'ui-wave-input-warning',
+        )}
+        disabled={disabled}
+        readOnly={readOnly}
+        value={value}
+        defaultValue={defaultValue}
+        onChange={onChange}
+        onBlur={onBlur}
+        onFocus={onFocus}
+        placeholder=" "
+        {...rest}
+      />
+      <span className="ui-wave-bar" aria-hidden />
+      {labelText ? (
+        <label
+          htmlFor={id}
+          className={cn('ui-wave-label', hasValue && 'ui-wave-label-active')}
+        >
+          {labelText.split('').map((char, index) => (
+            <span
+              key={`${char}-${index}`}
+              className="ui-wave-label-char"
+              style={{ ['--index' as string]: index }}
+            >
+              {char === ' ' ? '\u00a0' : char}
+            </span>
+          ))}
+        </label>
+      ) : null}
+    </div>
+  )
+}
 
-    const inputRef = useRef<HTMLInputElement>(null)
-    useImperativeHandle(ref, () => inputRef.current as HTMLInputElement)
+const InputRoot = forwardRef<any, InputProps>(function Input(
+  {
+    size = 'md',
+    variant = 'default',
+    status,
+    block = true,
+    prefix,
+    suffix,
+    allowClear = false,
+    label,
+    className,
+    disabled,
+    readOnly,
+    id: idProp,
+    ...rest
+  },
+  ref,
+) {
+  const autoId = useId()
+  const inputId = idProp ?? autoId
 
-    // 触发外部回调（可加节流）
-    const emitChange = useDebouncedCallback((val: string, e?: React.ChangeEvent<HTMLInputElement>) => {
-        onValueChange?.(val)
-        onChange?.(e as any)
-    }, changeDebounceMs)
-
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const val = e.target.value
-        if (!isControlled) setInner(val)
-        emitChange(val, e)
-    }
-
-    const handleClear = () => {
-        if (onClear) {
-            onClear()
-            return
-        }
-        if (!isControlled) setInner('')
-        const event = new Event('input', { bubbles: true })
-        if (inputRef.current) {
-            inputRef.current.value = ''
-            inputRef.current.dispatchEvent(event)
-        }
-        onValueChange?.('')
-    }
-
-    const inputType = type === 'password' && showPassword ? 'text' : type
-    const hasValue = currentValue.length > 0
-    const hasRightAction = loading || clearable || type === 'password' || rightIcon
-
-    const sizeTokens = sizeMap[size]
-
-    const countCurrent = useMemo(() => currentValue.length, [currentValue])
-    const countLimit = countMax ?? maxLength
-
-    const describedBy =
-        [
-            error ? errorId : null,
-            helperText ? helpId : null,
-            restProps['aria-describedby'] ?? null,
-        ]
-            .filter(Boolean)
-            .join(' ') || undefined
-
-    useEffect(() => {
-        return () => {}
-    }, [])
-
+  if (variant === 'wave') {
     return (
-        <div className={clsx('w-full', wrapperClassName)}>
-            {label && (
-                <motion.label
-                    htmlFor={inputId}
-                    initial={{ opacity: 0, y: -6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mb-1.5 block text-sm font-medium text-foreground"
-                >
-                    {label}
-                    {restProps.required && <span className="ml-0.5 text-destructive">*</span>}
-                </motion.label>
-            )}
-
-            <div className="relative">
-                {leftIcon && (
-                    <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                        {leftIcon}
-                    </div>
-                )}
-
-                <motion.input
-                    ref={inputRef}
-                    id={inputId}
-                    type={inputType}
-                    value={currentValue}
-                    onChange={handleChange}
-                    disabled={disabled || loading}
-                    readOnly={readOnly}
-                    aria-invalid={!!error || undefined}
-                    aria-describedby={describedBy}
-                    className={clsx(
-                        'input', // 若项目里已有 .input 基类，保留；否则可以仅用以下兜底样式
-                        'w-full rounded-md border bg-background text-foreground placeholder:text-muted-foreground',
-                        'border-input focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                        sizeTokens.px,
-                        sizeTokens.py,
-                        sizeTokens.text,
-                        leftIcon && 'pl-10',
-                        hasRightAction && 'pr-10',
-                        disabled && 'opacity-60 cursor-not-allowed',
-                        readOnly && 'opacity-90',
-                        error && 'border-destructive focus-visible:ring-destructive',
-                        inputClassName,
-                        className
-                    )}
-                    // 把剩余属性（已是 HTMLMotionProps<'input'>）传下去，避免 MotionProps 冲突
-                    {...(restProps as HTMLMotionProps<'input'>)}
-                />
-
-                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                    {loading && <Loader2 className={clsx('animate-spin text-neutral-400', sizeTokens.icon)} />}
-
-                    {clearable && hasValue && !readOnly && !disabled && (
-                        <motion.button
-                            type="button"
-                            aria-label="清空输入"
-                            initial={{ opacity: 0, scale: 0.8 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            whileHover={{ scale: 1.08 }}
-                            whileTap={{ scale: 0.95 }}
-                            onClick={handleClear}
-                            className="p-1 text-neutral-400 hover:text-neutral-600 transition-colors"
-                        >
-                            <X className="w-4 h-4" />
-                        </motion.button>
-                    )}
-
-                    {type === 'password' && !readOnly && (
-                        <motion.button
-                            type="button"
-                            aria-label={showPassword ? '隐藏密码' : '显示密码'}
-                            aria-pressed={showPassword}
-                            title={showPassword ? '隐藏密码' : '显示密码'}
-                            whileHover={{ scale: 1.08 }}
-                            whileTap={{ scale: 0.95 }}
-                            onClick={() => setShowPassword(v => !v)}
-                            className="p-1 text-neutral-400 hover:text-neutral-600 transition-colors"
-                        >
-                            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </motion.button>
-                    )}
-
-                    {!loading && type !== 'password' && !clearable && rightIcon && (
-                        <span className="text-neutral-400">{rightIcon}</span>
-                    )}
-                </div>
-            </div>
-
-            <div className="mt-1.5 flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                    {error ? (
-                        <motion.p
-                            id={errorId}
-                            initial={{ opacity: 0, y: -4 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="text-sm text-destructive"
-                        >
-                            {error}
-                        </motion.p>
-                    ) : helperText ? (
-                        <motion.p
-                            id={helpId}
-                            initial={{ opacity: 0, y: -4 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="text-sm text-muted-foreground"
-                        >
-                            {helperText}
-                        </motion.p>
-                    ) : null}
-                </div>
-
-                {showCount && (type === 'text' || type === 'search' || type === 'password') && (
-                    <div
-                        className={clsx(
-                            'text-xs tabular-nums',
-                            countLimit && countCurrent > (countLimit || 0)
-                                ? 'text-destructive'
-                                : 'text-muted-foreground'
-                        )}
-                        title="字符统计"
-                    >
-                        {countCurrent}
-                        {countLimit ? ` / ${countLimit}` : null}
-                    </div>
-                )}
-            </div>
-        </div>
+      <WaveInputField
+        id={inputId}
+        label={label}
+        block={block}
+        status={status}
+        className={className}
+        disabled={disabled}
+        readOnly={readOnly}
+        {...rest}
+      />
     )
+  }
+
+  const normalizedSize = normalizeSize(size)
+  const hasAffix = prefix || suffix || allowClear
+  const inputClassName = resolveInputClasses(variant, normalizedSize, status, !hasAffix && block)
+
+  if (hasAffix) {
+    return (
+      <div
+        className={cn(
+          sharedBase,
+          variantClassMap[variant],
+          sizeClassMap[normalizedSize],
+          status && statusClassMap[status],
+          block && 'w-full',
+          'flex items-center gap-1.5',
+          disabled && 'opacity-50 cursor-not-allowed',
+          className,
+        )}
+      >
+        {prefix && (
+          <span className="ui-input-prefix shrink-0 text-[hsl(var(--muted-foreground))] flex items-center">
+            {prefix}
+          </span>
+        )}
+        <ArcoInput
+          ref={ref}
+          id={inputId}
+          size={sizeToArcoSize[normalizedSize]}
+          className="flex-1 min-w-0 bg-transparent border-0 outline-none focus:ring-0 focus-visible:ring-0 p-0 h-auto"
+          disabled={disabled}
+          readOnly={readOnly}
+          {...rest}
+        />
+        {suffix && (
+          <span className="ui-input-suffix shrink-0 text-[hsl(var(--muted-foreground))] flex items-center text-xs">
+            {suffix}
+          </span>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <ArcoInput
+      ref={ref}
+      id={inputId}
+      size={sizeToArcoSize[normalizedSize]}
+      className={inputClassName}
+      disabled={disabled}
+      readOnly={readOnly}
+      allowClear={allowClear}
+      {...rest}
+    />
+  )
 })
 
-Input.displayName = 'Input'
+InputRoot.displayName = 'Input'
+
+const Password = forwardRef<any, InputProps>(function Password(
+  { size = 'md', variant = 'default', status, block = true, className, disabled, readOnly, ...rest },
+  ref,
+) {
+  const normalizedSize = normalizeSize(size)
+
+  return (
+    <div
+      className={cn(
+        sharedBase,
+        variantClassMap[variant === 'wave' ? 'default' : variant],
+        sizeClassMap[normalizedSize],
+        status && statusClassMap[status],
+        block && 'w-full',
+        'flex items-center gap-1.5',
+        disabled && 'opacity-50 cursor-not-allowed',
+        className,
+      )}
+    >
+      <ArcoInput.Password
+        ref={ref}
+        size={sizeToArcoSize[normalizedSize]}
+        className="flex-1 min-w-0"
+        disabled={disabled}
+        readOnly={readOnly}
+        {...rest}
+      />
+    </div>
+  )
+})
+
+Password.displayName = 'Input.Password'
+
+const TextArea = forwardRef<any, TextAreaProps>(function TextArea(
+  { size = 'md', variant = 'default', status, block = true, className, disabled, readOnly, ...rest },
+  ref,
+) {
+  const normalizedSize = normalizeSize(size)
+  const resolvedVariant = variant === 'wave' ? 'default' : variant
+
+  return (
+    <ArcoInput.TextArea
+      ref={ref}
+      className={cn(
+        'ui-input-base',
+        'rounded-md transition-colors duration-150',
+        'resize-none',
+        variantClassMap[resolvedVariant],
+        sizeClassMap[normalizedSize],
+        status && statusClassMap[status],
+        block && 'w-full',
+        'focus-visible:outline-none',
+        'disabled:opacity-50 disabled:cursor-not-allowed',
+        className,
+      )}
+      disabled={disabled}
+      readOnly={readOnly}
+      {...rest}
+    />
+  )
+})
+
+TextArea.displayName = 'Input.TextArea'
+
+const Search = forwardRef<any, InputProps & { onSearch?: (value: string) => void }>(function Search(
+  { size = 'md', variant = 'default', status, block = true, className, disabled, readOnly, ...rest },
+  ref,
+) {
+  const normalizedSize = normalizeSize(size)
+  const resolvedVariant = variant === 'wave' ? 'default' : variant
+
+  return (
+    <div
+      className={cn(
+        sharedBase,
+        variantClassMap[resolvedVariant],
+        sizeClassMap[normalizedSize],
+        status && statusClassMap[status],
+        block && 'w-full',
+        'flex items-center gap-1.5',
+        disabled && 'opacity-50 cursor-not-allowed',
+        className,
+      )}
+    >
+      <ArcoInput.Search
+        ref={ref}
+        size={sizeToArcoSize[normalizedSize]}
+        className="flex-1 min-w-0"
+        disabled={disabled}
+        readOnly={readOnly}
+        {...rest}
+      />
+    </div>
+  )
+})
+
+Search.displayName = 'Input.Search'
+
+type InputCompound = typeof InputRoot & {
+  Password: typeof Password
+  TextArea: typeof TextArea
+  Search: typeof Search
+}
+
+export const Input = InputRoot as InputCompound
+Input.Password = Password
+Input.TextArea = TextArea
+Input.Search = Search
 
 export default Input

@@ -1,238 +1,207 @@
-import {forwardRef} from 'react'
-import {motion} from 'framer-motion'
-import {Button as ArcoButton, ButtonProps as ArcoButtonProps} from '@arco-design/web-react'
-import {cn} from '@/utils/cn.ts'
-// @ts-ignore
-import {playClickSound, playHoverSound} from '@/utils/audioEffects.ts'
+import React, { forwardRef } from 'react'
+import { Button as ArcoButton } from '@arco-design/web-react'
+import type { ButtonProps as ArcoButtonProps } from '@arco-design/web-react'
+import { cn } from '@/utils/utils.ts'
 
-interface ButtonProps extends Omit<ArcoButtonProps, 'type' | 'size' | 'loading' | 'htmlType'> {
-    variant?: 'default' | 'primary' | 'secondary' | 'outline' | 'ghost' | 'destructive' | 'success' | 'warning'
-    size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'icon'
-    loading?: boolean
-    leftIcon?: React.ReactNode
-    rightIcon?: React.ReactNode
-    fullWidth?: boolean
-    animation?: 'none' | 'scale' | 'bounce' | 'pulse' | 'slide'
-    enableAudio?: boolean
-    htmlType?: 'button' | 'submit' | 'reset'
+export type ButtonVariant =
+  | 'primary'
+  | 'secondary'
+  | 'outline'
+  | 'ghost'
+  | 'destructive'
+  | 'success'
+  | 'warning'
+  | 'link'
+
+/** Primary size tokens — new code should prefer these. */
+export type ButtonSize = 'xs' | 'sm' | 'md' | 'lg' | 'icon'
+/** Arco-style size tokens — accepted for backward compatibility. */
+export type ArcoButtonSize = 'mini' | 'small' | 'default' | 'large'
+export type AnyButtonSize = ButtonSize | ArcoButtonSize
+
+/** Arco-style button type alias (backward compatible). */
+export type ArcoButtonType = 'primary' | 'secondary' | 'dashed' | 'outline' | 'text' | 'default'
+
+export interface ButtonProps extends Omit<ArcoButtonProps, 'size' | 'type' | 'htmlType' | 'icon' | 'status'> {
+  variant?: ButtonVariant
+  /** Arco alias for variant — e.g. type="primary" | "outline" | "text" */
+  type?: ArcoButtonType
+  size?: AnyButtonSize
+  block?: boolean
+  /** Arco alias for block */
+  long?: boolean
+  rounded?: 'none' | 'sm' | 'md' | 'lg' | 'full'
+  leftIcon?: React.ReactNode
+  rightIcon?: React.ReactNode
+  /** Arco alias for leftIcon */
+  icon?: React.ReactNode
+  /** Arco status — maps to semantic variants */
+  status?: 'danger' | 'warning' | 'success' | 'default'
+  children?: React.ReactNode
+  className?: string
+  htmlType?: 'button' | 'submit' | 'reset'
 }
 
-const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-    ({
-         className,
-         variant = 'default',
-         size = 'md',
-         loading = false,
-         leftIcon,
-         rightIcon,
-         fullWidth = false,
-         animation = 'scale',
-         enableAudio = true,
-         htmlType = 'button',
-         children,
-         disabled,
-         onClick,
-         onMouseEnter,
-         ...props
-     }, ref) => {
-        // 深紫色主题 RGB: (109, 40, 217)
-        const PURPLE_PRIMARY = '#6d28d9'
+const variantClassMap: Record<ButtonVariant, string> = {
+  primary:
+    'ui-btn-primary bg-[hsl(var(--primary))] text-white hover:bg-[hsl(var(--primary)/0.9)] active:bg-[hsl(var(--primary)/0.8)] shadow-[0_1px_2px_rgba(0,0,0,0.05)] hover:shadow-[0_4px_12px_hsl(var(--primary)/0.25)]',
+  secondary:
+    'ui-btn-secondary bg-[hsl(var(--secondary))] text-[hsl(var(--secondary-foreground))] hover:bg-[hsl(var(--secondary)/0.8)] border border-[hsl(var(--border))]',
+  outline:
+    'ui-btn-outline bg-transparent border border-[hsl(var(--border))] text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent)/0.4)] hover:border-[hsl(var(--primary)/0.4)]',
+  ghost:
+    'ui-btn-ghost bg-transparent text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent)/0.5)]',
+  destructive:
+    'ui-btn-destructive bg-[#ef4444] text-white hover:bg-[#dc2626] shadow-[0_1px_2px_rgba(239,68,68,0.15)] hover:shadow-[0_4px_12px_rgba(239,68,68,0.3)]',
+  success:
+    'ui-btn-success bg-[#10b981] text-white hover:bg-[#059669] shadow-[0_1px_2px_rgba(16,185,129,0.15)] hover:shadow-[0_4px_12px_rgba(16,185,129,0.3)]',
+  warning:
+    'ui-btn-warning bg-[#f59e0b] text-white hover:bg-[#d97706] shadow-[0_1px_2px_rgba(245,158,11,0.15)] hover:shadow-[0_4px_12px_rgba(245,158,11,0.3)]',
+  link: 'ui-btn-link bg-transparent text-[hsl(var(--primary))] hover:underline px-0 shadow-none',
+}
 
-        // 映射variant到Arco Design的type和自定义样式
-        const variantConfig: Record<string, { type: any, customStyle?: React.CSSProperties }> = {
-            default: { 
-                type: 'primary', 
-                customStyle: { 
-                    backgroundColor: PURPLE_PRIMARY,
-                    borderColor: PURPLE_PRIMARY,
-                    color: '#ffffff'
-                } 
-            },
-            primary: { 
-                type: 'primary', 
-                customStyle: { 
-                    backgroundColor: PURPLE_PRIMARY,
-                    borderColor: PURPLE_PRIMARY,
-                    color: '#ffffff'
-                } 
-            },
-            secondary: { type: 'secondary' },
-            outline: { type: 'outline' },
-            ghost: { type: 'text' },
-            destructive: { 
-                type: 'primary', 
-                customStyle: { 
-                    backgroundColor: '#dc2626',
-                    borderColor: '#dc2626',
-                    color: '#ffffff'
-                } 
-            },
-            success: { 
-                type: 'primary', 
-                customStyle: { 
-                    backgroundColor: '#16a34a',
-                    borderColor: '#16a34a',
-                    color: '#ffffff'
-                } 
-            },
-            warning: { 
-                type: 'primary', 
-                customStyle: { 
-                    backgroundColor: '#ea580c',
-                    borderColor: '#ea580c',
-                    color: '#ffffff'
-                } 
-            },
-        }
+const sizeClassMap: Record<ButtonSize, string> = {
+  xs: 'h-7 px-2.5 text-xs gap-1.5',
+  sm: 'h-8 px-3 text-xs gap-1.5',
+  md: 'h-10 px-4 text-sm gap-2',
+  lg: 'h-12 px-6 text-base gap-2.5',
+  icon: 'h-10 w-10 p-0',
+}
 
-        // 映射size到Arco Design的size
-        const sizeToArcoSize = {
-            xs: 'small',
-            sm: 'small',
-            md: 'middle',
-            lg: 'large',
-            xl: 'large',
-            icon: 'large',
-        }
+const roundedClassMap: Record<Exclude<ButtonProps['rounded'], undefined>, string> = {
+  none: 'rounded-none',
+  sm: 'rounded-sm',
+  md: 'rounded-md',
+  lg: 'rounded-lg',
+  full: 'rounded-full',
+}
 
-        const sizeClasses = {
-            xs: 'h-7 px-2 text-xs rounded-md min-w-fit',
-            sm: 'h-8 px-3 text-sm rounded-md min-w-fit',
-            md: 'h-9 px-4 text-sm rounded-lg min-w-fit',
-            lg: 'h-10 px-6 text-base rounded-lg min-w-fit',
-            xl: 'h-12 px-8 text-lg rounded-xl min-w-fit',
-            icon: 'h-9 w-9 rounded-lg',
-        }
+const variantToArcoType: Record<ButtonVariant, ArcoButtonProps['type']> = {
+  primary: 'text',
+  secondary: 'text',
+  outline: 'text',
+  ghost: 'text',
+  destructive: 'text',
+  success: 'text',
+  warning: 'text',
+  link: 'text',
+}
 
-        const iconSizeClasses = {
-            xs: 'w-3 h-3',
-            sm: 'w-3.5 h-3.5',
-            md: 'w-4 h-4',
-            lg: 'w-5 h-5',
-            xl: 'w-6 h-6',
-            icon: 'w-4 h-4',
-        }
+const sizeToArcoSize: Record<ButtonSize, ArcoButtonProps['size']> = {
+  xs: 'mini',
+  sm: 'small',
+  md: 'default',
+  lg: 'large',
+  icon: 'default',
+}
 
-        const animationVariants = {
-            none: {},
-            scale: {
-                hover: {scale: 1.05},
-                tap: {scale: 0.95}
-            },
-            bounce: {
-                hover: {
-                    scale: 1.05,
-                    transition: {type: "spring", stiffness: 400, damping: 10}
-                },
-                tap: {scale: 0.95}
-            },
-            pulse: {
-                hover: {
-                    scale: 1.05,
-                    boxShadow: "0 0 0 8px rgba(59, 130, 246, 0.1)"
-                },
-                tap: {scale: 0.95}
-            },
-            slide: {
-                hover: {
-                    x: 2,
-                    scale: 1.02
-                },
-                tap: {x: 0, scale: 0.98}
-            }
-        }
+/** Normalize Arco-style size tokens (e.g. "small" | "mini" | "default" | "large") to internal ButtonSize. */
+function normalizeSize(size: AnyButtonSize): ButtonSize {
+  switch (size) {
+    case 'mini':
+      return 'xs'
+    case 'small':
+      return 'sm'
+    case 'default':
+      return 'md'
+    case 'large':
+      return 'lg'
+    default:
+      return size as ButtonSize
+  }
+}
 
-        const iconSize = iconSizeClasses[size]
-        const config = variantConfig[variant]
-        const arcoSize = sizeToArcoSize[size]
+function resolveVariant(props: ButtonProps): ButtonVariant {
+  const { variant, type, status } = props
+  if (variant) return variant
+  if (status === 'danger') return 'destructive'
+  if (status === 'warning') return 'warning'
+  if (status === 'success') return 'success'
+  switch (type) {
+    case 'primary':
+      return 'primary'
+    case 'secondary':
+    case 'default':
+      return 'secondary'
+    case 'outline':
+    case 'dashed':
+      return 'outline'
+    case 'text':
+      return 'ghost'
+    default:
+      return 'primary'
+  }
+}
 
-        const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
-            if (enableAudio && !disabled && !loading) {
-                playClickSound()
-            }
-            onClick?.(e as any)
-        }
+export const Button = forwardRef<HTMLElement, ButtonProps>(function Button(
+  {
+    variant: variantProp,
+    type,
+    size = 'md',
+    block = false,
+    long,
+    rounded = 'md',
+    leftIcon,
+    rightIcon,
+    icon,
+    status,
+    children,
+    className,
+    disabled,
+    loading,
+    htmlType = 'button',
+    ...rest
+  },
+  ref,
+) {
+  const variant = resolveVariant({ variant: variantProp, type, status })
+  const normalizedSize = normalizeSize(size ?? 'md')
+  const isBlock = block || long
+  const resolvedLeftIcon = leftIcon ?? icon
+  const isLink = variant === 'link'
+  const iconSize = normalizedSize === 'lg' ? 18 : normalizedSize === 'xs' || normalizedSize === 'sm' ? 14 : 16
 
-        const handleMouseEnter = (e: React.MouseEvent<HTMLButtonElement>) => {
-            if (enableAudio && !disabled && !loading) {
-                playHoverSound()
-            }
-            onMouseEnter?.(e as any)
-        }
+  const baseClasses = cn(
+    'ui-btn inline-flex flex-row items-center justify-center font-medium tracking-tight select-none',
+    'transition-all duration-200 ease-out',
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--primary)/0.4)] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--background))]',
+    'disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none',
+    'active:scale-[0.98]',
+    variantClassMap[variant],
+    sizeClassMap[normalizedSize],
+    rounded !== undefined && roundedClassMap[rounded],
+    isBlock && 'w-full',
+    isLink && 'h-auto py-1',
+    className,
+  )
 
-        return (
-            <motion.div
-                variants={animationVariants[animation]}
-                whileHover={disabled || loading ? {} : (animationVariants[animation] as any).hover}
-                whileTap={disabled || loading ? {} : (animationVariants[animation] as any).tap}
-                transition={{duration: 0.2, ease: "easeOut"}}
-                className={cn(fullWidth && 'w-full')}
-            >
-                <ArcoButton
-                    ref={ref}
-                    type={config.type}
-                    htmlType={htmlType}
-                    size={arcoSize as any}
-                    loading={loading}
-                    disabled={disabled || loading}
-                    style={config.customStyle || {}}
-                    className={cn(
-                        sizeClasses[size],
-                        fullWidth && 'w-full',
-                        className
-                    )}
-                    onClick={handleClick}
-                    onMouseEnter={handleMouseEnter}
-                    {...(props as any)}
-                >
-                    <motion.div
-                        className="absolute inset-0 rounded-inherit"
-                        initial={{scale: 0, opacity: 0}}
-                        whileTap={{scale: 1, opacity: 1}}
-                        transition={{duration: 0.3}}
-                        style={{backgroundColor: 'rgba(255, 255, 255, 0.1)'}}
-                    />
+  const renderIcon = (node: React.ReactNode) => {
+    if (!node) return null
+    return (
+      <span className="ui-btn-icon inline-flex items-center justify-center" style={{ fontSize: iconSize }}>
+        {node}
+      </span>
+    )
+  }
 
-                    <div
-                        className={cn(
-                            'relative z-[1] flex min-w-0 flex-row flex-nowrap items-center justify-center gap-2',
-                            fullWidth && 'w-full min-w-0'
-                        )}
-                    >
-                        {!loading && leftIcon && (
-                            <motion.span
-                                className={cn('inline-flex flex-shrink-0 items-center justify-center', iconSize)}
-                                whileHover={{scale: 1.1}}
-                                transition={{duration: 0.2}}
-                            >
-                                {leftIcon}
-                            </motion.span>
-                        )}
-                        {children != null && children !== false && (
-                            <motion.span
-                                className="inline-flex min-w-0 max-w-full flex-row flex-nowrap items-center justify-center gap-1.5 whitespace-nowrap [&_svg]:shrink-0"
-                                initial={{opacity: 0, y: 10}}
-                                animate={{opacity: 1, y: 0}}
-                                transition={{duration: 0.3, delay: 0.1}}
-                            >
-                                {children}
-                            </motion.span>
-                        )}
-                        {!loading && rightIcon && (
-                            <motion.span
-                                className={cn('inline-flex flex-shrink-0 items-center justify-center', iconSize)}
-                                whileHover={{scale: 1.1, x: 2}}
-                                transition={{duration: 0.2}}
-                            >
-                                {rightIcon}
-                            </motion.span>
-                        )}
-                    </div>
-                </ArcoButton>
-            </motion.div>
-        )
-    }
-)
+  return (
+    <ArcoButton
+      ref={ref}
+      type={variantToArcoType[variant]}
+      size={sizeToArcoSize[normalizedSize]}
+      htmlType={htmlType}
+      disabled={disabled}
+      loading={loading}
+      long={isBlock}
+      className={baseClasses}
+      {...rest}
+    >
+      {loading ? null : renderIcon(resolvedLeftIcon)}
+      {children && <span className="ui-btn-label">{children}</span>}
+      {loading ? null : renderIcon(rightIcon)}
+    </ArcoButton>
+  )
+})
 
 Button.displayName = 'Button'
 

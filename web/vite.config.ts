@@ -4,7 +4,9 @@ import path from 'path'
 
 export default defineConfig({
   plugins: [react()],
+  base: '/',
   resolve: {
+    dedupe: ['react', 'react-dom'],
     alias: {
       '@': path.resolve(__dirname, './src'),
     },
@@ -13,25 +15,52 @@ export default defineConfig({
     port: 3000,
     open: true,
     host: true, // 允许外部访问
+    hmr: {
+      port: 3001, // 使用不同的端口用于HMR
+    },
+    // 开发态：浏览器打同域 /api，由 Vite 反代到本地后端（避免 CORS）
+    // 配合 VITE_API_BASE_URL=/api；WebSocket（/api/ws、voice-session 等）一并转发
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:7072',
+        target: 'http://127.0.0.1:9003',
         changeOrigin: true,
+        ws: true,
+        configure: (proxy) => {
+          // http-proxy 默认对 ECONNREFUSED 回 500；网关语义应是 502 Bad Gateway
+          proxy.on('error', (err, _req, res) => {
+            console.error('[vite proxy /api]', err.message)
+            if (res && 'writeHead' in res && typeof res.writeHead === 'function' && !res.headersSent) {
+              res.writeHead(502, { 'Content-Type': 'application/json; charset=utf-8' })
+              res.end(
+                JSON.stringify({
+                  code: 502,
+                  msg: 'Bad Gateway: backend unreachable (is the API server running on :9003?)',
+                  data: null,
+                }),
+              )
+            }
+          })
+        },
       },
-    },
-    watch: {
-      // 启用文件系统监听
-      usePolling: false, // 在 macOS 上通常不需要轮询
-      interval: 100, // 轮询间隔（如果启用轮询）
-    },
-    hmr: {
-      // HMR 配置 - 确保实时更新正常工作
-      overlay: true, // 显示错误覆盖层
-    },
-    // 确保文件更改时立即重新加载
-    fs: {
-      // 允许访问工作区根目录之外的文件
-      strict: false,
+      '/uploads': {
+        target: 'http://127.0.0.1:9003',
+        changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('error', (err, _req, res) => {
+            console.error('[vite proxy /uploads]', err.message)
+            if (res && 'writeHead' in res && typeof res.writeHead === 'function' && !res.headersSent) {
+              res.writeHead(502, { 'Content-Type': 'application/json; charset=utf-8' })
+              res.end(
+                JSON.stringify({
+                  code: 502,
+                  msg: 'Bad Gateway: backend unreachable',
+                  data: null,
+                }),
+              )
+            }
+          })
+        },
+      },
     },
   },
   build: {
@@ -40,39 +69,31 @@ export default defineConfig({
     minify: 'terser',
     terserOptions: {
       compress: {
-        drop_console: true, // 移除console
-        drop_debugger: true, // 移除debugger
+        drop_console: true,
+        drop_debugger: true,
       },
     },
     rollupOptions: {
       output: {
         manualChunks: {
-          // 将第三方库分离到单独的chunk
           vendor: ['react', 'react-dom'],
-          ui: ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-tabs'],
-          motion: ['framer-motion'],
+          arco: ['@arco-design/web-react'],
           router: ['react-router-dom'],
           utils: ['zustand', 'clsx', 'tailwind-merge'],
-          // 将Monaco Editor单独打包，实现按需加载
-          monaco: ['@monaco-editor/react', 'monaco-editor'],
         },
       },
     },
-    // 启用gzip压缩
     reportCompressedSize: true,
-    // 设置chunk大小警告限制
     chunkSizeWarningLimit: 1000,
   },
-  // 优化依赖预构建
   optimizeDeps: {
     include: [
       'react',
       'react-dom',
-      'framer-motion',
+      '@arco-design/web-react',
       'react-router-dom',
       'zustand',
-      'monaco-editor',
-      '@monaco-editor/react',
+      'echarts',
     ],
   },
 })
