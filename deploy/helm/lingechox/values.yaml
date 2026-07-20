@@ -1,0 +1,30 @@
+replicaCount: 1
+
+image:
+  repository: soulnexus
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 80
+
+secrets:
+  sessionSecret: ""
+  platformAdminPassword: ""
+
+env:
+  MODE: production
+  ADDR: ":7072"
+  DB_DRIVER: sqlite
+  DSN: /data/ling.db
+  LINGECHO_AUTO_INIT: "true"
+  LINGECHO_SEED: "auto"
+
+persistence:
+  enabled: true
+  size: 20Gi
+  storageClass: ""
+
+resources: {}

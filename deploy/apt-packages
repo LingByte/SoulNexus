@@ -1,0 +1,19 @@
+# SoulNexus Debian packages for Docker — keep in sync with docs/deployment.md.
+# Dockerfile 按 # BUILD / # RUNTIME 分段安装，避免重复维护两份列表。
+
+# BUILD — go-builder（CGO / pkg-config）
+pkg-config
+gcc
+libc6-dev
+git
+ca-certificates
+libopus-dev
+libopusfile-dev
+
+# RUNTIME — 最终运行镜像
+ca-certificates
+nginx
+tini
+wget
+libopus0
+libopusfile0

@@ -1,0 +1,36 @@
+# SoulNexus Prometheus alert rules (Alertmanager / Prometheus Operator).
+# Import into your Prometheus `rule_files` or PrometheusRule CRD.
+groups:
+  - name: soulnexus
+    rules:
+      - alert: SoulNexusHighHTTP5xx
+        expr: |
+          sum(rate(http_requests_total{status=~"5.."}[5m]))
+            /
+          sum(rate(http_requests_total[5m])) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High HTTP 5xx ratio on SoulNexus"
+          description: "5xx rate > 5% for 10m. Check /readyz, logs, and LLM upstreams."
+          runbook: "deploy/runbooks/http-5xx.md"
+
+      - alert: SoulNexusInstanceDown
+        expr: up{job="soulnexus"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "SoulNexus scrape target down"
+          description: "Prometheus cannot scrape the instance. Check process, /healthz, and network."
+
+      - alert: SoulNexusHighLatency
+        expr: |
+          histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 5
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SoulNexus p99 latency high"
+          description: "HTTP p99 > 5s for 15m. Check DB, LLM providers, and circuit breaker metrics."

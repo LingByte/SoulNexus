@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "soulnexus.fullname" . }}
+  labels:
+    app.kubernetes.io/name: soulnexus
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: soulnexus
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: soulnexus
+    spec:
+      containers:
+        - name: lingecho
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+          env:
+            - name: MODE
+              value: {{ .Values.env.MODE | quote }}
+            - name: ADDR
+              value: {{ .Values.env.ADDR | quote }}
+            - name: DB_DRIVER
+              value: {{ .Values.env.DB_DRIVER | quote }}
+            - name: DSN
+              value: {{ .Values.env.DSN | quote }}
+            - name: LINGECHO_AUTO_INIT
+              value: {{ .Values.env.LINGECHO_AUTO_INIT | quote }}
+            - name: LINGECHO_SEED
+              value: {{ .Values.env.LINGECHO_SEED | quote }}
+            - name: SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "soulnexus.fullname" . }}-secrets
+                  key: sessionSecret
+            - name: PLATFORM_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "soulnexus.fullname" . }}-secrets
+                  key: platformAdminPassword
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 20
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "soulnexus.fullname" . }}-data
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
