@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react'
 import { Terminal as TerminalIcon, X, Copy, Trash2 } from 'lucide-react'
-import Button from '@/components/UI/Button'
+import { Button } from '@/components/ui'
 import { motion, AnimatePresence } from 'framer-motion'
 
 export interface TerminalLog {
@@ -16,9 +16,21 @@ interface TerminalProps {
   isVisible: boolean
   onClose: () => void
   onClear: () => void
+  /** 避开左侧 Sidebar 的偏移（px） */
+  leftOffset?: number
+  title?: string
+  waitingText?: string
 }
 
-const Terminal: React.FC<TerminalProps> = ({ logs, isVisible, onClose, onClear }) => {
+const Terminal: React.FC<TerminalProps> = ({
+  logs,
+  isVisible,
+  onClose,
+  onClear,
+  leftOffset = 0,
+  title = '工作流执行终端',
+  waitingText = '等待工作流执行...',
+}) => {
   const terminalRef = useRef<HTMLDivElement>(null)
   const endRef = useRef<HTMLDivElement>(null)
 
@@ -84,14 +96,14 @@ const Terminal: React.FC<TerminalProps> = ({ logs, isVisible, onClose, onClear }
           animate={{ y: 0 }}
           exit={{ y: '100%' }}
           transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-          className="fixed bottom-0 left-0 right-0 z-50 bg-gray-900 border-t border-gray-700 shadow-2xl"
-          style={{ height: '40vh', maxHeight: '500px' }}
+          className="fixed bottom-0 right-0 z-[200] border-t border-gray-700 bg-gray-900 shadow-2xl"
+          style={{ height: '40vh', maxHeight: '500px', left: leftOffset }}
         >
           {/* Terminal Header */}
           <div className="flex items-center justify-between px-4 py-2 bg-gray-800 border-b border-gray-700">
             <div className="flex items-center gap-2">
               <TerminalIcon className="w-4 h-4 text-green-400" />
-              <span className="text-sm font-medium text-gray-200">工作流执行终端</span>
+              <span className="text-sm font-medium text-gray-200">{title}</span>
               <span className="text-xs text-gray-400">({logs.length} 条日志)</span>
             </div>
             <div className="flex items-center gap-2">
@@ -130,7 +142,7 @@ const Terminal: React.FC<TerminalProps> = ({ logs, isVisible, onClose, onClear }
           >
             {logs.length === 0 ? (
               <div className="text-gray-500 text-center py-8">
-                等待工作流执行...
+                {waitingText}
               </div>
             ) : (
               <div className="space-y-1">
