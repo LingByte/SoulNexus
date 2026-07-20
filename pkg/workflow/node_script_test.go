@@ -46,7 +46,8 @@ func Run(inputs map[string]interface{}) (map[string]interface{}, error) {
 	}
 
 	// 检查是否没有外部库导入
-	if strings.Contains(wrapped, "github.com/LingByte/SoulNexus/pkg/workflow/libs") {
+	if strings.Contains(wrapped, "github.com/LingByte/SoulNexus/pkg/workflow/libs") ||
+		strings.Contains(wrapped, "github.com/LingByte/SoulNexus/pkg/workflow/libs") {
 		t.Error("wrapped script should NOT contain external libs import")
 	}
 

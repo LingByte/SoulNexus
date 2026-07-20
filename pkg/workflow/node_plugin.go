@@ -4,7 +4,6 @@ package workflow
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
-	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -13,15 +12,14 @@ import (
 	"os/exec"
 	"strings"
 	"time"
-
 )
 
 // PluginNode 插件节点
 type PluginNode struct {
 	Node
-	Plugin  *svcmodels.NodePlugin       // 插件定义
-	Config  map[string]interface{}   // 用户配置
-	Runtime svcmodels.NodePluginRuntime // 运行时配置
+	Plugin  *NodePlugin            // 插件定义
+	Config  map[string]interface{} // 用户配置
+	Runtime NodePluginRuntime      // 运行时配置
 }
 
 func (p *PluginNode) Base() *Node {
@@ -130,8 +128,28 @@ if __name__ == "__main__":
 		cmd = exec.Command("python3", "-c", fullScript)
 
 	case "go":
-		// Go脚本需要特殊处理，这里简化实现
-		return nil, fmt.Errorf("Go脚本执行暂未实现")
+		ctx.AddLog("info", "执行Go脚本", p.ID, p.Name)
+		timeout := time.Duration(p.Runtime.Timeout) * time.Second
+		if timeout <= 0 {
+			timeout = 30 * time.Second
+		}
+		done := make(chan struct {
+			out map[string]interface{}
+			err error
+		}, 1)
+		go func() {
+			out, err := defaultGoScriptRuntime(ctx, script, inputs)
+			done <- struct {
+				out map[string]interface{}
+				err error
+			}{out, err}
+		}()
+		select {
+		case r := <-done:
+			return r.out, r.err
+		case <-time.After(timeout):
+			return nil, fmt.Errorf("脚本执行超时")
+		}
 
 	default:
 		return nil, fmt.Errorf("不支持的脚本语言: %s", language)

@@ -27,8 +27,9 @@ type WorkflowContext struct {
 	NodeStatus  map[string]NodeStatus  // all node status
 	History     []NodeExecutionRecord  // execution history
 	Logs        []ExecutionLog         // execution logs for frontend display
-	LogSender   LogSender              // optional log sender for real-time streaming
-	db          *gorm.DB               // database connection
+	LogSender         LogSender              // optional log sender for real-time streaming
+	KnowledgeRecaller KnowledgeRecaller      // optional knowledge base recall
+	db                *gorm.DB               // database connection
 }
 
 // ExecutionLog represents a log entry for frontend terminal display

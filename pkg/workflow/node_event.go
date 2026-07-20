@@ -5,6 +5,7 @@ package workflow
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/LingByte/SoulNexus/pkg/events"
@@ -128,16 +129,27 @@ func (e *EventNode) Run(ctx *WorkflowContext) ([]string, error) {
 			return nil, fmt.Errorf("event type is required for wait mode")
 		}
 
+		timeout := time.Duration(0)
+		if e.Properties != nil {
+			if secStr, ok := e.Properties["timeoutSec"]; ok {
+				if sec, err := parsePositiveSeconds(secStr); err == nil && sec > 0 {
+					timeout = time.Duration(sec) * time.Second
+				}
+			}
+		}
+
 		if ctx != nil {
 			ctx.AddLog("info", fmt.Sprintf("Waiting for event: %s", e.EventType), e.ID, e.Name)
-			ctx.AddLog("warning", "Event waiting is not fully implemented. Workflow will continue immediately.", e.ID, e.Name)
+			if timeout > 0 {
+				ctx.AddLog("info", fmt.Sprintf("Event wait sleeps %s then continues (durable suspend/resume not implemented)", timeout), e.ID, e.Name)
+				time.Sleep(timeout)
+			} else {
+				ctx.AddLog("warning", "Event wait is a safe no-op: workflow continues immediately (set timeoutSec for a local delay; durable wait needs a shared event bus).", e.ID, e.Name)
+			}
+		} else if timeout > 0 {
+			time.Sleep(timeout)
 		}
-		// TODO: Implement actual event waiting mechanism
-		// This would require:
-		// 1. Registering a handler for the event type
-		// 2. Suspending workflow execution
-		// 3. Resuming when event is received
-		// For now, just log and continue
+		// Durable wait requires workflow suspension + shared event bus; see docs/distributed.md.
 
 	default:
 		// Legacy behavior: just trigger
@@ -147,4 +159,12 @@ func (e *EventNode) Run(ctx *WorkflowContext) ([]string, error) {
 	}
 
 	return e.NextNodes, nil
+}
+
+func parsePositiveSeconds(s string) (int, error) {
+	n, err := strconv.Atoi(s)
+	if err != nil || n <= 0 {
+		return 0, fmt.Errorf("invalid timeoutSec")
+	}
+	return n, nil
 }

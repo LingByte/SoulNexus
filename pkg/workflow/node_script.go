@@ -48,7 +48,7 @@ func (s *ScriptNode) ExecuteScript(ctx *WorkflowContext, inputs map[string]inter
 		if ctx != nil {
 			ctx.AddLog("error", errMsg, s.ID, s.Name)
 		}
-		return nil, fmt.Errorf(errMsg)
+		return nil, fmt.Errorf("%s", errMsg)
 	}
 
 	runtime := s.Runtime

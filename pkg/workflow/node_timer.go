@@ -4,6 +4,8 @@ package workflow
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"fmt"
+	"strconv"
 	"time"
 )
 
@@ -19,29 +21,42 @@ func (t *TimerNode) Base() *Node {
 }
 
 func (t *TimerNode) Run(ctx *WorkflowContext) ([]string, error) {
-	// 如果没有设置延迟时间，使用默认值1秒
 	delay := t.Delay
 	if delay <= 0 {
 		delay = 1 * time.Second
 	}
 
-	// 添加日志
 	ctx.AddLog("info", "定时器节点开始执行", t.ID, t.Name)
 	ctx.AddLog("info", "延迟时间: "+delay.String(), t.ID, t.Name)
 
-	// 执行延迟
-	time.Sleep(delay)
-
-	// 添加完成日志
-	ctx.AddLog("success", "定时器延迟完成", t.ID, t.Name)
-
-	// 如果设置了重复执行，这里可以添加重复逻辑
-	// 目前简单实现为单次延迟
+	fires := 1
 	if t.Repeat {
-		ctx.AddLog("info", "定时器设置为重复执行（当前版本仅执行一次）", t.ID, t.Name)
-		// TODO: 实现重复执行逻辑
-		// 这需要更复杂的调度机制
+		fires = 2
+		if t.Properties != nil {
+			if nStr, ok := t.Properties["repeatCount"]; ok {
+				if n, err := parsePositiveInt(nStr); err == nil && n > 0 && n <= 10 {
+					fires = n
+				}
+			}
+		}
+		ctx.AddLog("info", fmt.Sprintf("定时器重复执行 %d 次（进程内同步；跨副本需持久化调度，见 docs/distributed.md）", fires), t.ID, t.Name)
 	}
 
+	for i := 0; i < fires; i++ {
+		if i > 0 {
+			ctx.AddLog("info", fmt.Sprintf("定时器重复触发 #%d", i+1), t.ID, t.Name)
+		}
+		time.Sleep(delay)
+	}
+
+	ctx.AddLog("success", "定时器延迟完成", t.ID, t.Name)
 	return t.NextNodes, nil
+}
+
+func parsePositiveInt(s string) (int, error) {
+	n, err := strconv.Atoi(s)
+	if err != nil || n <= 0 {
+		return 0, fmt.Errorf("invalid positive int")
+	}
+	return n, nil
 }

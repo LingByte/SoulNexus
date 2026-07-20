@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/LingByte/SoulNexus/pkg/llm"
+	"github.com/LingByte/SoulNexus/pkg/dialog/providers"
 )
 
 // AIChatNode 代表工作流中的AI对话节点
@@ -92,8 +92,7 @@ func (a *AIChatNode) executeAIChat(ctx *WorkflowContext, inputs map[string]inter
 		return nil, fmt.Errorf("input variable '%s' not found or empty", a.Config.InputVariable)
 	}
 
-	// 创建LLM提供者
-	provider, err := llm.NewLLMProvider(
+	provider, err := providers.NewChatLLM(
 		context.Background(),
 		a.Config.Provider,
 		a.Config.APIKey,
@@ -105,27 +104,22 @@ func (a *AIChatNode) executeAIChat(ctx *WorkflowContext, inputs map[string]inter
 	}
 	defer provider.Hangup()
 
-	// 构建查询选项
-	options := llm.QueryOptions{
+	options := providers.LLMQueryOptions{
 		Model: a.Config.Model,
 	}
-
 	if a.Config.Temperature != nil {
-		options.Temperature = float32(*a.Config.Temperature)
+		temp := float32(*a.Config.Temperature)
+		options.Temperature = &temp
 	}
-
 	if a.Config.MaxTokens != nil {
-		options.MaxTokens = *a.Config.MaxTokens
+		options.MaxTokens = a.Config.MaxTokens
 	}
 
-	// 执行查询
 	var response string
 	if a.Config.EnableStream {
-		// 流式输出
 		var fullResponse strings.Builder
-		_, err = provider.QueryStream(userInput, &options, func(segment string, isComplete bool) error {
+		_, err = provider.QueryStream(userInput, options, func(segment string, isComplete bool) error {
 			fullResponse.WriteString(segment)
-			// 可以在这里添加流式处理的日志
 			ctx.AddLog("info", fmt.Sprintf("Stream segment: %s", segment), a.ID, a.Name)
 			return nil
 		})
@@ -134,14 +128,9 @@ func (a *AIChatNode) executeAIChat(ctx *WorkflowContext, inputs map[string]inter
 		}
 		response = fullResponse.String()
 	} else {
-		// 非流式输出
-		resp, err2 := provider.QueryWithOptions(userInput, &options)
-		err = err2
+		response, err = provider.QueryWithOptions(userInput, options)
 		if err != nil {
 			return nil, fmt.Errorf("query LLM failed: %w", err)
-		}
-		if resp != nil && len(resp.Choices) > 0 {
-			response = resp.Choices[0].Content
 		}
 	}
 

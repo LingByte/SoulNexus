@@ -21,6 +21,7 @@ const (
 	NodeTypePlugin         NodeType = "plugin"
 	NodeTypeWorkflowPlugin NodeType = "workflow_plugin"
 	NodeTypeAIChat         NodeType = "ai_chat"
+	NodeTypeKnowledgeBase  NodeType = "knowledge_base"
 )
 
 func (nt NodeType) String() string {
