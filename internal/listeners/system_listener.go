@@ -4,14 +4,15 @@ package listeners
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
-	"github.com/LingByte/SoulNexus/internal/models"
-
 	"crypto/tls"
 	"sync"
 
 	"github.com/LingByte/SoulNexus/internal/config"
+	"github.com/LingByte/SoulNexus/internal/constants"
 	"github.com/LingByte/SoulNexus/pkg/logger"
+	acmeutil "github.com/LingByte/SoulNexus/pkg/tlsutil/acme"
 	"github.com/LingByte/SoulNexus/pkg/utils"
+	"github.com/LingByte/SoulNexus/pkg/utils/system"
 	"go.uber.org/zap"
 )
 
@@ -25,14 +26,13 @@ var (
 // InitSystemListeners initializes system listeners
 func InitSystemListeners() {
 	// Connect system initialization signal
-	utils.Sig().Connect(models.SigInitSystemConfig, func(sender any, params ...any) {
+	utils.Sig().Connect(constants.SigInitSystemConfig, func(sender any, params ...any) {
 		// Load SSL certificates
 		loadSSLCertificates()
 	})
-	InitAgentListener()
-	InitUserListeners()
 	// InitLLMListener is initialized in main.go (requires database connection)
 	logger.Info("system module listener is already")
+	utils.Sig().Emit(constants.SigInitSystemConfig, nil)
 }
 
 // loadSSLCertificates loads SSL certificates
@@ -57,6 +57,7 @@ func loadSSLCertificates() {
 		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
 		if err != nil {
 			sslCertErr = err
+			system.IncSSLCertLoadFail()
 			logger.Error("Failed to load SSL certificates",
 				zap.String("certFile", certFile),
 				zap.String("keyFile", keyFile),
@@ -79,40 +80,20 @@ func GetSSLCertificate() (tls.Certificate, error) {
 	return sslCert, nil
 }
 
-// IsSSLEnabled checks if SSL is enabled and certificates are loaded
+// IsSSLEnabled checks if SSL is enabled via ACME or loaded file certificates.
 func IsSSLEnabled() bool {
+	if acmeutil.Enabled() {
+		return true
+	}
 	return config.GlobalConfig.Server.SSLEnabled && sslCertErr == nil
 }
 
-// StopAll stops all registered signal listeners.
-func StopAll() {
-	// Clear common signal channels that listeners subscribe to.
-	// The signal system's Clear() removes all handlers for the given event names.
-	utils.Sig().Clear(
-		"LLMUsage",
-		"llm.request.start",
-		"llm.request.end",
-		"llm.request.error",
-		"session.created",
-		"session.updated",
-		"session.deleted",
-		"message.created",
-		"message.updated",
-		"message.deleted",
-		"billing.usage",
-		"billing.charge",
-		"agent.created",
-		"agent.updated",
-		"agent.deleted",
-		"user.created",
-		"user.updated",
-		"user.deleted",
-	)
-	logger.Info("all system listeners stopped")
-}
-
-// GetTLSConfig gets TLS configuration
+// GetTLSConfig gets TLS configuration (ACME Let's Encrypt when SSL_ACME_DOMAINS set, else file certs).
 func GetTLSConfig() (*tls.Config, error) {
+	if cfg := acmeutil.TLSConfig(); cfg != nil {
+		logger.Info("using ACME TLS (Let's Encrypt)", zap.Strings("domains", acmeutil.Domains()))
+		return cfg, nil
+	}
 	if !IsSSLEnabled() {
 		return nil, nil
 	}
@@ -125,7 +106,6 @@ func GetTLSConfig() (*tls.Config, error) {
 	return &tls.Config{
 		Certificates: []tls.Certificate{cert},
 		MinVersion:   tls.VersionTLS12,
-		// Recommended TLS configuration
 		CipherSuites: []uint16{
 			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
 			tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,

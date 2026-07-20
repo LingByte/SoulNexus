@@ -42,7 +42,9 @@ func TestResetSSLGlobals(t *testing.T) {
 
 	// Verify the globals are reset
 	assert.Equal(t, tls.Certificate{}, sslCert)
-	assert.NotNil(t, sslCertOnce)
+	// Pass &sslCertOnce so go vet -copylocks doesn't flag a sync.Once copy
+	// when assert.NotNil reflects over the value.
+	assert.NotNil(t, &sslCertOnce)
 	assert.Nil(t, sslCertErr)
 }
 

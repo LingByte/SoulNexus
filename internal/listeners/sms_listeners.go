@@ -4,12 +4,12 @@
 package listeners
 
 import (
-	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 
+	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/notification/sms"
 	"gorm.io/gorm"
 )
@@ -19,20 +19,15 @@ type smsChannelEnvelope struct {
 	Config   map[string]any `json:"config"`
 }
 
-// EnabledSMSChannels 返回指定 OrgID 启用的短信渠道（按 sort_order 升序）。
-// orgID == 0 时取系统级渠道。
-func EnabledSMSChannels(db *gorm.DB, orgID uint) ([]sms.SenderChannel, error) {
+// EnabledSMSChannels returns all enabled SMS channels (system-global).
+func EnabledSMSChannels(db *gorm.DB) ([]sms.SenderChannel, error) {
 	if db == nil {
 		return nil, errors.New("nil db")
 	}
-	var rows []svcmodels.NotificationChannel
-	q := db.Where("type = ? AND enabled = ?", svcmodels.NotificationChannelTypeSMS, true)
-	if orgID > 0 {
-		q = q.Where("org_id = ?", orgID)
-	} else {
-		q = q.Where("org_id = ?", 0)
-	}
-	if err := q.Order("sort_order ASC, id ASC").Find(&rows).Error; err != nil {
+	var rows []models.NotificationChannel
+	if err := db.Where("type = ? AND enabled = ?", models.NotificationChannelTypeSMS, true).
+		Order("sort_order ASC, id ASC").
+		Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	out := make([]sms.SenderChannel, 0, len(rows))
@@ -56,7 +51,7 @@ func EnabledSMSChannels(db *gorm.DB, orgID uint) ([]sms.SenderChannel, error) {
 		out = append(out, sms.SenderChannel{Label: row.Name, Provider: p})
 	}
 	if len(out) == 0 {
-		return nil, fmt.Errorf("no enabled sms channels for org %d", orgID)
+		return nil, fmt.Errorf("no enabled sms channels")
 	}
 	return out, nil
 }
