@@ -1,65 +1,52 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosResponse } from 'axios'
 import { useAuthStore } from '../stores/authStore'
-import {
-  getAccountDeletionRevokePageURL,
-  getApiBaseURL,
-  isAccountDeletionRevokeStandalonePage,
-} from '../config/apiConfig'
-
-// 获取API基础URL
-const getApiBaseUrl = () => {
-  return getApiBaseURL()
-}
+import { syncAuthToken } from '@/utils/authToken'
+import { useLocaleStore } from '../stores/localeStore'
+import { getApiBaseURL } from '../config/apiConfig'
+import { getOrCreateDeviceId } from '@/utils/deviceId'
+import { genReqId, X_REQ_ID_HEADER } from '@/utils/reqId'
 
 // 创建axios实例
 const axiosInstance: AxiosInstance = axios.create({
-  baseURL: getApiBaseUrl(),
-  timeout: 100000,
+  // 统一走配置的后端地址；当 url 为绝对地址时 axios 会优先使用 url 本身
+  baseURL: getApiBaseURL(),
+  // 30s default; long-running endpoints should pass their own timeout via config.
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true, // 重要：允许发送和接收 cookies（session）
 })
-
-let isRefreshingToken = false
-let refreshPromise: Promise<string> | null = null
-
-const requestTokenRefresh = async (): Promise<string> => {
-  const refreshToken = localStorage.getItem('refresh_token')
-  if (!refreshToken) {
-    throw new Error('missing refresh token')
-  }
-  const resp = await axios.post(`${getApiBaseURL()}/auth/refresh`, {
-    refresh_token: refreshToken,
-  }, {
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    timeout: 100000,
-  })
-  const data = resp.data
-  const nextAccessToken = data?.data?.token || data?.data?.access_token
-  const nextRefreshToken = data?.data?.refreshToken || data?.data?.refresh_token
-  if (!nextAccessToken || !nextRefreshToken) {
-    throw new Error('invalid refresh response')
-  }
-  localStorage.setItem('auth_token', nextAccessToken)
-  localStorage.setItem('refresh_token', nextRefreshToken)
-  return nextAccessToken
-}
 
 // 请求拦截器
 axiosInstance.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    // 添加认证token
-    const token = localStorage.getItem('auth_token')
+    const locale = useLocaleStore.getState().locale
+    config.headers['Accept-Language'] = locale
+
+    const token = useAuthStore.getState().token
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
+      syncAuthToken(token)
+    } else {
+      delete config.headers.Authorization
+      syncAuthToken(null)
     }
-    // 移除测试token逻辑，让需要认证的接口正确返回401
     
     // 如果是FormData，让浏览器自动设置Content-Type（包含boundary）
     if (config.data instanceof FormData) {
       delete config.headers['Content-Type']
+    }
+
+    const deviceId = getOrCreateDeviceId()
+    if (deviceId) {
+      config.headers['X-Device-Id'] = deviceId
+    }
+
+    // 与后端 RequestIDMiddleware 对齐，便于日志串联（未显式传入时自动生成）
+    const headers = config.headers as Record<string, string | undefined>
+    if (!headers[X_REQ_ID_HEADER] && !headers['X-Req-ID']) {
+      headers[X_REQ_ID_HEADER] = genReqId()
     }
     
     // 添加请求时间戳
@@ -69,18 +56,18 @@ axiosInstance.interceptors.request.use(
       config.params = { _t: Date.now() }
     }
     
-    // 添加调试信息
-    // @ts-ignore
-      console.log('Making request to:', config.baseURL + config.url, {
-      method: config.method,
-      headers: config.headers,
-      params: config.params
-    })
-    
+    // 调试信息仅在开发模式下打印，避免生产环境泄漏请求细节。
+    if (import.meta.env.DEV) {
+      // @ts-expect-error config.baseURL may be undefined in Axios types when using absolute URLs
+      console.debug('[req]', config.method, config.baseURL + config.url, {
+        'x-reqid': headers[X_REQ_ID_HEADER] ?? headers['X-Req-ID'],
+      })
+    }
+
     return config
   },
   (error) => {
-    console.error('Request interceptor error:', error)
+    if (import.meta.env.DEV) console.error('Request interceptor error:', error)
     return Promise.reject(error)
   }
 )
@@ -88,78 +75,47 @@ axiosInstance.interceptors.request.use(
 // 响应拦截器 - 只处理通用错误，不处理业务逻辑
 axiosInstance.interceptors.response.use(
   (response: AxiosResponse) => {
-    // 直接返回完整响应，让业务层处理
+    const rid =
+      response.headers[X_REQ_ID_HEADER] ??
+      response.headers['x-reqid'] ??
+      response.headers['X-Req-ID']
+    if (rid && import.meta.env.DEV) {
+      console.debug('[x-reqid]', rid, response.config.method, response.config.url)
+    }
     return response
   },
   (error) => {
-      console.error('Response interceptor error:', error)
-    // 处理网络错误和HTTP状态码错误
+    if (import.meta.env.DEV) console.error('Response interceptor error:', error)
     if (error.response) {
-        console.log('Response status:', error.response.status)
-      // 服务器返回了错误状态码
       const status = error.response.status
-
-      switch (status) {
-        case 401:
-          {
-            const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
-            if (!originalRequest?._retry && !String(originalRequest?.url || '').includes('/auth/refresh')) {
-              originalRequest._retry = true
-              if (!isRefreshingToken) {
-                isRefreshingToken = true
-                refreshPromise = requestTokenRefresh()
-                  .finally(() => {
-                    isRefreshingToken = false
-                  })
+      if (status === 401) {
+        const payload = error.response.data as { data?: { sessionRevoked?: boolean } } | undefined
+        const sessionRevoked = payload?.data?.sessionRevoked === true
+        useAuthStore.getState().clearUser()
+        if (typeof window !== 'undefined') {
+          const onAuthPage =
+            window.location.pathname === '/login' ||
+            window.location.pathname === '/register' ||
+            window.location.pathname.startsWith('/account/deletion/revoke')
+          if (!onAuthPage) {
+            if (sessionRevoked) {
+              try {
+                sessionStorage.setItem('lingecho.auth.sessionRevoked', '1')
+              } catch {
+                /* ignore */
               }
-              return refreshPromise!
-                .then((nextAccessToken) => {
-                  originalRequest.headers.Authorization = `Bearer ${nextAccessToken}`
-                  return axiosInstance(originalRequest)
-                })
-                .catch(() => {
-                  useAuthStore.getState().clearUser()
-                  return Promise.reject(error)
-                })
             }
-            console.log('Unauthorized')
-            useAuthStore.getState().clearUser()
-            console.log('Unauthorized: Please log in')
-            break
+            const target = sessionRevoked ? '/login?reason=session_revoked' : '/login'
+            window.location.assign(target)
           }
-        case 403: {
-          const body = error.response?.data as any
-          const payload = body?.data
-          if (payload?.accountDeletionPending) {
-            useAuthStore
-              .getState()
-              .refreshUserInfo()
-              .catch(() => {})
-            if (!isAccountDeletionRevokeStandalonePage()) {
-              const email = useAuthStore.getState().user?.email
-              window.location.assign(getAccountDeletionRevokePageURL(email))
-            }
-          }
-          console.error('Forbidden: Access denied')
-          break
         }
-        case 404:
-          console.error('Not Found: API endpoint not found')
-          break
-        case 500:
-          console.error('Internal Server Error')
-          break
-        default:
-          console.error(`HTTP Error ${status}:`, error.response.data)
+      } else if (import.meta.env.DEV) {
+        console.error(`HTTP ${status}:`, error.response.data)
       }
-    } else if (error.request) {
-      // 网络错误 - 连接被拒绝或超时
-      console.error('Network Error:', error.message)
-    } else {
-      // 其他错误
-      console.error('Error:', error.message)
+    } else if (import.meta.env.DEV) {
+      console.error('Network/Other Error:', error.message)
     }
-    
+
     return Promise.reject(error)
   }
 )

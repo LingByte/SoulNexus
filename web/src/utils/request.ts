@@ -1,4 +1,5 @@
 import axiosInstance from '@/utils/axios'
+import { t } from '@/i18n'
 import { InternalAxiosRequestConfig, AxiosResponse } from 'axios'
 
 // 通用响应类型
@@ -24,48 +25,48 @@ const request = async <T = any>(
   } catch (error: any) {
     // 如果是axios错误，尝试从响应中获取错误信息
     if (error.response?.data) {
-      const errorData = error.response.data
-      // 处理不同的错误格式
-      if (errorData.code !== undefined) {
-        // 标准格式: {code, msg, data, error?}
-        // 优先使用 msg 字段，这是用户友好的错误信息
-        throw {
-          code: errorData.code,
-          msg: errorData.msg || errorData.message || errorData.error || '请求失败',
-          data: errorData.data || null,
-          error: errorData.error // 保留原始错误代码
-        }
-      } else if (errorData.error) {
-        // 格式: {"error": "email has exists"}
-        throw {
-          code: error.response.status || 500,
-          msg: errorData.error,
-          data: null
-        }
-      } else {
-        // 其他格式，尝试提取错误信息
-        throw {
-          code: error.response.status || 500,
-          msg: errorData.message || errorData.msg || errorData.error || '请求失败',
-          data: null
-        }
+      const errorData = error.response.data as Record<string, unknown>
+      const status = error.response.status as number
+      const msg =
+        (typeof errorData.msg === 'string' && errorData.msg.trim()) ||
+        (typeof errorData.message === 'string' && errorData.message.trim()) ||
+        (typeof errorData.error === 'string' && errorData.error.trim()) ||
+        (status === 502 || status === 503 || status === 504
+          ? t('request.badGateway')
+          : t('request.failed'))
+      const code =
+        typeof errorData.code === 'number'
+          ? errorData.code
+          : status || 502
+      throw {
+        code,
+        msg,
+        error: typeof errorData.error === 'string' ? errorData.error : undefined,
+        data: errorData.data ?? null,
       }
     }
-    
-    // 网络错误处理
-    let errorMessage = '网络请求失败'
-    if (error.code === 'ERR_CONNECTION_REFUSED') {
-      errorMessage = '无法连接到服务器，请检查后端服务是否已启动'
+
+    // 无响应体：连接被拒 / 代理失败 / 超时
+    let errorMessage = t('request.networkFailed')
+    let code = -1
+    if (
+      error.code === 'ERR_CONNECTION_REFUSED' ||
+      error.code === 'ECONNREFUSED' ||
+      /ECONNREFUSED|ENOTFOUND|ECONNRESET/i.test(String(error.message || ''))
+    ) {
+      errorMessage = t('request.connectionRefused')
+      code = 502
     } else if (error.code === 'ECONNABORTED') {
-      errorMessage = '请求超时，请稍后重试'
+      errorMessage = t('request.timeout')
+      code = 504
     } else if (error.message) {
       errorMessage = error.message
     }
-    
+
     throw {
-      code: -1,
+      code,
       msg: errorMessage,
-      data: null
+      data: null,
     }
   }
 }
