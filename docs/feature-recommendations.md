@@ -8,7 +8,7 @@
 
 | 能力域 | 成熟度 | 说明 |
 |--------|--------|------|
-| 语音对话 | ★★★★★ | TTS/STT/ASR、Voice Clone、Voice Training、Voiceprint、SIP、WebRTC、VAD |
+| 语音对话 | ★★★★★ | TTS/STT/ASR、Voice Clone、Voice Training、Voiceprint、WebRTC、VAD |
 | 知识库/RAG | ★★★★★ | 上传→解析→分块→向量化→索引管线，混合检索(RRF)，Qdrant/Milvus 双后端 |
 | 多租户 | ★★★★☆ | Group 组织架构、角色权限(Creator/Admin/Member)、资源隔离 |
 | 工作流+插件 | ★★★★☆ | WorkflowDefinition + WorkflowPlugin + NodePlugin 生态 |
