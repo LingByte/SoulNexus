@@ -1,278 +1,260 @@
-# SoulNexus - Intelligent Voice Interaction Platform
+<p align="center">
+  <img src="web/public/icon-lingyu.png" alt="SoulNexus" width="128" style="border-radius:28px;box-shadow:0 8px 32px rgba(0,0,0,0.14);">
+</p>
 
-<div align="center">
-<div align="center">
-  <img src="docs/logo.png" alt="SoulNexus Logo" width="100" height="110">
-</div>
+<h1 align="center">SoulNexus</h1>
 
-**Intelligent Voice Interaction Platform - Giving AI a Real Voice**
+<p align="center">
+  <strong>AI Voice Dialog Platform</strong><br/>
+  <em>Realtime Voice · Assistants · Knowledge · Workflow · MCP · Desktop Pet</em>
+</p>
 
-[![Go Version](https://img.shields.io/badge/Go-1.24.0+-blue.svg)](https://golang.org/)
-[![React](https://img.shields.io/badge/React-18.2.0-61dafb.svg)](https://reactjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.2.2-3178c6.svg)](https://www.typescriptlang.org/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg)]()
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-lingecho.com-brightgreen.svg)](https://lingecho.com)
+<p align="center">
+  <a href="https://go.dev"><img src="https://img.shields.io/badge/Go-1.26+-00ADD8?style=for-the-badge&logo=go&logoColor=white" alt="Go"></a>
+  <a href="https://react.dev"><img src="https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React"></a>
+  <a href="https://www.typescriptlang.org"><img src="https://img.shields.io/badge/TypeScript-5-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript"></a>
+  <a href="https://www.docker.com"><img src="https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPL%203.0-red?style=for-the-badge" alt="License"></a>
+</p>
 
-[English](README.md) | [简体中文](README_CN.md) | [繁體中文](README_TW.md) | [日本語](README_JA.md) | [Français](README_FR.md)
-
-### 🌐 Live Demo
-
-**Experience SoulNexus online**: [https://lingecho.com](https://lingecho.com)
-
-</div>
-
----
-
-## 📖 Project Overview
-
-SoulNexus is an enterprise-grade intelligent voice interaction platform based on Go + React, providing a complete AI voice interaction solution. It integrates advanced speech recognition (ASR), text-to-speech (TTS), large language models (LLM), and real-time communication technologies, supporting real-time calls, voice cloning, knowledge base management, workflow automation, device management, alerting, billing, and other enterprise-level features.
-
-### ✨ Core Features
-
--  **AI Character Real-time Calls** - Real-time voice calls with AI characters based on WebRTC technology, supporting high-quality audio transmission and low-latency interaction
--  **Voice Cloning & Training** - Support for custom voice training and cloning, allowing AI assistants to have exclusive voice characteristics for personalized voice experiences
--  **Workflow Automation** - Visual workflow designer with multiple trigger types (API, Event, Schedule, Webhook, Assistant), supporting complex business process automation
--  **Knowledge Base Management** - Powerful knowledge base management system supporting document storage, retrieval, and AI analysis, providing intelligent knowledge services
--  **Application Integration** - Quick integration of new applications through JS injection, API gateway, and key management, enabling seamless integration
--  **Device Management** - Complete device management system with OTA firmware updates, device monitoring, and remote control
--  **Alert System** - Comprehensive alerting system with rule-based monitoring, multi-channel notifications, and alert management
--  **Billing System** - Flexible billing and usage tracking system with detailed usage records, bill generation, and quota management
--  **Organization Management** - Multi-tenant organization management with group collaboration, member management, and resource sharing
--  **Key Management & API Platform** - Enterprise-level key management system and API development platform
--  **VAD Voice Activity Detection** - Standalone SileroVAD service supporting PCM and OPUS formats
-- ️ **Voiceprint Recognition Service** - ModelScope-based voiceprint recognition service supporting speaker identification
--  **ASR-TTS Service** - Standalone ASR (Whisper) and TTS (edge-tts) service supporting speech recognition and text-to-speech synthesis
--  **MCP Service** - Model Context Protocol service supporting SSE and stdio transports
--  **Hardware Device Support** - Support for xiaozhi protocol hardware devices with complete WebSocket communication
+<p align="center">
+  <a href="#-one-command-deploy">Deploy</a> ·
+  <a href="#-capabilities">Capabilities</a> ·
+  <a href="#-architecture">Architecture</a> ·
+  <a href="#-development">Development</a> ·
+  <a href="#-configuration">Configuration</a> ·
+  <a href="#-security--notifications">Security</a> ·
+  <a href="README_zh.md">中文</a>
+</p>
 
 ---
 
-### Workflow Automation
-<div align="center">
-  <img src="docs/page-workflow.png" alt="Workflow Designer" width="800">
-  <p><em>Visual workflow designer with drag-and-drop interface</em></p>
-</div>
+## Why SoulNexus
 
-### Voice Cloning
-<div align="center">
-  <img src="docs/page-voice-clone.png" alt="Voice Cloning" width="800">
-  <p><em>Voice cloning and training interface</em></p>
-</div>
+SoulNexus is a full-stack **AI voice dialog platform**: cascading ASR→LLM→TTS (and realtime) conversations, browser WebRTC / WebSocket voice sessions, multi-tenant RBAC, knowledge retrieval, visual workflows, MCP tooling, and a desktop-pet embed client — shipped as one Go binary + React console.
 
-### Assistant Debug
-<div align="center">
-  <img src="docs/page-debug-assistant.png" alt="Assistant Debug" width="800">
-  <p><em>AI assistant debugging and testing interface</em></p>
-</div>
-
-### JS Template Integration
-<div align="center">
-  <img src="docs/page-js-template.png" alt="JS Template" width="800">
-  <p><em>JavaScript template for application integration</em></p>
-</div>
+| Pillar | What you get |
+|--------|----------------|
+| **AI Dialog** | Multi-provider ASR / TTS / LLM, barge-in, hotwords, knowledge RAG |
+| **Realtime Voice** | Browser WebRTC / WebSocket voice-session, embed widget, desktop pet |
+| **Platform** | Assistants, API Keys (AK/SK), voiceprint, voice clone, workflow & MCP market |
+| **Ops** | Prometheus metrics, op-log audit, signal-based inbox + optional email |
 
 ---
 
-## 🏗️ Technical Architecture
+## ⚡ One-Command Deploy
 
-<div align="center">
-  <img src="docs/core.png" alt="SoulNexus Core Architecture" width="800">
-</div>
-
-### Service Architecture
-
-| Service | Port | Tech Stack | Description |
-|---------|------|------------|-------------|
-| **Main Service** | 7072 | Go + Gin | Core backend service with RESTful API and WebSocket support |
-| **VAD Service** | 7073 | Python + FastAPI | Voice activity detection service (SileroVAD) |
-| **Voiceprint Service** | 7074 | Python + FastAPI | Voiceprint recognition service (ModelScope) |
-| **ASR-TTS Service** | 7075 | Python + FastAPI | ASR (Whisper) and TTS (edge-tts) service |
-| **MCP Service** | 3001 | Go | Model Context Protocol service (SSE transport, optional) |
-| **Frontend Service** | 5173 | React + Vite | Development frontend (Vite dev server) |
-
-For detailed architecture documentation, see [Architecture Documentation](docs/architecture.md).
-
----
-
-## 🚀 Quick Start
-
-### Requirements
-
-- **Go** >= 1.24.0
-- **Node.js** >= 18.0.0
-- **npm** >= 8.0.0 or **pnpm** >= 8.0.0
-- **Git**
-- **Python** >= 3.10 (for optional services: VAD, Voiceprint, ASR-TTS)
-- **Docker** & **Docker Compose** (for containerized deployment, recommended)
-
-### Installation Methods
-
-#### Method 1: Docker Compose (Recommended)
-
-The easiest way to get started with SoulNexus is using Docker Compose:
+Requires **Docker** + **Docker Compose v2**. Builds the API (with codecs), embeds the web console, and fronts them with Nginx.
 
 ```bash
-docker run -d --name neo4j \
-  -p 7474:7474 -p 7687:7687 \
-  -e NEO4J_AUTH=neo4j/admin123 \
-  neo4j:latest
-# Clone the project
-git clone https://github.com/your-username/SoulNexus.git
+git clone https://github.com/LingByte/SoulNexus.git
 cd SoulNexus
-
-# Copy environment configuration
-cp server/env.example .env
-
-# Edit .env file and configure your settings
-# At minimum, set: SESSION_SECRET, LLM_API_KEY
-
-# Start services with Docker Compose
-docker-compose up -d
-
-# View logs
-docker-compose logs -f lingecho
+make deploy
 ```
 
-**Access the Application:**
-- **Frontend Interface**: http://localhost:7072
-- **Backend API**: http://localhost:7072/api
-- **API Documentation**: http://localhost:7072/api/docs
+Open **http://localhost:8080**
 
-**Optional Services:**
+| | |
+|--|--|
+| Default platform admin | `admin@lingecho.com` / `admin123` |
+| Override via env | `PLATFORM_ADMIN_EMAIL` · `PLATFORM_ADMIN_PASSWORD` · `PLATFORM_ADMIN_DISPLAY_NAME` |
+| HTTP port | `HTTP_PORT=8080` (map host → container `:80`) |
+
 ```bash
-# Start with PostgreSQL database
-docker-compose --profile postgres up -d
-
-# Start with Redis cache
-docker-compose --profile redis up -d
-
-# Start with Nginx reverse proxy
-docker-compose --profile nginx up -d
-
-# Start frontend development server
-docker-compose --profile dev up -d
+make logs          # follow container logs
+make deploy-seed   # force seed demo data
+make clean         # stop + wipe data volume
 ```
 
-#### Method 2: Manual Installation
+> First boot uses **SQLite** under `/data` when `DB_DRIVER` is unset. For production, set `DB_DRIVER=postgres` (or `mysql`) and a real `DSN`, plus a strong `SESSION_SECRET`.
+
+<details>
+<summary>Equivalent docker compose commands</summary>
 
 ```bash
-brew install pkg-config
-brew install opus opusfile
+cp env.example .env   # optional
+docker compose up -d --build
+```
 
-# Clone the project
-git clone https://github.com/your-username/SoulNexus.git
-cd SoulNexus
+</details>
 
-# Backend setup
-cd server
-go mod tidy
+---
+
+## ✨ Capabilities
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+
+**Realtime Voice**
+- Browser WebRTC / WebSocket voice sessions
+- Embed widget + desktop pet client
+- Cascaded dialog: ASR → LLM → TTS
+- Optional realtime multimodal agents
+
+    </td>
+    <td width="50%" valign="top">
+
+**AI Voice Agents**
+- Knowledge-augmented answers (hybrid + RRF + rerank)
+- Voice clone & voiceprint enrollment
+- MCP tools & workflow orchestration
+- NLU intent models
+
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+
+**Platform**
+- Assistants with version publish / rollback
+- Visual workflows & plugin market
+- JS templates for H5 / mini-program embed
+
+    </td>
+    <td width="50%" valign="top">
+
+**Multi-Tenant Security**
+- JWT (tenant + platform) · API Key AK/SK
+- RBAC permissions & operation audit log
+- IP allowlists · rate limit · circuit breaker
+- Inbox alerts + optional email push
+
+    </td>
+  </tr>
+</table>
+
+---
+
+## 🏗️ Architecture
+
+```mermaid
+graph TB
+    subgraph Clients
+        Console[Web Console]
+        DesktopPet[Desktop Pet]
+        Embed[Embed Widget]
+    end
+
+    subgraph Edge
+        Nginx[Nginx :80]
+    end
+
+    subgraph Core
+        API[Gin API]
+        VoiceSession[Voice Session]
+        Dialog[Dialog Engine]
+        Signals[Signal Bus]
+        Notify[Inbox + Mail]
+    end
+
+    subgraph Data
+        DB[(SQLite / PG / MySQL)]
+        Vec[(Qdrant / Milvus / …)]
+        Obj[(Local / S3 / OSS / …)]
+    end
+
+    Console --> Nginx --> API
+    DesktopPet --> Embed --> API
+    Embed --> VoiceSession
+    API --> VoiceSession --> Dialog
+    API --> Signals --> Notify
+    API --> DB
+    Dialog --> Vec
+    API --> Obj
+```
+
+**Event model.** Sensitive product actions emit `notify:op_log` (and related signals). Listeners deliver inbox notifications; if the actor enabled `receiveEmailNotify`, a mail is sent as well.
+
+Covered events include: assistant create · API Key create / rotate · voiceprint · voice clone · workflow / MCP publish · password change · tenant provisioning.
+
+---
+
+## 💻 Development
+
+### Prerequisites
+
+| Tool | Version |
+|------|---------|
+| Go | 1.26+ |
+| Node.js | 18+ |
+| Docker | 24+ (for image / full stack) |
+
+### Local API + UI
+
+```bash
 cp env.example .env
-# Edit .env file with your configuration
+# optional: PLATFORM_ADMIN_EMAIL / PLATFORM_ADMIN_PASSWORD / DSN / mail
 
-# Frontend setup
-cd ../web
-npm install  # or pnpm install
-npm run build  # For production
-# OR
-npm run dev    # For development (runs on port 5173)
+go run ./cmd/server -init -seed     # http://localhost:7072
 
-# Start backend (from server directory)
-cd ../server
-go run ./cmd/server/main.go -mode=dev
+cd web && npm ci && npm run dev     # http://localhost:3000 (proxy /api → backend)
 ```
 
-**Access the Application:**
-- **Frontend Interface**: http://localhost:5173 (dev) or http://localhost:7072 (production)
-- **Backend API**: http://localhost:7072/api
-- **API Documentation**: http://localhost:7072/api/docs
+### Useful Make / Go targets
 
-**Optional Services (if needed):**
 ```bash
-# Start VAD service
-cd services/vad-service
-docker-compose up -d
-# Or manually: python vad_service.py
-
-# Start Voiceprint service
-cd services/voiceprint-api
-docker-compose up -d
-# Or manually: python -m app.main
-
-# Start ASR-TTS service
-cd services/asr-tts-service
-docker-compose up -d
-# Or manually: python -m app.main
-
-# Start MCP service (optional)
-cd server
-go run ./cmd/mcp/main.go --transport sse --port 3001
-
-# Start Voice service (SIP / WebSocket-Web / WebSocket-Hardware / WebRTC)
-cd server
-cp .env-voice.example .env-voice    # first run only — fill in ASR / TTS keys
-go run ./cmd/voice                  # listens on VOICE_SIP_ADDR + VOICE_HTTP_ADDR
+make help
+go test ./internal/listeners/ ./internal/constants/ -count=1
+go test ./... -cover
 ```
 
-**Voice service transports** (all served by `cmd/voice`):
+---
 
-| Transport | Endpoint | Switch |
-| --- | --- | --- |
-| SIP (signaling + RTP) | `VOICE_SIP_ADDR`, `VOICE_RTP_START..END` | always on |
-| WebSocket xiaozhi | `VOICE_HTTP_ADDR` + `VOICE_XIAOZHI_WS_PATH` | `VOICE_ENABLE_XIAOZHI` |
-| WebRTC offer/answer | `VOICE_HTTP_ADDR` + `VOICE_WEBRTC_HTTP_PATH` | `VOICE_ENABLE_WEBRTC` |
-| WebSocket-Web (SFU) | `VOICE_HTTP_ADDR` + `VOICE_SFU_WS_PATH` | `VOICE_ENABLE_SFU` |
-| WebSocket SoulNexus-HW | `VOICE_HTTP_ADDR` + `VOICE_SOULNEXUS_HW_WS_PATH` | non-empty path enables |
+## ⚙️ Configuration
 
-See `.env-voice.example` for the full list of voice knobs.
+Copy [`env.example`](./env.example) → `.env`. Highlights:
 
-For detailed installation instructions, see [Installation Guide](docs/installation.md).
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `PLATFORM_ADMIN_EMAIL` | Seed platform admin email | `admin@lingecho.com` |
+| `PLATFORM_ADMIN_PASSWORD` | Seed platform admin password | `admin123` |
+| `PLATFORM_ADMIN_DISPLAY_NAME` | Display name | `Platform Admin` |
+| `ADDR` | HTTP listen | `:7072` |
+| `DB_DRIVER` / `DSN` | sqlite / postgres / mysql | sqlite `./ling.db` |
+| `SESSION_SECRET` | Cookie/session signing | required in prod |
+
+Seed only runs when `platform_admins` is empty — env values override the built-in defaults via `utils.GetEnv`.
 
 ---
 
-## 📚 Documentation
+## 🔐 Security & Notifications
 
-- **[Installation Guide](docs/installation.md)** - Detailed installation and configuration instructions
-- **[Features Documentation](docs/features.md)** - Complete feature list with screenshots and examples
-- **[Architecture Documentation](docs/architecture.md)** - System architecture and design
-- **[Development Guide](docs/development.md)** - Development setup and contribution guidelines
-- **[Services Documentation](docs/services.md)** - Detailed service component documentation
-
----
-
-## 🤝 Contributing
-
-We welcome all forms of contributions! Please check our [Development Guide](docs/development.md) for details.
-
-### Quick Contribution Steps
-
-1. **Fork the Project** - Click the Fork button in the top right corner
-2. **Create a Branch** - `git checkout -b feature/your-feature`
-3. **Commit Changes** - `git commit -m 'Add some feature'`
-4. **Push Branch** - `git push origin feature/your-feature`
-5. **Create PR** - Create a Pull Request on GitHub
+1. **Change the default platform password** immediately after first login.
+2. Enable **mail** (`SMTP_*` or SendCloud) for verification codes and optional notification push.
+3. Users / platform admins can toggle **Receive email notifications** in profile; verification codes are always delivered.
+4. Prefer a long random `SESSION_SECRET`, explicit `CORS_ALLOWED_ORIGINS`, and non-public recording URLs in production.
 
 ---
 
-##  Our Team
+## 📁 Layout
 
-A core team of four full-stack engineers focused on innovation and application of AI voice technology.
+```
+SoulNexus/
+├── cmd/server              # Process entry
+├── cmd/bootstrap           # Migrate · seed · banner
+├── internal/handlers       # HTTP API
+├── internal/listeners      # Signal observers (mail · notify)
+├── pkg/notification        # Mailer + inbox
+├── lingllm/                # ASR · TTS · codecs
+├── web/                    # React console
+├── deploy/                 # Nginx · entrypoint · apt packs
+├── Dockerfile
+├── docker-compose.yml
+├── Makefile                # make deploy
+└── env.example
+```
 
-| Member | Role | Responsibilities |
-|--------|------|------------------|
-| **chenting** | Full-stack Engineer + Project Manager | Responsible for overall project architecture design and full-stack development, leading product direction and technology selection |
-| **jianghaotian** | Full-stack Engineer | Responsible for backend service development and system optimization, ensuring platform stability and performance |
-| **quenanlin** | Full-stack Engineer | Responsible for frontend interface development and user experience optimization, ensuring product usability |
-| **wangyueran** | Full-stack Engineer | Responsible for feature development and quality assurance, ensuring code quality and product reliability |
+---
 
-## 📧 Contact Us
+## 📚 Docs & License
 
-- **Email**: 19511899044@163.com
+- Product / module notes: [`docs/`](./docs/)
+- Chinese guide: [`README_zh.md`](./README_zh.md)
+- License: [AGPL-3.0](./LICENSE)
 
 ---
 
-## ⭐ Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=LingByte/SoulNexus&type=Date)](https://star-history.com/#your-username/SoulNexus&Date)
-
----
+<p align="center">
+  Built by <a href="https://github.com/LingByte">LingByte</a> · Ship voice AI with conviction.
+</p>

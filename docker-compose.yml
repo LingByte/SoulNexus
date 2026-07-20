@@ -1,0 +1,52 @@
+services:
+  lingecho:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        GOPROXY: ${GOPROXY:-https://goproxy.cn,direct}
+        GOSUMDB: ${GOSUMDB:-sum.golang.google.cn}
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
+        APT_MIRROR: ${APT_MIRROR:-https://mirrors.tuna.tsinghua.edu.cn/debian/}
+    image: soulnexus:latest
+    pull_policy: build
+    container_name: lingecho
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-8080}:80"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      GIN_MODE: release
+      MODE: ${MODE:-production}
+      ADDR: ":7072"
+      DB_DRIVER: ${DB_DRIVER:-sqlite}
+      DSN: ${DSN:-/data/ling.db}
+      # Production (MODE=production) fails preflight without a strong SESSION_SECRET (≥32 chars).
+      SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET to a random string of at least 32 characters}
+      LINGECHO_DATA_DIR: /data
+      LINGECHO_SEED: ${LINGECHO_SEED:-auto}
+      LINGECHO_AUTO_INIT: ${LINGECHO_AUTO_INIT:-true}
+      LINGECHO_STARTUP_TIMEOUT: ${LINGECHO_STARTUP_TIMEOUT:-600}
+      PLATFORM_ADMIN_EMAIL: ${PLATFORM_ADMIN_EMAIL:-admin@lingecho.com}
+      # Required when seeding in production; must not be admin123.
+      PLATFORM_ADMIN_PASSWORD: ${PLATFORM_ADMIN_PASSWORD:?Set PLATFORM_ADMIN_PASSWORD (min 10 chars, not admin123)}
+      PLATFORM_ADMIN_DISPLAY_NAME: ${PLATFORM_ADMIN_DISPLAY_NAME:-Platform Admin}
+      METRICS_ALLOWED_IPS: 127.0.0.1,::1
+      UPLOAD_DIR: /data/uploads
+    volumes:
+      - lingecho-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/readyz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  # Optional: LingMCP is a separate Go module (LingMCP/). Build/run it independently:
+  #   cd LingMCP && go run ./cmd/server
+  # Not included in the default all-in-one image.
+
+volumes:
+  lingecho-data:
