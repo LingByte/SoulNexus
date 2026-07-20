@@ -4,18 +4,20 @@ package workflowdef
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
-	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
+
+	"github.com/LingByte/SoulNexus/internal/models"
 
 	runtimewf "github.com/LingByte/SoulNexus/pkg/workflow"
 	"gorm.io/gorm"
 )
 
 // BuildRuntimeWorkflow converts a persisted workflow definition into an executable workflow instance.
-func BuildRuntimeWorkflow(def *svcmodels.WorkflowDefinition, db *gorm.DB) (*runtimewf.Workflow, error) {
+func BuildRuntimeWorkflow(def *models.WorkflowDefinition, db *gorm.DB) (*runtimewf.Workflow, error) {
 	if def == nil {
 		return nil, fmt.Errorf("workflow definition is nil")
 	}
@@ -33,6 +35,21 @@ func BuildRuntimeWorkflow(def *svcmodels.WorkflowDefinition, db *gorm.DB) (*runt
 	nodeRegistry := make(map[string]runtimewf.ExecutableNode, len(def.Definition.Nodes))
 	startCount := 0
 	endCount := 0
+	var startNodeID string
+
+	for _, nodeSchema := range def.Definition.Nodes {
+		if nodeSchema.Type == "start" {
+			startCount++
+			if startNodeID == "" {
+				startNodeID = nodeSchema.ID
+			}
+		}
+		if nodeSchema.Type == "end" {
+			endCount++
+		}
+	}
+
+	reachable := reachableNodeIDs(startNodeID, def.Definition.Edges)
 
 	for _, nodeSchema := range def.Definition.Nodes {
 		if nodeSchema.ID == "" {
@@ -49,15 +66,13 @@ func BuildRuntimeWorkflow(def *svcmodels.WorkflowDefinition, db *gorm.DB) (*runt
 			OutputParams: toNativeMap(nodeSchema.OutputMap),
 			Properties:   toNativeMap(nodeSchema.Properties),
 		}
-		execNode, err := instantiateNode(baseNode)
+		execNode, err := instantiateNode(baseNode, db)
 		if err != nil {
-			return nil, fmt.Errorf("node %s: %w", nodeSchema.ID, err)
-		}
-		if baseNode.Type == runtimewf.NodeTypeStart {
-			startCount++
-		}
-		if baseNode.Type == runtimewf.NodeTypeEnd {
-			endCount++
+			if reachable[nodeSchema.ID] {
+				return nil, fmt.Errorf("node %s: %w", nodeSchema.ID, err)
+			}
+			// Unreachable draft nodes must not block execution of the main path.
+			continue
 		}
 		nodeRegistry[baseNode.ID] = execNode
 	}
@@ -123,8 +138,30 @@ func BuildRuntimeWorkflow(def *svcmodels.WorkflowDefinition, db *gorm.DB) (*runt
 	return wf, nil
 }
 
+func reachableNodeIDs(startID string, edges []models.WorkflowEdgeSchema) map[string]bool {
+	reachable := map[string]bool{}
+	if startID == "" {
+		return reachable
+	}
+	queue := []string{startID}
+	for len(queue) > 0 {
+		id := queue[0]
+		queue = queue[1:]
+		if reachable[id] {
+			continue
+		}
+		reachable[id] = true
+		for _, edge := range edges {
+			if edge.Source == id && edge.Target != "" {
+				queue = append(queue, edge.Target)
+			}
+		}
+	}
+	return reachable
+}
+
 // BuildRuntimeNode converts a single node definition into an executable node instance.
-func BuildRuntimeNode(nodeSchema *svcmodels.WorkflowNodeSchema, graph *svcmodels.WorkflowGraph) (runtimewf.ExecutableNode, error) {
+func BuildRuntimeNode(nodeSchema *models.WorkflowNodeSchema, graph *models.WorkflowGraph, db *gorm.DB) (runtimewf.ExecutableNode, error) {
 	if nodeSchema == nil {
 		return nil, fmt.Errorf("node schema is nil")
 	}
@@ -141,7 +178,7 @@ func BuildRuntimeNode(nodeSchema *svcmodels.WorkflowNodeSchema, graph *svcmodels
 		Properties:   toNativeMap(nodeSchema.Properties),
 	}
 
-	execNode, err := instantiateNode(baseNode)
+	execNode, err := instantiateNode(baseNode, db)
 	if err != nil {
 		return nil, fmt.Errorf("node %s: %w", nodeSchema.ID, err)
 	}
@@ -149,7 +186,7 @@ func BuildRuntimeNode(nodeSchema *svcmodels.WorkflowNodeSchema, graph *svcmodels
 	return execNode, nil
 }
 
-func instantiateNode(base runtimewf.Node) (runtimewf.ExecutableNode, error) {
+func instantiateNode(base runtimewf.Node, db *gorm.DB) (runtimewf.ExecutableNode, error) {
 	switch base.Type {
 	case runtimewf.NodeTypeStart:
 		return &runtimewf.StartNode{Node: base}, nil
@@ -199,17 +236,17 @@ func instantiateNode(base runtimewf.Node) (runtimewf.ExecutableNode, error) {
 					gatewayNode.Expression = expression
 				}
 			} else {
-		// Value mode (default): use condition field as context key
-			if condition, ok := base.Properties["condition"]; ok {
-				gatewayNode.Condition = condition
-			}
+				// Value mode (default): use condition field as context key
+				if condition, ok := base.Properties["condition"]; ok {
+					gatewayNode.Condition = condition
+				}
 			}
 			// Check if result should be stored
 			if storeResult, ok := base.Properties["store_result"]; ok {
 				gatewayNode.StoreResult = storeResult == "true" || storeResult == "1"
 			}
-	}
-	return gatewayNode, nil
+		}
+		return gatewayNode, nil
 	case runtimewf.NodeTypeEvent:
 		eventNode := &runtimewf.EventNode{Node: base}
 		// Extract event configuration from properties
@@ -290,22 +327,33 @@ func instantiateNode(base runtimewf.Node) (runtimewf.ExecutableNode, error) {
 		return scriptNode, nil
 	case runtimewf.NodeTypePlugin:
 		pluginNode := &runtimewf.PluginNode{Node: base}
-		// Extract plugin configuration from properties
 		if base.Properties != nil {
-			// Parse plugin ID
 			if pluginIDStr, ok := base.Properties["plugin_id"]; ok {
-				// TODO: Load plugin definition from database
-				// For now, we'll need to implement plugin loading logic
-				_ = pluginIDStr
+				pluginID, err := strconv.ParseUint(strings.TrimSpace(pluginIDStr), 10, 32)
+				if err != nil {
+					return nil, fmt.Errorf("invalid plugin_id: %v", err)
+				}
+				if db == nil {
+					return nil, fmt.Errorf("plugin node requires database to load plugin %d", pluginID)
+				}
+				var row models.NodePlugin
+				if err := db.First(&row, uint(pluginID)).Error; err != nil {
+					return nil, fmt.Errorf("load plugin %d: %w", pluginID, err)
+				}
+				mapped := mapDBNodePlugin(row)
+				pluginNode.Plugin = mapped
+				pluginNode.Runtime = mapped.Definition.Runtime
 			}
 
-			// Parse user configuration
 			if configStr, ok := base.Properties["config"]; ok {
 				var config map[string]interface{}
 				if err := json.Unmarshal([]byte(configStr), &config); err == nil {
 					pluginNode.Config = config
 				}
 			}
+		}
+		if pluginNode.Plugin == nil {
+			return nil, fmt.Errorf("plugin node requires plugin_id")
 		}
 		return pluginNode, nil
 	case runtimewf.NodeTypeWorkflowPlugin:
@@ -366,22 +414,38 @@ func instantiateNode(base runtimewf.Node) (runtimewf.ExecutableNode, error) {
 			return nil, fmt.Errorf("AI chat node requires properties")
 		}
 		return aiChatNode, nil
+	case runtimewf.NodeTypeKnowledgeBase:
+		kbNode := &runtimewf.KnowledgeBaseNode{Node: &base}
+		if base.Properties != nil {
+			properties := make(map[string]interface{})
+			for k, v := range base.Properties {
+				properties[k] = v
+			}
+			config, err := runtimewf.ParseKnowledgeBaseConfig(properties)
+			if err != nil {
+				return nil, fmt.Errorf("parse knowledge base config failed: %w", err)
+			}
+			kbNode.Config = config
+		} else {
+			return nil, fmt.Errorf("knowledge base node requires properties")
+		}
+		return kbNode, nil
 	default:
 		return nil, fmt.Errorf("unsupported node type %s", base.Type)
 	}
 }
 
 // AssignEdgeMetadata assigns edge-specific metadata to nodes (e.g., condition expressions, next node IDs)
-func AssignEdgeMetadata(node runtimewf.ExecutableNode, edge svcmodels.WorkflowEdgeSchema) {
+func AssignEdgeMetadata(node runtimewf.ExecutableNode, edge models.WorkflowEdgeSchema) {
 	if node == nil {
 		return
 	}
 	switch n := node.(type) {
 	case *runtimewf.GatewayNode:
 		switch edge.Type {
-		case svcmodels.WorkflowEdgeTypeTrue:
+		case models.WorkflowEdgeTypeTrue:
 			n.TrueNextNodeID = edge.Target
-		case svcmodels.WorkflowEdgeTypeFalse:
+		case models.WorkflowEdgeTypeFalse:
 			n.FalseNextNodeID = edge.Target
 		}
 		if edge.Condition != "" && n.Condition == "" {
@@ -390,12 +454,12 @@ func AssignEdgeMetadata(node runtimewf.ExecutableNode, edge svcmodels.WorkflowEd
 	case *runtimewf.ConditionNode:
 		// ConditionNode is deprecated, but handle for backward compatibility
 		switch edge.Type {
-		case svcmodels.WorkflowEdgeTypeTrue:
+		case models.WorkflowEdgeTypeTrue:
 			if n.Properties == nil {
 				n.Properties = map[string]string{}
 			}
 			n.Properties["true_next"] = edge.Target
-		case svcmodels.WorkflowEdgeTypeFalse:
+		case models.WorkflowEdgeTypeFalse:
 			if n.Properties == nil {
 				n.Properties = map[string]string{}
 			}
@@ -407,7 +471,7 @@ func AssignEdgeMetadata(node runtimewf.ExecutableNode, edge svcmodels.WorkflowEd
 	}
 }
 
-func toNativeMap(sm svcmodels.StringMap) map[string]string {
+func toNativeMap(sm models.StringMap) map[string]string {
 	if len(sm) == 0 {
 		return nil
 	}
@@ -416,4 +480,33 @@ func toNativeMap(sm svcmodels.StringMap) map[string]string {
 		out[k] = v
 	}
 	return out
+}
+
+func mapDBNodePlugin(row models.NodePlugin) *runtimewf.NodePlugin {
+	def := runtimewf.NodePluginDefinition{
+		Type: row.Definition.Type,
+		Runtime: runtimewf.NodePluginRuntime{
+			Type:    row.Definition.Runtime.Type,
+			Timeout: row.Definition.Runtime.Timeout,
+			Config:  map[string]interface{}(row.Definition.Runtime.Config),
+		},
+	}
+	if def.Runtime.Config == nil {
+		def.Runtime.Config = map[string]interface{}{}
+	}
+	for _, p := range row.Definition.Inputs {
+		def.Inputs = append(def.Inputs, runtimewf.NodePluginPort{
+			Name: p.Name, Type: p.Type, Required: p.Required, Default: p.Default,
+		})
+	}
+	for _, p := range row.Definition.Outputs {
+		def.Outputs = append(def.Outputs, runtimewf.NodePluginPort{
+			Name: p.Name, Type: p.Type, Required: p.Required, Default: p.Default,
+		})
+	}
+	return &runtimewf.NodePlugin{
+		ID:          row.ID,
+		DisplayName: row.DisplayName,
+		Definition:  def,
+	}
 }

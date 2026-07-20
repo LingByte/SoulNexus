@@ -4,9 +4,10 @@ package workflowdef
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
-	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
+	models "github.com/LingByte/SoulNexus/internal/models"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/LingByte/SoulNexus/pkg/logger"
@@ -72,7 +73,7 @@ type AgentTriggerConfig struct {
 }
 
 // ParseTriggerConfig 解析触发器配置
-func ParseTriggerConfig(def *svcmodels.WorkflowDefinition) (*WorkflowTriggerConfig, error) {
+func ParseTriggerConfig(def *models.WorkflowDefinition) (*WorkflowTriggerConfig, error) {
 	if def.Triggers == nil || len(def.Triggers) == 0 {
 		return &WorkflowTriggerConfig{}, nil
 	}
@@ -156,8 +157,8 @@ func NewWorkflowTriggerManager(db *gorm.DB) *WorkflowTriggerManager {
 }
 
 // TriggerWorkflow 触发工作流执行
-func (m *WorkflowTriggerManager) TriggerWorkflow(definitionID uint, parameters map[string]interface{}, triggerSource string) (*svcmodels.WorkflowInstance, error) {
-	var def svcmodels.WorkflowDefinition
+func (m *WorkflowTriggerManager) TriggerWorkflow(definitionID uint, parameters map[string]interface{}, triggerSource string) (*models.WorkflowInstance, error) {
+	var def models.WorkflowDefinition
 	if err := m.db.First(&def, definitionID).Error; err != nil {
 		return nil, fmt.Errorf("workflow definition not found: %w", err)
 	}
@@ -177,6 +178,7 @@ func (m *WorkflowTriggerManager) TriggerWorkflow(definitionID uint, parameters m
 	if runtimeWf.Context == nil {
 		runtimeWf.Context = runtimewf.NewWorkflowContext(fmt.Sprintf("trigger-%d", definitionID))
 	}
+	AttachRuntimeContext(runtimeWf.Context, def.GroupID, nil)
 	if runtimeWf.Context.Parameters == nil {
 		runtimeWf.Context.Parameters = make(map[string]interface{})
 	}
@@ -192,13 +194,13 @@ func (m *WorkflowTriggerManager) TriggerWorkflow(definitionID uint, parameters m
 
 	// 创建实例记录
 	now := time.Now()
-	instance := svcmodels.WorkflowInstance{
+	instance := models.WorkflowInstance{
 		DefinitionID:   def.ID,
 		DefinitionName: def.Name,
 		Status:         "running",
 		StartedAt:      &now,
-		ContextData:    make(svcmodels.JSONMap),
-		ResultData:     make(svcmodels.JSONMap),
+		ContextData:    make(models.JSONMap),
+		ResultData:     make(models.JSONMap),
 	}
 
 	if err := m.db.Create(&instance).Error; err != nil {
@@ -208,32 +210,26 @@ func (m *WorkflowTriggerManager) TriggerWorkflow(definitionID uint, parameters m
 	// 执行工作流
 	execErr := runtimeWf.Execute()
 
-	// 更新实例状态
-	completedAt := time.Now()
-	instance.CompletedAt = &completedAt
-
-	if execErr != nil {
-		instance.Status = "failed"
-		instance.ResultData = svcmodels.JSONMap{
-			"error": execErr.Error(),
-		}
-		logger.Error("Workflow execution failed",
-			zap.Uint("definitionId", definitionID),
-			zap.String("triggerSource", triggerSource),
-			zap.Error(execErr))
-	} else {
-		instance.Status = "completed"
-		if runtimeWf.Context != nil {
-			instance.ContextData = runtimeWf.Context.NodeData
-			instance.ResultData = svcmodels.JSONMap{
-				"success": true,
-				"context": runtimeWf.Context.NodeData,
-			}
-		}
-		logger.Info("Workflow executed successfully",
-			zap.Uint("definitionId", definitionID),
-			zap.String("triggerSource", triggerSource))
+	runMeta := InstanceRunMeta{
+		GroupID:       def.GroupID,
+		TriggerSource: triggerSource,
 	}
+	if src, ok := parameters["_trigger_source"].(string); ok && strings.TrimSpace(src) != "" {
+		runMeta.TriggerSource = strings.TrimSpace(src)
+	}
+	if clientMeta := ExtractClientMeta(parameters); len(clientMeta) > 0 {
+		runMeta.ClientMeta = clientMeta
+	}
+	if len(parameters) > 0 {
+		runMeta.InputParams = models.JSONMap{}
+		for k, v := range parameters {
+			if strings.HasPrefix(k, "_") {
+				continue
+			}
+			runMeta.InputParams[k] = v
+		}
+	}
+	FinalizeInstance(&instance, runtimeWf.Context, execErr, runMeta)
 
 	if err := m.db.Save(&instance).Error; err != nil {
 		return nil, fmt.Errorf("failed to update workflow instance: %w", err)
@@ -243,15 +239,15 @@ func (m *WorkflowTriggerManager) TriggerWorkflow(definitionID uint, parameters m
 }
 
 // GetActiveWorkflowsByEvent 根据事件类型获取需要触发的工作流
-func (m *WorkflowTriggerManager) GetActiveWorkflowsByEvent(eventType string) ([]svcmodels.WorkflowDefinition, error) {
-	var workflows []svcmodels.WorkflowDefinition
+func (m *WorkflowTriggerManager) GetActiveWorkflowsByEvent(eventType string) ([]models.WorkflowDefinition, error) {
+	var workflows []models.WorkflowDefinition
 
 	// 获取所有激活状态的工作流
 	if err := m.db.Where("status = ?", "active").Find(&workflows).Error; err != nil {
 		return nil, err
 	}
 
-	var result []svcmodels.WorkflowDefinition
+	var result []models.WorkflowDefinition
 	for _, wf := range workflows {
 		config, err := ParseTriggerConfig(&wf)
 		if err != nil {
@@ -270,14 +266,14 @@ func (m *WorkflowTriggerManager) GetActiveWorkflowsByEvent(eventType string) ([]
 }
 
 // GetScheduledWorkflows 获取所有需要定时执行的工作流
-func (m *WorkflowTriggerManager) GetScheduledWorkflows() ([]svcmodels.WorkflowDefinition, error) {
-	var workflows []svcmodels.WorkflowDefinition
+func (m *WorkflowTriggerManager) GetScheduledWorkflows() ([]models.WorkflowDefinition, error) {
+	var workflows []models.WorkflowDefinition
 
 	if err := m.db.Where("status = ?", "active").Find(&workflows).Error; err != nil {
 		return nil, err
 	}
 
-	var result []svcmodels.WorkflowDefinition
+	var result []models.WorkflowDefinition
 	for _, wf := range workflows {
 		config, err := ParseTriggerConfig(&wf)
 		if err != nil {

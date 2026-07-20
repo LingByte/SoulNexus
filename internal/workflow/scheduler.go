@@ -4,7 +4,7 @@ package workflowdef
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
-	svcmodels "github.com/LingByte/SoulNexus/internal/models/server"
+	models "github.com/LingByte/SoulNexus/internal/models"
 	"fmt"
 	"sync"
 
@@ -78,7 +78,7 @@ func (s *WorkflowScheduler) Stop() {
 // ScheduleWorkflow registers scheduled task for workflow
 func (s *WorkflowScheduler) ScheduleWorkflow(workflowID uint) error {
 	// Get workflow definition
-	var def svcmodels.WorkflowDefinition
+	var def models.WorkflowDefinition
 	if err := s.db.First(&def, workflowID).Error; err != nil {
 		return fmt.Errorf("workflow not found: %w", err)
 	}
