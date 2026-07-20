@@ -1,0 +1,27 @@
+# Docker安装全模块
+
+version: '3'
+services:
+  # MCP 接入点服务
+  voiceprint-api:
+    image: ghcr.nju.edu.cn/xinnan-tech/voiceprint-api:latest
+    container_name: voiceprint-api
+    restart: always
+    networks:
+      - default
+    ports:
+      - "8005:8005"
+    security_opt:
+      - seccomp:unconfined
+    environment:
+      - TZ=Asia/Shanghai
+      # 与 SoulNexus 共用库时可覆盖，例如：
+      # - DB_DRIVER=sqlite
+      # - DSN=/app/data/lingecho.db
+      # - DB_DRIVER=postgres
+      # - DSN=host=db user=postgres password=xxx dbname=soulnexus sslmode=disable
+    volumes:
+      # 配置文件目录
+      - ./data:/app/data
+networks:
+  default:

@@ -1,0 +1,52 @@
+package constants
+
+// RBAC permission kind values (stored on permissions.kind).
+const (
+	PermissionKindModule = "module"
+	PermissionKindMenu   = "menu"
+	PermissionKindButton = "button"
+	PermissionKindAPI    = "api"
+	PermissionKindData   = "data"
+)
+
+// Built-in permission catalog codes (global RBAC).
+const (
+	PermAPIAssistantsRead  = "api.assistants.read"
+	PermAPIAssistantsWrite = "api.assistants.write"
+	PermAPIWorkflowRead       = "api.workflow.read"
+	PermAPIWorkflowWrite      = "api.workflow.write"
+	PermAPITenantOrgRead      = "api.tenant_org.read"
+	PermAPITenantOrgWrite     = "api.tenant_org.write"
+	PermAPITenantUsersRead    = "api.tenant_users.read"
+	PermAPITenantUsersWrite   = "api.tenant_users.write"
+	PermAPICredentialsRead    = "api.credentials.read"
+	PermAPICredentialsWrite   = "api.credentials.write"
+	PermAPIVoiceRead          = "api.voice.read"
+	PermAPIVoiceWrite         = "api.voice.write"
+	PermAPIOperationLogsRead  = "api.operation_logs.read"
+	PermAPIAIInvocationsRead  = "api.ai_invocations.read"
+	PermAPIReportsRead        = "api.reports.read"
+	PermAPIKBRead             = "api.kb.read"
+	PermAPIKBWrite            = "api.kb.write"
+	PermAPIBillingRead        = "api.billing.read"
+	PermAPIBillingWrite       = "api.billing.write"
+	PermAPIWebhooksRead       = "api.webhooks.read"
+	PermAPIWebhooksWrite      = "api.webhooks.write"
+	PermAPINluRead            = "api.nlu.read"
+	PermAPINluWrite           = "api.nlu.write"
+	PermMenuWorkspaceOverview = "menu.workspace.overview"
+	PermMenuResAssistant      = "menu.res.assistant"
+	PermMenuResNlu            = "menu.res.nlu"
+	PermMenuResWorkflow       = "menu.res.workflow"
+	PermMenuResVoice          = "menu.res.voice"
+	PermMenuAccKeys           = "menu.acc.keys"
+	PermMenuAccBilling        = "menu.acc.billing"
+	PermMenuAccUsageMetrics   = "menu.acc.usage_metrics"
+	PermMenuProfileReports    = "menu.profile.reports"
+	PermMenuProfileLogs       = "menu.profile.logs"
+	PermMenuProfileAIInvoc    = "menu.profile.ai_invocations"
+	PermMenuOrgMembers        = "menu.org.members"
+	PermMenuOrgDept           = "menu.org.dept"
+	PermMenuOrgRole           = "menu.org.role"
+	PermMenuKBRead            = "menu.kb.read"
+)

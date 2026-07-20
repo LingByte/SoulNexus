@@ -1,0 +1,36 @@
+package constants
+
+// App-wide env keys, site config keys, and HTTP header names.
+
+const (
+	SigInitSystemConfig               = "system.init"
+	ENV_CONFIG_CACHE_SIZE             = "CONFIG_CACHE_SIZE"
+	ENV_CONFIG_CACHE_EXPIRED          = "CONFIG_CACHE_EXPIRED"
+	ENV_SESSION_FIELD                 = "SESSION_FIELD"
+	ENV_SESSION_SECRET                = "SESSION_SECRET"
+	ENV_SESSION_EXPIRE_DAYS           = "SESSION_EXPIRE_DAYS"
+	ENV_DB_DRIVER                     = "DB_DRIVER"
+	ENV_DSN                           = "DSN"
+	DbField                           = "_lingecho_db"
+	KEY_SITE_NAME                     = "SITE_NAME"
+	KEY_SITE_URL                      = "SITE_URL"
+	KEY_SITE_DESCRIPTION              = "SITE_DESCRIPTION"
+	KEY_SITE_LOGO                     = "SITE_LOGO"
+	KEY_SITE_TERMS_URL                = "SITE_TERMS_URL"
+	DefaultSiteLogoPath               = "/icon-lingyu.png"
+	AuthorizationPrefix               = "Bearer "
+	CredentialAPIKey                  = "X-API-KEY"
+	CredentialAPISecret               = "X-API-SECRET"
+	LingechoSupervisorPathPrefix      = "lingecho/supervisor/v1"
+	LingechoVoiceDialogPathPrefix     = "lingecho/voice-dialog/v1"
+	LingechoVoiceSessionPathPrefix    = "lingecho/voice-session/v1"
+	LingechoDialogPathPrefix          = "lingecho/dialog/v1"
+	KEY_API_AKSK_ROUTE_POLICY         = "API_AKSK_ROUTE_POLICY"
+	KEY_TENANT_SELF_REGISTER          = "TENANT_SELF_REGISTER"
+	KEY_NLU_MODEL                     = "NLU_MODEL"
+	KEY_NLU_TOKENIZER                 = "NLU_TOKENIZER"
+	KEY_NLU_INTENTS_CONFIG            = "NLU_INTENTS_CONFIG"
+	KEY_NLU_MIN_CONFIDENCE            = "NLU_MIN_CONFIDENCE"
+	KEY_CONTENT_CENSOR_ENABLED        = "CONTENT_CENSOR_ENABLED"
+	KEY_CONTENT_CENSOR_PROVIDER       = "CONTENT_CENSOR_PROVIDER"
+)
