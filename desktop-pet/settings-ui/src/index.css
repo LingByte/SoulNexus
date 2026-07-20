@@ -1,0 +1,56 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* canvas: rgb(227,227,230) ≈ hsl(240 6% 90%) */
+    --background: 240 6% 90%;
+    --foreground: 240 6% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 6% 12%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 6% 12%;
+    --primary: 215 87% 51%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 6% 94%;
+    --secondary-foreground: 240 6% 20%;
+    --muted: 240 6% 94%;
+    --muted-foreground: 240 4% 42%;
+    --accent: 240 6% 94%;
+    --accent-foreground: 240 6% 16%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5% 82%;
+    --input: 240 5% 82%;
+    --ring: 215 87% 51%;
+    --radius: 0.625rem;
+    --surface: 227 227 230;
+  }
+
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background-color: rgb(var(--surface));
+    color: hsl(var(--foreground));
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: 'rlig' 1, 'calt' 1;
+  }
+
+  #root {
+    min-height: 100vh;
+  }
+
+  /* native color input polish */
+  input[type='color']::-webkit-color-swatch-wrapper {
+    padding: 0;
+  }
+  input[type='color']::-webkit-color-swatch {
+    border: none;
+    border-radius: 0.5rem;
+  }
+}

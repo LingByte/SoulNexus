@@ -1,10 +1,19 @@
 {
-  "serverBase": "http://127.0.0.1:7072/api",
+  "serverBase": "https://400.lingecho.com/api",
   "jsSourceId": "YOUR_JS_SOURCE_ID",
+  "assistantId": "YOUR_ASSISTANT_ID",
+  "apiKey": "YOUR_API_KEY",
+  "transport": "websocket",
+  "title": "懒懒",
+  "position": "right",
+  "primaryColor": "#165DFF",
+  "size": 160,
+  "autoWander": true,
+  "autoChat": true,
+  "watchCoding": true,
   "settingsHotkey": "CommandOrControl+Alt+P",
-  "voiceHotkey": "CommandOrControl+Alt+V",
-  "cmdVoiceBase": "http://127.0.0.1:7080",
-  "agentId": null,
-  "apiKey": "",
-  "apiSecret": ""
+  "panelHotkey": "CommandOrControl+Alt+V",
+  "voiceHotkey": "Alt+Shift+V",
+  "talkHotkey": "Alt+Shift+T",
+  "openAtLogin": false
 }

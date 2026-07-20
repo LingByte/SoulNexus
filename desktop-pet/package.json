@@ -1,30 +1,33 @@
 {
-  "name": "soul-pet-desktop",
-  "version": "0.1.0",
-  "description": "SoulNexus 桌宠 — Electron 透明全屏壳，加载 Studio 导出的 loader.js",
+  "name": "lingecho-desktop",
+  "version": "0.2.0",
+  "description": "SoulNexus 桌面挂件 — Electron 透明壳，挂载 JS 模版 / embed.js",
   "main": "main.js",
   "author": "SoulNexus",
   "private": true,
   "scripts": {
-    "start": "electron .",
-    "dev": "electron . --enable-logging",
     "setup": "node scripts/ensure-electron.js",
     "postinstall": "node scripts/ensure-electron.js || true",
-    "pack": "electron-builder --dir",
-    "dist": "electron-builder",
-    "dist:mac": "electron-builder --mac",
-    "dist:win": "electron-builder --win --x64",
-    "dist:win:arm64": "electron-builder --win --arm64",
-    "dist:linux": "electron-builder --linux"
+    "dev:settings": "vite --config settings-ui/vite.config.ts --port 5174 --strictPort",
+    "build:settings": "vite build --config settings-ui/vite.config.ts",
+    "dev": "concurrently -k -n settings,electron -c cyan,magenta \"npm run dev:settings\" \"wait-on http://127.0.0.1:5174 && cross-env LINGECHO_SETTINGS_DEV=1 electron . --enable-logging\"",
+    "start": "npm run build:settings && electron .",
+    "pack": "npm run build:settings && electron-builder --dir",
+    "dist": "npm run build:settings && electron-builder",
+    "dist:mac": "npm run build:settings && electron-builder --mac",
+    "dist:win": "npm run build:settings && electron-builder --win --x64",
+    "dist:win:arm64": "npm run build:settings && electron-builder --win --arm64",
+    "dist:linux": "npm run build:settings && electron-builder --linux"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
-      "electron"
+      "electron",
+      "uiohook-napi"
     ]
   },
   "build": {
-    "appId": "com.soulneuxs.pet-desktop",
-    "productName": "Soul Pet",
+    "appId": "com.soulnexus.desktop-pet",
+    "productName": "SoulNexus Desktop",
     "copyright": "Copyright © SoulNexus",
     "directories": {
       "output": "dist",
@@ -33,12 +36,24 @@
     "files": [
       "main.js",
       "preload.js",
+      "coding-hook.js",
+      "coding-hook-worker.js",
+      "desktop-tidy.js",
       "renderer/**/*",
-      "package.json"
+      "assets/**/*",
+      "dist-settings/**/*",
+      "package.json",
+      "!**/node_modules/uiohook-napi/build/**"
     ],
     "asar": true,
+    "asarUnpack": [
+      "**/node_modules/uiohook-napi/**"
+    ],
+    "npmRebuild": false,
+    "buildDependenciesFromSource": false,
     "mac": {
       "category": "public.app-category.entertainment",
+      "icon": "build/icon.png",
       "target": [
         "dmg",
         "zip"
@@ -48,7 +63,7 @@
       "gatekeeperAssess": false
     },
     "dmg": {
-      "title": "Soul Pet ${version}",
+      "title": "SoulNexus Desktop ${version}",
       "writeUpdateInfo": false
     },
     "win": {
@@ -56,6 +71,7 @@
         "portable",
         "zip"
       ],
+      "icon": "build/icon.png",
       "signAndEditExecutable": false
     },
     "linux": {
@@ -63,6 +79,7 @@
         "AppImage",
         "deb"
       ],
+      "icon": "build/icon.png",
       "category": "Utility",
       "maintainer": "SoulNexus"
     },
@@ -70,11 +87,31 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "shortcutName": "Soul Pet"
+      "shortcutName": "SoulNexus Desktop"
     }
   },
+  "dependencies": {
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwind-merge": "^2.6.0",
+    "uiohook-napi": "^1.5.5"
+  },
   "devDependencies": {
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
     "electron": "^33.2.1",
-    "electron-builder": "^25.1.8"
+    "electron-builder": "^25.1.8",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.6",
+    "wait-on": "^8.0.1"
   }
 }
