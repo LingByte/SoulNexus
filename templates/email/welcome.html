@@ -1,56 +1,42 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <title>Welcome to SoulNexus ✨</title>
-    <style>
-        body {
-            background: linear-gradient(to bottom right, #e6e6fa, #add8e6); /* 淡紫色 至 淡蓝色 */
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            padding: 30px;
-            color: #333;
-        }
-        .container {
-            max-width: 600px;
-            background-color: #ffffffcc;
-            margin: 0 auto;
-            padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-        }
-        .button {
-            display: inline-block;
-            padding: 12px 24px;
-            margin-top: 20px;
-            background-color: #9370db;
-            color: white;
-            text-decoration: none;
-            border-radius: 6px;
-            font-weight: bold;
-        }
-        .footer {
-            margin-top: 40px;
-            font-size: 0.9em;
-            color: #666;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<title>SoulNexus</title>
+<style type="text/css">
+body { margin: 0 !important; padding: 0 !important; width: 100% !important; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+table { border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+@media only screen and (max-width: 480px) {
+  .email-wrapper { padding: 16px 10px !important; }
+  .email-container { width: 100% !important; max-width: 100% !important; }
+  .email-body { padding: 24px 18px 8px !important; }
+  .email-header { padding: 20px 18px !important; }
+  .email-footer { padding: 16px 18px 22px !important; }
+  .btn-link { display: block !important; width: 100% !important; box-sizing: border-box !important; text-align: center !important; }
+}
+</style>
 </head>
-<body>
-<div class="container">
-    <h2>Welcome to lingEcho ✨</h2>
-    <p>Hello, <strong>{{.Username}}</strong>,</p>
-    <p>Thank you for registering with <strong>VoiceSculptor</strong>! Your account has been successfully created.</p>
-    <p>To ensure security, please click the button below to verify your email address:</p>
-
-    <p style="text-align:center;">
-        <a class="button" href="{{.VerifyURL}}">Verify Email</a>
-    </p>
-
-    <p>If you did not sign up for this account, please ignore this email.</p>
-
-    <div class="footer">
-        — The VoiceSculptor Team 🌟
-    </div>
-</div>
+<body style="margin:0;padding:0;background:#f4f6fb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+<table class="email-wrapper" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6fb;padding:40px 16px;">
+<tr><td align="center">
+<table class="email-container" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 8px 32px rgba(22,113,238,0.10);">
+<tr><td class="email-header" style="background:linear-gradient(135deg,#1671EE 0%,#1259c7 100%);padding:28px 32px;">
+<span style="color:#ffffff;font-size:22px;font-weight:700;letter-spacing:0.02em;">SoulNexus</span>
+</td></tr>
+<tr><td class="email-body" style="padding:32px 32px 8px;color:#0f172a;font-size:15px;line-height:1.7;">
+<h2 style="margin:0 0 12px;font-size:20px;font-weight:600;color:#0f172a;">欢迎加入 SoulNexus</h2>
+<p style="margin:0 0 16px;color:#475569;">{{.Username}}，您好！感谢您注册 SoulNexus 智能语音客服平台。</p>
+<p style="margin:0 0 24px;color:#475569;">请点击下方按钮验证邮箱并完成账号激活：</p>
+<p style="text-align:center;margin:0 0 24px;"><a class="btn-link" href="{{.VerifyURL}}" style="display:inline-block;padding:12px 28px;background:#1671EE;color:#ffffff;text-decoration:none;border-radius:10px;font-weight:600;">验证邮箱</a></p>
+<p style="margin:0;color:#64748b;font-size:13px;">如果按钮无法点击，请复制链接到浏览器：<br><span style="color:#1671EE;word-break:break-all;">{{.VerifyURL}}</span></p>
+</td></tr>
+<tr><td class="email-footer" style="padding:20px 32px 28px;background:#f8fafc;border-top:1px solid #eef2f7;color:#64748b;font-size:12px;line-height:1.6;">
+© SoulNexus · 此邮件由系统自动发送，请勿直接回复
+</td></tr>
+</table>
+</td></tr>
+</table>
 </body>
 </html>

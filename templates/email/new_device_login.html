@@ -1,70 +1,77 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <title>新设备登录提醒</title>
-    <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background: #f8f9fa; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
-        .content { background: #fff; padding: 30px; border: 1px solid #e9ecef; }
-        .alert { background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 4px; margin: 20px 0; }
-        .device-info { background: #f8f9fa; padding: 15px; border-radius: 4px; margin: 20px 0; }
-        .footer { background: #f8f9fa; padding: 20px; text-align: center; border-radius: 0 0 8px 8px; font-size: 14px; color: #666; }
-        .security-tips { background: #e7f3ff; border: 1px solid #b3d9ff; padding: 15px; border-radius: 4px; margin: 20px 0; }
-        .btn { display: inline-block; background: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin: 10px 5px; }
-        .btn-danger { background: #dc3545; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<title>SoulNexus</title>
+<style type="text/css">
+body { margin: 0 !important; padding: 0 !important; width: 100% !important; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+table { border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+@media only screen and (max-width: 480px) {
+  .email-wrapper { padding: 16px 10px !important; }
+  .email-container { width: 100% !important; max-width: 100% !important; }
+  .email-body { padding: 24px 18px 8px !important; }
+  .email-header { padding: 20px 18px !important; }
+  .email-footer { padding: 16px 18px 22px !important; }
+  table.responsive-kv,
+  table.responsive-kv tbody,
+  table.responsive-kv tr,
+  table.responsive-kv td {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  table.responsive-kv tr { border-bottom: 1px solid #eef2f7 !important; }
+  table.responsive-kv td { text-align: left !important; border: none !important; }
+  table.responsive-kv td.col-label {
+    color: #64748b !important;
+    font-size: 12px !important;
+    padding: 10px 16px 2px !important;
+    width: 100% !important;
+  }
+  table.responsive-kv td.col-value {
+    color: #0f172a !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    padding: 0 16px 10px !important;
+    width: 100% !important;
+  }
+}
+</style>
 </head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>新设备登录提醒</h1>
-        </div>
-        <div class="content">
-            <p>亲爱的 {{.Username}}，</p>
-            <p>我们检测到您的账户在一个新设备上成功登录。如果这是您本人的操作，请忽略此邮件。</p>
-            
-            <div class="alert">
-                <strong>安全提醒：</strong> 如果这不是您的操作，您的账户可能已被他人访问，请立即采取安全措施！
-            </div>
-
-            <div class="device-info">
-                <h3>登录详情：</h3>
-                <ul>
-                    <li><strong>登录时间：</strong> {{.LoginTime}}</li>
-                    <li><strong>IP地址：</strong> {{.IPAddress}}</li>
-                    <li><strong>登录位置：</strong> {{.Location}}</li>
-                    <li><strong>设备类型：</strong> {{.DeviceType}}</li>
-                    <li><strong>操作系统：</strong> {{.OS}}</li>
-                    <li><strong>浏览器：</strong> {{.Browser}}</li>
-                    {{if .IsSuspicious}}<li><strong>风险等级：</strong> <span style="color: #dc3545;">可疑登录</span></li>{{end}}
-                </ul>
-            </div>
-
-            <div class="security-tips">
-                <h3>安全建议：</h3>
-                <ul>
-                    <li>如果这不是您的操作，请立即更改密码</li>
-                    <li>启用两步验证以增强账户安全</li>
-                    <li>定期检查登录设备列表</li>
-                    <li>不要在公共设备上保存登录信息</li>
-                </ul>
-            </div>
-
-            <p style="text-align: center; margin: 30px 0;">
-                {{if .SecurityURL}}
-                <a href="{{.SecurityURL}}" class="btn">查看账户安全</a>
-                {{end}}
-                {{if .ChangePasswordURL}}
-                <a href="{{.ChangePasswordURL}}" class="btn btn-danger">立即更改密码</a>
-                {{end}}
-            </p>
-        </div>
-        <div class="footer">
-            <p>此邮件由系统自动发送，请勿回复。</p>
-            <p>如有疑问，请联系客服支持。</p>
-        </div>
-    </div>
+<body style="margin:0;padding:0;background:#f4f6fb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+<table class="email-wrapper" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6fb;padding:40px 16px;">
+<tr><td align="center">
+<table class="email-container" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 8px 32px rgba(22,113,238,0.10);">
+<tr><td class="email-header" style="background:linear-gradient(135deg,#1671EE 0%,#1259c7 100%);padding:28px 32px;">
+<span style="color:#ffffff;font-size:22px;font-weight:700;letter-spacing:0.02em;">SoulNexus</span>
+</td></tr>
+<tr><td class="email-body" style="padding:32px 32px 8px;color:#0f172a;font-size:15px;line-height:1.7;">
+<h2 style="margin:0 0 12px;font-size:20px;font-weight:600;color:#0f172a;">{{if .IsSuspicious}}可疑登录提醒{{else}}新设备登录提醒{{end}}</h2>
+<p style="margin:0 0 16px;color:#475569;">{{.Username}}，您的账号刚刚在新设备上登录。</p>
+<table class="responsive-kv" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 20px;background:#f8fafc;border-radius:10px;">
+<tr>
+  <td class="col-label" style="padding:10px 16px;color:#64748b;font-size:13px;width:30%;">时间</td>
+  <td class="col-value" style="padding:10px 16px;color:#0f172a;font-size:13px;text-align:right;">{{.LoginTime}}</td>
+</tr>
+<tr>
+  <td class="col-label" style="padding:10px 16px;color:#64748b;font-size:13px;width:30%;">IP</td>
+  <td class="col-value" style="padding:10px 16px;color:#0f172a;font-size:13px;text-align:right;word-break:break-all;">{{.IPAddress}}</td>
+</tr>
+<tr>
+  <td class="col-label" style="padding:10px 16px;color:#64748b;font-size:13px;width:30%;">设备</td>
+  <td class="col-value" style="padding:10px 16px;color:#0f172a;font-size:13px;text-align:right;">{{.DeviceType}} · {{.OS}} · {{.Browser}}</td>
+</tr>
+</table>
+<p style="margin:0;color:#64748b;font-size:13px;">如非本人操作，请立即修改密码并在设备管理中撤销可疑设备。</p>
+</td></tr>
+<tr><td class="email-footer" style="padding:20px 32px 28px;background:#f8fafc;border-top:1px solid #eef2f7;color:#64748b;font-size:12px;line-height:1.6;">
+© SoulNexus · 此邮件由系统自动发送，请勿直接回复
+</td></tr>
+</table>
+</td></tr>
+</table>
 </body>
 </html>

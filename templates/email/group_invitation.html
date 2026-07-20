@@ -1,123 +1,41 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <title>组织邀请 - SoulNexus ✨</title>
-    <style>
-        body {
-            background: linear-gradient(to bottom right, #e6e6fa, #add8e6); /* 淡紫色 至 淡蓝色 */
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            padding: 30px;
-            color: #333;
-        }
-        .container {
-            max-width: 600px;
-            background-color: #ffffffcc;
-            margin: 0 auto;
-            padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-        }
-        .header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        .header h2 {
-            color: #9370db;
-            margin: 0;
-        }
-        .content {
-            line-height: 1.8;
-        }
-        .group-info {
-            background-color: #f3f0ff;
-            border-left: 4px solid #9370db;
-            padding: 15px;
-            margin: 20px 0;
-            border-radius: 4px;
-        }
-        .group-name {
-            font-size: 1.2em;
-            font-weight: bold;
-            color: #4B0082;
-            margin-bottom: 5px;
-        }
-        .button {
-            display: inline-block;
-            padding: 12px 24px;
-            margin-top: 20px;
-            background-color: #9370db;
-            color: white;
-            text-decoration: none;
-            border-radius: 6px;
-            font-weight: bold;
-            text-align: center;
-        }
-        .button-container {
-            text-align: center;
-            margin: 30px 0;
-        }
-        .footer {
-            margin-top: 40px;
-            font-size: 0.9em;
-            color: #666;
-            text-align: center;
-        }
-        .inviter-info {
-            color: #666;
-            font-size: 0.9em;
-            margin-top: 10px;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<title>SoulNexus</title>
+<style type="text/css">
+body { margin: 0 !important; padding: 0 !important; width: 100% !important; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+table { border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+@media only screen and (max-width: 480px) {
+  .email-wrapper { padding: 16px 10px !important; }
+  .email-container { width: 100% !important; max-width: 100% !important; }
+  .email-body { padding: 24px 18px 8px !important; }
+  .email-header { padding: 20px 18px !important; }
+  .email-footer { padding: 16px 18px 22px !important; }
+  .btn-link { display: block !important; width: 100% !important; box-sizing: border-box !important; text-align: center !important; }
+}
+</style>
 </head>
-<body>
-<div class="container">
-    <div class="header">
-        <h2>组织邀请 ✨</h2>
-    </div>
-    <div class="content">
-        <p>Hello, <strong>{{.InviteeName}}</strong>,</p>
-        <p>{{.InviterName}} 邀请您加入以下组织：</p>
-        
-        <div class="group-info">
-            <div class="group-name">{{.GroupName}}</div>
-            {{if .GroupType}}
-            <div style="color: #666; font-size: 0.9em;">类型：{{.GroupType}}</div>
-            {{end}}
-            {{if .GroupDescription}}
-            <div style="color: #666; font-size: 0.9em; margin-top: 8px;">{{.GroupDescription}}</div>
-            {{end}}
-        </div>
-        
-        <p>加入组织后，您可以：</p>
-        <ul>
-            <li>访问组织共享的助手和知识库</li>
-            <li>与团队成员协作</li>
-            <li>管理组织资源</li>
-        </ul>
-        
-        <div class="button-container">
-            <a class="button" href="{{.AcceptURL}}">接受邀请</a>
-        </div>
-        
-        <p style="font-size: 0.9em; color: #666;">
-            如果按钮无法点击，请复制以下链接到浏览器中打开：<br>
-            <span style="word-break: break-all; background: #f8f9fa; padding: 8px; border-radius: 4px; display: inline-block; margin-top: 8px;">{{.AcceptURL}}</span>
-        </p>
-        
-        <p style="font-size: 0.85em; color: #999; margin-top: 20px;">
-            此邀请将在7天后过期。如果您不想加入此组织，可以忽略此邮件。
-        </p>
-        
-        <div class="inviter-info">
-            <p>邀请人：{{.InviterName}}</p>
-        </div>
-    </div>
-    
-    <div class="footer">
-        — The SoulNexus Team 🌟
-    </div>
-</div>
+<body style="margin:0;padding:0;background:#f4f6fb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+<table class="email-wrapper" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6fb;padding:40px 16px;">
+<tr><td align="center">
+<table class="email-container" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 8px 32px rgba(22,113,238,0.10);">
+<tr><td class="email-header" style="background:linear-gradient(135deg,#1671EE 0%,#1259c7 100%);padding:28px 32px;">
+<span style="color:#ffffff;font-size:22px;font-weight:700;letter-spacing:0.02em;">SoulNexus</span>
+</td></tr>
+<tr><td class="email-body" style="padding:32px 32px 8px;color:#0f172a;font-size:15px;line-height:1.7;">
+<h2 style="margin:0 0 12px;font-size:20px;font-weight:600;color:#0f172a;">组织邀请</h2>
+<p style="margin:0 0 8px;color:#475569;">{{.InviteeName}}，{{.InviterName}} 邀请您加入 <strong>{{.GroupName}}</strong>（{{.GroupType}}）。</p>
+<p style="margin:0 0 16px;color:#475569;">{{.GroupDescription}}</p>
+<p style="text-align:center;margin:0 0 24px;"><a class="btn-link" href="{{.AcceptURL}}" style="display:inline-block;padding:12px 28px;background:#1671EE;color:#ffffff;text-decoration:none;border-radius:10px;font-weight:600;">接受邀请</a></p>
+</td></tr>
+<tr><td class="email-footer" style="padding:20px 32px 28px;background:#f8fafc;border-top:1px solid #eef2f7;color:#64748b;font-size:12px;line-height:1.6;">
+© SoulNexus · 此邮件由系统自动发送，请勿直接回复
+</td></tr>
+</table>
+</td></tr>
+</table>
 </body>
 </html>
-

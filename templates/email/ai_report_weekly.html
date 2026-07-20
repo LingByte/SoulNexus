@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<title>{{.Title}}</title>
+<style type="text/css">
+body { margin: 0 !important; padding: 0 !important; width: 100% !important; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+table { border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+@media only screen and (max-width: 480px) {
+  .email-wrapper { padding: 16px 10px !important; }
+  .email-container { width: 100% !important; max-width: 100% !important; }
+  .email-body { padding: 20px 16px !important; }
+  .report-title { font-size: 18px !important; }
+  .section-title { font-size: 13px !important; }
+  table.responsive-kv,
+  table.responsive-kv tbody,
+  table.responsive-kv tr,
+  table.responsive-kv td {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  table.responsive-kv tr { border-bottom: 1px solid #f2f3f5 !important; }
+  table.responsive-kv td { text-align: left !important; border: none !important; }
+  table.responsive-kv td.col-label {
+    color: #86909c !important;
+    font-size: 12px !important;
+    padding: 10px 10px 2px !important;
+    width: 100% !important;
+  }
+  table.responsive-kv td.col-value {
+    font-weight: 600 !important;
+    color: #1d2129 !important;
+    padding: 0 10px 10px !important;
+    width: 100% !important;
+  }
+  .btn-link { display: block !important; width: 100% !important; box-sizing: border-box !important; text-align: center !important; }
+}
+</style>
+</head>
+<body style="margin:0;padding:0;background:#f4f6fb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+<table class="email-wrapper" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6fb;padding:24px 16px;">
+<tr><td align="center">
+<table class="email-container" width="640" cellpadding="0" cellspacing="0" style="max-width:640px;width:100%;background:#ffffff;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,.06);">
+<tr><td class="email-body" style="padding:28px 32px;color:#1d2129;font-size:14px;line-height:1.7;">
+<table width="100%" cellpadding="0" cellspacing="0"><tr><td style="height:4px;background:#165dff;border-radius:4px;font-size:0;line-height:0;">&nbsp;</td></tr></table>
+<h1 class="report-title" style="margin:20px 0 8px;font-size:20px;color:#165dff;font-weight:600;">{{.ReportTypeLabel}}</h1>
+<p style="margin:0 0 20px;color:#86909c;font-size:13px;">{{.Period}}</p>
+
+<p class="section-title" style="margin:22px 0 10px;font-size:14px;color:#1d2129;font-weight:600;border-left:3px solid #165dff;padding-left:8px;">会话概览</p>
+<table class="responsive-kv" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 8px;">
+<tr><td class="col-label" style="padding:9px 10px;color:#86909c;font-size:14px;width:44%;border-bottom:1px solid #f2f3f5;vertical-align:top;">会话量</td><td class="col-value" style="padding:9px 10px;font-weight:600;color:#1d2129;font-size:14px;border-bottom:1px solid #f2f3f5;vertical-align:top;">{{.CallCount}}</td></tr>
+<tr><td class="col-label" style="padding:9px 10px;color:#86909c;font-size:14px;width:44%;border-bottom:1px solid #f2f3f5;vertical-align:top;">接通量 / 接通率</td><td class="col-value" style="padding:9px 10px;font-weight:600;color:#1d2129;font-size:14px;border-bottom:1px solid #f2f3f5;vertical-align:top;">{{.ConnectedCount}} / {{.ConnectedRate}}</td></tr>
+<tr><td class="col-label" style="padding:9px 10px;color:#86909c;font-size:14px;width:44%;border-bottom:1px solid #f2f3f5;vertical-align:top;">计费分钟 / 均长</td><td class="col-value" style="padding:9px 10px;font-weight:600;color:#1d2129;font-size:14px;border-bottom:1px solid #f2f3f5;vertical-align:top;">{{.TotalMinutes}} / {{.AvgMinutes}}</td></tr>
+<tr><td class="col-label" style="padding:9px 10px;color:#86909c;font-size:14px;width:44%;border-bottom:1px solid #f2f3f5;vertical-align:top;">纯 AI 占比</td><td class="col-value" style="padding:9px 10px;font-weight:600;color:#1d2129;font-size:14px;border-bottom:1px solid #f2f3f5;vertical-align:top;">{{.PureAIRate}}</td></tr>
+</table>
+
+<p class="section-title" style="margin:22px 0 10px;font-size:14px;color:#1d2129;font-weight:600;border-left:3px solid #165dff;padding-left:8px;">知识库运营</p>
+<table class="responsive-kv" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 8px;">
+{{if .KnowledgeLine}}<tr><td class="col-label" style="padding:9px 10px;color:#86909c;font-size:14px;width:44%;border-bottom:1px solid #f2f3f5;vertical-align:top;">检索次数 / 命中率</td><td class="col-value" style="padding:9px 10px;font-weight:600;color:#1d2129;font-size:14px;border-bottom:1px solid #f2f3f5;vertical-align:top;">{{.KnowledgeLine}}</td></tr>{{end}}
+<tr><td class="col-label" style="padding:9px 10px;color:#86909c;font-size:14px;width:44%;border-bottom:1px solid #f2f3f5;vertical-align:top;">引用率 / 召回命中率 / 挂载率</td><td class="col-value" style="padding:9px 10px;font-weight:600;color:#1d2129;font-size:14px;border-bottom:1px solid #f2f3f5;vertical-align:top;">{{.QuoteRate}} / {{.HitRate}} / {{.KBAttachRate}}</td></tr>
+<tr><td class="col-label" style="padding:9px 10px;color:#86909c;font-size:14px;width:44%;border-bottom:1px solid #f2f3f5;vertical-align:top;">新增未答 / 待处理未答</td><td class="col-value" style="padding:9px 10px;font-weight:600;color:#1d2129;font-size:14px;border-bottom:1px solid #f2f3f5;vertical-align:top;">{{.UnansweredNew}} / {{.UnansweredOpen}}</td></tr>
+</table>
+
+{{if .HasHF}}
+<p class="section-title" style="margin:22px 0 10px;font-size:14px;color:#1d2129;font-weight:600;border-left:3px solid #165dff;padding-left:8px;">高频问题 Top5</p>
+<ol style="margin:0;padding-left:18px;color:#4e5969;font-size:13px;line-height:1.7;">
+{{range .TopHFQuestions}}<li>{{.}}</li>{{end}}
+</ol>
+{{end}}
+
+{{if .ProfileURL}}<p style="text-align:center;margin:28px 0 0;"><a class="btn-link" href="{{.ProfileURL}}" style="display:inline-block;padding:10px 22px;background:#165dff;color:#ffffff !important;text-decoration:none;border-radius:8px;font-size:14px;font-weight:500;">查看完整报表</a></p>{{end}}
+<p style="margin:28px 0 0;font-size:12px;color:#86909c;line-height:1.6;">本邮件由 SoulNexus 自动生成。若已关闭系统邮件通知，您不应收到此信。</p>
+</td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>

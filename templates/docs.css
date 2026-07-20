@@ -1,0 +1,260 @@
+/* SoulNexus API docs — aligned with web/src/index.css (:root light theme).
+ *
+ * Do NOT override Scalar sidebar layout/position (that breaks the shell).
+ * Theme tokens + topbar + gentle motion only.
+ */
+
+:root {
+  --background: 0 0% 100%;
+  --foreground: 240 10% 3.9%;
+  --card: 0 0% 100%;
+  --primary: 215 87% 51%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 215 95% 97%;
+  --secondary-foreground: 215 40% 24%;
+  --muted: 240 4.8% 95.9%;
+  --muted-foreground: 240 3.8% 46.1%;
+  --accent: 215 92% 95%;
+  --border: 240 5.9% 90%;
+  --radius: 0.5rem;
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --lx-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+html,
+body.lx-docs {
+  height: 100%;
+  margin: 0;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  font-feature-settings: "rlig" 1, "calt" 1;
+  -webkit-font-smoothing: antialiased;
+}
+
+body.lx-docs {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+/* ---- Top bar (matches dashboard header density) ---- */
+.lx-docs-topbar {
+  flex: 0 0 auto;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 20px;
+  background: hsl(var(--card) / 0.92);
+  border-bottom: 1px solid hsl(var(--border));
+  backdrop-filter: blur(8px);
+  box-shadow: var(--shadow-sm);
+}
+
+.lx-docs-topbar .brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.lx-docs-topbar .brand-logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  object-fit: contain;
+  background: hsl(var(--secondary));
+  border: 1px solid hsl(var(--border));
+}
+
+.lx-docs-topbar .brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.lx-docs-topbar .brand strong {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: hsl(var(--foreground));
+  line-height: 1.2;
+}
+
+.lx-docs-topbar .brand span {
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+  line-height: 1.2;
+}
+
+.lx-docs-topbar .actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.lx-docs-topbar a {
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: calc(var(--radius) - 2px);
+  transition: background 0.18s var(--lx-ease), border-color 0.18s var(--lx-ease),
+    color 0.18s var(--lx-ease), box-shadow 0.18s var(--lx-ease);
+}
+
+.lx-docs-topbar a.btn-ghost {
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--secondary));
+  color: hsl(var(--secondary-foreground));
+}
+
+.lx-docs-topbar a.btn-ghost:hover {
+  border-color: hsl(var(--primary) / 0.45);
+  background: hsl(var(--accent));
+  color: hsl(var(--primary));
+}
+
+.lx-docs-topbar a.btn-primary {
+  border: 1px solid hsl(var(--primary));
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  box-shadow: 0 1px 2px hsl(var(--primary) / 0.25);
+}
+
+.lx-docs-topbar a.btn-primary:hover {
+  background: hsl(215 87% 44%);
+  border-color: hsl(215 87% 44%);
+}
+
+.lx-docs-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  position: relative;
+  background:
+    radial-gradient(1200px 480px at 12% -10%, hsl(var(--primary) / 0.06), transparent 55%),
+    hsl(var(--background));
+}
+
+/* ---- Scalar light theme tokens (web primary blue) ---- */
+.light-mode,
+.scalar-app {
+  --scalar-font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --scalar-font-code: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  --scalar-color-1: hsl(240 10% 3.9%);
+  --scalar-color-2: hsl(240 5% 26%);
+  --scalar-color-3: hsl(240 3.8% 46.1%);
+
+  --scalar-background-1: hsl(0 0% 100%);
+  --scalar-background-2: hsl(240 4.8% 97%);
+  --scalar-background-3: hsl(215 95% 97%);
+
+  --scalar-border-color: hsl(240 5.9% 90%);
+
+  --scalar-color-accent: hsl(215 87% 51%);
+  --scalar-button-1: hsl(215 87% 51%);
+  --scalar-button-1-hover: hsl(215 87% 44%);
+  --scalar-button-1-color: #ffffff;
+}
+
+.light-mode .t-doc__sidebar,
+.light-mode aside,
+.scalar-app aside {
+  background: hsl(var(--background)) !important;
+  border-right-color: hsl(var(--border)) !important;
+}
+
+/* ---- Sidebar expand / collapse motion ----
+ * ScalarSidebarGroup mounts/unmounts <ul class="group/items"> (no height tween).
+ * Animate enter; lengthen chevron rotate. */
+@keyframes lx-sidebar-items-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.scalar-app ul.group\/items,
+.scalar-app .group\/items {
+  animation: lx-sidebar-items-in 0.22s var(--lx-ease) both;
+}
+
+.scalar-app .transition-transform {
+  transition-duration: 0.22s !important;
+  transition-timing-function: var(--lx-ease) !important;
+}
+
+.scalar-app button[aria-expanded] {
+  transition: background 0.15s var(--lx-ease), color 0.15s var(--lx-ease);
+}
+
+.scalar-app button[aria-expanded="true"] {
+  color: hsl(var(--primary));
+}
+
+/* Introduction / content density closer to dashboard */
+.scalar-app .introduction-section,
+.scalar-app .markdown {
+  line-height: 1.65;
+}
+
+.scalar-app table {
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.scalar-app table th,
+.scalar-app table td {
+  border: 1px solid hsl(var(--border));
+  padding: 8px 10px;
+}
+
+.scalar-app table th {
+  background: hsl(var(--secondary));
+  color: hsl(var(--secondary-foreground));
+  font-weight: 600;
+}
+
+/* Method badges / primary buttons feel like web */
+.scalar-app .bg-c-btn,
+.scalar-app button.bg-c-accent {
+  border-radius: calc(var(--radius) - 2px);
+}
+
+/* Scrollbar like web/src/index.css */
+.scalar-app ::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+.scalar-app ::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scalar-app ::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 4px;
+}
+.scalar-app ::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}
+
+@media (max-width: 720px) {
+  .lx-docs-topbar {
+    padding: 8px 12px;
+  }
+  .lx-docs-topbar .brand span {
+    display: none;
+  }
+}
