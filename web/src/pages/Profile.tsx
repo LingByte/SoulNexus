@@ -1,1915 +1,589 @@
-import { useState, useEffect, useRef, type Dispatch, type SetStateAction } from 'react'
-import { Select as ArcoSelect, Input as ArcoInput } from '@arco-design/web-react'
+import { useEffect, useMemo, useState } from 'react'
 import {
-  User, Mail, Camera, Save, Edit3, X, Lock, Eye, EyeOff,
-  Phone, Heart,
-  Smartphone, Monitor, Laptop, Tablet, MapPin,
-} from 'lucide-react'
-import { useAuthStore } from '../stores/authStore'
-import { useI18nStore } from '../stores/i18nStore'
-import { useThemeStore, type ThemeMode } from '../stores/themeStore'
-import Button from '../components/UI/Button'
-import Badge from '../components/UI/Badge'
-import Switch from '../components/UI/Switch'
-import FadeIn from '../components/FadeIn.tsx'
-import LoadingAnimation from '../components/LoadingAnimation.tsx'
-import { showAlert } from '../utils/notification'
-import { getProfile, updateProfile, updatePreferences, changePassword, changePasswordByEmail, uploadAvatar, setupTwoFactor, enableTwoFactor, disableTwoFactor, getUserDevices, deleteUserDevice, trustUserDevice, untrustUserDevice, bindEmail, changeEmail, sendCurrentEmailCode, TwoFactorSetupResponse, UserDevice } from '../api/profile'
-import { sendEmailCode } from '../api/auth'
-import { canBindEmail, canChangeEmail, isPlaceholderEmail } from '@/utils/emailAccount'
-import Modal from '../components/UI/Modal'
-import { motion, AnimatePresence } from 'framer-motion'
-import ConfirmDialog from '../components/UI/ConfirmDialog'
-import { Link, useParams, Navigate } from 'react-router-dom'
-import Billing from '@/pages/Billing.tsx'
-import NotificationCenter from '@/pages/NotificationCenter.tsx'
-import CredentialManager from '@/pages/CredentialManager.tsx'
-import LLMTokenManager from '@/pages/profile/LLMTokenManager.tsx'
-import LLMUsagePanel from '@/pages/profile/LLMUsagePanel.tsx'
-import TeamWorkspacePage from '@/pages/profile/TeamWorkspacePage.tsx'
-import ProfileAuditLogPanel from '@/pages/profile/ProfileAuditLogPanel.tsx'
-import { resolveDeviceVisualKind, type DeviceVisualKind } from '@/pages/profile/profileDeviceVisual'
-import { getApiBaseURL } from '@/config/apiConfig'
+  Avatar,
+  Card,
+  Form,
+  Menu,
+  Space,
+  Tag,
+  Upload,
+} from '@arco-design/web-react'
+import { Button, Input } from '@/components/ui'
+import { showAlert } from '@/utils/notification'
+import dayjs from 'dayjs'
+import { UserCircle } from 'lucide-react'
+import { useNavigate, useParams, Navigate } from 'react-router-dom'
+import BaseLayout from '@/components/Layout/BaseLayout'
+import AccountSecurityPanel from '@/components/profile/AccountSecurityPanel'
+import UserDevicesPanel from '@/components/profile/UserDevicesPanel'
+import InboxPanel from '@/components/profile/InboxPanel'
+import AIReportsPanel from '@/components/profile/AIReportsPanel'
+import LoginHistoryPanel from '@/components/profile/LoginHistoryPanel'
+import NotificationChannelsPanel from '@/components/profile/NotificationChannelsPanel'
+import OperationLogs from '@/pages/OperationLogs'
+import AIInvocationLogs from '@/pages/AIInvocationLogs'
+import AccessKeys from '@/pages/AccessKeys'
+import { fetchMe, updateMe as updateMeApi, uploadMyAvatar } from '@/api/me'
+import { useAuthStore } from '@/stores/authStore'
+import { useSiteConfig } from '@/contexts/siteConfig'
+import { useTranslation } from '@/i18n'
+import { extractApiErrorMessage } from '@/utils/apiError'
+import { Link } from '@/components/ui'
 
-const DEVICE_VISUAL: Record<
-  DeviceVisualKind,
-  { Icon: typeof Monitor; ring: string; icon: string }
-> = {
-  desktop: {
-    Icon: Monitor,
-    ring: 'ring-sky-200/80 dark:ring-sky-800/60',
-    icon: 'text-sky-600 dark:text-sky-400',
-  },
-  laptop: {
-    Icon: Laptop,
-    ring: 'ring-amber-200/80 dark:ring-amber-800/50',
-    icon: 'text-amber-700 dark:text-amber-400',
-  },
-  tablet: {
-    Icon: Tablet,
-    ring: 'ring-violet-200/80 dark:ring-violet-800/50',
-    icon: 'text-violet-600 dark:text-violet-400',
-  },
-  phone: {
-    Icon: Smartphone,
-    ring: 'ring-emerald-200/80 dark:ring-emerald-800/50',
-    icon: 'text-emerald-600 dark:text-emerald-400',
-  },
+const FormItem = Form.Item
+
+type ProfileSection = 'info' | 'security' | 'devices' | 'inbox' | 'reports' | 'logs' | 'ai-invocations' | 'access-keys' | 'login-history' | 'notifications'
+
+const SECTION_ALIASES: Record<string, ProfileSection> = {
+  info: 'info',
+  profile: 'info',
+  security: 'security',
+  account: 'security',
+  devices: 'devices',
+  inbox: 'inbox',
+  reports: 'reports',
+  'ai-reports': 'reports',
+  logs: 'logs',
+  'operation-logs': 'logs',
+  'ai-invocations': 'ai-invocations',
+  aiInvocations: 'ai-invocations',
+  'access-keys': 'access-keys',
+  accessKeys: 'access-keys',
+  'login-history': 'login-history',
+  loginHistory: 'login-history',
+  notifications: 'notifications',
+  // legacy aliases → merged notifications page
+  webhooks: 'notifications',
+  'im-channels': 'notifications',
+  imChannels: 'notifications',
 }
 
-const VALID_SECTIONS = new Set([
-  'personal',
-  'teams',
-  'activity',
-  'billing',
-  'user-devices',
-  'account-security',
-  'credential',
-  'llm-tokens',
-  'llm-usage',
-  'notifications',
-  'locale',
-])
+function canViewWebhooks(me: any): boolean {
+  if (me?.principal === 'platform') return false
+  const codes = me?.permissionCodes as string[] | undefined
+  if (!codes?.length) return false
+  return codes.includes('api.webhooks.read') || codes.includes('api.webhooks.write') || codes.includes('*')
+}
 
-const Profile = () => {
-  const { section } = useParams<{ section: string }>()
-  const { user, isAuthenticated, updateProfile: updateAuthStore } = useAuthStore()
-  const { t } = useI18nStore()
-  const [isEditing, setIsEditing] = useState(false)
-  const [isChangingPassword, setIsChangingPassword] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const [isPageLoading, setIsPageLoading] = useState(true)
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
-  const [showNewPassword, setShowNewPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  
-  // 两步验证相关状态
-  const [twoFactorSetup, setTwoFactorSetup] = useState<TwoFactorSetupResponse | null>(null)
-  const [twoFactorCode, setTwoFactorCode] = useState('')
-  const [isTwoFactorLoading, setIsTwoFactorLoading] = useState(false)
-  const [showTwoFactorSetup, setShowTwoFactorSetup] = useState(false)
-  const [showTwoFactorDisable, setShowTwoFactorDisable] = useState(false)
+function canViewAccessKeys(me: any): boolean {
+  if (me?.principal === 'platform') return false
+  const codes = me?.permissionCodes as string[] | undefined
+  if (!codes?.length) return false
+  return codes.includes('menu.acc.keys') || codes.includes('api.credentials.read') || codes.includes('*')
+}
 
-  // 设备管理相关状态
-  const [devices, setDevices] = useState<UserDevice[]>([])
-  const [isLoadingDevices, setIsLoadingDevices] = useState(false)
-  
-  // 确认对话框状态
-  const [confirmDialog, setConfirmDialog] = useState<{
-    isOpen: boolean
-    title: string
-    message: string
-    onConfirm: () => void
-    type?: 'warning' | 'danger' | 'info' | 'success'
-  }>({
-    isOpen: false,
-    title: '',
-    message: '',
-    onConfirm: () => {},
-    type: 'warning'
-  })
-  
-  const [isWechatBinding, setIsWechatBinding] = useState(false)
-  const [wechatBindCode, setWechatBindCode] = useState('')
-  const [wechatBindExpiresAt, setWechatBindExpiresAt] = useState<number>(0)
-  const [wechatBindCountdown, setWechatBindCountdown] = useState(0)
-  const [wechatBindStatus, setWechatBindStatus] = useState<'idle' | 'pending' | 'success' | 'failed' | 'expired'>('idle')
-  const wechatBindPollRef = useRef<number | null>(null)
-  
-  const [formData, setFormData] = useState({
-    email: user?.email || '',
-    phone: user?.phone || '',
-    displayName: user?.displayName || '',
-    firstName: user?.firstName || '',
-    lastName: user?.lastName || '',
-    locale: user?.locale || 'zh',
-    timezone: user?.timezone || 'Asia/Shanghai',
-    themeMode: (user?.themeMode as ThemeMode) || useThemeStore.getState().theme.mode,
-    gender: user?.gender || '',
-    city: user?.city || '',
-    region: user?.region || '',
-    extra: user?.extra || '',
-    avatar: user?.avatar || '',
-  })
-
-  const [passwordData, setPasswordData] = useState({
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: '',
-  })
-  
-  // 密码更改方式：'password' | 'email'
-  const [passwordChangeMethod, setPasswordChangeMethod] = useState<'password' | 'email'>('password')
-  const [emailCode, setEmailCode] = useState('')
-  const [isSendingCode, setIsSendingCode] = useState(false)
-  const [countdown, setCountdown] = useState(0)
-
-  const [showBindEmailModal, setShowBindEmailModal] = useState(false)
-  const [showChangeEmailModal, setShowChangeEmailModal] = useState(false)
-  const [bindEmailForm, setBindEmailForm] = useState({ email: '', code: '' })
-  const [changeEmailForm, setChangeEmailForm] = useState({ newEmail: '', newEmailCode: '', currentEmailCode: '' })
-  const [bindEmailSending, setBindEmailSending] = useState(false)
-  const [changeNewEmailSending, setChangeNewEmailSending] = useState(false)
-  const [changeCurrentEmailSending, setChangeCurrentEmailSending] = useState(false)
-  const [bindEmailCountdown, setBindEmailCountdown] = useState(0)
-  const [changeNewEmailCountdown, setChangeNewEmailCountdown] = useState(0)
-  const [changeCurrentEmailCountdown, setChangeCurrentEmailCountdown] = useState(0)
-  const [emailAccountSubmitting, setEmailAccountSubmitting] = useState(false)
-
-  // 页面加载时获取最新用户信息
-  useEffect(() => {
-    // 只有在用户已登录的情况下才发送请求
-    if (!isAuthenticated) {
-      setIsPageLoading(false)
-      return
-    }
-
-    if (user) {
-      setIsPageLoading(false); // 如果用户信息已存在，直接结束加载
-      return; // 退出 useEffect，避免重复请求
-    }
-
-    const fetchUserProfile = async () => {
-      try {
-        setIsPageLoading(true)
-        const response = await getProfile()
-        if (response.code === 200 && response.data) {
-          // 更新auth store中的用户信息
-          updateAuthStore(response.data)
-          // 更新表单数据
-          setFormData({
-            email: response.data.email || '',
-            phone: response.data.phone || '',
-            displayName: response.data.displayName || '',
-            firstName: response.data.firstName || '',
-            lastName: response.data.lastName || '',
-            locale: response.data.locale || 'zh',
-            timezone: response.data.timezone || 'Asia/Shanghai',
-            themeMode: response.data.themeMode || useThemeStore.getState().theme.mode,
-            gender: response.data.gender || '',
-            city: response.data.city || '',
-            region: response.data.region || '',
-            extra: response.data.extra || '',
-            avatar: response.data.avatar || '',
-          })
-          showAlert(t('profile.messages.userInfoUpdated'), 'success', t('profile.messages.loadSuccess'))
-        } else {
-          throw new Error(response.msg || t('profile.messages.getUserInfoFailed'))
-        }
-      } catch (error: any) {
-        showAlert(error?.msg || error?.message || t('profile.messages.getUserInfoFailed'), 'error', t('profile.messages.loadFailed'))
-      } finally {
-        setIsPageLoading(false)
-      }
-    }
-
-    fetchUserProfile()
-  }, [isAuthenticated, user, updateAuthStore])
-
-  useEffect(() => {
-    if (!isAuthenticated || !user) {
-      return
-    }
-    setFormData((prev) => ({
-      ...prev,
-      locale: user.locale || prev.locale,
-      timezone: user.timezone || prev.timezone,
-      themeMode: (user.themeMode as ThemeMode) || prev.themeMode,
-    }))
-  }, [user?.locale, user?.timezone, user?.themeMode])
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const bind = params.get('bind')
-    if (bind === 'github_ok') {
-      showAlert('GitHub 账号绑定成功', 'success', '绑定成功')
-      useAuthStore.getState().refreshUserInfo()
-      params.delete('bind')
-      const next = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ''}`
-      window.history.replaceState({}, '', next)
-    } else if (bind === 'github_already_bound') {
-      showAlert('当前账号已绑定 GitHub，不能重复绑定其他账号', 'error', '绑定失败')
-      params.delete('bind')
-      const next = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ''}`
-      window.history.replaceState({}, '', next)
-    } else if (bind === 'github_bound_other') {
-      showAlert('该 GitHub 账号已被其他用户绑定', 'error', '绑定失败')
-      params.delete('bind')
-      const next = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ''}`
-      window.history.replaceState({}, '', next)
-    } else if (bind === 'wechat_ok') {
-      showAlert('微信账号绑定成功', 'success', '绑定成功')
-      useAuthStore.getState().refreshUserInfo()
-      params.delete('bind')
-      const next = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ''}`
-      window.history.replaceState({}, '', next)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!wechatBindExpiresAt) return
-    const updateCountdown = () => {
-      const remain = Math.max(0, Math.floor((wechatBindExpiresAt * 1000 - Date.now()) / 1000))
-      setWechatBindCountdown(remain)
-      if (remain <= 0 && wechatBindStatus === 'pending') {
-        setWechatBindStatus('expired')
-      }
-    }
-    updateCountdown()
-    const timer = window.setInterval(updateCountdown, 1000)
-    return () => window.clearInterval(timer)
-  }, [wechatBindExpiresAt, wechatBindStatus])
-
-  useEffect(() => {
-    return () => {
-      if (wechatBindPollRef.current) {
-        window.clearInterval(wechatBindPollRef.current)
-        wechatBindPollRef.current = null
-      }
-    }
-  }, [])
-
-  useEffect(() => {
-    if (section === 'user-devices' && isAuthenticated) {
-      loadDevices()
-    }
-  }, [section, isAuthenticated])
-
-  // 设置两步验证
-  const handleTwoFactorSetup = async () => {
-    setIsTwoFactorLoading(true)
-    try {
-      const response = await setupTwoFactor()
-      if (response.code === 200) {
-        setTwoFactorSetup(response.data)
-        setShowTwoFactorSetup(true)
-        showAlert(t('profile.scanQRCode'), 'info', t('profile.twoFactor'))
-      } else {
-        throw new Error(response.msg || '设置失败')
-      }
-    } catch (error: any) {
-      showAlert(error?.msg || error?.message || '设置失败', 'error', '操作失败')
-    } finally {
-      setIsTwoFactorLoading(false)
-    }
-  }
-
-  // 启用两步验证
-  const handleTwoFactorEnable = async () => {
-    if (!twoFactorCode.trim()) {
-      showAlert(t('profile.enterCode'), 'error', t('profile.messages.verifyFailed'))
-      return
-    }
-
-    setIsTwoFactorLoading(true)
-    try {
-      const response = await enableTwoFactor(twoFactorCode)
-      if (response.code === 200) {
-        setTwoFactorCode('')
-        setShowTwoFactorSetup(false)
-        setTwoFactorSetup(null)
-        // 更新用户状态
-        if (user) {
-          updateAuthStore({ ...user, twoFactorEnabled: true })
-        }
-        showAlert(t('profile.messages.enableSuccess'), 'success', t('profile.messages.loadSuccess'))
-      } else {
-        throw new Error(response.msg || '启用失败')
-      }
-    } catch (error: any) {
-      showAlert(error?.msg || error?.message || '启用失败', 'error', '操作失败')
-    } finally {
-      setIsTwoFactorLoading(false)
-    }
-  }
-
-  // 禁用两步验证
-  const handleTwoFactorDisable = async () => {
-    if (!twoFactorCode.trim()) {
-      showAlert(t('profile.enterCode'), 'error', t('profile.messages.verifyFailed'))
-      return
-    }
-
-    setIsTwoFactorLoading(true)
-    try {
-      const response = await disableTwoFactor(twoFactorCode)
-      if (response.code === 200) {
-        setTwoFactorCode('')
-        setShowTwoFactorDisable(false)
-        // 更新用户状态
-        if (user) {
-          updateAuthStore({ ...user, twoFactorEnabled: false })
-        }
-        showAlert(t('profile.messages.disableSuccess'), 'success', t('profile.messages.loadSuccess'))
-      } else {
-        throw new Error(response.msg || '禁用失败')
-      }
-    } catch (error: any) {
-      showAlert(error?.msg || error?.message || '禁用失败', 'error', '操作失败')
-    } finally {
-      setIsTwoFactorLoading(false)
-    }
-  }
-
-  // 加载设备列表
-  const loadDevices = async () => {
-    setIsLoadingDevices(true)
-    try {
-      const response = await getUserDevices()
-      if (response.code === 200) {
-        setDevices(response.data.devices || [])
-      } else {
-        throw new Error(response.msg || '获取设备列表失败')
-      }
-    } catch (error: any) {
-      showAlert(error?.msg || error?.message || '获取设备列表失败', 'error', '操作失败')
-    } finally {
-      setIsLoadingDevices(false)
-    }
-  }
-
-  const handleDeleteDevice = (deviceId: string) => {
-    setConfirmDialog({
-      isOpen: true,
-      title: '删除登录设备',
-      message: '确定要删除此设备吗？删除后该设备将无法继续登录。',
-      type: 'danger',
-      onConfirm: () => performDeleteDevice(deviceId),
-    })
-  }
-
-  const performDeleteDevice = async (deviceId: string) => {
-    setIsLoading(true)
-    try {
-      const response = await deleteUserDevice(deviceId)
-      if (response.code === 200) {
-        showAlert('设备删除成功', 'success', '操作成功')
-        loadDevices()
-      } else {
-        throw new Error(response.msg || '删除设备失败')
-      }
-    } catch (error: any) {
-      showAlert(error?.msg || error?.message || '删除设备失败', 'error', '操作失败')
-      throw error
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  // 信任设备
-  const handleTrustDevice = async (deviceId: string) => {
-    setIsLoading(true)
-    try {
-      const response = await trustUserDevice(deviceId)
-      if (response.code === 200) {
-        showAlert('设备已信任', 'success', '操作成功')
-        loadDevices() // 重新加载设备列表
-      } else {
-        throw new Error(response.msg || '信任设备失败')
-      }
-    } catch (error: any) {
-      showAlert(error?.msg || error?.message || '信任设备失败', 'error', '操作失败')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  // 取消信任设备
-  const handleUntrustDevice = async (deviceId: string) => {
-    setConfirmDialog({
-      isOpen: true,
-      title: '取消信任设备',
-      message: '确定要取消信任此设备吗？取消后该设备登录时将需要重新验证。',
-      type: 'warning',
-      onConfirm: () => performUntrustDevice(deviceId)
-    })
-  }
-
-  // 执行取消信任设备操作
-  const performUntrustDevice = async (deviceId: string) => {
-    setIsLoading(true)
-    try {
-      const response = await untrustUserDevice(deviceId)
-      if (response.code === 200) {
-        showAlert('已取消信任设备', 'success', '操作成功')
-        loadDevices() // 重新加载设备列表
-      } else {
-        throw new Error(response.msg || '取消信任设备失败')
-      }
-    } catch (error: any) {
-      showAlert(error?.msg || error?.message || '取消信任设备失败', 'error', '操作失败')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const handleSave = async () => {
-    setIsLoading(true)
-    try {
-      const { email: _email, phone: _phone, ...profilePayload } = formData
-      const response = await updateProfile(profilePayload)
-      if (response.code === 200) {
-        await useAuthStore.getState().refreshUserInfo()
-        // 资料里保存的外观需立即作用到全局（refresh 不再从服务端覆盖 mode，见 applyAuthUserUIPreferences）
-        useThemeStore.getState().setTheme({
-          mode: formData.themeMode,
-        })
-        setIsEditing(false)
-        showAlert(t('profile.messages.updateSuccess'), 'success', t('profile.messages.loadSuccess'))
-      } else {
-        throw new Error(response.msg || '更新失败')
-      }
-    } catch (error: any) {
-      showAlert(error?.msg || error?.message || '更新失败', 'error', '操作失败')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const handleCancel = () => {
-    setFormData({
-      email: user?.email || '',
-      phone: user?.phone || '',
-      displayName: user?.displayName || '',
-      firstName: user?.firstName || '',
-      lastName: user?.lastName || '',
-      locale: user?.locale || 'zh',
-      timezone: user?.timezone || 'Asia/Shanghai',
-      themeMode: (user?.themeMode as ThemeMode) || useThemeStore.getState().theme.mode,
-      gender: user?.gender || '',
-      city: user?.city || '',
-      region: user?.region || '',
-      extra: user?.extra || '',
-      avatar: user?.avatar || '',
-    })
-    setIsEditing(false)
-  }
-
-  // 发送邮箱验证码
-  const handleSendEmailCode = async () => {
-    if (!user?.email) {
-      showAlert('邮箱地址不存在', 'error', '操作失败')
-      return
-    }
-
-    setIsSendingCode(true)
-    try {
-      const response = await sendEmailCode({ email: user.email })
-      if (response.code === 200) {
-        showAlert('验证码已发送到您的邮箱', 'success', '发送成功')
-        setCountdown(60)
-        const timer = setInterval(() => {
-          setCountdown((prev) => {
-            if (prev <= 1) {
-              clearInterval(timer)
-              return 0
-            }
-            return prev - 1
-          })
-        }, 1000)
-      } else {
-        throw new Error(response.msg || '发送验证码失败')
-      }
-    } catch (error: any) {
-      showAlert(error?.msg || error?.message || '发送验证码失败', 'error', '操作失败')
-    } finally {
-      setIsSendingCode(false)
-    }
-  }
-
-  const startCountdown = (setter: Dispatch<SetStateAction<number>>) => {
-    setter(60)
-    const timer = setInterval(() => {
-      setter((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer)
-          return 0
-        }
-        return prev - 1
-      })
-    }, 1000)
-  }
-
-  const handleSendBindEmailCode = async () => {
-    const email = bindEmailForm.email.trim()
-    if (!email) {
-      showAlert('请输入邮箱地址', 'error', '操作失败')
-      return
-    }
-    setBindEmailSending(true)
-    try {
-      const response = await sendEmailCode({ email })
-      if (response.code === 200) {
-        showAlert('验证码已发送，请查收邮箱', 'success', '发送成功')
-        startCountdown(setBindEmailCountdown)
-      } else {
-        throw new Error(response.msg || '发送验证码失败')
-      }
-    } catch (error: any) {
-      showAlert(error?.msg || error?.message || '发送验证码失败', 'error', '操作失败')
-    } finally {
-      setBindEmailSending(false)
-    }
-  }
-
-  const handleSubmitBindEmail = async () => {
-    const email = bindEmailForm.email.trim()
-    const code = bindEmailForm.code.trim()
-    if (!email || !code) {
-      showAlert('请填写邮箱和验证码', 'error', '操作失败')
-      return
-    }
-    setEmailAccountSubmitting(true)
-    try {
-      const response = await bindEmail({ email, code })
-      if (response.code === 200) {
-        if (response.data) updateAuthStore(response.data)
-        await useAuthStore.getState().refreshUserInfo()
-        setShowBindEmailModal(false)
-        setBindEmailForm({ email: '', code: '' })
-        showAlert('邮箱绑定成功', 'success', '操作成功')
-      } else {
-        throw new Error(response.msg || '绑定失败')
-      }
-    } catch (error: any) {
-      showAlert(error?.msg || error?.message || '绑定失败', 'error', '操作失败')
-    } finally {
-      setEmailAccountSubmitting(false)
-    }
-  }
-
-  const handleSendChangeNewEmailCode = async () => {
-    const email = changeEmailForm.newEmail.trim()
-    if (!email) {
-      showAlert('请输入新邮箱地址', 'error', '操作失败')
-      return
-    }
-    setChangeNewEmailSending(true)
-    try {
-      const response = await sendEmailCode({ email })
-      if (response.code === 200) {
-        showAlert('新邮箱验证码已发送', 'success', '发送成功')
-        startCountdown(setChangeNewEmailCountdown)
-      } else {
-        throw new Error(response.msg || '发送验证码失败')
-      }
-    } catch (error: any) {
-      showAlert(error?.msg || error?.message || '发送验证码失败', 'error', '操作失败')
-    } finally {
-      setChangeNewEmailSending(false)
-    }
-  }
-
-  const handleSendChangeCurrentEmailCode = async () => {
-    setChangeCurrentEmailSending(true)
-    try {
-      const response = await sendCurrentEmailCode()
-      if (response.code === 200) {
-        showAlert('验证码已发送到当前邮箱', 'success', '发送成功')
-        startCountdown(setChangeCurrentEmailCountdown)
-      } else {
-        throw new Error(response.msg || '发送验证码失败')
-      }
-    } catch (error: any) {
-      showAlert(error?.msg || error?.message || '发送验证码失败', 'error', '操作失败')
-    } finally {
-      setChangeCurrentEmailSending(false)
-    }
-  }
-
-  const handleSubmitChangeEmail = async () => {
-    const { newEmail, newEmailCode, currentEmailCode } = changeEmailForm
-    if (!newEmail.trim() || !newEmailCode.trim() || !currentEmailCode.trim()) {
-      showAlert('请完整填写换绑信息', 'error', '操作失败')
-      return
-    }
-    setEmailAccountSubmitting(true)
-    try {
-      const response = await changeEmail({
-        newEmail: newEmail.trim(),
-        newEmailCode: newEmailCode.trim(),
-        currentEmailCode: currentEmailCode.trim(),
-      })
-      if (response.code === 200) {
-        if (response.data) updateAuthStore(response.data)
-        await useAuthStore.getState().refreshUserInfo()
-        setShowChangeEmailModal(false)
-        setChangeEmailForm({ newEmail: '', newEmailCode: '', currentEmailCode: '' })
-        showAlert('邮箱换绑成功', 'success', '操作成功')
-      } else {
-        throw new Error(response.msg || '换绑失败')
-      }
-    } catch (error: any) {
-      showAlert(error?.msg || error?.message || '换绑失败', 'error', '操作失败')
-    } finally {
-      setEmailAccountSubmitting(false)
-    }
-  }
-
-  const handlePasswordChange = async () => {
-    if (passwordData.newPassword !== passwordData.confirmPassword) {
-      showAlert(t('profile.passwordMismatch'), 'error', t('profile.messages.verifyFailed'))
-      return
-    }
-
-    setIsLoading(true)
-    try {
-      let response
-      if (passwordChangeMethod === 'password') {
-        // 使用原密码方式
-        if (!passwordData.currentPassword) {
-          showAlert('请输入当前密码', 'error', '验证失败')
-          setIsLoading(false)
-          return
-        }
-        response = await changePassword(passwordData)
-      } else {
-        // 使用邮箱验证码方式
-        if (!emailCode) {
-          showAlert('请输入邮箱验证码', 'error', '验证失败')
-          setIsLoading(false)
-          return
-        }
-        response = await changePasswordByEmail({
-          emailCode,
-          newPassword: passwordData.newPassword,
-          confirmPassword: passwordData.confirmPassword,
-        })
-      }
-
-      if (response.code === 200) {
-        setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' })
-        setEmailCode('')
-        setIsChangingPassword(false)
-        setPasswordChangeMethod('password')
-        setCountdown(0)
-        showAlert(t('profile.messages.passwordChangeSuccess'), 'success', t('profile.messages.loadSuccess'))
-        
-        // 如果返回了logout标识，说明需要重新登录
-        if ((response.data as any)?.logout) {
-          setTimeout(() => {
-            window.location.href = '/'
-          }, 2000)
-        }
-      } else {
-        throw new Error(response.msg || '密码修改失败')
-      }
-    } catch (error: any) {
-      showAlert(error?.msg || error?.message || '密码修改失败', 'error', '操作失败')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-
-    // 验证文件类型
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
-    if (!allowedTypes.includes(file.type)) {
-      showAlert(t('profile.messages.invalidFileFormat'), 'error', t('profile.messages.fileFormatError'))
-      return
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      showAlert(t('profile.messages.fileTooLarge'), 'error', t('profile.messages.uploadFailed'))
-      return
-    }
-
-    setIsLoading(true)
-    try {
-      const response = await uploadAvatar(file)
-      if (response.code === 200) {
-        // 更新用户头像
-        updateAuthStore({ ...user, avatar: response.data.avatar })
-        // 更新表单数据
-        setFormData(prev => ({ ...prev, avatar: response.data.avatar }))
-        showAlert(t('profile.messages.avatarUploadSuccess'), 'success', t('profile.messages.loadSuccess'))
-      } else {
-        throw new Error(response.msg || '头像上传失败')
-      }
-    } catch (error: any) {
-      showAlert(error?.msg || error?.message || '头像上传失败', 'error', '上传失败')
-    } finally {
-      setIsLoading(false)
-      // 清空文件输入
-      event.target.value = ''
-    }
-  }
-
-  const handleBindGithub = () => {
-    const target = `${window.location.origin}/profile/personal`
-    window.location.href = `${getApiBaseURL()}/auth/github/login?bind=1&redirecturl=${encodeURIComponent(target)}`
-  }
-
-  const handleBindWechat = () => {
-    const run = async () => {
-      setIsWechatBinding(true)
-      try {
-        const resp = await fetch(`${getApiBaseURL()}/auth/wechat/bind/code`, {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('auth_token') || ''}`,
-          },
-        })
-        const data = await resp.json()
-        if (!resp.ok || data.code !== 200 || !data.data?.sessionId || !data.data?.bindCode) {
-          throw new Error(data?.msg || '获取微信绑定码失败')
-        }
-        const sessionId = data.data.sessionId as string
-        const bindCode = data.data.bindCode as string
-        const expiresAt = Number(data.data.expiresAt || 0)
-        setWechatBindCode(bindCode)
-        setWechatBindExpiresAt(expiresAt)
-        setWechatBindStatus('pending')
-        showAlert(`请先扫码关注公众号，然后发送绑定码：${bindCode}`, 'info', '微信绑定')
-        if (wechatBindPollRef.current) {
-          window.clearInterval(wechatBindPollRef.current)
-          wechatBindPollRef.current = null
-        }
-        const poll = window.setInterval(async () => {
-          try {
-            const statusResp = await fetch(`${getApiBaseURL()}/auth/wechat/bind/status?sessionId=${encodeURIComponent(sessionId)}`, {
-              method: 'GET',
-              headers: {
-                Authorization: `Bearer ${localStorage.getItem('auth_token') || ''}`,
-              },
-            })
-            const statusData = await statusResp.json()
-            const status = statusData?.data?.status
-            if (status === 'success') {
-              window.clearInterval(poll)
-              wechatBindPollRef.current = null
-              setIsWechatBinding(false)
-              setWechatBindStatus('success')
-              showAlert('微信绑定成功', 'success', '绑定成功')
-              await useAuthStore.getState().refreshUserInfo()
-            } else if (status === 'failed') {
-              window.clearInterval(poll)
-              wechatBindPollRef.current = null
-              setIsWechatBinding(false)
-              setWechatBindStatus('failed')
-              const reason = statusData?.data?.reason
-              if (reason === 'already_bound') {
-                showAlert('该微信已绑定其他用户', 'error', '绑定失败')
-              } else {
-                showAlert('微信绑定失败，请重试', 'error', '绑定失败')
-              }
-            } else if (status === 'expired') {
-              window.clearInterval(poll)
-              wechatBindPollRef.current = null
-              setIsWechatBinding(false)
-              setWechatBindStatus('expired')
-              showAlert('绑定码已过期，请重新获取', 'error', '绑定失败')
-            }
-          } catch {
-            // keep polling on transient network errors
-          }
-        }, 2500)
-        wechatBindPollRef.current = poll
-      } catch (error: any) {
-        showAlert(error?.message || '微信绑定失败，请重试', 'error', '绑定失败')
-        setIsWechatBinding(false)
-        setWechatBindStatus('failed')
-      }
-    }
-    run()
-  }
-
-  if (!isAuthenticated) {
-    return null
-  }
-
-  if (isPageLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <LoadingAnimation type="spinner" size="lg" className="mx-auto mb-4" />
-          <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100 mb-4">
-            {t('profile.loading')}
-          </p>
-          <p className="text-neutral-600 dark:text-neutral-400">
-            {t('profile.loadingDesc')}
-          </p>
-        </div>
-      </div>
-    )
-  }
-
-  if (section === 'integrations' || section === 'security') {
-    return <Navigate to="/profile/account-security" replace />
-  }
-
-  if (!section || !VALID_SECTIONS.has(section)) {
-    return <Navigate to="/profile/personal" replace />
-  }
-
+function canViewAIReports(me: any): boolean {
+  if (me?.principal === 'platform') return false
+  const codes = me?.permissionCodes as string[] | undefined
+  if (!codes?.length) return false
   return (
-    <>
-      <FadeIn direction="right" className={section === 'personal' ? 'flex min-h-0 min-w-0 flex-1 flex-col' : undefined}>
-        {section === 'personal' && (
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white dark:border-neutral-800 dark:bg-neutral-950 lg:min-h-[calc(100dvh-8.25rem)]">
-              <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[15.5rem_minmax(0,1fr)] lg:overflow-hidden">
-                <aside className="flex shrink-0 flex-col gap-3 border-b border-slate-200 bg-slate-50/90 px-3 py-4 dark:border-neutral-800 dark:bg-neutral-900/40 sm:px-4 lg:min-h-0 lg:items-stretch lg:justify-between lg:gap-6 lg:self-stretch lg:border-b-0 lg:border-r lg:px-4 lg:py-10">
-                  <div className="flex items-center gap-3 lg:flex-col lg:items-center lg:gap-5">
-                  <div className="relative shrink-0">
-                    <div className="h-16 w-16 overflow-hidden rounded-full bg-slate-200 ring-1 ring-slate-300/80 dark:bg-neutral-700 dark:ring-neutral-600 lg:h-36 lg:w-36">
-                      <img
-                        src={
-                          user?.avatar ||
-                          `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.displayName || 'User')}&background=64748b&color=fff&size=128`
-                        }
-                        alt=""
-                        className="h-full w-full object-cover"
-                      />
-                    </div>
-                    <label className="absolute -bottom-0.5 -right-0.5 flex cursor-pointer rounded-full border border-slate-200 bg-white p-1.5 shadow-sm dark:border-neutral-600 dark:bg-neutral-800 lg:bottom-1 lg:right-1 lg:p-2">
-                      <Camera className="h-3.5 w-3.5 text-slate-600 dark:text-gray-400 lg:h-4 lg:w-4" />
-                      <input
-                        type="file"
-                        accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
-                        onChange={handleAvatarUpload}
-                        className="hidden"
-                        disabled={isLoading}
-                      />
-                    </label>
-                    {isLoading && (
-                      <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40">
-                        <LoadingAnimation type="spinner" size="sm" color="#ffffff" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1 lg:w-full lg:flex-none lg:text-center">
-                    <p className="truncate text-sm font-medium text-slate-900 dark:text-white lg:text-base">
-                      {user?.displayName || user?.email?.split('@')[0] || '—'}
-                    </p>
-                    <p className="mt-1 line-clamp-2 text-xs text-slate-500 dark:text-slate-400 lg:text-sm">{user?.email || '—'}</p>
-                  </div>
-                  </div>
-                  <div className="w-full space-y-2 border-t border-slate-200 pt-3 dark:border-neutral-700 lg:pt-4">
-                    <div className="flex items-center justify-between gap-2 text-xs">
-                      <span className="text-slate-500 dark:text-slate-400">微信</span>
-                      <Badge variant={user?.wechatOpenId ? 'success' : 'warning'} className="text-[10px]">
-                        {user?.wechatOpenId ? '已绑定' : '未绑定'}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center justify-between gap-2 text-xs">
-                      <span className="text-slate-500 dark:text-slate-400">GitHub</span>
-                      <Badge variant={user?.githubId ? 'success' : 'warning'} className="text-[10px]">
-                        {user?.githubId ? '已绑定' : '未绑定'}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center justify-between gap-2 text-xs">
-                      <span className="text-slate-500 dark:text-slate-400">微信认证</span>
-                      <Badge
-                        variant={
-                          typeof user?.wechatUnionId === 'string' && user.wechatUnionId.trim() !== ''
-                            ? 'success'
-                            : 'warning'
-                        }
-                        className="text-[10px]"
-                      >
-                        {typeof user?.wechatUnionId === 'string' && user.wechatUnionId.trim() !== ''
-                          ? '已通过'
-                          : '未通过'}
-                      </Badge>
-                    </div>
-                  </div>
-                </aside>
-
-                <div className="flex min-h-0 min-w-0 flex-col lg:overflow-hidden">
-                  <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-3 dark:border-neutral-800 sm:px-4">
-                    <span className="text-sm font-medium text-slate-800 dark:text-slate-100">{t('profile.basicInfo')}</span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {!isEditing ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 px-2.5 text-xs"
-                          leftIcon={<Edit3 className="h-3.5 w-3.5" />}
-                          onClick={() => setIsEditing(true)}
-                          disabled={isLoading}
-                        >
-                          {t('profile.edit')}
-                        </Button>
-                      ) : (
-                        <>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8 px-2.5 text-xs"
-                            leftIcon={<X className="h-3.5 w-3.5" />}
-                            onClick={handleCancel}
-                            disabled={isLoading}
-                          >
-                            {t('profile.cancel')}
-                          </Button>
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            className="h-8 px-2.5 text-xs"
-                            leftIcon={<Save className="h-3.5 w-3.5" />}
-                            onClick={handleSave}
-                            disabled={isLoading}
-                          >
-                            {isLoading ? t('profile.saving') : t('profile.save')}
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-3 sm:p-4 lg:max-h-full lg:overflow-y-auto lg:p-6">
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-3 md:gap-x-4 md:gap-y-4">
-                      <div>
-                        <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">{t('profile.displayName')}</label>
-                        <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.displayName}
-                          onChange={(val) => setFormData((prev) => ({ ...prev, displayName: val }))}
-                          disabled={!isEditing}
-                          prefix={<User />}
-                          placeholder={t('profile.displayNamePlaceholder')}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">{t('profile.firstName')}</label>
-                        <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.firstName}
-                          onChange={(val) => setFormData((prev) => ({ ...prev, firstName: val }))}
-                          disabled={!isEditing}
-                          prefix={<User />}
-                          placeholder={t('profile.firstNamePlaceholder')}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">{t('profile.lastName')}</label>
-                        <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.lastName}
-                          onChange={(val) => setFormData((prev) => ({ ...prev, lastName: val }))}
-                          disabled={!isEditing}
-                          prefix={<User />}
-                          placeholder={t('profile.lastNamePlaceholder')}
-                        />
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-gray-400">
-                          {t('profile.gender')}
-                        </label>
-                        <ArcoSelect
-                          value={formData.gender}
-                          onChange={(v) => setFormData((prev) => ({ ...prev, gender: v }))}
-                          disabled={!isEditing}
-                          className="h-9 w-full text-sm"
-                          placeholder={t('profile.genderSelect')}
-                          options={[
-                            { label: t('profile.genderSelect'), value: '' },
-                            { label: t('profile.gender.male'), value: 'male' },
-                            { label: t('profile.gender.female'), value: 'female' },
-                            { label: t('profile.gender.other'), value: 'other' }
-                          ]}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">{t('profile.email')}</label>
-                        <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" type="email"
-                          value={formData.email}
-                          disabled
-                          prefix={<Mail />}
-                          placeholder={t('profile.emailPlaceholder')}
-                        />
-                        <p className="mt-1 text-xs text-slate-500 dark:text-gray-500">
-                          邮箱请在
-                          <Link to="/profile/account-security" className="mx-0.5 text-sky-600 underline dark:text-sky-400">账号与安全</Link>
-                          中绑定或换绑
-                        </p>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">{t('profile.phone')}</label>
-                        <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.phone}
-                          disabled
-                          prefix={<Phone />}
-                          placeholder={t('profile.phonePlaceholder')}
-                        />
-                        <p className="mt-1 text-xs text-slate-500 dark:text-gray-500">手机号暂不支持修改</p>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">城市</label>
-                        <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.city}
-                          onChange={(val) => setFormData((prev) => ({ ...prev, city: val }))}
-                          disabled={!isEditing}
-                          placeholder="请输入所在城市"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">地区</label>
-                        <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.region}
-                          onChange={(val) => setFormData((prev) => ({ ...prev, region: val }))}
-                          disabled={!isEditing}
-                          placeholder="请输入所在地区"
-                        />
-                      </div>
-                      <div className="col-span-full">
-                        <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">{t('profile.bio')}</label>
-                        <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" value={formData.extra}
-                          onChange={(val) => setFormData((prev) => ({ ...prev, extra: val }))}
-                          disabled={!isEditing}
-                          prefix={<Heart />}
-                          placeholder={t('profile.bioPlaceholder')}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-                {section === 'locale' && (
-                  <div className="space-y-4">
-                    <p className="text-xs text-slate-500 dark:text-gray-400">
-                      设置界面语言、默认时区与外观模式；保存后写入账户，外观模式会立即应用到本机。
-                    </p>
-                    <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-950">
-                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                        <div>
-                          <p className="mb-1.5 text-sm font-medium text-slate-700 dark:text-gray-300">
-                            {t('profile.language')}
-                          </p>
-                          <ArcoSelect
-                            value={formData.locale}
-                            onChange={(v) => setFormData((prev) => ({ ...prev, locale: v }))}
-                            className="h-9 w-full text-sm"
-                            placeholder={t('profile.language')}
-                            options={[
-                              { label: '简体中文', value: 'zh' },
-                              { label: '繁體中文', value: 'zh-TW' },
-                              { label: 'English', value: 'en' },
-                              { label: '日本語', value: 'ja' },
-                              { label: 'Français', value: 'fr' }
-                            ]}
-                          />
-                        </div>
-                        <div>
-                          <p className="mb-1.5 text-sm font-medium text-slate-700 dark:text-gray-300">
-                            {t('profile.timezone')}
-                          </p>
-                          <ArcoSelect
-                            value={formData.timezone}
-                            onChange={(v) => setFormData((prev) => ({ ...prev, timezone: v }))}
-                            className="h-9 w-full text-sm"
-                            placeholder={t('profile.timezone')}
-                            options={[
-                              { label: 'Asia/Shanghai (UTC+8)', value: 'Asia/Shanghai' },
-                              { label: 'Asia/Tokyo (UTC+9)', value: 'Asia/Tokyo' },
-                              { label: 'America/New_York', value: 'America/New_York' },
-                              { label: 'Europe/London', value: 'Europe/London' },
-                              { label: 'UTC', value: 'UTC' }
-                            ]}
-                          />
-                        </div>
-                        <div className="sm:col-span-2">
-                          <p className="mb-1.5 text-sm font-medium text-slate-700 dark:text-gray-300">
-                            外观模式
-                          </p>
-                          <ArcoSelect
-                            value={formData.themeMode}
-                            onChange={(v) =>
-                              setFormData((prev) => ({ ...prev, themeMode: v as ThemeMode }))
-                            }
-                            className="h-9 w-full text-sm"
-                            placeholder="外观模式"
-                            options={[
-                              { label: '跟随系统', value: 'system' },
-                              { label: '浅色', value: 'light' },
-                              { label: '深色', value: 'dark' }
-                            ]}
-                          />
-                        </div>
-                      </div>
-                      <div className="mt-4 flex justify-end border-t border-slate-100 pt-4 dark:border-neutral-800">
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          onClick={() => void handleSave()}
-                          disabled={isLoading}
-                          leftIcon={<Save className="h-4 w-4" />}
-                        >
-                          {isLoading ? t('profile.saving') : t('profile.save')}
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* 账号、第三方绑定与安全 — 各块标题与分栏样式统一 */}
-                {section === 'account-security' && (
-                  <div className="overflow-hidden rounded-lg border border-slate-200 bg-white dark:border-neutral-800 dark:bg-neutral-950">
-                    <div className="border-b border-slate-100 px-4 py-2.5 dark:border-neutral-800 sm:px-5">
-                      <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-gray-400">
-                        {t('profile.accountBindingsTitle')}
-                      </h3>
-                    </div>
-                    <div className="divide-y divide-slate-100 dark:divide-neutral-800">
-                      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 sm:px-5">
-                        <span className="text-sm text-slate-800 dark:text-gray-100">微信认证</span>
-                        <div className="flex items-center gap-2">
-                          <Badge variant={user?.wechatOpenId ? 'success' : 'warning'} className="text-xs">
-                            {user?.wechatOpenId ? '已绑定' : '未绑定'}
-                          </Badge>
-                          {!user?.wechatOpenId && (
-                            <button
-                              type="button"
-                              onClick={handleBindWechat}
-                              disabled={isWechatBinding}
-                              className="text-xs font-medium text-sky-600 underline decoration-sky-600/40 underline-offset-2 hover:text-sky-700 disabled:opacity-50 dark:text-sky-400"
-                            >
-                              {isWechatBinding ? '绑定中...' : '立即绑定'}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                      {!!wechatBindCode && (
-                        <div className="space-y-2 px-4 py-3 sm:px-5">
-                          <div className="overflow-hidden rounded-md border border-slate-200 bg-white dark:border-neutral-700">
-                            <img
-                              src="/qrcode_official_account.jpg"
-                              alt="微信公众号二维码"
-                              className="max-h-40 w-full object-contain"
-                            />
-                          </div>
-                          <div className="text-xs text-slate-600 dark:text-gray-400">
-                            <span className="font-medium text-slate-700 dark:text-gray-300">微信绑定码：</span>
-                            <span className="font-mono tracking-wider">{wechatBindCode}</span>
-                          </div>
-                          <div className="text-xs text-slate-500 dark:text-gray-500">
-                            {wechatBindStatus === 'pending' && `请在公众号发送该绑定码，剩余 ${wechatBindCountdown} 秒`}
-                            {wechatBindStatus === 'success' && '绑定成功'}
-                            {wechatBindStatus === 'failed' && '绑定失败，请重新获取绑定码'}
-                            {wechatBindStatus === 'expired' && '绑定码已过期，请重新获取'}
-                          </div>
-                        </div>
-                      )}
-                      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 sm:px-5">
-                        <span className="text-sm text-slate-800 dark:text-gray-100">GitHub 认证</span>
-                        <div className="flex items-center gap-2">
-                          <Badge variant={user?.githubId ? 'success' : 'warning'} className="text-xs">
-                            {user?.githubId ? '已绑定' : '未绑定'}
-                          </Badge>
-                          {!user?.githubId && (
-                            <button
-                              type="button"
-                              onClick={handleBindGithub}
-                              className="text-xs font-medium text-sky-600 underline decoration-sky-600/40 underline-offset-2 hover:text-sky-700 dark:text-sky-400"
-                            >
-                              立即绑定
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 sm:px-5">
-                        <div className="min-w-0">
-                          <span className="text-sm text-slate-800 dark:text-gray-100">邮箱</span>
-                          <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-gray-400">
-                            {isPlaceholderEmail(user?.email) ? '未绑定邮箱' : (user?.email || '—')}
-                          </p>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          {canBindEmail(user?.email) && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setBindEmailForm({ email: '', code: '' })
-                                setShowBindEmailModal(true)
-                              }}
-                              className="text-xs font-medium text-sky-600 underline decoration-sky-600/40 underline-offset-2 hover:text-sky-700 dark:text-sky-400"
-                            >
-                              绑定邮箱
-                            </button>
-                          )}
-                          {canChangeEmail(user?.email) && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setChangeEmailForm({ newEmail: '', newEmailCode: '', currentEmailCode: '' })
-                                setShowChangeEmailModal(true)
-                              }}
-                              className="text-xs font-medium text-sky-600 underline decoration-sky-600/40 underline-offset-2 hover:text-sky-700 dark:text-sky-400"
-                            >
-                              换绑邮箱
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="border-t border-slate-100 dark:border-neutral-800">
-                      <div className="border-b border-slate-100 px-4 py-2.5 dark:border-neutral-800 sm:px-5">
-                        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-gray-400">
-                          {t('profile.notificationPreferences')}
-                        </h3>
-                      </div>
-                      <div className="divide-y divide-slate-100 dark:divide-neutral-800">
-                        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 sm:px-5">
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium text-slate-800 dark:text-gray-100">{t('profile.emailNotifications')}</p>
-                            <p className="text-xs text-slate-500 dark:text-gray-400">{t('profile.emailNotificationsDesc')}</p>
-                          </div>
-                          <Switch
-                            checked={user?.emailNotifications || false}
-                            onCheckedChange={async (checked) => {
-                              updateAuthStore({ emailNotifications: checked })
-                              try {
-                                const response = await updatePreferences({ emailNotifications: checked })
-                                if (response.code === 200) {
-                                  showAlert(t('profile.preferencesUpdated'), 'success', t('profile.messages.loadSuccess'))
-                                } else {
-                                  throw new Error(response.msg || '更新失败')
-                                }
-                              } catch (error: any) {
-                                updateAuthStore({ emailNotifications: !checked })
-                                showAlert(error?.msg || error?.message || '更新失败', 'error', '操作失败')
-                              }
-                            }}
-                          />
-                        </div>
-                        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 sm:px-5">
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium text-slate-800 dark:text-gray-100">{t('profile.pushNotifications')}</p>
-                            <p className="text-xs text-slate-500 dark:text-gray-400">{t('profile.pushNotificationsDesc')}</p>
-                          </div>
-                          <Switch
-                            checked={user?.pushNotifications || false}
-                            onCheckedChange={async (checked) => {
-                              updateAuthStore({ pushNotifications: checked })
-                              try {
-                                const response = await updatePreferences({ pushNotifications: checked })
-                                if (response.code === 200) {
-                                  showAlert(t('profile.preferencesUpdated'), 'success', t('profile.messages.loadSuccess'))
-                                } else {
-                                  throw new Error(response.msg || '更新失败')
-                                }
-                              } catch (error: any) {
-                                updateAuthStore({ pushNotifications: !checked })
-                                showAlert(error?.msg || error?.message || '更新失败', 'error', '操作失败')
-                              }
-                            }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="border-t border-slate-100 dark:border-neutral-800">
-                      <div className="border-b border-slate-100 px-4 py-2.5 dark:border-neutral-800 sm:px-5">
-                        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-gray-400">
-                          密码与安全
-                        </h3>
-                      </div>
-                      <div className="divide-y divide-slate-100 dark:divide-neutral-800">
-                        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 sm:px-5">
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium text-slate-800 dark:text-gray-100">更改密码</p>
-                            <p className="text-xs text-slate-500 dark:text-gray-400">定期更新登录密码</p>
-                          </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8 shrink-0 text-xs"
-                            onClick={() => setIsChangingPassword(!isChangingPassword)}
-                            disabled={isLoading}
-                          >
-                            {isChangingPassword ? '取消' : '更改密码'}
-                          </Button>
-                        </div>
-                        <AnimatePresence>
-                          {isChangingPassword && (
-                            <motion.div
-                              initial={{ opacity: 0, height: 0 }}
-                              animate={{ opacity: 1, height: 'auto' }}
-                              exit={{ opacity: 0, height: 0 }}
-                              className="overflow-hidden border-t border-slate-100 bg-slate-50/60 px-4 py-3 dark:border-neutral-800 dark:bg-neutral-900/40 sm:px-5"
-                            >
-                              <div className="mb-3">
-                                <label className="mb-1.5 block text-xs font-medium text-slate-600 dark:text-gray-400">更改密码方式</label>
-                                <div className="flex gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setPasswordChangeMethod('password')
-                                      setEmailCode('')
-                                    }}
-                                    className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                                      passwordChangeMethod === 'password'
-                                        ? 'bg-slate-900 text-white dark:bg-gray-100 dark:text-gray-900'
-                                        : 'bg-white text-slate-700 ring-1 ring-slate-200 dark:bg-neutral-800 dark:text-gray-300 dark:ring-neutral-600'
-                                    }`}
-                                  >
-                                    当前密码
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setPasswordChangeMethod('email')
-                                      setPasswordData((prev) => ({ ...prev, currentPassword: '' }))
-                                    }}
-                                    className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                                      passwordChangeMethod === 'email'
-                                        ? 'bg-slate-900 text-white dark:bg-gray-100 dark:text-gray-900'
-                                        : 'bg-white text-slate-700 ring-1 ring-slate-200 dark:bg-neutral-800 dark:text-gray-300 dark:ring-neutral-600'
-                                    }`}
-                                  >
-                                    邮箱验证码
-                                  </button>
-                                </div>
-                              </div>
-                              {passwordChangeMethod === 'password' ? (
-                                <div>
-                                  <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">当前密码</label>
-                                  <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" type={showCurrentPassword ? 'text' : 'password'}
-                                    value={passwordData.currentPassword}
-                                    onChange={(val) =>
-                                      setPasswordData((prev) => ({ ...prev, currentPassword: val }))
-                                    }
-                                    prefix={<Lock />}
-                                    suffix={
-                                      <button
-                                        type="button"
-                                        onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                                        className="text-slate-400 hover:text-slate-600 dark:hover:text-gray-300"
-                                      >
-                                        {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                      </button>
-                                    }
-                                    placeholder="请输入当前密码"
-                                  />
-                                </div>
-                              ) : (
-                                <div className="space-y-2">
-                                  <label className="block text-xs font-medium text-slate-600 dark:text-gray-400">邮箱验证码</label>
-                                  <div className="flex gap-2">
-                                    <div className="min-w-0 flex-1">
-                                      <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" type="text"
-                                        value={emailCode}
-                                        onChange={(val) => setEmailCode(val)}
-                                        prefix={<Mail />}
-                                        placeholder="请输入邮箱验证码"
-                                      />
-                                    </div>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="h-9 shrink-0 self-end text-xs"
-                                      onClick={handleSendEmailCode}
-                                      disabled={isSendingCode || countdown > 0}
-                                    >
-                                      {countdown > 0 ? `${countdown}秒` : isSendingCode ? '发送中...' : '发送验证码'}
-                                    </Button>
-                                  </div>
-                                  <p className="text-xs text-slate-500 dark:text-gray-500">验证码将发送到 {user?.email}</p>
-                                </div>
-                              )}
-                              <div className="mt-2 space-y-2">
-                                <div>
-                                  <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">新密码</label>
-                                  <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" type={showNewPassword ? 'text' : 'password'}
-                                    value={passwordData.newPassword}
-                                    onChange={(val) => setPasswordData((prev) => ({ ...prev, newPassword: val }))}
-                                    prefix={<Lock />}
-                                    suffix={
-                                      <button
-                                        type="button"
-                                        onClick={() => setShowNewPassword(!showNewPassword)}
-                                        className="text-slate-400 hover:text-slate-600 dark:hover:text-gray-300"
-                                      >
-                                        {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                      </button>
-                                    }
-                                    placeholder="请输入新密码"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="block text-xs font-medium text-slate-600 dark:text-gray-400 mb-1">确认新密码</label>
-                                  <ArcoInput size="large" className="!h-10 !text-base ![&::placeholder]:text-base" type={showConfirmPassword ? 'text' : 'password'}
-                                    value={passwordData.confirmPassword}
-                                    onChange={(val) =>
-                                      setPasswordData((prev) => ({ ...prev, confirmPassword: val }))
-                                    }
-                                    prefix={<Lock />}
-                                    suffix={
-                                      <button
-                                        type="button"
-                                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                                        className="text-slate-400 hover:text-slate-600 dark:hover:text-gray-300"
-                                      >
-                                        {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                    </button>
-                                  }
-                                    placeholder="请再次输入新密码"
-                                  />
-                                </div>
-                              </div>
-                              <div className="mt-3 flex gap-2">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-8 text-xs"
-                                  onClick={() => {
-                                    setIsChangingPassword(false)
-                                    setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' })
-                                    setEmailCode('')
-                                    setPasswordChangeMethod('password')
-                                    setCountdown(0)
-                                  }}
-                                  disabled={isLoading}
-                                >
-                                  取消
-                                </Button>
-                                <Button
-                                  variant="primary"
-                                  size="sm"
-                                  className="h-8 text-xs"
-                                  onClick={handlePasswordChange}
-                                  disabled={isLoading}
-                                >
-                                  {isLoading ? '修改中...' : '确认修改'}
-                                </Button>
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 sm:px-5">
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium text-slate-800 dark:text-gray-100">两步验证</p>
-                            <p className="text-xs text-slate-500 dark:text-gray-400">
-                              {user?.twoFactorEnabled ? '已为账户启用额外保护' : '为账户添加额外保护'}
-                            </p>
-                          </div>
-                          <div className="flex shrink-0 gap-2">
-                            {user?.twoFactorEnabled ? (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-8 text-xs text-red-600 ring-red-200 hover:bg-red-50 dark:text-red-400 dark:ring-red-900"
-                                onClick={() => setShowTwoFactorDisable(true)}
-                                disabled={isTwoFactorLoading}
-                              >
-                                禁用
-                              </Button>
-                            ) : (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-8 text-xs"
-                                onClick={handleTwoFactorSetup}
-                                disabled={isTwoFactorLoading}
-                              >
-                                {isTwoFactorLoading ? '设置中...' : '启用'}
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 sm:px-5">
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium text-slate-800 dark:text-gray-100">注销账号</p>
-                            <p className="text-xs text-slate-500 dark:text-gray-400">冷静期内无法使用，可随时撤销</p>
-                          </div>
-                          <Link
-                            to="/account-deletion/request"
-                            className="inline-flex h-8 shrink-0 items-center justify-center rounded-md bg-slate-900 px-3 text-xs font-medium text-white hover:bg-slate-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
-                          >
-                            前往注销
-                          </Link>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {section === 'user-devices' && (
-                  <div className="mx-auto w-full max-w-3xl space-y-4">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <h3 className="text-lg font-semibold text-slate-900 dark:text-white">登录设备</h3>
-                        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                          当前账号下的会话与浏览器；可信任常用设备或移除不再使用的条目。
-                        </p>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="shrink-0 self-start sm:self-center"
-                        onClick={loadDevices}
-                        disabled={isLoadingDevices}
-                      >
-                        {isLoadingDevices ? '加载中...' : '刷新'}
-                      </Button>
-                    </div>
-
-                    {isLoadingDevices ? (
-                      <div className="flex items-center justify-center rounded-xl border border-slate-200 bg-slate-50/50 py-16 dark:border-neutral-800 dark:bg-neutral-900/40">
-                        <LoadingAnimation type="spinner" size="md" />
-                        <span className="ml-2 text-sm text-slate-600 dark:text-slate-400">加载中...</span>
-                      </div>
-                    ) : devices.length === 0 ? (
-                      <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 py-14 text-center dark:border-neutral-800 dark:bg-neutral-900/30">
-                        <Monitor className="mx-auto h-10 w-10 text-slate-300 dark:text-slate-600" aria-hidden />
-                        <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">暂无设备记录</p>
-                      </div>
-                    ) : (
-                      <ul
-                        role="list"
-                        className="max-h-[min(520px,72vh)] divide-y divide-slate-200 overflow-y-auto overscroll-y-contain rounded-xl border border-slate-200 bg-white shadow-sm dark:divide-neutral-800 dark:border-neutral-800 dark:bg-neutral-950"
-                      >
-                        {devices.map((device) => {
-                          const kind = resolveDeviceVisualKind(device)
-                          const { Icon, ring, icon } = DEVICE_VISUAL[kind]
-                          const title = device.deviceName || `${device.browser} · ${device.os}`
-                          return (
-                            <li
-                              key={device.id}
-                              className="flex flex-col gap-4 px-4 py-4 transition-colors hover:bg-slate-50/90 sm:flex-row sm:items-center sm:gap-4 sm:px-5 dark:hover:bg-neutral-900/60"
-                            >
-                              <div className="flex min-w-0 flex-1 items-start gap-4">
-                                <div
-                                  className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-50 ring-2 ${ring} dark:bg-neutral-900/80`}
-                                  aria-hidden
-                                >
-                                  <Icon className={`h-6 w-6 ${icon}`} />
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <span className="font-medium text-slate-900 dark:text-white">{title}</span>
-                                    {device.isTrusted && (
-                                      <Badge variant="success" className="text-[11px] font-medium">
-                                        已信任
-                                      </Badge>
-                                    )}
-                                  </div>
-                                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-                                    {device.os} · {device.browser}
-                                  </p>
-                                  <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-slate-500 dark:text-slate-500">
-                                    <span className="inline-flex items-center gap-1">
-                                      <MapPin className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden />
-                                      {device.location || device.ipAddress || '—'}
-                                    </span>
-                                    <span className="text-slate-400 dark:text-slate-600" aria-hidden>
-                                      ·
-                                    </span>
-                                    <span>
-                                      最后使用 {new Date(device.lastUsedAt).toLocaleString('zh-CN')}
-                                    </span>
-                                  </p>
-                                </div>
-                              </div>
-                              <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-slate-100 pt-3 sm:border-t-0 sm:pt-0 dark:border-neutral-800">
-                                {!device.isTrusted ? (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleTrustDevice(device.deviceId)}
-                                    disabled={isLoading}
-                                  >
-                                    信任
-                                  </Button>
-                                ) : (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleUntrustDevice(device.deviceId)}
-                                    disabled={isLoading}
-                                  >
-                                    取消信任
-                                  </Button>
-                                )}
-                                <Button
-                                  variant="destructive"
-                                  size="sm"
-                                  onClick={() => handleDeleteDevice(device.deviceId)}
-                                  disabled={isLoading}
-                                >
-                                  删除
-                                </Button>
-                              </div>
-                            </li>
-                          )
-                        })}
-                      </ul>
-                    )}
-                  </div>
-                )}
-
-                {section === 'activity' && (
-                  <ProfileAuditLogPanel
-                    userId={
-                      user?.ID != null
-                        ? Number(user.ID)
-                        : user?.id != null
-                          ? Number(user.id)
-                          : undefined
-                    }
-                  />
-                )}
-
-                {section === 'teams' && <TeamWorkspacePage />}
-
-                {section === 'billing' && <Billing />}
-
-                {section === 'notifications' && <NotificationCenter />}
-
-                {section === 'credential' && <CredentialManager />}
-
-                {section === 'llm-tokens' && <LLMTokenManager />}
-                {section === 'llm-usage' && <LLMUsagePanel />}
-            </FadeIn>
-
-      {/* 两步验证设置模态框 */}
-      {showTwoFactorSetup && twoFactorSetup && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex min-h-screen items-center justify-center p-4">
-            <div className="fixed inset-0 bg-black bg-opacity-50" onClick={() => setShowTwoFactorSetup(false)}></div>
-            <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">设置两步验证</h3>
-                <button
-                  onClick={() => setShowTwoFactorSetup(false)}
-                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              
-              <div className="space-y-4">
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  请使用您的身份验证器应用扫描下面的二维码，然后输入生成的验证码。
-                </p>
-                
-                <div className="flex justify-center p-4 bg-white rounded-lg border">
-                  <img 
-                    src={twoFactorSetup.qrCode} 
-                    alt="Two-Factor Authentication QR Code"
-                    className="w-48 h-48"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    验证码
-                  </label>
-                  <input
-                    type="text"
-                    value={twoFactorCode}
-                    onChange={(e) => setTwoFactorCode(e.target.value)}
-                    placeholder="输入6位验证码"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                    maxLength={6}
-                  />
-                </div>
-                
-                <div className="flex justify-end space-x-3">
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowTwoFactorSetup(false)}
-                    disabled={isTwoFactorLoading}
-                  >
-                    取消
-                  </Button>
-                  <Button
-                    onClick={handleTwoFactorEnable}
-                    disabled={isTwoFactorLoading || !twoFactorCode.trim()}
-                  >
-                    {isTwoFactorLoading ? '启用中...' : '启用'}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 两步验证禁用模态框 */}
-      {showTwoFactorDisable && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex min-h-screen items-center justify-center p-4">
-            <div className="fixed inset-0 bg-black bg-opacity-50" onClick={() => setShowTwoFactorDisable(false)}></div>
-            <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">禁用两步验证</h3>
-                <button
-                  onClick={() => setShowTwoFactorDisable(false)}
-                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              
-              <div className="space-y-4">
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  为了安全起见，请输入您的身份验证器应用生成的验证码来禁用两步验证。
-                </p>
-                
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    验证码
-                  </label>
-                  <input
-                    type="text"
-                    value={twoFactorCode}
-                    onChange={(e) => setTwoFactorCode(e.target.value)}
-                    placeholder="输入6位验证码"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white"
-                    maxLength={6}
-                  />
-                </div>
-                
-                <div className="flex justify-end space-x-3">
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowTwoFactorDisable(false)}
-                    disabled={isTwoFactorLoading}
-                  >
-                    取消
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    onClick={handleTwoFactorDisable}
-                    disabled={isTwoFactorLoading || !twoFactorCode.trim()}
-                  >
-                    {isTwoFactorLoading ? '禁用中...' : '禁用'}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <Modal
-        isOpen={showBindEmailModal}
-        onClose={() => setShowBindEmailModal(false)}
-        title="绑定邮箱"
-        size="sm"
-      >
-        <div className="space-y-4">
-          <p className="text-sm text-gray-500 dark:text-gray-400">输入新邮箱并完成验证码校验后即可绑定。</p>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">邮箱地址</label>
-            <ArcoInput
-              type="email"
-              value={bindEmailForm.email}
-              onChange={(v) => setBindEmailForm((prev) => ({ ...prev, email: v }))}
-              placeholder="请输入邮箱"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">验证码</label>
-            <div className="flex gap-2">
-              <ArcoInput
-                value={bindEmailForm.code}
-                onChange={(v) => setBindEmailForm((prev) => ({ ...prev, code: v }))}
-                placeholder="请输入验证码"
-                className="flex-1"
-              />
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleSendBindEmailCode}
-                disabled={bindEmailSending || bindEmailCountdown > 0 || !bindEmailForm.email.trim()}
-              >
-                {bindEmailCountdown > 0 ? `${bindEmailCountdown}s` : bindEmailSending ? '发送中...' : '发送验证码'}
-              </Button>
-            </div>
-          </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" size="sm" onClick={() => setShowBindEmailModal(false)} disabled={emailAccountSubmitting}>
-              取消
-            </Button>
-            <Button variant="primary" size="sm" onClick={handleSubmitBindEmail} loading={emailAccountSubmitting}>
-              确认绑定
-            </Button>
-          </div>
-        </div>
-      </Modal>
-
-      <Modal
-        isOpen={showChangeEmailModal}
-        onClose={() => setShowChangeEmailModal(false)}
-        title="换绑邮箱"
-        size="sm"
-      >
-        <div className="space-y-4">
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            需同时验证当前邮箱（{user?.email}）与新邮箱。
-          </p>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">当前邮箱验证码</label>
-            <div className="flex gap-2">
-              <ArcoInput
-                value={changeEmailForm.currentEmailCode}
-                onChange={(v) => setChangeEmailForm((prev) => ({ ...prev, currentEmailCode: v }))}
-                placeholder="当前邮箱验证码"
-                className="flex-1"
-              />
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleSendChangeCurrentEmailCode}
-                disabled={changeCurrentEmailSending || changeCurrentEmailCountdown > 0}
-              >
-                {changeCurrentEmailCountdown > 0 ? `${changeCurrentEmailCountdown}s` : changeCurrentEmailSending ? '发送中...' : '发送验证码'}
-              </Button>
-            </div>
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">新邮箱</label>
-            <ArcoInput
-              type="email"
-              value={changeEmailForm.newEmail}
-              onChange={(v) => setChangeEmailForm((prev) => ({ ...prev, newEmail: v }))}
-              placeholder="请输入新邮箱"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">新邮箱验证码</label>
-            <div className="flex gap-2">
-              <ArcoInput
-                value={changeEmailForm.newEmailCode}
-                onChange={(v) => setChangeEmailForm((prev) => ({ ...prev, newEmailCode: v }))}
-                placeholder="新邮箱验证码"
-                className="flex-1"
-              />
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleSendChangeNewEmailCode}
-                disabled={changeNewEmailSending || changeNewEmailCountdown > 0 || !changeEmailForm.newEmail.trim()}
-              >
-                {changeNewEmailCountdown > 0 ? `${changeNewEmailCountdown}s` : changeNewEmailSending ? '发送中...' : '发送验证码'}
-              </Button>
-            </div>
-          </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" size="sm" onClick={() => setShowChangeEmailModal(false)} disabled={emailAccountSubmitting}>
-              取消
-            </Button>
-            <Button variant="primary" size="sm" onClick={handleSubmitChangeEmail} loading={emailAccountSubmitting}>
-              确认换绑
-            </Button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* 确认对话框 */}
-      <ConfirmDialog
-        isOpen={confirmDialog.isOpen}
-        onClose={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
-        onConfirm={confirmDialog.onConfirm}
-        title={confirmDialog.title}
-        message={confirmDialog.message}
-        type={confirmDialog.type}
-        loading={isLoading}
-      />
-    </>
+    codes.includes('api.reports.read') ||
+    codes.includes('menu.profile.reports') ||
+    codes.includes('*')
   )
 }
 
-export default Profile
+function canViewOperationLogs(me: any): boolean {
+  if (me?.principal === 'platform') return false
+  const codes = me?.permissionCodes as string[] | undefined
+  if (!codes?.length) return true
+  return (
+    codes.includes('api.operation_logs.read') ||
+    codes.includes('menu.profile.logs') ||
+    codes.includes('*')
+  )
+}
+
+function fmtLastLogin(iso?: string) {
+  if (!iso) return '-'
+  const d = dayjs(iso)
+  return d.isValid() ? d.format('YYYY-MM-DD HH:mm:ss') : '-'
+}
+
+function fmtStatus(s?: string, t?: (key: string) => string) {
+  const v = String(s || '').toLowerCase()
+  if (v === 'active') return t?.('profile.statusActive') ?? '正常'
+  if (v === 'disabled') return t?.('profile.statusDisabled') ?? '已停用'
+  if (v === 'pending') return t?.('profile.statusPending') ?? '待激活'
+  return s || '-'
+}
+
+function canViewAIInvocations(me: any): boolean {
+  if (me?.principal === 'platform') return false
+  const codes = me?.permissionCodes as string[] | undefined
+  if (!codes?.length) return true
+  return (
+    codes.includes('api.ai_invocations.read') ||
+    codes.includes('menu.profile.ai_invocations') ||
+    codes.includes('*')
+  )
+}
+
+export default function Profile() {
+  const { t } = useTranslation()
+  const { config: siteConfig } = useSiteConfig()
+  const [loading, setLoading] = useState(false)
+  const [me, setMe] = useState<any>(null)
+  const [profileForm] = Form.useForm()
+  const [editingProfile, setEditingProfile] = useState(false)
+  const updateLocalProfile = useAuthStore((s) => s.updateProfile)
+  const logout = useAuthStore((s) => s.logout)
+  const navigate = useNavigate()
+  const { section: sectionParam } = useParams<{ section?: string }>()
+  const activeSection: ProfileSection = SECTION_ALIASES[String(sectionParam || 'info')] || 'info'
+
+  const loadMe = async () => {
+    setLoading(true)
+    try {
+      const res = await fetchMe()
+      if (res.code !== 200 || !res.data) {
+        showAlert(res.msg || t('profile.loadFailed'), 'error')
+        return
+      }
+      setMe(res.data)
+      const d = res.data
+      if (d.principal === 'platform' && d.platformAdmin) {
+        profileForm.setFieldsValue({
+          displayName: d.platformAdmin.displayName || '',
+          username: '',
+          phone: '',
+        })
+        updateLocalProfile({
+          id: d.platformAdmin.id,
+          email: d.platformAdmin.email,
+          displayName: d.platformAdmin.displayName,
+          isPlatformAdmin: true,
+          principal: 'platform',
+        })
+      } else if (d.principal === 'tenant' && d.user) {
+        profileForm.setFieldsValue({
+          displayName: d.user.displayName || '',
+          username: d.user.username || '',
+          phone: d.user.phone || '',
+        })
+        updateLocalProfile({
+          ...d.user,
+          tenantSlug: d.tenant?.slug,
+          tenantName: d.tenant?.name,
+          principal: 'tenant',
+          permissionCodes: d.permissionCodes ?? [],
+        })
+      }
+    } catch (e: any) {
+      showAlert(extractApiErrorMessage(e, t('profile.loadFailed')), 'error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void loadMe()
+  }, [])
+
+  const isPlatform = me?.principal === 'platform'
+  const showAccessKeys = canViewAccessKeys(me)
+  const showWebhooks = canViewWebhooks(me)
+  const showAIReports = canViewAIReports(me)
+  const showOperationLogs = canViewOperationLogs(me)
+  const showAIInvocations = canViewAIInvocations(me)
+
+  const navItems = useMemo(() => {
+    const items: { key: ProfileSection; label: string }[] = [
+      { key: 'info', label: t('profile.navProfile') },
+      { key: 'security', label: t('profile.navAccountSecurity') },
+    ]
+    if (!isPlatform) {
+      items.push({ key: 'devices', label: t('profile.navDeviceManagement') })
+    }
+    if (showAccessKeys) {
+      items.push({ key: 'access-keys', label: t('profile.navAccessKeys') })
+    }
+    if (showWebhooks) {
+      items.push({ key: 'notifications', label: t('profile.navNotifications') })
+    }
+    items.push({ key: 'login-history', label: t('profile.navLoginHistory') })
+    items.push({ key: 'inbox', label: t('profile.navInbox') })
+    if (showAIReports) {
+      items.push({ key: 'reports', label: t('profile.navAiReports') })
+    }
+    if (showOperationLogs) {
+      items.push({ key: 'logs', label: t('profile.navOperationLogs') })
+    }
+    if (showAIInvocations) {
+      items.push({ key: 'ai-invocations', label: t('profile.navAiInvocations') })
+    }
+    return items
+  }, [isPlatform, showAccessKeys, showWebhooks, showAIReports, showOperationLogs, showAIInvocations, t])
+
+  const goSection = (key: ProfileSection) => {
+    navigate(`/profile/${key}`, { replace: true })
+  }
+
+  const resetProfileFormFromMe = () => {
+    if (isPlatform && me?.platformAdmin) {
+      profileForm.setFieldsValue({
+        displayName: me.platformAdmin.displayName || '',
+        username: '',
+        phone: '',
+      })
+      return
+    }
+    if (me?.principal === 'tenant' && me?.user) {
+      profileForm.setFieldsValue({
+        displayName: me.user.displayName || '',
+        username: me.user.username || '',
+        phone: me.user.phone || '',
+      })
+    }
+  }
+
+  const heroTitle = () => {
+    if (isPlatform) return String(me?.platformAdmin?.displayName || me?.platformAdmin?.email || t('profile.adminFallback'))
+    const u = me?.user
+    return String(u?.displayName?.trim() || u?.username?.trim() || u?.email || t('profile.userFallback'))
+  }
+
+  const heroSubtitle = () => {
+    if (isPlatform) return String(me?.platformAdmin?.email || '')
+    return String(me?.user?.email || '')
+  }
+
+  const avatarSrc = () => (!isPlatform ? String(me?.user?.avatarUrl || '').trim() : '')
+
+  const detailGridStyle = {
+    display: 'grid',
+    gridTemplateColumns: 'minmax(88px, auto) 1fr minmax(88px, auto) 1fr',
+    columnGap: 16,
+    rowGap: 14,
+    alignItems: 'center' as const,
+  }
+
+  const profilePanel = (
+    <Space direction="vertical" size={16} style={{ width: '100%' }}>
+      <Card
+        loading={loading}
+        bordered={false}
+        className="overflow-hidden rounded-xl border border-border bg-gradient-to-br from-primary/10 via-card to-card"
+        bodyStyle={{ padding: 20 }}
+      >
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 20, alignItems: 'flex-start' }}>
+          <Avatar size={72} className="shrink-0 bg-muted">
+            {!isPlatform && avatarSrc() ? (
+              <img alt="" src={avatarSrc()} className="h-full w-full object-cover" />
+            ) : (
+              <UserCircle size={40} strokeWidth={1.5} className="text-muted-foreground" />
+            )}
+          </Avatar>
+          <div style={{ flex: '1 1 220px', minWidth: 0 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
+              <span className="text-[22px] font-bold text-foreground">{heroTitle()}</span>
+              {isPlatform ? (
+                <Tag color="orangered">{t('profile.platformAdmin')}</Tag>
+              ) : (
+                <Tag color="arcoblue">{t('profile.tenantMember')}</Tag>
+              )}
+              <Tag color={isPlatform || me?.user?.status === 'active' ? 'green' : 'gray'}>
+                {isPlatform ? t('profile.active') : fmtStatus(me?.user?.status, t)}
+              </Tag>
+            </div>
+            <div className="mt-2 break-all text-sm text-muted-foreground">{heroSubtitle()}</div>
+            <Space style={{ marginTop: 12 }} wrap>
+              <Tag color="green" size="small">
+                {t('profile.emailVerified')}
+              </Tag>
+              {!isPlatform && me?.user?.phone ? (
+                <Tag color="green" size="small">
+                  {t('profile.phoneRegistered')}
+                </Tag>
+              ) : (
+                !isPlatform && (
+                  <Tag size="small" className="text-muted-foreground">
+                    {t('profile.phoneNotRegistered')}
+                  </Tag>
+                )
+              )}
+              {!isPlatform && (
+                <Upload
+                  accept="image/png,image/jpeg,image/gif,image/webp"
+                  showUploadList={false}
+                  beforeUpload={async (file: File) => {
+                    try {
+                      const res = await uploadMyAvatar(file)
+                      if (res.code !== 200 || !res.data?.user) {
+                        showAlert(res.msg || t('profile.uploadFailed'), 'error')
+                        return false
+                      }
+                      showAlert(t('profile.avatarUpdated'), 'success')
+                      updateLocalProfile(res.data.user as never)
+                      await loadMe()
+                    } catch (e: any) {
+                      showAlert(extractApiErrorMessage(e, t('profile.uploadFailed')), 'error')
+                    }
+                    return false
+                  }}
+                >
+                  <Button size="mini" type="outline">
+                    {t('profile.changeAvatar')}
+                  </Button>
+                </Upload>
+              )}
+            </Space>
+          </div>
+        </div>
+      </Card>
+
+      <Card title={t('profile.accountDetails')} bordered={false} className="rounded-xl border border-border"
+        extra={
+          <Button
+            type="text"
+            size="small"
+            onClick={() => {
+              if (editingProfile) {
+                resetProfileFormFromMe()
+                setEditingProfile(false)
+              } else {
+                setEditingProfile(true)
+              }
+            }}
+          >
+            {editingProfile ? t('common.cancel') : t('common.edit')}
+          </Button>
+        }
+      >
+        {isPlatform ? (
+          <Form
+            form={profileForm}
+            layout="vertical"
+            requiredSymbol={false}
+            onSubmit={async (v) => {
+              try {
+                const res = await updateMeApi({
+                  displayName: String(v.displayName || '').trim(),
+                })
+                if (res.code !== 200 || !res.data) {
+                  showAlert(res.msg || t('profile.updateFailed'), 'error')
+                  return
+                }
+                showAlert(t('profile.profileUpdated'), 'success')
+                const pdata = res.data as { id?: number; email?: string; displayName?: string }
+                updateLocalProfile({
+                  ...pdata,
+                  isPlatformAdmin: true,
+                  principal: 'platform',
+                })
+                setEditingProfile(false)
+                await loadMe()
+              } catch (e: any) {
+                showAlert(extractApiErrorMessage(e, t('profile.updateFailed')), 'error')
+              }
+            }}
+          >
+            <div style={detailGridStyle}>
+              <div className="text-[13px] text-muted-foreground whitespace-nowrap">{t('profile.accountId')}</div>
+              <div className="text-[13px] text-foreground break-words">{me?.platformAdmin?.id ?? '—'}</div>
+              <div className="text-[13px] text-muted-foreground whitespace-nowrap">{t('profile.email')}</div>
+              <div className="text-[13px] text-foreground break-words">{me?.platformAdmin?.email || '—'}</div>
+              <div className="text-[13px] text-muted-foreground whitespace-nowrap">{t('profile.displayName')}</div>
+              {editingProfile ? (
+                <FormItem field="displayName" noStyle>
+                  <Input placeholder={t('profile.displayName')} />
+                </FormItem>
+              ) : (
+                <div className="text-[13px] text-foreground break-words">{me?.platformAdmin?.displayName || '—'}</div>
+              )}
+              <div className="text-[13px] text-muted-foreground whitespace-nowrap">{t('profile.status')}</div>
+              <div className="text-[13px] text-foreground break-words">{fmtStatus(me?.platformAdmin?.status, t)}</div>
+              <div className="text-[13px] text-muted-foreground whitespace-nowrap">{t('profile.twoFactor')}</div>
+              <div className="text-[13px] text-foreground break-words">{me?.platformAdmin?.totpEnabled ? t('profile.twoFactorOn') : t('profile.twoFactorOff')}</div>
+              <div style={{ gridColumn: '1 / -1', fontSize: 12 }}>
+                <Link to="/platform-admins">{t('profile.managePlatformAdmins')}</Link>
+              </div>
+              {editingProfile && (
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <Button type="primary" htmlType="submit" size="small">
+                    {t('common.save')}
+                  </Button>
+                </div>
+              )}
+            </div>
+          </Form>
+        ) : (
+          <Form
+            form={profileForm}
+            layout="vertical"
+            requiredSymbol={false}
+            onSubmit={async (v) => {
+              try {
+                const res = await updateMeApi({
+                  displayName: String(v.displayName || '').trim(),
+                  username: String(v.username || '').trim(),
+                  phone: String(v.phone || '').trim(),
+                })
+                if (res.code !== 200 || !res.data) {
+                  showAlert(res.msg || t('profile.updateFailed'), 'error')
+                  return
+                }
+                showAlert(t('profile.profileUpdated'), 'success')
+                updateLocalProfile(res.data as never)
+                setEditingProfile(false)
+                await loadMe()
+              } catch (e: any) {
+                showAlert(extractApiErrorMessage(e, t('profile.updateFailed')), 'error')
+              }
+            }}
+          >
+            <div style={detailGridStyle}>
+              <div className="text-[13px] text-muted-foreground whitespace-nowrap">{t('profile.accountId')}</div>
+              <div className="text-[13px] text-foreground break-words">{me?.user?.id ?? '—'}</div>
+              <div className="text-[13px] text-muted-foreground whitespace-nowrap">{t('profile.email')}</div>
+              <div className="text-[13px] text-foreground break-words">{me?.user?.email || '—'}</div>
+              <div className="text-[13px] text-muted-foreground whitespace-nowrap">{t('profile.displayName')}</div>
+              {editingProfile ? (
+                <FormItem field="displayName" noStyle>
+                  <Input placeholder={t('profile.displayNamePlaceholder')} />
+                </FormItem>
+              ) : (
+                <div className="text-[13px] text-foreground break-words">{me?.user?.displayName || '—'}</div>
+              )}
+              <div className="text-[13px] text-muted-foreground whitespace-nowrap">{t('profile.username')}</div>
+              {editingProfile ? (
+                <FormItem field="username" noStyle>
+                  <Input placeholder={t('profile.usernamePlaceholder')} />
+                </FormItem>
+              ) : (
+                <div className="text-[13px] text-foreground break-words">{me?.user?.username || '—'}</div>
+              )}
+              <div className="text-[13px] text-muted-foreground whitespace-nowrap">{t('profile.phone')}</div>
+              {editingProfile ? (
+                <FormItem field="phone" noStyle>
+                  <Input placeholder={t('profile.phonePlaceholder')} />
+                </FormItem>
+              ) : (
+                <div className="text-[13px] text-foreground break-words">{me?.user?.phone || '—'}</div>
+              )}
+              <div className="text-[13px] text-muted-foreground whitespace-nowrap">{t('profile.loginCount')}</div>
+              <div className="text-[13px] text-foreground break-words">{me?.user?.loginCount ?? 0}</div>
+              <div className="text-[13px] text-muted-foreground whitespace-nowrap">{t('profile.lastLogin')}</div>
+              <div className="text-[13px] text-foreground break-words">{fmtLastLogin(me?.user?.lastLogin)}</div>
+              <div className="text-[13px] text-muted-foreground whitespace-nowrap">{t('profile.organization')}</div>
+              <div className="text-[13px] text-foreground break-words">{me?.tenant?.name || '—'}</div>
+              <div className="text-[13px] text-muted-foreground whitespace-nowrap">{t('profile.organizationSlug')}</div>
+              <div className="text-[13px] text-foreground break-words">{me?.tenant?.slug || '—'}</div>
+              <div className="text-[13px] text-muted-foreground whitespace-nowrap">{t('profile.department')}</div>
+              <div className="text-[13px] text-foreground break-words">
+                {Array.isArray(me?.user?.tenantGroups) && me.user.tenantGroups.length
+                  ? me.user.tenantGroups.map((g: { name?: string }) => g.name).join('、')
+                  : me?.user?.tenantGroup?.name || t('profile.unassigned')}
+              </div>
+              <div className="text-[13px] text-muted-foreground whitespace-nowrap">{t('profile.accountStatus')}</div>
+              <div className="text-[13px] text-foreground break-words">{fmtStatus(me?.user?.status, t)}</div>
+              <div className="text-[13px] text-muted-foreground whitespace-nowrap">{t('profile.lastLoginIp')}</div>
+              <div className="text-[13px] text-foreground break-words">{me?.user?.lastLoginIp || '—'}</div>
+              {me?.user?.source ? (
+                <>
+                  <div className="text-[13px] text-muted-foreground whitespace-nowrap">{t('profile.accountSource')}</div>
+                  <div className="text-[13px] text-foreground break-words">{me.user.source}</div>
+                </>
+              ) : null}
+              <div className="text-[13px] text-muted-foreground whitespace-nowrap">{t('profile.registeredAt')}</div>
+              <div className="text-[13px] text-foreground break-words">
+                {me?.user?.createdAt ? dayjs(me.user.createdAt).format('YYYY/MM/DD HH:mm:ss') : '—'}
+              </div>
+              <div className="text-[13px] text-muted-foreground whitespace-nowrap">{t('profile.twoFactor')}</div>
+              <div className="text-[13px] text-foreground break-words">{me?.user?.totpEnabled ? t('profile.twoFactorOn') : t('profile.twoFactorOff')}</div>
+              <div className="col-span-full mt-1 text-[13px] text-muted-foreground">{t('profile.role')}</div>
+              <div className="col-span-full text-[13px] text-foreground break-words">
+                {Array.isArray(me?.user?.roles) && me.user.roles.length
+                  ? me.user.roles.map((r: { name?: string }) => r.name).join('、')
+                  : '—'}
+              </div>
+              {editingProfile && (
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <Button type="primary" htmlType="submit" size="small">
+                    {t('common.save')}
+                  </Button>
+                </div>
+              )}
+            </div>
+          </Form>
+        )}
+      </Card>
+    </Space>
+  )
+
+  const handleLogout = async () => {
+    await logout()
+    navigate('/login', { replace: true })
+  }
+
+  if (sectionParam && !SECTION_ALIASES[sectionParam]) {
+    return <Navigate to="/profile/info" replace />
+  }
+
+  if (activeSection === 'devices' && isPlatform) {
+    return <Navigate to="/profile/info" replace />
+  }
+  if (activeSection === 'access-keys' && !showAccessKeys) {
+    return <Navigate to="/profile/info" replace />
+  }
+  if (activeSection === 'notifications' && !showWebhooks) {
+    return <Navigate to="/profile/info" replace />
+  }
+  if (activeSection === 'reports' && !showAIReports) {
+    return <Navigate to="/profile/info" replace />
+  }
+  if (activeSection === 'logs' && !showOperationLogs) {
+    return <Navigate to="/profile/info" replace />
+  }
+  if (activeSection === 'ai-invocations' && !showAIInvocations) {
+    return <Navigate to="/profile/info" replace />
+  }
+
+  return (
+    <BaseLayout title={t('profile.title')} description="">
+      <div className="flex min-h-[calc(100vh-96px)] items-stretch gap-3">
+        <aside className="flex w-[168px] shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-card">
+          <div className="px-3 pb-1 pt-3 text-xs text-muted-foreground">{t('profile.navSection')}</div>
+          <Menu
+            className="!flex-1 !border-none !bg-transparent"
+            style={{ width: '100%', padding: '4px 6px 8px' }}
+            selectedKeys={[activeSection]}
+            onClickMenuItem={(key) => goSection(key as ProfileSection)}
+          >
+            {navItems.map((item) => (
+              <Menu.Item key={item.key} style={{ borderRadius: 8, lineHeight: '44px', height: 44, marginBottom: 4 }}>
+                {item.label}
+              </Menu.Item>
+            ))}
+          </Menu>
+          <div className="mt-auto shrink-0 border-t border-border p-3">
+            <Button long status="warning" onClick={() => void handleLogout()}>
+              {t('profile.logout')}
+            </Button>
+          </div>
+        </aside>
+
+        <div className="min-w-0 max-h-[calc(100vh-96px)] flex-1 basis-[360px] overflow-y-auto">
+          {activeSection === 'info' && profilePanel}
+          {activeSection === 'security' && (
+            <AccountSecurityPanel
+              me={me}
+              boundEmail={me?.principal === 'platform' ? me?.platformAdmin?.email : me?.user?.email}
+              voiceprintEnabled={Boolean(siteConfig.VOICEPRINT_PROVIDER?.trim())}
+              onReload={loadMe}
+              onTotpUpdated={(user) => updateLocalProfile(user as never)}
+            />
+          )}
+          {activeSection === 'devices' && !isPlatform && <UserDevicesPanel />}
+          {activeSection === 'access-keys' && showAccessKeys && <AccessKeys embedded />}
+          {activeSection === 'inbox' && <InboxPanel />}
+          {activeSection === 'reports' && showAIReports && <AIReportsPanel />}
+          {activeSection === 'logs' && showOperationLogs && <OperationLogs embedded />}
+          {activeSection === 'ai-invocations' && showAIInvocations && <AIInvocationLogs embedded />}
+          {activeSection === 'login-history' && <LoginHistoryPanel />}
+          {activeSection === 'notifications' && showWebhooks && <NotificationChannelsPanel />}
+        </div>
+      </div>
+    </BaseLayout>
+  )
+}
