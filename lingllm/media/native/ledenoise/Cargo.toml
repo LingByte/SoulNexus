@@ -1,0 +1,16 @@
+[package]
+name = "ledenoise"
+version = "0.1.0"
+edition = "2024"
+authors = ["LingByte <https://github.com/LingByte>"]
+description = "SoulNexus RNNoise uplink denoise (C ABI for Go), voice-engine NoiseReducer port"
+license = "MIT"
+readme = "README.md"
+
+[lib]
+name = "ledenoise"
+crate-type = ["rlib", "staticlib", "cdylib"]
+
+[dependencies]
+anyhow = "1"
+nnnoiseless = "0.5"

@@ -1,0 +1,28 @@
+[package]
+name = "lecodec"
+version = "0.1.0"
+edition = "2024"
+authors = ["LingByte <https://github.com/LingByte>"]
+description = "SoulNexus VoIP codecs (C ABI for Go media/encoder)"
+license = "MIT"
+readme = "README.md"
+
+[features]
+opus = ["dep:opus-rs"]
+default = ["opus"]
+
+[lib]
+name = "lecodec"
+crate-type = ["rlib", "staticlib", "cdylib"]
+
+[dependencies]
+anyhow = "1"
+g729-sys = "0.1.2"
+opus-rs = { version = "0.1.23", optional = true }
+
+[dev-dependencies]
+criterion = { version = "0.8.2", features = ["html_reports"] }
+
+[[bench]]
+name = "codec_bench"
+harness = false
