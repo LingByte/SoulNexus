@@ -18,7 +18,7 @@ interface ContentCarouselProps {
   reverse?: boolean
 }
 
-const ContentCarousel = ({
+export default function ContentCarousel({
   title,
   subtitle,
   description,
@@ -26,19 +26,16 @@ const ContentCarousel = ({
   carouselItems,
   ctaText,
   ctaLink,
-  reverse = false
-}: ContentCarouselProps) => {
+  reverse = false,
+}: ContentCarouselProps) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isAutoPlaying, setIsAutoPlaying] = useState(true)
 
-  // 自动轮播
   useEffect(() => {
     if (!isAutoPlaying || carouselItems.length <= 1) return
-
     const interval = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % carouselItems.length)
     }, 4000)
-
     return () => clearInterval(interval)
   }, [isAutoPlaying, carouselItems.length])
 
@@ -61,56 +58,56 @@ const ContentCarousel = ({
     <motion.div
       initial={{ opacity: 0, x: reverse ? 50 : -50 }}
       whileInView={{ opacity: 1, x: 0 }}
-      viewport={{ once: false, margin: "-100px" }}
-      transition={{ duration: 0.8 }}
-      className="flex flex-col justify-center space-y-6"
+      viewport={{ once: true, margin: '-80px' }}
+      transition={{ duration: 0.7 }}
+      className="flex flex-col justify-center space-y-5"
     >
-      {subtitle && (
-        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-indigo-100 to-purple-100 dark:from-indigo-900/30 dark:to-purple-900/30 border border-indigo-200/50 dark:border-indigo-800/50 w-fit">
-          <span className="text-sm font-semibold text-indigo-600 dark:text-indigo-400">{subtitle}</span>
+      {subtitle ? (
+        <div className="inline-flex w-fit items-center gap-2 rounded-full border border-violet-200/60 bg-gradient-to-r from-violet-100 to-purple-100 px-4 py-2 dark:border-violet-800/50 dark:from-violet-900/30 dark:to-purple-900/30">
+          <span className="text-sm font-semibold text-violet-600 dark:text-violet-300">{subtitle}</span>
         </div>
-      )}
-      
-      <h2 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white leading-tight">
+      ) : null}
+
+      <h2 className="font-display text-3xl font-bold leading-tight tracking-tight text-[hsl(var(--foreground))] md:text-4xl">
         {title}
       </h2>
-      
-      <p className="text-lg text-gray-600 dark:text-gray-300 leading-relaxed">
-        {description}
-      </p>
 
-      {features && features.length > 0 && (
-        <ul className="space-y-3">
+      <p className="text-base leading-relaxed text-[hsl(var(--muted-foreground))] md:text-lg">{description}</p>
+
+      {features && features.length > 0 ? (
+        <ul className="space-y-2.5">
           {features.map((feature, index) => (
             <motion.li
-              key={index}
-              initial={{ opacity: 0, x: -20 }}
+              key={feature}
+              initial={{ opacity: 0, x: -16 }}
               whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: false, margin: "-50px" }}
-              transition={{ duration: 0.5, delay: index * 0.1 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.45, delay: index * 0.08 }}
               className="flex items-start gap-3"
             >
-              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center flex-shrink-0 mt-0.5">
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-purple-600">
+                <svg className="h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                 </svg>
               </div>
-              <span className="text-gray-700 dark:text-gray-300">{feature}</span>
+              <span className="text-sm text-[hsl(var(--foreground)/0.85)] md:text-base">{feature}</span>
             </motion.li>
           ))}
         </ul>
-      )}
+      ) : null}
 
-      {ctaText && ctaLink && (
+      {ctaText && ctaLink ? (
         <div>
           <a
             href={ctaLink}
-            className="inline-flex items-center justify-center px-6 py-3 rounded-xl font-semibold shadow-lg shadow-indigo-500/20 bg-gradient-to-r from-indigo-500 via-purple-500 to-blue-500 hover:from-indigo-600 hover:via-purple-600 hover:to-blue-600 transition-all duration-300 hover:scale-105 hover:shadow-2xl hover:shadow-indigo-500/40 active:scale-95"
+            target={ctaLink.startsWith('http') ? '_blank' : undefined}
+            rel={ctaLink.startsWith('http') ? 'noopener noreferrer' : undefined}
+            className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-violet-500/25 transition hover:scale-[1.02] hover:shadow-xl active:scale-[0.98]"
           >
             {ctaText}
           </a>
         </div>
-      )}
+      ) : null}
     </motion.div>
   )
 
@@ -118,74 +115,76 @@ const ContentCarousel = ({
     <motion.div
       initial={{ opacity: 0, x: reverse ? -50 : 50 }}
       whileInView={{ opacity: 1, x: 0 }}
-      viewport={{ once: false, margin: "-100px" }}
-      transition={{ duration: 0.8 }}
+      viewport={{ once: true, margin: '-80px' }}
+      transition={{ duration: 0.7 }}
       className="relative"
       onMouseEnter={() => setIsAutoPlaying(false)}
       onMouseLeave={() => setIsAutoPlaying(true)}
     >
-      {/* 轮播容器 */}
-      <div className="relative aspect-[16/9] rounded-2xl overflow-hidden shadow-2xl border border-gray-200/50 dark:border-gray-700/50">
+      <div className="relative min-h-[280px] overflow-hidden rounded-2xl border border-[hsl(var(--border))] shadow-2xl shadow-violet-500/10 sm:min-h-[360px] lg:min-h-[420px]">
         <AnimatePresence mode="wait">
           <motion.img
             key={currentIndex}
             src={carouselItems[currentIndex].image}
             alt={carouselItems[currentIndex].alt}
-            initial={{ opacity: 0, scale: 1.1 }}
+            initial={{ opacity: 0, scale: 1.04 }}
             animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            transition={{ duration: 0.5 }}
-            className="w-full h-full object-contain bg-white dark:bg-gray-900"
+            exit={{ opacity: 0, scale: 0.98 }}
+            transition={{ duration: 0.45 }}
+            className="h-full min-h-[280px] w-full bg-[hsl(var(--card))] object-contain object-top sm:min-h-[360px] lg:min-h-[420px]"
           />
         </AnimatePresence>
 
-        {/* 导航按钮 */}
-        {carouselItems.length > 1 && (
+        {carouselItems.length > 1 ? (
           <>
             <button
+              type="button"
               onClick={goToPrevious}
-              className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm flex items-center justify-center shadow-lg hover:bg-white dark:hover:bg-gray-800 transition-all duration-300 hover:scale-110 group"
+              className="absolute left-3 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 shadow-lg backdrop-blur-sm transition hover:scale-110 dark:bg-gray-800/90"
               aria-label="Previous slide"
             >
-              <ChevronLeft className="w-5 h-5 text-gray-700 dark:text-gray-300 group-hover:text-indigo-600 dark:group-hover:text-indigo-400" />
+              <ChevronLeft className="h-5 w-5 text-violet-700 dark:text-violet-300" />
             </button>
             <button
+              type="button"
               onClick={goToNext}
-              className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm flex items-center justify-center shadow-lg hover:bg-white dark:hover:bg-gray-800 transition-all duration-300 hover:scale-110 group"
+              className="absolute right-3 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 shadow-lg backdrop-blur-sm transition hover:scale-110 dark:bg-gray-800/90"
               aria-label="Next slide"
             >
-              <ChevronRight className="w-5 h-5 text-gray-700 dark:text-gray-300 group-hover:text-indigo-600 dark:group-hover:text-indigo-400" />
+              <ChevronRight className="h-5 w-5 text-violet-700 dark:text-violet-300" />
             </button>
           </>
-        )}
+        ) : null}
       </div>
 
-      {/* 指示器 - 移到轮播图下方 */}
-      {carouselItems.length > 1 && (
-        <div className="flex justify-center gap-3 mt-6">
+      {carouselItems.length > 1 ? (
+        <div className="mt-5 flex justify-center gap-2">
           {carouselItems.map((_, index) => (
             <button
               key={index}
+              type="button"
               onClick={() => goToSlide(index)}
               className={`h-2 rounded-full transition-all duration-300 ${
                 index === currentIndex
-                  ? 'bg-gradient-to-r from-indigo-500 to-purple-600 w-12 shadow-lg shadow-indigo-500/30'
-                  : 'bg-gray-300 dark:bg-gray-600 w-2 hover:bg-indigo-400 dark:hover:bg-indigo-500 hover:w-8'
+                  ? 'w-10 bg-gradient-to-r from-violet-500 to-purple-600 shadow-md shadow-violet-500/30'
+                  : 'w-2 bg-gray-300 hover:w-6 hover:bg-violet-400 dark:bg-gray-600'
               }`}
-              aria-label={`Go to slide ${index + 1}`}
+              aria-label={`Slide ${index + 1}`}
             />
           ))}
         </div>
-      )}
+      ) : null}
     </motion.div>
   )
 
   return (
-    <div className={`grid grid-cols-1 lg:grid-cols-5 gap-12 lg:gap-16 items-center ${reverse ? 'lg:grid-flow-dense' : ''}`}>
+    <div
+      className={`grid grid-cols-1 items-center gap-10 lg:grid-cols-5 lg:gap-14 ${reverse ? 'lg:grid-flow-dense' : ''}`}
+    >
       {reverse ? (
         <>
-          <div className="lg:col-start-4 lg:col-span-2">{contentSection}</div>
-          <div className="lg:col-start-1 lg:col-span-3 lg:row-start-1">{carouselSection}</div>
+          <div className="lg:col-span-2 lg:col-start-4">{contentSection}</div>
+          <div className="lg:col-span-3 lg:col-start-1 lg:row-start-1">{carouselSection}</div>
         </>
       ) : (
         <>
@@ -196,5 +195,3 @@ const ContentCarousel = ({
     </div>
   )
 }
-
-export default ContentCarousel
