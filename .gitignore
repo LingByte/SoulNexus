@@ -7,15 +7,6 @@
 *.dll
 *.so
 *.dylib
-*.xml
-*.iml
-.idea
-.DS_Store
-.cache/
-# 懒懒熊猫逐帧资源（由 resources/ 同步，体积 ~250MB）
-static/pet/examples/sprites/panda/
-我的桌宠.soulpet/assets/sprites/panda/
-/logs/*.log
 
 # Test binary, built with `go test -c`
 *.test
@@ -35,13 +26,14 @@ go.work.sum
 
 # env file
 uploads/.env
+.env
 .env.development
 .env.test
 .env.production
-.env-voice
+web/.env
 
 # Editor/IDE
-# .idea/
+.idea/
 .vscode/
 
 # Angular specific
@@ -85,7 +77,6 @@ yarn-error.log*
 *.db
 
 lingecho
-LingEchoX
 main
 server/main
 
@@ -107,12 +98,18 @@ ssl/*.pfx
 lingecho.com.key
 lingecho.com_bundle.pem
 
+# Private keys / signing material
+keys/*
+!keys/.gitkeep
+
 .env
 pnpm-lock.yaml
 
 __pycache__
 logs
-/data
+/data/
+voiceprint/.venv
+voiceprint/data
 *.log
 
 # Python cache
@@ -120,14 +117,28 @@ logs
 *$py.class
 *.so
 .Python
-xiaozhi-server/
 dist/
-SoulNexusDoc/
-LingEchoX/
-keys/
-Open-LLM-VTuber-main/
-SillyTavern-release/
-
-# Electron desktop pet
-desktop-pet/node_modules/
-desktop-pet/config.local.json
+trace/
+signaling/
+init.sql
+keys/server
+/server
+banner.txt
+# MiMoCode agent skills
+.mimocode/
+backups/.mimocode/
+.DS_Store
+target/
+# SoulNexus lecodec (under media/encoder/lecodec)
+Cargo.lock
+*.pcm
+*.opus
+corpus
+artifacts
+coverage
+lingecho.db
+lingecho.db-shm
+lingecho.db-wal
+audio-cache/
+data/
+.cursor/

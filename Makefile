@@ -1,81 +1,45 @@
-# SoulNexus build helpers
+.PHONY: help env build up down restart logs ps deploy deploy-seed clean shell
 
-.PHONY: proto proto-auth build test test-cover lint run-server run-voice web-dev web-build admin-dev admin-build docker-build docker-up docker-down migrate seed install clean
+COMPOSE ?= docker compose
+IMAGE ?= soulnexus:latest
+export DOCKER_BUILDKIT := 1
+export COMPOSE_DOCKER_CLI_BUILD := 1
 
-PROTOC ?= protoc
-AUTH_PROTO = internal/grpc/auth/proto/auth/v1/auth.proto
-AUTH_PROTO_OUT = internal/grpc/auth/pb
-AUTH_PROTO_INCLUDE = internal/grpc/auth/proto
+help: ## 显示可用命令
+	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage: make \033[36m<target>\033[0m\n\n"} /^[a-zA-Z0-9_.-]+:.*##/ { printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
-# Regenerate auth gRPC / protobuf Go code after editing auth.proto.
-proto: proto-auth
+env: ## 从 env.example 复制 .env（已存在则跳过；可不改也能本地启动）
+	@test -f .env || cp env.example .env
+	@echo ".env ready — 生产请改 SESSION_SECRET / PLATFORM_ADMIN_* / DSN"
 
-proto-auth:
-	$(PROTOC) \
-		--go_out=$(AUTH_PROTO_OUT) --go_opt=paths=source_relative \
-		--go-grpc_out=$(AUTH_PROTO_OUT) --go-grpc_opt=paths=source_relative \
-		-I $(AUTH_PROTO_INCLUDE) \
-		$(AUTH_PROTO)
+build: ## 构建 Docker 镜像
+	$(COMPOSE) build
 
-build:
-	go build -o bin/server ./cmd/server
-	go build -o bin/voice ./cmd/voice
+up: env ## 启动容器（后台）
+	$(COMPOSE) up -d
 
-test:
-	go test -race ./...
+down: ## 停止并移除容器
+	$(COMPOSE) down
 
-test-cover:
-	go test -race -coverprofile=coverage.out ./...
-	go tool cover -html=coverage.out -o coverage.html
+restart: ## 重启容器
+	$(COMPOSE) restart
 
-lint:
-	golangci-lint run ./...
+logs: ## 跟踪容器日志
+	$(COMPOSE) logs -f
 
-run-server:
-	go run ./cmd/server
+ps: ## 查看容器状态
+	$(COMPOSE) ps
 
-run-voice:
-	go run ./cmd/voice
+deploy: env build up ## 一键部署（构建 + 启动，浏览器打开控制台）
+	@echo ""
+	@echo "✓ SoulNexus ready → http://localhost:$${HTTP_PORT:-8080}"
+	@echo "  Platform admin: $${PLATFORM_ADMIN_EMAIL:-admin@lingecho.com} / $${PLATFORM_ADMIN_PASSWORD:-admin123}"
 
-# Frontend targets
-web-dev:
-	cd web && npm run dev
+deploy-seed: env ## 一键部署并写入演示种子数据（非生产）
+	LINGECHO_SEED=true $(MAKE) deploy
 
-web-build:
-	cd web && npm run build
+clean: down ## 停止容器并删除数据卷（会清空数据库与上传文件）
+	$(COMPOSE) down -v
 
-admin-dev:
-	cd admin && npm run dev
-
-admin-build:
-	cd admin && npm run build
-
-# Docker targets (requires Dockerfile and docker-compose.yml)
-docker-build:
-	docker build -t soulnexus-server -f Dockerfile.server .
-	docker build -t soulnexus-voice -f Dockerfile.voice .
-
-docker-up:
-	docker-compose up -d
-
-docker-down:
-	docker-compose down
-
-# Database migration (uses GORM AutoMigrate via -init flag)
-migrate:
-	go run ./cmd/server -init
-
-# Seed database with demo data
-seed:
-	go run ./cmd/server -seed
-
-# Install Go dependencies
-install:
-	go mod download
-	go mod tidy
-
-# Clean build artifacts
-clean:
-	rm -rf bin/
-	rm -f coverage.out coverage.html
-	go clean -cache
+shell: ## 进入运行中容器 shell
+	$(COMPOSE) exec lingecho bash

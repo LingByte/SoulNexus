@@ -1,0 +1,26 @@
+# golangci-lint config — start conservative; expand as debt clears.
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+
+linters-settings:
+  staticcheck:
+    checks: ["all", "-SA1019"]
+
+issues:
+  max-issues-per-linter: 50
+  max-same-issues: 10
+  exclude-dirs:
+    - web
+    - desktop-pet
+    - LingMCP
