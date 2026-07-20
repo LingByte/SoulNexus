@@ -1,118 +1,158 @@
-import { get, post, put, del } from '@/utils/request'
-import { ApiResponse } from '@/utils/request'
+import { del, get, post, put, type ApiResponse } from '@/utils/request'
 
-// 声纹记录类型
-export interface VoiceprintRecord {
-  id: number
-  speaker_id: string
-  agent_id: string
-  speaker_name: string
+export interface VoiceprintConfig {
+  provider: string
+  label?: string
+  enabled: boolean
+  supportsEnroll?: boolean
+  supportsIdentify?: boolean
+  supportsVerify?: boolean
+  groupScoped?: boolean
+  similarityThreshold?: number
+  maxCandidates?: number
+}
+
+export interface VoiceprintProfile {
+  /** Snowflake id — always treat as string to avoid JS Number precision loss. */
+  id: string | number
+  tenantId?: string | number
+  assistantId?: string | number | null
+  subjectId?: string | number | null
+  scene?: string
+  name: string
+  provider: string
+  featureId: string
+  status: string
   description?: string
-  created_at: string
-  updated_at: string
-  last_used?: string
-  confidence?: number
+  createdAt?: string
+  updatedAt?: string
 }
 
-// 声纹列表响应
-export interface VoiceprintListResponse {
-  total: number
-  voiceprints: VoiceprintRecord[]
+/** Normalize API snowflake fields to decimal string (never Number()). */
+export function snowflakeStr(v: string | number | null | undefined): string {
+  if (v == null) return ''
+  const s = String(v).trim()
+  if (!s || s === '0' || s === 'null' || s === 'undefined') return ''
+  return s
 }
 
-// 创建声纹请求
-export interface CreateVoiceprintRequest {
-  speaker_id: string
-  agent_id: string
-  speaker_name: string
-  description?: string
+export function isSnowflakeSet(v: string | number | null | undefined): boolean {
+  return snowflakeStr(v) !== ''
 }
 
-// 更新声纹请求
-export interface UpdateVoiceprintRequest {
-  speaker_name?: string
-  description?: string
+export interface SpeakerAttribute {
+  key: string
+  value: string
+  visibility: 'llm' | 'internal' | 'tool' | string
 }
 
-// 声纹识别响应
-export interface VoiceprintIdentifyResponse {
-  speaker_id: string
+export interface SpeakerCredentialView {
+  provider: string
+  scopes?: string
+  hasSecret: boolean
+}
+
+export interface VoiceprintSpeakerBundle {
+  profileId: string | number
+  featureId: string
+  name: string
+  subjectId?: string | number | null
+  subject?: { id: string | number; displayName: string; notes?: string; status?: string } | null
+  attributes: SpeakerAttribute[]
+  credentials: SpeakerCredentialView[]
+}
+
+export interface VoiceprintIdentifyResult {
+  featureId: string
   score: number
-  confidence: string
-  is_match: boolean
+  threshold: number
+  isMatch: boolean
+  confidence?: string
 }
 
-// 声纹验证响应
-export interface VoiceprintVerifyResponse {
-  target_speaker_id: string
-  identified_speaker_id: string
-  score: number
-  confidence: string
-  is_match: boolean
-  is_target_speaker: boolean
-  verification_passed: boolean
+export interface VoiceprintSelfTestCheck {
+  name: string
+  ok: boolean
+  detail?: string
 }
 
-// 获取声纹列表
-export const getVoiceprints = async (agentId: string): Promise<ApiResponse<VoiceprintListResponse>> => {
-  return get(`/voiceprint?agent_id=${encodeURIComponent(agentId)}`)
+export interface VoiceprintSelfTestReport {
+  enabled: boolean
+  provider?: string
+  label?: string
+  ok: boolean
+  checks: VoiceprintSelfTestCheck[]
 }
 
-// 创建声纹记录
-export const createVoiceprint = async (data: CreateVoiceprintRequest): Promise<ApiResponse<VoiceprintRecord>> => {
-  return post('/voiceprint', data)
+export async function getVoiceprintConfig(): Promise<ApiResponse<VoiceprintConfig>> {
+  return get('/voiceprints/config')
 }
 
-// 注册声纹（上传音频）
-export const registerVoiceprint = async (
-  agentId: string,
-  speakerName: string,
-  audioFile: File,
-  description?: string
-): Promise<ApiResponse<VoiceprintRecord>> => {
-  const formData = new FormData()
-  formData.append('agent_id', agentId)
-  formData.append('speaker_name', speakerName)
-  formData.append('audio_file', audioFile)
-  if (description) {
-    formData.append('description', description)
+export async function runVoiceprintSelfTest(probe = false): Promise<ApiResponse<VoiceprintSelfTestReport>> {
+  const q = probe ? '?probe=true' : ''
+  return get(`/voiceprints/self-test${q}`)
+}
+
+export async function listVoiceprints(): Promise<ApiResponse<VoiceprintProfile[]>> {
+  return get('/voiceprints')
+}
+
+export async function createVoiceprint(
+  name: string,
+  audio: File,
+  opts?: { description?: string; featureId?: string },
+): Promise<ApiResponse<VoiceprintProfile>> {
+  const fd = new FormData()
+  fd.append('name', name)
+  fd.append('audio', audio)
+  if (opts?.description?.trim()) fd.append('description', opts.description.trim())
+  if (opts?.featureId?.trim()) fd.append('featureId', opts.featureId.trim())
+  return post('/voiceprints', fd)
+}
+
+export async function identifyVoiceprint(
+  audio: File,
+  opts?: { threshold?: number; featureIds?: string[] },
+): Promise<ApiResponse<{ result: VoiceprintIdentifyResult; profile: VoiceprintProfile | null }>> {
+  const fd = new FormData()
+  fd.append('audio', audio)
+  if (opts?.threshold != null && Number.isFinite(opts.threshold)) {
+    fd.append('threshold', String(opts.threshold))
   }
-
-  return post('/voiceprint/register', formData)
+  if (opts?.featureIds?.length) {
+    fd.append('featureIds', opts.featureIds.join(','))
+  }
+  return post('/voiceprints/identify', fd)
 }
 
-// 更新声纹记录
-export const updateVoiceprint = async (id: number, data: UpdateVoiceprintRequest): Promise<ApiResponse<VoiceprintRecord>> => {
-  return put(`/voiceprint/${id}`, data)
+export async function deleteVoiceprint(id: string | number): Promise<ApiResponse<{ deleted: boolean }>> {
+  return del(`/voiceprints/${encodeURIComponent(String(id))}`)
 }
 
-// 删除声纹记录
-export const deleteVoiceprint = async (id: number): Promise<ApiResponse<void>> => {
-  return del(`/voiceprint/${id}`)
+export async function bindVoiceprintAssistant(
+  id: string | number,
+  assistantId: string | number | null,
+): Promise<ApiResponse<VoiceprintProfile>> {
+  return put(`/voiceprints/${encodeURIComponent(String(id))}/assistant`, {
+    assistantId: assistantId == null || assistantId === '' ? null : String(assistantId),
+  })
 }
 
-// 声纹识别
-export const identifyVoiceprint = async (
-  agentId: string,
-  audioFile: File
-): Promise<ApiResponse<VoiceprintIdentifyResponse>> => {
-  const formData = new FormData()
-  formData.append('agent_id', agentId)
-  formData.append('audio_file', audioFile)
-
-  return post('/voiceprint/identify', formData)
+export async function getVoiceprintSpeaker(id: string | number): Promise<ApiResponse<VoiceprintSpeakerBundle>> {
+  return get(`/voiceprints/${encodeURIComponent(String(id))}/speaker`)
 }
 
-// 声纹验证
-export const verifyVoiceprint = async (
-  agentId: string,
-  speakerId: string,
-  audioFile: File
-): Promise<ApiResponse<VoiceprintVerifyResponse>> => {
-  const formData = new FormData()
-  formData.append('agent_id', agentId)
-  formData.append('speaker_id', speakerId)
-  formData.append('audio_file', audioFile)
-
-  return post('/voiceprint/verify', formData)
+export async function upsertVoiceprintSpeaker(
+  id: string | number,
+  body: {
+    displayName?: string
+    notes?: string
+    attributes?: SpeakerAttribute[]
+    credentials?: { provider: string; secretRef?: string; scopes?: string; clear?: boolean }[]
+  },
+): Promise<ApiResponse<VoiceprintSpeakerBundle>> {
+  return put(`/voiceprints/${encodeURIComponent(String(id))}/speaker`, body)
 }
+
+export const VoiceprintSceneBusiness = 'business'
+export const VoiceprintSceneAccount = 'account'

@@ -7,7 +7,7 @@ export type WorkflowStatus = 'draft' | 'active' | 'archived'
 export type WorkflowEdgeType = 'default' | 'true' | 'false' | 'error' | 'branch'
 
 // 工作流节点类型
-export type WorkflowNodeType = 'start' | 'end' | 'task' | 'gateway' | 'event' | 'subflow' | 'parallel' | 'wait' | 'timer' | 'script' | 'plugin' | 'workflow_plugin' | 'condition'
+export type WorkflowNodeType = 'start' | 'end' | 'task' | 'gateway' | 'event' | 'subflow' | 'parallel' | 'wait' | 'timer' | 'script' | 'plugin' | 'workflow_plugin' | 'condition' | 'ai_chat' | 'knowledge_base'
 
 // 工作流节点 Schema
 export interface WorkflowNodeSchema {
@@ -149,7 +149,7 @@ export interface WorkflowVersionCompareResponse {
 // 创建工作流定义请求
 export interface CreateWorkflowDefinitionRequest {
   name: string
-  slug: string
+  slug?: string
   description?: string
   status?: WorkflowStatus
   definition: WorkflowGraph
@@ -210,6 +210,11 @@ export const workflowService = {
     return put<WorkflowDefinition>(`/workflows/definitions/${id}`, data)
   },
 
+  /** 发布当前草稿为不可变版本（与保存草稿分离） */
+  async publishDefinition(id: number, changeNote?: string): Promise<ApiResponse<{ definition: WorkflowDefinition; version: WorkflowVersion }>> {
+    return post(`/workflows/definitions/${id}/publish`, { changeNote: changeNote || '' })
+  },
+
   /**
    * 删除工作流定义
    */
@@ -229,7 +234,12 @@ export const workflowService = {
   /**
    * 测试单个节点
    */
-  async testNode(definitionId: number, nodeId: string, parameters?: Record<string, any>): Promise<ApiResponse<{
+  async testNode(
+    definitionId: number,
+    nodeId: string,
+    parameters?: Record<string, any>,
+    opts?: { node?: WorkflowNodeSchema; edges?: WorkflowGraph['edges'] },
+  ): Promise<ApiResponse<{
     nodeId: string
     nodeName: string
     status: string
@@ -239,7 +249,9 @@ export const workflowService = {
     error?: string
   }>> {
     return post(`/workflows/definitions/${definitionId}/nodes/${nodeId}/test`, {
-      parameters: parameters || {}
+      parameters: parameters || {},
+      ...(opts?.node ? { node: opts.node } : {}),
+      ...(opts?.edges ? { edges: opts.edges } : {}),
     })
   },
 
@@ -302,7 +314,25 @@ export const workflowService = {
    */
   async stopInstance(instanceId: number): Promise<ApiResponse<{ instance_id: number; status: string }>> {
     return post<{ instance_id: number; status: string }>(`/workflows/instances/${instanceId}/stop`)
-  }
+  },
+
+  async listInstances(params: ListWorkflowInstancesParams): Promise<ApiResponse<{ list: WorkflowInstance[]; total: number; page: number; pageSize: number }>> {
+    return get('/workflows/instances', { params })
+  },
+
+  async getInstance(id: number): Promise<ApiResponse<WorkflowInstance>> {
+    return get<WorkflowInstance>(`/workflows/instances/${id}`)
+  },
+
+  exportInstancesUrl(params: ListWorkflowInstancesParams): string {
+    const q = new URLSearchParams()
+    q.set('definitionId', String(params.definitionId))
+    if (params.source) q.set('source', params.source)
+    if (params.keyword) q.set('keyword', params.keyword)
+    if (params.from) q.set('from', params.from)
+    if (params.to) q.set('to', params.to)
+    return `/workflows/instances/export?${q.toString()}`
+  },
 }
 
 // 执行日志
@@ -319,8 +349,18 @@ export interface WorkflowInstance {
   id: number
   definitionId: number
   definitionName: string
+  groupId?: number
+  userId?: number
+  triggerUser?: string
+  triggerSource?: string
+  clientMeta?: Record<string, unknown>
   status: 'pending' | 'running' | 'completed' | 'failed'
   currentNodeId?: string
+  inputParameters?: Record<string, any>
+  executionLogs?: ExecutionLog[]
+  logCount?: number
+  durationMs?: number
+  errorMessage?: string
   contextData?: Record<string, any>
   resultData?: Record<string, any>
   startedAt?: string
@@ -329,10 +369,25 @@ export interface WorkflowInstance {
   updatedAt: string
 }
 
+export interface ListWorkflowInstancesParams {
+  definitionId: number
+  source?: string
+  keyword?: string
+  from?: string
+  to?: string
+  page?: number
+  pageSize?: number
+}
+
 // 工作流运行响应（包含日志）
 export interface RunWorkflowResponse {
-  instance: WorkflowInstance
+  /** 简化响应：id + status + logs + result */
+  id?: number
+  status?: 'pending' | 'running' | 'completed' | 'failed'
   logs?: ExecutionLog[]
+  result?: Record<string, unknown>
+  /** 兼容旧格式 */
+  instance?: WorkflowInstance
 }
 
 export default workflowService
