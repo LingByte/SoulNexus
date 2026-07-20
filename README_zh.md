@@ -1,4 +1,8 @@
 <p align="center">
+  <a href="README.md">English</a> · 简体中文
+</p>
+
+<p align="center">
   <img src="web/public/icon-lingyu.png" alt="SoulNexus" width="140" style="border-radius:24px;box-shadow:0 4px 24px rgba(0,0,0,0.12);">
 </p>
 
