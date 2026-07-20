@@ -48,9 +48,12 @@ func TestImageCaptcha_Generate(t *testing.T) {
 	if !strings.HasPrefix(imageData, "data:image/png;base64,") {
 		t.Fatal("Result image should be base64 encoded PNG")
 	}
-	code, ok := result.Data["code"].(string)
-	if !ok || len(code) != 4 {
-		t.Fatalf("Expected code length 4, got %d", len(code))
+	length, ok := result.Data["length"].(int)
+	if !ok || length != 4 {
+		t.Fatalf("Expected length 4, got %v", result.Data["length"])
+	}
+	if _, hasCode := result.Data["code"]; hasCode {
+		t.Fatal("code must not be exposed in generate response")
 	}
 	if result.Expires.Before(time.Now()) {
 		t.Fatal("Result expires time should be in the future")
@@ -58,15 +61,20 @@ func TestImageCaptcha_Generate(t *testing.T) {
 }
 
 func TestImageCaptcha_Verify(t *testing.T) {
-	captcha := NewImageCaptcha(200, 60, 4, 5*time.Minute, nil)
+	store := NewMemoryStore()
+	captcha := NewImageCaptcha(200, 60, 4, 5*time.Minute, store)
 	result, err := captcha.Generate()
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
-	code, ok := result.Data["code"].(string)
-	if !ok {
-		t.Fatal("Code not found in result data")
+	stored, err := store.Get(result.ID)
+	if err != nil {
+		t.Fatalf("Get stored code failed: %v", err)
+	}
+	code, ok := stored.(string)
+	if !ok || len(code) != 4 {
+		t.Fatalf("Expected stored code length 4, got %v", stored)
 	}
 
 	// 正确验证码
@@ -95,15 +103,20 @@ func TestImageCaptcha_Verify(t *testing.T) {
 }
 
 func TestImageCaptcha_VerifyCaseInsensitive(t *testing.T) {
-	captcha := NewImageCaptcha(200, 60, 4, 5*time.Minute, nil)
+	store := NewMemoryStore()
+	captcha := NewImageCaptcha(200, 60, 4, 5*time.Minute, store)
 	result, err := captcha.Generate()
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
-	code, ok := result.Data["code"].(string)
+	stored, err := store.Get(result.ID)
+	if err != nil {
+		t.Fatalf("Get stored code failed: %v", err)
+	}
+	code, ok := stored.(string)
 	if !ok {
-		t.Fatal("Code not found in result data")
+		t.Fatal("Stored code not found")
 	}
 
 	// 小写验证码应该也能通过

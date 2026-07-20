@@ -51,7 +51,7 @@ func TestIntegration_S3_CRUD(t *testing.T) {
 		Region:          s3MustEnv("S3_REGION"),
 		AccessKeyID:     s3MustEnv("S3_ACCESS_KEY_ID"),
 		AccessKeySecret: s3MustEnv("S3_SECRET_ACCESS_KEY"),
-		BucketName:      "test-bucket",
+		BucketName:      s3MustEnv("S3_BUCKET"),
 		Endpoint:        os.Getenv("S3_ENDPOINT"),
 		UsePathStyle:    usePathStyle,
 		Domain:          os.Getenv("S3_DOMAIN"),
@@ -287,7 +287,7 @@ func TestS3Store_Exists_NonExistent(t *testing.T) {
 		Region:          s3MustEnv("S3_REGION"),
 		AccessKeyID:     s3MustEnv("S3_ACCESS_KEY_ID"),
 		AccessKeySecret: s3MustEnv("S3_SECRET_ACCESS_KEY"),
-		BucketName:      "test-bucket",
+		BucketName:      s3MustEnv("S3_BUCKET"),
 		Endpoint:        os.Getenv("S3_ENDPOINT"),
 		UsePathStyle:    strings.ToLower(os.Getenv("S3_USE_PATH_STYLE")) == "true" || os.Getenv("S3_USE_PATH_STYLE") == "1",
 	}
@@ -301,4 +301,34 @@ func TestS3Store_Exists_NonExistent(t *testing.T) {
 	if ok {
 		t.Fatalf("Exists should return false for non-existent key")
 	}
+}
+
+func TestS3Store_PublicURL_DomainWithoutProtocol(t *testing.T) {
+	s := &S3Store{
+		Region:     "us-east-1",
+		BucketName: "test-bucket",
+		Domain:     "files.mycdn.com",
+	}
+	url := s.PublicURL("data/file.bin")
+	expected := "https://files.mycdn.com/data/file.bin"
+	if url != expected {
+		t.Fatalf("PublicURL with domain without protocol got %q, want %q", url, expected)
+	}
+}
+
+func TestS3Store_PublicURL_LeadingSlashTrim(t *testing.T) {
+	s := &S3Store{
+		Region:     "us-east-1",
+		BucketName: "test-bucket",
+		Domain:     "https://cdn.example.com",
+	}
+	url := s.PublicURL("/path/to/file.txt")
+	expected := "https://cdn.example.com/path/to/file.txt"
+	if url != expected {
+		t.Fatalf("PublicURL should trim leading slash, got %q", url)
+	}
+}
+
+func TestS3Store_ImplementsStore(t *testing.T) {
+	assertImplementsStore(t, &S3Store{})
 }

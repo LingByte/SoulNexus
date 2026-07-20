@@ -17,6 +17,9 @@ const (
 	KindQiNiu = "qiniu"
 	KindOss   = "oss"
 	KinsS3    = "s3"
+	KindTos   = "tos" // volcengine
+	KindObs   = "obs" // huawei cloud
+	KindKs3   = "ks3" // kingsoft cloud
 )
 
 var ErrInvalidPath = &utils.Error{Code: http.StatusBadRequest, Message: "invalid path"}
@@ -30,7 +33,7 @@ func getDefaultStoreKind() string {
 		return KindLocal
 	}
 	switch kind {
-	case KindLocal, KindCos, KindMinio, KindQiNiu, KindOss, KinsS3:
+	case KindLocal, KindCos, KindMinio, KindQiNiu, KindOss, KinsS3, KindTos, KindObs, KindKs3:
 		return kind
 	default:
 		// 无效的类型，使用默认值并记录警告
@@ -63,6 +66,12 @@ func GetStore(kind string) Store {
 		return NewOSSStore()
 	case KinsS3:
 		return NewS3Store()
+	case KindTos:
+		return NewTosStore()
+	case KindObs:
+		return NewObsStore()
+	case KindKs3:
+		return NewKs3Store()
 	default:
 		return NewLocalStore()
 	}

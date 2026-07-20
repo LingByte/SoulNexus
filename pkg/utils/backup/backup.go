@@ -4,245 +4,272 @@ package backup
 // SPDX-License-Identifier: AGPL-3.0
 
 import (
+	"encoding/json"
 	"fmt"
-	"io"
-	"log"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
-	"github.com/LingByte/SoulNexus/internal/config"
+	"github.com/LingByte/SoulNexus/pkg/constants"
 	"github.com/LingByte/SoulNexus/pkg/logger"
+	"github.com/LingByte/SoulNexus/pkg/stores"
+	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/robfig/cron/v3"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
-var backupSchedulerCron *cron.Cron
+const (
+	defaultBackupPrefix = "backup"
+	manifestFileName    = "backup_manifest.json"
+)
 
-// StartBackupScheduler starts the backup scheduler and executes backup immediately on startup
-func StartBackupScheduler(db *gorm.DB) {
-	// Execute backup immediately on startup
-	logger.Info("Executing initial backup on startup...")
+// BackupRecord 记录一次备份的元数据
+type BackupRecord struct {
+	Key      string `json:"key"`       // store 中的对象 key
+	FileName string `json:"file_name"` // 原始文件名
+	Size     int64  `json:"size"`      // 字节数
+	Date     string `json:"date"`      // ISO 8601 时间
+	URL      string `json:"url"`       // 完整访问 URL
+}
+
+// DatabaseConfig database configuration
+type DatabaseConfig struct {
+	Driver string `json:"driver"`
+	DSN    string `json:"dsn"`
+}
+
+// BackupManifest 本地备份清单，用于追踪已上传的备份并支持过期清理
+type BackupManifest struct {
+	mu      sync.Mutex
+	path    string
+	Records []BackupRecord `json:"records"`
+}
+
+// loadManifest 从本地文件加载清单
+func loadManifest(path string) (*BackupManifest, error) {
+	m := &BackupManifest{
+		path:    path,
+		Records: make([]BackupRecord, 0),
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return m, nil
+		}
+		return nil, fmt.Errorf("read manifest file %s: %w", path, err)
+	}
+	if len(data) == 0 {
+		return m, nil
+	}
+	if err := json.Unmarshal(data, &m.Records); err != nil {
+		return nil, fmt.Errorf("unmarshal manifest: %w", err)
+	}
+	return m, nil
+}
+
+// save 写入清单到本地文件
+func (m *BackupManifest) save() error {
+	if m.path == "" {
+		return fmt.Errorf("manifest path is empty")
+	}
+	dir := filepath.Dir(m.path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("create manifest dir: %w", err)
+	}
+	data, err := json.MarshalIndent(m.Records, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal manifest: %w", err)
+	}
+	return os.WriteFile(m.path, data, 0644)
+}
+
+// addRecord 追加一条备份记录并持久化
+func (m *BackupManifest) addRecord(record BackupRecord) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.Records = append(m.Records, record)
+	return m.save()
+}
+
+// removeRecords 从清单中删除指定记录并持久化
+func (m *BackupManifest) removeRecords(indices map[int]bool) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	filtered := make([]BackupRecord, 0, len(m.Records))
+	for i, r := range m.Records {
+		if !indices[i] {
+			filtered = append(filtered, r)
+		}
+	}
+	m.Records = filtered
+	return m.save()
+}
+
+// manifestPath 生成清单文件的本地路径
+func manifestPath() string {
+	return filepath.Join(utils.GetEnv(constants.ENV_BACKUP_PATH), manifestFileName)
+}
+
+// retentionDays 获取备份保留天数
+func retentionDays() int {
+	return int(utils.GetIntEnv(constants.ENV_BACKUP_RETENTION_DAYS))
+}
+
+// backupKey 生成对象存储中的 key，格式: backup/sys_backup_20260623_150405.sql
+func backupKey(ext string) string {
+	ts := time.Now().Format("20060102_150405")
+	return fmt.Sprintf("%s/sys_backup_%s.%s", defaultBackupPrefix, ts, ext)
+}
+
+// recordBackupManifest 记录备份到本地清单文件
+func recordBackupManifest(key string, size int64, store stores.Store) error {
+	mpath := manifestPath()
+	manifest, err := loadManifest(mpath)
+	if err != nil {
+		return err
+	}
+
+	record := BackupRecord{
+		Key:      key,
+		FileName: filepath.Base(key),
+		Size:     size,
+		Date:     time.Now().UTC().Format(time.RFC3339),
+		URL:      store.PublicURL(key),
+	}
+	if err := manifest.addRecord(record); err != nil {
+		return fmt.Errorf("save backup manifest: %w", err)
+	}
+	logger.Info("Backup uploaded to store",
+		zap.String("key", key),
+		zap.Int64("size", size),
+	)
+	return nil
+}
+
+// StartBackupScheduler 启动备份调度器，启动时立即执行一次备份
+func StartBackupScheduler(db *gorm.DB, dbConfig DatabaseConfig) {
 	c := cron.New()
-	backupSchedulerCron = c
-	// Use Cron expression from configuration
-	schedule := config.GlobalConfig.Features.BackupSchedule
+	store := stores.Default()
 
-	// Add scheduled task
-	c.AddFunc(schedule, func() {
-		err := ExecuteBackup(db)
-		if err != nil {
-			logger.Warn("Backup failed: %v", zap.Error(err))
+	go purgeExpiredBackupsSafe(store)
+
+	// 定时备份
+	c.AddFunc(utils.GetEnv(constants.ENV_BACKUP_SCHEDULE), func() {
+		if err := ExecuteBackup(db, store, dbConfig); err != nil {
+			logger.Warn("Scheduled backup failed", zap.Error(err))
 		} else {
-			logger.Info("Backup completed successfully")
+			logger.Info("Scheduled backup completed successfully")
 		}
 	})
 
-	// Start the scheduler
+	// 定时清理过期备份（每6小时执行一次）
+	c.AddFunc("0 */6 * * *", func() {
+		purgeExpiredBackupsSafe(store)
+	})
+
 	c.Start()
 }
 
-// StopBackupScheduler stops the backup scheduler.
-func StopBackupScheduler() {
-	if backupSchedulerCron != nil {
-		backupSchedulerCron.Stop()
+// purgeExpiredBackupsSafe 带 panic recover 的过期备份清理
+func purgeExpiredBackupsSafe(store stores.Store) {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Warn("backup purge panic recovered", zap.Any("panic", r))
+		}
+	}()
+	if err := purgeExpiredBackups(store); err != nil {
+		logger.Warn("Backup purge failed", zap.Error(err))
 	}
 }
 
-// ExecuteBackup executes database backup according to configuration
-func ExecuteBackup(db *gorm.DB) error {
-	switch config.GlobalConfig.Database.Driver {
-	case "sqlite":
-		// Execute SQLite backup
-		dst := filepath.Join(config.GlobalConfig.Features.BackupPath, fmt.Sprintf("sys_backup_%s.db", time.Now().Format("20060102_150405")))
-		return BackupSQLiteDatabase(config.GlobalConfig.Database.DSN, dst)
-	case "mysql":
-		// Use Go driver for MySQL backup
-		dst := filepath.Join(config.GlobalConfig.Features.BackupPath, fmt.Sprintf("sys_backup_%s.sql", time.Now().Format("20060102_150405")))
-		return BackupMySQLDatabaseWithDriver(db, dst)
+// purgeExpiredBackups 清理超过保留天数的备份对象并在清单中移除记录
+func purgeExpiredBackups(store stores.Store) error {
+	mpath := manifestPath()
+	manifest, err := loadManifest(mpath)
+	if err != nil {
+		return fmt.Errorf("load manifest: %w", err)
+	}
+
+	retention := retentionDays()
+	if retention <= 0 {
+		return nil
+	}
+	cutoff := time.Now().AddDate(0, 0, -retention)
+
+	var toRemove map[int]bool
+	for i, rec := range manifest.Records {
+		date, parseErr := time.Parse(time.RFC3339, rec.Date)
+		if parseErr != nil {
+			date, parseErr = time.Parse("2006-01-02T15:04:05Z", rec.Date)
+		}
+		if parseErr != nil {
+			logger.Warn("Cannot parse backup record date, will remove it",
+				zap.String("key", rec.Key),
+				zap.String("date", rec.Date),
+			)
+			if toRemove == nil {
+				toRemove = make(map[int]bool)
+			}
+			toRemove[i] = true
+			continue
+		}
+		if date.Before(cutoff) {
+			if toRemove == nil {
+				toRemove = make(map[int]bool)
+			}
+			toRemove[i] = true
+		}
+	}
+
+	if len(toRemove) == 0 {
+		return nil
+	}
+
+	removed := 0
+	for i := range toRemove {
+		rec := manifest.Records[i]
+		if err := store.Delete(rec.Key); err != nil {
+			logger.Warn("Failed to delete expired backup from store",
+				zap.String("key", rec.Key),
+				zap.Error(err),
+			)
+		}
+		removed++
+		logger.Info("Expired backup deleted",
+			zap.String("key", rec.Key),
+			zap.String("date", rec.Date),
+		)
+	}
+
+	if err := manifest.removeRecords(toRemove); err != nil {
+		return fmt.Errorf("update manifest after purge: %w", err)
+	}
+
+	logger.Info("Backup purge completed",
+		zap.Int("removed", removed),
+		zap.Int("retention_days", retention),
+	)
+	return nil
+}
+
+// ExecuteBackup 执行数据库备份并上传到对象存储
+func ExecuteBackup(db *gorm.DB, store stores.Store, dbConfig DatabaseConfig) error {
+	if db == nil {
+		return fmt.Errorf("database connection is nil")
+	}
+	if store == nil {
+		return fmt.Errorf("store is nil")
+	}
+	switch dbConfig.Driver {
+	case constants.DBDriverSQLite:
+		return backupSQLiteToStore(dbConfig.DSN, store)
+	case constants.DBDriverMySQL:
+		return backupMySQLToStore(db, store)
+	case constants.DBDriverPG:
+		return backupPostgresToStore(db, store)
 	default:
-		return fmt.Errorf("unsupported DB_DRIVER: %s", config.GlobalConfig.Database.Driver)
+		return fmt.Errorf("unsupported DB_DRIVER: %s", dbConfig.Driver)
 	}
-}
-
-// BackupSQLiteDatabase performs backup of SQLite database
-func BackupSQLiteDatabase(src string, dst string) error {
-	// Ensure destination path exists
-	backupDir := filepath.Dir(dst)
-	if _, err := os.Stat(backupDir); os.IsNotExist(err) {
-		err := os.MkdirAll(backupDir, os.ModePerm)
-		if err != nil {
-			return fmt.Errorf("failed to create backup directory: %v", err)
-		}
-	}
-
-	// Open source file
-	sourceFile, err := os.Open(src)
-	if err != nil {
-		return fmt.Errorf("error opening source file: %v", err)
-	}
-	defer sourceFile.Close()
-
-	// Create destination file
-	destFile, err := os.Create(dst)
-	if err != nil {
-		return fmt.Errorf("error creating destination file: %v", err)
-	}
-	defer destFile.Close()
-
-	// Copy data
-	_, err = io.Copy(destFile, sourceFile)
-	if err != nil {
-		return fmt.Errorf("error copying data: %v", err)
-	}
-
-	log.Printf("SQLite database backup completed: %s", dst)
-	return nil
-}
-
-// Helper function to find index of substring
-func findIndex(s, substr string) int {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return i
-		}
-	}
-	return -1
-}
-
-// BackupMySQLDatabaseWithDriver performs MySQL backup using Go driver (fallback method)
-func BackupMySQLDatabaseWithDriver(db *gorm.DB, dst string) error {
-	// Ensure destination path exists
-	backupDir := filepath.Dir(dst)
-	if _, err := os.Stat(backupDir); os.IsNotExist(err) {
-		err := os.MkdirAll(backupDir, os.ModePerm)
-		if err != nil {
-			return fmt.Errorf("failed to create backup directory: %v", err)
-		}
-	}
-
-	// Get raw SQL database connection
-	sqlDB, err := db.DB()
-	if err != nil {
-		return fmt.Errorf("failed to get database connection: %v", err)
-	}
-
-	// Create backup file
-	outFile, err := os.Create(dst)
-	if err != nil {
-		return fmt.Errorf("error creating backup file: %v", err)
-	}
-	defer outFile.Close()
-
-	// Write SQL dump header
-	header := `-- MySQL dump 10.13
--- Host: localhost
--- Generated by SoulNexus Backup System
--- Date: ` + time.Now().Format("2006-01-02 15:04:05") + `
-
-/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
-/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
-/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
-/*!50503 SET NAMES utf8mb4 */;
-/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
-/*!40103 SET TIME_ZONE='+00:00' */;
-/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
-/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
-/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
-/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
-
-`
-	outFile.WriteString(header)
-
-	// Get all table names
-	var tables []string
-	rows, err := sqlDB.Query("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE()")
-	if err != nil {
-		return fmt.Errorf("failed to get table list: %v", err)
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var tableName string
-		if err := rows.Scan(&tableName); err != nil {
-			return fmt.Errorf("failed to scan table name: %v", err)
-		}
-		tables = append(tables, tableName)
-	}
-
-	// Dump each table
-	for _, table := range tables {
-		// Get CREATE TABLE statement
-		var createStmt string
-		err := sqlDB.QueryRow(fmt.Sprintf("SHOW CREATE TABLE `%s`", table)).Scan(&table, &createStmt)
-		if err != nil {
-			logger.Warn("Failed to get CREATE TABLE for %s: %v", zap.String("table", table), zap.Error(err))
-			continue
-		}
-
-		outFile.WriteString("\n-- Table structure for table `" + table + "`\n")
-		outFile.WriteString("DROP TABLE IF EXISTS `" + table + "`;\n")
-		outFile.WriteString(createStmt + ";\n")
-
-		// Get table data
-		dataRows, err := sqlDB.Query(fmt.Sprintf("SELECT * FROM `%s`", table))
-		if err != nil {
-			logger.Warn("Failed to query data from %s: %v", zap.String("table", table), zap.Error(err))
-			continue
-		}
-		defer dataRows.Close()
-
-		columns, err := dataRows.Columns()
-		if err != nil {
-			logger.Warn("Failed to get columns from %s: %v", zap.String("table", table), zap.Error(err))
-			continue
-		}
-
-		outFile.WriteString("\n-- Dumping data for table `" + table + "`\n")
-
-		for dataRows.Next() {
-			values := make([]interface{}, len(columns))
-			valuePtrs := make([]interface{}, len(columns))
-			for i := range columns {
-				valuePtrs[i] = &values[i]
-			}
-
-			if err := dataRows.Scan(valuePtrs...); err != nil {
-				logger.Warn("Failed to scan row from %s: %v", zap.String("table", table), zap.Error(err))
-				continue
-			}
-
-			// Build INSERT statement
-			insertStmt := fmt.Sprintf("INSERT INTO `%s` VALUES (", table)
-			for i, val := range values {
-				if i > 0 {
-					insertStmt += ","
-				}
-				if val == nil {
-					insertStmt += "NULL"
-				} else {
-					insertStmt += fmt.Sprintf("'%v'", val)
-				}
-			}
-			insertStmt += ");\n"
-			outFile.WriteString(insertStmt)
-		}
-	}
-
-	// Write footer
-	footer := `
-/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
-/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
-/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
-/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
-/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
-/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
-/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
-/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
-`
-	outFile.WriteString(footer)
-
-	log.Printf("MySQL database backup completed (using Go driver): %s", dst)
-	return nil
 }

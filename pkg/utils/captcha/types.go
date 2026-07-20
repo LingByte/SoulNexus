@@ -2,38 +2,47 @@ package captcha
 
 import "time"
 
-// Type 验证码类型
+// Type is the captcha challenge kind.
 type Type string
 
 const (
-	TypeImage Type = "image" // 图形验证码
-	TypeClick Type = "click" // 点击验证码
+	TypeImage  Type = "image"  // distorted text image
+	TypeClick  Type = "click"  // ordered click on characters
+	TypeSlider Type = "slider" // drag slider to the end
+	TypeRandom Type = "random"
 )
 
-// Result 验证码生成结果
+// Result is returned when a captcha challenge is created.
 type Result struct {
-	ID      string                 `json:"id"`      // 验证码ID
-	Type    Type                   `json:"type"`    // 验证码类型
-	Data    map[string]interface{} `json:"data"`    // 验证码数据（根据类型不同而不同）
-	Expires time.Time              `json:"expires"` // 过期时间
+	ID      string                 `json:"id"`
+	Type    Type                   `json:"type"`
+	Data    map[string]interface{} `json:"data"`
+	Expires time.Time              `json:"expires"`
 }
 
-// ImageCaptchaData 图形验证码数据
-type ImageCaptchaData struct {
-	Image string `json:"image"` // Base64编码的图片
-	Code  string `json:"code"`  // 验证码内容（仅用于测试，生产环境不应返回）
-}
-
-// ClickCaptchaData 点击验证码数据
-type ClickCaptchaData struct {
-	Image     string  `json:"image"`     // 图片Base64
-	Positions []Point `json:"positions"` // 需要点击的位置列表
-	Count     int     `json:"count"`     // 需要点击的数量
-	Tolerance int     `json:"tolerance"` // 容差（像素）
-}
-
-// Point 坐标点
+// Point is a click coordinate in logical pixels.
 type Point struct {
 	X int `json:"x"`
 	Y int `json:"y"`
+}
+
+// CharMarker is one character rendered on the click-captcha canvas.
+type CharMarker struct {
+	Char string `json:"char"`
+	X    int    `json:"x"`
+	Y    int    `json:"y"`
+}
+
+// Payload is the client proof submitted with protected actions.
+type Payload struct {
+	ID    string      `json:"captchaId"`
+	Type  Type        `json:"captchaType"`
+	Value interface{} `json:"captchaValue"`
+}
+
+// CaptchaFields is embedded in public auth requests that require human verification.
+type CaptchaFields struct {
+	CaptchaID    string      `json:"captchaId"`
+	CaptchaType  string      `json:"captchaType"`
+	CaptchaValue interface{} `json:"captchaValue"`
 }

@@ -50,3 +50,32 @@ func TestLocalStore(t *testing.T) {
 	err = store.Delete("../../not_exist.txt")
 	assert.EqualError(t, err, ErrInvalidPath.Error())
 }
+
+func TestLocalStoreWriteOverwrite(t *testing.T) {
+	store := NewLocalStore().(*LocalStore)
+	store.Root = filepath.Join(t.TempDir(), "overwrite")
+	key := "avatars/t1/u1.jpg"
+	assert.NoError(t, store.Write(key, bytes.NewReader([]byte("first"))))
+	assert.NoError(t, store.Write(key, bytes.NewReader([]byte("second"))))
+	r, size, err := store.Read(key)
+	assert.NoError(t, err)
+	assert.Equal(t, int64(6), size)
+	buf := new(bytes.Buffer)
+	_, err = buf.ReadFrom(r)
+	assert.NoError(t, err)
+	assert.Equal(t, "second", buf.String())
+	_ = r.Close()
+}
+
+func TestLocalStoreWriteReplacesMistakenDirectory(t *testing.T) {
+	store := NewLocalStore().(*LocalStore)
+	store.Root = t.TempDir()
+	key := "avatars/t1/u1.jpg"
+	full := filepath.Join(store.Root, key)
+	assert.NoError(t, os.MkdirAll(full, 0755))
+	assert.NoError(t, os.WriteFile(filepath.Join(full, "nested"), []byte("x"), 0644))
+	assert.NoError(t, store.Write(key, bytes.NewReader([]byte("avatar"))))
+	ok, err := store.Exists(key)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+}

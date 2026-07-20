@@ -1,170 +1,179 @@
 package captcha
 
 import (
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
-// Manager 统一验证码管理器
-type Manager struct {
-	imageCaptcha *ImageCaptcha
-	clickCaptcha *ClickCaptcha
-	store        Store
+// Sentinel errors returned by ValidatePayload so callers can map to i18n responses.
+var (
+	ErrPayloadRequired = errors.New("captcha: id and type are required")
+	ErrPayloadInvalid  = errors.New("captcha: verification failed")
+)
+
+// ValidatePayload trims and validates a captcha proof without touching any HTTP context.
+// Returns nil on success, or ErrPayloadRequired / ErrPayloadInvalid so the caller can
+// decide how to surface the error.
+func ValidatePayload(id, typ string, value interface{}) error {
+	payload := Payload{
+		ID:    strings.TrimSpace(id),
+		Type:  Type(strings.TrimSpace(typ)),
+		Value: value,
+	}
+	if payload.ID == "" || payload.Type == "" {
+		return ErrPayloadRequired
+	}
+	ok, err := VerifyPayload(payload)
+	if err != nil || !ok {
+		return ErrPayloadInvalid
+	}
+	return nil
 }
 
-// Config 验证码配置
+// Manager is the unified captcha manager.
+type Manager struct {
+	imageCaptcha  *ImageCaptcha
+	clickCaptcha  *ClickCaptcha
+	sliderCaptcha *SliderCaptcha
+	store         Store
+}
+
+// Config holds captcha settings.
 type Config struct {
-	// 图形验证码配置
 	ImageWidth  int
 	ImageHeight int
 	ImageLength int
 
-	// 点击验证码配置
 	ClickWidth     int
 	ClickHeight    int
 	ClickCount     int
 	ClickTolerance int
 
-	// 通用配置
+	SliderTrackWidth int
+	SliderPassRatio  float64
+
 	Expiration time.Duration
 	Store      Store
 }
 
-// DefaultConfig 默认配置
+// DefaultConfig returns sensible defaults.
 func DefaultConfig() *Config {
 	return &Config{
-		ImageWidth:     200,
-		ImageHeight:    60,
-		ImageLength:    4,
-		ClickWidth:     300,
-		ClickHeight:    200,
-		ClickCount:     3,
-		ClickTolerance: 30, // 提高容差，允许更大的点击误差
-		Expiration:     5 * time.Minute,
-		Store:          nil, // 使用默认内存存储
+		ImageWidth:       200,
+		ImageHeight:      60,
+		ImageLength:      4,
+		ClickWidth:       300,
+		ClickHeight:      200,
+		ClickCount:       3,
+		ClickTolerance:   30,
+		SliderTrackWidth: defaultSliderTrackWidth,
+		SliderPassRatio:  0.92,
+		Expiration:       5 * time.Minute,
 	}
 }
 
-// NewManager 创建统一验证码管理器
+// NewManager creates a captcha manager.
 func NewManager(config *Config) *Manager {
 	if config == nil {
 		config = DefaultConfig()
 	}
-
 	store := config.Store
 	if store == nil {
 		store = NewMemoryStore()
 	}
-
 	return &Manager{
-		imageCaptcha: NewImageCaptcha(config.ImageWidth, config.ImageHeight, config.ImageLength, config.Expiration, store),
-		clickCaptcha: NewClickCaptcha(config.ClickWidth, config.ClickHeight, config.ClickCount, config.ClickTolerance, config.Expiration, store),
-		store:        store,
+		imageCaptcha:  NewImageCaptcha(config.ImageWidth, config.ImageHeight, config.ImageLength, config.Expiration, store),
+		clickCaptcha:  NewClickCaptcha(config.ClickWidth, config.ClickHeight, config.ClickCount, config.ClickTolerance, config.Expiration, store),
+		sliderCaptcha: NewSliderCaptcha(config.SliderTrackWidth, config.SliderPassRatio, config.Expiration, store),
+		store:         store,
 	}
 }
 
-// GenerateImage 生成图形验证码
-func (m *Manager) GenerateImage() (*Result, error) {
-	return m.imageCaptcha.Generate()
+// GenerateRandom creates a captcha using RandomType (slider, image, or click).
+func (m *Manager) GenerateRandom() (*Result, error) {
+	return m.Generate(RandomType())
 }
 
-// VerifyImage 验证图形验证码
-func (m *Manager) VerifyImage(id, code string) (bool, error) {
-	return m.imageCaptcha.Verify(id, code)
-}
-
-// GenerateClick 生成点击验证码
-func (m *Manager) GenerateClick() (*Result, error) {
-	return m.clickCaptcha.Generate()
-}
-
-// VerifyClick 验证点击验证码
-func (m *Manager) VerifyClick(id string, positions []Point) (bool, error) {
-	return m.clickCaptcha.Verify(id, positions)
-}
-
-// Generate 根据类型生成验证码
+// Generate creates a captcha of the given type.
 func (m *Manager) Generate(captchaType Type) (*Result, error) {
 	switch captchaType {
 	case TypeImage:
-		return m.GenerateImage()
+		return m.imageCaptcha.Generate()
 	case TypeClick:
-		return m.GenerateClick()
+		return m.clickCaptcha.Generate()
+	case TypeSlider:
+		return m.sliderCaptcha.Generate()
 	default:
 		return nil, fmt.Errorf("unsupported captcha type: %s", captchaType)
 	}
 }
 
-// Verify 根据类型验证验证码
-func (m *Manager) Verify(captchaType Type, id string, data interface{}) (bool, error) {
-	switch captchaType {
+// Verify validates a captcha proof and consumes it on success.
+func (m *Manager) Verify(p Payload) (bool, error) {
+	switch p.Type {
 	case TypeImage:
-		if code, ok := data.(string); ok {
-			return m.VerifyImage(id, code)
+		code, ok := p.Value.(string)
+		if !ok {
+			return false, fmt.Errorf("invalid captcha value for image")
 		}
-		return false, fmt.Errorf("invalid data type for image captcha, expected string")
+		return m.imageCaptcha.Verify(p.ID, code)
 	case TypeClick:
-		if positions, ok := data.([]Point); ok {
-			return m.VerifyClick(id, positions)
+		positions, err := parsePoints(p.Value)
+		if err != nil {
+			return false, err
 		}
-		return false, fmt.Errorf("invalid data type for click captcha, expected []Point")
+		return m.clickCaptcha.Verify(p.ID, positions)
+	case TypeSlider:
+		return m.sliderCaptcha.Verify(p.ID, intValue(p.Value))
 	default:
-		return false, fmt.Errorf("unsupported captcha type: %s", captchaType)
+		return false, fmt.Errorf("unsupported captcha type: %s", p.Type)
 	}
 }
 
-// VerifyImageWithoutDelete 验证图形验证码但不删除
-func (m *Manager) VerifyImageWithoutDelete(id, code string) (bool, error) {
-	return m.imageCaptcha.VerifyWithoutDelete(id, code)
-}
-
-// VerifyWithoutDelete 根据类型验证验证码但不删除
-func (m *Manager) VerifyWithoutDelete(captchaType Type, id string, data interface{}) (bool, error) {
-	switch captchaType {
-	case TypeImage:
-		if code, ok := data.(string); ok {
-			return m.VerifyImageWithoutDelete(id, code)
-		}
-		return false, fmt.Errorf("invalid data type for image captcha, expected string")
-	case TypeClick:
-		// 尝试从 []map[string]interface{} 或 []Point 转换
-		if positions, ok := data.([]Point); ok {
-			return m.clickCaptcha.VerifyWithoutDelete(id, positions)
-		}
-		if positions, ok := data.([]interface{}); ok {
-			points := make([]Point, 0, len(positions))
-			for _, pos := range positions {
-				if posMap, ok := pos.(map[string]interface{}); ok {
-					var x, y int
-					if xVal, ok := posMap["x"]; ok {
-						if xFloat, ok := xVal.(float64); ok {
-							x = int(xFloat)
-						} else if xInt, ok := xVal.(int); ok {
-							x = xInt
-						}
-					}
-					if yVal, ok := posMap["y"]; ok {
-						if yFloat, ok := yVal.(float64); ok {
-							y = int(yFloat)
-						} else if yInt, ok := yVal.(int); ok {
-							y = yInt
-						}
-					}
-					points = append(points, Point{X: x, Y: y})
-				}
-			}
-			return m.clickCaptcha.VerifyWithoutDelete(id, points)
-		}
-		return false, fmt.Errorf("invalid data type for click captcha")
-	default:
-		return false, fmt.Errorf("unsupported captcha type: %s", captchaType)
-	}
-}
-
-// GlobalManager 全局验证码管理器
+// GlobalManager is the process-wide captcha manager.
 var GlobalManager *Manager
 
-// InitGlobalManager 初始化全局验证码管理器
+// InitGlobalManager initializes GlobalManager once.
 func InitGlobalManager(config *Config) {
 	GlobalManager = NewManager(config)
+}
+
+// EnsureGlobalManager lazily initializes GlobalManager.
+func EnsureGlobalManager() *Manager {
+	if GlobalManager == nil {
+		InitGlobalManager(DefaultConfig())
+	}
+	return GlobalManager
+}
+
+// VerifyPayload validates using GlobalManager.
+func VerifyPayload(p Payload) (bool, error) {
+	if p.ID == "" || p.Type == "" {
+		return false, fmt.Errorf("captcha required")
+	}
+	return EnsureGlobalManager().Verify(p)
+}
+
+func parsePoints(v interface{}) ([]Point, error) {
+	switch arr := v.(type) {
+	case []Point:
+		return arr, nil
+	case []interface{}:
+		out := make([]Point, 0, len(arr))
+		for _, item := range arr {
+			switch p := item.(type) {
+			case map[string]interface{}:
+				out = append(out, Point{X: intValue(p["x"]), Y: intValue(p["y"])})
+			case Point:
+				out = append(out, p)
+			default:
+				return nil, fmt.Errorf("invalid click point")
+			}
+		}
+		return out, nil
+	default:
+		return nil, fmt.Errorf("invalid captcha value for click")
+	}
 }

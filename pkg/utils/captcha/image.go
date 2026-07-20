@@ -56,8 +56,7 @@ func (ic *ImageCaptcha) Generate() (*Result, error) {
 		return nil, fmt.Errorf("failed to encode image: %w", err)
 	}
 
-	// 生成ID
-	id := ic.generateID()
+	id := generateID()
 
 	// 存储验证码
 	expires := time.Now().Add(ic.expiration)
@@ -68,7 +67,7 @@ func (ic *ImageCaptcha) Generate() (*Result, error) {
 	return &Result{
 		ID:      id,
 		Type:    TypeImage,
-		Data:    map[string]interface{}{"image": imgBase64, "code": code},
+		Data:    map[string]interface{}{"image": imgBase64, "length": ic.length},
 		Expires: expires,
 	}, nil
 }
@@ -110,16 +109,6 @@ func (ic *ImageCaptcha) generateCode() string {
 	return code.String()
 }
 
-// generateID 生成验证码ID
-func (ic *ImageCaptcha) generateID() string {
-	rand.Seed(time.Now().UnixNano())
-	chars := "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-	var id strings.Builder
-	for i := 0; i < 32; i++ {
-		id.WriteByte(chars[rand.Intn(len(chars))])
-	}
-	return id.String()
-}
 
 // generateImage 生成验证码图片
 func (ic *ImageCaptcha) generateImage(code string) (image.Image, error) {
@@ -216,45 +205,6 @@ func (ic *ImageCaptcha) drawText(img *image.RGBA, text string) error {
 	}
 
 	return nil
-}
-
-// drawLine 绘制直线
-func drawLine(img *image.RGBA, x1, y1, x2, y2 int, c color.Color) {
-	dx := abs(x2 - x1)
-	dy := abs(y2 - y1)
-	sx := 1
-	if x1 > x2 {
-		sx = -1
-	}
-	sy := 1
-	if y1 > y2 {
-		sy = -1
-	}
-	err := dx - dy
-
-	x, y := x1, y1
-	for {
-		img.Set(x, y, c)
-		if x == x2 && y == y2 {
-			break
-		}
-		e2 := 2 * err
-		if e2 > -dy {
-			err -= dy
-			x += sx
-		}
-		if e2 < dx {
-			err += dx
-			y += sy
-		}
-	}
-}
-
-func abs(x int) int {
-	if x < 0 {
-		return -x
-	}
-	return x
 }
 
 // imageToBase64 将图片转换为base64

@@ -1,0 +1,56 @@
+package errors
+
+// Copyright (c) 2026 LingByte. All rights reserved.
+// SPDX-License-Identifier: AGPL-3.0
+
+// SentinelErrors returns all standard sentinel errors for mapping tests.
+func SentinelErrors() []error {
+	return []error{
+		ErrQuotaExceeded,
+		ErrLLMCallFailed,
+		ErrEmptyPassword,
+		ErrEmptyEmail,
+		ErrSameEmail,
+		ErrEmailExists,
+		ErrUserNotExists,
+		ErrForbidden,
+		ErrUserNotAllowLogin,
+		ErrUserNotAllowSignup,
+		ErrNotActivated,
+		ErrTokenRequired,
+		ErrInvalidToken,
+		ErrBadToken,
+		ErrTokenExpired,
+		ErrEmailRequired,
+		ErrNotFound,
+		ErrNotChanged,
+		ErrInvalidView,
+		ErrOnlySuperUser,
+		ErrInvalidPrimaryKey,
+		ErrInvalidToolListFormat,
+		ErrInvalidToolFormat,
+		ErrToolNotFound,
+		ErrInvalidToolParams,
+		ErrParseJSONRPC,
+		ErrInvalidJSONRPCFormat,
+		ErrInvalidJSONRPCResponse,
+		ErrInvalidJSONRPCRequest,
+		ErrInvalidJSONRPCParams,
+		ErrInvalidResourceFormat,
+		ErrResourceNotFound,
+		ErrInvalidPromptFormat,
+		ErrPromptNotFound,
+		ErrEmptyToolName,
+		ErrToolAlreadyRegistered,
+		ErrToolExecutionFailed,
+		ErrEmptyResourceURI,
+		ErrEmptyPromptName,
+		ErrSessionAlreadyInitialized,
+		ErrSessionNotInitialized,
+		ErrInvalidParams,
+		ErrMissingParams,
+		ErrAlreadyInitialized,
+		ErrNotInitialized,
+		ErrInvalidServerURL,
+	}
+}

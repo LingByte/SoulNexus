@@ -85,3 +85,81 @@ func TestCosStore(t *testing.T) {
 	assert.NoError(t, err)
 	assert.False(t, ok)
 }
+
+func TestCosStore_PublicURL(t *testing.T) {
+	c := &CosStore{
+		BucketName: "my-bucket",
+		Region:     "ap-guangzhou",
+	}
+	url := c.PublicURL("path/to/file.txt")
+	expected := "https://my-bucket.cos.ap-guangzhou.myqcloud.com/path/to/file.txt"
+	if url != expected {
+		t.Fatalf("PublicURL got %q, want %q", url, expected)
+	}
+}
+
+func TestInitCos(t *testing.T) {
+	c := &CosStore{
+		BucketName: "test-bucket",
+		Region:     "ap-guangzhou",
+	}
+	// InitCos with explicit bucket name
+	client := InitCos("override-bucket", c)
+	if client == nil {
+		t.Fatal("InitCos returned nil client")
+	}
+
+	// InitCos with empty bucket name (falls back to CosStore.BucketName)
+	client2 := InitCos("", c)
+	if client2 == nil {
+		t.Fatal("InitCos with empty bucket returned nil client")
+	}
+}
+
+func TestCosStore_Delete_CredentialNotConfigured(t *testing.T) {
+	c := &CosStore{}
+	err := c.Delete("test-key")
+	if err == nil {
+		t.Fatal("Delete should return error when credentials not configured")
+	}
+	if !strings.Contains(err.Error(), "credentials not configured") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestCosStore_Exists_CredentialNotConfigured(t *testing.T) {
+	c := &CosStore{}
+	ok, err := c.Exists("test-key")
+	if err == nil {
+		t.Fatal("Exists should return error when credentials not configured")
+	}
+	if ok {
+		t.Fatal("Exists should return false when credentials not configured")
+	}
+}
+
+func TestCosStore_Read_CredentialNotConfigured(t *testing.T) {
+	c := &CosStore{}
+	rc, size, err := c.Read("test-key")
+	if err == nil {
+		t.Fatal("Read should return error when credentials not configured")
+	}
+	if rc != nil {
+		t.Fatal("ReadCloser should be nil")
+	}
+	if size != 0 {
+		t.Fatalf("size should be 0, got: %d", size)
+	}
+}
+
+func TestCosStore_Write_CredentialNotConfigured(t *testing.T) {
+	c := &CosStore{}
+	err := c.Write("test-key", strings.NewReader("data"))
+	if err == nil {
+		t.Fatal("Write should return error when credentials not configured")
+	}
+}
+
+func TestCosStore_ImplementsStore(t *testing.T) {
+	assertImplementsStore(t, &CosStore{})
+}

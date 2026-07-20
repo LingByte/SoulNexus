@@ -12,87 +12,87 @@ import (
 	"time"
 )
 
-const (
-	HTTP_REQUEST_TIME_OUT_SECOND = time.Second * 10
-)
+const HTTP_REQUEST_TIME_OUT_SECOND = time.Second * 10
 
+// HeaderOption is a single HTTP request header.
 type HeaderOption struct {
 	Key   string
 	Value string
 }
 
-func getQueryUrl(params map[string]interface{}) (query string) {
-	if params == nil || len(params) == 0 {
-		return
+func getQueryURL(params map[string]interface{}) string {
+	if len(params) == 0 {
+		return ""
 	}
-	var (
-		buffer bytes.Buffer
-		key    string
-		val    interface{}
-	)
+	var buffer bytes.Buffer
 	buffer.WriteString("?")
-	for key, val = range params {
+	first := true
+	for key, val := range params {
 		if val == nil {
 			continue
 		}
-		buffer.WriteString(fmt.Sprintf("%s=%v&", key, val))
+		if !first {
+			buffer.WriteByte('&')
+		}
+		first = false
+		buffer.WriteString(fmt.Sprintf("%s=%v", key, val))
 	}
-	buffer.Truncate(buffer.Len() - 1)
+	if buffer.Len() <= 1 {
+		return ""
+	}
 	return buffer.String()
 }
 
-func Get(url string, params map[string]interface{}, headerOptions ...*HeaderOption) (buf []byte, err error) {
-	var (
-		req    *http.Request
-		option *HeaderOption
-	)
-	url += getQueryUrl(params)
-	if req, err = http.NewRequest(http.MethodGet, url, nil); err != nil {
-		return
+// Get performs an HTTP GET with optional query params and headers.
+func Get(url string, params map[string]interface{}, headerOptions ...*HeaderOption) ([]byte, error) {
+	url += getQueryURL(params)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
 	}
-	for _, option = range headerOptions {
+	for _, option := range headerOptions {
+		if option == nil {
+			continue
+		}
 		req.Header.Set(option.Key, option.Value)
 	}
-
-	var (
-		client = http.Client{Timeout: HTTP_REQUEST_TIME_OUT_SECOND}
-		resp   *http.Response
-	)
-	if resp, err = client.Do(req); err != nil {
-		return
+	client := http.Client{Timeout: HTTP_REQUEST_TIME_OUT_SECOND}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
 	}
 	defer resp.Body.Close()
-	buf, err = io.ReadAll(resp.Body)
-	return
+	return io.ReadAll(resp.Body)
 }
 
-func Post(url string, params map[string]interface{}, headerOptions ...*HeaderOption) (buf []byte, err error) {
-	var (
-		jsonBuf []byte
-		req     *http.Request
-		option  *HeaderOption
-	)
+// Post performs an HTTP POST with a JSON body.
+func Post(url string, params map[string]interface{}, headerOptions ...*HeaderOption) ([]byte, error) {
+	var body io.Reader
 	if len(params) > 0 {
-		jsonBuf, err = json.Marshal(params)
+		jsonBuf, err := json.Marshal(params)
 		if err != nil {
-			return
+			return nil, err
 		}
+		body = bytes.NewReader(jsonBuf)
 	}
-	req, err = http.NewRequest(http.MethodPost, url, bytes.NewBuffer(jsonBuf))
+	req, err := http.NewRequest(http.MethodPost, url, body)
 	if err != nil {
-		return
+		return nil, err
 	}
-	for _, option = range headerOptions {
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	for _, option := range headerOptions {
+		if option == nil {
+			continue
+		}
 		req.Header.Set(option.Key, option.Value)
 	}
-	var (
-		client = &http.Client{Timeout: HTTP_REQUEST_TIME_OUT_SECOND}
-		resp   *http.Response
-	)
-	if resp, err = client.Do(req); err != nil {
-		return
+	client := http.Client{Timeout: HTTP_REQUEST_TIME_OUT_SECOND}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
 	}
 	defer resp.Body.Close()
-	buf, err = io.ReadAll(resp.Body)
-	return
+	return io.ReadAll(resp.Body)
 }

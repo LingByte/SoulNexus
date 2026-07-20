@@ -24,7 +24,7 @@ func (c *CosStore) Delete(key string) error {
 		return fmt.Errorf("COS credentials not configured")
 	}
 
-	cClient := InitCos(c)
+	cClient := InitCos(c.BucketName, c)
 	_, err := cClient.Object.Delete(context.Background(), key)
 	return err
 }
@@ -35,7 +35,7 @@ func (c *CosStore) Exists(key string) (bool, error) {
 		return false, fmt.Errorf("COS credentials not configured")
 	}
 
-	cClient := InitCos(c)
+	cClient := InitCos(c.BucketName, c)
 	ok, err := cClient.Object.IsExist(context.Background(), key)
 	return ok, err
 }
@@ -45,16 +45,11 @@ func (c *CosStore) Read(key string) (io.ReadCloser, int64, error) {
 	if c.SecretID == "" || c.SecretKey == "" || c.Region == "" {
 		return nil, 0, fmt.Errorf("COS credentials not configured")
 	}
-
-	cClient := InitCos(c)
-
-	// 直接获取对象
+	cClient := InitCos(c.BucketName, c)
 	resp, err := cClient.Object.Get(context.Background(), key, nil)
 	if err != nil {
 		return nil, 0, err
 	}
-
-	// 获取内容长度
 	var size int64 = -1
 	if cl := resp.Header.Get("Content-Length"); cl != "" {
 		if v, err := fmt.Sscanf(cl, "%d", &size); err != nil || v != 1 {
@@ -71,7 +66,7 @@ func (c *CosStore) Write(key string, r io.Reader) error {
 		return fmt.Errorf("COS credentials not configured")
 	}
 
-	cClient := InitCos(c)
+	cClient := InitCos(c.BucketName, c)
 	_, err := cClient.Object.Put(context.Background(), key, r, nil)
 	return err
 }
@@ -89,8 +84,11 @@ func NewCosStore() Store {
 	}
 }
 
-func InitCos(c *CosStore) *cos.Client {
-	bucketURL := fmt.Sprintf("https://%s.cos.%s.myqcloud.com", c.BucketName, c.Region)
+func InitCos(bucketName string, c *CosStore) *cos.Client {
+	if bucketName == "" {
+		bucketName = c.BucketName
+	}
+	bucketURL := fmt.Sprintf("https://%s.cos.%s.myqcloud.com", bucketName, c.Region)
 	u, _ := url.Parse(bucketURL)
 	b := &cos.BaseURL{BucketURL: u}
 
