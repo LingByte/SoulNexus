@@ -111,6 +111,7 @@ type Assistant struct {
 	VoiceDialogWsURL   string         `json:"voiceDialogWsUrl,omitempty" gorm:"column:voice_dialog_ws_url;size:512;comment:自定义呼入/调试语音对话 WebSocket"`
 	BoundJsTemplateSourceID string         `json:"boundJsTemplateSourceId,omitempty" gorm:"column:bound_js_template_source_id;size:64;index;comment:网页嵌入绑定的 JS 模板 jsSourceId"`
 	NluModelID              uint           `json:"nluModelId,string,omitempty" gorm:"column:nlu_model_id;index;default:0;comment:绑定的租户 NLU 模型"`
+	CredentialID            uint           `json:"credentialId,string,omitempty" gorm:"column:credential_id;index;default:0;comment:聚合 API Key（AI 厂商配置）"`
 	Collect                 datatypes.JSON `json:"collect,omitempty" gorm:"type:json;comment:会话收集字段 JSON"`
 	PublishedVersionID uint           `json:"publishedVersionId,string,omitempty" gorm:"column:published_version_id;index;default:0"`
 }

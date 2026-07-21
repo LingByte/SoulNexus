@@ -23,9 +23,10 @@ import (
 )
 
 type createVoiceSessionRequest struct {
-	Transport   string   `json:"transport"`
-	AssistantID string   `json:"assistantId"`
-	SampleRate  int      `json:"sampleRateHz"`
+	Transport     string   `json:"transport"`
+	AssistantID   string   `json:"assistantId"`
+	CredentialID  string   `json:"credentialId"`
+	SampleRate    int      `json:"sampleRateHz"`
 	DialogMode  string   `json:"dialogMode"`
 	Temperature *float64 `json:"temperature"`
 	// JsSourceID marks sessions opened from an injected JS template (mini-program / APP / H5).
@@ -116,6 +117,14 @@ func (h *Handlers) createVoiceSession(c *gin.Context) {
 		dialogMode = "gateway"
 	}
 	credID := middleware.AuthCredentialID(c)
+	if credID == 0 {
+		credID = utils.ParseOptionalID(req.CredentialID)
+		if credID > 0 {
+			if _, err := models.GetCredentialByIDForTenant(h.db, credID, tenantID); ginutil.WriteGORMError(c, err, "credential not found") {
+				return
+			}
+		}
+	}
 	info, err := mgr.Create(session.CreateParams{
 		TenantID:            tenantID,
 		Transport:           kind,

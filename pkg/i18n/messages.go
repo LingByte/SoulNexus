@@ -82,6 +82,9 @@ const (
 	KeyAKSKCredentialRouteNotAllowed = "aksk.credential_route_not_allowed"
 
 	KeyCredPermRequired     = "credential.permission_required"
+	KeyCredAIConfigRequired = "credential.ai_config_required"
+	KeyCredPlatformKindForbidden = "credential.platform_kind_forbidden"
+	KeyCredPlatformNoCapacity      = "credential.platform_no_capacity"
 	KeyCredPermEmptyArray   = "credential.permission_empty"
 	KeyCredAllowIPRequired  = "credential.allow_ip_required"
 	KeyCredAllowIPEmpty     = "credential.allow_ip_empty"

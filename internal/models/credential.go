@@ -14,22 +14,25 @@ import (
 	"github.com/LingByte/SoulNexus/internal/constants"
 	constants2 "github.com/LingByte/SoulNexus/pkg/constants"
 	apperror "github.com/LingByte/SoulNexus/pkg/errors"
-	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/LingByte/SoulNexus/pkg/utils/common"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
-// API key token format: soulnexus_<43 base64url chars> (32 random bytes).
-// AccessKey stores the lookup prefix (first APIKeyLookupLen runes).
+// API key token formats:
+//   - soulnexus_platform_<secret> — platform-managed tenant AI config
+//   - soulnexus_user_<secret>     — tenant-provided provider JSON on the key
+//   - soulnexus_<secret>          — legacy (still valid)
+// AccessKey stores a lookup prefix (kind prefix + first 12 secret chars).
 // SecretKey stores SHA-256 hex of the full token (never the raw key after create).
 // Legacy lex_<hex> tokens remain valid for lookup/auth until rotated.
 const (
-	APIKeyTokenPrefix       = "soulnexus_"
-	APIKeyLegacyTokenPrefix = "lex_"
-	APIKeySecretBytes       = 32
-	APIKeyLookupSuffixLen   = 12
-	APIKeyLookupLen         = len(APIKeyTokenPrefix) + APIKeyLookupSuffixLen // 22
-	APIKeyLegacyLookupLen   = 16                                             // "lex_" + 12 hex
+	APIKeyPrefixPlatform     = "soulnexus_platform_"
+	APIKeyPrefixUser         = "soulnexus_user_"
+	APIKeyTokenPrefixLegacy  = "soulnexus_"
+	APIKeyLegacyTokenPrefix  = "lex_"
+	APIKeySecretBytes        = 32
+	APIKeyLookupSuffixLen    = 12
 )
 
 // Credential is a tenant-scoped machine API key with optional IP allowlist.
@@ -46,6 +49,12 @@ type Credential struct {
 	PermissionCodes string `json:"permissionCodes,omitempty" gorm:"column:permission_codes;type:text"`
 	// AllowedRouteIDs JSON array of API route catalog ids; empty = no HTTP access.
 	AllowedRouteIDs string     `json:"allowedRouteIds,omitempty" gorm:"column:allowed_route_ids;type:text"`
+	Kind            string     `json:"kind" gorm:"size:32;not null;default:ai_bundle;index"`
+	VoiceMode       string     `json:"voiceMode,omitempty" gorm:"column:voice_mode;size:32"`
+	AsrConfig       datatypes.JSON `json:"asrConfig,omitempty" gorm:"column:asr_config;type:json"`
+	TtsConfig       datatypes.JSON `json:"ttsConfig,omitempty" gorm:"column:tts_config;type:json"`
+	LlmConfig       datatypes.JSON `json:"llmConfig,omitempty" gorm:"column:llm_config;type:json"`
+	RealtimeConfig  datatypes.JSON `json:"realtimeConfig,omitempty" gorm:"column:realtime_config;type:json"`
 	ExpiresAt       *time.Time `json:"expiresAt,omitempty" gorm:"column:expires_at;index"`
 	LastUsedAt      *time.Time `json:"lastUsedAt,omitempty" gorm:"column:last_used_at"`
 	RequestCount    int64      `json:"requestCount" gorm:"column:request_count;not null;default:0"`
@@ -58,20 +67,40 @@ func (Credential) TableName() string {
 // IsAPIKeyToken reports whether s looks like a SoulNexus API key (not a JWT).
 func IsAPIKeyToken(s string) bool {
 	s = strings.TrimSpace(s)
-	if strings.HasPrefix(s, APIKeyTokenPrefix) {
-		return len(s) > APIKeyLookupLen
+	if apiKeyKindPrefixForToken(s) != "" {
+		return len(s) > len(apiKeyKindPrefixForToken(s))+8
 	}
-	// Legacy hex tokens issued before the soulnexus_ prefix change.
-	return strings.HasPrefix(s, APIKeyLegacyTokenPrefix) && len(s) > APIKeyLegacyLookupLen
+	return strings.HasPrefix(s, APIKeyLegacyTokenPrefix) && len(s) > 16
+}
+
+func apiKeyKindPrefixForToken(fullKey string) string {
+	fullKey = strings.TrimSpace(fullKey)
+	switch {
+	case strings.HasPrefix(fullKey, APIKeyPrefixPlatform):
+		return APIKeyPrefixPlatform
+	case strings.HasPrefix(fullKey, APIKeyPrefixUser):
+		return APIKeyPrefixUser
+	case strings.HasPrefix(fullKey, APIKeyTokenPrefixLegacy):
+		return APIKeyTokenPrefixLegacy
+	default:
+		return ""
+	}
 }
 
 // APIKeyLookupPrefix returns the stored access_key lookup prefix for a full token.
 func APIKeyLookupPrefix(fullKey string) string {
 	fullKey = strings.TrimSpace(fullKey)
-	n := APIKeyLookupLen
 	if strings.HasPrefix(fullKey, APIKeyLegacyTokenPrefix) {
-		n = APIKeyLegacyLookupLen
+		if len(fullKey) < 16 {
+			return fullKey
+		}
+		return fullKey[:16]
 	}
+	kindPrefix := apiKeyKindPrefixForToken(fullKey)
+	if kindPrefix == "" {
+		return fullKey
+	}
+	n := len(kindPrefix) + APIKeyLookupSuffixLen
 	if len(fullKey) < n {
 		return fullKey
 	}
@@ -83,16 +112,37 @@ func IsLegacyHMACCredential(row Credential) bool {
 	return strings.HasPrefix(strings.TrimSpace(row.AccessKey), "ak_")
 }
 
-// IssueAPIKey generates a raw API key, lookup prefix, and sha256 hash for storage.
-func IssueAPIKey() (fullKey, lookupPrefix, keyHash string, err error) {
+// IssueAPIKeyForKind generates a raw API key with a kind-specific prefix.
+func IssueAPIKeyForKind(kind string) (fullKey, lookupPrefix, keyHash string, err error) {
 	buf := make([]byte, APIKeySecretBytes)
 	if _, err = rand.Read(buf); err != nil {
 		return "", "", "", err
 	}
-	fullKey = APIKeyTokenPrefix + base64.RawURLEncoding.EncodeToString(buf)
+	tokenPrefix := APIKeyPrefixForKind(kind)
+	fullKey = tokenPrefix + base64.RawURLEncoding.EncodeToString(buf)
 	lookupPrefix = APIKeyLookupPrefix(fullKey)
 	keyHash = HashAPIKey(fullKey)
 	return fullKey, lookupPrefix, keyHash, nil
+}
+
+// IssueAPIKey is an alias for user-bundle keys (backward compatible).
+func IssueAPIKey() (fullKey, lookupPrefix, keyHash string, err error) {
+	return IssueAPIKeyForKind(constants.CredentialKindUserBundle)
+}
+
+// APIKeyPrefixForKind returns the token prefix for a credential kind.
+func APIKeyPrefixForKind(kind string) string {
+	switch NormalizeCredentialKind(kind) {
+	case constants.CredentialKindPlatformBundle:
+		return APIKeyPrefixPlatform
+	default:
+		return APIKeyPrefixUser
+	}
+}
+
+// RegenerateAPIKeyForCredential issues a new token preserving the credential kind.
+func RegenerateAPIKeyForCredential(row Credential) (fullKey, lookupPrefix, keyHash string, err error) {
+	return IssueAPIKeyForKind(row.Kind)
 }
 
 // HashAPIKey returns lowercase hex SHA-256 of the full API key.
@@ -239,23 +289,11 @@ func MarshalCredentialAllowedRouteIDs(ids []string) (string, error) {
 	return string(b), nil
 }
 
-// CredentialClientIPAllowed reports whether clientIP is permitted by AllowIP (comma-separated).
-// Empty allowlist denies all clients unless CREDENTIAL_ALLOW_EMPTY_ALLOW_IP=true (dev only).
+// CredentialClientIPAllowed — IP allowlist removed; all client IPs are accepted.
 func CredentialClientIPAllowed(allowList, clientIP string) bool {
-	allowList = strings.TrimSpace(allowList)
-	if allowList == "" {
-		return strings.EqualFold(strings.TrimSpace(utils.GetEnv(constants.ENVCredentialAllowEmptyAllowIP)), "true")
-	}
-	clientIP = strings.TrimSpace(clientIP)
-	if clientIP == "" {
-		return false
-	}
-	for _, part := range strings.Split(allowList, ",") {
-		if strings.TrimSpace(part) == clientIP {
-			return true
-		}
-	}
-	return false
+	_ = allowList
+	_ = clientIP
+	return true
 }
 
 // MaskAPIKeyPrefix returns a short UI hint for a stored lookup prefix.

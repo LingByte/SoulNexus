@@ -376,6 +376,8 @@ func RunMigrations(db *gorm.DB) error {
 		&mail.MailLog{},
 		&sms.SMSLog{},
 		&models.AIInvocationLog{},
+		&models.AIProviderPool{},
+		&models.TenantAIPoolGrant{},
 	}); err != nil {
 		return err
 	}

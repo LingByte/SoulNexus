@@ -3,6 +3,8 @@ package models
 import (
 	"strings"
 	"testing"
+
+	"github.com/LingByte/SoulNexus/internal/constants"
 )
 
 func TestCredentialClientIPAllowed(t *testing.T) {
@@ -15,14 +17,17 @@ func TestCredentialClientIPAllowed(t *testing.T) {
 }
 
 func TestIssueAPIKeyAndMatch(t *testing.T) {
-	full, prefix, hash, err := IssueAPIKey()
+	full, prefix, hash, err := IssueAPIKeyForKind(constants.CredentialKindUserBundle)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !IsAPIKeyToken(full) {
 		t.Fatalf("not api key: %q", full)
 	}
-	if len(prefix) != APIKeyLookupLen || !strings.HasPrefix(full, prefix) {
+	if !strings.HasPrefix(full, APIKeyPrefixUser) {
+		t.Fatalf("want user prefix, got %q", full)
+	}
+	if prefix != APIKeyLookupPrefix(full) {
 		t.Fatalf("prefix=%q full=%q", prefix, full)
 	}
 	if !APIKeyMatchesStoredHash(full, hash) {
@@ -52,15 +57,15 @@ func TestMaskAPIKeyPrefix(t *testing.T) {
 }
 
 func TestIssueAPIKeyPrefix(t *testing.T) {
-	full, prefix, _, err := IssueAPIKey()
+	full, prefix, _, err := IssueAPIKeyForKind(constants.CredentialKindPlatformBundle)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasPrefix(full, APIKeyTokenPrefix) {
-		t.Fatalf("want prefix %q, got %q", APIKeyTokenPrefix, full)
+	if !strings.HasPrefix(full, APIKeyPrefixPlatform) {
+		t.Fatalf("want prefix %q, got %q", APIKeyPrefixPlatform, full)
 	}
-	if prefix != APIKeyLookupPrefix(full) || len(prefix) != APIKeyLookupLen {
-		t.Fatalf("lookup prefix=%q len=%d", prefix, len(prefix))
+	if prefix != APIKeyLookupPrefix(full) {
+		t.Fatalf("lookup prefix=%q", prefix)
 	}
 	if IsAPIKeyToken("lex_abcdef1234567890") {
 		// legacy tokens still recognized

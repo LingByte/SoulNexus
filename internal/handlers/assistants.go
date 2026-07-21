@@ -42,6 +42,7 @@ type assistantWriteReq struct {
 	TtsVoice           string `json:"ttsVoice"`
 	RealtimeVoice      string `json:"realtimeVoice"`
 	Collect            string `json:"collect"`
+	CredentialID       string `json:"credentialId"`
 	TenantID           string `json:"tenantId"`
 }
 
@@ -146,6 +147,13 @@ func (h *Handlers) createAssistant(c *gin.Context) {
 		return
 	}
 	row.NluModelID = nluID
+	if cid := utils.ParseOptionalID(req.CredentialID); cid > 0 {
+		if _, err := models.GetCredentialByIDForTenant(h.db, cid, tid); err != nil {
+			ginutil.WriteGORMError(c, err, "credential not found")
+			return
+		}
+		row.CredentialID = cid
+	}
 	row.SetCreateInfo(middleware.AuditOperator(c))
 	if ginutil.WriteInternalError(c, h.db.Create(&row).Error) {
 		return
@@ -201,6 +209,16 @@ func (h *Handlers) updateAssistant(c *gin.Context) {
 	}
 	// Always persist binding (including clear to 0 when client sends empty/"0").
 	updates["nlu_model_id"] = nluID
+	if req.CredentialID != "" {
+		cid := utils.ParseOptionalID(req.CredentialID)
+		if cid > 0 {
+			if _, err := models.GetCredentialByIDForTenant(h.db, cid, before.TenantID); err != nil {
+				ginutil.WriteGORMError(c, err, "credential not found")
+				return
+			}
+		}
+		updates["credential_id"] = cid
+	}
 	if ginutil.WriteInternalError(c, h.db.Model(&before).Updates(updates).Error) {
 		return
 	}

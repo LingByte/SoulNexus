@@ -51,4 +51,6 @@ const (
 	TENANT_NLU_MODEL_TABLE_NAME              = "tenant_nlu_models"
 	TENANT_ASSISTANT_TOOL_TABLE_NAME         = "tenant_assistant_tools"
 	MCP_MARKET_ITEM_TABLE_NAME               = "mcp_market_items"
+	AI_PROVIDER_POOL_TABLE_NAME              = "ai_provider_pools"
+	TENANT_AI_POOL_GRANT_TABLE_NAME          = "tenant_ai_pool_grants"
 )

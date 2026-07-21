@@ -260,6 +260,18 @@ type ginHGroup struct {
 	Entries []AKSKRouteCatalogEntry `json:"entries"`
 }
 
+// CatalogEntriesForIDs returns catalog rows for the given ids (stable catalog order).
+func CatalogEntriesForIDs(ids []string) []AKSKRouteCatalogEntry {
+	ids = NormalizeAKSKRouteIDs(ids)
+	out := make([]AKSKRouteCatalogEntry, 0, len(ids))
+	for _, id := range ids {
+		if e, ok := akskCatalogByID[id]; ok {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
 // RoutePatternsForIDs resolves catalog ids to "METHOD /path" patterns.
 func RoutePatternsForIDs(ids []string) []string {
 	out := make([]string, 0, len(ids))
@@ -402,49 +414,34 @@ func (p AKSKRoutePolicy) resolvedPatterns() []string {
 	return p.Routes
 }
 
-// AKSKSystemRouteAllowed reports whether a request matches the platform allowlist.
+// AKSKSystemRouteAllowed reports whether API key traffic may access this HTTP route.
+// Only the fixed external route set is open (platform route policy UI removed).
 func AKSKSystemRouteAllowed(method, requestPath string) bool {
 	if os.Getenv("API_AKSK_ALLOW_ALL") == "true" {
 		return true
 	}
-	policy := CurrentAKSKRoutePolicy()
-	if !policy.Enabled {
-		return false
-	}
-	patterns := policy.resolvedPatterns()
+	patterns := RoutePatternsForIDs(ExternalAPIKeyRouteIDs())
 	if len(patterns) == 0 {
 		return false
 	}
 	return akskPatternsAllow(method, requestPath, patterns)
 }
 
-// CredentialRoutesAllowed checks credential-scoped route ids against a request.
+// CredentialRoutesAllowed checks credential route scope (fixed external set).
 func CredentialRoutesAllowed(routeIDs []string, method, requestPath string) bool {
-	routeIDs = NormalizeAKSKRouteIDs(routeIDs)
-	if len(routeIDs) == 0 {
-		return false
-	}
-	patterns := RoutePatternsForIDs(routeIDs)
-	return akskPatternsAllow(method, requestPath, patterns)
+	_ = routeIDs
+	return AKSKSystemRouteAllowed(method, requestPath)
 }
 
-// ValidateCredentialRouteIDs ensures every id is known and enabled at system level.
+// ValidateCredentialRouteIDs ensures route ids are known catalog entries.
 func ValidateCredentialRouteIDs(routeIDs []string) ([]string, error) {
 	routeIDs = NormalizeAKSKRouteIDs(routeIDs)
 	if len(routeIDs) == 0 {
-		return nil, apperror.ErrAKSKRouteIDsRequired
-	}
-	enabled := SystemEnabledAKSKRouteIDs()
-	if len(enabled) == 0 {
-		return nil, apperror.ErrAKSKSystemRoutesClosed
-	}
-	allowed := map[string]struct{}{}
-	for _, id := range enabled {
-		allowed[id] = struct{}{}
+		return ExternalAPIKeyRouteIDs(), nil
 	}
 	for _, id := range routeIDs {
-		if _, ok := allowed[id]; !ok {
-			return nil, apperror.ErrAKSKRouteIDNotOpen
+		if _, ok := AKSKCatalogEntryByID(id); !ok {
+			return nil, apperror.ErrAKSKRouteIDsRequired
 		}
 	}
 	return routeIDs, nil

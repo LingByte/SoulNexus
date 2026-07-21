@@ -71,6 +71,8 @@ func credentialToJSON(row models.Credential) gin.H {
 		"id":              credentialIDString(row.ID),
 		"tenantId":        credentialIDString(row.TenantID),
 		"name":            row.Name,
+		"kind":            models.NormalizeCredentialKind(row.Kind),
+		"usesTenantAi":    models.CredentialUsesTenantAIConfig(row),
 		"apiKeyPrefix":    row.AccessKey,
 		"accessKey":       row.AccessKey, // backward-compatible alias
 		"legacyHmac":      models.IsLegacyHMACCredential(row),
@@ -78,6 +80,12 @@ func credentialToJSON(row models.Credential) gin.H {
 		"allowIp":         row.AllowIP,
 		"permissionCodes": pc,
 		"allowedRouteIds": routeIDs,
+		"voiceMode":       strings.TrimSpace(row.VoiceMode),
+		"asrConfig":       utils.JSONValueFromBytes(row.AsrConfig),
+		"ttsConfig":       utils.JSONValueFromBytes(row.TtsConfig),
+		"llmConfig":       utils.JSONValueFromBytes(row.LlmConfig),
+		"realtimeConfig":  utils.JSONValueFromBytes(row.RealtimeConfig),
+		"hasAiConfig":     models.CredentialHasAIConfig(row),
 		"requestCount":    row.RequestCount,
 		"createdAt":       row.CreatedAt,
 		"updatedAt":       row.UpdatedAt,
@@ -100,71 +108,10 @@ func (h *Handlers) createCredential(c *gin.Context) {
 		response.Render(c, response.Wrap(response.CodeBadRequest, "invalid body", err))
 		return
 	}
-
-	fullKey, lookupPrefix, keyHash, err := models.IssueAPIKey()
-	if err != nil {
-		response.AbortWithStatusJSON(c, http.StatusInternalServerError, err)
-		return
+	if strings.TrimSpace(req.Kind) == "" {
+		req.Kind = constants.CredentialKindUserBundle
 	}
-
-	if req.PermissionCodes == nil || len(req.PermissionCodes) == 0 {
-		response.FailI18n(c, i18n.KeyCredPermRequired, nil)
-		return
-	}
-	routeIDs, err := models.ValidateCredentialRouteIDs(req.AllowedRouteIDs)
-	if err != nil {
-		ginutil.WriteAppError(c, response.CredentialRouteAppError(err))
-		return
-	}
-	routeJSON, err := models.MarshalCredentialAllowedRouteIDs(routeIDs)
-	if err != nil {
-		ginutil.WriteAppError(c, response.CredentialRouteAppError(err))
-		return
-	}
-	pcodes, err := utils.MarshalStringSliceJSON(req.PermissionCodes, nil)
-	if err != nil {
-		response.FailI18n(c, i18n.KeyCredInvalidPerm, nil)
-		return
-	}
-	if strings.TrimSpace(req.AllowIP) == "" && !utils.GetBoolEnv(constants.ENVCredentialAllowEmptyAllowIP) {
-		response.FailI18n(c, i18n.KeyCredAllowIPRequired, nil)
-		return
-	}
-	expiresAt, err := timeutil.ParseOptionalRFC3339(req.ExpiresAt)
-	if err != nil {
-		response.Render(c, response.NewI18n(response.CodeBadRequest, i18n.KeyInvalidExpiresAt))
-		return
-	}
-	row := &models.Credential{
-		TenantID:        tenantID,
-		Name:            strings.TrimSpace(req.Name),
-		AccessKey:       lookupPrefix,
-		SecretKey:       keyHash,
-		Status:          constants.CredentialStatusActive,
-		AllowIP:         strings.TrimSpace(req.AllowIP),
-		PermissionCodes: pcodes,
-		AllowedRouteIDs: routeJSON,
-		ExpiresAt:       expiresAt,
-	}
-	row.SetCreateInfo(middleware.AuthEmail(c))
-	if row.Name == "" {
-		row.Name = "Integration"
-	}
-	if creErr := h.db.Create(row).Error; creErr != nil {
-		response.AbortWithStatusJSON(c, http.StatusInternalServerError, creErr)
-		return
-	}
-
-	h.recordOpChange(c, OpLogEntry{
-		TenantID: tenantID, Action: constants.OpActionCreate,
-		Resource: constants.OpResourceCredential, ResourceID: row.ID, ResourceName: row.Name,
-		Summary: fmt.Sprintf("Created API key %s", row.Name),
-		Detail:  audit.Redact(req),
-	}, nil, row)
-	out := credentialToJSON(*row)
-	out["apiKey"] = fullKey
-	out["notice"] = i18n.TGin(c, i18n.KeyCredNoticeSecretOnce)
-	response.SuccessI18n(c, i18n.KeySuccess, out)
+	h.issueCredential(c, tenantID, req, middleware.AuthEmail(c))
 }
 
 func (h *Handlers) listCredentials(c *gin.Context) {
@@ -189,7 +136,8 @@ func (h *Handlers) listCredentials(c *gin.Context) {
 
 	var rows []models.Credential
 	if err := q.
-		Select("id", "tenant_id", "name", "access_key", "status", "allow_ip", "permission_codes", "allowed_route_ids",
+		Select("id", "tenant_id", "name", "kind", "access_key", "status", "allow_ip", "permission_codes", "allowed_route_ids",
+			"voice_mode", "asr_config", "tts_config", "llm_config", "realtime_config",
 			"expires_at", "last_used_at", "request_count", "created_at", "updated_at", "create_by").
 		Order("id DESC").
 		Offset((page - 1) * size).
@@ -234,37 +182,14 @@ func (h *Handlers) updateCredential(c *gin.Context) {
 		}
 		updates["name"] = name
 	}
-	if req.AllowIP != nil {
-		updates["allow_ip"] = strings.TrimSpace(*req.AllowIP)
-	}
-	if req.PermissionCodes != nil {
-		if len(req.PermissionCodes) == 0 {
-			response.FailI18n(c, i18n.KeyCredPermEmptyArray, nil)
-			return
-		}
-		pcodes, marshalErr := utils.MarshalStringSliceJSON(req.PermissionCodes, nil)
-		if marshalErr != nil {
-			response.FailI18n(c, i18n.KeyCredInvalidPerm, nil)
-			return
-		}
-		updates["permission_codes"] = pcodes
-	}
-	if req.AllowedRouteIDs != nil {
-		routeIDs, err := models.ValidateCredentialRouteIDs(req.AllowedRouteIDs)
-		if err != nil {
-			ginutil.WriteAppError(c, response.CredentialRouteAppError(err))
-			return
-		}
-		routeJSON, err := models.MarshalCredentialAllowedRouteIDs(routeIDs)
-		if err != nil {
-			ginutil.WriteAppError(c, response.CredentialRouteAppError(err))
-			return
-		}
-		updates["allowed_route_ids"] = routeJSON
-	}
-	if req.AllowIP != nil && strings.TrimSpace(*req.AllowIP) == "" && !utils.GetBoolEnv(constants.ENVCredentialAllowEmptyAllowIP) {
-		response.FailI18n(c, i18n.KeyCredAllowIPEmpty, nil)
+	_ = refreshCredentialFixedRoutes(updates)
+	if aiPatch, err := credentialAIUpdatesFromPatch(req); err != nil {
+		response.Render(c, response.Wrap(response.CodeBadRequest, "invalid ai config", err))
 		return
+	} else if !models.CredentialUsesTenantAIConfig(row) {
+		for k, v := range aiPatch {
+			updates[k] = v
+		}
 	}
 	if req.ExpiresAt != nil {
 		expiresAt, err := timeutil.ParseOptionalRFC3339(req.ExpiresAt)
@@ -337,7 +262,7 @@ func (h *Handlers) regenerateCredential(c *gin.Context) {
 	if ginutil.WriteGORMError(c, err, "not found") {
 		return
 	}
-	fullKey, lookupPrefix, keyHash, err := models.IssueAPIKey()
+	fullKey, lookupPrefix, keyHash, err := models.RegenerateAPIKeyForCredential(row)
 	if err != nil {
 		response.AbortWithStatusJSON(c, http.StatusInternalServerError, err)
 		return

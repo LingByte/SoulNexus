@@ -83,6 +83,7 @@ type systemInitResp struct {
 	VoiceprintLabel           string `json:"VOICEPRINT_LABEL,omitempty"`
 	NluEnabled                bool   `json:"nluEnabled"`
 	SMSLoginEnabled           bool   `json:"smsLoginEnabled"`
+	DeploymentMode            string `json:"deploymentMode"`
 }
 
 // registerSystemRoutes mounts public system utility endpoints:
@@ -480,6 +481,10 @@ func (h *Handlers) getSystemInit(c *gin.Context) {
 	if _, err := listeners.EnabledSMSChannels(db); err == nil {
 		smsLoginEnabled = true
 	}
+	deploymentMode := strings.TrimSpace(utils.GetValue(db, constants.KEY_DEPLOYMENT_MODE))
+	if deploymentMode == "" {
+		deploymentMode = constants.DeploymentModeSaaS
+	}
 	response.SuccessI18n(c, i18n.KeySuccess, systemInitResp{
 		SiteName:                  name,
 		SiteDescription:           desc,
@@ -494,6 +499,7 @@ func (h *Handlers) getSystemInit(c *gin.Context) {
 		VoiceprintLabel:           voiceprintLabel,
 		NluEnabled:                nlu.DeployEnabled(),
 		SMSLoginEnabled:           smsLoginEnabled,
+		DeploymentMode:            deploymentMode,
 	})
 }
 

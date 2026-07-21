@@ -10,6 +10,7 @@ import (
 	"github.com/LingByte/SoulNexus/internal/config"
 	"github.com/LingByte/SoulNexus/internal/constants"
 	"github.com/LingByte/SoulNexus/internal/models"
+	"github.com/LingByte/SoulNexus/pkg/dialog/tenantcfg"
 	workflowdef "github.com/LingByte/SoulNexus/internal/workflow"
 	"github.com/LingByte/SoulNexus/pkg/dialog/chat"
 	stagespeaker "github.com/LingByte/SoulNexus/pkg/dialog/stages/speaker"
@@ -55,6 +56,9 @@ func NewHandlers(db *gorm.DB) *Handlers {
 	models.ReloadAKSKRoutePolicy(db)
 	nlu.Load(db)
 	models.SetAIInvocationDB(db)
+	tenantcfg.SetLoader(func(ctx context.Context, tenantID uint, callID string) (tenantcfg.VoiceConfigBundle, bool) {
+		return models.LoadCallVoiceConfigBundle(ctx, db, tenantID, callID)
+	})
 	return h
 }
 
@@ -82,7 +86,6 @@ func (h *Handlers) Register(engine *gin.Engine, api huma.API) {
 	// Authenticated — any valid JWT or API Key
 	h.registerAccountRoutes(protected)
 	h.registerSystemProtectedRoutes(protected)
-	h.registerOverviewRoutes(protected)
 	h.registerVoiceSessionRoutes(protected)
 	h.registerDialogProtectedRoutes(protected)
 
@@ -90,6 +93,7 @@ func (h *Handlers) Register(engine *gin.Engine, api huma.API) {
 	h.registerTenantUserRoutes(protected)
 	h.registerAssistantRoutes(protected)
 	h.registerCredentialRoutes(protected)
+	h.registerTenantWorkspaceRoutes(protected)
 	h.registerJSTemplateRoutes(protected)
 	h.registerWorkflowRoutes(protected)
 	h.registerWorkflowPluginRoutes(protected)
@@ -97,7 +101,6 @@ func (h *Handlers) Register(engine *gin.Engine, api huma.API) {
 	h.registerWebhookRoutes(protected)
 	h.registerIMChannelRoutes(protected)
 	h.registerKnowledgeBaseRoutes(protected)
-	h.registerBillingRoutes(protected)
 	h.registerNotificationRoutes(protected)
 	h.registerAIReportRoutes(protected)
 	h.registerOperationLogRoutes(protected)
@@ -108,13 +111,14 @@ func (h *Handlers) Register(engine *gin.Engine, api huma.API) {
 	h.registerPlatformAdminRoutes(protected)
 	h.registerSystemConfigRoutes(protected)
 	h.registerPlatformSystemRoutes(protected)
-	h.registerPlatformCostRoutes(protected)
 	h.registerPlatformNotificationAdminRoutes(protected)
 	h.registerPlatformEmailTemplateAdminRoutes(protected)
 	h.registerPlatformMailLogAdminRoutes(protected)
 	h.registerPlatformSMSAdminRoutes(protected)
 	h.registerPlatformExecutionTaskRoutes(protected)
 	h.registerPlatformVoiceRoutes(protected)
+	h.registerPlatformAIPoolRoutes(protected)
+	h.registerTenantAIPoolGrantRoutes(protected)
 	h.registerPlatformWorkflowMarketRoutes(protected)
 	h.registerPlatformNLURoutes(protected)
 	h.registerPlatformAssistantToolRoutes(protected)
@@ -147,6 +151,7 @@ func (h *Handlers) registerCredentialRoutes(r *humax.Group) {
 	crRead.Use(middleware.RequireTenantPermissionAll("api.credentials.read"))
 	{
 		crRead.GET("", h.listCredentials)
+		crRead.GET("/external-api", h.getCredentialExternalAPI)
 		crRead.GET("/aksk-route-catalog", h.getCredentialAKSKRouteCatalog)
 	}
 	crWrite := cr.Group("")
@@ -253,7 +258,8 @@ func (h *Handlers) registerPlatformTenantRoutes(r *humax.Group) {
 		g.POST("", h.createTenantPlatform)
 		g.PUT("/:id", h.updateTenantPlatform)
 		g.POST("/:id/llm-test", h.testTenantLLMStream)
-		g.PUT("/:id/billing", h.patchTenantBillingPlatform)
+		g.GET("/:id/credentials", h.listTenantCredentialsPlatform)
+		g.POST("/:id/credentials", h.createTenantCredentialPlatform)
 		g.DELETE("/:id", h.deleteTenantPlatform)
 	}
 }
@@ -271,19 +277,6 @@ func (h *Handlers) registerPlatformSystemRoutes(r *humax.Group) {
 	g.Use(middleware.RequirePlatformAdmin())
 	{
 		g.GET("/status", h.getSystemStatus)
-	}
-}
-
-func (h *Handlers) registerPlatformCostRoutes(r *humax.Group) {
-	g := r.Group("platform")
-	g.Use(middleware.RequirePlatformAdmin())
-	{
-		g.GET("/cost/call-summary", h.getPlatformCallCostSummary)
-		g.GET("/billing-plans", h.listBillingPlans)
-		g.GET("/billing-plans/:id", h.getBillingPlan)
-		g.POST("/billing-plans", h.createBillingPlan)
-		g.PUT("/billing-plans/:id", h.updateBillingPlan)
-		g.DELETE("/billing-plans/:id", h.deleteBillingPlan)
 	}
 }
 

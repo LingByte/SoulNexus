@@ -184,6 +184,7 @@ func SettleCall(ctx context.Context, db *gorm.DB, tenantID uint, callID string, 
 	if err := RecordTenantCallUsage(db, tenantID, callID, durationSec); err != nil {
 		return err
 	}
+	_ = RecordAIPoolTransitUsage(db, tenantID, callID, durationSec)
 	if backend := billingReserveBackend(); backend != nil {
 		_ = backend.dropReservation(ctx, callID)
 	}

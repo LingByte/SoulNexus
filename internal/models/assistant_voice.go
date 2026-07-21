@@ -50,6 +50,13 @@ func LoadCallVoiceConfigBundle(ctx context.Context, db *gorm.DB, tenantID uint, 
 	if !ok {
 		return bundle, ok
 	}
+	credID := callbinding.GetCredentialID(callID)
+	if credID == 0 && ast.CredentialID > 0 {
+		credID = ast.CredentialID
+	}
+	if credID > 0 {
+		bundle = ApplyCredentialVoiceOverlay(db.WithContext(ctx), bundle, credID, callID)
+	}
 	// Debug sessions load draft agent/mcp overlay so unpublished tool bindings work.
 	if callbinding.IsDebugCall(callID) {
 		if len(ast.AgentConfig) > 0 {

@@ -288,6 +288,7 @@ func (s *Session) close(ctx context.Context) {
 		callbinding.ClearTenantID(callID)
 		callbinding.ClearUserID(callID)
 		callbinding.ClearCredentialID(callID)
+		callbinding.ClearTransitPoolIDs(callID)
 		callbinding.ClearAISource(callID)
 		callbinding.ClearJSSourceID(callID)
 		callbinding.ClearSpeakerContext(callID)

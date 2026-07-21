@@ -12,8 +12,8 @@ func TestTenantAllowsInboundCall(t *testing.T) {
 	if !TenantAllowsInboundCall(Tenant{BillingUnlimited: true}) {
 		t.Fatal("unlimited should allow")
 	}
-	if TenantAllowsInboundCall(Tenant{BillingMode: constants.TenantBillingModePrepaid, PrepaidMinutesRemaining: 0}) {
-		t.Fatal("prepaid zero should block")
+	if !TenantAllowsInboundCall(Tenant{BillingMode: constants.TenantBillingModePrepaid, PrepaidMinutesRemaining: 0}) {
+		t.Fatal("billing quotas removed; prepaid zero should still allow")
 	}
 }
 

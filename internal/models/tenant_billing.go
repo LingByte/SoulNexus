@@ -42,15 +42,10 @@ type TenantBillingAccount struct {
 	MeteredCallCount        int64   `json:"meteredCallCount"`
 }
 
-// TenantAllowsInboundCall reports whether billing policy permits starting a call (quick check without reservation).
+// TenantAllowsInboundCall — billing quotas removed from product; always allow.
 func TenantAllowsInboundCall(t Tenant) bool {
-	if t.BillingUnlimited {
-		return true
-	}
-	if tenantBillingMode(t.BillingMode) != constants.TenantBillingModePrepaid {
-		return true
-	}
-	return t.PrepaidMinutesRemaining > 0
+	_ = t
+	return true
 }
 
 func tenantBillingMode(mode string) string {
