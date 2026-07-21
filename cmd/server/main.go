@@ -152,8 +152,6 @@ func main() {
 	// 9. Create application
 	app := NewLingEchoApp(db)
 	models.InitBillingReservations(db)
-	billingScheduler := tasks.NewBillingScheduler(db)
-	billingScheduler.Start()
 	aiReportScheduler := tasks.NewAIReportScheduler(db)
 	aiReportScheduler.Start()
 	statsScheduler := tasks.NewStatsScheduler(db)
@@ -384,7 +382,6 @@ func main() {
 			workflowScheduler.Stop()
 		}
 		app.handlers.StopKnowledgeWorker()
-		billingScheduler.Stop()
 		if err := httpServer.Shutdown(ctx); err != nil {
 			logger.Error("HTTP server shutdown", zap.Error(err))
 		}
