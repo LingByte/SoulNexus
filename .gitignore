@@ -126,8 +126,15 @@ keys/server
 banner.txt
 # MiMoCode agent skills
 .mimocode/
-backups/.mimocode/
 .DS_Store
+
+# Runtime / generated data (never commit — also purged from git history)
+backups/
+recordings/
+resources/
+static/
+*.sql
+
 target/
 # SoulNexus lecodec (under media/encoder/lecodec)
 Cargo.lock
