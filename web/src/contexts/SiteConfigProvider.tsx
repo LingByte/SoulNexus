@@ -35,6 +35,7 @@ function mergeSiteConfig(raw: Partial<SiteConfig> | null | undefined): SiteConfi
     githubOAuthEnabled: Boolean(raw.githubOAuthEnabled),
     nluEnabled: Boolean(raw.nluEnabled),
     smsLoginEnabled: Boolean(raw.smsLoginEnabled),
+    deploymentMode: raw.deploymentMode === 'community' ? 'community' : 'saas',
   }
 }
 
@@ -155,6 +156,7 @@ export const SiteConfigProvider = ({ children }: { children: ReactNode }) => {
             githubOAuthEnabled: res.data.githubOAuthEnabled,
             nluEnabled: res.data.nluEnabled,
             smsLoginEnabled: res.data.smsLoginEnabled,
+            deploymentMode: res.data.deploymentMode === 'community' ? 'community' : 'saas',
           })
         } else {
           throw new Error(res.msg || 'Failed to load site config')

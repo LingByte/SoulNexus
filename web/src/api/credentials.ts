@@ -4,10 +4,15 @@ import type { Paginated } from '@/api/types'
 export type CredentialStatus = 'active' | 'disabled'
 export type CredentialId = string
 
+export type CredentialKind = 'platform_bundle' | 'user_bundle'
+
 export interface CredentialRow {
   id: CredentialId
   tenantId: string
   name: string
+  kind?: CredentialKind
+  /** True for platform_bundle (transit / 号池) keys. */
+  usesTenantAi?: boolean
   /** Lookup prefix shown in lists (full key is never returned after create). */
   apiKeyPrefix: string
   /** @deprecated alias of apiKeyPrefix */
@@ -15,9 +20,12 @@ export interface CredentialRow {
   /** True for old AK/SK rows that no longer authenticate. */
   legacyHmac?: boolean
   status: CredentialStatus
-  allowIp?: string
-  permissionCodes?: string[]
-  allowedRouteIds?: string[]
+  voiceMode?: string
+  asrConfig?: Record<string, unknown> | null
+  ttsConfig?: Record<string, unknown> | null
+  llmConfig?: Record<string, unknown> | null
+  realtimeConfig?: Record<string, unknown> | null
+  hasAiConfig?: boolean
   expiresAt?: string | null
   lastUsedAt?: string | null
   requestCount?: number
@@ -41,18 +49,23 @@ export interface CredentialListQuery {
 
 export interface CredentialCreateBody {
   name?: string
-  allowIp?: string
-  permissionCodes?: string[]
-  allowedRouteIds?: string[]
+  kind?: CredentialKind
   expiresAt?: string | null
+  voiceMode?: string
+  asrConfig?: Record<string, unknown>
+  ttsConfig?: Record<string, unknown>
+  llmConfig?: Record<string, unknown>
+  realtimeConfig?: Record<string, unknown>
 }
 
 export interface CredentialUpdateBody {
   name?: string
-  allowIp?: string
-  permissionCodes?: string[]
-  allowedRouteIds?: string[]
   expiresAt?: string | null
+  voiceMode?: string
+  asrConfig?: Record<string, unknown>
+  ttsConfig?: Record<string, unknown>
+  llmConfig?: Record<string, unknown>
+  realtimeConfig?: Record<string, unknown>
 }
 
 export async function listCredentials(query: CredentialListQuery = {}): Promise<ApiResponse<Paginated<CredentialRow>>> {

@@ -15,6 +15,7 @@ export interface AssistantRow {
   prompt?: string
   knowledgeNamespace?: string
   nluModelId?: string
+  credentialId?: string
   asrConfig?: unknown
   ttsConfig?: unknown
   llmConfig?: unknown

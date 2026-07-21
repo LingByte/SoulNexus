@@ -4,10 +4,9 @@ import {
   Form,
   Modal,
   Space,
-  Switch,
   Tag,
 } from '@arco-design/web-react'
-import { Building2, Mail, Users, Settings, Trash2, CreditCard, Bot } from 'lucide-react'
+import { Building2, Mail, Users, Settings, Trash2, Bot } from 'lucide-react'
 import { Button, Input, Select, DataList } from '@/components/ui'
 import type { DataListColumn } from '@/components/ui'
 import { showAlert } from '@/utils/notification'
@@ -17,22 +16,10 @@ import { useTranslation } from '@/i18n'
 import {
   createTenantPlatform,
   deleteTenantPlatform,
-  getTenant,
   listTenants,
-  patchTenantBillingPlatform,
   updateTenantPlatform,
   type TenantRow,
-  type TenantDetail,
 } from '@/api/tenants'
-
-type BillingFormBaseline = {
-  billingMode: 'prepaid' | 'postpaid'
-  billingUnlimited: boolean
-  prepaidMinutesRemaining: number
-  rechargeMinutes: number
-  billingRatePerMinute: number
-  billingCurrency: string
-}
 
 const FormItem = Form.Item
 
@@ -52,11 +39,6 @@ export default function TenantManagement() {
   const [editOpen, setEditOpen] = useState(false)
   const [editForm] = Form.useForm()
   const [editing, setEditing] = useState<TenantRow | null>(null)
-
-  const [billingOpen, setBillingOpen] = useState(false)
-  const [billingForm] = Form.useForm()
-  const [billingTenant, setBillingTenant] = useState<TenantRow | null>(null)
-  const [billingBaseline, setBillingBaseline] = useState<BillingFormBaseline | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -128,7 +110,7 @@ export default function TenantManagement() {
     },
     {
       key: 'actions',
-      width: 280,
+      width: 220,
       align: 'right',
       render: (_, r) => (
         <Space wrap size="mini">
@@ -148,31 +130,6 @@ export default function TenantManagement() {
             }}
           >
             {t('common.edit')}
-          </Button>
-          <Button
-            size="mini"
-            icon={<CreditCard size={13} />}
-            onClick={async () => {
-              setBillingTenant(r)
-              billingForm.resetFields()
-              setBillingOpen(true)
-              const res = await getTenant(r.id)
-              if (res.code === 200 && res.data?.tenant) {
-                const tnt = res.data.tenant as TenantDetail
-                const baseline: BillingFormBaseline = {
-                  billingMode: tnt.billingMode === 'postpaid' ? 'postpaid' : 'prepaid',
-                  billingUnlimited: tnt.billingUnlimited === true,
-                  prepaidMinutesRemaining: tnt.prepaidMinutesRemaining ?? 0,
-                  rechargeMinutes: 0,
-                  billingRatePerMinute: tnt.billingRatePerMinute ?? 0,
-                  billingCurrency: tnt.billingCurrency || 'CNY',
-                }
-                setBillingBaseline(baseline)
-                billingForm.setFieldsValue(baseline)
-              }
-            }}
-          >
-            {t('tenantManagement.billingConfig')}
           </Button>
           <Button
             size="mini"
@@ -360,91 +317,6 @@ export default function TenantManagement() {
           </FormItem>
           <FormItem label={t('tenantManagement.formMaxUsers')} field="maxUserCount">
             <Input type="number" min={1} />
-          </FormItem>
-        </Form>
-      </Drawer>
-
-      <Drawer
-        title={t('tenantManagement.billingModalTitle')}
-        width={480}
-        visible={billingOpen}
-        onCancel={() => setBillingOpen(false)}
-        footer={
-          <div className="flex justify-end gap-2">
-            <Button type="outline" onClick={() => setBillingOpen(false)}>
-              {t('common.cancel')}
-            </Button>
-            <Button
-              type="primary"
-              onClick={async () => {
-                if (!billingTenant) return
-                try {
-                  const v = await billingForm.validate()
-                  const mode: 'prepaid' | 'postpaid' = v.billingMode === 'postpaid' ? 'postpaid' : 'prepaid'
-                  const unlimited = Boolean(v.billingUnlimited)
-                  const remaining = Number(v.prepaidMinutesRemaining) || 0
-                  const recharge = Number(v.rechargeMinutes) || 0
-                  const rate = Number(v.billingRatePerMinute) || 0
-                  const currency = String(v.billingCurrency || 'CNY').trim()
-                  const body: Parameters<typeof patchTenantBillingPlatform>[1] = {}
-                  if (!billingBaseline || mode !== billingBaseline.billingMode) {
-                    body.billingMode = mode
-                  }
-                  if (!billingBaseline || unlimited !== billingBaseline.billingUnlimited) {
-                    body.billingUnlimited = unlimited
-                  }
-                  if (recharge > 0) {
-                    body.rechargeMinutes = recharge
-                  } else if (!billingBaseline || remaining !== billingBaseline.prepaidMinutesRemaining) {
-                    body.prepaidMinutesRemaining = remaining
-                  }
-                  if (!billingBaseline || rate !== billingBaseline.billingRatePerMinute) {
-                    body.billingRatePerMinute = rate
-                  }
-                  if (!billingBaseline || currency !== billingBaseline.billingCurrency) {
-                    body.billingCurrency = currency
-                  }
-                  const r = await patchTenantBillingPlatform(billingTenant.id, body)
-                  if (r.code !== 200) {
-                    showAlert(r.msg || t('common.saveFailed'), 'error')
-                    return
-                  }
-                  showAlert(t('common.saveSuccess'), 'success')
-                  setBillingOpen(false)
-                } catch {
-                  /* validate */
-                }
-              }}
-            >
-              {t('common.save')}
-            </Button>
-          </div>
-        }
-      >
-        <p className="mb-3 text-xs text-muted-foreground">{t('tenantManagement.billingUnlimitedHint')}</p>
-        <Form form={billingForm} layout="vertical">
-          <FormItem label={t('tenantManagement.billingMode')} field="billingMode" initialValue="prepaid">
-            <Select
-              options={[
-                { value: 'prepaid', label: t('tenantManagement.billingModePrepaid') },
-                { value: 'postpaid', label: t('tenantManagement.billingModePostpaid') },
-              ]}
-            />
-          </FormItem>
-          <FormItem label={t('tenantManagement.billingUnlimited')} field="billingUnlimited" triggerPropName="checked">
-            <Switch />
-          </FormItem>
-          <FormItem label={t('tenantManagement.prepaidMinutesRemaining')} field="prepaidMinutesRemaining">
-            <Input type="number" min={0} step={1} />
-          </FormItem>
-          <FormItem label={t('tenantManagement.rechargeMinutes')} field="rechargeMinutes" initialValue={0}>
-            <Input type="number" min={0} step={1} />
-          </FormItem>
-          <FormItem label={t('tenantManagement.billingRate')} field="billingRatePerMinute">
-            <Input type="number" min={0} step={0.0001} />
-          </FormItem>
-          <FormItem label={t('tenantManagement.billingCurrency')} field="billingCurrency" initialValue="CNY">
-            <Input />
           </FormItem>
         </Form>
       </Drawer>

@@ -1,6 +1,6 @@
 import { del, get, post, put, type ApiResponse } from '@/utils/request'
+
 import type { Paginated } from '@/api/types'
-import type { TenantBillingAccount } from '@/api/tenantBills'
 
 export interface TenantRow {
   // id 是后端 Snowflake (uint64, >2^53)，必须以字符串透传，否则 JavaScript
@@ -24,18 +24,6 @@ export interface TenantDetail extends TenantRow {
   /** 'pipeline'（默认，三层 ASR→LLM→TTS）或 'realtime'（单条 WS 多模态） */
   voiceMode?: 'pipeline' | 'realtime' | null
   realtimeConfig?: Record<string, unknown> | null
-  balance?: number
-  balanceDisplay?: string
-  billingMode?: 'prepaid' | 'postpaid'
-  billingUnlimited?: boolean
-  prepaidMinutesRemaining?: number
-  remainingMinutesDisplay?: string
-  billingRatePerMinute?: number
-  billingCurrency?: string
-  meteredBilledMinutes?: number
-  meteredCallCount?: number
-  automationConfig?: Record<string, never>
-  /** @deprecated use automationConfig */
   automationConfig?: Record<string, never>
 }
 
@@ -87,20 +75,6 @@ export async function updateTenantPlatform(
 
 export async function deleteTenantPlatform(id: string | number): Promise<ApiResponse<{ id: string }>> {
   return del(`/tenants/${id}`)
-}
-
-export async function patchTenantBillingPlatform(
-  id: string | number,
-  body: {
-    billingMode?: 'prepaid' | 'postpaid'
-    billingUnlimited?: boolean
-    prepaidMinutesRemaining?: number
-    rechargeMinutes?: number
-    billingRatePerMinute?: number
-    billingCurrency?: string
-  },
-): Promise<ApiResponse<TenantBillingAccount>> {
-  return put(`/tenants/${id}/billing`, body)
 }
 
 export interface TenantLLMTestResult {

@@ -3,6 +3,7 @@ import { Alert, Form, Modal } from '@arco-design/web-react'
 import { IconUser } from '@arco-design/web-react/icon'
 import { Building2, Github, Lock, Mail } from 'lucide-react'
 import { useNavigate, Link, useSearchParams } from 'react-router-dom'
+import { PLATFORM_HOME_PATH, TENANT_HOME_PATH } from '@/constants/appPaths'
 import AuthSplitLayout, { type AuthPageMode } from '@/components/Auth/AuthSplitLayout'
 import {
   registerTenant,
@@ -265,7 +266,7 @@ export default function TenantAuth({ initialMode = 'login' }: TenantAuthProps) {
       return false
     }
     showAlert(t('auth.loginSuccess'), 'success')
-    navigate(d.principal === 'platform' ? '/tenant-management' : '/overview', { replace: true })
+    navigate(d.principal === 'platform' ? PLATFORM_HOME_PATH : TENANT_HOME_PATH, { replace: true })
     return true
   }
 
@@ -567,7 +568,7 @@ export default function TenantAuth({ initialMode = 'login' }: TenantAuthProps) {
         permissionCodes: d.permissionCodes ?? [],
       })
       showAlert(t('auth.registerSuccess'), 'success')
-      navigate('/overview', { replace: true })
+      navigate(TENANT_HOME_PATH, { replace: true })
     } catch (e: unknown) {
       const msg =
         typeof e === 'object' && e && 'msg' in e ? String((e as { msg?: string }).msg) : t('auth.registerFailed')

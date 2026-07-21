@@ -19,6 +19,7 @@ export interface VoiceSessionInfo {
 export async function createVoiceSession(body: {
   transport: VoiceSessionTransport
   assistantId?: string
+  credentialId?: string
   sampleRateHz?: number
   dialogMode?: 'engine' | 'gateway'
   temperature?: number
@@ -29,6 +30,9 @@ export async function createVoiceSession(body: {
   }
   if (body.assistantId?.trim()) {
     payload.assistantId = body.assistantId.trim()
+  }
+  if (body.credentialId?.trim()) {
+    payload.credentialId = body.credentialId.trim()
   }
   if (body.dialogMode) {
     payload.dialogMode = body.dialogMode

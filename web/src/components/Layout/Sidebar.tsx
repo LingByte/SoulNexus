@@ -2,7 +2,6 @@ import { useEffect, useState, useCallback } from 'react'
 import { Avatar, Drawer, Layout } from '@arco-design/web-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
-  LayoutDashboard,
   FileText,
   UserCircle,
   Shield,
@@ -11,13 +10,10 @@ import {
   Settings2,
   BookOpen,
   BrainCircuit,
-  Receipt,
   GitBranch,
   Bot,
   Fingerprint,
   Lock,
-  BarChart3,
-  Wallet,
   ListTodo,
   Mail,
   MessageSquare,
@@ -40,6 +36,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { useTranslation } from '@/i18n'
 import { Link } from '@/components/ui'
 import { cn } from '@/utils/cn'
+import { PLATFORM_HOME_PATH, TENANT_HOME_PATH } from '@/constants/appPaths'
 
 const Sider = Layout.Sider
 
@@ -48,7 +45,7 @@ const DOCS_CENTER_URL = 'https://docs.lingecho.com'
 type NavDef = {
   labelKey: string
   href: string
-  icon: typeof LayoutDashboard
+  icon: typeof Bot
   /** 租户登录：仅当 effective 权限含该菜单码时展示（平台管理员不按此项过滤） */
   tenantMenuCode?: string
   /** 满足任一权限码即可展示（用于菜单/API 权限并存） */
@@ -66,12 +63,6 @@ type NavGroup = {
 
 // 分组导航
 const navGroups: NavGroup[] = [
-  {
-    labelKey: 'nav.groupWorkspace',
-    items: [
-      { labelKey: 'nav.overview', href: '/overview', icon: LayoutDashboard, tenantMenuCode: 'menu.workspace.overview' },
-    ],
-  },
   {
     labelKey: 'nav.groupAiAgents',
     items: [
@@ -105,6 +96,7 @@ const navGroups: NavGroup[] = [
       { labelKey: 'nav.tenantManagement', href: '/tenant-management', icon: Briefcase },
       { labelKey: 'nav.platformAdmins', href: '/platform-admins', icon: Shield },
       { labelKey: 'nav.platformVoiceManagement', href: '/platform/voice-management', icon: Bot },
+      { labelKey: 'nav.platformAiPools', href: '/platform/ai-pools', icon: AudioWaveform },
       { labelKey: 'nav.platformVoiceprintManagement', href: '/platform/voiceprint-management', icon: Fingerprint },
       { labelKey: 'nav.systemConfigs', href: '/system-configs', icon: Settings2 },
       { labelKey: 'nav.systemStatus', href: '/platform/system-status', icon: Activity },
@@ -129,19 +121,6 @@ const navGroups: NavGroup[] = [
       { labelKey: 'nav.platformMcpMarket', href: '/platform/mcp-market', icon: Store },
     ],
   },
-  {
-    labelKey: 'nav.groupCostAccounting',
-    items: [
-      { labelKey: 'nav.billingPlan', href: '/billingplan', icon: Wallet },
-    ],
-  },
-  {
-    labelKey: 'nav.groupBilling',
-    items: [
-      { labelKey: 'nav.billing', href: '/billing', icon: Receipt, tenantMenuAnyOf: ['menu.acc.billing', 'api.billing.read'] },
-      { labelKey: 'nav.usageMetrics', href: '/usage-metrics', icon: BarChart3, tenantMenuAnyOf: ['menu.acc.usage_metrics', 'api.billing.read'] },
-    ],
-  },
 ]
 
 // 展平所有导航项（用于路由匹配等）
@@ -160,10 +139,10 @@ function tenantMaySeeItem(menuCodes: readonly string[] | undefined, item: NavDef
 }
 
 const platformAdminMenuHrefs = new Set([
-  '/billing',
   '/tenant-management',
   '/platform-admins',
   '/platform/voice-management',
+  '/platform/ai-pools',
   '/platform/voiceprint-management',
   '/system-configs',
   '/platform/system-status',
@@ -176,7 +155,6 @@ const platformAdminMenuHrefs = new Set([
   '/platform/execution-tasks',
   '/platform/plugin-market',
   '/platform/mcp-market',
-  '/billingplan',
 ])
 
 const tenantHiddenHrefs = new Set([
@@ -220,13 +198,14 @@ function NavMenuBody({
   const voiceCloneEnabled = Boolean((config.VOICE_CLONE_PROVIDER || '').trim())
   const voiceprintEnabled = Boolean((config.VOICEPRINT_PROVIDER || '').trim())
   const nluEnabled = Boolean(config.nluEnabled)
+  const isCommunity = config.deploymentMode === 'community'
   const visibleNavigation = isPlatformAdmin
-    ? allNavigation.filter((n) => {
-        if (!platformAdminMenuHrefs.has(n.href)) return false
-        return true
-      })
+    ? allNavigation.filter((n) => platformAdminMenuHrefs.has(n.href))
     : allNavigation.filter((n) => {
         if (tenantHiddenHrefs.has(n.href)) return false
+        if (isCommunity && n.href === '/role-permissions') {
+          return false
+        }
         if (n.href === '/voice-clone-manager' && !voiceCloneEnabled) return false
         if (n.href === '/voiceprint-manager' && !voiceprintEnabled) return false
         if (n.tenantNluWhenEnabled) return nluEnabled
@@ -277,7 +256,7 @@ function NavMenuBody({
   const selected =
     visibleNavigation.length > 0 ? selectedMenuKey(location.pathname, visibleNavigation) : location.pathname
 
-  const pinnedHref = isPlatformAdmin ? '/tenant-management' : '/overview'
+  const pinnedHref = isPlatformAdmin ? PLATFORM_HOME_PATH : TENANT_HOME_PATH
   const pinnedItem = visibleNavigation.find((n) => n.href === pinnedHref)
   const navGroupsFiltered = visibleGroups
     .map((g) => ({
@@ -344,7 +323,7 @@ function NavMenuBody({
         ) : (
         <Link
           key={brandKey}
-          to="/overview"
+          to={isPlatformAdmin ? PLATFORM_HOME_PATH : TENANT_HOME_PATH}
           className="site-brand-block"
           style={brandLinkStyle}
           onClick={() => onNavigate?.()}

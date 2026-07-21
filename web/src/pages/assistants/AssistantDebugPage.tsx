@@ -580,6 +580,7 @@ export function AssistantDebugPanel({
       const res = await createVoiceSession({
         transport,
         assistantId,
+        credentialId: assistant?.credentialId,
         sampleRateHz: 16000,
         dialogMode: transport === 'websocket' ? (customDialogWs ? 'gateway' : 'engine') : undefined,
       })

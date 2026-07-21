@@ -16,6 +16,7 @@ export interface SiteConfig {
   githubOAuthEnabled?: boolean
   nluEnabled?: boolean
   smsLoginEnabled?: boolean
+  deploymentMode?: 'community' | 'saas'
 }
 
 export interface SiteConfigContextType {

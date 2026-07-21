@@ -403,39 +403,39 @@ export default function ComponentsDemo() {
           <div>
             <div className="text-sm text-[hsl(var(--muted-foreground))] mb-3">5 种视觉变体</div>
             <PreviewCard>
-              <Link to="/overview">Default</Link>
-              <Link to="/overview" variant="primary">Primary</Link>
-              <Link to="/overview" variant="muted">Muted</Link>
-              <Link to="/overview" variant="nav">Nav</Link>
-              <Link to="/overview" variant="underline">Underline</Link>
+              <Link to="/assistant-manager">Default</Link>
+              <Link to="/assistant-manager" variant="primary">Primary</Link>
+              <Link to="/assistant-manager" variant="muted">Muted</Link>
+              <Link to="/assistant-manager" variant="nav">Nav</Link>
+              <Link to="/assistant-manager" variant="underline">Underline</Link>
             </PreviewCard>
           </div>
 
           <div>
             <div className="text-sm text-[hsl(var(--muted-foreground))] mb-3">4 种字号</div>
             <PreviewCard>
-              <Link to="/overview" size="xs">xs 文本</Link>
-              <Link to="/overview" size="sm">sm 文本</Link>
-              <Link to="/overview" size="md">md 文本</Link>
-              <Link to="/overview" size="lg">lg 文本</Link>
+              <Link to="/assistant-manager" size="xs">xs 文本</Link>
+              <Link to="/assistant-manager" size="sm">sm 文本</Link>
+              <Link to="/assistant-manager" size="md">md 文本</Link>
+              <Link to="/assistant-manager" size="lg">lg 文本</Link>
             </PreviewCard>
           </div>
 
           <div>
             <div className="text-sm text-[hsl(var(--muted-foreground))] mb-3">带图标</div>
             <PreviewCard>
-              <Link to="/overview" leftIcon={<Home size={14} />}>返回首页</Link>
+              <Link to="/assistant-manager" leftIcon={<Home size={14} />}>返回首页</Link>
               <Link to="/profile" leftIcon={<User size={14} />} variant="primary">个人中心</Link>
-              <Link to="/overview" rightIcon={<FileText size={14} />} variant="muted">查看文档</Link>
+              <Link to="/assistant-manager" rightIcon={<FileText size={14} />} variant="muted">查看文档</Link>
             </PreviewCard>
           </div>
 
           <div>
             <div className="text-sm text-[hsl(var(--muted-foreground))] mb-3">ArrowLink — 带箭头的快捷链接</div>
             <PreviewCard>
-              <ArrowLink to="/overview">了解更多</ArrowLink>
-              <ArrowLink to="/overview" variant="muted" size="sm">查看详情</ArrowLink>
-              <ArrowLink to="/overview" variant="default" size="lg">开始使用</ArrowLink>
+              <ArrowLink to="/assistant-manager">了解更多</ArrowLink>
+              <ArrowLink to="/assistant-manager" variant="muted" size="sm">查看详情</ArrowLink>
+              <ArrowLink to="/assistant-manager" variant="default" size="lg">开始使用</ArrowLink>
             </PreviewCard>
           </div>
 
@@ -469,7 +469,7 @@ export default function ComponentsDemo() {
               <div className="flex flex-col gap-3">
                 <div className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--muted-foreground))]">主导航</div>
                 <nav className="flex flex-col gap-2">
-                  <Link to="/overview" variant="nav" leftIcon={<Home size={14} />}>控制台</Link>
+                  <Link to="/assistant-manager" variant="nav" leftIcon={<Home size={14} />}>控制台</Link>
                   <Link to="/profile" variant="nav" leftIcon={<User size={14} />}>账户设置</Link>
                   <Link to="/assistant-manager" variant="nav" leftIcon={<FileText size={14} />}>智能体</Link>
                 </nav>
@@ -477,9 +477,9 @@ export default function ComponentsDemo() {
               <div className="flex flex-col gap-3">
                 <div className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--muted-foreground))]">快捷操作</div>
                 <nav className="flex flex-col gap-2">
-                  <ArrowLink to="/overview" variant="primary">创建新项目</ArrowLink>
-                  <ArrowLink to="/overview" variant="muted" size="sm">查看定价</ArrowLink>
-                  <ArrowLink to="/overview" variant="default">浏览模板库</ArrowLink>
+                  <ArrowLink to="/assistant-manager" variant="primary">创建新项目</ArrowLink>
+                  <ArrowLink to="/assistant-manager" variant="muted" size="sm">查看定价</ArrowLink>
+                  <ArrowLink to="/assistant-manager" variant="default">浏览模板库</ArrowLink>
                 </nav>
               </div>
               <div className="flex flex-col gap-3">

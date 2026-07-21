@@ -2,12 +2,10 @@ import { lazy } from 'react'
 import { Routes, Route, Navigate, Outlet } from 'react-router-dom'
 import AuthenticatedLayout from '@/components/layout/AuthenticatedLayout'
 import { useAuthStore } from '@/stores/authStore'
+import { PLATFORM_HOME_PATH, TENANT_HOME_PATH } from '@/constants/appPaths'
 
 const LandingPage = lazy(() => import('@/pages/LandingPage'))
 const ComponentsDemo = lazy(() => import('@/pages/ComponentsDemo'))
-const OverviewDashboard = lazy(() => import('@/pages/OverviewDashboard'))
-const TenantBills = lazy(() => import('@/pages/TenantBills'))
-const UsageMetrics = lazy(() => import('@/pages/UsageMetrics'))
 const AssistantManager = lazy(() => import('@/pages/AssistantManager'))
 const AssistantManagerNew = lazy(() => import('@/pages/AssistantManagerNew'))
 const AssistantManagerCreate = lazy(() => import('@/pages/AssistantManagerCreate'))
@@ -33,11 +31,11 @@ const TenantRolePermissions = lazy(() => import('@/pages/TenantRolePermissions')
 const TenantManagement = lazy(() => import('@/pages/TenantManagement'))
 const PlatformAdmins = lazy(() => import('@/pages/PlatformAdmins'))
 const PlatformVoiceManagement = lazy(() => import('@/pages/PlatformVoiceManagement'))
+const PlatformAiPools = lazy(() => import('@/pages/platform/PlatformAiPools'))
 const PlatformVoiceprintManagement = lazy(() => import('@/pages/PlatformVoiceprintManagement'))
 const SystemConfigs = lazy(() => import('@/pages/SystemConfigs'))
 const TenantAiConfig = lazy(() => import('@/pages/TenantAiConfig'))
 const TenantMembers = lazy(() => import('@/pages/TenantMembers'))
-const BillingPlan = lazy(() => import('@/pages/BillingPlan'))
 const KnowledgeNamespaces = lazy(() => import('@/pages/KnowledgeNamespaces'))
 const KnowledgeBaseDetail = lazy(() => import('@/pages/KnowledgeBaseDetail'))
 const KnowledgeDocumentEdit = lazy(() => import('@/pages/KnowledgeDocumentEdit'))
@@ -65,43 +63,11 @@ function RequireAuth({ children }: { children: JSX.Element }) {
   return children
 }
 
-function hasPermission(codes: readonly string[] | undefined, code: string): boolean {
-  const list = codes ?? []
-  return list.includes('*') || list.includes(code)
-}
-
-function RequireBillingView({ children }: { children: JSX.Element }) {
-  const user = useAuthStore((s) => s.user)
-  const isPlatform = Boolean(user?.isPlatformAdmin || user?.principal === 'platform')
-  if (isPlatform) return children
-  const codes = user?.permissionCodes as string[] | undefined
-  const canView =
-    hasPermission(codes, 'menu.acc.billing') || hasPermission(codes, 'api.billing.read')
-  if (!canView) {
-    return <Navigate to="/overview" replace />
-  }
-  return children
-}
-
-function RequireUsageMetricsView({ children }: { children: JSX.Element }) {
-  const user = useAuthStore((s) => s.user)
-  const isPlatform = Boolean(user?.isPlatformAdmin || user?.principal === 'platform')
-  if (isPlatform) {
-    return <Navigate to="/overview" replace />
-  }
-  const codes = user?.permissionCodes as string[] | undefined
-  const canView =
-    hasPermission(codes, 'menu.acc.usage_metrics') || hasPermission(codes, 'api.billing.read')
-  if (!canView) {
-    return <Navigate to="/overview" replace />
-  }
-  return children
-}
 function RequirePlatform({ children }: { children: JSX.Element }) {
   const user = useAuthStore((s) => s.user)
   const isPlatform = Boolean(user?.isPlatformAdmin || user?.principal === 'platform')
   if (!isPlatform) {
-    return <Navigate to="/overview" replace />
+    return <Navigate to={TENANT_HOME_PATH} replace />
   }
   return children
 }
@@ -118,7 +84,7 @@ function RequireTenant({ children }: { children: JSX.Element }) {
 function HomeRedirect() {
   const user = useAuthStore((s) => s.user)
   const isPlatform = Boolean(user?.isPlatformAdmin || user?.principal === 'platform')
-  return <Navigate to={isPlatform ? '/tenant-management' : '/overview'} replace />
+  return <Navigate to={isPlatform ? PLATFORM_HOME_PATH : TENANT_HOME_PATH} replace />
 }
 
 export function AppRoutes() {
@@ -140,26 +106,13 @@ export function AppRoutes() {
         }
       >
         <Route path="/app" element={<HomeRedirect />} />
-        <Route path="/overview" element={<OverviewDashboard />} />
+        <Route path="/overview" element={<Navigate to={TENANT_HOME_PATH} replace />} />
         <Route path="/profile" element={<Navigate to="/profile/info" replace />} />
         <Route path="/profile/:section" element={<Profile />} />
         <Route path="/inbox" element={<Navigate to="/profile/inbox" replace />} />
-        <Route
-          path="/billing"
-          element={
-            <RequireBillingView>
-              <TenantBills />
-            </RequireBillingView>
-          }
-        />
-        <Route
-          path="/usage-metrics"
-          element={
-            <RequireUsageMetricsView>
-              <UsageMetrics />
-            </RequireUsageMetricsView>
-          }
-        />
+        <Route path="/billing" element={<Navigate to={TENANT_HOME_PATH} replace />} />
+        <Route path="/usage-metrics" element={<Navigate to={TENANT_HOME_PATH} replace />} />
+        <Route path="/billingplan" element={<Navigate to={PLATFORM_HOME_PATH} replace />} />
         <Route path="/operation-logs" element={<Navigate to="/profile/logs" replace />} />
         <Route path="/ai-invocations" element={<Navigate to="/profile/ai-invocations" replace />} />
         <Route
@@ -361,6 +314,14 @@ export function AppRoutes() {
           }
         />
         <Route
+          path="/platform/ai-pools"
+          element={
+            <RequirePlatform>
+              <PlatformAiPools />
+            </RequirePlatform>
+          }
+        />
+        <Route
           path="/platform/voiceprint-management"
           element={
             <RequirePlatform>
@@ -418,14 +379,6 @@ export function AppRoutes() {
             <RequireTenant>
               <TenantRolePermissions />
             </RequireTenant>
-          }
-        />
-        <Route
-          path="/billingplan"
-          element={
-            <RequirePlatform>
-              <BillingPlan />
-            </RequirePlatform>
           }
         />
         <Route path="/404" element={<NotFound />} />

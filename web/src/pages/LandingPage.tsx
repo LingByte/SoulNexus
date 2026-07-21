@@ -15,6 +15,7 @@ import {
   Cpu,
 } from 'lucide-react'
 import { Button } from '@/components/ui'
+import { PLATFORM_HOME_PATH, TENANT_HOME_PATH } from '@/constants/appPaths'
 import { useAuthStore } from '@/stores/authStore'
 import { useTranslation } from '@/i18n'
 import ContentCarousel from '@/components/Home/ContentCarousel'
@@ -127,7 +128,7 @@ export default function LandingPage() {
 
   const goConsole = () => {
     const isPlatform = Boolean(user?.isPlatformAdmin || user?.principal === 'platform')
-    navigate(isPlatform ? '/tenant-management' : '/overview')
+    navigate(isPlatform ? PLATFORM_HOME_PATH : TENANT_HOME_PATH)
   }
 
   const handleLogout = () => {

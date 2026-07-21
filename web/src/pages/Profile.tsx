@@ -65,8 +65,9 @@ function canViewWebhooks(me: any): boolean {
   return codes.includes('api.webhooks.read') || codes.includes('api.webhooks.write') || codes.includes('*')
 }
 
-function canViewAccessKeys(me: any): boolean {
+function canViewAccessKeys(me: any, deploymentMode?: string): boolean {
   if (me?.principal === 'platform') return false
+  if (deploymentMode === 'community') return true
   const codes = me?.permissionCodes as string[] | undefined
   if (!codes?.length) return false
   return codes.includes('menu.acc.keys') || codes.includes('api.credentials.read') || codes.includes('*')
@@ -181,7 +182,7 @@ export default function Profile() {
   }, [])
 
   const isPlatform = me?.principal === 'platform'
-  const showAccessKeys = canViewAccessKeys(me)
+  const showAccessKeys = canViewAccessKeys(me, siteConfig.deploymentMode)
   const showWebhooks = canViewWebhooks(me)
   const showAIReports = canViewAIReports(me)
   const showOperationLogs = canViewOperationLogs(me)

@@ -7,7 +7,7 @@ import {
   Switch,
   Tag,
 } from '@arco-design/web-react'
-import { Shield, Plus, Pencil, Trash2 } from 'lucide-react'
+import { Plus, Pencil, Trash2 } from 'lucide-react'
 import { Button, Input, Select, DataList } from '@/components/ui'
 import type { DataListColumn } from '@/components/ui'
 import BaseLayout from '@/components/Layout/BaseLayout'
@@ -21,13 +21,6 @@ import {
 } from '@/api/systemConfigs'
 import { showAlert } from '@/utils/notification'
 import { extractApiErrorMessage } from '@/utils/apiError'
-import AkskRoutePicker from '@/components/platform/AkskRoutePicker'
-import {
-  getAkskRouteCatalog,
-  getAkskRoutePolicy,
-  updateAkskRoutePolicy,
-  type AkskRouteCatalogGroup,
-} from '@/api/akskRoutePolicy'
 
 const formatOpts = [
   { label: 'text', value: 'text' },
@@ -117,13 +110,6 @@ export default function SystemConfigs() {
   const [delTarget, setDelTarget] = useState<SystemConfigRow | null>(null)
   const [delLoading, setDelLoading] = useState(false)
 
-  const [routeOpen, setRouteOpen] = useState(false)
-  const [routeEnabled, setRouteEnabled] = useState(false)
-  const [routeSelectedIds, setRouteSelectedIds] = useState<string[]>([])
-  const [routeGroups, setRouteGroups] = useState<AkskRouteCatalogGroup[]>([])
-  const [routeLoading, setRouteLoading] = useState(true)
-  const [routeSaving, setRouteSaving] = useState(false)
-
   const pageSize = 10
 
   const load = useCallback(async () => {
@@ -146,49 +132,6 @@ export default function SystemConfigs() {
   useEffect(() => {
     void load()
   }, [load])
-
-  const loadRoutePolicy = useCallback(async () => {
-    setRouteLoading(true)
-    try {
-      const [catalogRes, policyRes] = await Promise.all([getAkskRouteCatalog(), getAkskRoutePolicy()])
-      if (catalogRes.code === 200 && catalogRes.data) {
-        setRouteGroups(catalogRes.data.groups || [])
-      }
-      if (policyRes.code === 200 && policyRes.data) {
-        setRouteEnabled(!!policyRes.data.enabled)
-        setRouteSelectedIds(policyRes.data.routeIds || [])
-      }
-    } catch (e: unknown) {
-      showAlert(extractApiErrorMessage(e, t('common.loadFailed')), 'error')
-    } finally {
-      setRouteLoading(false)
-    }
-  }, [t])
-
-  useEffect(() => {
-    if (routeOpen) void loadRoutePolicy()
-  }, [routeOpen, loadRoutePolicy])
-
-  const saveRoutePolicy = async () => {
-    if (routeEnabled && routeSelectedIds.length === 0) {
-      showAlert(t('akskRoutePolicy.needSelection'), 'error')
-      return
-    }
-    setRouteSaving(true)
-    try {
-      const res = await updateAkskRoutePolicy({ enabled: routeEnabled, routeIds: routeSelectedIds })
-      if (res.code !== 200) {
-        showAlert(res.msg || t('common.saveFailed'), 'error')
-        return
-      }
-      showAlert(t('common.saveSuccess'), 'success')
-      setRouteOpen(false)
-    } catch (e: unknown) {
-      showAlert(extractApiErrorMessage(e, t('common.saveFailed')), 'error')
-    } finally {
-      setRouteSaving(false)
-    }
-  }
 
   const submitCreate = async () => {
     setCreating(true)
@@ -333,20 +276,6 @@ export default function SystemConfigs() {
       description={t('systemConfigs.description')}
     >
       <div className="mx-auto max-w-6xl space-y-3 p-4">
-        <div className="rounded-xl border border-border bg-card px-4 py-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
-                <Shield size={16} />
-              </div>
-              <div className="text-sm font-medium text-neutral-900">{t('akskRoutePolicy.title')}</div>
-            </div>
-            <Button type="primary" icon={<Shield size={14} />} onClick={() => setRouteOpen(true)}>
-              {t('akskRoutePolicy.enabled')}
-            </Button>
-          </div>
-        </div>
-
         <DataList
           data={rows as unknown as (SystemConfigRow & Record<string, unknown>)[]}
           columns={configColumns}
@@ -375,41 +304,6 @@ export default function SystemConfigs() {
           }
         />
       </div>
-
-      <Drawer
-        title={t('akskRoutePolicy.title')}
-        width={640}
-        visible={routeOpen}
-        onCancel={() => setRouteOpen(false)}
-        footer={
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-neutral-500">{t('akskRoutePolicy.enabled')}</span>
-              <Switch checked={routeEnabled} onChange={setRouteEnabled} />
-              <Tag color={routeEnabled ? 'green' : 'orangered'} className="!rounded-full">
-                {routeEnabled ? t('akskRoutePolicy.statusOpen') : t('akskRoutePolicy.statusClosed')}
-              </Tag>
-              <Tag className="!rounded-full">{routeSelectedIds.length} selected</Tag>
-            </div>
-            <div className="flex gap-2">
-              <Button type="outline" onClick={() => setRouteOpen(false)}>
-                {t('common.cancel')}
-              </Button>
-              <Button type="primary" loading={routeSaving} disabled={routeLoading} onClick={() => void saveRoutePolicy()}>
-                {t('common.save')}
-              </Button>
-            </div>
-          </div>
-        }
-      >
-        <AkskRoutePicker
-          groups={routeGroups}
-          selectedIds={routeSelectedIds}
-          onChange={setRouteSelectedIds}
-          disabled={routeLoading || !routeEnabled}
-          emptyHint={t('akskRoutePolicy.catalogEmpty')}
-        />
-      </Drawer>
 
       <Drawer
         title={t('systemConfigs.create')}
