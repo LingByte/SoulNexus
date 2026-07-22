@@ -33,6 +33,7 @@
       "output": "dist",
       "buildResources": "build"
     },
+    "icon": "build/icon.png",
     "files": [
       "main.js",
       "preload.js",
@@ -53,7 +54,7 @@
     "buildDependenciesFromSource": false,
     "mac": {
       "category": "public.app-category.entertainment",
-      "icon": "build/icon.png",
+      "icon": "build/icon.icns",
       "target": [
         "dmg",
         "zip"
@@ -71,7 +72,7 @@
         "portable",
         "zip"
       ],
-      "icon": "build/icon.png",
+      "icon": "build/icon.ico",
       "signAndEditExecutable": false
     },
     "linux": {

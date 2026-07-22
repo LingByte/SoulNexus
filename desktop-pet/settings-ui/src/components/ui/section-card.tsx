@@ -24,7 +24,7 @@ export function SectionCard({
   const header = (
     <div className="flex items-start gap-3">
       {icon ? (
-        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[rgb(227,227,230)] text-foreground/70">
+        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#18181B]/[0.06] text-[#18181B]/80">
           {icon}
         </div>
       ) : null}

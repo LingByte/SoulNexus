@@ -39,14 +39,14 @@ const APP_NAME = 'SoulNexus Desktop'
 const APP_ID = 'com.soulnexus.desktop-pet'
 
 const DEFAULTS = {
-  serverBase: 'https://400.lingecho.com/api',
-  jsSourceId: '',
-  assistantId: '',
-  apiKey: '',
+  serverBase: 'https://soulmy.top/api',
+  jsSourceId: 'js_75cad2ab4f9f142a',
+  assistantId: '8859281265343332864',
+  apiKey: 'soulnexus_user_PI2mRsBxioqpTkAS3K3yG3Z_YzY2smCsidEWJRuamMI',
   transport: 'websocket',
   title: '懒懒',
   position: 'right',
-  primaryColor: '#165DFF',
+  primaryColor: '#18181B',
   size: 160,
   autoWander: true,
   autoChat: true,
@@ -63,10 +63,23 @@ function assetPath(...parts) {
 }
 
 function loadAppIcon() {
-  const candidates = [
-    assetPath('icon.png'),
-    path.join(__dirname, 'build', 'icon.png'),
-  ]
+  const candidates =
+    process.platform === 'darwin'
+      ? [
+          path.join(__dirname, 'build', 'icon.icns'),
+          path.join(__dirname, 'build', 'icon.png'),
+          assetPath('icon.png'),
+        ]
+      : process.platform === 'win32'
+        ? [
+            path.join(__dirname, 'build', 'icon.ico'),
+            path.join(__dirname, 'build', 'icon.png'),
+            assetPath('icon.png'),
+          ]
+        : [
+            path.join(__dirname, 'build', 'icon.png'),
+            assetPath('icon.png'),
+          ]
   for (const p of candidates) {
     try {
       if (!fs.existsSync(p)) continue
@@ -128,14 +141,26 @@ function loadConfig() {
   if (!merged.assistantId && merged.agentId) merged.assistantId = merged.agentId
   if (merged.assistantId == null) merged.assistantId = ''
   if (merged.jsSourceId === 'YOUR_JS_SOURCE_ID') merged.jsSourceId = ''
-  // Fill empty / placeholder credentials from baked-in defaults
-  if (!String(merged.serverBase || '').trim()) merged.serverBase = DEFAULTS.serverBase
-  if (!String(merged.jsSourceId || '').trim()) merged.jsSourceId = DEFAULTS.jsSourceId
-  if (!String(merged.assistantId || '').trim() || merged.assistantId === 'YOUR_ASSISTANT_ID') {
+  // Migrate legacy host + fill empty / placeholder credentials from baked-in defaults
+  const fromLegacyHost = String(merged.serverBase || '').includes('400.lingecho.com')
+  if (!String(merged.serverBase || '').trim() || fromLegacyHost) {
+    merged.serverBase = DEFAULTS.serverBase
+  }
+  if (fromLegacyHost || !String(merged.jsSourceId || '').trim()) {
+    merged.jsSourceId = DEFAULTS.jsSourceId
+  }
+  if (
+    fromLegacyHost ||
+    !String(merged.assistantId || '').trim() ||
+    merged.assistantId === 'YOUR_ASSISTANT_ID'
+  ) {
     merged.assistantId = DEFAULTS.assistantId
   }
-  if (!String(merged.apiKey || '').trim() || merged.apiKey === 'YOUR_API_KEY') {
+  if (fromLegacyHost || !String(merged.apiKey || '').trim() || merged.apiKey === 'YOUR_API_KEY') {
     merged.apiKey = DEFAULTS.apiKey
+  }
+  if (!merged.primaryColor || /^#165DFF$/i.test(String(merged.primaryColor))) {
+    merged.primaryColor = DEFAULTS.primaryColor
   }
   if (!merged.title) merged.title = DEFAULTS.title
   delete merged.senseWindows
@@ -832,9 +857,19 @@ if (gotTheLock) {
         console.warn('[lingecho-desktop] setAppUserModelId failed', e)
       }
     }
-    if (process.platform === 'darwin' && app.dock) {
-      const dockIcon = loadAppIcon()
-      if (!dockIcon.isEmpty()) app.dock.setIcon(dockIcon)
+    const appIcon = loadAppIcon()
+    if (!appIcon.isEmpty()) {
+      if (process.platform === 'darwin' && app.dock) {
+        app.dock.setIcon(appIcon)
+      }
+      // Ensure Linux / Windows taskbar pick up the icon even before a window opens
+      if (process.platform !== 'darwin') {
+        try {
+          app.setName(APP_NAME)
+        } catch (e) {
+          /* ignore */
+        }
+      }
     }
     const cfg = loadConfig()
     applyLoginItemSettings(cfg.openAtLogin)

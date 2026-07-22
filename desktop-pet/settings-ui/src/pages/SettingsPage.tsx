@@ -13,21 +13,20 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Field } from '@/components/ui/field'
-import { ColorPicker } from '@/components/ui/color-picker'
 import { SegmentedControl } from '@/components/ui/segmented-control'
 import { SectionCard } from '@/components/ui/section-card'
 import type { PetConfig } from '@/vite-env'
 import { cn } from '@/lib/utils'
 
 const EMPTY: PetConfig = {
-  serverBase: 'https://400.lingecho.com/api',
-  jsSourceId: '',
-  assistantId: '',
-  apiKey: '',
+  serverBase: 'https://soulmy.top/api',
+  jsSourceId: 'js_75cad2ab4f9f142a',
+  assistantId: '8859281265343332864',
+  apiKey: 'soulnexus_user_PI2mRsBxioqpTkAS3K3yG3Z_YzY2smCsidEWJRuamMI',
   transport: 'websocket',
   title: '懒懒',
   position: 'right',
-  primaryColor: '#165DFF',
+  primaryColor: '#18181B',
   size: 160,
   autoWander: true,
   autoChat: true,
@@ -153,7 +152,7 @@ export default function SettingsPage() {
         transport: form.transport || 'websocket',
         title: form.title.trim() || '懒懒',
         position: form.position || 'right',
-        primaryColor: form.primaryColor.trim() || '#165DFF',
+        primaryColor: form.primaryColor.trim() || '#18181B',
         size: Number(form.size) > 0 ? Number(form.size) : 160,
         autoWander: form.autoWander !== false,
         autoChat: form.autoChat !== false,
@@ -186,7 +185,7 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center gap-2 text-sm text-muted-foreground bg-[rgb(227,227,230)]">
+      <div className="flex min-h-screen items-center justify-center gap-2 text-sm text-muted-foreground bg-[rgb(232,232,235)]">
         <Loader2 className="h-4 w-4 animate-spin" />
         加载配置…
       </div>
@@ -194,27 +193,31 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[rgb(227,227,230)]">
-      <header className="sticky top-0 z-10 border-b border-black/[0.06] bg-[rgb(227,227,230)]/90 backdrop-blur-md px-5 py-4">
+    <div className="min-h-screen bg-[rgb(232,232,235)]">
+      <header className="sticky top-0 z-10 border-b border-black/[0.05] bg-[rgb(232,232,235)]/92 backdrop-blur-md px-5 py-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2.5">
               <img
                 src="./favicon.png"
                 alt="SoulNexus"
-                className="h-8 w-8 rounded-lg bg-white shadow-sm border border-black/[0.06] object-cover"
+                className="h-8 w-8 rounded-xl bg-white shadow-sm border border-black/[0.06] object-cover"
               />
-              <h1 className="text-base font-semibold tracking-tight">SoulNexus Desktop</h1>
+              <div className="min-w-0">
+                <h1 className="text-[15px] font-semibold tracking-tight text-[#18181B]">
+                  SoulNexus Desktop
+                </h1>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  网页挂件挂到桌面 · 托盘常驻 · 开机自启
+                </p>
+              </div>
             </div>
-            <p className="mt-1.5 text-xs text-muted-foreground pl-[42px]">
-              网页挂件挂到桌面 · 托盘常驻 · 开机自启
-            </p>
           </div>
           <span
             className={cn(
               'shrink-0 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium border',
               configured
-                ? 'bg-white text-emerald-700 border-emerald-200/80'
+                ? 'bg-[#18181B] text-white border-[#18181B]'
                 : 'bg-white text-amber-700 border-amber-200/80',
             )}
           >
@@ -239,13 +242,13 @@ export default function SettingsPage() {
           <Field
             label="API 地址"
             htmlFor="serverBase"
-            hint="需带 /api 后缀，默认 https://400.lingecho.com/api"
+            hint="需带 /api 后缀，默认 https://soulmy.top/api"
           >
             <Input
               id="serverBase"
               value={form.serverBase}
               onChange={(e) => patch('serverBase', e.target.value)}
-              placeholder="https://400.lingecho.com/api"
+              placeholder="https://soulmy.top/api"
             />
           </Field>
           <Field
@@ -257,7 +260,7 @@ export default function SettingsPage() {
               id="jsSourceId"
               value={form.jsSourceId}
               onChange={(e) => patch('jsSourceId', e.target.value)}
-              placeholder="留空 = 内置默认"
+              placeholder="js_…"
               spellCheck={false}
             />
           </Field>
@@ -307,7 +310,7 @@ export default function SettingsPage() {
           title="常驻"
           description="开机自启与系统级全局快捷键（无需点选桌宠）"
         >
-          <div className="flex items-center justify-between gap-4 rounded-lg bg-[rgb(227,227,230)]/70 px-3 py-2.5">
+          <div className="flex items-center justify-between gap-4 rounded-xl bg-[rgb(232,232,235)]/80 px-3 py-2.5">
             <div className="min-w-0">
               <p className="text-sm font-medium">开机自启</p>
               <p className="text-[11px] text-muted-foreground mt-0.5">
@@ -367,7 +370,7 @@ export default function SettingsPage() {
         <SectionCard
           icon={<Palette className="h-4 w-4" />}
           title="外观与行为"
-          description="尺寸、位置、主题色与桌宠自主行为"
+          description="尺寸、位置与桌宠自主行为"
           collapsible
           open={appearanceOpen}
           onOpenChange={setAppearanceOpen}
@@ -404,27 +407,8 @@ export default function SettingsPage() {
               onChange={(e) => patch('size', Number(e.target.value) || 160)}
             />
           </Field>
-          <Field label="主题色" htmlFor="primaryColor" hint="点击色块打开颜色选择器，或选用下方预设">
-            <ColorPicker
-              id="primaryColor"
-              value={form.primaryColor || '#165DFF'}
-              onChange={(hex) => patch('primaryColor', hex)}
-            />
-          </Field>
-          <div className="flex items-center gap-3 rounded-lg border border-dashed border-black/10 bg-[rgb(227,227,230)]/50 px-3 py-2.5">
-            <div
-              className="h-8 w-8 rounded-full shadow-sm border border-black/10"
-              style={{ backgroundColor: form.primaryColor || '#165DFF' }}
-            />
-            <div className="min-w-0">
-              <p className="text-xs font-medium">预览</p>
-              <p className="text-[11px] text-muted-foreground truncate">
-                挂件强调色 · {form.primaryColor || '#165DFF'}
-              </p>
-            </div>
-          </div>
           <div className="space-y-2 pt-1">
-            <div className="flex items-center justify-between gap-4 rounded-lg bg-[rgb(227,227,230)]/70 px-3 py-2.5">
+            <div className="flex items-center justify-between gap-4 rounded-xl bg-[rgb(232,232,235)]/80 px-3 py-2.5">
               <div className="min-w-0">
                 <p className="text-sm font-medium">自主游荡</p>
                 <p className="text-[11px] text-muted-foreground mt-0.5">空闲时在屏幕上挪位置</p>
@@ -434,7 +418,7 @@ export default function SettingsPage() {
                 onCheckedChange={(v) => patch('autoWander', v)}
               />
             </div>
-            <div className="flex items-center justify-between gap-4 rounded-lg bg-[rgb(227,227,230)]/70 px-3 py-2.5">
+            <div className="flex items-center justify-between gap-4 rounded-xl bg-[rgb(232,232,235)]/80 px-3 py-2.5">
               <div className="min-w-0">
                 <p className="text-sm font-medium">主动聊天</p>
                 <p className="text-[11px] text-muted-foreground mt-0.5">偶尔主动跟你说一句</p>
@@ -444,7 +428,7 @@ export default function SettingsPage() {
                 onCheckedChange={(v) => patch('autoChat', v)}
               />
             </div>
-            <div className="flex items-center justify-between gap-4 rounded-lg bg-[rgb(227,227,230)]/70 px-3 py-2.5">
+            <div className="flex items-center justify-between gap-4 rounded-xl bg-[rgb(232,232,235)]/80 px-3 py-2.5">
               <div className="min-w-0">
                 <p className="text-sm font-medium">敲代码监听</p>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
@@ -474,7 +458,7 @@ export default function SettingsPage() {
         ) : null}
       </main>
 
-      <footer className="fixed bottom-0 inset-x-0 border-t border-black/[0.06] bg-[rgb(227,227,230)]/95 backdrop-blur-md px-4 py-3">
+      <footer className="fixed bottom-0 inset-x-0 border-t border-black/[0.05] bg-[rgb(232,232,235)]/95 backdrop-blur-md px-4 py-3">
         <div className="flex gap-2">
           <Button
             type="button"
