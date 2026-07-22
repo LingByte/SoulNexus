@@ -5,16 +5,17 @@ import (
 	"testing"
 )
 
-func TestApplyTTSVoiceAliyunInvalidFallback(t *testing.T) {
+func TestApplyTTSVoiceAliyunUnknownKept(t *testing.T) {
+	// CosyVoice / pool ids are often absent from the local Qwen catalog; do not remap.
 	raw := []byte(`{"provider":"aliyun","apiKey":"sk-test"}`)
-	out := ApplyTTSVoice(raw, "101001")
+	out := ApplyTTSVoice(raw, "longwan")
 	var m map[string]any
 	if err := json.Unmarshal(out, &m); err != nil {
 		t.Fatal(err)
 	}
 	got, _ := m["voice"].(string)
-	if got != "Cherry" {
-		t.Fatalf("voice=%q want Cherry fallback", got)
+	if got != "longwan" {
+		t.Fatalf("voice=%q want longwan kept", got)
 	}
 }
 

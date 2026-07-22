@@ -93,7 +93,8 @@ func ApplyRealtimeVoice(rtRaw []byte, voice string) []byte {
 }
 
 // normalizeCatalogVoice maps assistant voice to a provider-valid id when possible.
-// Unknown ids fall back to the first catalog entry for that provider/mode.
+// Unknown non-empty ids are kept as-is (pool / CosyVoice / custom ids may not be in the local catalog).
+// Empty voice falls back to the first catalog entry when available.
 func normalizeCatalogVoice(provider, mode, voice string) string {
 	voice = strings.TrimSpace(voice)
 	p := strings.ToLower(strings.TrimSpace(provider))
@@ -104,15 +105,13 @@ func normalizeCatalogVoice(provider, mode, voice string) string {
 	if err != nil || len(res.Voices) == 0 {
 		return voice
 	}
-	if voice != "" {
-		for _, v := range res.Voices {
-			if v.ID == voice {
-				return voice
-			}
-		}
-	}
-	if len(res.Voices) > 0 {
+	if voice == "" {
 		return res.Voices[0].ID
+	}
+	for _, v := range res.Voices {
+		if v.ID == voice {
+			return voice
+		}
 	}
 	return voice
 }

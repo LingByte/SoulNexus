@@ -16,9 +16,11 @@ func ProviderFromJSON(raw []byte) string {
 
 // TenantVoiceProviders holds non-secret voice routing slugs for UI.
 type TenantVoiceProviders struct {
-	VoiceMode         string `json:"voiceMode"`
-	TtsProvider       string `json:"ttsProvider"`
-	RealtimeProvider  string `json:"realtimeProvider"`
+	VoiceMode         string   `json:"voiceMode"`
+	TtsProvider       string   `json:"ttsProvider"`
+	RealtimeProvider  string   `json:"realtimeProvider"`
+	TtsVoiceIDs       []string `json:"ttsVoiceIds,omitempty"`
+	RealtimeVoiceIDs  []string `json:"realtimeVoiceIds,omitempty"`
 }
 
 // VoiceProvidersFromTenant builds UI-facing provider slugs from tenant columns.

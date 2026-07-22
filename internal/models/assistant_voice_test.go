@@ -40,3 +40,15 @@ func TestBundleFromAssistant_defaultPipelineWhenTenantEmpty(t *testing.T) {
 		t.Fatalf("VoiceMode = %q, want pipeline default", bundle.VoiceMode)
 	}
 }
+
+func TestApplyAssistantSelectedTimbre_overridesCredentialDefaultVoice(t *testing.T) {
+	// Simulates user-key overlay replacing TTS JSON (which wipes assistant voice).
+	bundle := tenantcfg.VoiceConfigBundle{
+		Tts: tenantcfg.MustJSONMap(`{"provider":"aliyun","voice":"longxiaochun"}`),
+	}
+	out := applyAssistantSelectedTimbre(nil, 0, bundle, "longwan", "")
+	got := voiceIDFromLegJSON(out.Tts)
+	if got != "longwan" {
+		t.Fatalf("tts voice = %q, want longwan (assistant selection after credential overlay)", got)
+	}
+}

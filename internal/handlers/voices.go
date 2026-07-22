@@ -10,8 +10,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/LingByte/SoulNexus/internal/constants"
 	"github.com/LingByte/SoulNexus/internal/models"
 	"github.com/LingByte/SoulNexus/pkg/dialog/tenantcfg"
+	"github.com/LingByte/SoulNexus/pkg/i18n"
 	"github.com/LingByte/SoulNexus/pkg/middleware"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/utils"
@@ -21,7 +23,6 @@ import (
 	"github.com/LingByte/lingllm/realtime/aliyunomni"
 	"github.com/LingByte/lingllm/synthesizer"
 	"github.com/gin-gonic/gin"
-	"github.com/LingByte/SoulNexus/pkg/i18n"
 )
 
 // listVoiceCatalog returns timbre options for a TTS/realtime provider.
@@ -56,6 +57,7 @@ func (h *Handlers) listVoiceCatalog(c *gin.Context) {
 
 // getTenantVoiceProviders returns voiceMode + TTS/realtime provider slugs for the
 // authenticated tenant (no API keys). Platform admins may pass ?tenantId=.
+// When the tenant has 号池 grants, provider + optional voiceId allow-list come from pools.
 func (h *Handlers) getTenantVoiceProviders(c *gin.Context) {
 	tenantID := middleware.AuthTenantID(c)
 	if tid := strings.TrimSpace(c.Query("tenantId")); tid != "" {
@@ -83,20 +85,46 @@ func (h *Handlers) getTenantVoiceProviders(c *gin.Context) {
 		tenant.TtsConfig,
 		tenant.RealtimeConfig,
 	)
-	response.SuccessI18n(c, i18n.KeySuccess, out)
+	source := "tenant"
+	ttsScope := models.ListTenantPoolVoiceScope(h.db, tenantID, constants.AIPoolModalityTTS)
+	if ttsScope.Provider != "" {
+		out.TtsProvider = ttsScope.Provider
+		source = "pool"
+		if !ttsScope.Wildcard && len(ttsScope.VoiceIDs) > 0 {
+			out.TtsVoiceIDs = ttsScope.VoiceIDs
+		}
+	}
+	rtScope := models.ListTenantPoolVoiceScope(h.db, tenantID, constants.AIPoolModalityRealtime)
+	if rtScope.Provider != "" {
+		out.RealtimeProvider = rtScope.Provider
+		source = "pool"
+		if !rtScope.Wildcard && len(rtScope.VoiceIDs) > 0 {
+			out.RealtimeVoiceIDs = rtScope.VoiceIDs
+		}
+	}
+	response.SuccessI18n(c, i18n.KeySuccess, gin.H{
+		"voiceMode":          out.VoiceMode,
+		"ttsProvider":        out.TtsProvider,
+		"realtimeProvider":   out.RealtimeProvider,
+		"source":             source,
+		"ttsVoiceIds":        out.TtsVoiceIDs,
+		"realtimeVoiceIds":   out.RealtimeVoiceIDs,
+		"hasPoolGrant":       models.TenantHasActivePoolGrant(h.db, tenantID),
+	})
 }
 
 type previewVoiceReq struct {
-	Provider string `json:"provider" binding:"required"`
-	Mode     string `json:"mode"`
-	VoiceID  string `json:"voiceId" binding:"required"`
-	Text     string `json:"text"`
-	TenantID string `json:"tenantId"`
+	Provider     string `json:"provider" binding:"required"`
+	Mode         string `json:"mode"`
+	VoiceID      string `json:"voiceId" binding:"required"`
+	Text         string `json:"text"`
+	TenantID     string `json:"tenantId"`
+	CredentialID string `json:"credentialId"`
 }
 
 const defaultVoicePreviewText = "您好，欢迎致电，我是您的智能客服助手。"
 
-// previewVoice synthesizes a short sample using the tenant's voice credentials.
+// previewVoice synthesizes a short sample using credential / 号池 / tenant voice credentials.
 func (h *Handlers) previewVoice(c *gin.Context) {
 	var req previewVoiceReq
 	if !ginutil.BindJSON(c, &req) {
@@ -136,17 +164,21 @@ func (h *Handlers) previewVoice(c *gin.Context) {
 		return
 	}
 
+	credID := utils.ParseOptionalID(req.CredentialID)
+	if credID > 0 {
+		if _, err := models.GetCredentialByIDForTenant(h.db, credID, tenantID); err != nil {
+			ginutil.WriteGORMError(c, err, "credential not found")
+			return
+		}
+	}
+
 	catalog, err := listVoiceCatalog(req.Provider, mode)
 	if err != nil {
 		response.Render(c, response.WrapErr(response.CodeNotFound, err))
 		return
 	}
 
-	cfgRaw := tenant.TtsConfig
-	if mode == "realtime" {
-		cfgRaw = tenant.RealtimeConfig
-	}
-	cfg, err := cloneJSONMap(cfgRaw)
+	cfg, err := h.resolveVoicePreviewConfig(tenant, mode, voiceID, credID)
 	if err != nil {
 		response.Render(c, response.NewI18n(response.CodeBadRequest, i18n.KeyVoicePreviewConfigMissing))
 		return
@@ -252,6 +284,53 @@ func (h *Handlers) previewVoice(c *gin.Context) {
 		out["format"] = "pcm_s16le"
 	}
 	response.SuccessI18n(c, i18n.KeySuccess, out)
+}
+
+// resolveVoicePreviewConfig picks TTS/Realtime JSON for preview:
+// credential (platform → 号池 / user → key bundle) → tenant 号池 → tenant AI columns.
+func (h *Handlers) resolveVoicePreviewConfig(tenant models.Tenant, mode, voiceID string, credentialID uint) (map[string]any, error) {
+	modality := constants.AIPoolModalityTTS
+	if mode == "realtime" {
+		modality = constants.AIPoolModalityRealtime
+	}
+
+	tryRaw := func(raw []byte) (map[string]any, error) {
+		return cloneJSONMap(raw)
+	}
+
+	if credentialID > 0 {
+		var row models.Credential
+		if err := h.db.Where("id = ? AND tenant_id = ? AND status = ?", credentialID, tenant.ID, constants.CredentialStatusActive).
+			First(&row).Error; err == nil {
+			if models.CredentialUsesTenantAIConfig(row) {
+				if raw, _, ok := models.ResolvePoolConfigForVoice(h.db, tenant.ID, modality, voiceID); ok {
+					if cfg, err := tryRaw(raw); err == nil {
+						return cfg, nil
+					}
+				}
+			} else {
+				raw := row.TtsConfig
+				if mode == "realtime" {
+					raw = row.RealtimeConfig
+				}
+				if cfg, err := tryRaw(raw); err == nil {
+					return cfg, nil
+				}
+			}
+		}
+	}
+
+	if raw, _, ok := models.ResolvePoolConfigForVoice(h.db, tenant.ID, modality, voiceID); ok {
+		if cfg, err := tryRaw(raw); err == nil {
+			return cfg, nil
+		}
+	}
+
+	cfgRaw := tenant.TtsConfig
+	if mode == "realtime" {
+		cfgRaw = tenant.RealtimeConfig
+	}
+	return tryRaw(cfgRaw)
 }
 
 func cloneJSONMap(raw []byte) (map[string]any, error) {

@@ -50,13 +50,17 @@ func LoadCallVoiceConfigBundle(ctx context.Context, db *gorm.DB, tenantID uint, 
 	if !ok {
 		return bundle, ok
 	}
-	credID := callbinding.GetCredentialID(callID)
-	if credID == 0 && ast.CredentialID > 0 {
-		credID = ast.CredentialID
+	spec, _ := ResolveAssistantSpec(db.WithContext(ctx), ast)
+	// One assistant ↔ one bound API Key: vendor comes from that key.
+	credID := ast.CredentialID
+	if credID == 0 {
+		credID = callbinding.GetCredentialID(callID)
 	}
 	if credID > 0 {
 		bundle = ApplyCredentialVoiceOverlay(db.WithContext(ctx), bundle, credID, callID)
 	}
+	// Credential TTS/Realtime JSON often carries a default timbre; assistant selection wins.
+	bundle = applyAssistantSelectedTimbre(db.WithContext(ctx), tenant.ID, bundle, spec.TtsVoice, spec.RealtimeVoice)
 	// Debug sessions load draft agent/mcp overlay so unpublished tool bindings work.
 	if callbinding.IsDebugCall(callID) {
 		if len(ast.AgentConfig) > 0 {
@@ -67,6 +71,29 @@ func LoadCallVoiceConfigBundle(ctx context.Context, db *gorm.DB, tenantID uint, 
 		}
 	}
 	return bundle, true
+}
+
+// applyAssistantSelectedTimbre overlays assistant ttsVoice/realtimeVoice after credential
+// vendor merge so user-key defaults cannot wipe the chosen timbre.
+func applyAssistantSelectedTimbre(db *gorm.DB, tenantID uint, bundle tenantcfg.VoiceConfigBundle, ttsVoice, realtimeVoice string) tenantcfg.VoiceConfigBundle {
+	ttsVoice = strings.TrimSpace(ttsVoice)
+	realtimeVoice = strings.TrimSpace(realtimeVoice)
+	if ttsVoice != "" {
+		if cloneRaw, pipeline := applyAssistantCloneVoice(db, tenantID, ttsVoice); pipeline {
+			bundle.VoiceMode = "pipeline"
+			if len(cloneRaw) > 0 {
+				bundle.Tts = cloneRaw
+			} else {
+				bundle.Tts = tenantcfg.ApplyTTSVoice(bundle.Tts, ttsVoice)
+			}
+		} else {
+			bundle.Tts = tenantcfg.ApplyTTSVoice(bundle.Tts, ttsVoice)
+		}
+	}
+	if realtimeVoice != "" {
+		bundle.Realtime = tenantcfg.ApplyRealtimeVoice(bundle.Realtime, realtimeVoice)
+	}
+	return bundle
 }
 
 func bundleFromAssistant(db *gorm.DB, tenant Tenant, ast Assistant, fallback tenantcfg.VoiceConfigBundle) (tenantcfg.VoiceConfigBundle, bool) {

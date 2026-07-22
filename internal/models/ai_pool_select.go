@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/LingByte/SoulNexus/internal/constants"
+	"github.com/LingByte/SoulNexus/pkg/dialog/tenantcfg"
 	"gorm.io/gorm"
 )
 
@@ -206,4 +207,70 @@ func TenantPlatformKeyAllowed(db *gorm.DB, tenantID uint) bool {
 		return false
 	}
 	return TenantHasActivePoolGrant(db, tenantID)
+}
+
+// PoolVoiceScope describes timbres exposed by a tenant's granted 号池 for one modality.
+type PoolVoiceScope struct {
+	Provider string   // first matching pool provider (for catalog lookup)
+	VoiceIDs []string // explicit bindings (excluding "*")
+	Wildcard bool     // any pool binds "*" → full catalog for Provider
+}
+
+// ListTenantPoolVoiceScope aggregates voice bindings from enabled tenant 号池 grants.
+func ListTenantPoolVoiceScope(db *gorm.DB, tenantID uint, modality string) PoolVoiceScope {
+	var out PoolVoiceScope
+	if db == nil || tenantID == 0 {
+		return out
+	}
+	rows := loadTenantPoolGrantRows(db, tenantID, modality)
+	if len(rows) == 0 {
+		return out
+	}
+	seen := map[string]struct{}{}
+	for _, row := range rows {
+		prov := strings.TrimSpace(strings.ToLower(row.Pool.Provider))
+		if out.Provider == "" && prov != "" {
+			out.Provider = prov
+		}
+		ids := parsePoolVoiceIDs(row.Pool.VoiceIDs)
+		if containsStar(ids) {
+			out.Wildcard = true
+			continue
+		}
+		for _, id := range ids {
+			id = strings.TrimSpace(id)
+			if id == "" || normalizeVoiceKey(id) == "*" {
+				continue
+			}
+			if _, ok := seen[id]; ok {
+				continue
+			}
+			seen[id] = struct{}{}
+			out.VoiceIDs = append(out.VoiceIDs, id)
+		}
+	}
+	return out
+}
+
+// ResolvePoolConfigForVoice returns a copy of the granted pool config with voice applied.
+func ResolvePoolConfigForVoice(db *gorm.DB, tenantID uint, modality, voiceID string) ([]byte, string, bool) {
+	p, ok := SelectAIProviderPoolForTenant(db, tenantID, modality, voiceID)
+	if !ok {
+		return nil, "", false
+	}
+	raw := bytesTrimJSON(p.Config)
+	if len(raw) == 0 {
+		return nil, "", false
+	}
+	out := append([]byte(nil), raw...)
+	voiceID = strings.TrimSpace(voiceID)
+	if voiceID != "" {
+		switch NormalizeAIPoolModality(modality) {
+		case constants.AIPoolModalityTTS:
+			out = tenantcfg.ApplyTTSVoice(out, voiceID)
+		case constants.AIPoolModalityRealtime:
+			out = tenantcfg.ApplyRealtimeVoice(out, voiceID)
+		}
+	}
+	return out, strings.TrimSpace(strings.ToLower(p.Provider)), true
 }
