@@ -1,17 +1,17 @@
 /**
- * SoulNexus — 懒懒（Lanlan）熊猫桌宠
+ * LingEchoX — 懒懒（Lanlan）熊猫桌宠
  *
  * - 22 CDN 帧序动作 + 情理化状态机
  * - 自主游荡 / 打盹 / 觅食反应
  * - 敲代码监听：coding / bug / bug_sleep / bug_fixed
  * - LLM 日常对话（气泡，无聊天面板）via dialog/v1 text API
- * - 语音对讲（WebRTC）快捷键唤起 / 结束
+ * - 语音对讲（WebSocket PCM）快捷键唤起 / 结束
  *
  * Usage:
  *   <script>
  *     window.__LanlanConfig = {
  *       apiBase: 'https://your-host/api',
- *       apiKey: 'soulnexus_...',
+ *       apiKey: 'lingechox_...',
  *       assistantId: '123',
  *       size: 160,
  *       position: 'right',
@@ -22,6 +22,7 @@
  *       autoChat: true,
  *       watchCoding: true,
  *       voiceHotkey: 'Alt+Shift+V',
+ *       voiceTransport: 'websocket', // 懒懒语音固定 WebSocket PCM（忽略 webrtc）
  *       talkHotkey: 'Alt+Shift+T'
  *     };
  *   </script>
@@ -149,6 +150,16 @@
         });
     }
 
+    function petLog(level, msg, extra) {
+        var line = '[Lanlan] ' + String(msg || '');
+        if (extra != null) {
+            try { line += ' ' + JSON.stringify(extra); } catch (_) {}
+        }
+        if (level === 'error') console.error(line);
+        else if (level === 'warn') console.warn(line);
+        else console.log(line);
+    }
+
     function safeParseJson(raw) {
         if (!raw || !String(raw).trim()) throw new Error('服务端返回为空');
         try { return JSON.parse(raw); }
@@ -165,7 +176,18 @@
             .then(function (resp) {
                 return resp.text().then(function (raw) {
                     if (timer) clearTimeout(timer);
-                    return safeParseJson(raw);
+                    var body;
+                    try {
+                        body = safeParseJson(raw);
+                    } catch (e) {
+                        var snippet = String(raw || '').replace(/\s+/g, ' ').slice(0, 120);
+                        throw new Error((e && e.message ? e.message : '解析失败') + ' HTTP ' + resp.status + (snippet ? ' · ' + snippet : ''));
+                    }
+                    if (!resp.ok && body && (body.code === undefined || body.code === null)) {
+                        body.code = resp.status;
+                        if (!body.msg) body.msg = 'HTTP ' + resp.status;
+                    }
+                    return body;
                 });
             })
             .catch(function (err) {
@@ -174,6 +196,162 @@
                 throw err;
             });
     }
+
+    function floatToPCM16(input) {
+        var out = new Int16Array(input.length);
+        for (var i = 0; i < input.length; i++) {
+            var s = Math.max(-1, Math.min(1, input[i]));
+            out[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+        }
+        return out;
+    }
+
+    function pcm16ToFloat(input) {
+        var out = new Float32Array(input.length);
+        for (var i = 0; i < input.length; i++) out[i] = input[i] / 0x8000;
+        return out;
+    }
+
+    function resampleLinear(input, fromRate, toRate) {
+        if (fromRate === toRate || input.length === 0) return input;
+        var ratio = toRate / fromRate;
+        var outLen = Math.max(1, Math.round(input.length * ratio));
+        var out = new Float32Array(outLen);
+        for (var i = 0; i < outLen; i++) {
+            var src = i / ratio;
+            var idx = Math.floor(src);
+            var frac = src - idx;
+            var a = input[Math.min(idx, input.length - 1)];
+            var b = input[Math.min(idx + 1, input.length - 1)];
+            out[i] = a + (b - a) * frac;
+        }
+        return out;
+    }
+
+    function pcm16ToBytes(pcm) {
+        return new Uint8Array(pcm.buffer, pcm.byteOffset, pcm.byteLength);
+    }
+
+    function decodeBinaryPCM(data) {
+        return new Int16Array(data);
+    }
+
+    function decodeBase64PCM(b64) {
+        var bin = atob(b64);
+        var u8 = new Uint8Array(bin.length);
+        for (var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+        return u8;
+    }
+
+    function VoiceWsAudio(sampleRate) {
+        this.targetRate = sampleRate > 0 ? sampleRate : 16000;
+        var Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) throw new Error('AudioContext 不可用');
+        this.ctx = new Ctx({ sampleRate: this.targetRate });
+        this.nextTime = 0;
+        this.playbackUntilMs = 0;
+        this.stream = null;
+        this.processor = null;
+        this.source = null;
+        this.silentSink = null;
+        this.activeSources = [];
+        this.ignorePlaybackUntilMs = 0;
+    }
+
+    VoiceWsAudio.prototype.resume = function () {
+        if (this.ctx.state === 'suspended') return this.ctx.resume();
+        return Promise.resolve();
+    };
+
+    VoiceWsAudio.prototype.isPlaying = function () {
+        return performance.now() < this.playbackUntilMs;
+    };
+
+    VoiceWsAudio.prototype.flush = function () {
+        for (var i = 0; i < this.activeSources.length; i++) {
+            try { this.activeSources[i].stop(); } catch (_) {}
+        }
+        this.activeSources = [];
+        this.nextTime = this.ctx.currentTime;
+        this.playbackUntilMs = 0;
+        this.ignorePlaybackUntilMs = performance.now() + 1500;
+    };
+
+    VoiceWsAudio.prototype.startCapture = function (onFrame) {
+        var self = this;
+        return navigator.mediaDevices.getUserMedia({
+            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+            video: false,
+        }).then(function (stream) {
+            self.stream = stream;
+            return self.resume();
+        }).then(function () {
+            self.source = self.ctx.createMediaStreamSource(self.stream);
+            var bufferSize = 4096;
+            self.processor = self.ctx.createScriptProcessor(bufferSize, 1, 1);
+            // 全双工：播报中持续上行，由服务端 VAD 打断
+            self.processor.onaudioprocess = function (ev) {
+                var input = ev.inputBuffer.getChannelData(0);
+                var resampled = resampleLinear(input, self.ctx.sampleRate, self.targetRate);
+                onFrame(floatToPCM16(resampled));
+            };
+            self.silentSink = self.ctx.createGain();
+            self.silentSink.gain.value = 0;
+            self.source.connect(self.processor);
+            self.processor.connect(self.silentSink);
+            self.silentSink.connect(self.ctx.destination);
+        });
+    };
+
+    VoiceWsAudio.prototype.enqueue = function (pcm, sampleRate) {
+        if (performance.now() < this.ignorePlaybackUntilMs) return;
+        var floats = pcm16ToFloat(pcm);
+        var ctxRate = this.ctx.sampleRate;
+        if (sampleRate > 0 && sampleRate !== ctxRate) {
+            floats = resampleLinear(floats, sampleRate, ctxRate);
+        }
+        var buf = this.ctx.createBuffer(1, floats.length, ctxRate);
+        buf.copyToChannel(floats, 0);
+        var src = this.ctx.createBufferSource();
+        src.buffer = buf;
+        src.connect(this.ctx.destination);
+        var now = this.ctx.currentTime;
+        if (this.nextTime < now) this.nextTime = now + 0.02;
+        src.start(this.nextTime);
+        this.nextTime += buf.duration;
+        this.activeSources.push(src);
+        var self = this;
+        src.onended = function () {
+            var i = self.activeSources.indexOf(src);
+            if (i >= 0) self.activeSources.splice(i, 1);
+        };
+        var aheadSec = Math.max(0, this.nextTime - this.ctx.currentTime);
+        this.playbackUntilMs = performance.now() + aheadSec * 1000 + 400;
+    };
+
+    VoiceWsAudio.prototype.close = function () {
+        this.flush();
+        if (this.processor) {
+            try { this.processor.disconnect(); } catch (_) {}
+            this.processor = null;
+        }
+        if (this.source) {
+            try { this.source.disconnect(); } catch (_) {}
+            this.source = null;
+        }
+        if (this.silentSink) {
+            try { this.silentSink.disconnect(); } catch (_) {}
+            this.silentSink = null;
+        }
+        if (this.stream) {
+            try { this.stream.getTracks().forEach(function (t) { t.stop(); }); } catch (_) {}
+            this.stream = null;
+        }
+        if (this.ctx) {
+            try { this.ctx.close(); } catch (_) {}
+        }
+        this.playbackUntilMs = 0;
+    };
 
     function inferApiBase(cfg) {
         if (cfg && cfg.apiBase) return String(cfg.apiBase).replace(/\/$/, '');
@@ -184,6 +362,77 @@
             if (m) return m[1].replace(/\/$/, '');
         }
         return '/api';
+    }
+
+    /** API mount prefix (e.g. /api), aligned with web/src/config/apiConfig.ts */
+    function apiMountFromApiBase(apiBase) {
+        var t = String(apiBase || '').trim() || '/api';
+        if (t.startsWith('https://') || t.startsWith('http://')) {
+            try {
+                var p = new URL(t).pathname.replace(/\/+$/, '');
+                return p || '/api';
+            } catch (_) {
+                return '/api';
+            }
+        }
+        if (t.startsWith('//') && typeof window !== 'undefined' && window.location) {
+            try {
+                var p2 = new URL(window.location.protocol + t).pathname.replace(/\/+$/, '');
+                return p2 || '/api';
+            } catch (_) {
+                return '/api';
+            }
+        }
+        if (t.startsWith('/')) {
+            var norm = t.replace(/\/+$/, '');
+            return norm || '/api';
+        }
+        if (t === 'api' || t.indexOf('api/') === 0) {
+            return ('/' + t).replace(/\/+$/, '') || '/api';
+        }
+        return '/api';
+    }
+
+    /** WebSocket origin (no path), e.g. wss://host:port */
+    function deriveWsOriginFromApiBase(apiBase, cfg) {
+        if (cfg && cfg.wsBase) {
+            return String(cfg.wsBase).replace(/\/+$/, '');
+        }
+        var t = String(apiBase || '').trim() || '/api';
+        if (t.startsWith('https://')) {
+            var u = new URL(t);
+            var port = u.port ? ':' + u.port : '';
+            return 'wss://' + u.hostname + port;
+        }
+        if (t.startsWith('http://')) {
+            var u2 = new URL(t);
+            var port2 = u2.port ? ':' + u2.port : '';
+            return 'ws://' + u2.hostname + port2;
+        }
+        if (t.startsWith('//') && typeof window !== 'undefined' && window.location) {
+            var u3 = new URL(window.location.protocol + t);
+            var port3 = u3.port ? ':' + u3.port : '';
+            var scheme = u3.protocol === 'https:' ? 'wss' : 'ws';
+            return scheme + '://' + u3.hostname + port3;
+        }
+        if (typeof window !== 'undefined' && window.location && window.location.host) {
+            var secure = window.location.protocol === 'https:';
+            return (secure ? 'wss' : 'ws') + '://' + window.location.host;
+        }
+        return 'ws://localhost';
+    }
+
+    /**
+     * Build WS URL under the same API mount as REST (avoids wss://host/api + wrong path on HTTPS dev proxy).
+     * resourcePath: e.g. lingecho/voice-session/v1/ws (no query).
+     */
+    function buildApiWebSocketURL(apiBase, resourcePath, cfg) {
+        var mount = apiMountFromApiBase(apiBase);
+        var origin = deriveWsOriginFromApiBase(apiBase, cfg);
+        var rel = String(resourcePath || '').trim().replace(/^\/+/, '');
+        var path = mount + '/' + rel;
+        path = path.replace(/\/{2,}/g, '/');
+        return origin + path;
     }
 
     function parseHotkey(spec) {
@@ -450,6 +699,10 @@
         this._menuStatBtn = null;
         this.textSessionId = null;
         this.voiceSessionId = null;
+        this.voiceSampleRate = 16000;
+        this.voiceWsPath = 'lingecho/voice-session/v1/ws';
+        this.ws = null;
+        this.voiceAudio = null;
         this.pc = null;
         this.dc = null;
         this.localStream = null;
@@ -559,15 +812,30 @@
                 self.closeTalk();
             }
         });
+        // Prefer pointerdown over click: desktop-pet click-through can drop the
+        // trailing `click` after mouseup when ignore-mouse-events flips back on.
+        function bindTalkAction(btn, run) {
+            var fired = false;
+            function go(e) {
+                if (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+                if (fired) return;
+                fired = true;
+                setTimeout(function () { fired = false; }, 400);
+                run();
+            }
+            btn.addEventListener('pointerdown', go);
+            btn.addEventListener('click', go);
+            return btn;
+        }
         return el('div', { className: 'll-talk' }, [
             input,
             el('div', { className: 'll-talk-actions' }, [
-                el('button', { type: 'button', text: '取消', onClick: function () { self.closeTalk(); } }),
-                el('button', {
-                    type: 'button',
-                    className: 'primary',
-                    text: '发送',
-                    onClick: function () { self.submitTalk(); },
+                bindTalkAction(el('button', { type: 'button', text: '取消' }), function () { self.closeTalk(); }),
+                bindTalkAction(el('button', { type: 'button', className: 'primary', text: '发送' }), function () {
+                    self.submitTalk();
                 }),
             ]),
         ]);
@@ -754,8 +1022,13 @@
     Pet.prototype.submitTalk = function () {
         var text = (this.talkInput && this.talkInput.value || '').trim();
         this.closeTalk();
-        if (!text) return;
-        this.ask(text);
+        if (!text) {
+            petLog('info', 'text submit ignored: empty');
+            return;
+        }
+        petLog('info', 'text submit', { len: text.length, busy: !!this.busy, hasLlm: this.hasLlm() });
+        // User-initiated: do not silently drop when an animation holds `busy`.
+        this.ask(text, { force: true });
     };
 
     Pet.prototype.toggleStats = function () {
@@ -869,7 +1142,13 @@
         var self = this;
         if (!self.hasLlm()) return Promise.reject(new Error('no llm config'));
         if (self.textSessionId) return Promise.resolve(self.textSessionId);
-        return fetchJSON(self.apiBase + '/lingecho/dialog/v1/conversations', {
+        var url = self.apiBase + '/lingecho/dialog/v1/conversations';
+        petLog('info', 'text session create', {
+            url: url,
+            assistantId: String(self.cfg.assistantId || '').slice(0, 12),
+            hasKey: !!(self.cfg.apiKey || self.cfg.token),
+        });
+        return fetchJSON(url, {
             method: 'POST',
             headers: self.authHeaders(false),
             body: JSON.stringify({
@@ -881,6 +1160,7 @@
                 throw new Error((body && body.msg) || '会话创建失败');
             }
             self.textSessionId = body.data.id;
+            petLog('info', 'text session ok', { id: self.textSessionId });
             return self.textSessionId;
         });
     };
@@ -903,24 +1183,40 @@
     Pet.prototype.ask = function (userText, opts) {
         var self = this;
         opts = opts || {};
+        var textLen = String(userText || '').trim().length;
         if (!self.hasLlm()) {
+            petLog('warn', 'text ask skipped: missing apiBase/assistantId', {
+                apiBase: !!self.apiBase,
+                assistantId: String(self.cfg.assistantId || '').slice(0, 12),
+            });
             self.say(pick(LINES.noLlm), 3200);
             self.playThenIdle('ignore');
             return Promise.resolve(null);
         }
-        if (self.busy && !opts.force) return Promise.resolve(null);
+        if (self.busy && !opts.force) {
+            petLog('warn', 'text ask skipped: busy', { mode: opts.mode || 'chat', textLen: textLen });
+            self.say('等我动完…', 1600);
+            return Promise.resolve(null);
+        }
         self.pauseWander();
         if (self.sleeping && !opts.allowSleep) self.wake();
         self.busy = true;
         self.say(pick(LINES.thinking), 5000);
         self.player.play('zen', { loop: true, force: true });
+        petLog('info', 'text ask start', {
+            mode: opts.mode || 'chat',
+            textLen: textLen,
+            sessionId: self.textSessionId || null,
+        });
 
         var payload = (opts.raw ? '' : self.buildContextPrefix(opts.mode || 'chat') + '\n主人说：') + String(userText || '').trim();
 
         return self.ensureTextSession()
             .then(function (sid) {
+                var msgUrl = self.apiBase + '/lingecho/dialog/v1/conversations/' + encodeURIComponent(sid) + '/messages';
+                petLog('info', 'text message post', { url: msgUrl, sessionId: sid, payloadLen: payload.length });
                 return fetchJSON(
-                    self.apiBase + '/lingecho/dialog/v1/conversations/' + encodeURIComponent(sid) + '/messages',
+                    msgUrl,
                     {
                         method: 'POST',
                         headers: self.authHeaders(false),
@@ -932,16 +1228,28 @@
             .then(function (body) {
                 self.busy = false;
                 self._lastChatAt = now();
-                if ((body.code === 200 || body.code === 0) && body.data && body.data.reply) {
-                    self.reactToReply(body.data.reply);
-                    return body.data.reply;
+                var reply = body && body.data && body.data.reply;
+                if ((body.code === 200 || body.code === 0) && reply != null && String(reply).trim()) {
+                    petLog('info', 'text reply ok', {
+                        code: body.code,
+                        replyLen: String(reply).length,
+                        latencyMs: body.data && body.data.latencyMs,
+                    });
+                    self.reactToReply(String(reply));
+                    return String(reply);
                 }
+                petLog('warn', 'text reply empty/fail', {
+                    code: body && body.code,
+                    msg: body && body.msg,
+                    hasData: !!(body && body.data),
+                });
                 self.say((body && body.msg) || '脑子卡住了…', 2800);
                 self.playThenIdle('sulk', { mood: -2 });
                 return null;
             })
             .catch(function (err) {
                 self.busy = false;
+                petLog('error', 'text ask failed: ' + ((err && err.message) || String(err)));
                 self.say((err && err.message) || '连不上脑子', 2800);
                 self.playThenIdle('ignore', { mood: -1 });
                 return null;
@@ -949,7 +1257,7 @@
     };
 
     Pet.prototype.talk = function (text) {
-        return this.ask(text);
+        return this.ask(text, { force: true });
     };
 
     Pet.prototype.proactiveChat = function () {
@@ -965,7 +1273,77 @@
         self.ask(prompt, { mode: 'proactive', force: true });
     };
 
-    /* ---------------- Voice (WebRTC + hotkey) ---------------- */
+    /* ---------------- Voice (WebSocket PCM + hotkey) ---------------- */
+
+    Pet.prototype.voiceTransport = function () {
+        // Desktop pet / lanlan: always WebSocket PCM. Do not follow cfg.transport=webrtc
+        // (that flag is for default embed.js); mis-config was hitting /webrtc/offer.
+        return 'websocket';
+    };
+
+    Pet.prototype.buildVoiceWsURL = function (sessionId) {
+        var path = this.voiceWsPath || 'lingecho/voice-session/v1/ws';
+        var url = buildApiWebSocketURL(this.apiBase, path, this.cfg);
+        var q = 'session_id=' + encodeURIComponent(sessionId);
+        if (this.cfg.apiKey) {
+            var key = String(this.cfg.apiKey).trim();
+            q += '&api_key=' + encodeURIComponent(key);
+            // 与控制台一致：API Key 也可走 ?token=（middleware 会识别 lingechox_ 前缀）
+            q += '&token=' + encodeURIComponent(key);
+        } else if (this.cfg.token) {
+            q += '&token=' + encodeURIComponent(this.cfg.token);
+        }
+        return url + (url.indexOf('?') >= 0 ? '&' : '?') + q;
+    };
+
+    Pet.prototype.maskWsURLForLog = function (url) {
+        return String(url || '').replace(/(api_key|token)=[^&]+/gi, '$1=***');
+    };
+
+    Pet.prototype.handleVoiceWireFrame = function (fr) {
+        var self = this;
+        if (!fr || !fr.type) return;
+        if (fr.type === 'hello' && fr.sampleRateHz) {
+            self.voiceSampleRate = fr.sampleRateHz;
+            return;
+        }
+        if (fr.type === 'pcm' && fr.data && self.voiceAudio) {
+            try {
+                var raw = decodeBase64PCM(fr.data);
+                var pcm = new Int16Array(raw.buffer, raw.byteOffset, raw.byteLength / 2);
+                self.voiceAudio.enqueue(pcm, fr.sampleRateHz || self.voiceSampleRate);
+            } catch (_) {}
+            return;
+        }
+        if (fr.type === 'transcript.user' && fr.text) {
+            self.say('你：' + fr.text, 2200);
+        } else if (fr.type === 'transcript.assistant' && fr.text) {
+            self.reactToReply(fr.text);
+        } else if (fr.type === 'abort') {
+            if (self.voiceAudio) self.voiceAudio.flush();
+        } else if (fr.type === 'error') {
+            self.say(fr.message || '语音异常', 2600);
+        }
+    };
+
+    Pet.prototype.bindVoiceDataChannel = function (dc) {
+        var self = this;
+        if (self.dc && self.dc !== dc) {
+            try { self.dc.close(); } catch (_) {}
+        }
+        self.dc = dc;
+        dc.binaryType = 'arraybuffer';
+        dc.onmessage = function (ev) {
+            var fr = null;
+            try {
+                if (typeof ev.data === 'string') fr = JSON.parse(ev.data);
+                else if (ev.data && ev.data.byteLength != null) {
+                    fr = JSON.parse(new TextDecoder().decode(ev.data));
+                }
+            } catch (_) { return; }
+            self.handleVoiceWireFrame(fr);
+        };
+    };
 
     Pet.prototype.setListeningUI = function (on) {
         this.listening = !!on;
@@ -982,6 +1360,14 @@
     Pet.prototype.cleanupVoice = function () {
         var self = this;
         self.setListeningUI(false);
+        if (self.ws) {
+            try { self.ws.close(1000, 'stop'); } catch (_) {}
+            self.ws = null;
+        }
+        if (self.voiceAudio) {
+            try { self.voiceAudio.close(); } catch (_) {}
+            self.voiceAudio = null;
+        }
         if (self.dc) {
             try { self.dc.close(); } catch (_) {}
             self.dc = null;
@@ -1010,51 +1396,11 @@
         }
     };
 
-    Pet.prototype.bindVoiceChannel = function (dc) {
+    Pet.prototype.startVoiceWebRTC = function () {
         var self = this;
-        if (self.dc && self.dc !== dc) {
-            try { self.dc.close(); } catch (_) {}
-        }
-        self.dc = dc;
-        dc.binaryType = 'arraybuffer';
-        dc.onmessage = function (ev) {
-            var fr = null;
-            try {
-                if (typeof ev.data === 'string') fr = JSON.parse(ev.data);
-                else if (ev.data && ev.data.byteLength != null) {
-                    fr = JSON.parse(new TextDecoder().decode(ev.data));
-                }
-            } catch (_) { return; }
-            if (!fr || !fr.type) return;
-            if (fr.type === 'transcript.user' && fr.text) {
-                self.say('你：' + fr.text, 2200);
-            } else if (fr.type === 'transcript.assistant' && fr.text) {
-                self.reactToReply(fr.text);
-            } else if (fr.type === 'error') {
-                self.say(fr.message || '语音异常', 2600);
-            }
-        };
-    };
-
-    Pet.prototype.startVoice = function () {
-        var self = this;
-        if (!self.hasLlm()) {
-            self.say(pick(LINES.noLlm), 3000);
-            return Promise.resolve(false);
-        }
-        if (self.listening) return Promise.resolve(true);
         if (typeof RTCPeerConnection === 'undefined') {
-            self.say('当前环境不支持 WebRTC 语音', 3000);
-            return Promise.resolve(false);
+            throw new Error('当前环境不支持 WebRTC 语音');
         }
-        self.pauseWander();
-        self.closeMenu();
-        self.closeTalk();
-        if (self.sleeping) self.wake();
-        self.busy = true;
-        self.say(pick(LINES.listen), 2400);
-        self.player.play('shy', { loop: false, force: true });
-
         return fetchJSON(self.apiBase + '/lingecho/voice-session/v1/sessions', {
             method: 'POST',
             headers: self.authHeaders(false),
@@ -1072,9 +1418,9 @@
                 var pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
                 self.pc = pc;
                 pc.ondatachannel = function (ev) {
-                    if (ev.channel && ev.channel.label === 'dialog') self.bindVoiceChannel(ev.channel);
+                    if (ev.channel && ev.channel.label === 'dialog') self.bindVoiceDataChannel(ev.channel);
                 };
-                self.bindVoiceChannel(pc.createDataChannel('dialog', { ordered: true }));
+                self.bindVoiceDataChannel(pc.createDataChannel('dialog', { ordered: true }));
 
                 var audio = document.createElement('audio');
                 audio.autoplay = true;
@@ -1130,17 +1476,161 @@
                     throw new Error((body && body.msg) || 'WebRTC 协商失败');
                 }
                 return self.pc.setRemoteDescription({ type: 'answer', sdp: body.data.sdp });
+            });
+    };
+
+    Pet.prototype.startVoiceWebSocket = function () {
+        var self = this;
+        var sampleRate = 16000;
+        if (typeof WebSocket === 'undefined') {
+            throw new Error('当前环境不支持 WebSocket');
+        }
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            throw new Error('无法访问麦克风');
+        }
+        if (!(window.AudioContext || window.webkitAudioContext)) {
+            throw new Error('当前环境不支持 Web Audio');
+        }
+
+        return fetchJSON(self.apiBase + '/lingecho/voice-session/v1/sessions', {
+            method: 'POST',
+            headers: self.authHeaders(false),
+            body: JSON.stringify({
+                transport: 'websocket',
+                assistantId: String(self.cfg.assistantId || ''),
+                sampleRateHz: sampleRate,
+            }),
+        }, 30000)
+            .then(function (body) {
+                if (!body || (body.code !== 200 && body.code !== 0) || !body.data) {
+                    throw new Error((body && body.msg) || '语音会话失败');
+                }
+                self.voiceSessionId = body.data.sessionId;
+                if (body.data.sampleRateHz) self.voiceSampleRate = body.data.sampleRateHz;
+                if (body.data.webSocketPath) self.voiceWsPath = String(body.data.webSocketPath);
+                var audio = new VoiceWsAudio(self.voiceSampleRate || sampleRate);
+                self.voiceAudio = audio;
+                return audio.resume().then(function () { return audio; });
             })
+            .then(function (audio) {
+                return new Promise(function (resolve, reject) {
+                    var wsUrl = self.buildVoiceWsURL(self.voiceSessionId);
+                    var opened = false;
+                    var settled = false;
+                    function fail(msg) {
+                        if (settled) return;
+                        settled = true;
+                        reject(new Error(msg));
+                    }
+                    var ws;
+                    try {
+                        ws = new WebSocket(wsUrl);
+                    } catch (e) {
+                        fail((e && e.message) || 'WebSocket URL 无效');
+                        return;
+                    }
+                    ws.binaryType = 'arraybuffer';
+                    self.ws = ws;
+
+                    ws.onopen = function () {
+                        opened = true;
+                        audio.startCapture(function (pcm) {
+                            if (ws.readyState !== WebSocket.OPEN) return;
+                            try {
+                                ws.send(pcm16ToBytes(pcm));
+                            } catch (_) {}
+                        }).then(function () {
+                            if (!settled) {
+                                settled = true;
+                                resolve();
+                            }
+                        }).catch(function (e) {
+                            fail((e && e.message) || '麦克风不可用');
+                        });
+                    };
+
+                    ws.onmessage = function (ev) {
+                        var payload = ev.data;
+                        if (payload instanceof ArrayBuffer) {
+                            if (self.voiceAudio) {
+                                self.voiceAudio.enqueue(decodeBinaryPCM(payload), self.voiceSampleRate);
+                            }
+                            return;
+                        }
+                        if (payload && typeof payload === 'object' && payload.byteLength != null) {
+                            if (self.voiceAudio) {
+                                var u8 = new Uint8Array(payload.buffer, payload.byteOffset, payload.byteLength);
+                                self.voiceAudio.enqueue(
+                                    decodeBinaryPCM(u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength)),
+                                    self.voiceSampleRate,
+                                );
+                            }
+                            return;
+                        }
+                        try {
+                            self.handleVoiceWireFrame(JSON.parse(String(payload)));
+                        } catch (_) {}
+                    };
+
+                    ws.onerror = function () {
+                        if (!opened) {
+                            console.error('[Lanlan] WebSocket error:', self.maskWsURLForLog(wsUrl));
+                            fail('WebSocket 连接失败（常见：API Key 未含语音会话权限、网关未转发 WS、或 session 已过期）');
+                        }
+                    };
+
+                    ws.onclose = function (ev) {
+                        if (!opened && !settled) {
+                            var hint = ev.code === 1006 ? '（握手被拒或网络不可达）' : '';
+                            if (ev.code === 401 || ev.code === 403) {
+                                hint = '（鉴权或 API Key 路由权限不足）';
+                            }
+                            fail('WebSocket 已关闭 ' + (ev.code || '') + hint);
+                            return;
+                        }
+                        if (self.listening) {
+                            self.cleanupVoice();
+                            self.say('语音连接已断开', 2600);
+                            self.playIdle();
+                            self.scheduleWander();
+                        }
+                    };
+                });
+            });
+    };
+
+    Pet.prototype.startVoice = function () {
+        var self = this;
+        if (!self.hasLlm()) {
+            self.say(pick(LINES.noLlm), 3000);
+            return Promise.resolve(false);
+        }
+        if (self.listening) return Promise.resolve(true);
+        self.pauseWander();
+        self.closeMenu();
+        self.closeTalk();
+        if (self.sleeping) self.wake();
+        self.busy = true;
+        self.say(pick(LINES.listen), 2400);
+        self.player.play('shy', { loop: false, force: true });
+
+        petLog('info', 'voice start via WebSocket', {
+            apiBase: self.apiBase,
+            assistantId: String(self.cfg.assistantId || '').slice(0, 12),
+        });
+
+        return self.startVoiceWebSocket()
             .then(function () {
                 self.busy = false;
                 self.setListeningUI(true);
                 self.player.play('sway', { loop: true, force: true });
-                self.say('语音已开 · 再按 ' + (self.cfg.voiceHotkey || 'Alt+Shift+V') + ' 结束', 3200);
+                self.say('语音已开（WebSocket）· 再按 ' + (self.cfg.voiceHotkey || 'Alt+Shift+V') + ' 结束', 3200);
                 return true;
             })
             .catch(function (err) {
                 self.busy = false;
                 self.cleanupVoice();
+                petLog('error', 'voice start failed: ' + ((err && err.message) || String(err)));
                 self.say((err && err.message) || '语音开启失败', 3000);
                 self.playThenIdle('sulk');
                 return false;

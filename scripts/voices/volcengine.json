@@ -1,35 +1,763 @@
 {
   "provider": "volcengine",
-  "modes": ["tts"],
+  "modes": [
+    "tts"
+  ],
   "voiceField": "voiceType",
-  "docUrl": "https://www.volcengine.com/docs/6561/1257584",
-  "updatedAt": "2026-07-10",
+  "docUrl": "https://www.volcengine.com/docs/6561/97465",
+  "updatedAt": "2026-07-22",
   "voices": [
-    { "id": "BV700_streaming", "name": "BV700", "label": "BV700_streaming · 通用女声", "gender": "female", "locale": "zh-CN", "category": "通用" },
-    { "id": "BV700_V2_streaming", "name": "BV700 V2", "label": "BV700_V2_streaming · 通用女声 V2", "gender": "female", "locale": "zh-CN", "category": "通用" },
-    { "id": "BV701_streaming", "name": "BV701", "label": "BV701_streaming · 通用男声", "gender": "male", "locale": "zh-CN", "category": "通用" },
-    { "id": "BV001_streaming", "name": "BV001", "label": "BV001_streaming · 通用女声", "gender": "female", "locale": "zh-CN", "category": "通用" },
-    { "id": "BV002_streaming", "name": "BV002", "label": "BV002_streaming · 通用男声", "gender": "male", "locale": "zh-CN", "category": "通用" },
-    { "id": "BV005_streaming", "name": "BV005", "label": "BV005_streaming · 活泼女声", "gender": "female", "locale": "zh-CN", "category": "通用" },
-    { "id": "BV007_streaming", "name": "BV007", "label": "BV007_streaming · 亲切女声", "gender": "female", "locale": "zh-CN", "category": "通用" },
-    { "id": "BV025_streaming", "name": "BV025", "label": "BV025_streaming · 甜美台妹", "gender": "female", "locale": "zh-TW", "category": "方言" },
-    { "id": "BV040_streaming", "name": "BV040", "label": "BV040_streaming · 亲切女声", "gender": "female", "locale": "zh-CN", "category": "通用" },
-    { "id": "BV051_streaming", "name": "BV051", "label": "BV051_streaming · 知性女声", "gender": "female", "locale": "zh-CN", "category": "通用" },
-    { "id": "BV056_streaming", "name": "BV056", "label": "BV056_streaming · 阳光男声", "gender": "male", "locale": "zh-CN", "category": "通用" },
-    { "id": "BV063_streaming", "name": "BV063", "label": "BV063_streaming · 青年男声", "gender": "male", "locale": "zh-CN", "category": "通用" },
-    { "id": "BV100_streaming", "name": "BV100", "label": "BV100_streaming · 温柔女声", "gender": "female", "locale": "zh-CN", "category": "情感" },
-    { "id": "BV102_streaming", "name": "BV102", "label": "BV102_streaming · 儒雅男声", "gender": "male", "locale": "zh-CN", "category": "情感" },
-    { "id": "BV103_streaming", "name": "BV103", "label": "BV103_streaming · 磁性男声", "gender": "male", "locale": "zh-CN", "category": "情感" },
-    { "id": "BV104_streaming", "name": "BV104", "label": "BV104_streaming · 温柔女声", "gender": "female", "locale": "zh-CN", "category": "情感" },
-    { "id": "BV107_streaming", "name": "BV107", "label": "BV107_streaming · 新闻女声", "gender": "female", "locale": "zh-CN", "category": "新闻" },
-    { "id": "BV113_streaming", "name": "BV113", "label": "BV113_streaming · 甜美女声", "gender": "female", "locale": "zh-CN", "category": "情感" },
-    { "id": "BV115_streaming", "name": "BV115", "label": "BV115_streaming · 古风女声", "gender": "female", "locale": "zh-CN", "category": "情感" },
-    { "id": "BV119_streaming", "name": "BV119", "label": "BV119_streaming · 通用男声", "gender": "male", "locale": "zh-CN", "category": "通用" },
-    { "id": "BV120_streaming", "name": "BV120", "label": "BV120_streaming · 通用女声", "gender": "female", "locale": "zh-CN", "category": "通用" },
-    { "id": "BV213_streaming", "name": "BV213", "label": "BV213_streaming · 广西老表", "gender": "male", "locale": "zh-CN", "category": "方言" },
-    { "id": "BV403_streaming", "name": "BV403", "label": "BV403_streaming · 情感女声", "gender": "female", "locale": "zh-CN", "category": "情感" },
-    { "id": "BV405_streaming", "name": "BV405", "label": "BV405_streaming · 情感男声", "gender": "male", "locale": "zh-CN", "category": "情感" },
-    { "id": "BV406_streaming", "name": "BV406", "label": "BV406_streaming · 情感女声", "gender": "female", "locale": "zh-CN", "category": "情感" },
-    { "id": "BV407_streaming", "name": "BV407", "label": "BV407_streaming · 情感男声", "gender": "male", "locale": "zh-CN", "category": "情感" }
+    {
+      "id": "BV700_V2_streaming",
+      "name": "灿灿 2.0",
+      "label": "灿灿 2.0 · BV700_V2_streaming",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "通用场景"
+    },
+    {
+      "id": "BV705_streaming",
+      "name": "炀炀",
+      "label": "炀炀 · BV705_streaming",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "通用场景"
+    },
+    {
+      "id": "BV701_V2_streaming",
+      "name": "擎苍 2.0",
+      "label": "擎苍 2.0 · BV701_V2_streaming",
+      "gender": "male",
+      "locale": "zh-CN",
+      "category": "通用场景"
+    },
+    {
+      "id": "BV001_V2_streaming",
+      "name": "通用女声 2.0",
+      "label": "通用女声 2.0 · BV001_V2_streaming",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "通用场景"
+    },
+    {
+      "id": "BV700_streaming",
+      "name": "灿灿",
+      "label": "灿灿 · BV700_streaming",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "通用场景"
+    },
+    {
+      "id": "BV406_V2_streaming",
+      "name": "超自然音色-梓梓2.0",
+      "label": "超自然音色-梓梓2.0 · BV406_V2_streaming",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "通用场景"
+    },
+    {
+      "id": "BV406_streaming",
+      "name": "超自然音色-梓梓",
+      "label": "超自然音色-梓梓 · BV406_streaming",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "通用场景"
+    },
+    {
+      "id": "BV407_V2_streaming",
+      "name": "超自然音色-燃燃2.0",
+      "label": "超自然音色-燃燃2.0 · BV407_V2_streaming",
+      "gender": "male",
+      "locale": "zh-CN",
+      "category": "通用场景"
+    },
+    {
+      "id": "BV407_streaming",
+      "name": "超自然音色-燃燃",
+      "label": "超自然音色-燃燃 · BV407_streaming",
+      "gender": "male",
+      "locale": "zh-CN",
+      "category": "通用场景"
+    },
+    {
+      "id": "BV001_streaming",
+      "name": "通用女声",
+      "label": "通用女声 · BV001_streaming",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "通用场景"
+    },
+    {
+      "id": "BV002_streaming",
+      "name": "通用男声",
+      "label": "通用男声 · BV002_streaming",
+      "gender": "male",
+      "locale": "zh-CN",
+      "category": "通用场景"
+    },
+    {
+      "id": "BV701_streaming",
+      "name": "擎苍",
+      "label": "擎苍 · BV701_streaming",
+      "gender": "male",
+      "locale": "zh-CN",
+      "category": "有声阅读"
+    },
+    {
+      "id": "BV123_streaming",
+      "name": "阳光青年",
+      "label": "阳光青年 · BV123_streaming",
+      "gender": "male",
+      "locale": "zh-CN",
+      "category": "有声阅读"
+    },
+    {
+      "id": "BV120_streaming",
+      "name": "反卷青年",
+      "label": "反卷青年 · BV120_streaming",
+      "gender": "male",
+      "locale": "zh-CN",
+      "category": "有声阅读"
+    },
+    {
+      "id": "BV119_streaming",
+      "name": "通用赘婿",
+      "label": "通用赘婿 · BV119_streaming",
+      "gender": "male",
+      "locale": "zh-CN",
+      "category": "有声阅读"
+    },
+    {
+      "id": "BV115_streaming",
+      "name": "古风少御",
+      "label": "古风少御 · BV115_streaming",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "有声阅读"
+    },
+    {
+      "id": "BV107_streaming",
+      "name": "霸气青叔",
+      "label": "霸气青叔 · BV107_streaming",
+      "gender": "male",
+      "locale": "zh-CN",
+      "category": "有声阅读"
+    },
+    {
+      "id": "BV100_streaming",
+      "name": "质朴青年",
+      "label": "质朴青年 · BV100_streaming",
+      "gender": "male",
+      "locale": "zh-CN",
+      "category": "有声阅读"
+    },
+    {
+      "id": "BV104_streaming",
+      "name": "温柔淑女",
+      "label": "温柔淑女 · BV104_streaming",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "有声阅读"
+    },
+    {
+      "id": "BV004_streaming",
+      "name": "开朗青年",
+      "label": "开朗青年 · BV004_streaming",
+      "gender": "male",
+      "locale": "zh-CN",
+      "category": "有声阅读"
+    },
+    {
+      "id": "BV113_streaming",
+      "name": "甜宠少御",
+      "label": "甜宠少御 · BV113_streaming",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "有声阅读"
+    },
+    {
+      "id": "BV102_streaming",
+      "name": "儒雅青年",
+      "label": "儒雅青年 · BV102_streaming",
+      "gender": "male",
+      "locale": "zh-CN",
+      "category": "有声阅读"
+    },
+    {
+      "id": "BV405_streaming",
+      "name": "甜美小源",
+      "label": "甜美小源 · BV405_streaming",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "智能助手"
+    },
+    {
+      "id": "BV007_streaming",
+      "name": "亲切女声",
+      "label": "亲切女声 · BV007_streaming",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "智能助手"
+    },
+    {
+      "id": "BV009_streaming",
+      "name": "知性女声",
+      "label": "知性女声 · BV009_streaming",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "智能助手"
+    },
+    {
+      "id": "BV419_streaming",
+      "name": "诚诚",
+      "label": "诚诚 · BV419_streaming",
+      "gender": "male",
+      "locale": "zh-CN",
+      "category": "智能助手"
+    },
+    {
+      "id": "BV415_streaming",
+      "name": "童童",
+      "label": "童童 · BV415_streaming",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "智能助手"
+    },
+    {
+      "id": "BV008_streaming",
+      "name": "亲切男声",
+      "label": "亲切男声 · BV008_streaming",
+      "gender": "male",
+      "locale": "zh-CN",
+      "category": "智能助手"
+    },
+    {
+      "id": "BV408_streaming",
+      "name": "译制片男声",
+      "label": "译制片男声 · BV408_streaming",
+      "gender": "male",
+      "locale": "zh-CN",
+      "category": "视频配音"
+    },
+    {
+      "id": "BV426_streaming",
+      "name": "懒小羊",
+      "label": "懒小羊 · BV426_streaming",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "视频配音"
+    },
+    {
+      "id": "BV428_streaming",
+      "name": "清新文艺女声",
+      "label": "清新文艺女声 · BV428_streaming",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "视频配音"
+    },
+    {
+      "id": "BV403_streaming",
+      "name": "鸡汤女声",
+      "label": "鸡汤女声 · BV403_streaming",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "视频配音"
+    },
+    {
+      "id": "BV158_streaming",
+      "name": "智慧老者",
+      "label": "智慧老者 · BV158_streaming",
+      "gender": "male",
+      "locale": "zh-CN",
+      "category": "视频配音"
+    },
+    {
+      "id": "BV157_streaming",
+      "name": "慈爱姥姥",
+      "label": "慈爱姥姥 · BV157_streaming",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "视频配音"
+    },
+    {
+      "id": "BR001_streaming",
+      "name": "说唱小哥",
+      "label": "说唱小哥 · BR001_streaming",
+      "gender": "male",
+      "locale": "zh-CN",
+      "category": "视频配音"
+    },
+    {
+      "id": "BV410_streaming",
+      "name": "活力解说男",
+      "label": "活力解说男 · BV410_streaming",
+      "gender": "male",
+      "locale": "zh-CN",
+      "category": "视频配音"
+    },
+    {
+      "id": "BV411_streaming",
+      "name": "影视解说小帅",
+      "label": "影视解说小帅 · BV411_streaming",
+      "gender": "male",
+      "locale": "zh-CN",
+      "category": "视频配音"
+    },
+    {
+      "id": "BV437_streaming",
+      "name": "解说小帅-多情感",
+      "label": "解说小帅-多情感 · BV437_streaming",
+      "gender": "male",
+      "locale": "zh-CN",
+      "category": "视频配音"
+    },
+    {
+      "id": "BV412_streaming",
+      "name": "影视解说小美",
+      "label": "影视解说小美 · BV412_streaming",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "视频配音"
+    },
+    {
+      "id": "BV159_streaming",
+      "name": "纨绔青年",
+      "label": "纨绔青年 · BV159_streaming",
+      "gender": "male",
+      "locale": "zh-CN",
+      "category": "视频配音"
+    },
+    {
+      "id": "BV418_streaming",
+      "name": "直播一姐",
+      "label": "直播一姐 · BV418_streaming",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "视频配音"
+    },
+    {
+      "id": "BV142_streaming",
+      "name": "沉稳解说男",
+      "label": "沉稳解说男 · BV142_streaming",
+      "gender": "male",
+      "locale": "zh-CN",
+      "category": "视频配音"
+    },
+    {
+      "id": "BV143_streaming",
+      "name": "潇洒青年",
+      "label": "潇洒青年 · BV143_streaming",
+      "gender": "male",
+      "locale": "zh-CN",
+      "category": "视频配音"
+    },
+    {
+      "id": "BV056_streaming",
+      "name": "阳光男声",
+      "label": "阳光男声 · BV056_streaming",
+      "gender": "male",
+      "locale": "zh-CN",
+      "category": "视频配音"
+    },
+    {
+      "id": "BV005_streaming",
+      "name": "活泼女声",
+      "label": "活泼女声 · BV005_streaming",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "视频配音"
+    },
+    {
+      "id": "BV064_streaming",
+      "name": "小萝莉",
+      "label": "小萝莉 · BV064_streaming",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "视频配音"
+    },
+    {
+      "id": "BV051_streaming",
+      "name": "奶气萌娃",
+      "label": "奶气萌娃 · BV051_streaming",
+      "gender": "male",
+      "locale": "zh-CN",
+      "category": "特色音色"
+    },
+    {
+      "id": "BV063_streaming",
+      "name": "动漫海绵",
+      "label": "动漫海绵 · BV063_streaming",
+      "gender": "male",
+      "locale": "zh-CN",
+      "category": "特色音色"
+    },
+    {
+      "id": "BV417_streaming",
+      "name": "动漫海星",
+      "label": "动漫海星 · BV417_streaming",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "特色音色"
+    },
+    {
+      "id": "BV050_streaming",
+      "name": "动漫小新",
+      "label": "动漫小新 · BV050_streaming",
+      "gender": "male",
+      "locale": "zh-CN",
+      "category": "特色音色"
+    },
+    {
+      "id": "BV061_streaming",
+      "name": "天才童声",
+      "label": "天才童声 · BV061_streaming",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "特色音色"
+    },
+    {
+      "id": "BV401_streaming",
+      "name": "促销男声",
+      "label": "促销男声 · BV401_streaming",
+      "gender": "male",
+      "locale": "zh-CN",
+      "category": "广告配音"
+    },
+    {
+      "id": "BV402_streaming",
+      "name": "促销女声",
+      "label": "促销女声 · BV402_streaming",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "广告配音"
+    },
+    {
+      "id": "BV006_streaming",
+      "name": "磁性男声",
+      "label": "磁性男声 · BV006_streaming",
+      "gender": "male",
+      "locale": "zh-CN",
+      "category": "广告配音"
+    },
+    {
+      "id": "BV011_streaming",
+      "name": "新闻女声",
+      "label": "新闻女声 · BV011_streaming",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "新闻播报"
+    },
+    {
+      "id": "BV012_streaming",
+      "name": "新闻男声",
+      "label": "新闻男声 · BV012_streaming",
+      "gender": "male",
+      "locale": "zh-CN",
+      "category": "新闻播报"
+    },
+    {
+      "id": "BV034_streaming",
+      "name": "知性姐姐-双语",
+      "label": "知性姐姐-双语 · BV034_streaming",
+      "gender": "female",
+      "locale": "zh-CN",
+      "category": "教育场景"
+    },
+    {
+      "id": "BV033_streaming",
+      "name": "温柔小哥",
+      "label": "温柔小哥 · BV033_streaming",
+      "gender": "male",
+      "locale": "zh-CN",
+      "category": "教育场景"
+    },
+    {
+      "id": "BV511_streaming",
+      "name": "慵懒女声-Ava",
+      "label": "慵懒女声-Ava · BV511_streaming",
+      "gender": "female",
+      "locale": "en-US",
+      "category": "多语种"
+    },
+    {
+      "id": "BV505_streaming",
+      "name": "议论女声-Alicia",
+      "label": "议论女声-Alicia · BV505_streaming",
+      "gender": "female",
+      "locale": "en-US",
+      "category": "多语种"
+    },
+    {
+      "id": "BV138_streaming",
+      "name": "情感女声-Lawrence",
+      "label": "情感女声-Lawrence · BV138_streaming",
+      "gender": "female",
+      "locale": "en-US",
+      "category": "多语种"
+    },
+    {
+      "id": "BV027_streaming",
+      "name": "美式女声-Amelia",
+      "label": "美式女声-Amelia · BV027_streaming",
+      "gender": "female",
+      "locale": "en-US",
+      "category": "多语种"
+    },
+    {
+      "id": "BV502_streaming",
+      "name": "讲述女声-Amanda",
+      "label": "讲述女声-Amanda · BV502_streaming",
+      "gender": "female",
+      "locale": "en-US",
+      "category": "多语种"
+    },
+    {
+      "id": "BV503_streaming",
+      "name": "活力女声-Ariana",
+      "label": "活力女声-Ariana · BV503_streaming",
+      "gender": "female",
+      "locale": "en-US",
+      "category": "多语种"
+    },
+    {
+      "id": "BV504_streaming",
+      "name": "活力男声-Jackson",
+      "label": "活力男声-Jackson · BV504_streaming",
+      "gender": "male",
+      "locale": "en-US",
+      "category": "多语种"
+    },
+    {
+      "id": "BV421_streaming",
+      "name": "天才少女",
+      "label": "天才少女 · BV421_streaming",
+      "gender": "female",
+      "locale": "en-US",
+      "category": "多语种"
+    },
+    {
+      "id": "BV702_streaming",
+      "name": "Stefan",
+      "label": "Stefan · BV702_streaming",
+      "gender": "male",
+      "locale": "en-US",
+      "category": "多语种"
+    },
+    {
+      "id": "BV506_streaming",
+      "name": "天真萌娃-Lily",
+      "label": "天真萌娃-Lily · BV506_streaming",
+      "gender": "female",
+      "locale": "en-US",
+      "category": "多语种"
+    },
+    {
+      "id": "BV040_streaming",
+      "name": "亲切女声-Anna",
+      "label": "亲切女声-Anna · BV040_streaming",
+      "gender": "female",
+      "locale": "en-GB",
+      "category": "多语种"
+    },
+    {
+      "id": "BV516_streaming",
+      "name": "澳洲男声-Henry",
+      "label": "澳洲男声-Henry · BV516_streaming",
+      "gender": "male",
+      "locale": "en-AU",
+      "category": "多语种"
+    },
+    {
+      "id": "BV520_streaming",
+      "name": "元气少女",
+      "label": "元气少女 · BV520_streaming",
+      "gender": "female",
+      "locale": "ja-JP",
+      "category": "多语种"
+    },
+    {
+      "id": "BV521_streaming",
+      "name": "萌系少女",
+      "label": "萌系少女 · BV521_streaming",
+      "gender": "female",
+      "locale": "ja-JP",
+      "category": "多语种"
+    },
+    {
+      "id": "BV522_streaming",
+      "name": "气质女声",
+      "label": "气质女声 · BV522_streaming",
+      "gender": "female",
+      "locale": "ja-JP",
+      "category": "多语种"
+    },
+    {
+      "id": "BV524_streaming",
+      "name": "日语男声",
+      "label": "日语男声 · BV524_streaming",
+      "gender": "male",
+      "locale": "ja-JP",
+      "category": "多语种"
+    },
+    {
+      "id": "BV531_streaming",
+      "name": "活力男声Carlos（巴西地区）",
+      "label": "活力男声Carlos（巴西地区） · BV531_streaming",
+      "gender": "male",
+      "locale": "pt-BR",
+      "category": "多语种"
+    },
+    {
+      "id": "BV530_streaming",
+      "name": "活力女声（巴西地区）",
+      "label": "活力女声（巴西地区） · BV530_streaming",
+      "gender": "female",
+      "locale": "pt-BR",
+      "category": "多语种"
+    },
+    {
+      "id": "BV065_streaming",
+      "name": "气质御姐（墨西哥地区）",
+      "label": "气质御姐（墨西哥地区） · BV065_streaming",
+      "gender": "female",
+      "locale": "es-MX",
+      "category": "多语种"
+    },
+    {
+      "id": "BV021_streaming",
+      "name": "东北老铁",
+      "label": "东北老铁 · BV021_streaming",
+      "gender": "male",
+      "locale": "zh-CN-northeast",
+      "category": "方言"
+    },
+    {
+      "id": "BV020_streaming",
+      "name": "东北丫头",
+      "label": "东北丫头 · BV020_streaming",
+      "gender": "female",
+      "locale": "zh-CN-northeast",
+      "category": "方言"
+    },
+    {
+      "id": "BV704_streaming",
+      "name": "方言灿灿",
+      "label": "方言灿灿 · BV704_streaming",
+      "gender": "female",
+      "locale": "zh-CN-northeast",
+      "category": "方言"
+    },
+    {
+      "id": "BV210_streaming",
+      "name": "西安佟掌柜",
+      "label": "西安佟掌柜 · BV210_streaming",
+      "gender": "male",
+      "locale": "zh-CN-xian",
+      "category": "方言"
+    },
+    {
+      "id": "BV217_streaming",
+      "name": "沪上阿姐",
+      "label": "沪上阿姐 · BV217_streaming",
+      "gender": "female",
+      "locale": "zh-CN-shanghai",
+      "category": "方言"
+    },
+    {
+      "id": "BV213_streaming",
+      "name": "广西表哥",
+      "label": "广西表哥 · BV213_streaming",
+      "gender": "male",
+      "locale": "zh-CN-guangxi",
+      "category": "方言"
+    },
+    {
+      "id": "BV025_streaming",
+      "name": "甜美台妹",
+      "label": "甜美台妹 · BV025_streaming",
+      "gender": "female",
+      "locale": "zh-TW",
+      "category": "方言"
+    },
+    {
+      "id": "BV227_streaming",
+      "name": "台普男声",
+      "label": "台普男声 · BV227_streaming",
+      "gender": "male",
+      "locale": "zh-TW",
+      "category": "方言"
+    },
+    {
+      "id": "BV026_streaming",
+      "name": "港剧男神",
+      "label": "港剧男神 · BV026_streaming",
+      "gender": "male",
+      "locale": "zh-HK",
+      "category": "方言"
+    },
+    {
+      "id": "BV424_streaming",
+      "name": "广东女仔",
+      "label": "广东女仔 · BV424_streaming",
+      "gender": "female",
+      "locale": "zh-HK",
+      "category": "方言"
+    },
+    {
+      "id": "BV212_streaming",
+      "name": "相声演员",
+      "label": "相声演员 · BV212_streaming",
+      "gender": "male",
+      "locale": "zh-CN-tianjin",
+      "category": "方言"
+    },
+    {
+      "id": "BV019_streaming",
+      "name": "重庆小伙",
+      "label": "重庆小伙 · BV019_streaming",
+      "gender": "male",
+      "locale": "zh-CN-sichuan",
+      "category": "方言"
+    },
+    {
+      "id": "BV221_streaming",
+      "name": "四川甜妹儿",
+      "label": "四川甜妹儿 · BV221_streaming",
+      "gender": "female",
+      "locale": "zh-CN-sichuan",
+      "category": "方言"
+    },
+    {
+      "id": "BV423_streaming",
+      "name": "重庆幺妹儿",
+      "label": "重庆幺妹儿 · BV423_streaming",
+      "gender": "female",
+      "locale": "zh-CN-sichuan",
+      "category": "方言"
+    },
+    {
+      "id": "BV214_streaming",
+      "name": "乡村企业家",
+      "label": "乡村企业家 · BV214_streaming",
+      "gender": "male",
+      "locale": "zh-CN-zhengzhou",
+      "category": "方言"
+    },
+    {
+      "id": "BV226_streaming",
+      "name": "湖南妹坨",
+      "label": "湖南妹坨 · BV226_streaming",
+      "gender": "female",
+      "locale": "zh-CN-hunan",
+      "category": "方言"
+    },
+    {
+      "id": "BV216_streaming",
+      "name": "长沙靓女",
+      "label": "长沙靓女 · BV216_streaming",
+      "gender": "female",
+      "locale": "zh-CN-changsha",
+      "category": "方言"
+    }
   ]
 }
