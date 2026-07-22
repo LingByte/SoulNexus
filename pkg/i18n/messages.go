@@ -85,6 +85,7 @@ const (
 	KeyCredAIConfigRequired = "credential.ai_config_required"
 	KeyCredPlatformKindForbidden = "credential.platform_kind_forbidden"
 	KeyCredPlatformNoCapacity      = "credential.platform_no_capacity"
+	KeyCredRequiredForDebug        = "credential.required_for_debug"
 	KeyCredPermEmptyArray   = "credential.permission_empty"
 	KeyCredAllowIPRequired  = "credential.allow_ip_required"
 	KeyCredAllowIPEmpty     = "credential.allow_ip_empty"

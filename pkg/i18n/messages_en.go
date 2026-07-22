@@ -74,6 +74,7 @@ var enUS = map[string]string{
 	KeyCredAIConfigRequired: "At least one of llmConfig, asrConfig, ttsConfig, or realtimeConfig is required for a user API key",
 	KeyCredPlatformKindForbidden: "Platform-managed API keys can only be created by a platform administrator for this tenant",
 	KeyCredPlatformNoCapacity:    "Platform-managed keys require at least one active AI provider pool grant for this tenant",
+	KeyCredRequiredForDebug:     "Debug sessions require an API key (credentialId)",
 	KeyCredAllowIPRequired:  "allowIp is required (comma-separated IPs); set CREDENTIAL_ALLOW_EMPTY_ALLOW_IP=true for dev only",
 	KeyCredPermEmptyArray:   "permissionCodes cannot be an empty array",
 	KeyCredAllowIPEmpty:     "allowIp cannot be empty",

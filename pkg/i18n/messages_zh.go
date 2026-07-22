@@ -75,6 +75,7 @@ var zhCN = map[string]string{
 	KeyCredAIConfigRequired: "用户自定义密钥至少需要配置 llmConfig、asrConfig、ttsConfig 或 realtimeConfig 中的一项",
 	KeyCredPlatformKindForbidden: "平台托管密钥只能由系统管理员在租户管理中签发",
 	KeyCredPlatformNoCapacity:    "平台托管密钥需管理员为本租户分配至少一条已启用的 AI 号池配额",
+	KeyCredRequiredForDebug:     "调试会话必须选择 API Key（credentialId）",
 	KeyCredAllowIPRequired:  "allowIp 必填（逗号分隔客户端 IP）；开发环境可设 CREDENTIAL_ALLOW_EMPTY_ALLOW_IP=true",
 	KeyCredPermEmptyArray:   "permissionCodes 不能为空数组",
 	KeyCredAllowIPEmpty:     "allowIp 不能为空",
