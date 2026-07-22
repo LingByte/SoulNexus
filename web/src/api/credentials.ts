@@ -105,3 +105,21 @@ export async function enableCredential(id: CredentialId | number): Promise<ApiRe
 export async function deleteCredential(id: CredentialId | number): Promise<ApiResponse<{ id: CredentialId }>> {
   return del(`/credentials/${idPath(id)}`)
 }
+
+export interface CredentialLLMTestResult {
+  provider: string
+  model: string
+  prompt: string
+  reply: string
+  firstTokenMs?: number
+  wallMs?: number
+  ok?: boolean
+}
+
+export async function testCredentialLLMStream(body: {
+  prompt?: string
+  credentialId?: string
+  llmConfig?: Record<string, unknown>
+}): Promise<ApiResponse<CredentialLLMTestResult>> {
+  return post('/credentials/llm-test', body)
+}
