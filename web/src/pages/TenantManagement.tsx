@@ -207,33 +207,45 @@ export default function TenantManagement() {
         }
       />
 
-      <Modal
+      <Drawer
         title={t('tenantManagement.modalCreate')}
-        style={{ width: 520 }}
+        width={480}
         visible={createOpen}
         onCancel={() => setCreateOpen(false)}
-        onOk={async () => {
-          try {
-            const v = await createForm.validate()
-            const r = await createTenantPlatform({
-              companyName: String(v.companyName || '').trim(),
-              adminEmail: String(v.adminEmail || '').trim(),
-              adminPassword: String(v.adminPassword || ''),
-              adminDisplayName: String(v.adminDisplayName || '').trim(),
-              tenantDescription: String(v.tenantDescription || '').trim(),
-              maxUserCount: Number(v.maxUserCount) || 5,
-            })
-            if (r.code !== 200) {
-              showAlert(r.msg || t('tenantManagement.createFailed'), 'error')
-              return
-            }
-            showAlert(t('tenantManagement.createSuccess'), 'success')
-            setCreateOpen(false)
-            await load()
-          } catch {
-            /* validate */
-          }
-        }}
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button type="outline" onClick={() => setCreateOpen(false)}>
+              {t('common.cancel')}
+            </Button>
+            <Button
+              type="primary"
+              onClick={async () => {
+                try {
+                  const v = await createForm.validate()
+                  const r = await createTenantPlatform({
+                    companyName: String(v.companyName || '').trim(),
+                    adminEmail: String(v.adminEmail || '').trim(),
+                    adminPassword: String(v.adminPassword || ''),
+                    adminDisplayName: String(v.adminDisplayName || '').trim(),
+                    tenantDescription: String(v.tenantDescription || '').trim(),
+                    maxUserCount: Number(v.maxUserCount) || 5,
+                  })
+                  if (r.code !== 200) {
+                    showAlert(r.msg || t('tenantManagement.createFailed'), 'error')
+                    return
+                  }
+                  showAlert(t('tenantManagement.createSuccess'), 'success')
+                  setCreateOpen(false)
+                  await load()
+                } catch {
+                  /* validate */
+                }
+              }}
+            >
+              {t('common.create')}
+            </Button>
+          </div>
+        }
       >
         <Form form={createForm} layout="vertical">
           <FormItem label={t('tenantManagement.formCompany')} field="companyName" rules={[{ required: true }]}>
@@ -255,7 +267,7 @@ export default function TenantManagement() {
             <Input type="number" min={1} />
           </FormItem>
         </Form>
-      </Modal>
+      </Drawer>
 
       <Drawer
         title={t('tenantManagement.modalEdit')}
