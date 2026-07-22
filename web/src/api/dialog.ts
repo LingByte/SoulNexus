@@ -47,6 +47,7 @@ export async function createDialogConversation(body: {
   assistantId: string
   channel?: string
   externalUserId?: string
+  credentialId?: string
 }): Promise<ApiResponse<DialogConversation>> {
   return post(`${PREFIX}/conversations`, body)
 }

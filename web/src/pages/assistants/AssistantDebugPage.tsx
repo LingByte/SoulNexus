@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Descriptions, Modal, Slider, Tag, Typography, Drawer } from '@arco-design/web-react'
-import { Input } from '@/components/ui'
+import { Input, Select } from '@/components/ui'
 import { IconClose, IconHome, IconInfoCircle, IconMenu, IconPhone, IconRefresh, IconSend, IconUpload, IconUser } from '@arco-design/web-react/icon'
 import { Bot } from 'lucide-react'
 import BaseLayout from '@/components/Layout/BaseLayout'
 import { useSidebar } from '@/contexts/SidebarContext'
 import { getAssistant, type AssistantRow } from '@/api/assistants'
 import { listAssistantTools, mcpToolBindKey, type AssistantToolRow } from '@/api/assistantTools'
+import { listCredentials, type CredentialRow } from '@/api/credentials'
 import { listVoiceClones } from '@/api/voiceClone'
 import {
   buildVoiceSessionWebSocketURL,
@@ -184,6 +185,9 @@ export function AssistantDebugPanel({
   const [realtimeTemperature, setRealtimeTemperature] = useState(0.6)
   const [cloneVoiceIds, setCloneVoiceIds] = useState<Set<string>>(() => new Set())
   const [catalogTools, setCatalogTools] = useState<AssistantToolRow[]>([])
+  const [credentials, setCredentials] = useState<CredentialRow[]>([])
+  const [credentialId, setCredentialId] = useState('')
+  const [credsLoaded, setCredsLoaded] = useState(false)
 
   const wsRef = useRef<WebSocket | null>(null)
   const sessionIdRef = useRef('')
@@ -272,6 +276,58 @@ export function AssistantDebugPanel({
       .catch(() => setCatalogTools([]))
   }, [assistantId])
 
+  useEffect(() => {
+    let cancelled = false
+    setCredsLoaded(false)
+    void listCredentials({ status: 'active', page: 1, size: 100 })
+      .then((res) => {
+        if (cancelled) return
+        const list = res.code === 200 && res.data ? res.data.list || [] : []
+        setCredentials(list)
+        setCredsLoaded(true)
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCredentials([])
+          setCredsLoaded(true)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [assistantId])
+
+  useEffect(() => {
+    if (!credsLoaded || !assistant) return
+    setCredentialId((prev) => {
+      if (prev && credentials.some((c) => c.id === prev)) return prev
+      const bound = String(assistant.credentialId || '').trim()
+      if (bound && credentials.some((c) => c.id === bound)) return bound
+      return credentials[0]?.id || ''
+    })
+  }, [credsLoaded, assistant, credentials])
+
+  const selectedCredential = useMemo(
+    () => credentials.find((c) => c.id === credentialId) || null,
+    [credentials, credentialId],
+  )
+
+  const credentialOptions = useMemo(
+    () =>
+      credentials.map((c) => {
+        const kind =
+          c.kind === 'platform_bundle' || c.usesTenantAi
+            ? t('credentialAi.kindPlatform')
+            : t('credentialAi.kindUser')
+        const prefix = c.apiKeyPrefix || c.accessKey || ''
+        return {
+          value: c.id,
+          label: `${c.name || '—'} · ${prefix} · ${kind}`,
+        }
+      }),
+    [credentials, t],
+  )
+
   const [boundToolsOpen, setBoundToolsOpen] = useState(false)
 
   const boundToolLabels = useMemo(() => {
@@ -301,9 +357,13 @@ export function AssistantDebugPanel({
     return labels
   }, [assistant, catalogTools])
 
-  // 自动连接：助手加载完成后，自动以文本模式创建 dialog 会话
+  // 自动连接：助手与密钥就绪后，以文本模式创建 dialog 会话
   useEffect(() => {
-    if (initialized || !assistant || loading) return
+    if (initialized || !assistant || loading || !credsLoaded) return
+    if (!credentialId) {
+      setStatus(credentials.length === 0 ? t('assistant.debugCredentialEmpty') : t('assistant.debugCredentialRequired'))
+      return
+    }
     setInitialized(true)
     const autoStart = async () => {
       setTransport('text')
@@ -315,6 +375,7 @@ export function AssistantDebugPanel({
         const res = await createDialogConversation({
           assistantId,
           channel: 'debug',
+          credentialId,
         })
         if (!res.data?.id) throw new Error(res.msg || '创建会话失败')
         dialogConvIdRef.current = res.data.id
@@ -334,7 +395,7 @@ export function AssistantDebugPanel({
     }
     void autoStart()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assistant, loading])
+  }, [assistant, loading, credsLoaded, credentialId])
 
   const cleanup = useCallback(() => {
     const sid = sessionIdRef.current
@@ -557,6 +618,10 @@ export function AssistantDebugPanel({
 
   const connect = async () => {
     if (!assistantId || connecting || connected) return
+    if (!credentialId) {
+      showAlert(t('assistant.debugCredentialRequired'), 'error')
+      return
+    }
     if (sessionIdRef.current || dialogConvIdRef.current || wsRef.current || pcRef.current) {
       cleanup()
     }
@@ -570,6 +635,7 @@ export function AssistantDebugPanel({
         const res = await createDialogConversation({
           assistantId,
           channel: 'debug',
+          credentialId,
         })
         if (!res.data?.id) throw new Error(res.msg || '创建会话失败')
         dialogConvIdRef.current = res.data.id
@@ -580,7 +646,7 @@ export function AssistantDebugPanel({
       const res = await createVoiceSession({
         transport,
         assistantId,
-        credentialId: assistant?.credentialId,
+        credentialId,
         sampleRateHz: 16000,
         dialogMode: transport === 'websocket' ? (customDialogWs ? 'gateway' : 'engine') : undefined,
       })
@@ -847,6 +913,27 @@ export function AssistantDebugPanel({
               )
             })}
             </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-[11px] text-muted-foreground">{t('assistant.debugCredentialLabel')}</span>
+              <Select
+                style={{ width: '100%', maxWidth: 480 }}
+                placeholder={t('assistant.debugCredentialRequired')}
+                value={credentialId || undefined}
+                options={credentialOptions}
+                disabled={connected || connecting || credentials.length === 0}
+                onChange={(v) => setCredentialId(String(v || ''))}
+              />
+              <span className="text-[11px] text-muted-foreground">{t('assistant.debugCredentialHint')}</span>
+              {connected && selectedCredential ? (
+                <span className="text-[11px] text-foreground">
+                  {t('assistant.debugCredentialCurrent')}：
+                  {selectedCredential.name || '—'} · {selectedCredential.apiKeyPrefix || selectedCredential.accessKey || ''} ·{' '}
+                  {selectedCredential.kind === 'platform_bundle' || selectedCredential.usesTenantAi
+                    ? t('credentialAi.kindPlatform')
+                    : t('credentialAi.kindUser')}
+                </span>
+              ) : null}
+            </div>
             {transport === 'text' && voiceMode === 'realtime' && (
               <div className="flex items-center gap-3 text-xs text-muted-foreground">
                 <span className="shrink-0">温度 {realtimeTemperature.toFixed(1)}</span>
@@ -1091,6 +1178,7 @@ export function AssistantDebugPanel({
                   shape="round"
                   icon={<IconPhone />}
                   loading={connecting}
+                  disabled={!credentialId}
                   long
                   style={{ maxWidth: 280 }}
                   onClick={() => void connect()}
