@@ -67,6 +67,10 @@ export interface TenantVoiceProviders {
   voiceMode: 'pipeline' | 'realtime'
   ttsProvider: string
   realtimeProvider: string
+  source?: 'tenant' | 'pool'
+  ttsVoiceIds?: string[]
+  realtimeVoiceIds?: string[]
+  hasPoolGrant?: boolean
 }
 
 export async function getTenantVoiceProviders(
@@ -90,6 +94,7 @@ export async function previewVoice(body: {
   voiceId: string
   text?: string
   tenantId?: string
+  credentialId?: string
 }): Promise<ApiResponse<VoicePreviewResponse>> {
   return post('/voices/preview', body)
 }

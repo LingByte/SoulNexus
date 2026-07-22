@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Switch, Tabs, Tag, Typography, Alert } from '@arco-design/web-react'
-import { Input, Link } from '@/components/ui'
+import { Input, Link, Select } from '@/components/ui'
 import { Loading } from '@/components/ui/loading'
 import BaseLayout from '@/components/Layout/BaseLayout'
 import AssistantPageHeader from '@/pages/assistants/AssistantPageHeader'
@@ -55,6 +55,7 @@ import {
 } from '@/constants/assistantAdvancedConfig'
 import { getTenantVoiceProviders } from '@/api/voices'
 import { listVoiceClones, type VoiceCloneProfile } from '@/api/voiceClone'
+import { listCredentials, type CredentialRow } from '@/api/credentials'
 import { useAuthStore } from '@/stores/authStore'
 import { showAlert } from '@/utils/notification'
 import { useUnsavedLeaveGuard } from '@/hooks/useUnsavedLeaveGuard'
@@ -137,6 +138,12 @@ export default function AssistantManagerFormPage({
   const [cloneVoiceIds, setCloneVoiceIds] = useState<Set<string>>(() => new Set())
   const [tenantTtsProvider, setTenantTtsProvider] = useState('')
   const [tenantRealtimeProvider, setTenantRealtimeProvider] = useState('')
+  const [poolTtsVoiceIds, setPoolTtsVoiceIds] = useState<string[]>([])
+  const [poolRealtimeVoiceIds, setPoolRealtimeVoiceIds] = useState<string[]>([])
+  const [credentialId, setCredentialId] = useState('')
+  const [boundCredentialId, setBoundCredentialId] = useState('')
+  const [credentials, setCredentials] = useState<CredentialRow[]>([])
+  const [credsLoaded, setCredsLoaded] = useState(false)
   const [voiceDialogWsUrl, setVoiceDialogWsUrl] = useState('')
   const [boundJsTemplateSourceId, setBoundJsTemplateSourceId] = useState('')
   const [debugOpen, setDebugOpen] = useState(() => searchParams.get('debug') === '1')
@@ -164,12 +171,145 @@ export default function AssistantManagerFormPage({
     return tenantVoiceMode === 'realtime' ? realtimeVoice.trim() : tv
   }, [ttsVoice, realtimeVoice, tenantVoiceMode, selectedCloneProfile, cloneVoiceIds])
 
+  const selectedCredential = useMemo(
+    () => credentials.find((c) => String(c.id) === String(credentialId)) || null,
+    [credentials, credentialId],
+  )
+
+  const isPlatformCredential = Boolean(
+    selectedCredential &&
+      (selectedCredential.kind === 'platform_bundle' || selectedCredential.usesTenantAi),
+  )
+
+  // 音色目录跟「当前 API Key 对应的厂商」走：
+  // - 平台托管 Key → 号池厂商 / 号池绑定音色
+  // - 用户自定义 Key → 该 Key 自己的 TTS/Realtime provider（厂商不同则音色 ID 不可通用）
+  const voiceProvider = useMemo(() => {
+    if (selectedCredential && !isPlatformCredential) {
+      const cfg =
+        tenantVoiceMode === 'realtime'
+          ? selectedCredential.realtimeConfig
+          : selectedCredential.ttsConfig
+      const fromKey = String((cfg as { provider?: string } | null | undefined)?.provider || '')
+        .trim()
+        .toLowerCase()
+      if (fromKey) return fromKey
+    }
+    const fromTenant =
+      tenantVoiceMode === 'realtime' ? tenantRealtimeProvider : tenantTtsProvider
+    return (
+      fromTenant.trim() ||
+      defaultVoiceProvider(tenantVoiceMode === 'realtime' ? 'realtime' : 'tts')
+    )
+  }, [
+    selectedCredential,
+    isPlatformCredential,
+    tenantVoiceMode,
+    tenantTtsProvider,
+    tenantRealtimeProvider,
+  ])
+
+  const allowedVoiceIds = useMemo(() => {
+    // 用户 Key：展示该厂商完整目录（不做号池 allow-list）
+    if (selectedCredential && !isPlatformCredential) return undefined
+    const ids = tenantVoiceMode === 'realtime' ? poolRealtimeVoiceIds : poolTtsVoiceIds
+    return ids.length > 0 ? ids : undefined
+  }, [
+    selectedCredential,
+    isPlatformCredential,
+    tenantVoiceMode,
+    poolTtsVoiceIds,
+    poolRealtimeVoiceIds,
+  ])
+
+  const providerOfCredential = useCallback(
+    (cred: CredentialRow | null | undefined) => {
+      if (!cred) {
+        const fromTenant =
+          tenantVoiceMode === 'realtime' ? tenantRealtimeProvider : tenantTtsProvider
+        return (
+          fromTenant.trim() ||
+          defaultVoiceProvider(tenantVoiceMode === 'realtime' ? 'realtime' : 'tts')
+        )
+      }
+      const platform = cred.kind === 'platform_bundle' || cred.usesTenantAi
+      if (platform) {
+        const fromTenant =
+          tenantVoiceMode === 'realtime' ? tenantRealtimeProvider : tenantTtsProvider
+        return (
+          fromTenant.trim() ||
+          defaultVoiceProvider(tenantVoiceMode === 'realtime' ? 'realtime' : 'tts')
+        )
+      }
+      const cfg =
+        tenantVoiceMode === 'realtime' ? cred.realtimeConfig : cred.ttsConfig
+      const fromKey = String((cfg as { provider?: string } | null | undefined)?.provider || '')
+        .trim()
+        .toLowerCase()
+      return (
+        fromKey ||
+        defaultVoiceProvider(tenantVoiceMode === 'realtime' ? 'realtime' : 'tts')
+      )
+    },
+    [tenantVoiceMode, tenantTtsProvider, tenantRealtimeProvider],
+  )
+
+  const onCredentialChange = (nextId: string) => {
+    const next = String(nextId || '')
+    const prevProv = providerOfCredential(selectedCredential)
+    const nextCred = credentials.find((c) => String(c.id) === next) || null
+    const nextProv = providerOfCredential(nextCred)
+    setCredentialId(next)
+    if (prevProv && nextProv && prevProv !== nextProv) {
+      setTtsVoice('')
+      setRealtimeVoice('')
+      setSelectedCloneProfile(null)
+      showAlert(t('assistant.voiceClearedOnKeyChange'), 'warning')
+    }
+  }
+
   useEffect(() => {
     const fromAuth = authUser?.tenantVoiceMode
     if (!scopeTenantId && (fromAuth === 'realtime' || fromAuth === 'pipeline')) {
       setTenantVoiceMode(fromAuth)
     }
   }, [authUser?.tenantVoiceMode, scopeTenantId])
+
+  useEffect(() => {
+    let cancelled = false
+    setCredsLoaded(false)
+    void listCredentials({ page: 1, size: 100, status: 'active' })
+      .then((res) => {
+        if (cancelled) return
+        const list = res.code === 200 && res.data ? res.data.list || [] : []
+        setCredentials(list)
+        setCredsLoaded(true)
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCredentials([])
+          setCredsLoaded(true)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [effectiveTenantId])
+
+  // Prefer assistant-bound key; otherwise auto-pick the first active key.
+  useEffect(() => {
+    if (!credsLoaded) return
+    if (isEdit && loading) return
+    setCredentialId((prev) => {
+      const prevId = String(prev || '').trim()
+      if (prevId && credentials.some((c) => String(c.id) === prevId)) return prevId
+      const bound = String(boundCredentialId || '').trim()
+      if (bound && bound !== '0' && credentials.some((c) => String(c.id) === bound)) {
+        return bound
+      }
+      return String(credentials[0]?.id || '')
+    })
+  }, [credsLoaded, credentials, boundCredentialId, isEdit, loading])
 
   useEffect(() => {
     if (!effectiveTenantId) return
@@ -185,6 +325,10 @@ export default function AssistantManagerFormPage({
         setTenantVoiceMode(vm)
         setTenantTtsProvider(String(res.data.ttsProvider || defaultVoiceProvider('tts')))
         setTenantRealtimeProvider(String(res.data.realtimeProvider || defaultVoiceProvider('realtime')))
+        setPoolTtsVoiceIds(Array.isArray(res.data.ttsVoiceIds) ? res.data.ttsVoiceIds : [])
+        setPoolRealtimeVoiceIds(
+          Array.isArray(res.data.realtimeVoiceIds) ? res.data.realtimeVoiceIds : [],
+        )
       } catch {
         /* optional */
       }
@@ -348,6 +492,10 @@ export default function AssistantManagerFormPage({
         setMcpServers(mcpServersFromJSON(row.mcpServers))
         setTtsVoice(String(row.ttsVoice || ''))
         setRealtimeVoice(String(row.realtimeVoice || ''))
+        {
+          const bound = String(row.credentialId || '').trim()
+          setBoundCredentialId(bound && bound !== '0' ? bound : '')
+        }
         setVoiceDialogWsUrl(String(row.voiceDialogWsUrl || ''))
         setBoundJsTemplateSourceId(String(row.boundJsTemplateSourceId || ''))
         try {
@@ -398,6 +546,7 @@ export default function AssistantManagerFormPage({
     mcpServers: mcpServersToJSON(mcpServers),
     ttsVoice: ttsVoice.trim(),
     realtimeVoice: realtimeVoice.trim(),
+    credentialId: credentialId.trim() || '0',
     voiceDialogWsUrl: voiceDialogWsUrl.trim(),
     boundJsTemplateSourceId: boundJsTemplateSourceId.trim(),
     ...(scopeTenantId && !isEdit ? { tenantId: scopeTenantId } : {}),
@@ -406,7 +555,7 @@ export default function AssistantManagerFormPage({
   const formSig = useMemo(() => JSON.stringify({ body: buildBody(), voiceprintIds }), [
     name, scene, description, enabled, welcome, prompt, knowledgeNamespace, nluModelId,
     agent, vad, hotWords, interruption, audioTrack, audioProcess, queryRewriter, mcpServers,
-    ttsVoice, realtimeVoice, voiceDialogWsUrl, boundJsTemplateSourceId, scopeTenantId, isEdit,
+    ttsVoice, realtimeVoice, credentialId, voiceDialogWsUrl, boundJsTemplateSourceId, scopeTenantId, isEdit,
     voiceprintIds,
   ])
   const formDirty = !!baselineSig && formSig !== baselineSig
@@ -464,6 +613,14 @@ export default function AssistantManagerFormPage({
     }
     if (!name.trim()) return showAlert(t('common.nameRequired'), 'error')
     if (!prompt.trim()) return showAlert(t('common.promptRequired'), 'error')
+    if (!credentialId.trim() || credentialId === '0') {
+      return showAlert(t('assistant.credentialRequired'), 'error')
+    }
+    const voiceOk =
+      tenantVoiceMode === 'realtime' ? Boolean(realtimeVoice.trim()) : Boolean(ttsVoice.trim())
+    if (!voiceOk && !selectedCloneProfile) {
+      return showAlert(t('assistant.voiceRequired'), 'error')
+    }
 
     setSaving(true)
     try {
@@ -752,35 +909,60 @@ export default function AssistantManagerFormPage({
                               ? '火山声音复刻 TTS'
                               : '讯飞克隆 TTS'}
                           </strong>
-                          ；下方仍可切换租户预置音色。
+                          ；下方仍可切换当前密钥可用的预置音色。
                         </>
                       ) : (
-                        <>
-                          {t('assistant.voiceModeDetail')}
-                          {effectiveTenantId ? (
-                            <Link to={`/tenant-management/${effectiveTenantId}/ai`}>
-                              {t('assistant.voiceModeDetailLink')}
-                            </Link>
-                          ) : (
-                            t('assistant.voiceModeDetailFallback')
-                          )}
-                          {t('assistant.voiceModeDetailSuffix')}
-                          <strong>{t('assistant.voiceModeBold')}</strong>
-                          {t('assistant.voiceModeBoldSuffix')}
-                        </>
+                        t('assistant.voiceModeDetailSimple')
                       )}
                     </Typography.Paragraph>
                   </div>
                   <div className="rounded-xl border border-border bg-card p-5 space-y-3">
+                    <Typography.Text bold>{t('assistant.defaultCredentialLabel')}</Typography.Text>
+                    <Typography.Paragraph type="secondary" style={{ marginBottom: 0, fontSize: 13 }}>
+                      {t('assistant.defaultCredentialHint')}
+                    </Typography.Paragraph>
+                    <Select
+                      style={{ width: '100%', maxWidth: 480 }}
+                      placeholder={
+                        !credsLoaded
+                          ? '加载密钥…'
+                          : credentials.length === 0
+                            ? '暂无可用密钥'
+                            : t('assistant.defaultCredentialPlaceholder')
+                      }
+                      value={credentialId || undefined}
+                      allowClear={false}
+                      disabled={!credsLoaded || credentials.length === 0}
+                      options={credentials.map((c) => ({
+                        value: String(c.id),
+                        label: `${c.name || '—'} · ${c.apiKeyPrefix || c.accessKey || ''} · ${
+                          c.kind === 'platform_bundle' || c.usesTenantAi
+                            ? t('credentialAi.kindPlatform')
+                            : t('credentialAi.kindUser')
+                        }`,
+                      }))}
+                      onChange={(v) => onCredentialChange(String(v || ''))}
+                    />
+                    {credsLoaded && credentials.length === 0 ? (
+                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                        {t('assistant.defaultCredentialEmpty')}{' '}
+                        <Link to="/access-keys">{t('assistant.defaultCredentialManage')}</Link>
+                      </Typography.Text>
+                    ) : selectedCredential ? (
+                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                        {t('assistant.defaultCredentialCurrent')}：
+                        {selectedCredential.name || '—'} · 厂商 {voiceProvider}
+                      </Typography.Text>
+                    ) : null}
+                  </div>
+                  <div className="rounded-xl border border-border bg-card p-5 space-y-3">
                     <Typography.Text bold>{t('assistant.voiceSelectLabel')}</Typography.Text>
+                    <Typography.Paragraph type="secondary" style={{ marginBottom: 0, fontSize: 13 }}>
+                      {t('assistant.voiceSelectHint')}
+                    </Typography.Paragraph>
                     <AssistantVoiceFields
                       voiceMode={tenantVoiceMode}
-                      provider={
-                        (tenantVoiceMode === 'realtime'
-                          ? tenantRealtimeProvider
-                          : tenantTtsProvider
-                        ).trim() || defaultVoiceProvider(tenantVoiceMode === 'realtime' ? 'realtime' : 'tts')
-                      }
+                      provider={voiceProvider}
                       value={voicePickerValue}
                       setValue={(v) => {
                         if (cloneVoiceIds.has(v)) return
@@ -793,6 +975,8 @@ export default function AssistantManagerFormPage({
                         }
                       }}
                       tenantId={effectiveTenantId || undefined}
+                      credentialId={credentialId || undefined}
+                      allowedVoiceIds={allowedVoiceIds}
                       includeCloneVoices
                       onCloneVoiceSelect={(profile, voiceId) => {
                         setSelectedCloneProfile(profile)

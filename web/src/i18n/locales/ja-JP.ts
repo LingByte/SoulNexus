@@ -1591,7 +1591,22 @@ const jaJP = {
     voiceModeDetailSuffix: 'で一元管理されます（LLMはapiKey/baseUrl/modelのみ；システムプロンプトは上記「対話」タブ）。',
     voiceModeBold: '音色は下記で選択',
     voiceModeBoldSuffix: '、アシスタントごとに個別設定できます。',
+    voiceModeDetailSimple:
+      'アシスタントは API Key を1本だけバインドし、そのベンダーの音色を保存します。呼び出しはバインド Key の資格情報 + 本ページの音色です。',
     voiceSelectLabel: '音色',
+    voiceSelectHint:
+      '音色は上でバインドした API Key のベンダーに一致し、アシスタントに保存されます。別ベンダーへ付け替えるときは音色を選び直します。',
+    defaultCredentialLabel: 'バインド API Key',
+    defaultCredentialHint:
+      '必須。1アシスタント = 1 Key。ベンダー資格情報と音色はこの Key だけで解決します。',
+    defaultCredentialPlaceholder: 'バインドする Access Key を選択',
+    defaultCredentialEmpty: '利用可能なキーがありません。先に',
+    defaultCredentialManage: 'アクセスキー',
+    defaultCredentialCurrent: 'バインド済',
+    credentialRequired: '先に API Key をバインドしてください',
+    voiceRequired: '音色を選択してください',
+    voiceClearedOnKeyChange:
+      '別の TTS ベンダーの API Key に付け替えました。以前の音色をクリアしたので、再選択してください。',
     wsLabel: '音声対話 WebSocket',
     wsHint: '空白でプラットフォームデフォルトのループバックを使用。設定すると音声セッションとデバッグはこの外部対話エンドポイントに接続します（例：wss://your-host/dialog/ws）。',
     wsPlaceholder: 'wss://your-host/dialog/ws',

@@ -627,6 +627,8 @@ export function AssistantVoiceFields({
   value,
   setValue,
   tenantId,
+  credentialId,
+  allowedVoiceIds,
   includeCloneVoices,
   onCloneVoiceSelect,
 }: {
@@ -635,6 +637,8 @@ export function AssistantVoiceFields({
   value: string
   setValue: (v: string) => void
   tenantId?: string
+  credentialId?: string
+  allowedVoiceIds?: string[]
   includeCloneVoices?: boolean
   onCloneVoiceSelect?: (profile: import('@/api/voiceClone').VoiceCloneProfile | null, voiceId: string) => void
 }) {
@@ -645,6 +649,8 @@ export function AssistantVoiceFields({
       value={value}
       setValue={setValue}
       tenantId={tenantId}
+      credentialId={credentialId}
+      allowedVoiceIds={allowedVoiceIds}
       includeCloneVoices={includeCloneVoices}
       onCloneVoiceSelect={onCloneVoiceSelect}
     />

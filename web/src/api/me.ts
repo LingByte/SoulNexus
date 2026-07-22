@@ -89,8 +89,6 @@ export async function updateMyPassword(body: {
   return put<{ id: number }>('/me/password', body)
 }
 
-export { sendChangeEmailCode, sendMePasswordEmailCode } from '@/api/common'
-
 export async function changeMyEmail(body: { newEmail: string; emailCode: string }): Promise<ApiResponse<unknown>> {
   return put('/me/email', body)
 }

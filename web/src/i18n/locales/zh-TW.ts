@@ -1592,7 +1592,21 @@ const zhTW = {
     voiceModeDetailSuffix: '中統一維護（LLM 僅填 apiKey / baseUrl / model；系統提示詞在本頁「對話」Tab）。',
     voiceModeBold: '音色在本頁下方選擇',
     voiceModeBoldSuffix: '，每個智能體可獨立配置。',
+    voiceModeDetailSimple:
+      '一個助手綁定一把 API Key，並儲存該 Key 廠商下的音色。呼叫時用綁定 Key 的廠商憑證 + 本頁音色。',
     voiceSelectLabel: '音色',
+    voiceSelectHint:
+      '音色跟上方綁定的 API Key 廠商一致，儲存到本助手。換綁到不同廠商的 Key 時需重選音色。',
+    defaultCredentialLabel: '綁定 API Key',
+    defaultCredentialHint:
+      '必填。一助手一 Key：廠商憑證與音色都按這把 Key 解析，不支援多把 Key 共用同一助手音色。',
+    defaultCredentialPlaceholder: '選擇要綁定的 Access Key',
+    defaultCredentialEmpty: '還沒有可用金鑰，請先在',
+    defaultCredentialManage: '存取金鑰',
+    defaultCredentialCurrent: '已綁定',
+    credentialRequired: '請先綁定一把 API Key',
+    voiceRequired: '請選擇音色',
+    voiceClearedOnKeyChange: '已換綁到不同 TTS 廠商的 API Key，原音色已清空，請重新選擇。',
     wsLabel: '語音對話 WebSocket',
     wsHint: '留空則使用平臺默認 loopback；配置後語音會話與調試將連接此外部對話端（如 wss://your-host/dialog/ws）。',
     wsPlaceholder: 'wss://your-host/dialog/ws',

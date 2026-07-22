@@ -5,8 +5,6 @@ import { showAlert } from '@/utils/notification'
 import {
   changeMyEmail,
   requestAccountDeletion,
-  sendChangeEmailCode,
-  sendMePasswordEmailCode,
   updateMyPassword,
   disableTotp,
   enableTotp,
@@ -16,6 +14,7 @@ import {
   startGitHubBind,
   unbindGitHub,
 } from '@/api/me'
+import { sendChangeEmailCode, sendMePasswordEmailCode } from '@/api/common'
 import { useTranslation } from '@/i18n'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import { useNavigate } from 'react-router-dom'

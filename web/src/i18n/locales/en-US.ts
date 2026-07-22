@@ -1757,7 +1757,22 @@ const enUS = {
     voiceModeDetailSuffix: '(LLM only needs apiKey/baseUrl/model; system prompts are in the Dialog tab above).',
     voiceModeBold: 'Voice is selected below',
     voiceModeBoldSuffix: ', each assistant can be configured independently.',
+    voiceModeDetailSimple:
+      'Each assistant binds one API key and stores a voice for that key’s vendor. Calls use the bound key’s credentials + this voice.',
     voiceSelectLabel: 'Voice',
+    voiceSelectHint:
+      'Voice must match the bound API key’s vendor and is saved on this assistant. Re-bind to another vendor requires picking a new voice.',
+    defaultCredentialLabel: 'Bound API key',
+    defaultCredentialHint:
+      'Required. One assistant ↔ one key: vendor credentials and voice resolve from this key only.',
+    defaultCredentialPlaceholder: 'Select the Access Key to bind',
+    defaultCredentialEmpty: 'No keys yet. Create one under',
+    defaultCredentialManage: 'Access keys',
+    defaultCredentialCurrent: 'Bound',
+    credentialRequired: 'Please bind an API key',
+    voiceRequired: 'Please select a voice',
+    voiceClearedOnKeyChange:
+      'Rebound to an API key with a different TTS vendor. Previous voice cleared — select again.',
     wsLabel: 'Voice dialog WebSocket',
     wsHint: 'Leave empty for platform default loopback. Configure to connect to an external dialog endpoint (e.g. wss://your-host/dialog/ws).',
     wsPlaceholder: 'wss://your-host/dialog/ws',

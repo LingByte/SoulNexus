@@ -54,6 +54,10 @@ export type VoicePickerGridProps = {
   value: string
   setValue: (v: string) => void
   tenantId?: string
+  /** When set, preview synthesizes with this API key / 号池 grant. */
+  credentialId?: string
+  /** When non-empty, only these catalog voice ids are shown (号池绑定). */
+  allowedVoiceIds?: string[]
   /** When true, prepend tenant-trained clone voices (assistant editor). */
   includeCloneVoices?: boolean
   onCloneVoiceSelect?: (profile: VoiceCloneProfile | null, voiceId: string) => void
@@ -65,6 +69,8 @@ export default function VoicePickerGrid({
   value,
   setValue,
   tenantId,
+  credentialId,
+  allowedVoiceIds,
   includeCloneVoices = false,
   onCloneVoiceSelect,
 }: VoicePickerGridProps) {
@@ -81,11 +87,13 @@ export default function VoicePickerGrid({
   const [playingId, setPlayingId] = useState<string | null>(null)
   const [previewingId, setPreviewingId] = useState<string | null>(null)
   const mountedRef = useRef(true)
+  const previewSeqRef = useRef(0)
 
   useEffect(() => {
     mountedRef.current = true
     return () => {
       mountedRef.current = false
+      previewSeqRef.current += 1
       stopVoicePreview()
     }
   }, [])
@@ -151,8 +159,21 @@ export default function VoicePickerGrid({
     cloneProvider: c.provider,
   }))
 
-  const catalogOptions: PickerVoice[] =
-    isCloneProvider && !includeCloneVoices ? [] : options
+  const catalogOptions: PickerVoice[] = useMemo(() => {
+    const base = isCloneProvider && !includeCloneVoices ? [] : options
+    const allow = (allowedVoiceIds || []).map((id) => id.trim()).filter(Boolean)
+    if (allow.length === 0) return base
+    const allowSet = new Set(allow.map((id) => id.toLowerCase()))
+    const filtered = base.filter((v) => allowSet.has(v.id.trim().toLowerCase()))
+    // Keep explicitly bound ids even if catalog JSON is missing them
+    const have = new Set(filtered.map((v) => v.id.trim().toLowerCase()))
+    const extras: PickerVoice[] = []
+    for (const id of allow) {
+      if (have.has(id.toLowerCase())) continue
+      extras.push({ id, label: id, category: '号池绑定' })
+    }
+    return [...extras, ...filtered]
+  }, [options, isCloneProvider, includeCloneVoices, allowedVoiceIds])
 
   const mergedOptions: PickerVoice[] = [...cloneOptions, ...catalogOptions]
 
@@ -172,30 +193,37 @@ export default function VoicePickerGrid({
   const handlePreview = useCallback(
     async (voice: PickerVoice, e: React.MouseEvent) => {
       e.stopPropagation()
-      if (previewingId === voice.id) return
-      if (playingId === voice.id) {
+      if (previewingId === voice.id || playingId === voice.id) {
+        previewSeqRef.current += 1
         stopVoicePreview()
         setPlayingId(null)
+        setPreviewingId(null)
         return
       }
+      const seq = ++previewSeqRef.current
       stopVoicePreview()
+      setPlayingId(null)
       setPreviewingId(voice.id)
+      const stillCurrent = () => mountedRef.current && seq === previewSeqRef.current
       try {
         if (voice.cloneProfileId) {
           const cachedUrl = clonePreviewUrls[voice.id]?.trim() || voice.previewUrl?.trim()
           if (cachedUrl) {
+            if (!stillCurrent()) return
             setPlayingId(voice.id)
+            setPreviewingId(null)
             await playVoicePreviewUrl(cachedUrl)
-            if (mountedRef.current) setPlayingId(null)
+            if (stillCurrent()) setPlayingId(null)
             return
           }
           const res = await previewVoiceClone(voice.cloneProfileId, PREVIEW_TEXT)
-          if (!mountedRef.current) return
+          if (!stillCurrent()) return
           if (res.code !== 200 || !res.data) {
             showAlert(res.msg || '试听失败', 'error')
             return
           }
           setPlayingId(voice.id)
+          setPreviewingId(null)
           if (res.data.audioUrl) {
             setClonePreviewUrls((prev) => ({ ...prev, [voice.id]: res.data!.audioUrl! }))
             await playVoicePreviewUrl(res.data.audioUrl)
@@ -206,14 +234,16 @@ export default function VoicePickerGrid({
             setPlayingId(null)
             return
           }
-          if (mountedRef.current) setPlayingId(null)
+          if (stillCurrent()) setPlayingId(null)
           return
         }
         const cachedUrl = voice.previewUrl?.trim()
         if (cachedUrl) {
+          if (!stillCurrent()) return
           setPlayingId(voice.id)
+          setPreviewingId(null)
           await playVoicePreviewUrl(cachedUrl)
-          if (mountedRef.current) setPlayingId(null)
+          if (stillCurrent()) setPlayingId(null)
           return
         }
         const res = await previewVoice({
@@ -222,13 +252,15 @@ export default function VoicePickerGrid({
           voiceId: voice.id,
           text: PREVIEW_TEXT,
           tenantId,
+          credentialId,
         })
-        if (!mountedRef.current) return
+        if (!stillCurrent()) return
         if (res.code !== 200 || !res.data) {
           showAlert(res.msg || '试听失败', 'error')
           return
         }
         setPlayingId(voice.id)
+        setPreviewingId(null)
         if (res.data.audioUrl) {
           await playVoicePreviewUrl(res.data.audioUrl)
           if (!res.data.cached) {
@@ -243,17 +275,17 @@ export default function VoicePickerGrid({
           setPlayingId(null)
           return
         }
-        if (mountedRef.current) setPlayingId(null)
+        if (stillCurrent()) setPlayingId(null)
       } catch (err: unknown) {
-        if (mountedRef.current) {
+        if (stillCurrent()) {
           showAlert((err as { msg?: string })?.msg || '试听失败', 'error')
           setPlayingId(null)
         }
       } finally {
-        if (mountedRef.current) setPreviewingId(null)
+        if (stillCurrent()) setPreviewingId(null)
       }
     },
-    [catalogProvider, mode, tenantId, playingId, previewingId, clonePreviewUrls],
+    [catalogProvider, mode, tenantId, credentialId, playingId, previewingId, clonePreviewUrls],
   )
 
   if (catalogMissing && !includeCloneVoices && !isCloneProvider && mergedOptions.length === 0) {

@@ -1752,7 +1752,21 @@ const zhCN = {
     voiceModeDetailSuffix: '中统一维护（LLM 仅填 apiKey / baseUrl / model；系统提示词在本页「对话」Tab）。',
     voiceModeBold: '音色在本页下方选择',
     voiceModeBoldSuffix: '，每个智能体可独立配置。',
+    voiceModeDetailSimple:
+      '一个助手绑定一把 API Key，并保存该 Key 厂商下的音色。调用时用绑定 Key 的厂商凭证 + 本页音色。',
     voiceSelectLabel: '音色',
+    voiceSelectHint:
+      '音色跟上方绑定的 API Key 厂商一致，保存到本助手。换绑到不同厂商的 Key 时需重选音色。',
+    defaultCredentialLabel: '绑定 API Key',
+    defaultCredentialHint:
+      '必填。一助手一 Key：厂商凭证与音色都按这把 Key 解析，不支持多把 Key 共用同一助手音色。',
+    defaultCredentialPlaceholder: '选择要绑定的 Access Key',
+    defaultCredentialEmpty: '还没有可用密钥，请先在',
+    defaultCredentialManage: '访问密钥',
+    defaultCredentialCurrent: '已绑定',
+    credentialRequired: '请先绑定一把 API Key',
+    voiceRequired: '请选择音色',
+    voiceClearedOnKeyChange: '已换绑到不同 TTS 厂商的 API Key，原音色已清空，请重新选择。',
     wsLabel: '语音对话 WebSocket',
     wsHint: '留空则使用平台默认 loopback；配置后语音会话与调试将连接此外部对话端（如 wss://your-host/dialog/ws）。',
     wsPlaceholder: 'wss://your-host/dialog/ws',
