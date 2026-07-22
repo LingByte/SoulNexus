@@ -31,6 +31,7 @@ import CredentialAiBundleEditor, {
   emptyCredentialAiBundle,
   type CredentialAiBundleState,
 } from '@/components/credentials/CredentialAiBundleEditor'
+import PlatformCredentialLLMTest from '@/components/credentials/PlatformCredentialLLMTest'
 
 type NameExpiresForm = {
   name: string
@@ -329,19 +330,19 @@ const AccessKeys = ({ embedded = false }: { embedded?: boolean }) => {
           <Loading block tip={t('common.loading')} />
         ) : (
           <>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ minWidth: 960, width: '100%', fontSize: 13 }}>
+            <div className="w-full overflow-x-auto">
+              <table className="w-max min-w-full border-collapse text-sm" style={{ minWidth: 1280 }}>
                 <thead style={{ background: 'var(--color-fill-2)' }}>
                   <tr>
-                    <th style={{ textAlign: 'left', padding: 12 }}>{t('common.name')}</th>
-                    <th style={{ textAlign: 'left', padding: 12 }}>{t('credentialAi.keyKind')}</th>
-                    <th style={{ textAlign: 'left', padding: 12 }}>API Key</th>
-                    <th style={{ textAlign: 'left', padding: 12 }}>{t('common.status')}</th>
-                    <th style={{ textAlign: 'left', padding: 12 }}>{t('common.expireTime')}</th>
-                    <th style={{ textAlign: 'left', padding: 12 }}>{t('common.lastUsed')}</th>
-                    <th style={{ textAlign: 'right', padding: 12 }}>{t('common.requestCount')}</th>
-                    <th style={{ textAlign: 'left', padding: 12 }}>{t('common.createTime')}</th>
-                    <th style={{ textAlign: 'right', padding: 12 }}>{t('common.actions')}</th>
+                    <th className="whitespace-nowrap px-3 py-3 text-left">{t('common.name')}</th>
+                    <th className="whitespace-nowrap px-3 py-3 text-left">{t('credentialAi.keyKind')}</th>
+                    <th className="whitespace-nowrap px-3 py-3 text-left">API Key</th>
+                    <th className="whitespace-nowrap px-3 py-3 text-left">{t('common.status')}</th>
+                    <th className="whitespace-nowrap px-3 py-3 text-left">{t('common.expireTime')}</th>
+                    <th className="whitespace-nowrap px-3 py-3 text-left">{t('common.lastUsed')}</th>
+                    <th className="whitespace-nowrap px-3 py-3 text-right">{t('common.requestCount')}</th>
+                    <th className="whitespace-nowrap px-3 py-3 text-left">{t('common.createTime')}</th>
+                    <th className="whitespace-nowrap px-3 py-3 text-right">{t('common.actions')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -354,46 +355,40 @@ const AccessKeys = ({ embedded = false }: { embedded?: boolean }) => {
                   ) : (
                     rows.map((r) => (
                       <tr key={r.id} style={{ borderTop: '1px solid var(--color-border)' }}>
-                        <td style={{ padding: 12, maxWidth: 200 }}>
-                          <div style={{ fontWeight: 500 }}>{r.name || '—'}</div>
+                        <td className="max-w-[220px] whitespace-nowrap px-3 py-3">
+                          <div className="truncate font-medium">{r.name || '—'}</div>
                           {r.legacyHmac ? (
-                            <div style={{ fontSize: 12, color: 'var(--color-danger-6)' }}>{t('common.legacyAkskHint')}</div>
+                            <div className="text-xs text-[var(--color-danger-6)]">{t('common.legacyAkskHint')}</div>
                           ) : null}
                         </td>
-                        <td style={{ padding: 12 }}>
+                        <td className="whitespace-nowrap px-3 py-3">
                           <Tag>
                             {isPlatformKey(r) ? t('credentialAi.kindPlatform') : t('credentialAi.kindUser')}
                           </Tag>
                         </td>
                         <td
-                          style={{
-                            padding: 12,
-                            fontFamily: 'monospace',
-                            fontSize: 12,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                            maxWidth: 320,
-                          }}
+                          className="max-w-[360px] truncate whitespace-nowrap px-3 py-3 font-mono text-xs"
                           title={r.apiKeyPrefix || r.accessKey}
                         >
                           {r.apiKeyPrefix || r.accessKey || '—'}
                         </td>
-                        <td style={{ padding: 12 }}>
+                        <td className="whitespace-nowrap px-3 py-3">
                           <StatusTag status={r.status} expiresAt={r.expiresAt} />
                         </td>
-                        <td style={{ padding: 12, fontSize: 12, color: 'var(--color-text-3)' }}>
+                        <td className="whitespace-nowrap px-3 py-3 text-xs text-[var(--color-text-3)]">
                           {r.expiresAt ? fmtTime(r.expiresAt) : t('common.neverExpire')}
                         </td>
-                        <td style={{ padding: 12, fontSize: 12, color: 'var(--color-text-3)' }}>{fmtTime(r.lastUsedAt)}</td>
-                        <td style={{ padding: 12, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                        <td className="whitespace-nowrap px-3 py-3 text-xs text-[var(--color-text-3)]">
+                          {fmtTime(r.lastUsedAt)}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums">
                           {r.requestCount ?? 0}
                         </td>
-                        <td style={{ padding: 12, fontSize: 12, color: 'var(--color-text-3)' }}>
+                        <td className="whitespace-nowrap px-3 py-3 text-xs text-[var(--color-text-3)]">
                           {r.createdAt ? new Date(r.createdAt).toLocaleString() : '—'}
                         </td>
-                        <td style={{ padding: 12, textAlign: 'right' }}>
-                          <Space>
+                        <td className="whitespace-nowrap px-3 py-3 text-right">
+                          <div className="inline-flex flex-nowrap items-center gap-2">
                             <Button type="outline" size="small" onClick={() => openEdit(r)}>
                               {t('common.edit')}
                             </Button>
@@ -417,7 +412,7 @@ const AccessKeys = ({ embedded = false }: { embedded?: boolean }) => {
                             >
                               {t('common.delete')}
                             </Button>
-                          </Space>
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -620,11 +615,18 @@ const AccessKeys = ({ embedded = false }: { embedded?: boolean }) => {
             <Input value={editForm.name} onChange={(v) => setEditForm((f) => ({ ...f, name: v }))} />
           </div>
           {editIsPlatform ? (
-            <Typography.Paragraph type="secondary" style={{ margin: 0, fontSize: 12 }}>
-              {t('credentialAi.kindPlatformHint')}
-            </Typography.Paragraph>
+            <>
+              <Typography.Paragraph type="secondary" style={{ margin: 0, fontSize: 12 }}>
+                {t('credentialAi.kindPlatformHint')}
+              </Typography.Paragraph>
+              {editForm.id ? <PlatformCredentialLLMTest credentialId={editForm.id} /> : null}
+            </>
           ) : (
-            <CredentialAiBundleEditor value={editAiBundle} onChange={setEditAiBundle} />
+            <CredentialAiBundleEditor
+              value={editAiBundle}
+              onChange={setEditAiBundle}
+              credentialId={editForm.id || undefined}
+            />
           )}
           <div>
             <Typography.Text style={{ fontSize: 12 }}>{t('common.expireTimeEditLabel')}</Typography.Text>
