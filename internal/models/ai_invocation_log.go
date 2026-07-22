@@ -28,22 +28,9 @@ type AIInvocationRecord = callbinding.AIInvocationRecord
 
 // SetAIInvocationDB wires async persistence (call once at startup).
 func SetAIInvocationDB(gdb *gorm.DB) {
-	if gdb != nil {
-		_ = RepairAIInvocationLogNegativeIDs(gdb)
-	}
 	callbinding.SetAIInvocationRecorder(func(e callbinding.AIInvocationRecord) {
 		persistAIInvocation(gdb, e)
 	})
-}
-
-// RepairAIInvocationLogNegativeIDs clears the sign bit on snowflake IDs that were
-// written as signed SQLite INTEGER (unreadable into Go uint).
-func RepairAIInvocationLogNegativeIDs(db *gorm.DB) error {
-	if db == nil {
-		return nil
-	}
-	// 0x7FFFFFFFFFFFFFFF — keep value in signed int64 range for SQLite INTEGER ↔ uint.
-	return db.Exec(`UPDATE ai_invocation_logs SET id = (id & 9223372036854775807) WHERE id < 0`).Error
 }
 
 // RecordAIInvocation persists one entry asynchronously; no-op when DB is unset.
@@ -53,9 +40,9 @@ func RecordAIInvocation(e AIInvocationRecord) {
 
 // AIInvocationLog records one LLM / ASR / TTS / NLU call.
 type AIInvocationLog struct {
-	ID       uint   `gorm:"primaryKey;autoIncrement:false" json:"id,string"`
-	TenantID uint   `gorm:"index" json:"tenant_id,string"`
-	UserID   uint   `gorm:"index" json:"user_id,string"`
+	ID        uint   `gorm:"primaryKey;autoIncrement:false" json:"id,string"`
+	TenantID  uint   `gorm:"index" json:"tenant_id,string"`
+	UserID    uint   `gorm:"index" json:"user_id,string"`
 	Component string `gorm:"size:16;index" json:"component"`
 	Provider  string `gorm:"size:64;index" json:"provider"`
 	Model     string `gorm:"size:128" json:"model"`
@@ -89,9 +76,9 @@ type AIInvocationLog struct {
 
 // AIInvocationLogTenantView is returned to tenant users (no request/response bodies).
 type AIInvocationLogTenantView struct {
-	ID       uint   `json:"id,string"`
-	TenantID uint   `json:"tenant_id,string"`
-	UserID   uint   `json:"user_id,string"`
+	ID        uint   `json:"id,string"`
+	TenantID  uint   `json:"tenant_id,string"`
+	UserID    uint   `json:"user_id,string"`
 	Component string `json:"component"`
 	Provider  string `json:"provider"`
 	Model     string `json:"model"`

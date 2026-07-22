@@ -57,15 +57,6 @@ func SetupDatabase(logWriter io.Writer, opts *Options) (*gorm.DB, error) {
 
 	initPath := ResolveInitSQLPath(opts.InitSQLPath)
 
-	// Repair snowflake IDs that overflowed into signed INTEGER (SQLite/MySQL) and
-	// cannot be scanned into Go uint — must run before workers touch these rows.
-	if err := knmodels.RepairKnowledgeSnowflakeNegativeIDs(db); err != nil {
-		logger.Warn("repair knowledge snowflake ids failed", zap.Error(err))
-	}
-	if err := models.RepairAIInvocationLogNegativeIDs(db); err != nil {
-		logger.Warn("repair ai_invocation_logs snowflake ids failed", zap.Error(err))
-	}
-
 	// 2) Schema.
 	//    GORM AutoMigrate (models) is the single source of truth for the schema and runs
 	//    whenever schema setup is requested (-init or -automigrate). Goose then applies any

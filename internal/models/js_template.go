@@ -34,10 +34,13 @@ func (JSTemplate) TableName() string {
 	return constants2.JS_TEMPLATE_TABLE_NAME
 }
 
-// BeforeCreate assigns js_source_id when empty.
+// BeforeCreate assigns snowflake ID and js_source_id when empty.
 func (t *JSTemplate) BeforeCreate(tx *gorm.DB) error {
 	if t == nil {
 		return nil
+	}
+	if err := t.BaseModel.BeforeCreate(tx); err != nil {
+		return err
 	}
 	if strings.TrimSpace(t.Status) == "" {
 		t.Status = JSTemplateStatusActive

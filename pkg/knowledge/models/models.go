@@ -89,34 +89,6 @@ func (KnowledgeDocument) TableName() string {
 	return constants.KNOWLEDGE_DOCUMENT_TABLE_NAME
 }
 
-// RepairKnowledgeSnowflakeNegativeIDs clears the sign bit on snowflake IDs that were
-// written as signed SQLite/MySQL INTEGER (unreadable into Go uint).
-func RepairKnowledgeSnowflakeNegativeIDs(db *gorm.DB) error {
-	if db == nil {
-		return nil
-	}
-	const mask = int64(0x7FFFFFFFFFFFFFFF)
-	stmts := []string{
-		`UPDATE knowledge_documents SET id = (id & ?) WHERE id < 0`,
-		`UPDATE knowledge_chunks SET id = (id & ?) WHERE id < 0`,
-		`UPDATE knowledge_chunks SET doc_id = (doc_id & ?) WHERE doc_id < 0`,
-		`UPDATE knowledge_namespaces SET id = (id & ?) WHERE id < 0`,
-		`UPDATE knowledge_unanswered_questions SET id = (id & ?) WHERE id < 0`,
-		`UPDATE knowledge_answered_questions SET id = (id & ?) WHERE id < 0`,
-		`UPDATE knowledge_typical_questions SET id = (id & ?) WHERE id < 0`,
-		`UPDATE knowledge_sync_sources SET id = (id & ?) WHERE id < 0`,
-		`UPDATE knowledge_sync_sources SET document_id = (document_id & ?) WHERE document_id < 0`,
-		`UPDATE knowledge_eval_datasets SET id = (id & ?) WHERE id < 0`,
-	}
-	for _, stmt := range stmts {
-		if err := db.Exec(stmt, mask).Error; err != nil {
-			// Table may not exist yet on fresh installs; ignore.
-			continue
-		}
-	}
-	return nil
-}
-
 // GetKnowledgeDocumentByID loads one document by ID.
 func GetKnowledgeDocumentByID(db *gorm.DB, id uint) (KnowledgeDocument, error) {
 	var row KnowledgeDocument
