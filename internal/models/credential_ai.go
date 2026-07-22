@@ -16,6 +16,10 @@ func DefaultAIBundleRouteIDs() []string {
 		"voice.session.end",
 		"voice.session.webrtc",
 		"voice.session.ws",
+		"dialog.conversations.create",
+		"dialog.conversations.messages",
+		"dialog.conversations.messages.list",
+		"dialog.conversations.end",
 		"assistants.list",
 		"assistants.get",
 	})

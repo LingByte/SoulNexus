@@ -119,10 +119,12 @@ func (h *Handlers) createVoiceSession(c *gin.Context) {
 	credID := middleware.AuthCredentialID(c)
 	if credID == 0 {
 		credID = utils.ParseOptionalID(req.CredentialID)
-		if credID > 0 {
-			if _, err := models.GetCredentialByIDForTenant(h.db, credID, tenantID); ginutil.WriteGORMError(c, err, "credential not found") {
-				return
-			}
+		if credID == 0 {
+			response.Render(c, response.NewI18n(response.CodeBadRequest, i18n.KeyCredRequiredForDebug))
+			return
+		}
+		if _, err := models.GetCredentialByIDForTenant(h.db, credID, tenantID); ginutil.WriteGORMError(c, err, "credential not found") {
+			return
 		}
 	}
 	info, err := mgr.Create(session.CreateParams{
@@ -148,7 +150,7 @@ func (h *Handlers) createVoiceSession(c *gin.Context) {
 		if h.db != nil {
 			_ = models.RecordJSTemplateUsage(h.db, tenantID, jsSourceID, models.JSTemplateUsageSessionStart, info.SessionID, credID, middleware.AuthUserID(c))
 		}
-	} else if credID > 0 {
+	} else if middleware.AuthCredentialID(c) > 0 {
 		aiSource = "js_embed"
 	}
 	callbinding.SetAISource(info.SessionID, aiSource)

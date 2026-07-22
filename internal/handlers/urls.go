@@ -158,6 +158,7 @@ func (h *Handlers) registerCredentialRoutes(r *humax.Group) {
 	crWrite.Use(middleware.RequireTenantPermissionAll("api.credentials.write"))
 	{
 		crWrite.POST("", h.createCredential)
+		crWrite.POST("/llm-test", h.testCredentialLLMStream)
 		crWrite.PUT("/:id", h.updateCredential)
 		crWrite.POST("/:id/regenerate", h.regenerateCredential)
 		crWrite.POST("/:id/disable", h.disableCredential)

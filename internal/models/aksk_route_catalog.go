@@ -210,6 +210,12 @@ var AKSKRouteCatalog = []AKSKRouteCatalogEntry{
 	akskRoute("voice.session.end", "voice", "语音会话", "结束语音会话", "DELETE", "/lingecho/voice-session/v1/sessions/:sessionId", ""),
 	akskRoute("voice.session.webrtc", "voice", "语音会话", "WebRTC Offer", "POST", "/lingecho/voice-session/v1/webrtc/offer", ""),
 	akskRoute("voice.session.ws", "voice", "语音会话", "WebSocket 连接", "GET", "/lingecho/voice-session/v1/ws", ""),
+
+	// Dialog (text chat)
+	akskRoute("dialog.conversations.create", "dialog", "文本对话", "创建会话", "POST", "/lingecho/dialog/v1/conversations", ""),
+	akskRoute("dialog.conversations.messages", "dialog", "文本对话", "发送消息", "POST", "/lingecho/dialog/v1/conversations/:id/messages", ""),
+	akskRoute("dialog.conversations.messages.list", "dialog", "文本对话", "消息列表", "GET", "/lingecho/dialog/v1/conversations/:id/messages", ""),
+	akskRoute("dialog.conversations.end", "dialog", "文本对话", "结束会话", "POST", "/lingecho/dialog/v1/conversations/:id/end", ""),
 }
 
 var akskCatalogByID map[string]AKSKRouteCatalogEntry

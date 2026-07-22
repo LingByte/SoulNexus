@@ -73,9 +73,10 @@ func (h *Handlers) registerDialogProtectedRoutes(r *humax.Group) {
 }
 
 type createDialogConvReq struct {
-	AssistantID string `json:"assistantId"`
-	Channel     string `json:"channel"`
-	ExternalID  string `json:"externalUserId"`
+	AssistantID  string `json:"assistantId"`
+	Channel      string `json:"channel"`
+	ExternalID   string `json:"externalUserId"`
+	CredentialID string `json:"credentialId"`
 }
 
 func (h *Handlers) createDialogConversation(c *gin.Context) {
@@ -100,6 +101,23 @@ func (h *Handlers) createDialogConversation(c *gin.Context) {
 			ext = "user-" + op
 		}
 	}
+	credID := middleware.AuthCredentialID(c)
+	if credID == 0 {
+		credID = utils.ParseOptionalID(req.CredentialID)
+	}
+	if strings.EqualFold(ch, "debug") && middleware.AuthCredentialID(c) == 0 {
+		if credID == 0 {
+			response.Render(c, response.NewI18n(response.CodeBadRequest, i18n.KeyCredRequiredForDebug))
+			return
+		}
+		if _, err := models.GetCredentialByIDForTenant(h.db, credID, tid); ginutil.WriteGORMError(c, err, "credential not found") {
+			return
+		}
+	} else if credID > 0 && middleware.AuthCredentialID(c) == 0 {
+		if _, err := models.GetCredentialByIDForTenant(h.db, credID, tid); ginutil.WriteGORMError(c, err, "credential not found") {
+			return
+		}
+	}
 	svc := h.dialogChat()
 	conv, err := svc.EnsureConversation(c.Request.Context(), chat.EnsureParams{
 		TenantID:       tid,
@@ -113,6 +131,9 @@ func (h *Handlers) createDialogConversation(c *gin.Context) {
 	welcome := ""
 	callbinding.SetAssistantID(conv.CallKey(), conv.AssistantID)
 	callbinding.SetTenantID(conv.CallKey(), conv.TenantID)
+	if credID > 0 {
+		callbinding.SetCredentialID(conv.CallKey(), credID)
+	}
 	if env, ok, rErr := tenantcfg.Resolve(c.Request.Context(), tid, conv.CallKey()); rErr == nil && ok {
 		welcome = tenantcfg.ResolvedAssistantWelcome(env)
 	}
