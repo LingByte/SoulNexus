@@ -21,8 +21,14 @@ if (!gotTheLock) {
   app.quit()
 }
 
-let petWindow = null
+/** @type {Map<string, import('electron').BrowserWindow>} */
+const petWindows = new Map()
+/** @type {Map<number, string>} webContents.id -> petId */
+const webContentsPetId = new Map()
+/** @type {Map<number, string>} preview webContents.id -> petId */
+const previewWebContentsPetId = new Map()
 let settingsWindow = null
+let previewWindow = null
 let tray = null
 let codingHook = null
 let codingHookStarting = false
@@ -35,7 +41,7 @@ const desktopTidy = require('./desktop-tidy')
 const SETTINGS_DEV_URL = process.env.LINGECHO_SETTINGS_URL || 'http://127.0.0.1:5174'
 const isDev = !app.isPackaged && process.env.LINGECHO_SETTINGS_DEV === '1'
 
-const APP_NAME = 'SoulNexus Desktop'
+const APP_NAME = 'SoulMy'
 const APP_ID = 'com.soulnexus.desktop-pet'
 
 const DEFAULTS = {
@@ -56,6 +62,119 @@ const DEFAULTS = {
   voiceHotkey: 'Alt+Shift+V',
   talkHotkey: 'Alt+Shift+T',
   openAtLogin: false,
+  primaryPetId: '',
+  pets: [],
+}
+
+function newPetId() {
+  return 'pet_' + Math.random().toString(36).slice(2, 10)
+}
+
+function defaultPetEntry(overrides) {
+  return {
+    id: newPetId(),
+    name: DEFAULTS.title,
+    jsSourceId: DEFAULTS.jsSourceId,
+    enabled: true,
+    title: DEFAULTS.title,
+    position: DEFAULTS.position,
+    size: DEFAULTS.size,
+    autoWander: DEFAULTS.autoWander,
+    autoChat: DEFAULTS.autoChat,
+    watchCoding: DEFAULTS.watchCoding,
+    ...overrides,
+  }
+}
+
+function normalizePetsArray(cfg) {
+  if (Array.isArray(cfg.pets) && cfg.pets.length > 0) {
+    return cfg.pets.map((p) => ({
+      ...defaultPetEntry({}),
+      ...p,
+      id: String(p.id || newPetId()),
+      size: Math.max(96, Math.min(256, Number(p.size) || DEFAULTS.size)),
+      enabled: p.enabled !== false,
+    }))
+  }
+  return [
+    defaultPetEntry({
+      name: cfg.title || DEFAULTS.title,
+      title: cfg.title || DEFAULTS.title,
+      jsSourceId: String(cfg.jsSourceId || DEFAULTS.jsSourceId).trim() || DEFAULTS.jsSourceId,
+      position: cfg.position || DEFAULTS.position,
+      size: Math.max(96, Math.min(256, Number(cfg.size) || DEFAULTS.size)),
+      autoWander: cfg.autoWander !== false,
+      autoChat: cfg.autoChat !== false,
+      watchCoding: cfg.watchCoding !== false,
+    }),
+  ]
+}
+
+function buildRuntimeConfig(doc, petEntry, petIdHint) {
+  let p = petEntry
+  if (!p && petIdHint) {
+    p = doc.pets.find((x) => x.id === petIdHint)
+  }
+  if (!p) p = normalizePetsArray(doc)[0]
+  if (!p) {
+    p = defaultPetEntry({ jsSourceId: DEFAULTS.jsSourceId })
+  }
+  return {
+    serverBase: doc.serverBase,
+    jsSourceId: String(p.jsSourceId || '').trim() || DEFAULTS.jsSourceId,
+    assistantId: doc.assistantId,
+    apiKey: doc.apiKey,
+    transport: doc.transport,
+    title: p.title || p.name || DEFAULTS.title,
+    position: p.position || DEFAULTS.position,
+    primaryColor: doc.primaryColor,
+    size: Math.max(96, Math.min(256, Number(p.size) || DEFAULTS.size)),
+    autoWander: p.autoWander !== false,
+    autoChat: p.autoChat !== false,
+    watchCoding: p.watchCoding !== false,
+    voiceHotkey: doc.voiceHotkey,
+    talkHotkey: doc.talkHotkey,
+    openAtLogin: doc.openAtLogin,
+    petId: p.id,
+    petName: p.name,
+  }
+}
+
+function petIdFromWebContents(wc) {
+  if (!wc || wc.isDestroyed()) return null
+  let id = webContentsPetId.get(wc.id) || previewWebContentsPetId.get(wc.id)
+  if (id) return id
+  for (const [petId, win] of petWindows) {
+    if (win && !win.isDestroyed() && win.webContents.id === wc.id) return petId
+  }
+  try {
+    const url = wc.getURL()
+    if (url && url.includes('petId=')) {
+      const u = new URL(url)
+      const q = u.searchParams.get('petId')
+      if (q) return q
+    }
+  } catch (_) {
+    /* ignore */
+  }
+  return null
+}
+
+function getPetIdForWebContents(wc) {
+  return petIdFromWebContents(wc)
+}
+
+function getPrimaryPetWindow() {
+  const cfg = loadConfig()
+  const primaryId = String(cfg.primaryPetId || '').trim()
+  if (primaryId && petWindows.has(primaryId)) {
+    const win = petWindows.get(primaryId)
+    if (win && !win.isDestroyed()) return win
+  }
+  for (const win of petWindows.values()) {
+    if (win && !win.isDestroyed()) return win
+  }
+  return null
 }
 
 function assetPath(...parts) {
@@ -172,6 +291,10 @@ function loadConfig() {
   merged.voiceHotkey = String(merged.voiceHotkey || DEFAULTS.voiceHotkey).trim()
   merged.talkHotkey = String(merged.talkHotkey || DEFAULTS.talkHotkey).trim()
   merged.openAtLogin = Boolean(merged.openAtLogin)
+  merged.pets = normalizePetsArray(merged)
+  if (!merged.primaryPetId || !merged.pets.some((p) => p.id === merged.primaryPetId)) {
+    merged.primaryPetId = (merged.pets.find((p) => p.enabled) || merged.pets[0]).id
+  }
   return merged
 }
 
@@ -196,11 +319,18 @@ function saveConfig(cfg) {
   delete next.localPackagePath
   delete next.senseWindows
   delete next.followWindow
-  if (!next.title) next.title = DEFAULTS.title
-  next.size = Math.max(96, Math.min(256, Number(next.size) || DEFAULTS.size))
-  next.autoWander = next.autoWander !== false
-  next.autoChat = next.autoChat !== false
-  next.watchCoding = next.watchCoding !== false
+  delete next.jsSourceId
+  delete next.title
+  delete next.position
+  delete next.size
+  delete next.autoWander
+  delete next.autoChat
+  delete next.watchCoding
+  next.pets = normalizePetsArray(next)
+  if (!next.primaryPetId || !next.pets.some((p) => p.id === next.primaryPetId)) {
+    next.primaryPetId = (next.pets.find((p) => p.enabled) || next.pets[0]).id
+  }
+  next.primaryColor = next.primaryColor || DEFAULTS.primaryColor
   next.voiceHotkey = String(next.voiceHotkey || DEFAULTS.voiceHotkey).trim()
   next.talkHotkey = String(next.talkHotkey || DEFAULTS.talkHotkey).trim()
   next.openAtLogin = Boolean(next.openAtLogin)
@@ -218,19 +348,21 @@ function hasValidPetConfig(cfg) {
   return base.length > 0
 }
 
-function applyPetClickThrough() {
-  if (!petWindow || petWindow.isDestroyed()) return
-  petWindow.setIgnoreMouseEvents(true, { forward: true })
+function applyPetClickThrough(win) {
+  if (!win || win.isDestroyed()) return
+  win.setIgnoreMouseEvents(true, { forward: true })
 }
 
-function createPetWindow() {
-  if (petWindow && !petWindow.isDestroyed()) return petWindow
+function createPetWindowForEntry(petEntry) {
+  const petId = petEntry.id
+  const existing = petWindows.get(petId)
+  if (existing && !existing.isDestroyed()) return existing
 
   const display = screen.getPrimaryDisplay()
   const { width, height } = display.workAreaSize
   const { x, y } = display.workArea
 
-  petWindow = new BrowserWindow({
+  const win = new BrowserWindow({
     x,
     y,
     width,
@@ -255,57 +387,92 @@ function createPetWindow() {
     },
   })
 
-  petWindow.setAlwaysOnTop(true, 'floating')
-  petWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
-  if (process.platform === 'darwin') petWindow.setHiddenInMissionControl(true)
+  win.setAlwaysOnTop(true, 'floating')
+  win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+  if (process.platform === 'darwin') win.setHiddenInMissionControl(true)
 
-  petWindow.webContents.on('did-finish-load', applyPetClickThrough)
+  const wcId = win.webContents.id
+  webContentsPetId.set(wcId, petId)
+  win.webContents.on('did-finish-load', () => applyPetClickThrough(win))
 
-  petWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'))
-  petWindow.once('ready-to-show', () => {
-    if (petWindow.isDestroyed()) return
-    applyPetClickThrough()
-    petWindow.showInactive()
+  win.loadFile(path.join(__dirname, 'renderer', 'index.html'), {
+    query: { petId },
   })
-  petWindow.webContents.setWindowOpenHandler(({ url }) => {
+  win.once('ready-to-show', () => {
+    if (win.isDestroyed()) return
+    applyPetClickThrough(win)
+    win.showInactive()
+  })
+  win.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url)
     return { action: 'deny' }
   })
-  petWindow.on('closed', () => {
-    petWindow = null
+  win.on('closed', () => {
+    webContentsPetId.delete(wcId)
+    petWindows.delete(petId)
   })
 
-  return petWindow
+  petWindows.set(petId, win)
+  return win
 }
 
-function destroyPetWindow() {
-  if (petWindow && !petWindow.isDestroyed()) {
-    petWindow.close()
+function destroyAllPetWindows() {
+  for (const win of petWindows.values()) {
+    if (win && !win.isDestroyed()) win.close()
   }
-  petWindow = null
+  petWindows.clear()
+}
+
+function syncPetWindows(opts) {
+  const reloadExisting = opts && opts.reloadExisting
+  const cfg = loadConfig()
+  if (!hasValidPetConfig(cfg)) {
+    destroyAllPetWindows()
+    return
+  }
+  const enabled = cfg.pets.filter((p) => p.enabled !== false)
+  for (const id of [...petWindows.keys()]) {
+    if (!enabled.some((p) => p.id === id)) {
+      const win = petWindows.get(id)
+      if (win && !win.isDestroyed()) win.close()
+      petWindows.delete(id)
+    }
+  }
+  enabled.forEach((p) => {
+    const hadWindow =
+      petWindows.has(p.id) &&
+      petWindows.get(p.id) &&
+      !petWindows.get(p.id).isDestroyed()
+    const win = createPetWindowForEntry(p)
+    if (reloadExisting && hadWindow && win && !win.isDestroyed()) {
+      win.webContents.reloadIgnoringCache()
+    }
+  })
 }
 
 function ensurePetAlive() {
-  if (hasValidPetConfig()) {
-    if (!petWindow || petWindow.isDestroyed()) createPetWindow()
-  }
+  if (hasValidPetConfig()) syncPetWindows()
 }
 
-function withPetRenderer(callback) {
-  if (!petWindow || petWindow.isDestroyed()) {
+function withPrimaryPetRenderer(callback) {
+  let win = getPrimaryPetWindow()
+  if (!win) {
     if (hasValidPetConfig()) {
-      const win = createPetWindow()
-      win.webContents.once('did-finish-load', () => callback(win))
-      return
+      syncPetWindows()
+      win = getPrimaryPetWindow()
+      if (win) {
+        win.webContents.once('did-finish-load', () => callback(win))
+        return
+      }
     }
     createSettingsWindow()
     return
   }
-  callback(petWindow)
+  callback(win)
 }
 
 function toggleChatPanel() {
-  withPetRenderer((win) => {
+  withPrimaryPetRenderer((win) => {
     win.webContents
       .executeJavaScript(
         `(function () {
@@ -358,7 +525,7 @@ function toggleChatPanel() {
 }
 
 function toggleVoiceGlobally() {
-  withPetRenderer((win) => {
+  withPrimaryPetRenderer((win) => {
     win.webContents
       .executeJavaScript(
         `(function () {
@@ -455,9 +622,9 @@ function createSettingsWindow() {
   }
 
   settingsWindow = new BrowserWindow({
-    width: 480,
-    height: 720,
-    minWidth: 400,
+    width: 920,
+    height: 760,
+    minWidth: 720,
     minHeight: 560,
     title: APP_NAME,
     icon: loadAppIcon(),
@@ -484,16 +651,48 @@ function createSettingsWindow() {
 function reloadPet() {
   const cfg = loadConfig()
   if (!hasValidPetConfig(cfg)) {
-    destroyPetWindow()
+    destroyAllPetWindows()
     createSettingsWindow()
     return
   }
   syncCodingHook()
-  if (petWindow && !petWindow.isDestroyed()) {
-    petWindow.webContents.reloadIgnoringCache()
-    return
+  syncPetWindows({ reloadExisting: true })
+}
+
+function openEmbedPreview(petId) {
+  const cfg = loadConfig()
+  const entry = cfg.pets.find((p) => p.id === petId)
+  if (!entry) return { ok: false, error: '未找到该桌宠' }
+  if (previewWindow && !previewWindow.isDestroyed()) {
+    previewWindow.close()
+    previewWindow = null
   }
-  createPetWindow()
+  previewWindow = new BrowserWindow({
+    width: 420,
+    height: 520,
+    title: `预览 · ${entry.name || entry.title}`,
+    icon: loadAppIcon(),
+    show: false,
+    autoHideMenuBar: true,
+    backgroundColor: '#e8e8eb',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+    },
+  })
+  const previewWcId = previewWindow.webContents.id
+  previewWebContentsPetId.set(previewWcId, petId)
+  previewWindow.on('closed', () => {
+    previewWebContentsPetId.delete(previewWcId)
+    previewWindow = null
+  })
+  previewWindow.loadFile(path.join(__dirname, 'renderer', 'preview.html'))
+  previewWindow.once('ready-to-show', () => {
+    if (!previewWindow.isDestroyed()) previewWindow.show()
+  })
+  return { ok: true }
 }
 
 function hotkeyLabel(key) {
@@ -539,7 +738,7 @@ function rebuildTray() {
     },
     { label: '重新加载挂件', click: reloadPet },
     {
-      label: '打开 SoulNexus',
+      label: '打开 SoulMy',
       click: () => {
         const base = (loadConfig().serverBase || DEFAULTS.serverBase).replace(/\/api\/?$/, '')
         shell.openExternal(base || 'http://127.0.0.1:8080')
@@ -596,9 +795,13 @@ function emitCodingKeyToPet() {
   // Dedupe bursts from OS key repeat / dual listeners
   if (now - lastCodingKeyAt < 30) return
   lastCodingKeyAt = now
-  if (!petWindow || petWindow.isDestroyed()) return
+  if (!getPrimaryPetWindow()) return
+  const cfg = loadConfig()
+  const primary = cfg.pets.find((p) => p.id === cfg.primaryPetId)
+  if (primary && primary.watchCoding === false) return
   try {
-    petWindow.webContents.send('pet:coding-key', { t: now })
+    const win = getPrimaryPetWindow()
+    if (win && !win.isDestroyed()) win.webContents.send('pet:coding-key', { t: now })
   } catch (e) {
     console.warn('[lingecho-desktop] emit coding-key failed', e)
   }
@@ -648,7 +851,7 @@ async function promptMacAccessibilityOnce() {
       title: APP_NAME,
       message: '敲代码监听需要「辅助功能」权限',
       detail:
-        '桌宠是点击穿透窗口，收不到其它应用的键盘事件。\n请在「系统设置 → 隐私与安全性 → 辅助功能」中勾选 SoulNexus Desktop（或你用来启动的 Terminal/Electron）。\n授权后请完全退出并重新打开桌宠。',
+        '桌宠是点击穿透窗口，收不到其它应用的键盘事件。\n请在「系统设置 → 隐私与安全性 → 辅助功能」中勾选 SoulMy（或你用来启动的 Terminal/Electron）。\n授权后请完全退出并重新打开桌宠。',
     })
     response = result.response
   } catch (_) {
@@ -680,7 +883,8 @@ function scheduleCodingHookRetry() {
   if (codingHookRetryTimer) return
   codingHookRetryTimer = setInterval(() => {
     const cfg = loadConfig()
-    if (cfg.watchCoding === false) {
+    const primary = cfg.pets.find((p) => p.id === cfg.primaryPetId) || cfg.pets[0]
+    if (!primary || primary.watchCoding === false) {
       stopCodingHook()
       return
     }
@@ -695,7 +899,8 @@ function scheduleCodingHookRetry() {
 
 async function startCodingHook() {
   const cfg = loadConfig()
-  if (cfg.watchCoding === false) {
+  const primary = cfg.pets.find((p) => p.id === cfg.primaryPetId) || cfg.pets[0]
+  if (!primary || primary.watchCoding === false) {
     stopCodingHook()
     return false
   }
@@ -741,7 +946,8 @@ async function startCodingHook() {
 
 function syncCodingHook() {
   const cfg = loadConfig()
-  if (cfg.watchCoding === false) {
+  const primary = cfg.pets.find((p) => p.id === cfg.primaryPetId) || cfg.pets[0]
+  if (!primary || primary.watchCoding === false) {
     stopCodingHook()
     return
   }
@@ -750,9 +956,10 @@ function syncCodingHook() {
 }
 
 async function startDesktopTidy() {
-  if (petWindow && !petWindow.isDestroyed()) {
+  const win = getPrimaryPetWindow()
+  if (win && !win.isDestroyed()) {
     try {
-      const started = await petWindow.webContents.executeJavaScript(
+      const started = await win.webContents.executeJavaScript(
         `(function () {
           var api = window.LanlanPet || window.LingEchoWidget
           if (!api || typeof api.tidyDesktop !== 'function') return false
@@ -784,15 +991,20 @@ function createTray() {
   rebuildTray()
 }
 
-ipcMain.handle('pet:get-config', () => {
-  const cfg = loadConfig()
-  let login = { openAtLogin: cfg.openAtLogin, openAsHidden: true }
+ipcMain.handle('pet:get-config', (event) => {
+  const doc = loadConfig()
+  let login = { openAtLogin: doc.openAtLogin, openAsHidden: true }
   try {
     login = { ...login, ...app.getLoginItemSettings() }
   } catch {
     /* ignore */
   }
-  return { ...cfg, loginItem: login }
+  const petId = petIdFromWebContents(event.sender)
+  if (petId) {
+    const entry = doc.pets.find((p) => p.id === petId)
+    return { ...buildRuntimeConfig(doc, entry, petId), loginItem: login }
+  }
+  return { ...doc, loginItem: login }
 })
 ipcMain.handle('pet:save-config', (_e, cfg) => {
   const saved = saveConfig(cfg || {})
@@ -832,12 +1044,14 @@ ipcMain.handle('pet:set-open-at-login', (_e, enabled) => {
   setOpenAtLogin(enabled)
   return loadConfig()
 })
+ipcMain.handle('pet:open-embed-preview', (_e, petId) => openEmbedPreview(String(petId || '')))
 ipcMain.handle('pet:set-ignore-mouse', (_e, ignore, forward = true) => {
-  if (!petWindow || petWindow.isDestroyed()) return false
+  const win = BrowserWindow.fromWebContents(_e.sender)
+  if (!win || win.isDestroyed()) return false
   if (ignore) {
-    petWindow.setIgnoreMouseEvents(true, forward ? { forward: true } : undefined)
+    win.setIgnoreMouseEvents(true, forward ? { forward: true } : undefined)
   } else {
-    petWindow.setIgnoreMouseEvents(false)
+    win.setIgnoreMouseEvents(false)
   }
   return true
 })
@@ -878,7 +1092,7 @@ if (gotTheLock) {
     registerGlobalShortcuts()
 
     if (hasValidPetConfig(cfg)) {
-      createPetWindow()
+      syncPetWindows()
     } else {
       createSettingsWindow()
     }

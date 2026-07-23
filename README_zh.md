@@ -519,6 +519,7 @@ make deploy
 
 | 文档 | 说明 |
 |------|------|
+| [功能汇总](docs/features-overview.md) | 当前功能清单与成熟度 |
 | [部署指南](docs/deployment.md) | Docker 一键部署 |
 | [知识库运营](docs/knowledge-ops-closed-loop-zh.md) | 知识库工作流 |
 | [NLU](docs/nlu.md) | 意图 NLU 实验室 |

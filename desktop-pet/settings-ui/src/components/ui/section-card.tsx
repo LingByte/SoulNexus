@@ -9,7 +9,7 @@ export function SectionCard({
   children,
   className,
   collapsible,
-  open,
+  open = false,
   onOpenChange,
 }: {
   icon?: ReactNode
@@ -37,13 +37,26 @@ export function SectionCard({
       {collapsible ? (
         <ChevronDown
           className={cn(
-            'mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-transform',
+            'mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-300 ease-out',
             open && 'rotate-180',
           )}
         />
       ) : null}
     </div>
   )
+
+  const body = children ? (
+    <div
+      className={cn(
+        'grid transition-[grid-template-rows] duration-300 ease-in-out motion-reduce:transition-none',
+        collapsible ? (open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]') : 'grid-rows-[1fr]',
+      )}
+    >
+      <div className="overflow-hidden">
+        <div className="space-y-3.5 px-4 pb-4 pt-2">{children}</div>
+      </div>
+    </div>
+  ) : null
 
   return (
     <section
@@ -57,15 +70,14 @@ export function SectionCard({
           type="button"
           className="flex w-full items-start px-4 py-3.5 text-left hover:bg-black/[0.015] rounded-xl transition-colors"
           onClick={() => onOpenChange?.(!open)}
+          aria-expanded={open}
         >
           {header}
         </button>
       ) : (
         <div className="px-4 pt-4 pb-1">{header}</div>
       )}
-      {(!collapsible || open) && children ? (
-        <div className="space-y-3.5 px-4 pb-4 pt-2">{children}</div>
-      ) : null}
+      {body}
     </section>
   )
 }

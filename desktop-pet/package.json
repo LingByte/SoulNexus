@@ -1,7 +1,7 @@
 {
   "name": "lingecho-desktop",
   "version": "0.2.0",
-  "description": "SoulNexus 桌面挂件 — Electron 透明壳，挂载 JS 模版 / embed.js",
+  "description": "SoulMy 桌面桌宠 — Electron 透明壳，挂载 JS 模版 / embed.js",
   "main": "main.js",
   "author": "SoulNexus",
   "private": true,
@@ -27,8 +27,8 @@
   },
   "build": {
     "appId": "com.soulnexus.desktop-pet",
-    "productName": "SoulNexus Desktop",
-    "copyright": "Copyright © SoulNexus",
+    "productName": "SoulMy",
+    "copyright": "Copyright © SoulMy",
     "directories": {
       "output": "dist",
       "buildResources": "build"

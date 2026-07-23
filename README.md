@@ -213,6 +213,7 @@ Web console branding (footer company name, ICP, etc.): `web/.env` — `VITE_COMP
 | Document | Description |
 |----------|-------------|
 | [README_zh.md](README_zh.md) | Chinese guide (detailed) |
+| [docs/features-overview.md](docs/features-overview.md) | Feature inventory (current) |
 | [docs/deployment.md](docs/deployment.md) | Deployment options |
 | [docs/ops-single-node.md](docs/ops-single-node.md) | Single-node operations |
 | [docs/mcp-market.md](docs/mcp-market.md) | MCP marketplace |

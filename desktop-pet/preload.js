@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('electronPet', {
     ipcRenderer.invoke('pet:set-ignore-mouse', ignore, forward),
   togglePanel: () => ipcRenderer.invoke('pet:toggle-panel'),
   setOpenAtLogin: (enabled) => ipcRenderer.invoke('pet:set-open-at-login', enabled),
+  openEmbedPreview: (petId) => ipcRenderer.invoke('pet:open-embed-preview', petId),
   previewDesktop: () => ipcRenderer.invoke('pet:preview-desktop'),
   tidyDesktop: () => ipcRenderer.invoke('pet:tidy-desktop'),
   /** Subscribe to global coding key events from the main-process hook. Returns unsubscribe. */
