@@ -1,6 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Brush, Eye, EyeOff, GripVertical, Lock, Move, Redo2, Trash2, Undo2, Unlock, Upload } from 'lucide-react'
-import { IconFont } from '@/pages/PixelCraftForge/iconfont'
+import {
+  Brush,
+  Eraser,
+  Eye,
+  EyeOff,
+  GripVertical,
+  Hand,
+  Lock,
+  Move,
+  PaintBucket,
+  Pipette,
+  Redo2,
+  Trash2,
+  Undo2,
+  Unlock,
+  Upload,
+  type LucideIcon,
+} from 'lucide-react'
 import { Button, Card, Input, Select, Tooltip } from '@/components/UI'
 import { Slider } from '@arco-design/web-react'
 import { cn } from '@/utils/cn'
@@ -81,14 +97,14 @@ function floodFillCanvas(canvas: HTMLCanvasElement, startX: number, startY: numb
   return true
 }
 
-const brushTools = [
-  { id: 'brush', label: '画笔', icon: 'brush' },
-  { id: 'eraser', label: '橡皮', icon: 'eraser' },
-  { id: 'fill', label: '填充', icon: 'fill' },
-  { id: 'move', label: '移动', icon: 'move' },
-  { id: 'picker', label: '吸管', icon: 'picker' },
-  { id: 'hand', label: '抓手', icon: 'hand' },
-] as const
+const brushTools: Array<{ id: string; label: string; Icon: LucideIcon }> = [
+  { id: 'brush', label: '画笔', Icon: Brush },
+  { id: 'eraser', label: '橡皮', Icon: Eraser },
+  { id: 'fill', label: '填充', Icon: PaintBucket },
+  { id: 'move', label: '移动', Icon: Move },
+  { id: 'picker', label: '吸管', Icon: Pipette },
+  { id: 'hand', label: '抓手', Icon: Hand },
+]
 
 export default function BrushWorkspace({ onOpenLibrary }: BrushWorkspaceProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -283,5 +299,5 @@ export default function BrushWorkspace({ onOpenLibrary }: BrushWorkspaceProps) {
   const handlePointerUp = () => { setDrawing(false); setPanning(false); panStartRef.current = null; moveStartRef.current = null }
   const updateLayer = (id: number, patch: Partial<Layer>) => { setLayers((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l))); bumpRevision() }
 
-  return <div className="space-y-4 rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm"><div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-sm font-semibold text-foreground">画布工作区</h3><p className="text-xs text-muted-foreground">这里接入完整 Canvas 编辑逻辑、图层管理、快捷键与导出。</p></div><div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => addLayer()}>新建图层</Button><Button size="sm" variant="outline" onClick={() => undo()}>撤销</Button><Button size="sm" variant="outline" onClick={() => redo()}>重做</Button><Button size="sm" variant="outline" onClick={() => {}}>导出 PNG</Button></div></div><div className="grid gap-4 xl:grid-cols-[72px_minmax(0,1fr)_320px]"><aside className="flex flex-col gap-2 rounded-2xl border border-border/60 bg-background/70 p-3 shadow-sm">{brushTools.map((toolItem) => (<Tooltip key={toolItem.id} content={toolItem.label}><button type="button" className={cn('flex size-11 items-center justify-center rounded-xl border', tool === toolItem.id ? 'border-primary/40 bg-primary/10 text-primary' : 'border-border/60 bg-background/70 text-foreground')} onClick={() => setTool(toolItem.id as typeof tool)}><IconFont type={toolItem.icon} size={18} /></button></Tooltip>))}</aside><section className="space-y-4 rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm"><div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => setShowGrid((v) => !v)}>{showGrid ? '隐藏网格' : '显示网格'}</Button><Button size="sm" variant="outline" onClick={() => addLayer()}>添加图层</Button><Button size="sm" variant="outline" onClick={() => {}}>存入素材库</Button></div><div className="flex min-h-[560px] items-center justify-center rounded-2xl border border-dashed border-border/70 bg-background/70 p-4"><canvas ref={canvasRef} width={CANVAS_SIZE.w} height={CANVAS_SIZE.h} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerLeave={handlePointerUp} className="max-w-full rounded-xl border border-border/50 bg-white shadow-sm" style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, imageRendering: 'pixelated' }} /></div></section><aside className="space-y-4 rounded-2xl border border-border/60 bg-background/60 p-4"><div><h4 className="text-sm font-semibold text-foreground">工具属性</h4><div className="mt-3 space-y-3"><div><div className="mb-2 flex items-center justify-between text-xs text-muted-foreground"><span>画笔大小</span><span>{brushSize}px</span></div><Slider min={1} max={64} value={brushSize} onChange={setBrushSize} /></div><div><div className="mb-2 flex items-center justify-between text-xs text-muted-foreground"><span>透明度</span><span>{Math.round(brushOpacity * 100)}%</span></div><Slider min={0} max={1} step={0.01} value={brushOpacity} onChange={setBrushOpacity} /></div><div><div className="mb-2 flex items-center justify-between text-xs text-muted-foreground"><span>参考图透明度</span><span>{Math.round(refOpacity * 100)}%</span></div><Slider min={0} max={1} step={0.01} value={refOpacity} onChange={setRefOpacity} /></div></div></div><div><h4 className="text-sm font-semibold text-foreground">图层</h4><div className="mt-3 space-y-2">{layers.map((layer) => (<div key={layer.id} className={cn('rounded-xl border p-3', layer.id === activeId ? 'border-primary/40 bg-primary/10' : 'border-border/60 bg-background/70')} onClick={() => setActiveId(layer.id)}><div className="flex items-center gap-2"><GripVertical size={14} /><span className="flex-1 text-sm">{layer.name}</span><button onClick={(e) => { e.stopPropagation(); updateLayer(layer.id, { visible: !layer.visible }) }}>{layer.visible ? <Eye size={14} /> : <EyeOff size={14} />}</button><button onClick={(e) => { e.stopPropagation(); updateLayer(layer.id, { locked: !layer.locked }) }}>{layer.locked ? <Lock size={14} /> : <Unlock size={14} />}</button></div><div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground"><button onClick={(e) => { e.stopPropagation(); duplicateLayer(layer.id) }}>复制</button><button onClick={(e) => { e.stopPropagation(); moveLayerOrder(layer.id, -1) }}>上移</button><button onClick={(e) => { e.stopPropagation(); moveLayerOrder(layer.id, 1) }}>下移</button><button onClick={(e) => { e.stopPropagation(); deleteLayer(layer.id) }}>删除</button></div></div>))}</div></div></aside></div></div>
+  return <div className="space-y-4 rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm"><div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-sm font-semibold text-foreground">画布工作区</h3><p className="text-xs text-muted-foreground">这里接入完整 Canvas 编辑逻辑、图层管理、快捷键与导出。</p></div><div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => addLayer()}>新建图层</Button><Button size="sm" variant="outline" onClick={() => undo()}>撤销</Button><Button size="sm" variant="outline" onClick={() => redo()}>重做</Button><Button size="sm" variant="outline" onClick={() => {}}>导出 PNG</Button></div></div><div className="grid gap-4 xl:grid-cols-[72px_minmax(0,1fr)_320px]"><aside className="flex flex-col gap-2 rounded-2xl border border-border/60 bg-background/70 p-3 shadow-sm">{brushTools.map((toolItem) => { const Icon = toolItem.Icon; return (<Tooltip key={toolItem.id} content={toolItem.label}><button type="button" className={cn('flex size-11 items-center justify-center rounded-xl border transition-colors', tool === toolItem.id ? 'border-primary/40 bg-primary/10 text-primary' : 'border-border/60 bg-background/70 text-foreground hover:bg-muted/60')} onClick={() => setTool(toolItem.id as typeof tool)} aria-label={toolItem.label}><Icon size={18} strokeWidth={2} /></button></Tooltip>) })}</aside><section className="space-y-4 rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm"><div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => setShowGrid((v) => !v)}>{showGrid ? '隐藏网格' : '显示网格'}</Button><Button size="sm" variant="outline" onClick={() => addLayer()}>添加图层</Button><Button size="sm" variant="outline" onClick={() => {}}>存入素材库</Button></div><div className="flex min-h-[560px] items-center justify-center rounded-2xl border border-dashed border-border/70 bg-background/70 p-4"><canvas ref={canvasRef} width={CANVAS_SIZE.w} height={CANVAS_SIZE.h} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerLeave={handlePointerUp} className="max-w-full rounded-xl border border-border/50 bg-white shadow-sm" style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, imageRendering: 'pixelated' }} /></div></section><aside className="space-y-4 rounded-2xl border border-border/60 bg-background/60 p-4"><div><h4 className="text-sm font-semibold text-foreground">工具属性</h4><div className="mt-3 space-y-3"><div><div className="mb-2 flex items-center justify-between text-xs text-muted-foreground"><span>画笔大小</span><span>{brushSize}px</span></div><Slider min={1} max={64} value={brushSize} onChange={setBrushSize} /></div><div><div className="mb-2 flex items-center justify-between text-xs text-muted-foreground"><span>透明度</span><span>{Math.round(brushOpacity * 100)}%</span></div><Slider min={0} max={1} step={0.01} value={brushOpacity} onChange={setBrushOpacity} /></div><div><div className="mb-2 flex items-center justify-between text-xs text-muted-foreground"><span>参考图透明度</span><span>{Math.round(refOpacity * 100)}%</span></div><Slider min={0} max={1} step={0.01} value={refOpacity} onChange={setRefOpacity} /></div></div></div><div><h4 className="text-sm font-semibold text-foreground">图层</h4><div className="mt-3 space-y-2">{layers.map((layer) => (<div key={layer.id} className={cn('rounded-xl border p-3', layer.id === activeId ? 'border-primary/40 bg-primary/10' : 'border-border/60 bg-background/70')} onClick={() => setActiveId(layer.id)}><div className="flex items-center gap-2"><GripVertical size={14} /><span className="flex-1 text-sm">{layer.name}</span><button onClick={(e) => { e.stopPropagation(); updateLayer(layer.id, { visible: !layer.visible }) }}>{layer.visible ? <Eye size={14} /> : <EyeOff size={14} />}</button><button onClick={(e) => { e.stopPropagation(); updateLayer(layer.id, { locked: !layer.locked }) }}>{layer.locked ? <Lock size={14} /> : <Unlock size={14} />}</button></div><div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground"><button onClick={(e) => { e.stopPropagation(); duplicateLayer(layer.id) }}>复制</button><button onClick={(e) => { e.stopPropagation(); moveLayerOrder(layer.id, -1) }}>上移</button><button onClick={(e) => { e.stopPropagation(); moveLayerOrder(layer.id, 1) }}>下移</button><button onClick={(e) => { e.stopPropagation(); deleteLayer(layer.id) }}>删除</button></div></div>))}</div></div></aside></div></div>
 }

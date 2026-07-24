@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Button, Card, Empty, Input, Select } from '@/components/UI'
+import BaseLayout from '@/components/Layout/BaseLayout'
 import { Clapperboard, Film, History, Play, Sparkles, Timer, Download } from 'lucide-react'
 
 export default function VideoGeneratePage() {
@@ -10,44 +11,35 @@ export default function VideoGeneratePage() {
   const [fps, setFps] = useState('24')
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.14),transparent_36%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--background)))]">
-      <div className="mx-auto max-w-[1600px] space-y-6 p-6 lg:p-8">
-        <header className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-indigo-400/20 bg-indigo-500/10 px-3 py-1 text-xs font-medium text-indigo-400">
-              <Clapperboard size={14} />
-              AI 视频工坊
-            </div>
-            <h1 className="text-3xl font-semibold tracking-tight text-foreground">视频生成</h1>
-            <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-              参考即梦式布局：左侧参数，中间大预览，右侧任务状态与历史。当前先做前端页面壳。
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <Button variant="outline" size="sm" className="mx-1 my-1">上传参考素材</Button>
-            <Button size="sm" className="mx-1 my-1" leftIcon={<Sparkles size={16} />}>
-              开始生成
-            </Button>
-          </div>
-        </header>
-
-        <div className="grid gap-5 xl:grid-cols-[340px_minmax(0,1fr)_300px]">
-          <aside className="space-y-4">
-            <Card className="space-y-4 border border-border/60 bg-card/80 p-4 shadow-sm backdrop-blur">
-              <div>
-                <div className="mb-2 text-sm font-medium text-foreground">提示词</div>
-                <Input.TextArea
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                  placeholder="角色从左侧冲入画面，镜头跟随推进，粒子特效散开，电影感光影"
-                  rows={7}
-                />
-              </div>
-              <div className="grid gap-3">
+    <BaseLayout
+      title="视频生成"
+      description="左侧参数，中间预览，右侧任务状态与历史"
+      actions={
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm">上传参考素材</Button>
+          <Button size="sm" className="gap-1.5"><Sparkles size={16} />开始生成</Button>
+        </div>
+      }
+    >
+      <div className="min-h-[calc(100vh-8rem)] bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.14),transparent_36%)]">
+        <div className="mx-auto max-w-[1600px]">
+          <div className="grid gap-5 xl:grid-cols-[340px_minmax(0,1fr)_300px]">
+            <aside className="space-y-4">
+              <Card className="space-y-4 border border-border/60 bg-card/80 p-4 shadow-sm backdrop-blur">
                 <div>
-                  <div className="mb-2 text-sm font-medium text-foreground">时长</div>
-                  <Select
-                    value={duration}
+                  <div className="mb-2 text-sm font-medium text-foreground">提示词</div>
+                  <Input.TextArea
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    placeholder="角色从左侧冲入画面，镜头跟随推进，粒子特效散开，电影感光影"
+                    rows={7}
+                  />
+                </div>
+                <div className="grid gap-3">
+                  <div>
+                    <div className="mb-2 text-sm font-medium text-foreground">时长</div>
+                    <Select
+                      value={duration}
                     onValueChange={setDuration}
                     options={[
                       { label: '2 秒', value: '2s' },
@@ -94,7 +86,8 @@ export default function VideoGeneratePage() {
                   />
                 </div>
               </div>
-              <Button className="mt-2 w-full" variant="primary" leftIcon={<Film size={16} />}>
+              <Button className="mt-2 w-full gap-1.5">
+                <Film size={16} />
                 生成视频
               </Button>
             </Card>
@@ -178,7 +171,8 @@ export default function VideoGeneratePage() {
             </Card>
           </aside>
         </div>
+        </div>
       </div>
-    </div>
+    </BaseLayout>
   )
 }

@@ -106,10 +106,8 @@ float gridInteract(vec2 p, float px) {
     glow = max(glow, pulse);
   }
 
-  vec2 f = fract(gp / cell);
-  float inset = min(min(f.x, 1.0 - f.x), min(f.y, 1.0 - f.y));
-  float plate = smoothstep(0.0, 0.12, inset) * (1.0 - smoothstep(0.32, 0.5, inset));
-  return clamp(edge * glow + plate * glow * 0.35, 0.0, 1.0);
+  // Lines only — no filled cell plates
+  return clamp(edge * glow, 0.0, 1.0);
 }
 
 void main() {

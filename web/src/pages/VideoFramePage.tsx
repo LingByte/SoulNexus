@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { Button, Card, Empty, Input, Select } from '@/components/UI'
+import BaseLayout from '@/components/Layout/BaseLayout'
 import { Slider } from '@arco-design/web-react'
 import {
-  Camera,
   History,
   Image as ImageIcon,
   PlaySquare,
@@ -21,33 +21,26 @@ export default function VideoFramePage() {
   const [status] = useState('未上传')
 
   return (
-    <div className="space-y-6 p-6 lg:p-8">
-      <header className="space-y-2 text-center">
-        <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-card px-4 py-1.5 text-xs font-medium text-primary">
-          <Camera size={14} />
-          AI 游戏视频智能抽帧 | 一键生成精灵图集
-        </div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">视频抽帧</h1>
-        <p className="mx-auto max-w-3xl text-sm text-muted-foreground">
-          上传角色动作视频，自动识别关键帧并导出 PNG 序列，后续可继续合成精灵图或资源包。
-        </p>
-      </header>
-
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
-        <main className="space-y-5">
-          <Card className="border border-border/60 bg-card p-4 shadow-sm">
-            <div className="grid gap-3 md:grid-cols-3">
-              {[
-                { icon: Video, title: '1. 上传动作视频' },
-                { icon: Zap, title: '2. AI 智能抽帧识别' },
-                { icon: ImageIcon, title: '3. 生成导出精灵资源' },
-              ].map((step) => {
-                const Icon = step.icon
-                return (
-                  <div
-                    key={step.title}
-                    className="flex items-center gap-3 rounded-2xl border border-border/60 bg-background p-4"
-                  >
+    <BaseLayout
+      title="视频抽帧"
+      description="上传角色动作视频，自动识别关键帧并导出 PNG 序列"
+    >
+      <div className="space-y-6">
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
+          <main className="space-y-5">
+            <Card className="border border-border/60 bg-card p-4 shadow-sm">
+              <div className="grid gap-3 md:grid-cols-3">
+                {[
+                  { icon: Video, title: '1. 上传动作视频' },
+                  { icon: Zap, title: '2. AI 智能抽帧识别' },
+                  { icon: ImageIcon, title: '3. 生成导出精灵资源' },
+                ].map((step) => {
+                  const Icon = step.icon
+                  return (
+                    <div
+                      key={step.title}
+                      className="flex items-center gap-3 rounded-2xl border border-border/60 bg-background p-4"
+                    >
                     <div className="flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                       <Icon size={18} />
                     </div>
@@ -209,7 +202,8 @@ export default function VideoFramePage() {
               </div>
               <Slider min={1} max={12} value={interval} onChange={setIntervalMs} />
             </div>
-            <Button className="w-full" variant="primary" leftIcon={<PlaySquare size={16} />}>
+            <Button className="w-full gap-1.5">
+              <PlaySquare size={16} />
               开始抽帧
             </Button>
             <Button className="w-full" variant="outline">
@@ -220,7 +214,8 @@ export default function VideoFramePage() {
             </Button>
           </Card>
         </aside>
+        </div>
       </div>
-    </div>
+    </BaseLayout>
   )
 }

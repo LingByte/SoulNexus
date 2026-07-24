@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Button, Card, Empty, Input, Select } from '@/components/UI'
+import BaseLayout from '@/components/Layout/BaseLayout'
 import { Image as ImageIcon, History, Sparkles, Download, Heart, Layers3 } from 'lucide-react'
 
 export default function ImageGeneratePage() {
@@ -11,76 +12,67 @@ export default function ImageGeneratePage() {
   const [strength, setStrength] = useState('0.7')
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-[radial-gradient(circle_at_top,rgba(168,85,247,0.12),transparent_40%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--background)))]">
-      <div className="mx-auto max-w-[1600px] space-y-6 p-6 lg:p-8">
-        <header className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-              <Sparkles size={14} />
-              AI 图像工坊
-            </div>
-            <h1 className="text-3xl font-semibold tracking-tight text-foreground">图片生成</h1>
-            <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-              借鉴成熟 AI 生成产品的布局思路：左侧调参，中间大结果区，右侧历史与收藏。当前为前端页面壳。
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <Button variant="outline" size="sm" className="mx-1 my-1">清空结果</Button>
-            <Button variant="outline" size="sm" className="mx-1 my-1">导入参考图</Button>
-            <Button size="sm" className="mx-1 my-1" leftIcon={<Sparkles size={16} />}>
-              开始生成
-            </Button>
-          </div>
-        </header>
-
-        <div className="grid gap-5 xl:grid-cols-[340px_minmax(0,1fr)_300px]">
-          <aside className="space-y-4">
-            <Card className="space-y-4 border border-border/60 bg-card/80 p-4 shadow-sm backdrop-blur">
-              <div>
-                <div className="mb-2 text-sm font-medium text-foreground">提示词</div>
-                <Input.TextArea
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                  placeholder="一只像素风格的冒险家，站在夜晚的霓虹街角，厚涂光影，高细节"
-                  rows={7}
-                />
-              </div>
-              <div>
-                <div className="mb-2 text-sm font-medium text-foreground">反向提示词</div>
-                <Input.TextArea
-                  value={negative}
-                  onChange={(e) => setNegative(e.target.value)}
-                  placeholder="模糊，低质量，文字，水印"
-                  rows={3}
-                />
-              </div>
-              <div className="grid gap-3">
+    <BaseLayout
+      title="图片生成"
+      description="左侧调参，中间结果区，右侧历史与收藏"
+      actions={
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm">清空结果</Button>
+          <Button variant="outline" size="sm">导入参考图</Button>
+          <Button size="sm" className="gap-1.5"><Sparkles size={16} />开始生成</Button>
+        </div>
+      }
+    >
+      <div className="min-h-[calc(100vh-8rem)] bg-[radial-gradient(circle_at_top,rgba(168,85,247,0.12),transparent_40%)]">
+        <div className="mx-auto max-w-[1600px]">
+          <div className="grid gap-5 xl:grid-cols-[340px_minmax(0,1fr)_300px]">
+            <aside className="space-y-4">
+              <Card className="space-y-4 border border-border/60 bg-card/80 p-4 shadow-sm backdrop-blur">
                 <div>
-                  <div className="mb-2 text-sm font-medium text-foreground">尺寸</div>
-                  <Select
-                    value={size}
-                    onValueChange={setSize}
-                    options={[
-                      { label: '512 × 512', value: '512x512' },
-                      { label: '768 × 768', value: '768x768' },
-                      { label: '1024 × 1024', value: '1024x1024' },
-                      { label: '1280 × 720', value: '1280x720' },
-                    ]}
+                  <div className="mb-2 text-sm font-medium text-foreground">提示词</div>
+                  <Input.TextArea
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    placeholder="一只像素风格的冒险家，站在夜晚的霓虹街角，厚涂光影，高细节"
+                    rows={7}
                   />
                 </div>
                 <div>
-                  <div className="mb-2 text-sm font-medium text-foreground">风格</div>
-                  <Select
-                    value={style}
-                    onValueChange={setStyle}
-                    options={[
-                      { label: '像素风', value: 'pixel' },
-                      { label: '卡通', value: 'cartoon' },
-                      { label: '写实', value: 'realistic' },
-                      { label: '二次元', value: 'anime' },
-                    ]}
+                  <div className="mb-2 text-sm font-medium text-foreground">反向提示词</div>
+                  <Input.TextArea
+                    value={negative}
+                    onChange={(e) => setNegative(e.target.value)}
+                    placeholder="模糊，低质量，文字，水印"
+                    rows={3}
                   />
                 </div>
+                <div className="grid gap-3">
+                  <div>
+                    <div className="mb-2 text-sm font-medium text-foreground">尺寸</div>
+                    <Select
+                      value={size}
+                      onValueChange={setSize}
+                      options={[
+                        { label: '512 × 512', value: '512x512' },
+                        { label: '768 × 768', value: '768x768' },
+                        { label: '1024 × 1024', value: '1024x1024' },
+                        { label: '1280 × 720', value: '1280x720' },
+                      ]}
+                    />
+                  </div>
+                  <div>
+                    <div className="mb-2 text-sm font-medium text-foreground">风格</div>
+                    <Select
+                      value={style}
+                      onValueChange={setStyle}
+                      options={[
+                        { label: '像素风', value: 'pixel' },
+                        { label: '卡通', value: 'cartoon' },
+                        { label: '写实', value: 'realistic' },
+                        { label: '二次元', value: 'anime' },
+                      ]}
+                    />
+                  </div>
                 <div>
                   <div className="mb-2 text-sm font-medium text-foreground">生成数量</div>
                   <Select
@@ -106,7 +98,8 @@ export default function ImageGeneratePage() {
                   />
                 </div>
               </div>
-              <Button className="mt-2 w-full" variant="primary" leftIcon={<Sparkles size={16} />}>
+              <Button className="mt-2 w-full gap-1.5">
+                <Sparkles size={16} />
                 生成图片
               </Button>
             </Card>
@@ -190,7 +183,8 @@ export default function ImageGeneratePage() {
             </Card>
           </aside>
         </div>
+        </div>
       </div>
-    </div>
+    </BaseLayout>
   )
 }
