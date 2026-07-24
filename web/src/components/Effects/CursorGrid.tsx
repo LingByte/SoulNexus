@@ -28,6 +28,8 @@ type CursorGridProps = {
   cellRadius?: number
   clickPulse?: boolean
   pulseSpeed?: number
+  /** Listen on window so it works under pointer-events-none backgrounds. */
+  trackWindow?: boolean
   className?: string
 }
 
@@ -45,6 +47,7 @@ const CursorGrid = ({
   cellRadius = 0,
   clickPulse = true,
   pulseSpeed = 600,
+  trackWindow = false,
   className = '',
 }: CursorGridProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -284,23 +287,27 @@ const CursorGrid = ({
     rebuild()
     wake()
 
-    canvas.addEventListener('pointermove', onPointerMove)
-    canvas.addEventListener('pointerdown', onPointerDown)
+    const target: Window | HTMLCanvasElement = trackWindow ? window : canvas
+    target.addEventListener('pointermove', onPointerMove as EventListener)
+    target.addEventListener('pointerdown', onPointerDown as EventListener)
 
     return () => {
       cancelAnimationFrame(raf)
       ro.disconnect()
-      canvas.removeEventListener('pointermove', onPointerMove)
-      canvas.removeEventListener('pointerdown', onPointerDown)
+      target.removeEventListener('pointermove', onPointerMove as EventListener)
+      target.removeEventListener('pointerdown', onPointerDown as EventListener)
     }
-  }, [cellSize])
+  }, [cellSize, trackWindow])
 
   useEffect(() => {
     wakeRef.current?.()
   }, [gridOpacity, color, lineWidth, maxOpacity, fillOpacity, cellRadius])
 
   return (
-    <div ref={containerRef} className={`cursor-grid${className ? ` ${className}` : ''}`}>
+    <div
+      ref={containerRef}
+      className={`cursor-grid${className ? ` ${className}` : ''}${trackWindow ? ' cursor-grid--window' : ''}`}
+    >
       <canvas ref={canvasRef} className="cursor-grid__canvas" />
     </div>
   )

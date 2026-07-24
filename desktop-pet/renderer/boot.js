@@ -303,12 +303,23 @@
   }
 
   const serverBase = String(cfg.serverBase || 'http://127.0.0.1:7072/api').replace(/\/+$/, '')
-  const jsSourceId = String(cfg.jsSourceId || '').trim()
+  let jsSourceId = String(cfg.jsSourceId || '').trim()
+  if (!jsSourceId && Array.isArray(cfg.pets) && cfg.petId) {
+    const pe = cfg.pets.find(function (p) {
+      return p && p.id === cfg.petId
+    })
+    if (pe && pe.jsSourceId) jsSourceId = String(pe.jsSourceId).trim()
+  }
   const assistantId = String(cfg.assistantId || '').trim()
 
   boot.style.display = 'block'
   boot.classList.remove('err')
   setClickThrough(true)
+
+  if (!jsSourceId) {
+    fail('缺少 jsSourceId：请在控制面板左侧仓库填写并保存')
+    return
+  }
 
   if (!assistantId || assistantId === 'YOUR_ASSISTANT_ID') {
     fail('请在控制面板填写 assistantId（智能体 ID）')

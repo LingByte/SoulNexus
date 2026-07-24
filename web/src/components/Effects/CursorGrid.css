@@ -7,6 +7,10 @@
   pointer-events: auto;
 }
 
+.cursor-grid--window {
+  pointer-events: none;
+}
+
 .cursor-grid__canvas {
   display: block;
   width: 100%;
