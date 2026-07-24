@@ -17,9 +17,9 @@ uniform float uBaseRadius, uRadiusStep, uScaleRate;
 uniform float uOpacity, uNoiseAmount, uRotation, uRingGap;
 uniform float uFadeIn, uFadeOut;
 uniform float uMouseInfluence, uHoverAmount, uHoverScale, uParallax, uBurst;
-uniform float uGridSize, uGridOpacity, uGridWarp;
+uniform float uGridSize, uGridOpacity, uGridWarp, uGridMotion, uHeroBottom;
 uniform float uGridCursorRadius, uGridCursorStrength, uGridPulseRadius, uGridPulseStrength;
-uniform vec2 uResolution, uMouse, uGridMouse;
+uniform vec2 uResolution, uMouse, uGridMouse, uGridPulseOrigin;
 uniform vec3 uColor, uColorTwo;
 uniform int uRingCount;
 uniform int uShowGrid;
@@ -44,7 +44,7 @@ float ring(vec2 p, float ri, float cut, float t0, float px) {
   return h * exp(-uAttenuation * d) * fade(t);
 }
 
-vec2 distortGrid(vec2 p) {
+vec2 distortGrid(vec2 p, float motion) {
   float d = length(p);
   vec2 dir = p / max(d, 1e-4);
   float warp = 0.0;
@@ -58,8 +58,8 @@ vec2 distortGrid(vec2 p) {
     warp += pulse;
   }
   float breath = sin(uTime / CYCLE * TAU) * 0.5 + 0.5;
-  float scale = 1.0 + (breath - 0.5) * 0.04;
-  return p * scale + dir * warp * uGridWarp;
+  float scale = 1.0 + (breath - 0.5) * 0.04 * motion;
+  return p * scale + dir * warp * uGridWarp * motion;
 }
 
 float gridEdge(vec2 gp, float cell, float px) {
@@ -69,19 +69,27 @@ float gridEdge(vec2 gp, float cell, float px) {
   return 1.0 - smoothstep(0.0, px * 1.35, min(lx, ly));
 }
 
+float localGridMotion() {
+  // 1 inside hero, 0 below first screen (and after hero scrolls away)
+  float yFromTop = 1.0 - gl_FragCoord.y / max(uResolution.y, 1.0);
+  float spatial = 1.0 - smoothstep(uHeroBottom - 0.06, uHeroBottom + 0.02, yFromTop);
+  return clamp(uGridMotion * spatial, 0.0, 1.0);
+}
+
 float gridLine(vec2 p, float px) {
-  vec2 gp = distortGrid(p);
+  float motion = localGridMotion();
+  vec2 gp = distortGrid(p, motion);
   float cell = max(uGridSize, 0.02);
   float line = gridEdge(gp, cell, px);
   float vignette = 1.0 - smoothstep(0.35, 1.15, length(p));
-  float breath = 0.55 + 0.45 * (sin(uTime / CYCLE * TAU) * 0.5 + 0.5);
+  float breath = mix(1.0, 0.55 + 0.45 * (sin(uTime / CYCLE * TAU) * 0.5 + 0.5), motion);
   return line * vignette * breath * uGridOpacity;
 }
 
-// Cursor highlight on the same warped lattice (merged former CursorGrid).
 float gridInteract(vec2 p, float px) {
   if (uGridCursor != 1) return 0.0;
-  vec2 gp = distortGrid(p);
+  float motion = localGridMotion();
+  vec2 gp = distortGrid(p, motion);
   float cell = max(uGridSize, 0.02);
   float edge = gridEdge(gp, cell, px * 1.1);
 
@@ -93,11 +101,11 @@ float gridInteract(vec2 p, float px) {
 
   if (uGridPulseStrength > 0.001) {
     float band = cell * 0.85;
-    float pulse = (1.0 - smoothstep(0.0, band, abs(dist - uGridPulseRadius))) * uGridPulseStrength;
+    float pdist = length(p - uGridPulseOrigin);
+    float pulse = (1.0 - smoothstep(0.0, band, abs(pdist - uGridPulseRadius))) * uGridPulseStrength;
     glow = max(glow, pulse);
   }
 
-  // Soft cell plate + brighter edge, same lattice as ambient grid
   vec2 f = fract(gp / cell);
   float inset = min(min(f.x, 1.0 - f.x), min(f.y, 1.0 - f.y));
   float plate = smoothstep(0.0, 0.12, inset) * (1.0 - smoothstep(0.32, 0.5, inset));
@@ -177,6 +185,8 @@ export default function MagicRings({
   gridSize = 0.07,
   gridOpacity = 0.35,
   gridWarp = 0.028,
+  gridMotion = 1,
+  heroBottom = 1,
   gridCursor = false,
   gridCursorRadius = 0.16,
   gridCursorStrength = 1,
@@ -199,6 +209,7 @@ export default function MagicRings({
     baseRadius, radiusStep, scaleRate, opacity, noiseAmount,
     rotation, ringGap, fadeIn, fadeOut, followMouse, mouseInfluence,
     hoverScale, parallax, clickBurst, showGrid, gridSize, gridOpacity, gridWarp,
+    gridMotion, heroBottom,
     gridCursor, gridCursorRadius, gridCursorStrength, gridClickPulse, gridPulseSpeed,
   };
 
@@ -253,10 +264,13 @@ export default function MagicRings({
       uGridSize: { value: 0.07 },
       uGridOpacity: { value: 0.35 },
       uGridWarp: { value: 0.028 },
+      uGridMotion: { value: 1 },
+      uHeroBottom: { value: 1 },
       uGridCursor: { value: 0 },
       uGridMouse: { value: new THREE.Vector2() },
       uGridCursorRadius: { value: 0.16 },
       uGridCursorStrength: { value: 1 },
+      uGridPulseOrigin: { value: new THREE.Vector2() },
       uGridPulseRadius: { value: 0 },
       uGridPulseStrength: { value: 0 },
     };
@@ -345,10 +359,14 @@ export default function MagicRings({
 
       let pulseRadius = 0;
       let pulseStrength = 0;
+      let pulseX = 0;
+      let pulseY = 0;
       if (pulseRef.current && p.gridClickPulse) {
         const age = (now - pulseRef.current.t0) / 1000;
         pulseRadius = age * p.gridPulseSpeed;
         pulseStrength = Math.max(0, 1 - age * 0.85);
+        pulseX = pulseRef.current.x;
+        pulseY = pulseRef.current.y;
         if (pulseStrength <= 0.01 || pulseRadius > 1.8) pulseRef.current = null;
       }
 
@@ -377,28 +395,16 @@ export default function MagicRings({
       uniforms.uGridSize.value = p.gridSize;
       uniforms.uGridOpacity.value = p.gridOpacity;
       uniforms.uGridWarp.value = p.gridWarp;
+      uniforms.uGridMotion.value = p.gridMotion;
+      uniforms.uHeroBottom.value = p.heroBottom;
       uniforms.uGridCursor.value = p.gridCursor ? 1 : 0;
-      uniforms.uGridMouse.value.set(
-        pulseRef.current && pulseStrength > 0 ? pulseRef.current.x : smoothGridMouseRef.current[0],
-        pulseRef.current && pulseStrength > 0 ? pulseRef.current.y : smoothGridMouseRef.current[1],
-      );
-      // Keep cursor follow during pulse; pulse uses origin separately via distance from uGridMouse for cursor
-      // and pulse ring from pulse origin — fix: use dedicated pulse origin
       uniforms.uGridMouse.value.set(smoothGridMouseRef.current[0], smoothGridMouseRef.current[1]);
       uniforms.uGridCursorRadius.value = p.gridCursorRadius;
       uniforms.uGridCursorStrength.value = p.gridCursorStrength;
-      if (pulseRef.current) {
-        // Distance for pulse measured from pulse origin — temporarily encode via shifting mouse for pulse only in shader
-        // Use pulse uniforms with origin stored by overwriting: pass pulse origin in uGridMouse when computing pulse in JS... 
-        // Simpler: store pulse origin in uniforms via uGridMouse for pulse calc - NO that breaks cursor.
-        // Add pulse origin by using current pulseRef in a second distance in JS-only... already have uGridPulseRadius.
-        // Shader uses length(p - uGridMouse) for pulse too — wrong during pulse.
-      }
+      uniforms.uGridPulseOrigin.value.set(pulseX, pulseY);
       uniforms.uGridPulseRadius.value = pulseRadius;
       uniforms.uGridPulseStrength.value = pulseStrength;
 
-      // Pass pulse origin through unused channel: temporarily set when pulsing
-      // Fix properly with uGridPulseOrigin
       renderer.render(scene, camera);
     };
     frameId = requestAnimationFrame(animate);

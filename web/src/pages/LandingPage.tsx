@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { BookOpen, Bot, Code, Cpu, GraduationCap, HeartPulse, Key, Mic, Settings, Sparkles, Zap } from 'lucide-react'
@@ -13,7 +13,6 @@ import FeatureGridCard from '@/components/Home/FeatureGridCard'
 import LandingSectionLink from '@/components/Home/LandingSectionLink'
 import { landingSectionIdFromHash, scrollToSection } from '@/utils/scrollToSection'
 import MagicRings from '@/components/MagicRings'
-import CursorGrid from '@/components/Effects/CursorGrid'
 import { useThemeStore } from '@/stores/themeStore'
 
 const SECTION_SCROLL = 'scroll-mt-[5.5rem]'
@@ -24,6 +23,8 @@ export default function LandingPage() {
   const { user, isAuthenticated, token, logout } = useAuthStore()
   const isDark = useThemeStore((s) => s.isDark)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [heroBottom, setHeroBottom] = useState(1)
+  const heroRef = useRef(null)
   const loggedIn = Boolean(isAuthenticated && token)
 
   const ringsTheme = useMemo(
@@ -41,9 +42,8 @@ export default function LandingPage() {
             scaleRate: 0.14,
             baseRadius: 0.5,
             radiusStep: 0.12,
-            cursorColor: '#818CF8',
-            cursorMaxOpacity: 1,
-            cursorRadius: 140,
+            gridCursorRadius: 0.18,
+            gridCursorStrength: 1,
           }
         : {
             color: '#C7D2FE',
@@ -57,9 +57,8 @@ export default function LandingPage() {
             scaleRate: 0.12,
             baseRadius: 0.5,
             radiusStep: 0.12,
-            cursorColor: '#A5B4FC',
-            cursorMaxOpacity: 0.4,
-            cursorRadius: 100,
+            gridCursorRadius: 0.14,
+            gridCursorStrength: 0.55,
           },
     [isDark],
   )
@@ -106,6 +105,22 @@ export default function LandingPage() {
   )
 
   useEffect(() => {
+    const updateHeroBottom = () => {
+      const el = heroRef.current
+      if (!el) return
+      const bottom = el.getBoundingClientRect().bottom / Math.max(window.innerHeight, 1)
+      setHeroBottom(bottom)
+    }
+    updateHeroBottom()
+    window.addEventListener('scroll', updateHeroBottom, { passive: true })
+    window.addEventListener('resize', updateHeroBottom)
+    return () => {
+      window.removeEventListener('scroll', updateHeroBottom)
+      window.removeEventListener('resize', updateHeroBottom)
+    }
+  }, [])
+
+  useEffect(() => {
     document.title = t('landing.metaTitle')
     const meta = document.querySelector('meta[name="description"]')
     meta?.setAttribute('content', t('landing.metaDescription'))
@@ -130,7 +145,7 @@ export default function LandingPage() {
 
   return (
     <div className="relative min-h-screen overflow-x-hidden text-[hsl(var(--foreground))]">
-      {/* Full-page breathing grid + cursor interaction highlights */}
+      {/* Single merged grid: breathing lattice + cursor highlight */}
       <div className="pointer-events-none fixed inset-0 z-0" aria-hidden>
         <MagicRings
           color={ringsTheme.color}
@@ -155,22 +170,13 @@ export default function LandingPage() {
           gridSize={0.07}
           gridOpacity={ringsTheme.gridOpacity}
           gridWarp={ringsTheme.gridWarp}
-        />
-        <CursorGrid
-          trackWindow
-          cellSize={70}
-          color={ringsTheme.cursorColor}
-          radius={ringsTheme.cursorRadius}
-          falloff="smooth"
-          holdTime={400}
-          fadeDuration={800}
-          lineWidth={1.2}
-          maxOpacity={ringsTheme.cursorMaxOpacity}
-          fillOpacity={0}
-          gridOpacity={0}
-          cellRadius={0}
-          clickPulse
-          pulseSpeed={600}
+          gridMotion={1}
+          heroBottom={heroBottom}
+          gridCursor
+          gridCursorRadius={ringsTheme.gridCursorRadius}
+          gridCursorStrength={ringsTheme.gridCursorStrength}
+          gridClickPulse
+          gridPulseSpeed={0.55}
         />
       </div>
 
@@ -187,7 +193,11 @@ export default function LandingPage() {
         />
 
         <main>
-          <section className={`relative flex min-h-[min(88vh,920px)] flex-col justify-center overflow-hidden py-24 text-center sm:py-32 ${SECTION_SCROLL}`} aria-label="Hero">
+          <section
+            ref={heroRef}
+            className={`relative flex min-h-[min(88vh,920px)] flex-col justify-center overflow-hidden py-24 text-center sm:py-32 ${SECTION_SCROLL}`}
+            aria-label="Hero"
+          >
             {/* Rings locked to hero — scroll away with first screen */}
             <div className="pointer-events-none absolute inset-0 z-0" aria-hidden>
               <MagicRings
