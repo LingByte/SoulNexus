@@ -12,6 +12,7 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/humax"
 	"github.com/LingByte/SoulNexus/pkg/i18n"
 	knworker "github.com/LingByte/SoulNexus/pkg/knowledge/worker"
+	"github.com/LingByte/SoulNexus/pkg/mediagen"
 	"github.com/LingByte/SoulNexus/pkg/middleware"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/task"
@@ -267,6 +268,10 @@ func (h *Handlers) cancelExecutionTask(c *gin.Context) {
 			if h.kbWorker != nil {
 				h.kbWorker.CancelTaskByID(row.TaskID)
 			}
+		case mediagen.QueueName:
+			if mediaWorker() != nil {
+				mediaWorker().CancelTaskByID(row.TaskID)
+			}
 		}
 	}
 	if err := task.MarkExecutionTaskFinished(h.db, row.TaskID, task.TaskStatusCanceled, "canceled by admin"); err != nil {
@@ -316,6 +321,11 @@ func (h *Handlers) retryExecutionTaskRow(row task.ExecutionTask) error {
 			return fmt.Errorf("knowledge worker is not running")
 		}
 		return h.kbWorker.RetryTaskByID(h.db, row.TaskID)
+	case mediagen.QueueName:
+		if mediaWorker() == nil {
+			return fmt.Errorf("mediagen worker is not running")
+		}
+		return mediaWorker().RetryTaskByID(h.db, row.TaskID)
 	default:
 		return fmt.Errorf("retry not supported for queue %q", row.QueueName)
 	}
@@ -335,6 +345,19 @@ func (h *Handlers) enqueueExecutionTaskNow(row task.ExecutionTask) error {
 			return fmt.Errorf("empty knowledge document job")
 		}
 		h.kbWorker.RequeueJob(row.TaskID, job, row.Priority, row.SubmitTime)
+		return nil
+	case mediagen.QueueName:
+		if mediaWorker() == nil {
+			return fmt.Errorf("mediagen worker is not running")
+		}
+		var job mediagen.WorkerJob
+		if err := json.Unmarshal([]byte(row.ParamsJSON), &job); err != nil {
+			return fmt.Errorf("invalid paramsJson: %w", err)
+		}
+		if strings.TrimSpace(job.PublicID) == "" {
+			return fmt.Errorf("empty mediagen job publicId")
+		}
+		mediaWorker().RequeueJob(row.TaskID, job, row.Priority, row.SubmitTime)
 		return nil
 	default:
 		return fmt.Errorf("enqueue not supported for queue %q", row.QueueName)

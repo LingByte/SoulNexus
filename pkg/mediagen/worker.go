@@ -14,7 +14,8 @@ import (
 )
 
 const (
-	mediaWorkerQueue    = "mediagen.generate"
+	QueueName           = "mediagen.generate"
+	mediaWorkerQueue    = QueueName
 	defaultImageTimeout = 3 * time.Minute
 	defaultVideoTimeout = 25 * time.Minute
 	defaultMediaWorkers = 2
@@ -111,6 +112,70 @@ func (w *Worker) EnqueueAsync(job WorkerJob) (string, error) {
 		"queued_at":         time.Now(),
 	})
 	return t.ID, nil
+}
+
+// CancelTaskByID cancels a pending in-memory mediagen job.
+func (w *Worker) CancelTaskByID(taskID string) bool {
+	if w == nil || w.scheduler == nil || strings.TrimSpace(taskID) == "" {
+		return false
+	}
+	return w.scheduler.CancelTaskByID(taskID)
+}
+
+// RequeueJob puts an existing durable execution task back on the in-memory queue.
+func (w *Worker) RequeueJob(taskID string, job WorkerJob, priority int, submitTime time.Time) {
+	if w == nil || w.scheduler == nil || strings.TrimSpace(taskID) == "" {
+		return
+	}
+	if submitTime.IsZero() {
+		submitTime = time.Now()
+	}
+	w.scheduler.RequeueExisting(context.Background(), taskID, priority, job, submitTime, w.runJob)
+	_ = UpdateMediaGenerateJob(w.db, job.PublicID, map[string]any{
+		"execution_task_id": taskID,
+		"status":            JobStatusQueued,
+		"queued_at":         time.Now(),
+		"started_at":        gorm.Expr("NULL"),
+		"finished_at":       gorm.Expr("NULL"),
+		"progress":          0,
+		"error_message":     "",
+		"remote_url":        "",
+		"storage_key":       "",
+		"result_url":        "",
+		"provider_task_id":  "",
+	})
+}
+
+// RetryTaskByID re-enqueues a failed/canceled mediagen execution task from stored params.
+func (w *Worker) RetryTaskByID(db *gorm.DB, taskID string) error {
+	if w == nil || w.scheduler == nil {
+		return fmt.Errorf("mediagen worker unavailable")
+	}
+	if db == nil {
+		db = w.db
+	}
+	if db == nil || strings.TrimSpace(taskID) == "" {
+		return fmt.Errorf("worker or task id missing")
+	}
+	row, err := task.GetExecutionTaskByTaskID(db, taskID)
+	if err != nil {
+		return err
+	}
+	var job WorkerJob
+	if err := json.Unmarshal([]byte(row.ParamsJSON), &job); err != nil {
+		return fmt.Errorf("unmarshal params: %w", err)
+	}
+	if strings.TrimSpace(job.PublicID) == "" {
+		return fmt.Errorf("empty media job publicId in params")
+	}
+	if _, err := GetMediaGenerateJobByPublicID(db, job.PublicID); err != nil {
+		return fmt.Errorf("media job not found: %w", err)
+	}
+	if err := task.ResetExecutionTaskForRetry(db, taskID); err != nil {
+		return err
+	}
+	w.RequeueJob(taskID, job, row.Priority, row.SubmitTime)
+	return nil
 }
 
 func (w *Worker) Stop() error {
