@@ -1,4 +1,4 @@
-const DB_NAME = 'pixelcraftforge_assets_v1'
+const DB_NAME = 'soulnexus_pixel_assets_v1'
 const DB_VERSION = 2
 const STORE = 'assets'
 

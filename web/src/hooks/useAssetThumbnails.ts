@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { assetToBlob, type LocalAsset } from '@/lib/pixelcraft/localAssetStore'
+import { assetToBlob, type LocalAsset } from '@/lib/pixel/localAssetStore'
 
 export function useAssetThumbnails(assets: LocalAsset[]) {
   const [thumbMap, setThumbMap] = useState<Record<number, string>>({})

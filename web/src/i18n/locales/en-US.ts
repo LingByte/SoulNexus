@@ -203,7 +203,13 @@ const enUS = {
     groupSystem: 'Platform',
     groupNotifications: 'Notifications & Logs',
     groupMarketplace: 'Marketplace',
+    groupPixelTools: 'Pixel & Generate',
     groupBilling: 'Billing',
+    pixelSheet: 'Sprite Sheet',
+    pixelAsset: 'Assets',
+    imageGenerate: 'Image Generate',
+    videoGenerate: 'Video Generate',
+    videoFrame: 'Video Frames',
   },
   common: {
     save: 'Save',

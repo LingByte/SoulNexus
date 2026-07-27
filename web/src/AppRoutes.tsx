@@ -54,7 +54,8 @@ const AIInvocationLogs = lazy(() => import('@/pages/AIInvocationLogs'))
 const ExecutionTasks = lazy(() => import('@/pages/platform/ExecutionTasks'))
 const SMSLogs = lazy(() => import('@/pages/platform/SMSLogs'))
 const SystemStatus = lazy(() => import('@/pages/platform/SystemStatus'))
-const PixelCraftForgePage = lazy(() => import('@/pages/PixelCraftForgePage'))
+const PixelToolPage = lazy(() => import('@/pages/pixel/PixelToolPage'))
+const PixelLegacyRedirect = lazy(() => import('@/pages/pixel/PixelLegacyRedirect'))
 const ImageGeneratePage = lazy(() => import('@/pages/Generate/ImageGeneratePage'))
 const VideoGeneratePage = lazy(() => import('@/pages/Generate/VideoGeneratePage'))
 const VideoFramePage = lazy(() => import('@/pages/VideoFramePage'))
@@ -365,10 +366,13 @@ export function AppRoutes() {
         <Route path="/platform/plugin-market" element={<RequirePlatform><PlatformPluginMarket /></RequirePlatform>} />
         <Route path="/platform/mcp-market" element={<RequirePlatform><PlatformMcpMarket /></RequirePlatform>} />
         <Route path="/platform/system-status" element={<RequirePlatform><SystemStatus /></RequirePlatform>} />
-        <Route path="/pixel/tools" element={<PixelCraftForgePage />} />
-        <Route path="/pixel/tools/:tab" element={<PixelCraftForgePage />} />
-        <Route path="/pixel/library" element={<Navigate to="/pixel/tools?tab=asset" replace />} />
-        <Route path="/pixel/layer-editor" element={<Navigate to="/pixel/tools?tab=brush" replace />} />
+        <Route path="/pixel/gif" element={<Navigate to="/pixel/sheet" replace />} />
+        <Route path="/pixel/pixelate" element={<Navigate to="/pixel/sheet" replace />} />
+        <Route path="/pixel/matte" element={<Navigate to="/pixel/sheet" replace />} />
+        <Route path="/pixel/:tool" element={<PixelToolPage />} />
+        <Route path="/pixel/tools" element={<PixelLegacyRedirect />} />
+        <Route path="/pixel/library" element={<Navigate to="/pixel/asset" replace />} />
+        <Route path="/pixel/layer-editor" element={<Navigate to="/pixel/sheet" replace />} />
         <Route path="/generate" element={<ImageGeneratePage />} />
         <Route path="/video-generate" element={<VideoGeneratePage />} />
         <Route path="/video-frame" element={<VideoFramePage />} />

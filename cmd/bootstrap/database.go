@@ -15,6 +15,7 @@ import (
 	apperror "github.com/LingByte/SoulNexus/pkg/errors"
 	knmodels "github.com/LingByte/SoulNexus/pkg/knowledge/models"
 	"github.com/LingByte/SoulNexus/pkg/logger"
+	"github.com/LingByte/SoulNexus/pkg/mediagen"
 	"github.com/LingByte/SoulNexus/pkg/notification/inbox"
 	"github.com/LingByte/SoulNexus/pkg/notification/mail"
 	"github.com/LingByte/SoulNexus/pkg/notification/sms"
@@ -370,6 +371,7 @@ func RunMigrations(db *gorm.DB) error {
 		&models.AIInvocationLog{},
 		&models.AIProviderPool{},
 		&models.TenantAIPoolGrant{},
+		&mediagen.MediaGenerateJob{},
 	}); err != nil {
 		return err
 	}

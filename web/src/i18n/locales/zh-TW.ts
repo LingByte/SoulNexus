@@ -195,7 +195,13 @@ const zhTW = {
     groupSystem: '平台管理',
     groupNotifications: '通知與日誌',
     groupMarketplace: '應用市場',
+    groupPixelTools: '像素與生成',
     groupBilling: '計費',
+    pixelSheet: '精靈圖拆分',
+    pixelAsset: '素材庫',
+    imageGenerate: '圖片生成',
+    videoGenerate: '視頻生成',
+    videoFrame: '視頻抽幀',
   },
   common: {
     save: '保存',

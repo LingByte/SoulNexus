@@ -125,6 +125,7 @@ func (h *Handlers) Register(engine *gin.Engine, api huma.API) {
 	h.registerPlatformNLURoutes(protected)
 	h.registerPlatformAssistantToolRoutes(protected)
 	h.registerPlatformMcpMarketRoutes(protected)
+	h.registerMediaGenerateRoutes(protected)
 }
 
 // registerOperationLogRoutes mounts /operation-logs:

@@ -1,4 +1,4 @@
-const STORAGE_KEY = 'pixelcraftforge_project_snapshots'
+const STORAGE_KEY = 'soulnexus_pixel_project_snapshots'
 
 export type ProjectSnapshot = {
   id: number
@@ -39,4 +39,14 @@ export function saveProjectSnapshot({
   list.unshift(entry)
   localStorage.setItem(STORAGE_KEY, JSON.stringify(list.slice(0, 20)))
   return entry
+}
+
+export function deleteProjectSnapshot(id: number): ProjectSnapshot[] {
+  const list = loadProjectSnapshots().filter((s) => s.id !== id)
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(list))
+  return list
+}
+
+export function getProjectSnapshot(id: number): ProjectSnapshot | null {
+  return loadProjectSnapshots().find((s) => s.id === id) ?? null
 }

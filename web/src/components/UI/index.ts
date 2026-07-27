@@ -1,4 +1,4 @@
-export { Button, buttonVariants, default as DefaultButton } from './button'
+export { Button, default as DefaultButton } from './button'
 export type { ButtonProps, ButtonVariant, ButtonSize } from './button'
 
 export { Select, default as DefaultSelect } from './select'

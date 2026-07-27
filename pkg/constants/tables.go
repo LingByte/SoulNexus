@@ -54,4 +54,5 @@ const (
 	WIDGET_MARKET_ITEM_TABLE_NAME            = "widget_market_items"
 	AI_PROVIDER_POOL_TABLE_NAME              = "ai_provider_pools"
 	TENANT_AI_POOL_GRANT_TABLE_NAME          = "tenant_ai_pool_grants"
+	MEDIA_GENERATE_JOB_TABLE_NAME            = "media_generate_jobs"
 )

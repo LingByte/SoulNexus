@@ -18,11 +18,11 @@ import {
   Mail,
   MessageSquare,
   Activity,
-  Package,
+  Puzzle,
+  Blocks,
   AudioWaveform,
   Wrench,
   Store,
-  Brush,
   Film,
   Grid2x2,
   Image as ImageIcon,
@@ -84,8 +84,8 @@ const navGroups: NavGroup[] = [
     items: [
       { labelKey: 'nav.knowledgeBase', href: '/knowledge-base', icon: BookOpen, tenantAllUsers: true },
       { labelKey: 'nav.workflows', href: '/workflows', icon: GitBranch, tenantMenuAnyOf: ['menu.res.workflow', 'api.workflow.read', 'menu.res.assistant', 'api.assistants.read'] },
-      { labelKey: 'nav.pluginMarket', href: '/plugin-market', icon: Package, tenantMenuAnyOf: ['menu.res.workflow', 'api.workflow.read', 'menu.res.assistant', 'api.assistants.read'] },
-      { labelKey: 'nav.widgetMarket', href: '/widget-market', icon: Package, tenantMenuAnyOf: ['menu.res.assistant', 'api.assistants.read'] },
+      { labelKey: 'nav.pluginMarket', href: '/plugin-market', icon: Puzzle, tenantMenuAnyOf: ['menu.res.workflow', 'api.workflow.read', 'menu.res.assistant', 'api.assistants.read'] },
+      { labelKey: 'nav.widgetMarket', href: '/widget-market', icon: Blocks, tenantMenuAnyOf: ['menu.res.assistant', 'api.assistants.read'] },
       { labelKey: 'nav.jsTemplates', href: '/js-templates', icon: FileText, tenantMenuAnyOf: ['menu.res.assistant', 'api.assistants.read'] },
     ],
   },
@@ -123,20 +123,18 @@ const navGroups: NavGroup[] = [
     labelKey: 'nav.groupMarketplace',
     items: [
       { labelKey: 'nav.platformNluModels', href: '/platform/nlu-models', icon: BrainCircuit },
-      { labelKey: 'nav.platformPluginMarket', href: '/platform/plugin-market', icon: Package },
+      { labelKey: 'nav.platformPluginMarket', href: '/platform/plugin-market', icon: Puzzle },
       { labelKey: 'nav.platformMcpMarket', href: '/platform/mcp-market', icon: Store },
     ],
   },
   {
-    labelKey: 'nav.groupPixelCraftForge',
+    labelKey: 'nav.groupPixelTools',
     items: [
-      { labelKey: 'nav.pixelCraftForgeBrush', href: '/pixel/tools?tab=brush', icon: Brush, tenantAllUsers: true },
-      { labelKey: 'nav.pixelCraftForgeGif', href: '/pixel/tools?tab=gif', icon: Film, tenantAllUsers: true },
-      { labelKey: 'nav.pixelCraftForgeSheet', href: '/pixel/tools?tab=sheet', icon: Grid2x2, tenantAllUsers: true },
-      { labelKey: 'nav.pixelCraftForgeAsset', href: '/pixel/tools?tab=asset', icon: ImageIcon, tenantAllUsers: true },
-      { labelKey: 'nav.pixelCraftForgeImageGenerate', href: '/generate', icon: ImageIcon, tenantAllUsers: true },
-      { labelKey: 'nav.pixelCraftForgeVideoGenerate', href: '/video-generate', icon: Film, tenantAllUsers: true },
-      { labelKey: 'nav.pixelCraftForgeVideoFrame', href: '/video-frame', icon: Camera, tenantAllUsers: true },
+      { labelKey: 'nav.pixelSheet', href: '/pixel/sheet', icon: Grid2x2, tenantAllUsers: true },
+      { labelKey: 'nav.pixelAsset', href: '/pixel/asset', icon: ImageIcon, tenantAllUsers: true },
+      { labelKey: 'nav.imageGenerate', href: '/generate', icon: ImageIcon, tenantAllUsers: true },
+      { labelKey: 'nav.videoGenerate', href: '/video-generate', icon: Film, tenantAllUsers: true },
+      { labelKey: 'nav.videoFrame', href: '/video-frame', icon: Camera, tenantAllUsers: true },
     ],
   },
 ]
@@ -173,11 +171,8 @@ const platformAdminMenuHrefs = new Set([
   '/platform/execution-tasks',
   '/platform/plugin-market',
   '/platform/mcp-market',
-  '/pixel/tools',
-  '/pixel/tools?tab=brush',
-  '/pixel/tools?tab=gif',
-  '/pixel/tools?tab=sheet',
-  '/pixel/tools?tab=asset',
+  '/pixel/sheet',
+  '/pixel/asset',
   '/generate',
   '/video-generate',
   '/video-frame',
@@ -187,11 +182,22 @@ const tenantHiddenHrefs = new Set([
   '/tenant-management',
 ])
 
-function selectedMenuKey(pathname: string, items: NavDef[]): string {
-  const exact = items.find((n) => pathname === n.href)
-  if (exact) return exact.href
-  const sorted = [...items].sort((a, b) => b.href.length - a.href.length)
-  const hit = sorted.find((n) => pathname.startsWith(`${n.href}/`)) ?? items[0] ?? allNavigation[0]
+function navHrefPath(href: string): string {
+  return href.split('?')[0] ?? href
+}
+
+function selectedMenuKey(pathname: string, search: string, items: NavDef[]): string {
+  const full = `${pathname}${search}`
+  const exactWithQuery = items.find((n) => n.href === full)
+  if (exactWithQuery) return exactWithQuery.href
+  const exactPath = items.find((n) => navHrefPath(n.href) === pathname)
+  if (exactPath) return exactPath.href
+  const sorted = [...items].sort((a, b) => navHrefPath(b.href).length - navHrefPath(a.href).length)
+  const hit =
+    sorted.find((n) => {
+      const base = navHrefPath(n.href)
+      return pathname === base || pathname.startsWith(`${base}/`)
+    }) ?? items[0] ?? allNavigation[0]
   return hit.href
 }
 
@@ -280,7 +286,9 @@ function NavMenuBody({
     minWidth: 0,
   } as const
   const selected =
-    visibleNavigation.length > 0 ? selectedMenuKey(location.pathname, visibleNavigation) : location.pathname
+    visibleNavigation.length > 0
+      ? selectedMenuKey(location.pathname, location.search, visibleNavigation)
+      : location.pathname
 
   const pinnedHref = isPlatformAdmin ? PLATFORM_HOME_PATH : TENANT_HOME_PATH
   const pinnedItem = visibleNavigation.find((n) => n.href === pinnedHref)
@@ -303,7 +311,7 @@ function NavMenuBody({
         aria-label={label}
         aria-current={active ? 'page' : undefined}
         className={cn(
-          'ling-sidebar-nav-item',
+          'ling-sidebar-nav-item inline-flex flex-row flex-nowrap items-center',
           compact && 'ling-sidebar-nav-item--compact',
           active && 'ling-sidebar-nav-item--active',
         )}

@@ -152,3 +152,5 @@ data/
 *.soulpet.zip
 我的桌宠.soulpet/
 .cursor/
+.gocache/
+.gotmp/
