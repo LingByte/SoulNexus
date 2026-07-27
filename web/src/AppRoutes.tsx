@@ -54,6 +54,10 @@ const AIInvocationLogs = lazy(() => import('@/pages/AIInvocationLogs'))
 const ExecutionTasks = lazy(() => import('@/pages/platform/ExecutionTasks'))
 const SMSLogs = lazy(() => import('@/pages/platform/SMSLogs'))
 const SystemStatus = lazy(() => import('@/pages/platform/SystemStatus'))
+const PixelCraftForgePage = lazy(() => import('@/pages/PixelCraftForgePage'))
+const ImageGeneratePage = lazy(() => import('@/pages/Generate/ImageGeneratePage'))
+const VideoGeneratePage = lazy(() => import('@/pages/Generate/VideoGeneratePage'))
+const VideoFramePage = lazy(() => import('@/pages/VideoFramePage'))
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
@@ -361,6 +365,13 @@ export function AppRoutes() {
         <Route path="/platform/plugin-market" element={<RequirePlatform><PlatformPluginMarket /></RequirePlatform>} />
         <Route path="/platform/mcp-market" element={<RequirePlatform><PlatformMcpMarket /></RequirePlatform>} />
         <Route path="/platform/system-status" element={<RequirePlatform><SystemStatus /></RequirePlatform>} />
+        <Route path="/pixel/tools" element={<PixelCraftForgePage />} />
+        <Route path="/pixel/tools/:tab" element={<PixelCraftForgePage />} />
+        <Route path="/pixel/library" element={<Navigate to="/pixel/tools?tab=asset" replace />} />
+        <Route path="/pixel/layer-editor" element={<Navigate to="/pixel/tools?tab=brush" replace />} />
+        <Route path="/generate" element={<ImageGeneratePage />} />
+        <Route path="/video-generate" element={<VideoGeneratePage />} />
+        <Route path="/video-frame" element={<VideoFramePage />} />
         <Route
           path="/tenant-management/:tenantId/ai"
           element={

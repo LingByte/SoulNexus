@@ -22,6 +22,11 @@ import {
   AudioWaveform,
   Wrench,
   Store,
+  Brush,
+  Film,
+  Grid2x2,
+  Image as ImageIcon,
+  Camera,
 } from 'lucide-react'
 import { useSidebar } from '@/contexts/SidebarContext'
 import {
@@ -122,6 +127,18 @@ const navGroups: NavGroup[] = [
       { labelKey: 'nav.platformMcpMarket', href: '/platform/mcp-market', icon: Store },
     ],
   },
+  {
+    labelKey: 'nav.groupPixelCraftForge',
+    items: [
+      { labelKey: 'nav.pixelCraftForgeBrush', href: '/pixel/tools?tab=brush', icon: Brush, tenantAllUsers: true },
+      { labelKey: 'nav.pixelCraftForgeGif', href: '/pixel/tools?tab=gif', icon: Film, tenantAllUsers: true },
+      { labelKey: 'nav.pixelCraftForgeSheet', href: '/pixel/tools?tab=sheet', icon: Grid2x2, tenantAllUsers: true },
+      { labelKey: 'nav.pixelCraftForgeAsset', href: '/pixel/tools?tab=asset', icon: ImageIcon, tenantAllUsers: true },
+      { labelKey: 'nav.pixelCraftForgeImageGenerate', href: '/generate', icon: ImageIcon, tenantAllUsers: true },
+      { labelKey: 'nav.pixelCraftForgeVideoGenerate', href: '/video-generate', icon: Film, tenantAllUsers: true },
+      { labelKey: 'nav.pixelCraftForgeVideoFrame', href: '/video-frame', icon: Camera, tenantAllUsers: true },
+    ],
+  },
 ]
 
 // 展平所有导航项（用于路由匹配等）
@@ -156,6 +173,14 @@ const platformAdminMenuHrefs = new Set([
   '/platform/execution-tasks',
   '/platform/plugin-market',
   '/platform/mcp-market',
+  '/pixel/tools',
+  '/pixel/tools?tab=brush',
+  '/pixel/tools?tab=gif',
+  '/pixel/tools?tab=sheet',
+  '/pixel/tools?tab=asset',
+  '/generate',
+  '/video-generate',
+  '/video-frame',
 ])
 
 const tenantHiddenHrefs = new Set([
