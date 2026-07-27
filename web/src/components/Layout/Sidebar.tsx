@@ -80,6 +80,7 @@ const navGroups: NavGroup[] = [
       { labelKey: 'nav.knowledgeBase', href: '/knowledge-base', icon: BookOpen, tenantAllUsers: true },
       { labelKey: 'nav.workflows', href: '/workflows', icon: GitBranch, tenantMenuAnyOf: ['menu.res.workflow', 'api.workflow.read', 'menu.res.assistant', 'api.assistants.read'] },
       { labelKey: 'nav.pluginMarket', href: '/plugin-market', icon: Package, tenantMenuAnyOf: ['menu.res.workflow', 'api.workflow.read', 'menu.res.assistant', 'api.assistants.read'] },
+      { labelKey: 'nav.widgetMarket', href: '/widget-market', icon: Package, tenantMenuAnyOf: ['menu.res.assistant', 'api.assistants.read'] },
       { labelKey: 'nav.jsTemplates', href: '/js-templates', icon: FileText, tenantMenuAnyOf: ['menu.res.assistant', 'api.assistants.read'] },
     ],
   },

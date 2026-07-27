@@ -121,9 +121,11 @@
 
 | 能力 | 说明 |
 |------|------|
-| JS 模板 | CRUD；供 H5 / 小程序嵌入（`/js-templates`） |
+| 网页挂件 | CRUD；供 H5 / 小程序嵌入（`/js-templates`） |
+| 挂件市场 | 浏览、下载公开挂件（`/widget-market`）；租户在挂件列表「发布到挂件市场」 |
+| 公开 API（免鉴权） | `GET /api/public/widget-market/items` 等；SoulMy 桌面「市场」拉列表 |
 | Embed 分发 | `/embed.js`、`/t/:jsSourceId/embed.js` |
-| Desktop Pet | Electron 透明壳（`desktop-pet/`），可挂载 JS 模板 |
+| Desktop Pet（SoulMy） | Electron 透明壳（`desktop-pet/`），可挂载挂件 `jsSourceId` |
 | Soul Pet 包 | `.soulpet` 包与多端 runtime：**规范草案**（`soulpet-package-spec.md`） |
 
 ### 3.8 NLU
@@ -172,7 +174,7 @@
 2. **建知识**：建 Namespace → 上传文档 → 索引 → 召回测试 → 运营分析。
 3. **编工作流**：画图 → 测节点 → 发布 →（可选）从插件市场安装。
 4. **接 MCP**：市场开通或自定义工具 → 绑定到助手。
-5. **对外嵌入**：编辑 JS 模板 → Embed / 桌宠加载 `jsSourceId`。
+5. **对外嵌入**：编辑网页挂件 → 可选发布到挂件市场 → Embed / SoulMy 加载 `jsSourceId`。
 
 ---
 

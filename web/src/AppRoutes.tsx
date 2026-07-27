@@ -21,6 +21,7 @@ const JSTemplateEdit = lazy(() => import('@/pages/JSTemplateEdit'))
 const WorkflowManager = lazy(() => import('@/pages/WorkflowManager'))
 const WorkflowEditorPage = lazy(() => import('@/pages/WorkflowEditorPage'))
 const WorkflowPluginMarket = lazy(() => import('@/pages/WorkflowPluginMarket'))
+const WidgetMarketPage = lazy(() => import('@/pages/WidgetMarketPage'))
 const PlatformPluginMarket = lazy(() => import('@/pages/platform/PlatformPluginMarket'))
 const PlatformMcpMarket = lazy(() => import('@/pages/platform/PlatformMcpMarket'))
 const TenantLogin = lazy(() => import('@/pages/TenantLogin'))
@@ -200,6 +201,14 @@ export function AppRoutes() {
           element={
             <RequireTenant>
               <WorkflowEditorPage />
+            </RequireTenant>
+          }
+        />
+        <Route
+          path="/widget-market"
+          element={
+            <RequireTenant>
+              <WidgetMarketPage />
             </RequireTenant>
           }
         />

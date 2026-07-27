@@ -1,10 +1,19 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Drawer, Input, Modal, Space, Table, Tag, Typography } from '@arco-design/web-react'
-import { IconDelete, IconEdit, IconList, IconApps, IconPlus, IconRefresh, IconSearch } from '@arco-design/web-react/icon'
+import {
+  IconDelete,
+  IconEdit,
+  IconList,
+  IconApps,
+  IconPlus,
+  IconRefresh,
+  IconSearch,
+  IconUpload,
+} from '@arco-design/web-react/icon'
 import dayjs from 'dayjs'
 import BaseLayout from '@/components/Layout/BaseLayout'
-import { Button, Empty, TableEmpty } from '@/components/ui'
+import { Button, Empty, Select, TableEmpty } from '@/components/ui'
 import { Loading } from '@/components/ui/loading'
 import JSTemplateWidgetCard from '@/components/js-template/JSTemplateWidgetCard'
 import JSTemplateAvatar, { jsTemplateAvatarSrc } from '@/components/js-template/JSTemplateAvatar'
@@ -16,6 +25,7 @@ import {
   type JSTemplateRow,
   type JSTemplateUsageRow,
 } from '@/api/jsTemplates'
+import widgetMarketService from '@/api/widgetMarket'
 import { useTranslation } from '@/i18n'
 import { showAlert } from '@/utils/notification'
 import { cn } from '@/utils/cn'
@@ -66,6 +76,19 @@ export default function JSTemplateManager() {
   const [usagePage, setUsagePage] = useState(1)
   const [usageFilter, setUsageFilter] = useState('')
   const usagePageSize = 20
+  const [publishOpen, setPublishOpen] = useState(false)
+  const [publishRow, setPublishRow] = useState<JSTemplateRow | null>(null)
+  const [publishCategory, setPublishCategory] = useState('utility')
+  const [publishDescription, setPublishDescription] = useState('')
+  const [publishSaving, setPublishSaving] = useState(false)
+
+  const publishCategoryOptions = [
+    { value: 'desktop_pet', label: t('widgetMarket.categories.desktop_pet') },
+    { value: 'chat_widget', label: t('widgetMarket.categories.chat_widget') },
+    { value: 'live2d', label: t('widgetMarket.categories.live2d') },
+    { value: 'utility', label: t('widgetMarket.categories.utility') },
+    { value: 'custom', label: t('widgetMarket.categories.custom') },
+  ]
 
   useEffect(() => {
     const timer = setTimeout(() => setSearchDebounce(keyword), 300)
@@ -148,6 +171,47 @@ export default function JSTemplateManager() {
     navigate(`/js-templates/${id}/edit`)
   }
 
+  const openPublish = (row: JSTemplateRow) => {
+    if (row.status !== 'active') {
+      showAlert(t('widgetMarket.publishActiveRequired'), 'warning')
+      return
+    }
+    setPublishRow(row)
+    setPublishCategory('utility')
+    setPublishDescription((row.usage || '').trim())
+    setPublishOpen(true)
+  }
+
+  const confirmPublish = async () => {
+    if (!publishRow) return
+    const desc = publishDescription.trim()
+    if (!desc) {
+      showAlert(t('widgetMarket.publishUsageRequired'), 'warning')
+      return
+    }
+    setPublishSaving(true)
+    try {
+      const res = await widgetMarketService.publishFromTemplate({
+        jsTemplateId: String(publishRow.id),
+        displayName: publishRow.name,
+        description: desc,
+        category: publishCategory,
+        publish: true,
+      })
+      if (res.code === 200) {
+        showAlert(t('widgetMarket.publishSuccess'), 'success')
+        setPublishOpen(false)
+        setPublishRow(null)
+      } else {
+        showAlert(res.msg || t('common.saveFailed'), 'error')
+      }
+    } catch (e: unknown) {
+      showAlert((e as { msg?: string })?.msg || t('common.saveFailed'), 'error')
+    } finally {
+      setPublishSaving(false)
+    }
+  }
+
   const listColumns = [
     {
       title: t('jsTemplate.avatar'),
@@ -190,10 +254,17 @@ export default function JSTemplateManager() {
     },
     {
       title: t('common.actions'),
-      width: 120,
+      width: 160,
       render: (_: unknown, row: JSTemplateRow) => (
         <Space>
           <Button type="text" size="mini" icon={<IconEdit />} onClick={() => goEdit(row.id)} />
+          <Button
+            type="text"
+            size="mini"
+            icon={<IconUpload />}
+            title={t('widgetMarket.publishToMarket')}
+            onClick={() => openPublish(row)}
+          />
           <Button type="text" size="mini" status="danger" icon={<IconDelete />} onClick={() => remove(row)} />
         </Space>
       ),
@@ -274,6 +345,7 @@ export default function JSTemplateManager() {
                 row={row}
                 onEdit={() => goEdit(row.id)}
                 onDelete={() => remove(row)}
+                onPublish={() => openPublish(row)}
               />
             ))}
           </div>
@@ -373,6 +445,57 @@ export default function JSTemplateManager() {
           }}
         />
       </Drawer>
+
+      <Modal
+        title={t('widgetMarket.publishToMarket')}
+        visible={publishOpen}
+        onCancel={() => {
+          setPublishOpen(false)
+          setPublishRow(null)
+        }}
+        onOk={() => void confirmPublish()}
+        confirmLoading={publishSaving}
+        style={{ width: 480 }}
+        unmountOnExit
+      >
+        {publishRow ? (
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <JSTemplateAvatar src={jsTemplateAvatarSrc(publishRow)} name={publishRow.name} size="lg" />
+              <div className="min-w-0">
+                <Typography.Text bold className="!block truncate">
+                  {publishRow.name}
+                </Typography.Text>
+                <Typography.Text type="secondary" className="!text-xs font-mono truncate !block">
+                  {publishRow.jsSourceId}
+                </Typography.Text>
+              </div>
+            </div>
+            <div>
+              <Typography.Text className="!mb-1 !block !text-xs text-muted-foreground">
+                {t('jsTemplate.usage')}
+              </Typography.Text>
+              <Input.TextArea
+                value={publishDescription}
+                onChange={setPublishDescription}
+                placeholder={t('widgetMarket.publishDescriptionHint')}
+                autoSize={{ minRows: 2, maxRows: 5 }}
+              />
+            </div>
+            <div>
+              <Typography.Text className="!mb-1 !block !text-xs text-muted-foreground">
+                {t('widgetMarket.publishCategory')}
+              </Typography.Text>
+              <Select
+                value={publishCategory}
+                onChange={(v) => setPublishCategory(String(v))}
+                options={publishCategoryOptions}
+                style={{ width: '100%' }}
+              />
+            </div>
+          </div>
+        ) : null}
+      </Modal>
     </BaseLayout>
   )
 }
