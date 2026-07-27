@@ -20,7 +20,7 @@ export function SegmentedControl<T extends string>({
   return (
     <div
       className={cn(
-        'grid gap-1 rounded-xl bg-[rgb(232,232,235)]/90 p-1',
+        'grid gap-1 rounded-xl bg-muted p-1',
         options.length === 2 && 'grid-cols-2',
         options.length === 3 && 'grid-cols-3',
         options.length >= 4 && 'grid-cols-2 sm:grid-cols-4',
@@ -41,8 +41,8 @@ export function SegmentedControl<T extends string>({
               'rounded-lg px-3 py-2 text-left transition',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40',
               active
-                ? 'bg-[#18181B] text-white shadow-sm'
-                : 'text-muted-foreground hover:text-foreground hover:bg-white/60',
+                ? 'bg-primary text-primary-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground hover:bg-card/80',
             )}
           >
             <div className="text-xs font-medium leading-none">{opt.label}</div>
@@ -50,7 +50,7 @@ export function SegmentedControl<T extends string>({
               <div
                 className={cn(
                   'mt-1 text-[10px] leading-snug',
-                  active ? 'text-white/65' : 'text-muted-foreground',
+                  active ? 'text-primary-foreground/70' : 'text-muted-foreground',
                 )}
               >
                 {opt.description}

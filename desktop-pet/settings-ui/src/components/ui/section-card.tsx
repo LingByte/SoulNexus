@@ -24,7 +24,7 @@ export function SectionCard({
   const header = (
     <div className="flex items-start gap-3">
       {icon ? (
-        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#18181B]/[0.06] text-[#18181B]/80">
+        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
           {icon}
         </div>
       ) : null}
@@ -61,14 +61,14 @@ export function SectionCard({
   return (
     <section
       className={cn(
-        'rounded-xl border border-black/[0.06] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)]',
+        'rounded-xl border border-border bg-card shadow-sm',
         className,
       )}
     >
       {collapsible ? (
         <button
           type="button"
-          className="flex w-full items-start px-4 py-3.5 text-left hover:bg-black/[0.015] rounded-xl transition-colors"
+          className="flex w-full items-start px-4 py-3.5 text-left hover:bg-muted/50 rounded-xl transition-colors"
           onClick={() => onOpenChange?.(!open)}
           aria-expanded={open}
         >
