@@ -75,6 +75,7 @@ func (h *Handlers) Register(engine *gin.Engine, api huma.API) {
 	h.registerTenantPublicRoutes(r)
 	h.registerSendCloudWebhookRoutes(r)
 	h.registerEmbedRoutes(r)
+	h.registerWidgetMarketPublicRoutes(r)
 	h.RegisterPublicWorkflowRoutes(r)
 	h.registerDialogPublicRoutes(r)
 
@@ -95,6 +96,7 @@ func (h *Handlers) Register(engine *gin.Engine, api huma.API) {
 	h.registerCredentialRoutes(protected)
 	h.registerTenantWorkspaceRoutes(protected)
 	h.registerJSTemplateRoutes(protected)
+	h.registerWidgetMarketRoutes(protected)
 	h.registerWorkflowRoutes(protected)
 	h.registerWorkflowPluginRoutes(protected)
 	h.registerNodePluginRoutes(protected)
