@@ -52,6 +52,7 @@ export default function JSTemplateEditorPage({ mode, templateId }: JSTemplateEdi
   const [jsSourceId, setJsSourceId] = useState('')
   const [avatarUrl, setAvatarUrl] = useState('')
   const [avatarUploading, setAvatarUploading] = useState(false)
+  const [pendingAvatarFile, setPendingAvatarFile] = useState<File | null>(null)
   const [previewConfig, setPreviewConfig] = useState(() =>
     loadEmbedPreviewConfig(getApiBaseURL().replace(/\/$/, '')),
   )
@@ -114,6 +115,44 @@ export default function JSTemplateEditorPage({ mode, templateId }: JSTemplateEdi
     }
   }, [isEdit, loadExisting, loadCreateDefaults])
 
+  useEffect(() => {
+    return () => {
+      if (avatarUrl.startsWith('blob:')) URL.revokeObjectURL(avatarUrl)
+    }
+  }, [avatarUrl])
+
+  const handleAvatarPick = async (file: File) => {
+    if (isEdit && editId) {
+      setAvatarUploading(true)
+      try {
+        const res = await uploadJSTemplateAvatar(editId, file)
+        if (res.code !== 200) {
+          showAlert(res.msg || t('jsTemplate.avatarFailed'), 'error')
+          return
+        }
+        const url = res.data?.avatarUrl || res.data?.template?.avatarUrl || ''
+        if (url) {
+          setAvatarUrl((prev) => {
+            if (prev.startsWith('blob:')) URL.revokeObjectURL(prev)
+            return url
+          })
+          setPendingAvatarFile(null)
+        }
+        showAlert(t('jsTemplate.avatarUpdated'), 'success')
+      } catch (e: unknown) {
+        showAlert((e as { msg?: string })?.msg || t('jsTemplate.avatarFailed'), 'error')
+      } finally {
+        setAvatarUploading(false)
+      }
+      return
+    }
+    setPendingAvatarFile(file)
+    setAvatarUrl((prev) => {
+      if (prev.startsWith('blob:')) URL.revokeObjectURL(prev)
+      return URL.createObjectURL(file)
+    })
+  }
+
   const save = async () => {
     if (!name.trim() || !content.trim()) {
       showAlert(t('jsTemplate.nameContentRequired'), 'error')
@@ -127,7 +166,7 @@ export default function JSTemplateEditorPage({ mode, templateId }: JSTemplateEdi
         content: content.trim(),
         usage: usage.trim(),
         status,
-        avatarUrl: avatarUrl.trim(),
+        avatarUrl: avatarUrl.startsWith('blob:') ? '' : avatarUrl.trim(),
       }
       const res = isEdit && editId
         ? await updateJSTemplate(editId, body)
@@ -136,8 +175,19 @@ export default function JSTemplateEditorPage({ mode, templateId }: JSTemplateEdi
         showAlert(res.msg || t('common.saveFailed'), 'error')
         return
       }
-      showAlert(t('common.saveSuccess'), 'success')
       const createdId = res.data?.id
+      if (!isEdit && pendingAvatarFile && isValidJSTemplateId(createdId)) {
+        try {
+          const up = await uploadJSTemplateAvatar(createdId, pendingAvatarFile)
+          if (up.code !== 200) {
+            showAlert(up.msg || t('jsTemplate.avatarFailed'), 'warning')
+          }
+        } catch {
+          showAlert(t('jsTemplate.avatarFailed'), 'warning')
+        }
+        setPendingAvatarFile(null)
+      }
+      showAlert(t('common.saveSuccess'), 'success')
       if (!isEdit && isValidJSTemplateId(createdId)) {
         navigate(`/js-templates/${createdId}/edit`)
         return
@@ -208,32 +258,18 @@ export default function JSTemplateEditorPage({ mode, templateId }: JSTemplateEdi
         avatarUrl={avatarUrl || undefined}
         jsSourceId={jsSourceId || undefined}
         avatarUploading={avatarUploading}
-        onAvatarPick={
-          isEdit && editId
-            ? async (file) => {
-                setAvatarUploading(true)
-                try {
-                  const res = await uploadJSTemplateAvatar(editId, file)
-                  if (res.code !== 200) {
-                    showAlert(res.msg || t('jsTemplate.avatarFailed'), 'error')
-                    return
-                  }
-                  const url = res.data?.avatarUrl || res.data?.template?.avatarUrl || ''
-                  if (url) setAvatarUrl(url)
-                  showAlert(t('jsTemplate.avatarUpdated'), 'success')
-                } catch (e: unknown) {
-                  showAlert((e as { msg?: string })?.msg || t('jsTemplate.avatarFailed'), 'error')
-                } finally {
-                  setAvatarUploading(false)
-                }
-              }
-            : undefined
-        }
+        onAvatarPick={(file) => void handleAvatarPick(file)}
         onChange={(patch) => {
           if (patch.name !== undefined) setName(patch.name)
           if (patch.usage !== undefined) setUsage(patch.usage)
           if (patch.status !== undefined) setStatus(patch.status)
-          if (patch.avatarUrl !== undefined) setAvatarUrl(patch.avatarUrl)
+          if (patch.avatarUrl !== undefined) {
+            setAvatarUrl((prev) => {
+              if (prev.startsWith('blob:')) URL.revokeObjectURL(prev)
+              return patch.avatarUrl || ''
+            })
+            setPendingAvatarFile(null)
+          }
         }}
         onClose={() => setSettingsOpen(false)}
         onConfirm={() => setSettingsOpen(false)}

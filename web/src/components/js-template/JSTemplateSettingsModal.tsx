@@ -1,7 +1,6 @@
+import { useRef } from 'react'
 import { Modal, Select, Typography } from '@arco-design/web-react'
-import { Input } from '@/components/ui'
-import { Button } from '@/components/ui'
-import { AssistantAvatarPicker } from '@/components/assistant/AssistantFileUploadModal'
+import { Input, Button } from '@/components/ui'
 import JSTemplateAvatar from '@/components/js-template/JSTemplateAvatar'
 import { useTranslation } from '@/i18n'
 
@@ -14,7 +13,7 @@ export type JSTemplateSettingsModalProps = {
   jsSourceId?: string
   avatarUploading?: boolean
   onChange: (patch: { name?: string; usage?: string; status?: string; avatarUrl?: string }) => void
-  onAvatarPick?: (file: File) => void
+  onAvatarPick: (file: File) => void
   onClose: () => void
   onConfirm: () => void
 }
@@ -33,6 +32,11 @@ export default function JSTemplateSettingsModal({
   onConfirm,
 }: JSTemplateSettingsModalProps) {
   const { t } = useTranslation()
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const pickFile = () => {
+    if (!avatarUploading) fileRef.current?.click()
+  }
 
   return (
     <Modal
@@ -50,31 +54,30 @@ export default function JSTemplateSettingsModal({
       style={{ width: 520 }}
     >
       <div className="space-y-4 py-1">
-        <div className="flex items-center gap-4">
-          <JSTemplateAvatar src={avatarUrl} name={name} size="xl" />
-          {onAvatarPick ? (
-            <div className="flex flex-col gap-2">
-              <Typography.Text className="!text-xs">{t('jsTemplate.avatar')}</Typography.Text>
-              <AssistantAvatarPicker avatarUrl={avatarUrl} onPick={onAvatarPick} />
-              {avatarUploading ? (
-                <Typography.Text type="secondary" className="!text-[11px]">
-                  {t('jsTemplate.avatarUploading')}
-                </Typography.Text>
-              ) : null}
-              <Typography.Text type="secondary" className="!text-[11px]">
-                {t('jsTemplate.avatarHint')}
-              </Typography.Text>
-            </div>
-          ) : (
-            <div className="flex-1">
-              <Typography.Text className="!text-xs">{t('jsTemplate.avatar')}</Typography.Text>
-              <Input
-                value={avatarUrl || ''}
-                onChange={(v) => onChange({ avatarUrl: v })}
-                placeholder={t('jsTemplate.avatarUrlPlaceholder')}
-              />
-            </div>
-          )}
+        <div className="flex items-start gap-4">
+          <button type="button" className="shrink-0 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40" onClick={pickFile}>
+            <JSTemplateAvatar src={avatarUrl} name={name} size="xl" />
+          </button>
+          <div className="flex min-w-0 flex-1 flex-col gap-2">
+            <Typography.Text className="!text-xs font-medium">{t('jsTemplate.avatar')}</Typography.Text>
+            <Button type="outline" size="small" loading={avatarUploading} onClick={pickFile}>
+              {avatarUploading ? t('jsTemplate.avatarUploading') : t('jsTemplate.avatarUpload')}
+            </Button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                if (f) onAvatarPick(f)
+                e.target.value = ''
+              }}
+            />
+            <Typography.Text type="secondary" className="!text-[11px] leading-relaxed">
+              {t('jsTemplate.avatarHint')}
+            </Typography.Text>
+          </div>
         </div>
         <div>
           <Typography.Text className="!text-xs">{t('jsTemplate.name')}</Typography.Text>
@@ -86,7 +89,7 @@ export default function JSTemplateSettingsModal({
         </div>
         <div>
           <Typography.Text className="!text-xs">{t('jsTemplate.usage')}</Typography.Text>
-          <Input value={usage} onChange={(v) => onChange({ usage: v })} />
+          <Input value={usage} onChange={(v) => onChange({ usage: v })} placeholder={t('jsTemplate.usagePlaceholder')} />
         </div>
         <div>
           <Typography.Text className="!text-xs">{t('jsTemplate.status')}</Typography.Text>

@@ -1,5 +1,5 @@
 import { Tag, Typography } from '@arco-design/web-react'
-import { IconDelete, IconEdit } from '@arco-design/web-react/icon'
+import { IconDelete, IconEdit, IconUpload } from '@arco-design/web-react/icon'
 import { MessageCircle } from 'lucide-react'
 import { Button } from '@/components/ui'
 import type { JSTemplateRow } from '@/api/jsTemplates'
@@ -11,6 +11,7 @@ export type JSTemplateWidgetCardProps = {
   row: JSTemplateRow
   onEdit: () => void
   onDelete: () => void
+  onPublish?: () => void
   className?: string
 }
 
@@ -25,7 +26,7 @@ function PreviewAvatar({ src, name, iconSize = 14 }: { src?: string; name: strin
   )
 }
 
-export default function JSTemplateWidgetCard({ row, onEdit, onDelete, className }: JSTemplateWidgetCardProps) {
+export default function JSTemplateWidgetCard({ row, onEdit, onDelete, onPublish, className }: JSTemplateWidgetCardProps) {
   const { t } = useTranslation()
   const avatar = jsTemplateAvatarSrc(row)
   const isActive = row.status === 'active'
@@ -97,6 +98,18 @@ export default function JSTemplateWidgetCard({ row, onEdit, onDelete, className 
             {row.jsSourceId}
           </Typography.Text>
           <div className="flex shrink-0">
+            {onPublish ? (
+              <Button
+                type="text"
+                size="mini"
+                icon={<IconUpload />}
+                title={t('widgetMarket.publishToMarket')}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onPublish()
+                }}
+              />
+            ) : null}
             <Button type="text" size="mini" icon={<IconEdit />} onClick={onEdit} />
             <Button type="text" size="mini" status="danger" icon={<IconDelete />} onClick={onDelete} />
           </div>
