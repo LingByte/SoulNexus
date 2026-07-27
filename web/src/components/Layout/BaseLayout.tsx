@@ -53,6 +53,7 @@ const BaseLayout = ({
   }, [])
 
   const marginLeft = inAppShell ? 0 : isLg ? effectiveSidebarWidth : 0
+  const themeLabel = isDark ? t('landing.themeLight') : t('landing.themeDark')
 
   const header = !hideHeader ? (
     <header className="sticky top-0 z-10 flex min-h-16 items-center border-b border-border bg-card px-4 sm:px-6 box-border">
@@ -60,12 +61,14 @@ const BaseLayout = ({
         <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-2.5">
           {!isLg && (
             <Button
-              type="text"
-              size="small"
-              icon={<IconMenu />}
+              variant="ghost"
+              size="icon-sm"
               onClick={() => setMobileOpen(true)}
               className="shrink-0"
-            />
+              aria-label="菜单"
+            >
+              <IconMenu />
+            </Button>
           )}
           <div className="min-w-0 flex-1 overflow-hidden">
             {title ? (
@@ -102,27 +105,34 @@ const BaseLayout = ({
             onChange={(v) => setLocale(v as Parameters<typeof setLocale>[0])}
           />
           <Button
-            type="secondary"
-            size="small"
-            icon={isDark ? <IconSun /> : <IconMoon />}
+            variant="outline"
+            size="icon-sm"
             onClick={toggleMode}
-          />
+            aria-label={themeLabel}
+            title={themeLabel}
+          >
+            {isDark ? <IconSun /> : <IconMoon />}
+          </Button>
           <Button
-            type="text"
-            size="small"
-            icon={<Github size={16} strokeWidth={2} />}
+            variant="ghost"
+            size="icon-sm"
             title={t('nav.github')}
+            aria-label={t('nav.github')}
             onClick={() => window.open(GITHUB_REPO_URL, '_blank', 'noopener,noreferrer')}
-          />
+          >
+            <Github size={16} strokeWidth={2} />
+          </Button>
           {actions}
           {isLg && (
             <Button
-              type="secondary"
-              size="small"
-              icon={isCollapsed ? <IconMenuUnfold /> : <IconMenuFold />}
+              variant="outline"
+              size="icon-sm"
               onClick={toggleCollapse}
               title={isCollapsed ? t('layout.expandSidebar') : t('layout.collapseSidebar')}
-            />
+              aria-label={isCollapsed ? t('layout.expandSidebar') : t('layout.collapseSidebar')}
+            >
+              {isCollapsed ? <IconMenuUnfold /> : <IconMenuFold />}
+            </Button>
           )}
         </div>
       </div>
