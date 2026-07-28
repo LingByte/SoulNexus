@@ -1,16 +1,18 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Drawer } from '@arco-design/web-react'
-import { Button, Card, Empty, Input, Select } from '@/components/ui'
+import { Button, Empty, Input } from '@/components/ui'
 import BaseLayout from '@/components/Layout/BaseLayout'
 import {
+  ChevronRight,
   Copy,
   Download,
   Eye,
-  History,
-  ImageIcon,
+  Image as ImageIcon,
+  ImagePlus,
   Loader2,
   RotateCcw,
   Sparkles,
+  Trash2,
 } from 'lucide-react'
 import {
   generateImageToImage,
@@ -26,6 +28,7 @@ import {
 } from '@/api/mediaGenerate'
 import { showAlert } from '@/utils/notification'
 import { extractApiErrorMessage } from '@/utils/apiError'
+import { ChipGroup, sizeFromResRatio } from './seaartLayout'
 
 type HistoryItem = {
   id: string
@@ -38,6 +41,16 @@ type HistoryItem = {
   at: number
   errorMessage?: string
 }
+
+const RESOLUTIONS = ['1K', '2K', '4K'] as const
+const RATIOS = ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '16:9', '9:16'] as const
+const COUNTS = ['1', '2', '3', '4'] as const
+const STYLES = [
+  { value: 'pixel', label: '像素' },
+  { value: 'cartoon', label: '卡通' },
+  { value: 'realistic', label: '写实' },
+  { value: 'anime', label: '二次元' },
+] as const
 
 const STYLE_LABELS: Record<string, string> = {
   pixel: '像素风',
@@ -70,7 +83,7 @@ function statusMeta(status: string): { label: string; className: string } {
     case 'cancelled':
       return { label: status === 'cancelled' ? '已取消' : '失败', className: 'bg-rose-500/15 text-rose-600 dark:text-rose-400' }
     case 'running':
-      return { label: '生成中', className: 'bg-violet-500/15 text-violet-600 dark:text-violet-400' }
+      return { label: '生成中', className: 'bg-sky-500/15 text-sky-600 dark:text-sky-400' }
     default:
       return { label: '排队中', className: 'bg-amber-500/15 text-amber-700 dark:text-amber-400' }
   }
@@ -79,9 +92,10 @@ function statusMeta(status: string): { label: string; className: string } {
 export default function ImageGeneratePage() {
   const [prompt, setPrompt] = useState('')
   const [negative, setNegative] = useState('')
-  const [size, setSize] = useState('1024x1024')
-  const [style, setStyle] = useState('pixel')
-  const [count, setCount] = useState('1')
+  const [resolution, setResolution] = useState<(typeof RESOLUTIONS)[number]>('1K')
+  const [ratio, setRatio] = useState<(typeof RATIOS)[number]>('1:1')
+  const [style, setStyle] = useState<(typeof STYLES)[number]['value']>('pixel')
+  const [count, setCount] = useState<(typeof COUNTS)[number]>('1')
   const [results, setResults] = useState<ImageGenerateResult[]>([])
   const [history, setHistory] = useState<HistoryItem[]>([])
   const [historyLoading, setHistoryLoading] = useState(true)
@@ -92,8 +106,12 @@ export default function ImageGeneratePage() {
   const [referenceFile, setReferenceFile] = useState<File | null>(null)
   const [referencePreview, setReferencePreview] = useState('')
   const [detail, setDetail] = useState<HistoryItem | null>(null)
+  const [timeFilter, setTimeFilter] = useState('全部时间')
+  const [typeFilter, setTypeFilter] = useState('全部')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const abortRef = useRef<AbortController | null>(null)
+
+  const size = useMemo(() => sizeFromResRatio(resolution, ratio), [resolution, ratio])
 
   const refreshHistory = useCallback(async () => {
     try {
@@ -125,10 +143,19 @@ export default function ImageGeneratePage() {
     setReferencePreview(URL.createObjectURL(file))
   }
 
+  const resetForm = () => {
+    setPrompt('')
+    setNegative('')
+    setResolution('1K')
+    setRatio('1:1')
+    setStyle('pixel')
+    setCount('1')
+    onReferenceChange(null)
+  }
+
   const reusePrompt = (item: HistoryItem) => {
     setPrompt(item.prompt)
-    if (item.size) setSize(item.size)
-    if (item.style) setStyle(item.style)
+    if (item.style) setStyle(item.style as typeof style)
     setDetail(null)
     showAlert('已填入提示词与参数', 'success')
   }
@@ -225,324 +252,319 @@ export default function ImageGeneratePage() {
     setDoneCount(0)
   }
 
+  const filteredHistory = useMemo(() => {
+    const now = Date.now()
+    return history.filter((item) => {
+      if (timeFilter === '今天' && now - item.at > 24 * 3600 * 1000) return false
+      if (timeFilter === '近 7 天' && now - item.at > 7 * 24 * 3600 * 1000) return false
+      return true
+    })
+  }, [history, timeFilter])
+
   const detailStatus = detail ? statusMeta(detail.status) : null
+  const modeLabel = referenceFile ? '图生图' : '文生图'
 
   return (
-    <BaseLayout
-      title="图片生成"
-      description="文生图 / 图生图"
-      contentPadding="0"
-      contentClassName="overflow-hidden"
-      actions={
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" onClick={clearResults} disabled={generating || results.length === 0}>
-            清空结果
-          </Button>
-          <Button size="sm" className="gap-1.5" leftIcon={generating ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />} disabled={generating} onClick={() => void handleGenerate()}>
-            {generating ? '生成中…' : '开始生成'}
-          </Button>
-        </div>
-      }
-    >
-      <div className="h-[calc(100vh-4rem)] bg-[radial-gradient(circle_at_top,rgba(168,85,247,0.12),transparent_40%)]">
-        <div className="mx-auto flex h-full max-w-[1600px] flex-col gap-3 p-3 sm:p-4 xl:flex-row xl:gap-4">
-          <aside className="flex max-h-[42vh] shrink-0 flex-col overflow-y-auto xl:max-h-none xl:h-full xl:w-[320px]">
-            <Card className="flex flex-1 flex-col gap-3 border border-border/60 bg-card/85 p-3 shadow-sm backdrop-blur">
-              <div>
-                <div className="mb-1.5 text-xs font-medium text-foreground">参考图（可选）</div>
-                {referencePreview ? (
-                  <div className="overflow-hidden rounded-lg border border-border/60">
-                    <img src={referencePreview} alt="参考图" className="aspect-video max-h-28 w-full object-cover" />
-                    <div className="flex justify-end gap-1.5 border-t border-border/60 bg-background/70 p-1.5">
-                      <Button size="sm" variant="outline" onClick={() => onReferenceChange(null)} disabled={generating}>移除</Button>
-                      <Button size="sm" variant="outline" onClick={pickReference} disabled={generating}>更换</Button>
-                    </div>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    className="grid w-full cursor-pointer place-items-center gap-1 rounded-lg border border-dashed border-border/70 bg-background/60 px-3 py-5 text-center transition hover:border-primary/40 hover:bg-primary/5 disabled:opacity-50"
-                    disabled={generating}
-                    onClick={pickReference}
-                    onDragOver={(e) => { e.preventDefault(); e.stopPropagation() }}
-                    onDrop={(e) => {
-                      e.preventDefault()
-                      const file = e.dataTransfer.files?.[0]
-                      if (file?.type.startsWith('image/')) onReferenceChange(file)
-                    }}
-                  >
-                    <span className="text-[11px] font-medium text-foreground">拖拽或点击导入</span>
-                    <span className="text-[10px] text-muted-foreground">有参考图时走图生图</span>
-                  </button>
-                )}
-                <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => onReferenceChange(e.target.files?.[0] ?? null)} />
-              </div>
+    <BaseLayout title="图片生成" description="文生图 / 图生图" contentPadding="0" contentClassName="overflow-hidden">
+      <div className="flex h-[calc(100vh-4rem)] min-h-[560px] overflow-hidden bg-background">
+        {/* 创作侧栏 — 参考海艺；不改动应用 Sidebar / Header */}
+        <aside className="flex w-[340px] shrink-0 flex-col border-r border-border bg-card">
+          <div className="flex items-center justify-between border-b border-border px-4 py-3">
+            <h2 className="text-sm font-semibold text-foreground">图片生成</h2>
+            <button
+              type="button"
+              onClick={resetForm}
+              disabled={generating}
+              className="rounded-md p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-50"
+              title="重置"
+              aria-label="重置"
+            >
+              <RotateCcw size={15} />
+            </button>
+          </div>
 
-              <div>
-                <div className="mb-1.5 flex items-center justify-between">
-                  <div className="text-xs font-medium text-foreground">提示词</div>
-                  <span className="text-[10px] text-muted-foreground">{prompt.length} 字</span>
-                </div>
+          <div className="flex-1 space-y-5 overflow-y-auto px-4 py-4">
+            <div className="flex w-full items-center gap-3 rounded-xl border border-border bg-muted/30 p-2.5">
+              <div className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-muted">
+                {referencePreview ? (
+                  <img src={referencePreview} alt="" className="size-full object-cover" />
+                ) : (
+                  <ImageIcon size={18} className="text-muted-foreground" />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-medium text-foreground">Seedream</div>
+                <div className="text-xs text-muted-foreground">{modeLabel} · {size}</div>
+              </div>
+              <ChevronRight size={16} className="shrink-0 text-muted-foreground" />
+            </div>
+
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-xs font-medium text-muted-foreground">{modeLabel}</span>
+                <button
+                  type="button"
+                  className="text-xs text-muted-foreground transition hover:text-foreground disabled:opacity-50"
+                  disabled={generating}
+                  onClick={pickReference}
+                >
+                  {referenceFile ? '更换参考图' : '导入参考图'}
+                </button>
+              </div>
+              <div className="overflow-hidden rounded-xl border border-border bg-muted/20">
                 <Input.TextArea
                   value={prompt}
                   onChange={setPrompt}
-                  placeholder="像素风格女战士半身像，侧光勾边，干净背景，游戏立绘"
-                  autoSize={{ minRows: 3, maxRows: 5 }}
-                  className="text-sm"
+                  disabled={generating}
+                  placeholder="请详细描述您想要生成的画面内容（场景、人物、动作、光影等）。"
+                  autoSize={{ minRows: 5, maxRows: 10 }}
+                  className="!border-0 !bg-transparent !shadow-none"
                 />
-              </div>
-
-              <div>
-                <div className="mb-1.5 text-xs font-medium text-foreground">反向提示词</div>
-                <Input.TextArea
-                  value={negative}
-                  onChange={setNegative}
-                  placeholder="模糊，低质量，文字，水印"
-                  autoSize={{ minRows: 2, maxRows: 3 }}
-                  className="text-sm"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div className="col-span-2">
-                  <div className="mb-1 text-[11px] text-muted-foreground">尺寸</div>
-                  <Select
-                    value={size}
-                    onChange={setSize}
-                    options={[
-                      { label: '512 × 512', value: '512x512' },
-                      { label: '768 × 768', value: '768x768' },
-                      { label: '1024 × 1024', value: '1024x1024' },
-                      { label: '1280 × 720', value: '1280x720' },
-                    ]}
-                  />
-                </div>
-                <div>
-                  <div className="mb-1 text-[11px] text-muted-foreground">风格</div>
-                  <Select
-                    value={style}
-                    onChange={setStyle}
-                    options={[
-                      { label: '像素风', value: 'pixel' },
-                      { label: '卡通', value: 'cartoon' },
-                      { label: '写实', value: 'realistic' },
-                      { label: '二次元', value: 'anime' },
-                    ]}
-                  />
-                </div>
-                <div>
-                  <div className="mb-1 text-[11px] text-muted-foreground">数量</div>
-                  <Select
-                    value={count}
-                    onChange={setCount}
-                    options={[
-                      { label: '1 张', value: '1' },
-                      { label: '2 张', value: '2' },
-                      { label: '4 张', value: '4' },
-                    ]}
-                  />
-                </div>
-              </div>
-
-              <Button block size="sm" leftIcon={generating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />} disabled={generating} onClick={() => void handleGenerate()}>
-                {generating ? '生成中…' : referenceFile ? '图生图' : '文生图'}
-              </Button>
-
-              <div className="grid grid-cols-3 gap-1.5">
-                {[
-                  { label: '排队', value: queued },
-                  { label: '生成中', value: activeCount },
-                  { label: '完成', value: doneCount },
-                ].map((s) => (
-                  <div key={s.label} className="rounded-lg bg-background/70 px-2 py-1.5 text-center">
-                    <div className="text-[9px] text-muted-foreground">{s.label}</div>
-                    <div className="text-sm font-semibold tabular-nums text-foreground">{s.value}</div>
+                <div className="flex items-center justify-between border-t border-border/60 px-2 py-1.5">
+                  <button
+                    type="button"
+                    className="rounded-md p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-50"
+                    title="参考图"
+                    disabled={generating}
+                    onClick={pickReference}
+                  >
+                    <ImagePlus size={15} />
+                  </button>
+                  <div className="flex items-center gap-0.5">
+                    <button
+                      type="button"
+                      className="rounded-md p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                      title="复制"
+                      onClick={() => void copyPrompt(prompt)}
+                    >
+                      <Copy size={15} />
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-md p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-50"
+                      title="清空"
+                      disabled={generating}
+                      onClick={() => setPrompt('')}
+                    >
+                      <Trash2 size={15} />
+                    </button>
                   </div>
-                ))}
+                </div>
               </div>
-
-              {generating ? (
-                <div className="rounded-lg border border-primary/25 bg-primary/5 px-2.5 py-2">
-                  <div className="flex items-center gap-1.5 text-xs font-medium text-foreground">
-                    <ImageIcon className="size-3.5 text-violet-400" />
-                    正在生成 {count} 张…
-                  </div>
-                  <p className="mt-0.5 line-clamp-2 text-[10px] text-muted-foreground">
-                    {prompt.slice(0, 48) || '未填写'}{prompt.length > 48 ? '…' : ''}
-                  </p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => onReferenceChange(e.target.files?.[0] ?? null)}
+              />
+              {referenceFile ? (
+                <div className="mt-2 flex items-center justify-between rounded-lg border border-border bg-muted/30 px-2.5 py-1.5 text-xs">
+                  <span className="truncate text-muted-foreground">{referenceFile.name}</span>
+                  <button type="button" className="shrink-0 text-foreground hover:underline" disabled={generating} onClick={() => onReferenceChange(null)}>
+                    移除
+                  </button>
                 </div>
               ) : null}
-            </Card>
-          </aside>
+            </div>
 
-          <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-            <Card className="flex h-full min-h-0 flex-col overflow-hidden border border-border/60 bg-card/75 p-0 shadow-sm">
-              <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border/50 px-4 py-3">
-                <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                  <History size={16} className="text-violet-400" />
-                  历史创作
-                </div>
-                <span className="text-xs text-muted-foreground">{history.length} 条</span>
+            <div>
+              <div className="mb-2 text-xs font-medium text-muted-foreground">反向提示词（可选）</div>
+              <Input.TextArea
+                value={negative}
+                onChange={setNegative}
+                disabled={generating}
+                placeholder="模糊，低质量，文字，水印"
+                autoSize={{ minRows: 2, maxRows: 3 }}
+              />
+            </div>
+
+            <ChipGroup label="分辨率" options={RESOLUTIONS} value={resolution} onChange={setResolution} disabled={generating} />
+            <ChipGroup label="比例" options={RATIOS} value={ratio} onChange={setRatio} disabled={generating} />
+            <ChipGroup label="生成数量" options={COUNTS} value={count} onChange={setCount} disabled={generating} />
+            <ChipGroup
+              label="风格"
+              options={STYLES.map((s) => s.value)}
+              value={style}
+              onChange={(v) => setStyle(v as typeof style)}
+              renderLabel={(v) => STYLES.find((s) => s.value === v)?.label ?? v}
+              disabled={generating}
+            />
+
+            {generating ? (
+              <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                排队 {queued} · 生成中 {activeCount} · 完成 {doneCount}
               </div>
+            ) : null}
+          </div>
 
-              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 sm:p-4">
-                {results.length > 0 ? (
-                  <div className="mb-4">
-                    <div className="mb-2 text-xs font-medium text-foreground">本次结果</div>
-                    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
-                      {results.map((item, idx) => (
-                        <div key={(item.jobId || item.url) + idx} className="overflow-hidden rounded-xl border border-border/60 bg-background/70">
-                          <img src={resolveMediaUrl(item.url)} alt={`结果 ${idx + 1}`} className="aspect-square w-full object-cover" />
-                          <div className="flex items-center justify-between border-t border-border/50 px-2 py-1.5 text-xs">
-                            <span className="text-muted-foreground">#{idx + 1}</span>
+          <div className="border-t border-border p-4">
+            <Button
+              type="primary"
+              long
+              className="h-11 gap-1.5 text-sm font-semibold"
+              leftIcon={generating ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+              disabled={generating}
+              onClick={() => void handleGenerate()}
+            >
+              {generating ? '生成中…' : '开始创作'}
+            </Button>
+          </div>
+        </aside>
+
+        {/* 结果画廊 */}
+        <section className="flex min-w-0 flex-1 flex-col bg-muted/20">
+          <div className="flex flex-wrap items-center gap-2 border-b border-border bg-card px-4 py-2.5">
+            <select
+              value={timeFilter}
+              onChange={(e) => setTimeFilter(e.target.value)}
+              className="h-8 rounded-lg border border-border bg-background px-2.5 text-xs text-foreground outline-none"
+            >
+              {['全部时间', '今天', '近 7 天'].map((o) => (
+                <option key={o} value={o}>{o}</option>
+              ))}
+            </select>
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              className="h-8 rounded-lg border border-border bg-background px-2.5 text-xs text-foreground outline-none"
+            >
+              {['全部', '文生图', '图生图'].map((o) => (
+                <option key={o} value={o}>{`生成类型: ${o}`}</option>
+              ))}
+            </select>
+            <span className="text-xs text-muted-foreground">{filteredHistory.length} 条</span>
+            <div className="ml-auto">
+              <Button type="outline" size="small" onClick={clearResults} disabled={generating || results.length === 0}>
+                清空本次结果
+              </Button>
+            </div>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto p-4">
+            {results.length > 0 ? (
+              <div className="mb-6">
+                <div className="mb-2 text-xs font-medium text-muted-foreground">本次结果</div>
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
+                  {results.map((item, idx) => (
+                    <div key={(item.jobId || item.url) + idx} className="overflow-hidden rounded-xl border border-border bg-card">
+                      <img src={resolveMediaUrl(item.url)} alt={`结果 ${idx + 1}`} className="aspect-square w-full object-cover" />
+                      <div className="flex items-center justify-between border-t border-border px-2 py-1.5 text-xs">
+                        <span className="text-muted-foreground">#{idx + 1}</span>
+                        <a
+                          href={resolveMediaUrl(item.url)}
+                          download={`generated-${idx + 1}.png`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-foreground hover:underline"
+                        >
+                          <Download size={12} />
+                          下载
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {historyLoading && history.length === 0 ? (
+              <div className="grid h-full min-h-[280px] place-items-center text-sm text-muted-foreground">加载中…</div>
+            ) : filteredHistory.length === 0 && results.length === 0 ? (
+              <div className="grid h-full min-h-[280px] place-items-center">
+                <Empty description="开始你的第一次创作 — 在左侧填写提示词并点击开始创作" />
+              </div>
+            ) : filteredHistory.length > 0 ? (
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-4">
+                {filteredHistory.map((item) => {
+                  const st = statusMeta(item.status)
+                  return (
+                    <article key={item.id} className="group flex flex-col overflow-hidden rounded-xl border border-border bg-card transition hover:border-foreground/25">
+                      <div className="relative bg-muted/30">
+                        {item.url && item.status === 'succeeded' ? (
+                          <button type="button" className="block w-full" onClick={() => setDetail(item)}>
+                            <img src={item.url} alt="" className="aspect-square w-full object-cover" />
+                          </button>
+                        ) : (
+                          <div className="grid aspect-square place-items-center px-3 text-center text-xs text-muted-foreground">
+                            {item.errorMessage || (item.status === 'running' ? `生成中 ${item.progress || 0}%` : '等待处理…')}
+                          </div>
+                        )}
+                        <span className={`absolute left-2 top-2 rounded-md px-1.5 py-0.5 text-[10px] font-medium backdrop-blur ${st.className}`}>
+                          {st.label}
+                        </span>
+                      </div>
+                      <div className="flex flex-1 flex-col gap-1.5 p-2.5">
+                        <div className="flex flex-wrap gap-1 text-[10px] text-muted-foreground">
+                          <span>{STYLE_LABELS[item.style] || item.style || '默认'}</span>
+                          {item.size ? <span className="rounded bg-muted px-1.5 py-0.5">{item.size}</span> : null}
+                        </div>
+                        <p className="line-clamp-2 min-h-[2.25rem] text-[11px] leading-relaxed text-foreground/90">
+                          {item.prompt || '无提示词'}
+                        </p>
+                        <div className="mt-auto flex items-center gap-1.5">
+                          <Button size="sm" type="outline" className="flex-1 gap-1" leftIcon={<Eye size={12} />} onClick={() => setDetail(item)}>
+                            详情
+                          </Button>
+                          {item.url && item.status === 'succeeded' ? (
                             <a
-                              href={resolveMediaUrl(item.url)}
-                              download={`generated-${idx + 1}.png`}
+                              href={item.url}
+                              download="generated.png"
                               target="_blank"
                               rel="noreferrer"
-                              className="inline-flex items-center gap-1 text-foreground hover:text-primary"
+                              className="inline-flex h-8 items-center justify-center gap-1 rounded-md border border-border px-2.5 text-xs hover:bg-muted"
                             >
                               <Download size={12} />
-                              下载
                             </a>
-                          </div>
+                          ) : null}
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-
-                {historyLoading && history.length === 0 ? (
-                  <div className="grid h-full min-h-[240px] place-items-center text-sm text-muted-foreground">加载历史中…</div>
-                ) : history.length === 0 && results.length === 0 ? (
-                  <div className="grid h-full min-h-[240px] place-items-center rounded-xl border border-dashed border-border/70 bg-[linear-gradient(145deg,rgba(168,85,247,0.06),transparent_50%),hsl(var(--background)/0.7)] p-8">
-                    <Empty description="还没有创作记录，先在左侧输入提示词并生成。" />
-                  </div>
-                ) : history.length > 0 ? (
-                  <div className="grid grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-4">
-                    {history.map((item) => {
-                      const st = statusMeta(item.status)
-                      return (
-                        <article
-                          key={item.id}
-                          className="group flex flex-col overflow-hidden rounded-xl border border-border/60 bg-background/70 transition hover:border-violet-400/35 hover:shadow-sm"
-                        >
-                          <div className="relative bg-muted/30">
-                            {item.url && item.status === 'succeeded' ? (
-                              <button type="button" className="block w-full" onClick={() => setDetail(item)}>
-                                <img src={item.url} alt="" className="aspect-square w-full object-cover" />
-                              </button>
-                            ) : (
-                              <div className="grid aspect-square place-items-center px-3 text-center text-xs text-muted-foreground">
-                                {item.errorMessage || (item.status === 'running' ? `生成中 ${item.progress || 0}%` : '等待处理…')}
-                              </div>
-                            )}
-                            <span className={`absolute left-2 top-2 rounded-md px-1.5 py-0.5 text-[10px] font-medium backdrop-blur ${st.className}`}>
-                              {st.label}
-                            </span>
-                          </div>
-                          <div className="flex flex-1 flex-col gap-1.5 p-2.5">
-                            <div className="flex flex-wrap gap-1 text-[10px] text-muted-foreground">
-                              <span>{STYLE_LABELS[item.style] || item.style || '默认'}</span>
-                              {item.size ? <span className="rounded bg-muted/60 px-1.5 py-0.5">{item.size}</span> : null}
-                            </div>
-                            <p className="line-clamp-2 min-h-[2.25rem] text-[11px] leading-relaxed text-foreground/90">
-                              {item.prompt || '无提示词'}
-                            </p>
-                            <div className="mt-auto flex items-center gap-1.5">
-                              <Button size="sm" variant="outline" className="flex-1 gap-1" leftIcon={<Eye size={12} />} onClick={() => setDetail(item)}>
-                                详情
-                              </Button>
-                              {item.url && item.status === 'succeeded' ? (
-                                <a
-                                  href={item.url}
-                                  download="generated.png"
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="inline-flex h-8 items-center justify-center gap-1 rounded-md border border-border px-2.5 text-xs hover:bg-muted"
-                                >
-                                  <Download size={12} />
-                                </a>
-                              ) : null}
-                            </div>
-                          </div>
-                        </article>
-                      )
-                    })}
-                  </div>
-                ) : null}
+                      </div>
+                    </article>
+                  )
+                })}
               </div>
-            </Card>
-          </section>
-        </div>
+            ) : null}
+          </div>
+        </section>
       </div>
 
-      <Drawer
-        width={480}
-        title="创作详情"
-        visible={!!detail}
-        onCancel={() => setDetail(null)}
-        footer={null}
-        unmountOnExit
-      >
+      <Drawer width={480} title="创作详情" visible={!!detail} onCancel={() => setDetail(null)} footer={null} unmountOnExit>
         {detail ? (
           <div className="flex h-full flex-col gap-4">
             {detail.url && detail.status === 'succeeded' ? (
-              <div className="overflow-hidden rounded-xl border border-border/60 bg-muted/20">
+              <div className="overflow-hidden rounded-xl border border-border bg-muted/20">
                 <img src={detail.url} alt="" className="mx-auto max-h-[42vh] w-full object-contain" />
               </div>
             ) : (
-              <div className="grid aspect-square max-h-[280px] place-items-center rounded-xl border border-dashed border-border/70 bg-muted/30 text-sm text-muted-foreground">
+              <div className="grid aspect-square max-h-[280px] place-items-center rounded-xl border border-dashed border-border text-sm text-muted-foreground">
                 {detail.errorMessage || '图片尚未就绪'}
               </div>
             )}
-
             <div className="flex flex-wrap items-center gap-2 text-xs">
-              {detailStatus ? (
-                <span className={`rounded-md px-2 py-0.5 font-medium ${detailStatus.className}`}>{detailStatus.label}</span>
-              ) : null}
+              {detailStatus ? <span className={`rounded-md px-2 py-0.5 font-medium ${detailStatus.className}`}>{detailStatus.label}</span> : null}
               <span className="text-muted-foreground">{new Date(detail.at).toLocaleString()}</span>
-              {detail.style ? (
-                <span className="rounded bg-muted px-2 py-0.5">{STYLE_LABELS[detail.style] || detail.style}</span>
-              ) : null}
+              {detail.style ? <span className="rounded bg-muted px-2 py-0.5">{STYLE_LABELS[detail.style] || detail.style}</span> : null}
               {detail.size ? <span className="rounded bg-muted px-2 py-0.5">{detail.size}</span> : null}
-              <span className="font-mono text-[10px] text-muted-foreground">{detail.id}</span>
             </div>
-
             <div className="min-h-0 flex-1">
               <div className="mb-1.5 flex items-center justify-between gap-2">
                 <div className="text-sm font-medium text-foreground">提示词</div>
                 <div className="flex shrink-0 gap-1.5">
-                  <Button size="sm" variant="outline" leftIcon={<Copy size={12} />} onClick={() => void copyPrompt(detail.prompt)}>
-                    复制
-                  </Button>
-                  <Button size="sm" variant="outline" leftIcon={<RotateCcw size={12} />} onClick={() => reusePrompt(detail)}>
-                    填入左侧
-                  </Button>
+                  <Button size="sm" type="outline" leftIcon={<Copy size={12} />} onClick={() => void copyPrompt(detail.prompt)}>复制</Button>
+                  <Button size="sm" type="outline" leftIcon={<RotateCcw size={12} />} onClick={() => reusePrompt(detail)}>填入左侧</Button>
                 </div>
               </div>
-              <div className="max-h-[36vh] overflow-y-auto rounded-lg border border-border/60 bg-background/80 px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap text-foreground">
+              <div className="max-h-[36vh] overflow-y-auto rounded-lg border border-border bg-background px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap">
                 {detail.prompt || '无提示词'}
               </div>
             </div>
-
             {detail.errorMessage ? (
-              <div className="rounded-lg border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-xs text-rose-600 dark:text-rose-400">
-                {detail.errorMessage}
-              </div>
+              <div className="rounded-lg border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-xs text-rose-600 dark:text-rose-400">{detail.errorMessage}</div>
             ) : null}
-
-            <div className="mt-auto flex justify-end gap-2 border-t border-border/50 pt-3">
+            <div className="mt-auto flex justify-end gap-2 border-t border-border pt-3">
               {detail.url && detail.status === 'succeeded' ? (
-                <a
-                  href={detail.url}
-                  download="generated.png"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-xs hover:bg-muted"
-                >
-                  <Download size={12} />
-                  下载图片
+                <a href={detail.url} download="generated.png" target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-xs hover:bg-muted">
+                  <Download size={12} />下载图片
                 </a>
               ) : null}
               <Button size="sm" onClick={() => setDetail(null)}>关闭</Button>
