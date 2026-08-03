@@ -343,9 +343,7 @@ export function AppRoutes() {
         <Route path="/platform/plugin-market" element={<RequirePlatform><PlatformPluginMarket /></RequirePlatform>} />
         <Route path="/platform/mcp-market" element={<RequirePlatform><PlatformMcpMarket /></RequirePlatform>} />
         <Route path="/platform/system-status" element={<RequirePlatform><SystemStatus /></RequirePlatform>} />
-        <Route path="/pixel/gif" element={<Navigate to="/pixel/sheet" replace />} />
-        <Route path="/pixel/pixelate" element={<Navigate to="/pixel/sheet" replace />} />
-        <Route path="/pixel/matte" element={<Navigate to="/pixel/sheet" replace />} />
+        <Route path="/pixel/matte" element={<Navigate to="/pixel/process" replace />} />
         <Route path="/pixel/:tool" element={<PixelToolPage />} />
         <Route path="/pixel/tools" element={<PixelLegacyRedirect />} />
         <Route path="/pixel/library" element={<Navigate to="/pixel/asset" replace />} />
