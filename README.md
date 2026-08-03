@@ -11,7 +11,7 @@
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED.svg)](https://docs.docker.com/compose/)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-red.svg)](LICENSE)
 
-[English](README.md) · [简体中文](README_zh.md)
+[English](README.md) · [简体中文](README_zh.md) · [繁體中文](README_zh-TW.md) · [日本語](README_ja.md)
 
 </div>
 
@@ -26,7 +26,7 @@ The product focus is **voice-first AI agents**: configure assistants, clone voic
 ### ✨ Core Features
 
 - **Real-time voice dialog** — Browser WebSocket / WebRTC voice sessions, barge-in, pipeline observability
-- **AI assistants** — Versioned publish/rollback, debug console, tool & MCP binding, NLU models
+- **AI assistants** — Versioned publish/rollback, debug console, tool & MCP binding
 - **Knowledge base** — Ingestion, hybrid + vector search, citations in dialog, multi-backend vectors (Qdrant, Milvus, PGVector, etc.)
 - **Workflow automation** — Visual designer, triggers (API, webhook, schedule, assistant), plugin market
 - **Voice clone & voiceprint** — Training, enrollment, speaker context for branded voice experiences
@@ -213,12 +213,13 @@ Web console branding (footer company name, ICP, etc.): `web/.env` — `VITE_COMP
 | Document | Description |
 |----------|-------------|
 | [README_zh.md](README_zh.md) | Chinese guide (detailed) |
+| [README_zh-TW.md](README_zh-TW.md) | Traditional Chinese guide |
+| [README_ja.md](README_ja.md) | Japanese guide |
 | [docs/features-overview.md](docs/features-overview.md) | Feature inventory (current) |
 | [docs/deployment.md](docs/deployment.md) | Deployment options |
 | [docs/ops-single-node.md](docs/ops-single-node.md) | Single-node operations |
 | [docs/mcp-market.md](docs/mcp-market.md) | MCP marketplace |
 | [docs/mcp-tenant-tools.md](docs/mcp-tenant-tools.md) | Tenant MCP tools |
-| [docs/nlu.md](docs/nlu.md) | NLU models |
 | [docs/knowledge-latency.md](docs/knowledge-latency.md) | Knowledge retrieval tuning |
 | [docs/soulpet-package-spec.md](docs/soulpet-package-spec.md) | Desktop pet packaging |
 | [docs/feature-recommendations.md](docs/feature-recommendations.md) | Product notes |
@@ -270,12 +271,6 @@ cd web && npm run type-check && npm run build
 
 - **GitHub**: [LingByte/SoulNexus](https://github.com/LingByte/SoulNexus)
 - **Issues**: [GitHub Issues](https://github.com/LingByte/SoulNexus/issues)
-
----
-
-## ⭐ Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=LingByte/SoulNexus&type=Date)](https://star-history.com/#LingByte/SoulNexus&Date)
 
 ---
 

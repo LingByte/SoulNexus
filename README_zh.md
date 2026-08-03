@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="README.md">English</a> · 简体中文
+  <a href="README.md">English</a> · 简体中文 · <a href="README_zh-TW.md">繁體中文</a> · <a href="README_ja.md">日本語</a>
 </p>
 
 <p align="center">
@@ -522,7 +522,6 @@ make deploy
 | [功能汇总](docs/features-overview.md) | 当前功能清单与成熟度 |
 | [部署指南](docs/deployment.md) | Docker 一键部署 |
 | [知识库运营](docs/knowledge-ops-closed-loop-zh.md) | 知识库工作流 |
-| [NLU](docs/nlu.md) | 意图 NLU 实验室 |
 | [MCP 市场](docs/mcp-market.md) | 租户 MCP 开通与绑定 |
 | [环境变量配置](env.example) | 配置项说明 |
 
