@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Button, Empty, Input, Select } from '@/components/UI'
+import { Button, Empty, Input, Select } from '@/components/ui'
 import BaseLayout from '@/components/Layout/BaseLayout'
 import { Progress, Slider } from '@arco-design/web-react'
 import {
+  Download,
   Film,
   Grid3x3,
   Image as ImageIcon,
@@ -17,6 +18,7 @@ import {
   extractVideoFrames,
   loadVideoFile,
   revokeFrameUrls,
+  type CropRegion,
   type ExtractMode,
   type VideoMeta,
 } from '@/lib/video-frame/extractFrames'
@@ -26,8 +28,9 @@ import {
   type MattingFrame,
 } from '@/lib/video-frame/videoPipeline'
 import { SEGMENT_MODEL_OPTIONS, type SegmentModel } from '@/lib/video-frame/segmentFrame'
+import { applyChromaKey, CHROMA_PRESETS } from '@/lib/pixel/matteOps'
 import { buildFrameSheet, type FrameSheetLayout } from '@/lib/pixel/frameSheet'
-import { triggerDownload } from '@/lib/pixel/imageExport'
+import { triggerDownload, zipBlobs } from '@/lib/pixel/imageExport'
 
 type DisplayFrame = {
   index: number
@@ -36,7 +39,7 @@ type DisplayFrame = {
   dataUrl: string
 }
 
-type PipelineMode = 'extract' | 'matte'
+type PipelineMode = 'extract' | 'matte' | 'chroma'
 type PreviewMode = 'animate' | 'sheet' | 'single'
 
 type ProgressState = {
@@ -57,15 +60,22 @@ export default function VideoFramePage() {
   const [sheetLayout, setSheetLayout] = useState<FrameSheetLayout>('horizontal')
   const [processing, setProcessing] = useState(false)
   const [buildingSheet, setBuildingSheet] = useState(false)
+  const [zipping, setZipping] = useState(false)
   const [progress, setProgress] = useState<ProgressState>({ done: 0, total: 0, stage: '' })
   const [error, setError] = useState('')
 
   const [outputName, setOutputName] = useState('video_frames')
-  const [pipelineMode, setPipelineMode] = useState<PipelineMode>('matte')
+  const [pipelineMode, setPipelineMode] = useState<PipelineMode>('extract')
   const [mode, setMode] = useState<ExtractMode>('fps')
   const [fps, setFps] = useState(8)
   const [maxFrames, setMaxFrames] = useState(48)
   const [frameInterval, setFrameInterval] = useState(2)
+  const [startSec, setStartSec] = useState(0)
+  const [endSec, setEndSec] = useState(0)
+  const [crop, setCrop] = useState<CropRegion>({ left: 0, top: 0, right: 0, bottom: 0 })
+  const [chromaPreset, setChromaPreset] = useState<'green' | 'blue'>('green')
+  const [chromaTolerance, setChromaTolerance] = useState(40)
+  const [chromaFeather, setChromaFeather] = useState(8)
   const [segmentModel, setSegmentModel] = useState<SegmentModel>('isnet_fp16')
   const [emaBeta, setEmaBeta] = useState(0.6)
 
@@ -82,7 +92,6 @@ export default function VideoFramePage() {
     else revokeFrameUrls(list as Parameters<typeof revokeFrameUrls>[0])
   }, [])
 
-  // 仅在页面卸载时释放帧 / 视频；勿依赖 sheetPreviewUrl，否则重建帧序图会误 revoke 动作预览用的 blob
   useEffect(() => {
     return () => {
       revokeAll(framesRef.current, isMatteRef.current)
@@ -104,7 +113,7 @@ export default function VideoFramePage() {
     try {
       const { blob, dataUrl } = await buildFrameSheet(
         list.map((f) => f.blob),
-        { layout, padding: 4, maxFrameHeight: pipelineMode === 'matte' ? 160 : 128 },
+        { layout, padding: 4, maxFrameHeight: pipelineMode === 'matte' || pipelineMode === 'chroma' ? 160 : 128 },
       )
       setSheetPreviewUrl((prev) => {
         if (prev) URL.revokeObjectURL(prev)
@@ -148,12 +157,29 @@ export default function VideoFramePage() {
       setFileName(file.name)
       setOutputName(file.name.replace(/\.[^.]+$/, '') || 'video_frames')
       setVideoUrl(URL.createObjectURL(file))
+      setStartSec(0)
+      setEndSec(Number(meta.duration.toFixed(2)))
+      setCrop({ left: 0, top: 0, right: 0, bottom: 0 })
     } catch (e) {
       setError((e as Error).message || '加载视频失败')
       setVideoMeta(null)
       setFileName('')
     }
   }
+
+  const buildExtractOpts = () => ({
+    mode,
+    fps,
+    frameInterval,
+    maxFrames,
+    startSec,
+    endSec: endSec > 0 ? endSec : undefined,
+    crop:
+      crop.left || crop.top || crop.right || crop.bottom
+        ? crop
+        : undefined,
+    onProgress: (done: number, total: number, stage: string) => setProgress({ done, total, stage }),
+  })
 
   const onRun = async () => {
     if (!loadedRef.current || !videoMeta) {
@@ -162,17 +188,12 @@ export default function VideoFramePage() {
     }
     setError('')
     setProcessing(true)
-    isMatteRef.current = pipelineMode === 'matte'
+    const useMatteUrls = pipelineMode === 'matte'
+    isMatteRef.current = useMatteUrls
     resetFrames(isMatteRef.current)
     setProgress({ done: 0, total: 0, stage: '准备' })
 
-    const extractOpts = {
-      mode,
-      fps,
-      frameInterval,
-      maxFrames,
-      onProgress: (done: number, total: number, stage: string) => setProgress({ done, total, stage }),
-    }
+    const extractOpts = buildExtractOpts()
 
     try {
       if (pipelineMode === 'matte') {
@@ -184,6 +205,25 @@ export default function VideoFramePage() {
         })
         if (!result.length) throw new Error('未生成任何透明帧')
         setFrames(result)
+      } else if (pipelineMode === 'chroma') {
+        const raw = await extractVideoFrames(loadedRef.current.video, videoMeta, extractOpts)
+        const bg = CHROMA_PRESETS[chromaPreset]
+        const out: DisplayFrame[] = []
+        for (let i = 0; i < raw.length; i++) {
+          const frame = raw[i]!
+          setProgress({ done: i, total: raw.length, stage: '色键抠图' })
+          const matted = await applyChromaKey(frame.blob, bg, chromaTolerance, chromaFeather)
+          URL.revokeObjectURL(frame.dataUrl)
+          out.push({
+            index: frame.index,
+            name: frame.name,
+            blob: matted,
+            dataUrl: URL.createObjectURL(matted),
+          })
+          setProgress({ done: i + 1, total: raw.length, stage: '色键抠图' })
+        }
+        if (!out.length) throw new Error('未生成任何色键帧')
+        setFrames(out)
       } else {
         const result = await extractVideoFrames(loadedRef.current.video, videoMeta, extractOpts)
         if (!result.length) throw new Error('未拆出任何帧')
@@ -203,15 +243,39 @@ export default function VideoFramePage() {
     triggerDownload(sheetBlob, `${outputName}_sheet.png`)
   }
 
+  const exportZip = async () => {
+    if (!frames.length) return
+    setZipping(true)
+    try {
+      await zipBlobs(
+        frames.map((f) => ({ name: f.name, blob: f.blob })),
+        `${outputName}_frames.zip`,
+      )
+    } catch (e) {
+      setError((e as Error).message || 'ZIP 导出失败')
+    } finally {
+      setZipping(false)
+    }
+  }
+
   const selected = frames[selectedIndex]
   const previewPlaybackFps =
     mode === 'fps' ? fps : Math.max(1, Math.round(30 / Math.max(1, frameInterval)))
   const previewFrameUrls = useMemo(() => frames.map((f) => f.dataUrl), [frames])
+  const cropResult =
+    videoMeta
+      ? {
+          w: Math.max(1, videoMeta.width - crop.left - crop.right),
+          h: Math.max(1, videoMeta.height - crop.top - crop.bottom),
+        }
+      : null
+
+  const runLabel =
+    pipelineMode === 'matte' ? '开始 AI 抠图' : pipelineMode === 'chroma' ? '开始色键抽帧' : '开始抽帧'
 
   return (
     <BaseLayout title="视频抽帧" description="上传 · 拆帧/抠图 · 预览导出（单页）">
-      <div className="mx-auto grid max-w-[1400px] gap-4 lg:grid-cols-[280px_minmax(0,1fr)] lg:items-start">
-        {/* Left: upload + params + actions */}
+      <div className="mx-auto grid max-w-[1400px] gap-4 lg:grid-cols-[300px_minmax(0,1fr)] lg:items-start">
         <aside className="space-y-3 rounded-2xl border border-border/60 bg-card p-3 shadow-sm">
           <label
             className="grid cursor-pointer place-items-center gap-2 rounded-xl border border-dashed border-border bg-background px-3 py-6 text-center transition hover:border-primary/40 hover:bg-primary/5"
@@ -251,8 +315,9 @@ export default function VideoFramePage() {
               value={pipelineMode}
               onChange={(v) => setPipelineMode(v as PipelineMode)}
               options={[
-                { label: '抠图 + 帧序图', value: 'matte' },
                 { label: '仅拆帧', value: 'extract' },
+                { label: '绿/蓝幕色键', value: 'chroma' },
+                { label: 'AI 抠图 + 帧序图', value: 'matte' },
               ]}
             />
             <Input value={outputName} onChange={setOutputName} placeholder="输出名称" size="sm" />
@@ -288,6 +353,62 @@ export default function VideoFramePage() {
               <div className="mb-1 flex justify-between text-[11px] text-muted-foreground"><span>最大帧数</span><span>{maxFrames}</span></div>
               <Slider min={1} max={120} value={maxFrames} onChange={(v) => setMaxFrames(Number(v))} />
             </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                size="sm"
+                addBefore="起"
+                type="number"
+                value={String(startSec)}
+                onChange={(v) => setStartSec(Math.max(0, Number(v) || 0))}
+              />
+              <Input
+                size="sm"
+                addBefore="止"
+                type="number"
+                value={String(endSec)}
+                onChange={(v) => setEndSec(Math.max(0, Number(v) || 0))}
+              />
+            </div>
+
+            <div className="text-[11px] font-medium text-muted-foreground">裁切（像素）</div>
+            <div className="grid grid-cols-2 gap-2">
+              <Input size="sm" addBefore="左" type="number" value={String(crop.left)} onChange={(v) => setCrop((c) => ({ ...c, left: Math.max(0, Number(v) || 0) }))} />
+              <Input size="sm" addBefore="上" type="number" value={String(crop.top)} onChange={(v) => setCrop((c) => ({ ...c, top: Math.max(0, Number(v) || 0) }))} />
+              <Input size="sm" addBefore="右" type="number" value={String(crop.right)} onChange={(v) => setCrop((c) => ({ ...c, right: Math.max(0, Number(v) || 0) }))} />
+              <Input size="sm" addBefore="下" type="number" value={String(crop.bottom)} onChange={(v) => setCrop((c) => ({ ...c, bottom: Math.max(0, Number(v) || 0) }))} />
+            </div>
+            {cropResult ? (
+              <p className="text-[10px] text-muted-foreground">输出约 {cropResult.w}×{cropResult.h}</p>
+            ) : null}
+
+            {pipelineMode === 'chroma' ? (
+              <>
+                <Select
+                  value={chromaPreset}
+                  onChange={(v) => setChromaPreset(v as 'green' | 'blue')}
+                  options={[
+                    { label: '绿色幕', value: 'green' },
+                    { label: '蓝色幕', value: 'blue' },
+                  ]}
+                />
+                <div>
+                  <div className="mb-1 flex justify-between text-[11px] text-muted-foreground">
+                    <span>色键容差</span>
+                    <span>{chromaTolerance}</span>
+                  </div>
+                  <Slider min={0} max={180} value={chromaTolerance} onChange={(v) => setChromaTolerance(Number(v))} />
+                </div>
+                <div>
+                  <div className="mb-1 flex justify-between text-[11px] text-muted-foreground">
+                    <span>羽化</span>
+                    <span>{chromaFeather}</span>
+                  </div>
+                  <Slider min={0} max={80} value={chromaFeather} onChange={(v) => setChromaFeather(Number(v))} />
+                </div>
+              </>
+            ) : null}
+
             {pipelineMode === 'matte' ? (
               <>
                 <Select
@@ -306,11 +427,11 @@ export default function VideoFramePage() {
             ) : null}
           </div>
 
-          {(processing || buildingSheet) ? (
+          {(processing || buildingSheet || zipping) ? (
             <div className="space-y-1.5">
               <Progress percent={progress.total ? Math.round((progress.done / progress.total) * 100) : 0} size="small" />
               <p className="text-[11px] text-muted-foreground">
-                {buildingSheet ? '生成帧序图' : progress.stage} · {progress.done}/{progress.total || '—'}
+                {zipping ? '打包 ZIP' : buildingSheet ? '生成帧序图' : progress.stage} · {progress.done}/{progress.total || '—'}
               </p>
             </div>
           ) : (
@@ -333,7 +454,7 @@ export default function VideoFramePage() {
               leftIcon={<PlaySquare size={16} />}
               onClick={() => void onRun()}
             >
-              {pipelineMode === 'matte' ? '开始抠图' : '开始抽帧'}
+              {runLabel}
             </Button>
             <Button
               block
@@ -344,10 +465,19 @@ export default function VideoFramePage() {
             >
               导出帧序图 PNG
             </Button>
+            <Button
+              block
+              variant="outline"
+              loading={zipping}
+              disabled={!frames.length}
+              leftIcon={<Download size={16} />}
+              onClick={() => void exportZip()}
+            >
+              导出帧 ZIP
+            </Button>
           </div>
         </aside>
 
-        {/* Right: preview fills remaining viewport */}
         <section className="flex min-h-[calc(100vh-9rem)] flex-col rounded-2xl border border-border/60 bg-card p-3 shadow-sm">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div>
