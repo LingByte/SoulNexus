@@ -3,6 +3,7 @@ import { Download, Package, Search } from 'lucide-react'
 import { Modal, Tag, Typography } from '@arco-design/web-react'
 import { IconRefresh } from '@arco-design/web-react/icon'
 import BaseLayout from '@/components/Layout/BaseLayout'
+import WidgetMarketPreview from '@/components/widget-market/WidgetMarketPreview'
 import { Button, Card, Empty, Input, Loading, Select } from '@/components/ui'
 import widgetMarketService, { type WidgetMarketItem } from '@/api/widgetMarket'
 import { useTranslation } from '@/i18n'
@@ -21,6 +22,7 @@ export default function WidgetMarketPage() {
   const [searchDebounce, setSearchDebounce] = useState('')
   const [category, setCategory] = useState<string>('all')
   const [detail, setDetail] = useState<WidgetMarketItem | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
 
   useEffect(() => {
     const timer = setTimeout(() => setSearchDebounce(keyword), 300)
@@ -67,6 +69,21 @@ export default function WidgetMarketPage() {
     void load()
   }, [load])
 
+  const openDetail = async (item: WidgetMarketItem) => {
+    setDetail(item)
+    setDetailLoading(true)
+    try {
+      const res = await widgetMarketService.getItem(item.id, true)
+      if (res.code === 200 && res.data) {
+        setDetail(res.data)
+      }
+    } catch {
+      /* keep list snapshot */
+    } finally {
+      setDetailLoading(false)
+    }
+  }
+
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   const onDownload = async (item: WidgetMarketItem) => {
@@ -86,7 +103,7 @@ export default function WidgetMarketPage() {
       key={item.id}
       hoverable
       className="flex h-full cursor-pointer flex-col"
-      onClick={() => setDetail(item)}
+      onClick={() => void openDetail(item)}
     >
       <div className="mb-3 flex items-start gap-3">
         {item.avatarUrl ? (
@@ -186,7 +203,7 @@ export default function WidgetMarketPage() {
 
       <Modal
         visible={!!detail}
-        title={detail?.displayName}
+        title={detail?.displayName || detail?.name}
         onCancel={() => setDetail(null)}
         footer={
           detail ? (
@@ -195,20 +212,39 @@ export default function WidgetMarketPage() {
             </Button>
           ) : null
         }
-        style={{ width: 520 }}
+        style={{ width: 720 }}
+        unmountOnExit
       >
         {detail ? (
-          <div className="space-y-2 text-sm">
-            <p>
-              <span className="text-muted-foreground">jsSourceId：</span>
-              <code className="font-mono">{detail.jsSourceId}</code>
-            </p>
-            <Typography.Paragraph type="secondary" className="!mb-0 whitespace-pre-wrap">
-              {detail.description || '—'}
-            </Typography.Paragraph>
-            <Typography.Text type="secondary" className="!text-xs break-all">
-              /api{detail.embedPath}
-            </Typography.Text>
+          <div className="space-y-4">
+            {detailLoading ? (
+              <Loading tip={t('widgetMarket.previewLoading')} />
+            ) : (
+              <WidgetMarketPreview
+                embedPath={detail.embedPath}
+                displayName={detail.displayName || detail.name}
+                jsSourceId={detail.jsSourceId}
+              />
+            )}
+            <div className="space-y-2 text-sm">
+              {detail.description ? (
+                <Typography.Paragraph type="secondary" className="!mb-0 whitespace-pre-wrap">
+                  {detail.description}
+                </Typography.Paragraph>
+              ) : null}
+              <p>
+                <span className="text-muted-foreground">jsSourceId：</span>
+                <code className="font-mono">{detail.jsSourceId}</code>
+              </p>
+              <Typography.Text type="secondary" className="!text-xs break-all">
+                /api{detail.embedPath}
+              </Typography.Text>
+              {detail.author ? (
+                <Typography.Text type="secondary" className="!text-xs !block">
+                  {t('widgetMarket.author')}: {detail.author}
+                </Typography.Text>
+              ) : null}
+            </div>
           </div>
         ) : null}
       </Modal>
