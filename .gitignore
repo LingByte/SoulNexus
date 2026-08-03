@@ -50,6 +50,7 @@ web/.env
 /tracedata/
 
 # Node modules and dependency files
+node_modules/
 */node_modules/
 /package-lock.json
 /ui/yarn.lock
