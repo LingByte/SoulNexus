@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Button } from '@/components/UI'
+import { Button } from '@/components/ui'
 import { Slider } from '@arco-design/web-react'
 import { Pause, Play } from 'lucide-react'
 

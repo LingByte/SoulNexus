@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Button, Card, Empty, Input, Select, Tooltip } from '@/components/UI'
+import { Button, Card, Empty, Input, Select, Tooltip } from '@/components/ui'
 import { Slider } from '@arco-design/web-react'
 import {
   ArrowDownToLine,

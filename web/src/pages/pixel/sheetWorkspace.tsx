@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Button, Empty, Input } from '@/components/UI'
+import { Button, Empty, Input } from '@/components/ui'
 import { Progress, Slider } from '@arco-design/web-react'
 import { Download, Grid2x2, Upload } from 'lucide-react'
 import {
