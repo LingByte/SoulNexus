@@ -1,0 +1,447 @@
+.map-stitch-shell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: calc(100vh - 9rem);
+  height: calc(100vh - 9rem);
+  min-width: 0;
+  color: #241f19;
+  background:
+    linear-gradient(180deg, rgba(244, 238, 229, 0.96), rgba(218, 208, 194, 0.98)),
+    repeating-conic-gradient(#d9d0c2 0% 25%, #eee7dc 0% 50%) 50% / 24px 24px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(60, 48, 36, 0.12);
+}
+
+.map-stitch-fullscreen {
+  /* legacy alias — prefer .map-stitch-shell inside SoulNexus layout */
+  position: relative;
+  inset: auto;
+  z-index: auto;
+}
+
+.map-stitch-float-actions {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.map-stitch-generate-float.ant-btn {
+  height: 44px;
+  padding: 0 18px;
+  font-size: 15px;
+  font-weight: 800;
+  border-radius: 8px;
+  box-shadow: 0 10px 28px rgba(40, 32, 24, 0.28);
+}
+
+.map-stitch-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 72px;
+  padding: 12px 20px;
+  border-bottom: 1px solid #9a8b78;
+  background: rgba(237, 230, 220, 0.94);
+  box-shadow: 0 2px 10px rgba(40, 32, 24, 0.14);
+}
+
+.map-stitch-title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.map-stitch-title h4 {
+  margin: 0 0 2px 0;
+}
+
+.map-stitch-title-hint {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.map-stitch-overlap-control {
+  width: 190px;
+  min-width: 190px;
+}
+
+.map-stitch-split-control {
+  width: 124px;
+  min-width: 124px;
+}
+
+.map-stitch-split-control .ant-select {
+  width: 100%;
+}
+
+.map-stitch-split-popup {
+  z-index: 2105;
+}
+
+.map-stitch-overlap-control .ant-typography {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.map-stitch-split-control .ant-typography {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.map-stitch-overlap-control .ant-slider {
+  margin: 4px 6px 0;
+}
+
+.map-stitch-empty {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  text-align: center;
+}
+
+.map-stitch-empty > .anticon {
+  font-size: 52px;
+  color: #b55233;
+}
+
+.map-stitch-empty h3 {
+  margin: 0;
+}
+
+.map-stitch-workspace {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 24px;
+  cursor: default;
+  user-select: none;
+}
+
+.map-stitch-stage-shell {
+  position: relative;
+  flex: 0 0 auto;
+  will-change: transform;
+}
+
+.map-stitch-stage {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: top left;
+}
+
+.map-stitch-source-frame,
+.map-stitch-neighbor-frame {
+  position: absolute;
+  box-sizing: border-box;
+  overflow: hidden;
+  border: 0;
+  border-radius: 4px;
+}
+
+.map-stitch-source-frame {
+  outline: 3px solid #23704a;
+  background: repeating-conic-gradient(#cbd5c2 0% 25%, #ecf1e8 0% 50%) 50% / 16px 16px;
+  box-shadow: 0 0 0 5px rgba(47, 125, 77, 0.16), 0 10px 30px rgba(35, 28, 20, 0.18);
+}
+
+.map-stitch-source-frame img,
+.map-stitch-neighbor-frame img {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: fill;
+  image-rendering: pixelated;
+}
+
+.map-stitch-neighbor-frame {
+  --tile-accent: #b55233;
+  --tile-accent-soft: rgba(181, 82, 51, 0.18);
+  --tile-accent-wash: rgba(181, 82, 51, 0.28);
+  padding: 0;
+  color: #3d3428;
+  background:
+    linear-gradient(var(--tile-accent-wash), var(--tile-accent-soft)),
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.28) 0 10px, transparent 10px 20px),
+    repeating-conic-gradient(rgba(255, 255, 255, 0.74) 0% 25%, rgba(154, 139, 120, 0.32) 0% 50%) 50% / 18px 18px;
+  outline: 4px solid var(--tile-accent);
+  cursor: pointer;
+  box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.35), 0 8px 28px rgba(35, 28, 20, 0.15);
+}
+
+.map-stitch-neighbor-uploaded {
+  background: transparent;
+}
+
+.map-stitch-neighbor-top {
+  --tile-accent: #c2410c;
+  --tile-accent-soft: rgba(194, 65, 12, 0.18);
+  --tile-accent-wash: rgba(194, 65, 12, 0.34);
+}
+
+.map-stitch-neighbor-right {
+  --tile-accent: #1d70a2;
+  --tile-accent-soft: rgba(29, 112, 162, 0.18);
+  --tile-accent-wash: rgba(29, 112, 162, 0.32);
+}
+
+.map-stitch-neighbor-bottom {
+  --tile-accent: #6f7d1f;
+  --tile-accent-soft: rgba(111, 125, 31, 0.2);
+  --tile-accent-wash: rgba(111, 125, 31, 0.34);
+}
+
+.map-stitch-neighbor-left {
+  --tile-accent: #8c3f7a;
+  --tile-accent-soft: rgba(140, 63, 122, 0.19);
+  --tile-accent-wash: rgba(140, 63, 122, 0.33);
+}
+
+.map-stitch-neighbor-frame:hover,
+.map-stitch-neighbor-frame.selected {
+  outline-color: var(--tile-accent);
+  box-shadow:
+    inset 0 0 0 9999px rgba(255, 255, 255, 0.1),
+    inset 0 0 0 4px rgba(255, 255, 255, 0.55),
+    0 0 0 8px color-mix(in srgb, var(--tile-accent) 30%, transparent),
+    0 12px 32px rgba(35, 28, 20, 0.24);
+  filter: saturate(1.12);
+}
+
+.map-stitch-stage-hide-borders .map-stitch-source-frame,
+.map-stitch-stage-hide-borders .map-stitch-neighbor-frame,
+.map-stitch-stage-hide-borders .map-stitch-neighbor-frame:hover,
+.map-stitch-stage-hide-borders .map-stitch-neighbor-frame.selected {
+  outline-color: transparent;
+  box-shadow: none;
+  filter: none;
+}
+
+.map-stitch-tile-image-hidden img {
+  opacity: 0;
+}
+
+.map-stitch-frame-label,
+.map-stitch-frame-actions {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: flex;
+  transform: translate(-50%, -50%);
+}
+
+.map-stitch-frame-label {
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 160px;
+  max-width: none;
+  padding: 12px 14px;
+  color: #3d3428;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.25;
+  text-align: center;
+  background: rgba(248, 244, 237, 0.92);
+  border: 2px solid var(--tile-accent);
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(35, 28, 20, 0.18);
+  transform-origin: center center;
+}
+
+.map-stitch-frame-label small {
+  color: #6b5d4d;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.map-stitch-frame-label strong {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 118px;
+  min-height: 32px;
+  padding: 6px 10px;
+  color: #fffaf0;
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1;
+  background: var(--tile-accent);
+  border-radius: 6px;
+}
+
+.map-stitch-frame-actions {
+  position: absolute;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(102px, 1fr));
+  gap: 10px;
+  min-width: 236px;
+  max-width: 360px;
+  padding: 12px 14px;
+  background: rgba(248, 244, 237, 0.96);
+  border: 3px solid var(--tile-accent);
+  border-radius: 8px;
+  box-shadow: 0 14px 34px rgba(40, 32, 24, 0.3);
+  transform-origin: center center;
+}
+
+.map-stitch-frame-actions-wide {
+  min-width: 330px;
+  padding-bottom: 50px;
+}
+
+.map-stitch-neighbor-frame.selected .map-stitch-frame-label {
+  display: none;
+}
+
+.map-stitch-action-btn.ant-btn {
+  min-width: 102px;
+  height: 40px;
+  font-size: 15px;
+  font-weight: 700;
+  border-radius: 8px;
+}
+
+.map-stitch-action-btn.ant-btn .anticon {
+  font-size: 16px;
+}
+
+.map-stitch-unload-btn.ant-btn {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 3;
+  min-width: 104px;
+  height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 800;
+  border-radius: 6px;
+}
+
+.map-stitch-feather-actions {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  align-items: center;
+}
+
+.map-stitch-feather-cell {
+  position: relative;
+  min-width: 0;
+}
+
+.map-stitch-feather-btn.ant-btn {
+  min-width: 0;
+  width: 100%;
+  height: 32px;
+  padding: 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 6px;
+}
+
+.map-stitch-feather-top {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.map-stitch-feather-left {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.map-stitch-feather-border-toggle.ant-btn {
+  grid-column: 2;
+  grid-row: 2;
+  min-width: 0;
+  height: 32px;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 800;
+  border-radius: 6px;
+}
+
+.map-stitch-feather-right {
+  grid-column: 3;
+  grid-row: 2;
+}
+
+.map-stitch-feather-bottom {
+  grid-column: 2;
+  grid-row: 3;
+}
+
+.map-stitch-feather-image-toggle.ant-btn {
+  position: absolute;
+  left: -7px;
+  bottom: -7px;
+  z-index: 2;
+  width: 20px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0;
+  font-size: 10px;
+  border-radius: 6px;
+  box-shadow: 0 2px 6px rgba(40, 32, 24, 0.28);
+}
+
+.map-stitch-feather-image-toggle.ant-btn .anticon {
+  font-size: 11px;
+}
+
+@media (max-width: 720px) {
+  .map-stitch-toolbar {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .map-stitch-title {
+    flex-basis: 100%;
+    order: 3;
+  }
+
+  .map-stitch-overlap-control {
+    width: min(190px, 100%);
+    min-width: 160px;
+  }
+
+  .map-stitch-split-control {
+    width: min(160px, 100%);
+    min-width: 124px;
+  }
+
+  .map-stitch-workspace {
+    padding: 12px;
+  }
+
+}

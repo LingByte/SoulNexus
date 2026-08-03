@@ -1,0 +1,55 @@
+/** Minimal FrameRonin i18n shim (zh) so ported scenes keep original copy. */
+const zh: Record<string, string> = {
+  backToHome: '返回首页',
+  controlTestPlaceholder: '功能开发中',
+  controlTestHint: '拖入角色 Sprite Sheet（252×252 像素，与预设区域匹配），使用键盘控制',
+  controlTestUploadHint: '点击或拖拽角色 Sprite Sheet 图片',
+  controlTestUploadNote: '目前只支持一图全人物',
+  controlTestBgUploadHint: '点击或拖拽背景图片',
+  controlTestFgUploadHint: '点击或拖拽前景图片',
+  controlTestMusicUploadHint: '点击或拖拽背景音乐',
+  controlTestKeys: 'WASD 移动 · Shift 跑步 · I 物品 · J 吸引 · K 防御',
+  controlTestObstacleEdit: '障碍物编辑',
+  controlTestObstacleEditHint: '拖拽绘制矩形，碰撞时角色无法穿过',
+  controlTestObstacleClear: '清空障碍物',
+  infiniteMapIntro:
+    '地形尚未接入 tilemap：地表暂用世界格上的黑白马赛克（棋盘格）占位；角色默认精灵为 map/TINA.png（与 topdown 同款切帧布局）。透视卷动与操作不变。',
+  infiniteMapKeys: 'WASD 移动 · Shift 跑步',
+  infiniteMapMusic: '背景音乐（ff6.ogg）',
+  infiniteMapTerrainDebug: '显示地形编号',
+  infiniteMapEditMode: '编辑模式（俯视、不显示野怪）',
+  infiniteMapSeaLevel: '海平面（越高水越多、陆地越少）',
+  infiniteMapMtnThreshold: '山地阈值（越高山地越少、平地越多）',
+  infiniteMapFxDim: '画面压暗',
+  infiniteMapFxVignette: '四周暗角',
+  infiniteMapTreePatchDensity: '成片树木密度',
+  infiniteMapTreeLoneDensity: '独立树木密度',
+  infiniteMapTreeFeetDown: '树木贴地（纹理像素，正值下沉）',
+  infiniteMapMonsterCount: '野怪数量',
+  infiniteMapRandomMap: '随机生成地图',
+  infiniteMapRandomTownPlace: '随机小镇位置（平地雪地）',
+  infiniteMapTerrainTextureSet: '地形贴图集',
+  infiniteMapTerrainTextureBlob: '默认（map/blob）',
+  infiniteMapTerrainTextureTileg: 'tileg（map/tileg）',
+  infiniteMapTerrainTextureTiler: 'tiler（map/tiler）',
+  infiniteMapCityGenSection:
+    '小镇生成：围栏矩形由东西/南北栏段数与固定步长推导（东西 Z 间距 31、南北 X 间距 34），Z 中心 290；草地列行与点缀数量随围栏内陆范围缩放；整镇随机落在可走平地（非水非山）。',
+  infiniteMapCityGenSeed: '生成种子',
+  infiniteMapCityGenGrassHalfIx: '草地 横向半宽（格）',
+  infiniteMapCityGenGrassRows: '草地 行数',
+  infiniteMapCityGenGrassJitter: '草地 位置抖动',
+  infiniteMapCityGenDecorJitter: '装饰 位置抖动',
+  infiniteMapCityGenBuildingWZ: '建筑 Z 平移',
+  infiniteMapCityGenBuildingWxJitter: '建筑 wx 额外抖动',
+  infiniteMapCityGenEwSegmentCount: '东西侧每边栏杆数量（相邻 Z 间距 31，增多则总跨度变长）',
+  infiniteMapCityGenNsSegmentCount: '南北侧每边栏杆数量（相邻 X 间距 34，增多则东西向总宽变长；9 段对应约 ±136）',
+  infiniteMapCityGenScatterCount: '围栏内随机点缀基准（实际数量随内陆面积比例增减）',
+}
+
+export function useLanguage() {
+  return {
+    lang: 'zh' as const,
+    t: (key: string) => zh[key] ?? key,
+    setLang: (_: string) => {},
+  }
+}

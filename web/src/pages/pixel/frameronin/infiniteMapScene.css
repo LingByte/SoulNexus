@@ -1,0 +1,11 @@
+.infinite-map-host {
+  width: 100%;
+  min-height: calc(100vh - 8rem);
+}
+
+.infinite-map-host canvas {
+  image-rendering: pixelated;
+  max-width: 100%;
+  border-radius: 8px;
+  background: #0b1020;
+}

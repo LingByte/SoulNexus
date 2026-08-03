@@ -1,0 +1,41 @@
+/* ControlTest is a fixed dark stage; force readable light text against #0f0f1a. */
+.control-test-shell {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.control-test-shell .ant-upload-drag {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: rgba(255, 255, 255, 0.22) !important;
+}
+
+.control-test-shell .ant-upload-drag:hover {
+  border-color: rgba(255, 255, 255, 0.4) !important;
+}
+
+.control-test-shell .ant-upload-text,
+.control-test-shell .ant-upload-list-item-name,
+.control-test-shell .ant-upload-list-item .anticon,
+.control-test-shell .ant-btn-text,
+.control-test-shell .ant-typography {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.control-test-shell .ant-upload-hint,
+.control-test-shell .ant-typography-secondary {
+  color: rgba(255, 255, 255, 0.45) !important;
+}
+
+.control-test-shell .ant-upload-list-item-action .anticon,
+.control-test-shell .ant-upload-list-item-done .anticon-delete {
+  color: rgba(255, 255, 255, 0.65) !important;
+}
+
+.control-test-variant-bar button {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.control-test-variant-bar button.is-active {
+  border-color: rgba(251, 146, 60, 0.7);
+  background: rgba(251, 146, 60, 0.25);
+  color: #fff;
+}
