@@ -9,7 +9,6 @@ import {
   Contact,
   Settings2,
   BookOpen,
-  BrainCircuit,
   GitBranch,
   Bot,
   Fingerprint,
@@ -57,8 +56,6 @@ type NavDef = {
   tenantMenuAnyOf?: string[]
   /** 租户登录：对所有租户用户展示（不校验菜单权限） */
   tenantAllUsers?: boolean
-  /** 租户登录：NLU 开启时对所有租户用户展示 */
-  tenantNluWhenEnabled?: boolean
 }
 
 type NavGroup = {
@@ -76,7 +73,6 @@ const navGroups: NavGroup[] = [
       { labelKey: 'nav.myMcp', href: '/mcp', icon: Wrench, tenantMenuCode: 'menu.res.assistant' },
       { labelKey: 'nav.voiceCloneManager', href: '/voice-clone-manager', icon: AudioWaveform, tenantMenuCode: 'menu.res.assistant' },
       { labelKey: 'nav.voiceprintManager', href: '/voiceprint-manager', icon: Fingerprint, tenantMenuCode: 'menu.res.assistant' },
-      { labelKey: 'nav.nluLab', href: '/nlu-models', icon: BrainCircuit, tenantNluWhenEnabled: true },
     ],
   },
   {
@@ -122,7 +118,6 @@ const navGroups: NavGroup[] = [
   {
     labelKey: 'nav.groupMarketplace',
     items: [
-      { labelKey: 'nav.platformNluModels', href: '/platform/nlu-models', icon: BrainCircuit },
       { labelKey: 'nav.platformPluginMarket', href: '/platform/plugin-market', icon: Puzzle },
       { labelKey: 'nav.platformMcpMarket', href: '/platform/mcp-market', icon: Store },
     ],
@@ -162,7 +157,6 @@ const platformAdminMenuHrefs = new Set([
   '/platform/voiceprint-management',
   '/system-configs',
   '/platform/system-status',
-  '/platform/nlu-models',
   '/platform/notification-channels',
   '/platform/mail-templates',
   '/platform/mail-logs',
@@ -229,7 +223,6 @@ function NavMenuBody({
   const menuCodes = (user?.permissionCodes as string[] | undefined) ?? []
   const voiceCloneEnabled = Boolean((config.VOICE_CLONE_PROVIDER || '').trim())
   const voiceprintEnabled = Boolean((config.VOICEPRINT_PROVIDER || '').trim())
-  const nluEnabled = Boolean(config.nluEnabled)
   const isCommunity = config.deploymentMode === 'community'
   const visibleNavigation = isPlatformAdmin
     ? allNavigation.filter((n) => platformAdminMenuHrefs.has(n.href))
@@ -240,7 +233,6 @@ function NavMenuBody({
         }
         if (n.href === '/voice-clone-manager' && !voiceCloneEnabled) return false
         if (n.href === '/voiceprint-manager' && !voiceprintEnabled) return false
-        if (n.tenantNluWhenEnabled) return nluEnabled
         if (n.tenantAllUsers) return true
         return tenantMaySeeItem(menuCodes, n)
       })

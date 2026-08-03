@@ -20,7 +20,6 @@ const COMPONENT_OPTIONS = [
   { label: 'LLM', value: 'llm' },
   { label: 'ASR', value: 'asr' },
   { label: 'TTS', value: 'tts' },
-  { label: 'NLU', value: 'nlu' },
 ]
 
 const STATUS_OPTIONS = [
@@ -63,7 +62,6 @@ const componentColor = (c?: string) => {
   if (v === 'llm') return 'arcoblue'
   if (v === 'asr') return 'purple'
   if (v === 'tts') return 'green'
-  if (v === 'nlu') return 'orange'
   return 'gray'
 }
 
@@ -95,7 +93,6 @@ function MetaField({ label, value }: { label: string; value?: React.ReactNode })
 
 function InvocationDetail({ detail, platform }: { detail: AIInvocationLog; platform: boolean }) {
   const comp = (detail.component || '').toLowerCase()
-  const isNLU = comp === 'nlu'
   const isLLM = comp === 'llm'
   const isASR = comp === 'asr'
   const isTTS = comp === 'tts'
@@ -153,12 +150,6 @@ function InvocationDetail({ detail, platform }: { detail: AIInvocationLog; platf
             <>
               <MetaField label="音频时长" value={fmtMs(detail.audio_ms)} />
               <MetaField label="音频字节" value={fmtNum(detail.audio_bytes)} />
-            </>
-          ) : null}
-          {isNLU ? (
-            <>
-              <MetaField label="意图" value={detail.intent_name} />
-              <MetaField label="置信度" value={detail.confidence != null && detail.confidence > 0 ? detail.confidence.toFixed(4) : '—'} />
             </>
           ) : null}
           {detail.input_chars != null ? <MetaField label="输入字符" value={fmtNum(detail.input_chars)} /> : null}
@@ -325,8 +316,7 @@ export default function AIInvocationLogsPage({ embedded = false, platform = fals
       render: (_, r) => {
         const c = String(r.component || '').toLowerCase()
         let text = String(r.call_id || '—')
-        if (c === 'nlu') text = String(r.intent_name || '—')
-        else if (c === 'llm') text = r.total_tokens ? `${r.total_tokens} tk` : '—'
+        if (c === 'llm') text = r.total_tokens ? `${r.total_tokens} tk` : '—'
         return <span className="truncate text-sm text-neutral-700">{text}</span>
       },
     },
@@ -380,7 +370,7 @@ export default function AIInvocationLogsPage({ embedded = false, platform = fals
   return (
     <BaseLayout
       title="AI 调用记录"
-      description={platform ? '平台全量 AI 调用记录，详情可查看请求与响应正文' : 'LLM / ASR / TTS / NLU 调用指标；含文本/语音调试与 JS 模版调用'}
+      description={platform ? '平台全量 AI 调用记录，详情可查看请求与响应正文' : 'LLM / ASR / TTS 调用指标；含文本/语音调试与 JS 模版调用'}
     >
       <DataList
         data={list as unknown as Record<string, unknown>[]}

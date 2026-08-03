@@ -63,13 +63,6 @@ type VoiceEnv struct {
 	KnowledgeCollection    string
 	AssistantID            uint
 	AssistantVersionID     uint
-	// NLU binding (assistant.nlu_model_id → ready tenant profile paths).
-	NluModelID         uint
-	NluModelPath       string
-	NluTokenizerPath   string
-	NluIntentsPath     string
-	NluPrototypesPath  string
-	NluMinConfidence   float64
 	VadConfigRaw           map[string]any
 	AgentConfigRaw         map[string]any
 	HotWordsRaw            []byte

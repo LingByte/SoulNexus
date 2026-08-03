@@ -346,7 +346,6 @@ func RunMigrations(db *gorm.DB) error {
 		&models.NodePluginReview{},
 		&models.NodePluginInstallation{},
 		&models.VoiceCloneProfile{},
-		&models.TenantNluModel{},
 		&models.TenantAssistantTool{},
 		&models.McpMarketItem{},
 		&models.WidgetMarketItem{},

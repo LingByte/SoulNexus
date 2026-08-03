@@ -72,7 +72,7 @@ func deliverWelcomeMail(db *gorm.DB, params ...any) {
 
 欢迎加入 SoulNexus 智能语音对话平台。账号已就绪，您可以：
 
-· 配置 AI 智能体与提示词，绑定知识库与 NLU 意图模型
+· 配置 AI 智能体与提示词，绑定知识库
 · 在智能体与语音会话中接入实时对话能力
 · 在个人中心查看站内信、安全设置与用量
 

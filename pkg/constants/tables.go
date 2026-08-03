@@ -48,7 +48,6 @@ const (
 	VOICE_SYNTHESIS_HISTORY_TABLE_NAME       = "voice_synthesis_histories"
 	MAIL_LOGS_TABLE_NAME                     = "mail_logs"
 	AI_INVOCATION_LOGS_TABLE_NAME            = "ai_invocation_logs"
-	TENANT_NLU_MODEL_TABLE_NAME              = "tenant_nlu_models"
 	TENANT_ASSISTANT_TOOL_TABLE_NAME         = "tenant_assistant_tools"
 	MCP_MARKET_ITEM_TABLE_NAME               = "mcp_market_items"
 	WIDGET_MARKET_ITEM_TABLE_NAME            = "widget_market_items"

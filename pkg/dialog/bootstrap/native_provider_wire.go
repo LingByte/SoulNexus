@@ -13,7 +13,6 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/dialog/cascaded"
 	"github.com/LingByte/SoulNexus/pkg/dialog/providers"
 	stageknow "github.com/LingByte/SoulNexus/pkg/dialog/stages/knowledge"
-	stagenlu "github.com/LingByte/SoulNexus/pkg/dialog/stages/nlu"
 	stagespeaker "github.com/LingByte/SoulNexus/pkg/dialog/stages/speaker"
 	"github.com/LingByte/SoulNexus/pkg/dialog/stages/rewrite"
 	"github.com/LingByte/SoulNexus/pkg/dialog/tenantcfg"
@@ -127,8 +126,6 @@ func (s *nativeCascadedLLM) StreamReply(
 	}
 	userText = rewritten
 
-	nluTurn := stagenlu.ProcessTurn(s.callID, userText, lg)
-
 	kbWait := stageknow.SearchTimeout() + 800*time.Millisecond
 	var kbBlock string
 	select {
@@ -143,24 +140,6 @@ func (s *nativeCascadedLLM) StreamReply(
 		return "", ctx.Err()
 	}
 
-	// Speculative ASR partials must not play canned intent replies — the
-	// utterance often still grows ("我需要" → "我需要预约课程").
-	speculative := cascaded.IsSpeculativeLLM(ctx)
-	if nluTurn.SkipLLM && strings.TrimSpace(nluTurn.Reply) != "" && !speculative {
-		if err := onDelta(nluTurn.Reply, false); err != nil {
-			return nluTurn.Reply, err
-		}
-		_ = onDelta("", true)
-		return nluTurn.Reply, nil
-	}
-	if speculative && nluTurn.SkipLLM {
-		lg.Info("cascaded: speculative defer NLU canned reply → LLM",
-			zap.String("call_id", s.callID),
-			zap.String("intent", nluTurn.IntentName),
-			zap.Float64("confidence", nluTurn.Confidence),
-		)
-	}
-	userText = nluTurn.EnrichedUserText
 	if kbBlock != "" {
 		before := userText
 		userText = strings.TrimSpace(userText) + "\n\n" + kbBlock + "\n\n" + stageknow.QuotePromptAddon()
@@ -316,7 +295,6 @@ func buildNativeCascadedLLM(ctx context.Context, env voiceattach.VoiceEnv, callI
 		stageknow.SearchConfigFromVoiceEnv(tenantcfg.VoiceEnv(env)),
 		lg,
 	)
-	stagenlu.PrepareCallNLUBinding(callID, tenantcfg.VoiceEnv(env), lg)
 	speakerHint := stagespeaker.PrepareCallSpeakerBinding(callID, env.TenantID, env.AssistantID, lg)
 	registerVoiceLLMTools(ctx, provider, env, callID, lg)
 	if hint := providers.CatalogToolsUsageHint(provider.ListFunctionTools()); hint != "" {

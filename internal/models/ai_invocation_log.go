@@ -15,7 +15,6 @@ const (
 	AIComponentLLM = callbinding.AIComponentLLM
 	AIComponentASR = callbinding.AIComponentASR
 	AIComponentTTS = callbinding.AIComponentTTS
-	AIComponentNLU = callbinding.AIComponentNLU
 
 	AIStatusOK    = callbinding.AIStatusOK
 	AIStatusError = callbinding.AIStatusError
@@ -38,7 +37,7 @@ func RecordAIInvocation(e AIInvocationRecord) {
 	callbinding.RecordAIInvocation(e)
 }
 
-// AIInvocationLog records one LLM / ASR / TTS / NLU call.
+// AIInvocationLog records one LLM / ASR / TTS call.
 type AIInvocationLog struct {
 	ID        uint   `gorm:"primaryKey;autoIncrement:false" json:"id,string"`
 	TenantID  uint   `gorm:"index" json:"tenant_id,string"`

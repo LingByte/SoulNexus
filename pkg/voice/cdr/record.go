@@ -68,7 +68,7 @@ type CallRecord struct {
 	PeerCumulativeLost uint32  `json:"peer_cumulative_lost,omitempty"`
 	MOSEstimate        float32 `json:"mos_estimate,omitempty"` // 1.0..4.5 (E-Model)
 
-	// Dialog plane / NLU pipeline.
+	// Dialog plane / voice pipeline.
 	Turns           int   `json:"turns,omitempty"`
 	ASRCharsTotal   int   `json:"asr_chars_total,omitempty"`
 	TTSCharsTotal   int   `json:"tts_chars_total,omitempty"`

@@ -88,7 +88,7 @@ func deliverOpLogNotify(db *gorm.DB, params ...any) {
 		if p.Action == constants.OpActionCreate {
 			notifyActorWith(db, p.OperatorKind, p.OperatorID, "",
 				"智能体已创建",
-				fmt.Sprintf("您已成功创建智能体「%s」。\n\n接下来可以：完善提示词与欢迎语、绑定知识库 / NLU、配置 ASR·LLM·TTS，然后在会话流程中选用该智能体。", name),
+				fmt.Sprintf("您已成功创建智能体「%s」。\n\n接下来可以：完善提示词与欢迎语、绑定知识库、配置 ASR·LLM·TTS，然后在会话流程中选用该智能体。", name),
 				inbox.SendOptions{ActionURL: "/assistant-manager", ActionLabel: "查看智能体"})
 		}
 	case constants.OpResourceCredential:

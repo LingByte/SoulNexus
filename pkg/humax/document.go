@@ -189,7 +189,7 @@ func titleCaseWords(slug string) string {
 		// Keep known acronyms
 		upper := strings.ToUpper(p)
 		switch upper {
-		case "API", "JWT", "NLU", "MCP", "SMS", "AI", "JS", "KB", "QA":
+		case "API", "JWT", "MCP", "SMS", "AI", "JS", "KB", "QA":
 			parts[i] = upper
 			continue
 		}

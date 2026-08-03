@@ -9,11 +9,10 @@ import (
 )
 
 // registerAssistantRoutes mounts assistants, voices, clones, voiceprints,
-// tenant org, NLU, assistant-tools, and MCP market under the API root.
+// tenant org, assistant-tools, and MCP market under the API root.
 func (h *Handlers) registerAssistantRoutes(r *humax.Group) {
 	h.registerAssistantsCRUDRoutes(r)
 	h.registerTenantOrgRoutes(r)
-	h.registerTenantNLURoutes(r)
 	h.registerTenantAssistantToolRoutes(r)
 	h.registerTenantMcpMarketRoutes(r)
 }

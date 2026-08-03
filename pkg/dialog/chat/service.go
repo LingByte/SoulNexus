@@ -1,7 +1,7 @@
 // Copyright (c) 2026 LingByte. All rights reserved.
 // SPDX-License-Identifier: AGPL-3.0
 
-// Package chat is the channel-agnostic text dialog core (history, KB, NLU, tools).
+// Package chat is the channel-agnostic text dialog core (history, KB, tools).
 package chat
 
 import (
@@ -18,7 +18,6 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/dialog/cascaded"
 	"github.com/LingByte/SoulNexus/pkg/dialog/session"
 	stageknow "github.com/LingByte/SoulNexus/pkg/dialog/stages/knowledge"
-	stagenlu "github.com/LingByte/SoulNexus/pkg/dialog/stages/nlu"
 	"github.com/LingByte/SoulNexus/pkg/dialog/providers"
 	"github.com/LingByte/SoulNexus/pkg/dialog/tenantcfg"
 	"github.com/LingByte/SoulNexus/pkg/notification"
@@ -179,7 +178,6 @@ func (s *Service) EndConversation(ctx context.Context, tenantID, id uint) error 
 	callbinding.ClearAssistantID(conv.CallKey())
 	callbinding.ClearTenantID(conv.CallKey())
 	stageknow.ClearBindingCache(conv.CallKey())
-	stagenlu.ClearBinding(conv.CallKey())
 	notification.DispatchWebhook(s.db, s.lg, tenantID, constants.WebhookEventDialogEnded, conv.CallKey(),
 		conv.ExternalUserID, "", conv.Channel, map[string]any{
 			"conversationId": conv.ID,
@@ -229,7 +227,6 @@ func (s *Service) handleUserText(ctx context.Context, tenantID, conversationID u
 	}
 
 	stageknow.PrepareCallKnowledgeBinding(callID, env, conv.TenantID, stageknow.SearchConfigFromVoiceEnv(env), s.lg)
-	stagenlu.PrepareCallNLUBinding(callID, env, s.lg)
 
 	hist, _ := s.loadHistoryForSeed(ctx, conversationID)
 

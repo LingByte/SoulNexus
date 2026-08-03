@@ -11,7 +11,6 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/dialog/cascaded"
 	"github.com/LingByte/SoulNexus/pkg/dialog/engine"
 	stageknow "github.com/LingByte/SoulNexus/pkg/dialog/stages/knowledge"
-	stagenlu "github.com/LingByte/SoulNexus/pkg/dialog/stages/nlu"
 	"github.com/LingByte/SoulNexus/pkg/dialog/tenantcfg"
 	"github.com/google/uuid"
 	"strings"
@@ -216,7 +215,6 @@ func (s *Session) StartEngine(ctx context.Context, lg engine.Logger) error {
 		env = cloneVoiceEnvWithRealtimeTemperature(env, rtTemp)
 	}
 	stageknow.PrepareCallKnowledgeBinding(s.CallID, env, s.TenantID, stageknow.SearchConfigFromVoiceEnv(env), nil)
-	stagenlu.PrepareCallNLUBinding(s.CallID, env, nil)
 	runCtx, cancel := context.WithCancel(ctx)
 	mode := ResolveMode(env)
 	s.mu.Lock()
@@ -283,7 +281,6 @@ func (s *Session) close(ctx context.Context) {
 	if callID != "" {
 		stageknow.ClearBindingCache(callID)
 		stageknow.ClearSearchCache(callID)
-		stagenlu.ClearBinding(callID)
 		callbinding.ClearAssistantID(callID)
 		callbinding.ClearTenantID(callID)
 		callbinding.ClearUserID(callID)

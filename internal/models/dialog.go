@@ -67,7 +67,6 @@ type DialogMessage struct {
 	Role           string  `json:"role" gorm:"size:16;not null;index"`
 	Content        string  `json:"content" gorm:"type:text;not null"`
 	KnowledgeJSON  string  `json:"-" gorm:"type:text"`
-	NLUJSON        string  `json:"-" gorm:"type:text"`
 	ToolsJSON      string  `json:"-" gorm:"type:text"`
 	Confidence     *float64 `json:"confidence,omitempty" gorm:"comment:0-1 LLM-judge score"`
 	ConfidenceJSON string  `json:"-" gorm:"type:text"`

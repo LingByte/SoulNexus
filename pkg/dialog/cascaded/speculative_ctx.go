@@ -12,7 +12,7 @@ type forcedKBBlockKey struct{}
 const DefaultTextToolRounds = 12
 
 // WithSpeculativeLLM marks a StreamReply as ASR-partial speculative so
-// adapters can skip irreversible side effects (e.g. NLU canned replies).
+// adapters can skip irreversible side effects.
 func WithSpeculativeLLM(ctx context.Context) context.Context {
 	if ctx == nil {
 		ctx = context.Background()

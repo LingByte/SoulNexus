@@ -17,7 +17,6 @@ import {
   type AssistantVersionRow,
 } from '@/api/assistants'
 import { listKnowledgeNamespaces } from '@/api/knowledgeNamespaces'
-import { listNluModels } from '@/api/nluModels'
 import { bindVoiceprintAssistant, listVoiceprints, snowflakeStr } from '@/api/voiceprint'
 import { useSiteConfig } from '@/contexts/siteConfig'
 import {
@@ -106,7 +105,6 @@ export default function AssistantManagerFormPage({
   const { t } = useTranslation()
   const authUser = useAuthStore((s) => s.user)
   const { config: siteConfig } = useSiteConfig()
-  const nluEnabled = Boolean(siteConfig.nluEnabled)
   const voiceprintEnabled = Boolean(siteConfig.VOICEPRINT_PROVIDER?.trim())
   const isEdit = mode === 'edit'
 
@@ -121,8 +119,6 @@ export default function AssistantManagerFormPage({
   const [prompt, setPrompt] = useState('')
   const [knowledgeNamespace, setKnowledgeNamespace] = useState('')
   const [knowledgeOptions, setKnowledgeOptions] = useState<{ value: string; label: string }[]>([])
-  const [nluModelId, setNluModelId] = useState('')
-  const [nluOptions, setNluOptions] = useState<{ value: string; label: string }[]>([])
   const [voiceprintIds, setVoiceprintIds] = useState<string[]>([])
   const [agent, setAgent] = useState<AgentConfigDraft>(() => defaultAgentConfig())
   const [vad, setVad] = useState<VadConfigDraft>(() => defaultVadConfig())
@@ -411,28 +407,6 @@ export default function AssistantManagerFormPage({
   }, [])
 
   useEffect(() => {
-    if (!nluEnabled) {
-      setNluOptions([])
-      return
-    }
-    void (async () => {
-      try {
-        const rows = await listNluModels()
-        setNluOptions(
-          rows
-            .filter((m) => String(m.status || '').toLowerCase() === 'ready')
-            .map((m) => ({
-              value: String(m.id),
-              label: `${m.name || '未命名'}${m.minConfidence != null ? ` · conf≥${m.minConfidence}` : ''}`,
-            })),
-        )
-      } catch {
-        setNluOptions([])
-      }
-    })()
-  }, [nluEnabled])
-
-  useEffect(() => {
     if (isEdit || !templateId) return
     const template = getAssistantTemplate(templateId)
     if (!template) return
@@ -481,7 +455,6 @@ export default function AssistantManagerFormPage({
         setWelcome(row.welcome || fallbackWelcome)
         setPrompt(row.prompt || fallbackPrompt)
         setKnowledgeNamespace(row.knowledgeNamespace || '')
-        setNluModelId(row.nluModelId && row.nluModelId !== '0' ? String(row.nluModelId) : '')
         setAgent(agentConfigFromJSON(row.agentConfig))
         setVad(vadConfigFromJSON(row.vadConfig))
         setHotWords(hotWordsFromJSON(row.hotWords))
@@ -535,7 +508,6 @@ export default function AssistantManagerFormPage({
     welcome: welcome.trim(),
     prompt: prompt.trim(),
     knowledgeNamespace: knowledgeNamespace.trim(),
-    nluModelId: nluModelId.trim() || '0',
     agentConfig: agentConfigToJSON(agent),
     vadConfig: vadConfigToJSON(vad),
     hotWords: hotWordsToJSON(hotWords),
@@ -553,7 +525,7 @@ export default function AssistantManagerFormPage({
   })
 
   const formSig = useMemo(() => JSON.stringify({ body: buildBody(), voiceprintIds }), [
-    name, scene, description, enabled, welcome, prompt, knowledgeNamespace, nluModelId,
+    name, scene, description, enabled, welcome, prompt, knowledgeNamespace,
     agent, vad, hotWords, interruption, audioTrack, audioProcess, queryRewriter, mcpServers,
     ttsVoice, realtimeVoice, credentialId, voiceDialogWsUrl, boundJsTemplateSourceId, scopeTenantId, isEdit,
     voiceprintIds,
@@ -859,10 +831,6 @@ export default function AssistantManagerFormPage({
                     knowledgeNamespace={knowledgeNamespace}
                     setKnowledgeNamespace={setKnowledgeNamespace}
                     knowledgeOptions={knowledgeOptions}
-                    nluModelId={nluModelId}
-                    setNluModelId={setNluModelId}
-                    nluOptions={nluOptions}
-                    nluEnabled={nluEnabled}
                   />
                   {voiceprintEnabled ? (
                     <div className="rounded-xl border border-border bg-card p-5 space-y-4">

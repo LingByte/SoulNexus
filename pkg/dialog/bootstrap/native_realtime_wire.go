@@ -9,7 +9,6 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/dialog/callbinding"
 	"github.com/LingByte/SoulNexus/pkg/dialog/providers"
 	stageknow "github.com/LingByte/SoulNexus/pkg/dialog/stages/knowledge"
-	stagenlu "github.com/LingByte/SoulNexus/pkg/dialog/stages/nlu"
 	stagespeaker "github.com/LingByte/SoulNexus/pkg/dialog/stages/speaker"
 	"github.com/LingByte/SoulNexus/pkg/dialog/tenantcfg"
 	"github.com/LingByte/SoulNexus/pkg/dialog/voiceattach"
@@ -24,7 +23,6 @@ func init() {
 }
 
 func buildNativeRealtimeSystemPrompt(_ context.Context, env voiceattach.VoiceEnv, callID string) string {
-	stagenlu.PrepareCallNLUBinding(callID, tenantcfg.VoiceEnv(env), nil)
 	kbBinding := stageknow.ResolveBinding(callID)
 	operatorCore := mergeRealtimeInstructions(
 		tenantcfg.EffectiveRealtimeOperatorCore(tenantcfg.VoiceEnv(env)),
@@ -32,7 +30,6 @@ func buildNativeRealtimeSystemPrompt(_ context.Context, env voiceattach.VoiceEnv
 	)
 	rulesBlock := providers.AugmentToolRules("", kbBinding.Enabled)
 	base := mergeRealtimeInstructions(operatorCore, rulesBlock)
-	base = mergeRealtimeInstructions(base, stagenlu.IntentCatalogHint(callID))
 	base = mergeRealtimeInstructions(base, stagespeaker.AssistantBoundPromptHint(env.TenantID, env.AssistantID))
 	base = mergeRealtimeInstructions(base, providers.WallClockPromptHint(time.Now()))
 	base = callbinding.EnrichSystemPrompt(base, callID)
@@ -45,7 +42,6 @@ func prepareNativeRealtimeCall(_ context.Context, callID string, env voiceattach
 		return
 	}
 	stageknow.PrepareCallKnowledgeBinding(callID, tenantcfg.VoiceEnv(env), env.TenantID, stageknow.SearchConfigFromVoiceEnv(tenantcfg.VoiceEnv(env)), lg)
-	stagenlu.PrepareCallNLUBinding(callID, tenantcfg.VoiceEnv(env), lg)
 	_ = stagespeaker.PrepareCallSpeakerBinding(callID, env.TenantID, env.AssistantID, lg)
 	if lg != nil {
 		lg.Debug("native realtime: call preparation complete", zap.String("call_id", callID))

@@ -6,7 +6,7 @@ Qdrant ANN search inside one namespace collection is normally **tens of ms**. Mu
 
 1. **Remote embedding** of the query (`Embed` before `/points/search`) — often 0.5–3s
 2. **Hybrid + rerank** (`KNOWLEDGE_RETRIEVE_STRATEGY=hybrid` + `KNOWLEDGE_RERANK_ENABLED`) — another remote HTTP hop
-3. **Serial turn pipeline** (rewrite → NLU → KB → LLM) without overlapping NLU and KB
+3. **Serial turn pipeline** (rewrite → KB → LLM) without overlapping rewrite and KB
 
 Per-namespace Qdrant collections already isolate tenants (`kb-{tenant}-…`). A “full-library scan without `tenant_id` filter” is usually **not** the main issue unless you put many tenants in one collection.
 
@@ -16,7 +16,7 @@ Per-namespace Qdrant collections already isolate tenants (`kb-{tenant}-…`). A 
 |------|---------|--------|
 | `KNOWLEDGE_VOICE_RETRIEVE_STRATEGY` | `vector` | Voice/tool recall skips hybrid Bleve fusion |
 | `KNOWLEDGE_VOICE_RERANK_ENABLED` | unset/false | Skip remote rerank on voice |
-| Cascaded `StreamReply` | KB starts on raw ASR before rewrite | Remote embed overlaps rewrite/NLU |
+| Cascaded `StreamReply` | KB starts on raw ASR before rewrite | Remote embed overlaps rewrite |
 | Query embedding cache | 30m in-process | Identical queries skip remote embed |
 | Search logs / call UI | `embed_ms` / `qdrant_ms` / `recall_ms` | See which stage dominates |
 
@@ -52,4 +52,4 @@ knowledge: search ... recall_ms=… embed_ms=… qdrant_ms=…
 ```
 
 - `embed_ms` ≫ `qdrant_ms` → fix embed provider / region / local model, not Qdrant HNSW.
-- Both small but wall clock large → look at rewrite/NLU/LLM or timeout/retry outside search.
+- Both small but wall clock large → look at rewrite/LLM or timeout/retry outside search.

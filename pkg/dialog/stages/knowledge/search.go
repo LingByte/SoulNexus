@@ -71,7 +71,7 @@ func SearchPromptHint() string {
 }
 
 // EnrichUserText runs server-side recall and appends a compact context block.
-// Recall uses the raw user utterance only — NLU/system prompt blocks stay for the LLM, not for search.
+// Recall uses the raw user utterance only — system prompt blocks stay for the LLM, not for search.
 func EnrichUserText(ctx context.Context, callID, userText string, lg *zap.Logger) string {
 	userText = strings.TrimSpace(userText)
 	if userText == "" {

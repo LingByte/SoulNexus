@@ -20,7 +20,6 @@ import (
 	knworker "github.com/LingByte/SoulNexus/pkg/knowledge/worker"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/middleware"
-	"github.com/LingByte/SoulNexus/pkg/nlu"
 	"github.com/LingByte/SoulNexus/pkg/websocket"
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/gin-gonic/gin"
@@ -54,7 +53,6 @@ func NewHandlers(db *gorm.DB) *Handlers {
 	workflowdef.SetKnowledgeRecaller(workflowdef.NewServiceKnowledgeRecaller(db, h.kb))
 	InitVoiceSessionModule()
 	models.ReloadAKSKRoutePolicy(db)
-	nlu.Load(db)
 	models.SetAIInvocationDB(db)
 	tenantcfg.SetLoader(func(ctx context.Context, tenantID uint, callID string) (tenantcfg.VoiceConfigBundle, bool) {
 		return models.LoadCallVoiceConfigBundle(ctx, db, tenantID, callID)
@@ -122,7 +120,6 @@ func (h *Handlers) Register(engine *gin.Engine, api huma.API) {
 	h.registerPlatformAIPoolRoutes(protected)
 	h.registerTenantAIPoolGrantRoutes(protected)
 	h.registerPlatformWorkflowMarketRoutes(protected)
-	h.registerPlatformNLURoutes(protected)
 	h.registerPlatformAssistantToolRoutes(protected)
 	h.registerPlatformMcpMarketRoutes(protected)
 	h.registerMediaGenerateRoutes(protected)

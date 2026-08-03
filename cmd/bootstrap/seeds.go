@@ -136,22 +136,6 @@ func (s *SeedService) seedConfigs() error {
 			Desc: "是否开放租户自助注册（POST /api/register）。true=开放；false=关闭，需平台管理员在租户管理中开通。修改后立即生效，无需重启。",
 		},
 		{
-			Key: constants.KEY_NLU_MODEL, Autoload: true, Public: false, Format: "text", Value: "",
-			Desc: "ONNX 意图分类模型路径（.onnx）。需同时在 .env 设置 NLU_ENABLED=true。",
-		},
-		{
-			Key: constants.KEY_NLU_TOKENIZER, Autoload: true, Public: false, Format: "text", Value: "data/nlu/tokenizer.json",
-			Desc: "Hugging Face tokenizer.json 路径，与训练导出模型配套。",
-		},
-		{
-			Key: constants.KEY_NLU_INTENTS_CONFIG, Autoload: true, Public: false, Format: "text", Value: "",
-			Desc: "意图配置 JSON 路径（可选）；留空使用内置 default_intents.json。",
-		},
-		{
-			Key: constants.KEY_NLU_MIN_CONFIDENCE, Autoload: true, Public: false, Format: "float", Value: "0.22",
-			Desc: "意图置信度下限（0~1）。低于该值时实验室解析结果 channel=llm（不展示固定话术）。",
-		},
-		{
 			Key: constants.KEY_CONTENT_CENSOR_ENABLED, Autoload: true, Public: false, Format: "bool", Value: "false",
 			Desc: "平台级内容审核总开关。false=全局关闭；true 时仍需租户开启 autoCensorOnCallEnd。文本/音频厂商凭证：ALIYUN_CENSOR_* / QCLOUD_CENSOR_* / 七牛 AK/SK。",
 		},

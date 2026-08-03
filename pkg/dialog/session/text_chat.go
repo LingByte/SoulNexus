@@ -9,7 +9,6 @@ import (
 
 	"github.com/LingByte/SoulNexus/pkg/dialog/cascaded"
 	stageknow "github.com/LingByte/SoulNexus/pkg/dialog/stages/knowledge"
-	stagenlu "github.com/LingByte/SoulNexus/pkg/dialog/stages/nlu"
 	"github.com/LingByte/SoulNexus/pkg/dialog/tenantcfg"
 )
 
@@ -95,7 +94,6 @@ func (s *Session) InitTextChat(ctx context.Context) (welcome string, err error) 
 		return "", fmt.Errorf("dialog/session: %s (assistant_id=%d voice_mode=%s)", reason, s.AssistantID, env.VoiceMode)
 	}
 	stageknow.PrepareCallKnowledgeBinding(s.CallID, env, s.TenantID, stageknow.SearchConfigFromVoiceEnv(env), nil)
-	stagenlu.PrepareCallNLUBinding(s.CallID, env, nil)
 	if providerHooks.BuildLLM == nil {
 		return "", errors.New("dialog/session: LLM provider not wired")
 	}

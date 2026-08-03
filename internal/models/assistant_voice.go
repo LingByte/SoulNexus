@@ -8,7 +8,6 @@ import (
 
 	"github.com/LingByte/SoulNexus/pkg/dialog/callbinding"
 	"github.com/LingByte/SoulNexus/pkg/dialog/tenantcfg"
-	"github.com/LingByte/SoulNexus/pkg/nlu"
 	"github.com/LingByte/SoulNexus/pkg/voice/cloneconfig"
 	knmodels "github.com/LingByte/SoulNexus/pkg/knowledge/models"
 	"gorm.io/gorm"
@@ -149,24 +148,6 @@ func bundleFromAssistant(db *gorm.DB, tenant Tenant, ast Assistant, fallback ten
 		if row, err := knmodels.GetKnowledgeNamespaceByNamespaceAndGroup(db, ns, tenant.ID); err == nil {
 			bundle.KnowledgeNamespaceID = row.ID
 			bundle.KnowledgeCollection = strings.TrimSpace(row.Namespace)
-		}
-	}
-
-	if ast.NluModelID > 0 {
-		if nluRow, err := GetTenantNluModel(db, tenant.ID, ast.NluModelID); err == nil &&
-			nluRow.ID > 0 && strings.EqualFold(strings.TrimSpace(nluRow.Status), TenantNluStatusReady) {
-			bundle.NluModelID = nluRow.ID
-			bundle.NluIntentsPath = nluRow.IntentsPath()
-			bundle.NluPrototypesPath = nluRow.PrototypesPath()
-			bundle.NluMinConfidence = nluRow.MinConfidence
-			global := nlu.Get()
-			if global.IsEmbeddingMode() {
-				bundle.NluModelPath = global.ModelPath
-				bundle.NluTokenizerPath = global.TokenizerPath
-			} else {
-				bundle.NluModelPath = nluRow.ModelPath()
-				bundle.NluTokenizerPath = nluRow.TokenizerPath()
-			}
 		}
 	}
 

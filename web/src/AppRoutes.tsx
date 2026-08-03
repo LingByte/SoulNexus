@@ -1,5 +1,5 @@
 import { lazy } from 'react'
-import { Routes, Route, Navigate, Outlet } from 'react-router-dom'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import AuthenticatedLayout from '@/components/layout/AuthenticatedLayout'
 import { useAuthStore } from '@/stores/authStore'
 import { PLATFORM_HOME_PATH, TENANT_HOME_PATH } from '@/constants/appPaths'
@@ -45,9 +45,6 @@ const NotFound = lazy(() => import('@/pages/NotFound'))
 const NotificationChannels = lazy(() => import('@/pages/platform/NotificationChannels'))
 const NotificationChannelEdit = lazy(() => import('@/pages/platform/NotificationChannelEdit'))
 const MailTemplates = lazy(() => import('@/pages/platform/MailTemplates'))
-const NluModelsPage = lazy(() => import('@/pages/NluModelsPage'))
-const NluModelDetailPage = lazy(() => import('@/pages/NluModelDetailPage'))
-const PlatformNluModels = lazy(() => import('@/pages/platform/PlatformNluModels'))
 const MailTemplateEdit = lazy(() => import('@/pages/platform/MailTemplateEdit'))
 const MailLogs = lazy(() => import('@/pages/platform/MailLogs'))
 const AIInvocationLogs = lazy(() => import('@/pages/AIInvocationLogs'))
@@ -285,24 +282,6 @@ export function AppRoutes() {
             </RequireTenant>
           }
         />
-        <Route path="/nlu-models" element={<Outlet />}>
-          <Route
-            index
-            element={
-              <RequireTenant>
-                <NluModelsPage />
-              </RequireTenant>
-            }
-          />
-          <Route
-            path=":id"
-            element={
-              <RequireTenant>
-                <NluModelDetailPage />
-              </RequireTenant>
-            }
-          />
-        </Route>
         <Route
           path="/tenant-management"
           element={
@@ -355,8 +334,6 @@ export function AppRoutes() {
         <Route path="/platform/notification-channels/new" element={<RequirePlatform><NotificationChannelEdit /></RequirePlatform>} />
         <Route path="/platform/notification-channels/:id/edit" element={<RequirePlatform><NotificationChannelEdit /></RequirePlatform>} />
         <Route path="/platform/mail-templates" element={<RequirePlatform><MailTemplates /></RequirePlatform>} />
-        <Route path="/platform/nlu-models" element={<RequirePlatform><PlatformNluModels /></RequirePlatform>} />
-        <Route path="/platform/nlu-lab" element={<Navigate to="/platform/nlu-models" replace />} />
         <Route path="/platform/mail-templates/new" element={<RequirePlatform><MailTemplateEdit /></RequirePlatform>} />
         <Route path="/platform/mail-templates/:id/edit" element={<RequirePlatform><MailTemplateEdit /></RequirePlatform>} />
         <Route path="/platform/mail-logs" element={<RequirePlatform><MailLogs /></RequirePlatform>} />

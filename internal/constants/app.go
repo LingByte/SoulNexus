@@ -30,10 +30,6 @@ const (
 	KEY_DEPLOYMENT_MODE               = "DEPLOYMENT_MODE"
 	DeploymentModeCommunity           = "community"
 	DeploymentModeSaaS                = "saas"
-	KEY_NLU_MODEL                     = "NLU_MODEL"
-	KEY_NLU_TOKENIZER                 = "NLU_TOKENIZER"
-	KEY_NLU_INTENTS_CONFIG            = "NLU_INTENTS_CONFIG"
-	KEY_NLU_MIN_CONFIDENCE            = "NLU_MIN_CONFIDENCE"
 	KEY_CONTENT_CENSOR_ENABLED        = "CONTENT_CENSOR_ENABLED"
 	KEY_CONTENT_CENSOR_PROVIDER       = "CONTENT_CENSOR_PROVIDER"
 )

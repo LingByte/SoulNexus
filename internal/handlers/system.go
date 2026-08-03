@@ -22,7 +22,6 @@ import (
 	"github.com/LingByte/SoulNexus/pkg/i18n"
 	"github.com/LingByte/SoulNexus/pkg/logger"
 	"github.com/LingByte/SoulNexus/pkg/middleware"
-	"github.com/LingByte/SoulNexus/pkg/nlu"
 	"github.com/LingByte/SoulNexus/pkg/response"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"github.com/LingByte/SoulNexus/pkg/utils/access"
@@ -81,7 +80,6 @@ type systemInitResp struct {
 	VoiceCloneLabel           string `json:"VOICE_CLONE_LABEL,omitempty"`
 	VoiceprintProvider        string `json:"VOICEPRINT_PROVIDER"`
 	VoiceprintLabel           string `json:"VOICEPRINT_LABEL,omitempty"`
-	NluEnabled                bool   `json:"nluEnabled"`
 	SMSLoginEnabled           bool   `json:"smsLoginEnabled"`
 	DeploymentMode            string `json:"deploymentMode"`
 }
@@ -497,7 +495,6 @@ func (h *Handlers) getSystemInit(c *gin.Context) {
 		VoiceCloneLabel:           voiceCloneLabel,
 		VoiceprintProvider:        voiceprintProvider,
 		VoiceprintLabel:           voiceprintLabel,
-		NluEnabled:                nlu.DeployEnabled(),
 		SMSLoginEnabled:           smsLoginEnabled,
 		DeploymentMode:            deploymentMode,
 	})

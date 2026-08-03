@@ -4,24 +4,10 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/LingByte/SoulNexus/internal/constants"
 	apperror "github.com/LingByte/SoulNexus/pkg/errors"
-	"github.com/LingByte/SoulNexus/pkg/nlu"
 	"github.com/LingByte/SoulNexus/pkg/utils"
 	"gorm.io/gorm"
 )
-
-func isNLUConfigKey(key string) bool {
-	switch strings.ToUpper(strings.TrimSpace(key)) {
-	case constants.KEY_NLU_MODEL,
-		constants.KEY_NLU_TOKENIZER,
-		constants.KEY_NLU_INTENTS_CONFIG,
-		constants.KEY_NLU_MIN_CONFIDENCE:
-		return true
-	default:
-		return false
-	}
-}
 
 func ListPage(db *gorm.DB, page, size int, search string) ([]utils.Config, int64, error) {
 	if db == nil {
@@ -86,10 +72,6 @@ func Create(db *gorm.DB, in CreateInput) (*utils.Config, error) {
 	if isAKSKRoutePolicyKey(key) {
 		ReloadAKSKRoutePolicy(db)
 	}
-	if isNLUConfigKey(key) {
-		nlu.ResetEngine()
-		nlu.Load(db)
-	}
 	return row, nil
 }
 
@@ -142,10 +124,6 @@ func Update(db *gorm.DB, id uint, in UpdateInput) (*utils.Config, error) {
 	if isAKSKRoutePolicyKey(after.Key) {
 		ReloadAKSKRoutePolicy(db)
 	}
-	if isNLUConfigKey(after.Key) {
-		nlu.ResetEngine()
-		nlu.Load(db)
-	}
 	return &after, nil
 }
 
@@ -163,10 +141,6 @@ func Delete(db *gorm.DB, id uint) error {
 	utils.PurgeConfigCache(row.Key)
 	if isAKSKRoutePolicyKey(row.Key) {
 		ReloadAKSKRoutePolicy(db)
-	}
-	if isNLUConfigKey(row.Key) {
-		nlu.ResetEngine()
-		nlu.Load(db)
 	}
 	return nil
 }

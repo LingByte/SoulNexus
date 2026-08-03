@@ -1,7 +1,7 @@
 # SoulNexus 功能汇总
 
 > 基于当前仓库代码整理（2026-07-23）。产品实体以 **Assistant（智能体/助手）** 为准。  
-> 本文是功能总览；部署、知识库运营、MCP、NLU 等细节见文末「相关文档」。
+> 本文是功能总览；部署、知识库运营、MCP 等细节见文末「相关文档」。
 
 ---
 
@@ -40,7 +40,6 @@
 | 工作流 + 插件市场 | ★★★★☆ | 可视化编排、实例运行、平台/租户插件市场 |
 | MCP 市场与工具 | ★★★★☆ | 市场开通、自定义工具、助手绑定 |
 | 声音克隆 / 声纹 | ★★★★ | 依赖供应商配置 |
-| NLU 实验室 | ★★★★ | 意图模型（受开关控制） |
 | Embed / 桌宠 | ★★★☆ | Embed JS 可用；Soul Pet 包规范仍为草案 |
 | 计费 / 支付 | ★☆☆☆☆ | 模型与调度骨架；无完整计费台与支付网关 |
 | 通话 AI 报表 | ★☆☆☆☆ | 历史能力弱化后多为占位 |
@@ -59,7 +58,7 @@
 | 基础人设 | Prompt、欢迎语、场景（scene）、头像、成员 |
 | 语音链路 | ASR / TTS / LLM；可选 Realtime Agent |
 | 交互控制 | 热词、打断、VAD、知识库绑定 |
-| 扩展 | MCP / 自定义工具、NLU、凭证 |
+| 扩展 | MCP / 自定义工具、凭证 |
 | 版本 | 发布、回滚、版本列表与 diff；支持跨租户 import |
 | 调试 | 文本 Dialog + 语音 Session；延迟等指标 |
 | 模板 | 前端常量模板（空白 / 客资 / 唤醒 / 知识库入站 / 通知 / 问卷等），非独立 SaaS 预设市场 |
@@ -73,7 +72,7 @@
 | Voice Session | `/api/lingecho/voice-session/v1`：建会话、结束、WebSocket、WebRTC Offer |
 | Dialog Chat | `/api/lingecho/dialog/v1`：文本会话、消息、Channels / Skills |
 | 引擎形态 | 级联 `ASR → LLM → TTS`；可选 Realtime（如阿里 Omni、火山 Dialogue） |
-| Pipeline | 知识库、NLU、改写、说话人、Realtime 等 stage（`pkg/dialog`） |
+| Pipeline | 知识库、改写、说话人、Realtime 等 stage（`pkg/dialog`） |
 
 ### 3.3 声音：克隆、声纹、音色
 
@@ -128,13 +127,7 @@
 | Desktop Pet（SoulMy） | Electron 透明壳（`desktop-pet/`），可挂载挂件 `jsSourceId` |
 | Soul Pet 包 | `.soulpet` 包与多端 runtime：**规范草案**（`soulpet-package-spec.md`） |
 
-### 3.8 NLU
-
-- 租户：`/nlu-models`（受功能开关控制）
-- 平台：`/platform/nlu-models`
-- 文档：`docs/nlu.md`
-
-### 3.9 组织、账号与安全
+### 3.8 组织、账号与安全
 
 | 能力 | 说明 |
 |------|------|
@@ -144,7 +137,7 @@
 | 注销 | 账号注销与撤销（`/account/deletion/revoke`） |
 | 内容审核 | `pkg/censor`（多云厂商，运维侧配置） |
 
-### 3.10 平台管理
+### 3.9 平台管理
 
 | 模块 | 路由示例 |
 |------|----------|
@@ -154,15 +147,15 @@
 | 系统配置 / 运行状态 | `/system-configs`、`/platform/system-status` |
 | 通知渠道、邮件模板与日志、短信日志 | `/platform/notification-channels` 等 |
 | AI 调用日志、后台执行任务 | `/platform/ai-invocations`、`/platform/execution-tasks` |
-| 插件 / MCP / NLU 市场 | `/platform/plugin-market`、`/platform/mcp-market`、`/platform/nlu-models` |
+| 插件 / MCP 市场 | `/platform/plugin-market`、`/platform/mcp-market` |
 
-### 3.11 凭证与工作区 AI
+### 3.10 凭证与工作区 AI
 
 - 租户凭证：`/credentials*`（含 LLM 测试流）
 - 工作区级 ASR/TTS/LLM/Realtime：`/tenant/workspace/ai`
 - 平台 AI Pool 授权到租户
 
-### 3.12 后台任务（节选）
+### 3.11 后台任务（节选）
 
 账号注销落地、音频预取、计费调度骨架、知识库运营、日志保留、通知清理、统计、Webhook 重试等（`internal/tasks`）。
 
@@ -219,7 +212,6 @@
 | [knowledge-latency.md](./knowledge-latency.md) | 语音召回延迟 |
 | [mcp-market.md](./mcp-market.md) | MCP 市场 |
 | [mcp-tenant-tools.md](./mcp-tenant-tools.md) | 租户工具架构 |
-| [nlu.md](./nlu.md) | NLU 实验室 |
 | [soulpet-package-spec.md](./soulpet-package-spec.md) | 桌宠包规范（草案） |
 | [RNNOISE.md](./RNNOISE.md) | RNNoise / CGO |
 | [feature-recommendations.md](./feature-recommendations.md) | 功能推荐（规划向，非实现真相） |

@@ -10,7 +10,6 @@ const (
 	AIComponentLLM = "llm"
 	AIComponentASR = "asr"
 	AIComponentTTS = "tts"
-	AIComponentNLU = "nlu"
 
 	AIStatusOK    = "ok"
 	AIStatusError = "error"

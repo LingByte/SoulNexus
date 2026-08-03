@@ -26,7 +26,6 @@ type assistantWriteReq struct {
 	KnowledgeNamespace string `json:"knowledgeNamespace"`
 	VoiceDialogWsURL          string `json:"voiceDialogWsUrl"`
 	BoundJsTemplateSourceID   string `json:"boundJsTemplateSourceId"`
-	NluModelID                string `json:"nluModelId"`
 	AsrConfig                 string `json:"asrConfig"`
 	TtsConfig          string `json:"ttsConfig"`
 	LlmConfig          string `json:"llmConfig"`
@@ -141,12 +140,6 @@ func (h *Handlers) createAssistant(c *gin.Context) {
 		req.TtsVoice, req.RealtimeVoice, enabled,
 		asr, tts, llm, realtime, vad, agent, hotWords, interruption, audioTrack, audioProcess, queryRewriter, mcpServers, collect,
 	)
-	nluID, err := h.resolveAssistantNluModelID(c, tid, req.NluModelID)
-	if err != nil {
-		response.Render(c, response.WrapErr(response.CodeBadRequest, err))
-		return
-	}
-	row.NluModelID = nluID
 	if cid := utils.ParseOptionalID(req.CredentialID); cid > 0 {
 		if _, err := models.GetCredentialByIDForTenant(h.db, cid, tid); err != nil {
 			ginutil.WriteGORMError(c, err, "credential not found")
@@ -202,13 +195,6 @@ func (h *Handlers) updateAssistant(c *gin.Context) {
 		response.Render(c, response.WrapErr(response.CodeBadRequest, err))
 		return
 	}
-	nluID, err := h.resolveAssistantNluModelID(c, before.TenantID, req.NluModelID)
-	if err != nil {
-		response.Render(c, response.WrapErr(response.CodeBadRequest, err))
-		return
-	}
-	// Always persist binding (including clear to 0 when client sends empty/"0").
-	updates["nlu_model_id"] = nluID
 	if req.CredentialID != "" {
 		cid := utils.ParseOptionalID(req.CredentialID)
 		if cid > 0 {
@@ -337,24 +323,6 @@ func (h *Handlers) assistantScopeTenantID(c *gin.Context, queryTenantID string) 
 		return 0, fmt.Errorf("tenantId query required for platform admin")
 	}
 	return utils.RequireScopeID(raw, "tenantId")
-}
-
-// resolveAssistantNluModelID validates optional nluModelId for the tenant (0 = unbound).
-func (h *Handlers) resolveAssistantNluModelID(c *gin.Context, tenantID uint, raw string) (uint, error) {
-	_ = c
-	s := strings.TrimSpace(raw)
-	if s == "" || s == "0" {
-		return 0, nil
-	}
-	id, err := utils.RequireScopeID(s, "nluModelId")
-	if err != nil {
-		return 0, err
-	}
-	row, err := models.GetTenantNluModel(h.db, tenantID, id)
-	if err != nil || row.ID == 0 {
-		return 0, fmt.Errorf("nlu model not found for tenant")
-	}
-	return row.ID, nil
 }
 
 type importAssistantReq struct {

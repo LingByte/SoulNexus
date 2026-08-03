@@ -33,7 +33,6 @@ function mergeSiteConfig(raw: Partial<SiteConfig> | null | undefined): SiteConfi
     VOICEPRINT_LABEL: raw.VOICEPRINT_LABEL?.trim() || '',
     tenantSelfRegisterEnabled: Boolean(raw.tenantSelfRegisterEnabled),
     githubOAuthEnabled: Boolean(raw.githubOAuthEnabled),
-    nluEnabled: Boolean(raw.nluEnabled),
     smsLoginEnabled: Boolean(raw.smsLoginEnabled),
     deploymentMode: raw.deploymentMode === 'community' ? 'community' : 'saas',
   }
@@ -154,7 +153,6 @@ export const SiteConfigProvider = ({ children }: { children: ReactNode }) => {
             VOICEPRINT_LABEL: res.data.VOICEPRINT_LABEL,
             tenantSelfRegisterEnabled: res.data.tenantSelfRegisterEnabled,
             githubOAuthEnabled: res.data.githubOAuthEnabled,
-            nluEnabled: res.data.nluEnabled,
             smsLoginEnabled: res.data.smsLoginEnabled,
             deploymentMode: res.data.deploymentMode === 'community' ? 'community' : 'saas',
           })

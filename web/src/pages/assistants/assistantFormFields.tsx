@@ -42,10 +42,6 @@ export function AssistantDialogFields({
   knowledgeNamespace,
   setKnowledgeNamespace,
   knowledgeOptions,
-  nluModelId,
-  setNluModelId,
-  nluOptions,
-  nluEnabled,
 }: {
   welcome: string
   setWelcome: (v: string) => void
@@ -56,10 +52,6 @@ export function AssistantDialogFields({
   knowledgeNamespace: string
   setKnowledgeNamespace: (v: string) => void
   knowledgeOptions: { value: string; label: string }[]
-  nluModelId: string
-  setNluModelId: (v: string) => void
-  nluOptions: { value: string; label: string }[]
-  nluEnabled?: boolean
 }) {
   return (
     <div className="space-y-4">
@@ -104,22 +96,6 @@ export function AssistantDialogFields({
           onChange={(v) => setKnowledgeNamespace(String(v || ''))}
           style={{ width: '100%' }}
         />
-      </div>
-
-      <div className="rounded-xl border border-border bg-card p-5 space-y-3">
-        <Typography.Text bold>NLU 意图模型</Typography.Text>
-        <Select
-          allowClear
-          disabled={nluEnabled === false}
-          placeholder={nluEnabled === false ? '平台未启用 NLU（NLU_ENABLED）' : '可选，绑定已训练的意图模型'}
-          value={nluModelId || undefined}
-          options={nluOptions}
-          onChange={(v) => setNluModelId(String(v || ''))}
-          style={{ width: '100%' }}
-        />
-        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          语音 ASR 出字后先跑 NLU：置信度 ≥ 0.85 才走意图固定话术，否则把意图上下文交给 LLM。建议模型 minConfidence ≥ 0.85。
-        </Typography.Text>
       </div>
     </div>
   )

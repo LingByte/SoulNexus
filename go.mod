@@ -47,7 +47,6 @@ require (
 	github.com/sirupsen/logrus v1.9.4
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/stretchr/testify v1.11.1
-	github.com/sugarme/tokenizer v0.3.0
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ams v1.3.84
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.3.115
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ims v1.3.97
@@ -58,7 +57,6 @@ require (
 	github.com/traefik/yaegi v0.16.1
 	github.com/volcengine/ve-tos-golang-sdk/v2 v2.9.5
 	github.com/xuri/excelize/v2 v2.11.0
-	github.com/yalue/onnxruntime_go v1.30.0
 	go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin v0.65.0
 	go.opentelemetry.io/otel v1.43.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.43.0
@@ -153,7 +151,6 @@ require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/dvonthenen/websocket v1.5.1-dyv.2 // indirect
 	github.com/ebitengine/purego v0.10.0 // indirect
-	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/fatih/color v1.15.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.13 // indirect
@@ -212,7 +209,6 @@ require (
 	github.com/milvus-io/milvus-sdk-go/v2 v2.4.2 // indirect
 	github.com/minio/crc64nvme v1.1.1 // indirect
 	github.com/minio/md5-simd v1.1.2 // indirect
-	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db // indirect
 	github.com/mitchellh/mapstructure v1.4.3 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
@@ -248,13 +244,10 @@ require (
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/richardlehane/mscfb v1.0.7 // indirect
 	github.com/richardlehane/msoleps v1.0.6 // indirect
-	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/rs/xid v1.6.0 // indirect
-	github.com/schollz/progressbar/v2 v2.15.0 // indirect
 	github.com/sethvargo/go-retry v0.3.0 // indirect
 	github.com/spf13/cast v1.7.1 // indirect
-	github.com/sugarme/regexpset v0.0.0-20200920021344-4d4ec8eaf93c // indirect
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/lkeap v1.3.103 // indirect
 	github.com/tencentcloud/tencentcloud-speech-sdk-go v1.0.25 // indirect
 	github.com/tidwall/gjson v1.14.4 // indirect

@@ -82,14 +82,13 @@ var queryOralFillers = []string{
 }
 
 // UserUtteranceForSearch returns the primary user utterance for KB recall.
-// Strips LLM-only system blocks (NLU hints, prior KB inject) that must not be embedded/searched.
+// Strips LLM-only system blocks (legacy intent hints, prior KB inject) that must not be embedded/searched.
 func UserUtteranceForSearch(raw string) string {
 	q := strings.TrimSpace(raw)
 	if q == "" {
 		return ""
 	}
 	for _, sep := range []string{
-		"\n\n【系统·NLU】",
 		"\n\n【系统·",
 		"\n\n[系统知识库检索",
 		"\n\n【知识库",

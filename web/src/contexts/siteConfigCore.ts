@@ -14,7 +14,6 @@ export interface SiteConfig {
   VOICEPRINT_LABEL?: string
   tenantSelfRegisterEnabled?: boolean
   githubOAuthEnabled?: boolean
-  nluEnabled?: boolean
   smsLoginEnabled?: boolean
   deploymentMode?: 'community' | 'saas'
 }

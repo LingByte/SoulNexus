@@ -20,14 +20,6 @@ type VoiceConfigBundle struct {
 	KnowledgeNamespaceID uint
 	KnowledgeCollection  string
 
-	// NLU profile paths when assistant binds a ready tenant NLU model.
-	NluModelID        uint
-	NluModelPath      string
-	NluTokenizerPath  string
-	NluIntentsPath    string
-	NluPrototypesPath string
-	NluMinConfidence  float64
-
 	VadConfig, AgentConfig []byte
 	HotWords, InterruptionConfig, AudioTrackConfig []byte
 	AudioProcessConfig, QueryRewriter []byte
@@ -99,12 +91,6 @@ func ApplyVoiceConfigBundle(env VoiceEnv, bundle VoiceConfigBundle) VoiceEnv {
 	env.KnowledgeCollection = trim(bundle.KnowledgeCollection)
 	env.AssistantID = bundle.AssistantID
 	env.AssistantVersionID = bundle.AssistantVersionID
-	env.NluModelID = bundle.NluModelID
-	env.NluModelPath = trim(bundle.NluModelPath)
-	env.NluTokenizerPath = trim(bundle.NluTokenizerPath)
-	env.NluIntentsPath = trim(bundle.NluIntentsPath)
-	env.NluPrototypesPath = trim(bundle.NluPrototypesPath)
-	env.NluMinConfidence = bundle.NluMinConfidence
 	if raw, err := parseObj(bundle.VadConfig); err == nil && len(raw) > 0 {
 		env.VadConfigRaw = raw
 	}
