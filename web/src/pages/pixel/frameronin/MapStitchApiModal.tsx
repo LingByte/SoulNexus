@@ -1,27 +1,25 @@
 import { useMemo, useState } from 'react'
-import { Modal, Input, Select, Button, Upload, message } from 'antd'
+import { Drawer, Input, Select, Button, Upload, message } from 'antd'
 import { UploadOutlined } from '@ant-design/icons'
 import type { UploadFile } from 'antd'
-import {
-  generateImageToImage,
-  getMediaJob,
-  parseImageSize,
-  resolveMediaUrl,
-  friendlyMediaError,
-} from '@/api/mediaGenerate'
+import { parseImageSize } from '@/api/mediaGenerate'
 import { sizeFromResRatio } from '@/pages/Generate/seaartLayout'
 
 const { TextArea } = Input
 
 /** 扩图一致性基础提示词（俯瞰像素地图边缘延续） */
-export const MAP_STITCH_BASE_PROMPT = `あなたは俯瞰・拡張マップを専門とするプロの背景アーティストです。入力画像の透明ピクセル領域を、既存の端の描画（重なりエッジ）に基づいて埋め、元のスタイルと完全に一致させ、鮮明・高解像度・鳥瞰図で遠近歪みのないマップにしてください。透明部以外の既存ピクセルはスタイル参照として保持し、継ぎ目が目立たないように自然に拡張してください。`
+export const MAP_STITCH_BASE_PROMPT =
+  '你是一位专精俯瞰扩展地图的专业背景画师。请根据输入图像中已有的边缘描画（重叠边缘），填补透明像素区域，使新内容与原风格完全一致，画面清晰、高分辨率，采用鸟瞰视角且无透视变形。透明区域以外的已有像素请作为风格参考予以保留，并自然扩展，使接缝不明显。'
 
 const RATIOS = ['auto', '1:1', '4:3', '3:4', '16:9', '9:16'] as const
 const RESOLUTIONS = ['1K', '2K', '4K'] as const
 
-export type MapStitchApiGenerateResult = {
-  file: File
-  previewUrl: string
+export type MapStitchApiSubmitParams = {
+  prompt: string
+  width: number
+  height: number
+  styleRef: File | null
+  sizeLabel: string
 }
 
 type Props = {
@@ -30,28 +28,9 @@ type Props = {
   /** Overlap edge template PNG (transparent center + edge context) */
   templateFile: File | null
   templatePreviewUrl: string | null
-  onCancel: () => void
-  onGenerated: (result: MapStitchApiGenerateResult) => void
-}
-
-async function pollUntilDone(jobId: string, onProgress?: (p: number, status: string) => void): Promise<string> {
-  const max = 120
-  for (let i = 0; i < max; i++) {
-    const res = await getMediaJob(jobId)
-    const job = res.data
-    if (!job) throw new Error(res.msg || '任务查询失败')
-    onProgress?.(job.progress ?? Math.min(95, i * 2), job.status)
-    if (job.status === 'succeeded') {
-      const url = resolveMediaUrl(job.url || job.remoteUrl)
-      if (!url) throw new Error('生成成功但未返回图片地址')
-      return url
-    }
-    if (job.status === 'failed' || job.status === 'cancelled' || job.status === 'expired') {
-      throw new Error(friendlyMediaError(job.errorMessage, '地图扩图生成失败'))
-    }
-    await new Promise((r) => setTimeout(r, 2500))
-  }
-  throw new Error('生成超时，请稍后在「图片生成」历史中查看')
+  onClose: () => void
+  /** 提交后抽屉关闭，由父组件异步生成并填格展示 */
+  onSubmit: (params: MapStitchApiSubmitParams) => void
 }
 
 export default function MapStitchApiModal({
@@ -59,78 +38,48 @@ export default function MapStitchApiModal({
   tileKey,
   templateFile,
   templatePreviewUrl,
-  onCancel,
-  onGenerated,
+  onClose,
+  onSubmit,
 }: Props) {
   const [extra, setExtra] = useState('')
   const [ratio, setRatio] = useState<(typeof RATIOS)[number]>('auto')
   const [resolution, setResolution] = useState<(typeof RESOLUTIONS)[number]>('1K')
   const [styleRef, setStyleRef] = useState<File | null>(null)
   const [styleList, setStyleList] = useState<UploadFile[]>([])
-  const [loading, setLoading] = useState(false)
-  const [progress, setProgress] = useState('')
 
   const sizeLabel = useMemo(() => {
     if (ratio === 'auto') return resolution === '1K' ? '1024x1024' : sizeFromResRatio(resolution, '1:1')
     return sizeFromResRatio(resolution, ratio)
   }, [ratio, resolution])
 
-  const run = async () => {
+  const handleStart = () => {
     if (!templateFile) {
       message.error('请先为该格准备边缘模板（可先点「下载」或直接 API 生成会自动拼模板）')
       return
     }
-    setLoading(true)
-    setProgress('提交任务…')
-    try {
-      const prompt = extra.trim()
-        ? `${MAP_STITCH_BASE_PROMPT}\n\n追加需求：${extra.trim()}`
-        : MAP_STITCH_BASE_PROMPT
-      const { width, height } = parseImageSize(sizeLabel)
-      const image = templateFile
-      const create = await generateImageToImage({
-        image,
-        prompt: styleRef
-          ? `${prompt}\n\n（用户另附风格参考图文件名：${styleRef.name}，请尽量贴近该参考的画风与调色。）`
-          : prompt,
-        width,
-        height,
-        style: 'pixel',
-        category: 'MAP',
-        negative: '文字,水印,UI,透视变形,角色立绘,近景特写',
-      })
-      if (create.code !== 200 || !create.data?.jobId) {
-        throw new Error(create.msg || '创建生成任务失败')
-      }
-      setProgress('排队生成中…')
-      const url = await pollUntilDone(create.data.jobId, (p, status) => {
-        setProgress(`${status} · ${p}%`)
-      })
-      const blob = await fetch(url).then((r) => {
-        if (!r.ok) throw new Error('下载生成结果失败')
-        return r.blob()
-      })
-      const file = new File([blob], `map_stitch_${tileKey.replace(',', '_')}_gen.png`, {
-        type: blob.type || 'image/png',
-      })
-      const previewUrl = URL.createObjectURL(file)
-      message.success('API 生成完成，已填入该格')
-      onGenerated({ file, previewUrl })
-    } catch (e) {
-      message.error(friendlyMediaError((e as Error).message, String(e)))
-    } finally {
-      setLoading(false)
-      setProgress('')
-    }
+    const prompt = extra.trim()
+      ? `${MAP_STITCH_BASE_PROMPT}\n\n追加需求：${extra.trim()}`
+      : MAP_STITCH_BASE_PROMPT
+    const { width, height } = parseImageSize(sizeLabel)
+    onSubmit({
+      prompt: styleRef
+        ? `${prompt}\n\n（用户另附风格参考图文件名：${styleRef.name}，请尽量贴近该参考的画风与调色。）`
+        : prompt,
+      width,
+      height,
+      styleRef,
+      sizeLabel,
+    })
   }
 
   return (
-    <Modal
+    <Drawer
       title="本次 API 生成提示词"
       open={open}
-      onCancel={onCancel}
-      width={720}
+      onClose={onClose}
+      width={Math.min(520, typeof window !== 'undefined' ? window.innerWidth - 24 : 520)}
       destroyOnClose
+      placement="right"
       footer={
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
           <Upload
@@ -151,10 +100,8 @@ export default function MapStitchApiModal({
             <Button icon={<UploadOutlined />}>风格参考</Button>
           </Upload>
           <div style={{ display: 'flex', gap: 8 }}>
-            <Button onClick={onCancel} disabled={loading}>
-              取消
-            </Button>
-            <Button type="primary" loading={loading} onClick={() => void run()} style={{ background: '#c45c26', borderColor: '#c45c26' }}>
+            <Button onClick={onClose}>取消</Button>
+            <Button type="primary" onClick={handleStart} style={{ background: '#c45c26', borderColor: '#c45c26' }}>
               开始生成
             </Button>
           </div>
@@ -219,8 +166,7 @@ export default function MapStitchApiModal({
             </div>
           </div>
         ) : null}
-        {progress ? <div style={{ fontSize: 12, color: '#c45c26' }}>{progress}</div> : null}
       </div>
-    </Modal>
+    </Drawer>
   )
 }

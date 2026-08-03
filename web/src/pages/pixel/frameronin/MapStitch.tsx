@@ -11,10 +11,16 @@ import {
   EyeOutlined,
   UploadOutlined,
 } from '@ant-design/icons'
-import { Button, message, Select, Slider, Space, Typography } from 'antd'
+import { Button, Drawer, message, Select, Slider, Space, Typography } from 'antd'
 import JSZip from 'jszip'
+import {
+  generateImageToImage,
+  getMediaJob,
+  resolveMediaUrl,
+  friendlyMediaError,
+} from '@/api/mediaGenerate'
 import { removeGeminiWatermarkFromBlob } from '@/lib/pixel/geminiWatermark'
-import MapStitchApiModal from './MapStitchApiModal'
+import MapStitchApiModal, { type MapStitchApiSubmitParams } from './MapStitchApiModal'
 import MapStitchRegionEditor from './MapStitchRegionEditor'
 import './mapStitch.css'
 
@@ -78,6 +84,8 @@ type SavedMapStitchState = {
   hidePreviewBorders?: unknown
   hiddenPreviewTiles?: unknown
 }
+
+const DEFAULT_OVERLAP_PERCENT = 30
 
 function clampZoom(value: number): number {
   return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, value))
@@ -572,13 +580,13 @@ interface Props {
 export default function MapStitch({ onBack }: Props) {
   const [source, setSource] = useState<LoadedImage | null>(null)
   const [tiles, setTiles] = useState<Record<TileKey, Tile>>(() =>
-    tilesRecord(expansionTilesFrom(CENTER_TILE, 4, 0.15, 0.15)),
+    tilesRecord(expansionTilesFrom(CENTER_TILE, 4, DEFAULT_OVERLAP_PERCENT / 100, DEFAULT_OVERLAP_PERCENT / 100)),
   )
   const [tileUploads, setTileUploads] = useState<Partial<Record<TileKey, LoadedImage>>>({})
   const [tileFeathers, setTileFeathers] = useState<Partial<Record<TileKey, Feather>>>({})
   const [selectedKey, setSelectedKey] = useState<TileKey | null>(null)
-  const [horizontalOverlapPercent, setHorizontalOverlapPercent] = useState(15)
-  const [verticalOverlapPercent, setVerticalOverlapPercent] = useState(15)
+  const [horizontalOverlapPercent, setHorizontalOverlapPercent] = useState(DEFAULT_OVERLAP_PERCENT)
+  const [verticalOverlapPercent, setVerticalOverlapPercent] = useState(DEFAULT_OVERLAP_PERCENT)
   const [expandSplit, setExpandSplit] = useState<ExpandSplit>(4)
   const [processingKey, setProcessingKey] = useState<TileKey | null>(null)
   const [viewport, setViewport] = useState({ width: window.innerWidth, height: window.innerHeight })
@@ -590,10 +598,14 @@ export default function MapStitch({ onBack }: Props) {
   const [apiModalKey, setApiModalKey] = useState<TileKey | null>(null)
   const [apiTemplateFile, setApiTemplateFile] = useState<File | null>(null)
   const [apiTemplateUrl, setApiTemplateUrl] = useState<string | null>(null)
+  const [apiGenerating, setApiGenerating] = useState<{ key: TileKey; progress: string } | null>(null)
+  const [justGeneratedKey, setJustGeneratedKey] = useState<TileKey | null>(null)
+  const [resultPreview, setResultPreview] = useState<{ key: TileKey; url: string } | null>(null)
   const [regionKey, setRegionKey] = useState<TileKey | null>(null)
   const [regionImageUrl, setRegionImageUrl] = useState<string | null>(null)
   const [regionSize, setRegionSize] = useState({ w: 512, h: 512 })
   const hostRef = useRef<HTMLDivElement>(null)
+  const justGeneratedTimerRef = useRef<number | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const tileFileInputRef = useRef<HTMLInputElement>(null)
   const stateFileInputRef = useRef<HTMLInputElement>(null)
@@ -629,6 +641,7 @@ export default function MapStitch({ onBack }: Props) {
       const current = cleanupRef.current
       if (current.source) URL.revokeObjectURL(current.source.url)
       Object.values(current.tileUploads).forEach((item) => item && URL.revokeObjectURL(item.url))
+      if (justGeneratedTimerRef.current) window.clearTimeout(justGeneratedTimerRef.current)
     },
     [],
   )
@@ -822,25 +835,169 @@ export default function MapStitch({ onBack }: Props) {
     }
   }
 
-  const selectTileUpload = async (key: TileKey, file: File | null) => {
-    if (!file) return
+  const expandFromTile = (
+    key: TileKey,
+    options?: {
+      uploads?: Partial<Record<TileKey, LoadedImage>>
+      silent?: boolean
+    },
+  ) => {
+    const origin = key === CENTER_KEY ? CENTER_TILE : tiles[key]
+    if (!origin) return 0
+    const uploads = options?.uploads ?? tileUploads
+    const isDone = (targetKey: TileKey) =>
+      targetKey === CENTER_KEY ? Boolean(source) : Boolean(uploads[targetKey])
+    if (!isDone(key)) return 0
+
+    const split = key === CENTER_KEY ? expandSplit : 4
+    const additions: Record<TileKey, Tile> = {}
+    for (const target of expansionTilesFrom(origin, split, horizontalOverlapRatio, verticalOverlapRatio)) {
+      if (!isOutwardExpansionTile(origin, target)) continue
+      const targetKey = tileKey(target.x, target.y)
+      if (isDone(targetKey)) continue
+      if (tiles[targetKey] || additions[targetKey]) continue
+      additions[targetKey] = target
+    }
+    const added = Object.keys(additions).length
+    if (added > 0) {
+      setTiles((prev) => {
+        const next = { ...prev }
+        for (const [targetKey, target] of Object.entries(additions)) {
+          if (!next[targetKey as TileKey]) next[targetKey as TileKey] = target
+        }
+        return next
+      })
+    }
+    if (!options?.silent) {
+      if (added > 0) message.success(`已扩展 ${added} 个空框`)
+      else message.info('周边已有空框或已完成图片，无需扩展')
+    }
+    return added
+  }
+
+  const selectTileUpload = async (
+    key: TileKey,
+    file: File | null,
+    options?: { select?: boolean; autoExpand?: boolean; notify?: boolean },
+  ): Promise<number> => {
+    if (!file) return 0
     if (!file.type.startsWith('image/')) {
       message.error('请选择图片文件')
-      return
+      return 0
     }
     if (file.size > MAX_IMAGE_MB * 1024 * 1024) {
       message.error(`图片不能超过 ${MAX_IMAGE_MB}MB`)
-      return
+      return 0
     }
     try {
       const upload = await loadImageFile(file)
+      const nextUploads = { ...tileUploads, [key]: upload }
       setTileUploads((prev) => {
         if (prev[key]) URL.revokeObjectURL(prev[key]!.url)
         return { ...prev, [key]: upload }
       })
-      setSelectedKey(key)
+      if (options?.select === false) {
+        setSelectedKey(null)
+      } else {
+        setSelectedKey(key)
+      }
+      const added =
+        options?.autoExpand === false
+          ? 0
+          : expandFromTile(key, { uploads: nextUploads, silent: true })
+      if (options?.notify !== false && added > 0) {
+        message.success(`已填入该格，并自动扩展 ${added} 个相邻空框`)
+      }
+      return added
     } catch (error) {
       message.error(String(error))
+      return 0
+    }
+  }
+
+  const clearApiTemplate = () => {
+    if (apiTemplateUrl) URL.revokeObjectURL(apiTemplateUrl)
+    setApiTemplateUrl(null)
+    setApiTemplateFile(null)
+  }
+
+  const closeApiDrawer = () => {
+    setApiModalKey(null)
+    clearApiTemplate()
+  }
+
+  const pollApiJob = async (
+    jobId: string,
+    onProgress?: (p: number, status: string) => void,
+  ): Promise<string> => {
+    const max = 120
+    for (let i = 0; i < max; i++) {
+      const res = await getMediaJob(jobId)
+      const job = res.data
+      if (!job) throw new Error(res.msg || '任务查询失败')
+      onProgress?.(job.progress ?? Math.min(95, i * 2), job.status)
+      if (job.status === 'succeeded') {
+        const url = resolveMediaUrl(job.url || job.remoteUrl)
+        if (!url) throw new Error('生成成功但未返回图片地址')
+        return url
+      }
+      if (job.status === 'failed' || job.status === 'cancelled' || job.status === 'expired') {
+        throw new Error(friendlyMediaError(job.errorMessage, '地图扩图生成失败'))
+      }
+      await new Promise((r) => setTimeout(r, 2500))
+    }
+    throw new Error('生成超时，请稍后在「图片生成」历史中查看')
+  }
+
+  const runApiGenerate = async (key: TileKey, params: MapStitchApiSubmitParams, template: File) => {
+    setApiModalKey(null)
+    setSelectedKey(key)
+    clearApiTemplate()
+    setApiGenerating({ key, progress: '提交任务…' })
+    try {
+      const create = await generateImageToImage({
+        image: template,
+        prompt: params.prompt,
+        width: params.width,
+        height: params.height,
+        style: 'pixel',
+        category: 'MAP',
+        negative: '文字,水印,UI,透视变形,角色立绘,近景特写',
+      })
+      if (create.code !== 200 || !create.data?.jobId) {
+        throw new Error(create.msg || '创建生成任务失败')
+      }
+      setApiGenerating({ key, progress: '排队生成中…' })
+      const url = await pollApiJob(create.data.jobId, (p, status) => {
+        setApiGenerating({ key, progress: `${status} · ${p}%` })
+      })
+      const blob = await fetch(url).then((r) => {
+        if (!r.ok) throw new Error('下载生成结果失败')
+        return r.blob()
+      })
+      const file = new File([blob], `map_stitch_${key.replace(',', '_')}_gen.png`, {
+        type: blob.type || 'image/png',
+      })
+      const added = await selectTileUpload(key, file, { select: true, notify: false })
+      if (justGeneratedTimerRef.current) window.clearTimeout(justGeneratedTimerRef.current)
+      setJustGeneratedKey(key)
+      justGeneratedTimerRef.current = window.setTimeout(() => {
+        setJustGeneratedKey((prev) => (prev === key ? null : prev))
+        justGeneratedTimerRef.current = null
+      }, 2800)
+      setResultPreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev.url)
+        return { key, url: URL.createObjectURL(file) }
+      })
+      message.success(
+        added > 0
+          ? `格 ${key} 生成完成，已填入并扩展 ${added} 个相邻空框`
+          : `格 ${key} 生成完成，已填入画布`,
+      )
+    } catch (e) {
+      message.error(friendlyMediaError((e as Error).message, String(e)))
+    } finally {
+      setApiGenerating((prev) => (prev?.key === key ? null : prev))
     }
   }
 
@@ -1000,28 +1157,6 @@ export default function MapStitch({ onBack }: Props) {
       return next
     })
     message.success('图片已卸载')
-  }
-
-  const expandFromTile = (key: TileKey) => {
-    const origin = key === CENTER_KEY ? CENTER_TILE : tiles[key]
-    if (!origin || !hasCompletedImage(key)) return
-    const split = key === CENTER_KEY ? expandSplit : 4
-    let added = 0
-    setTiles((prev) => {
-      const next = { ...prev }
-      for (const target of expansionTilesFrom(origin, split, horizontalOverlapRatio, verticalOverlapRatio)) {
-        if (!isOutwardExpansionTile(origin, target)) continue
-        const targetKey = tileKey(target.x, target.y)
-        if (hasCompletedImage(targetKey)) continue
-        if (!next[targetKey]) {
-          next[targetKey] = target
-          added += 1
-        }
-      }
-      return next
-    })
-    if (added > 0) message.success(`已扩展 ${added} 个空框`)
-    else message.info('周边已有空框或已完成图片，无需扩展')
   }
 
   const downloadStitchedPng = async () => {
@@ -1235,8 +1370,8 @@ export default function MapStitch({ onBack }: Props) {
     setTiles(nextTiles)
     setTileFeathers(normalizeFeathersState(state.tileFeathers))
     setSelectedKey(typeof state.selectedKey === 'string' ? state.selectedKey : null)
-    setHorizontalOverlapPercent(Math.max(0, Math.min(50, numberOr(state.horizontalOverlapPercent, 15))))
-    setVerticalOverlapPercent(Math.max(0, Math.min(50, numberOr(state.verticalOverlapPercent, 15))))
+    setHorizontalOverlapPercent(Math.max(0, Math.min(50, numberOr(state.horizontalOverlapPercent, DEFAULT_OVERLAP_PERCENT))))
+    setVerticalOverlapPercent(Math.max(0, Math.min(50, numberOr(state.verticalOverlapPercent, DEFAULT_OVERLAP_PERCENT))))
     setExpandSplit(nextExpandSplit)
     setPan(nextPan)
     setZoom(clampZoom(numberOr(state.zoom, 1)))
@@ -1306,9 +1441,22 @@ export default function MapStitch({ onBack }: Props) {
     })
   }
 
+  const selectedTile =
+    selectedKey === CENTER_KEY ? CENTER_TILE : selectedKey ? tiles[selectedKey] ?? null : null
+  const selectedUpload = selectedKey && selectedKey !== CENTER_KEY ? tileUploads[selectedKey] ?? null : null
+  const selectedFeather = selectedKey ? featherForKey(selectedKey) : DEFAULT_FEATHER
+  const selectedHidden = selectedKey ? Boolean(hiddenPreviewTiles[selectedKey]) : false
+  const selectedGenerating = selectedKey ? apiGenerating?.key === selectedKey : false
+  const selectedTitle =
+    selectedKey === CENTER_KEY
+      ? '主图操作'
+      : selectedTile
+        ? `${labelForTile(selectedTile)} · 格 ${selectedKey}`
+        : '格子操作'
+
   return (
-    <div className="map-stitch-shell" ref={hostRef}>
-      <div className="map-stitch-float-actions">
+    <div className="map-stitch-shell" ref={hostRef} onClick={() => setSelectedKey(null)}>
+      <div className="map-stitch-float-actions" onClick={(event) => event.stopPropagation()}>
         <Button
           className="map-stitch-generate-float"
           type="primary"
@@ -1336,7 +1484,13 @@ export default function MapStitch({ onBack }: Props) {
           godot打包下载
         </Button>
       </div>
-      <header className="map-stitch-toolbar">
+      {apiGenerating ? (
+        <div className="map-stitch-gen-banner" onClick={(event) => event.stopPropagation()}>
+          <div className="map-stitch-gen-banner-title">API 生成中 · 格 {apiGenerating.key}</div>
+          <div className="map-stitch-gen-banner-progress">{apiGenerating.progress}</div>
+        </div>
+      ) : null}
+      <header className="map-stitch-toolbar" onClick={() => setSelectedKey(null)}>
         {onBack ? (
           <Button type="text" icon={<ArrowLeftOutlined />} onClick={onBack}>
             返回首页
@@ -1366,9 +1520,9 @@ export default function MapStitch({ onBack }: Props) {
             />
           </div>
           <div className="map-stitch-overlap-control">
-            <Text type="secondary">左右重叠 {horizontalOverlapPercent}%</Text>
+            <Text type="secondary">左右重叠 {horizontalOverlapPercent}%（给 AI 的边缘参考）</Text>
             <Slider
-              min={0}
+              min={10}
               max={50}
               step={1}
               value={horizontalOverlapPercent}
@@ -1377,9 +1531,9 @@ export default function MapStitch({ onBack }: Props) {
             />
           </div>
           <div className="map-stitch-overlap-control">
-            <Text type="secondary">上下重叠 {verticalOverlapPercent}%</Text>
+            <Text type="secondary">上下重叠 {verticalOverlapPercent}%（给 AI 的边缘参考）</Text>
             <Slider
-              min={0}
+              min={10}
               max={50}
               step={1}
               value={verticalOverlapPercent}
@@ -1456,6 +1610,7 @@ export default function MapStitch({ onBack }: Props) {
         <main
           className="map-stitch-workspace"
           onContextMenu={(event) => event.preventDefault()}
+          onClick={() => setSelectedKey(null)}
           onMouseDown={handlePanMouseDown}
           onMouseMove={handlePanMouseMove}
           onMouseUp={stopPan}
@@ -1479,46 +1634,27 @@ export default function MapStitch({ onBack }: Props) {
               }}
             >
               <div
-                className="map-stitch-source-frame"
+                className={`map-stitch-source-frame ${selectedKey === CENTER_KEY ? 'selected' : ''}`}
                 style={{
                   ...tilePosition(CENTER_TILE),
                   width: stage.unitW,
                   height: stage.unitH,
                 }}
-                onClick={() => setSelectedKey(CENTER_KEY)}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  setSelectedKey(CENTER_KEY)
+                }}
               >
                 <img src={source.url} alt="原图" />
-                <span
-                  className="map-stitch-frame-label"
-                  style={{ transform: `translate(-50%, -50%) scale(${1 / stage.scale})` }}
-                >
-                  主图
-                  <strong>点击操作</strong>
-                  <small>整体层已就绪，可处理或扩展</small>
-                </span>
-                {selectedKey === CENTER_KEY ? (
-                  <span
-                    className="map-stitch-frame-actions map-stitch-frame-actions-wide"
-                    style={{ transform: `translate(-50%, -50%) scale(${1 / stage.scale})` }}
-                    onClick={(event) => event.stopPropagation()}
-                  >
-                    <Button className="map-stitch-action-btn" icon={<UploadOutlined />} onClick={() => fileInputRef.current?.click()}>
-                      上传整体层
-                    </Button>
-                    <Button className="map-stitch-action-btn" type="primary" icon={<DownloadOutlined />} onClick={() => void downloadStitchedPng()}>
-                      下载
-                    </Button>
-                    <Button className="map-stitch-action-btn" icon={<ExpandOutlined />} onClick={() => expandFromTile(CENTER_KEY)}>
-                      扩展
-                    </Button>
-                  </span>
-                ) : null}
+                <span className="map-stitch-tile-chip">主图</span>
               </div>
 
               {Object.entries(tiles).map(([key, tile]) => {
                 const tileId = key as TileKey
                 const upload = tileUploads[tileId]
                 const isSelected = selectedKey === tileId
+                const isGenerating = apiGenerating?.key === tileId
+                const isJustGenerated = justGeneratedKey === tileId
                 const tone = toneForTile(tile)
                 const rect = tileRect(tile)
                 const feather = featherForKey(tileId)
@@ -1528,7 +1664,7 @@ export default function MapStitch({ onBack }: Props) {
                     key={tileId}
                     role="button"
                     tabIndex={0}
-                    className={`map-stitch-neighbor-frame map-stitch-neighbor-${tone} ${upload ? 'map-stitch-neighbor-uploaded' : ''} ${isSelected ? 'selected' : ''} ${isImageHidden ? 'map-stitch-tile-image-hidden' : ''}`}
+                    className={`map-stitch-neighbor-frame map-stitch-neighbor-${tone} ${upload ? 'map-stitch-neighbor-uploaded' : ''} ${isSelected ? 'selected' : ''} ${isImageHidden ? 'map-stitch-tile-image-hidden' : ''} ${isGenerating ? 'map-stitch-neighbor-generating' : ''} ${isJustGenerated ? 'map-stitch-neighbor-just-generated' : ''}`}
                     style={{
                       ...tilePosition(tile),
                       width: rect?.width ?? stage.unitW,
@@ -1536,11 +1672,13 @@ export default function MapStitch({ onBack }: Props) {
                     }}
                     onClick={(event) => {
                       event.preventDefault()
+                      event.stopPropagation()
                       setSelectedKey(tileId)
                     }}
                     onKeyDown={(event) => {
                       if (event.key !== 'Enter' && event.key !== ' ') return
                       event.preventDefault()
+                      event.stopPropagation()
                       setSelectedKey(tileId)
                     }}
                   >
@@ -1549,149 +1687,10 @@ export default function MapStitch({ onBack }: Props) {
                     ) : upload ? (
                       <img src={upload.url} alt={`${labelForTile(tile)}预览`} />
                     ) : null}
-                    <span
-                      className="map-stitch-frame-label"
-                      style={{ transform: `translate(-50%, -50%) scale(${1 / stage.scale})` }}
-                    >
-                      {labelForTile(tile)}
-                      {!isSelected && <strong>{upload ? '点击操作' : '点击激活'}</strong>}
-                      <small>{upload ? '整体层已就绪，可处理或扩展' : '当前：整体层，可上传或生成'}</small>
-                    </span>
-                    {isSelected && (
-                      <span
-                        className="map-stitch-frame-actions map-stitch-frame-actions-wide"
-                        style={{ transform: `translate(-50%, -50%) scale(${1 / stage.scale})` }}
-                        onClick={(event) => event.stopPropagation()}
-                      >
-                        <Button
-                          className="map-stitch-action-btn"
-                          icon={<UploadOutlined />}
-                          onMouseDown={(event) => event.stopPropagation()}
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            openTileUpload(tileId)
-                          }}
-                        >
-                          上传整体层
-                        </Button>
-                        <Button className="map-stitch-action-btn" type="primary" icon={<DownloadOutlined />} onClick={() => void downloadTileTemplate(tileId)}>
-                          下载
-                        </Button>
-                        <Button className="map-stitch-action-btn" type="primary" onClick={() => void openApiGenerate(tileId)}>
-                          API生成
-                        </Button>
-                        <Button className="map-stitch-action-btn" icon={<ExpandOutlined />} onClick={() => expandFromTile(tileId)}>
-                          扩展
-                        </Button>
-                        <Button className="map-stitch-action-btn" onClick={() => void openRegionDraw(tileId)}>
-                          区域绘制
-                        </Button>
-                        {upload && (
-                          <>
-                            <Button
-                              className="map-stitch-action-btn"
-                              loading={processingKey === tileId}
-                              onClick={() => void removeWatermarkForTile(tileId)}
-                            >
-                              去水印
-                            </Button>
-                            <Button
-                              className="map-stitch-unload-btn"
-                              danger
-                              icon={<DeleteOutlined />}
-                              title="卸载图片"
-                              onClick={(event) => {
-                                event.stopPropagation()
-                                unloadTileUpload(tileId)
-                              }}
-                            >
-                              卸载
-                            </Button>
-                          </>
-                        )}
-                        {upload && (
-                          <span className="map-stitch-feather-actions">
-                            <Button
-                              className="map-stitch-feather-btn map-stitch-feather-top"
-                              icon={<ArrowUpOutlined />}
-                              title="左键增加羽化，右键减少羽化"
-                              onClick={() => increaseFeather(tileId, 'top')}
-                              onContextMenu={(event) => {
-                                event.preventDefault()
-                                decreaseFeather(tileId, 'top')
-                              }}
-                            >
-                              {feather.top}%
-                            </Button>
-                            <span className="map-stitch-feather-cell map-stitch-feather-left">
-                              <Button
-                                className="map-stitch-feather-btn"
-                                icon={<ArrowLeftOutlined />}
-                                title="左键增加羽化，右键减少羽化"
-                                onClick={() => increaseFeather(tileId, 'left')}
-                                onContextMenu={(event) => {
-                                  event.preventDefault()
-                                  decreaseFeather(tileId, 'left')
-                                }}
-                              >
-                                {feather.left}%
-                              </Button>
-                              <Button
-                                className="map-stitch-feather-image-toggle"
-                                icon={isImageHidden ? <EyeOutlined /> : <EyeInvisibleOutlined />}
-                                title={isImageHidden ? '显示图片' : '隐藏图片'}
-                                onClick={(event) => {
-                                  event.stopPropagation()
-                                  togglePreviewTileVisibility(tileId)
-                                }}
-                              />
-                            </span>
-                            <Button
-                              className="map-stitch-feather-border-toggle"
-                              type={hidePreviewBorders ? 'primary' : 'default'}
-                              onClick={() => setHidePreviewBorders((prev) => !prev)}
-                            >
-                              不显示边框
-                            </Button>
-                            <Button
-                              className="map-stitch-feather-btn map-stitch-feather-right"
-                              icon={<ArrowRightOutlined />}
-                              title="左键增加羽化，右键减少羽化"
-                              onClick={() => increaseFeather(tileId, 'right')}
-                              onContextMenu={(event) => {
-                                event.preventDefault()
-                                decreaseFeather(tileId, 'right')
-                              }}
-                            >
-                              {feather.right}%
-                            </Button>
-                            <span className="map-stitch-feather-cell map-stitch-feather-bottom">
-                              <Button
-                                className="map-stitch-feather-btn"
-                                icon={<ArrowDownOutlined />}
-                                title="左键增加羽化，右键减少羽化"
-                                onClick={() => increaseFeather(tileId, 'bottom')}
-                                onContextMenu={(event) => {
-                                  event.preventDefault()
-                                  decreaseFeather(tileId, 'bottom')
-                                }}
-                              >
-                                {feather.bottom}%
-                              </Button>
-                              <Button
-                                className="map-stitch-feather-image-toggle"
-                                icon={isImageHidden ? <EyeOutlined /> : <EyeInvisibleOutlined />}
-                                title={isImageHidden ? '显示图片' : '隐藏图片'}
-                                onClick={(event) => {
-                                  event.stopPropagation()
-                                  togglePreviewTileVisibility(tileId)
-                                }}
-                              />
-                            </span>
-                          </span>
-                        )}
-                      </span>
-                    )}
+                    {isGenerating ? <span className="map-stitch-gen-pulse" aria-hidden /> : null}
+                    {!isGenerating ? (
+                      <span className="map-stitch-tile-chip">{labelForTile(tile)}</span>
+                    ) : null}
                   </div>
                 )
               })}
@@ -1699,26 +1698,216 @@ export default function MapStitch({ onBack }: Props) {
           </div>
         </main>
       )}
+      <Drawer
+        title={selectedTitle}
+        open={Boolean(selectedKey && selectedTile && !apiModalKey && !regionKey)}
+        onClose={() => setSelectedKey(null)}
+        width={Math.min(360, typeof window !== 'undefined' ? window.innerWidth - 24 : 360)}
+        placement="right"
+        mask={false}
+        rootClassName="map-stitch-tile-ops-drawer"
+        destroyOnClose={false}
+      >
+        {selectedKey === CENTER_KEY ? (
+          <div className="map-stitch-tile-ops">
+            <Text type="secondary">点击画布其他区域可关闭此面板</Text>
+            <div className="map-stitch-tile-ops-grid">
+              <Button icon={<UploadOutlined />} onClick={() => fileInputRef.current?.click()}>
+                上传整体层
+              </Button>
+              <Button type="primary" icon={<DownloadOutlined />} onClick={() => void downloadStitchedPng()}>
+                下载
+              </Button>
+              <Button icon={<ExpandOutlined />} onClick={() => expandFromTile(CENTER_KEY)}>
+                扩展空框
+              </Button>
+            </div>
+          </div>
+        ) : selectedKey && selectedTile ? (
+          <div className="map-stitch-tile-ops">
+            <Text type="secondary">
+              {selectedGenerating
+                ? `正在生成：${apiGenerating?.progress ?? ''}`
+                : selectedUpload
+                  ? '该格已有整体层，可继续处理或向外扩展'
+                  : '该格为空，可上传、API 生成或先扩展周边空框'}
+            </Text>
+            <div className="map-stitch-tile-ops-grid">
+              <Button
+                icon={<UploadOutlined />}
+                disabled={selectedGenerating}
+                onClick={() => openTileUpload(selectedKey)}
+              >
+                上传整体层
+              </Button>
+              <Button
+                type="primary"
+                icon={<DownloadOutlined />}
+                disabled={selectedGenerating}
+                onClick={() => void downloadTileTemplate(selectedKey)}
+              >
+                下载模板
+              </Button>
+              <Button
+                type="primary"
+                disabled={selectedGenerating}
+                onClick={() => void openApiGenerate(selectedKey)}
+              >
+                API生成
+              </Button>
+              <Button
+                icon={<ExpandOutlined />}
+                disabled={!selectedUpload || selectedGenerating}
+                onClick={() => expandFromTile(selectedKey)}
+              >
+                扩展空框
+              </Button>
+              <Button disabled={selectedGenerating} onClick={() => void openRegionDraw(selectedKey)}>
+                区域绘制
+              </Button>
+              {selectedUpload ? (
+                <>
+                  <Button
+                    loading={processingKey === selectedKey}
+                    disabled={selectedGenerating}
+                    onClick={() => void removeWatermarkForTile(selectedKey)}
+                  >
+                    去水印
+                  </Button>
+                  <Button
+                    danger
+                    icon={<DeleteOutlined />}
+                    disabled={selectedGenerating}
+                    onClick={() => unloadTileUpload(selectedKey)}
+                  >
+                    卸载图片
+                  </Button>
+                </>
+              ) : null}
+            </div>
+            {selectedUpload ? (
+              <div className="map-stitch-tile-ops-feather">
+                <Text strong>羽化与预览</Text>
+                <div className="map-stitch-tile-ops-feather-grid">
+                  <Button
+                    icon={<ArrowUpOutlined />}
+                    onClick={() => increaseFeather(selectedKey, 'top')}
+                    onContextMenu={(event) => {
+                      event.preventDefault()
+                      decreaseFeather(selectedKey, 'top')
+                    }}
+                  >
+                    上 {selectedFeather.top}%
+                  </Button>
+                  <Button
+                    icon={<ArrowLeftOutlined />}
+                    onClick={() => increaseFeather(selectedKey, 'left')}
+                    onContextMenu={(event) => {
+                      event.preventDefault()
+                      decreaseFeather(selectedKey, 'left')
+                    }}
+                  >
+                    左 {selectedFeather.left}%
+                  </Button>
+                  <Button
+                    type={hidePreviewBorders ? 'primary' : 'default'}
+                    onClick={() => setHidePreviewBorders((prev) => !prev)}
+                  >
+                    {hidePreviewBorders ? '显示边框' : '隐藏边框'}
+                  </Button>
+                  <Button
+                    icon={<ArrowRightOutlined />}
+                    onClick={() => increaseFeather(selectedKey, 'right')}
+                    onContextMenu={(event) => {
+                      event.preventDefault()
+                      decreaseFeather(selectedKey, 'right')
+                    }}
+                  >
+                    右 {selectedFeather.right}%
+                  </Button>
+                  <Button
+                    icon={<ArrowDownOutlined />}
+                    onClick={() => increaseFeather(selectedKey, 'bottom')}
+                    onContextMenu={(event) => {
+                      event.preventDefault()
+                      decreaseFeather(selectedKey, 'bottom')
+                    }}
+                  >
+                    下 {selectedFeather.bottom}%
+                  </Button>
+                  <Button
+                    icon={selectedHidden ? <EyeOutlined /> : <EyeInvisibleOutlined />}
+                    onClick={() => togglePreviewTileVisibility(selectedKey)}
+                  >
+                    {selectedHidden ? '显示图片' : '隐藏图片'}
+                  </Button>
+                </div>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  羽化：左键增加，右键减少
+                </Text>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </Drawer>
       <MapStitchApiModal
         open={Boolean(apiModalKey)}
         tileKey={apiModalKey ?? ''}
         templateFile={apiTemplateFile}
         templatePreviewUrl={apiTemplateUrl}
-        onCancel={() => {
-          setApiModalKey(null)
-          if (apiTemplateUrl) URL.revokeObjectURL(apiTemplateUrl)
-          setApiTemplateUrl(null)
-          setApiTemplateFile(null)
-        }}
-        onGenerated={({ file }) => {
+        onClose={closeApiDrawer}
+        onSubmit={(params) => {
           const key = apiModalKey
-          setApiModalKey(null)
-          if (apiTemplateUrl) URL.revokeObjectURL(apiTemplateUrl)
-          setApiTemplateUrl(null)
-          setApiTemplateFile(null)
-          if (key) void selectTileUpload(key, file)
+          const template = apiTemplateFile
+          if (!key || !template) {
+            message.error('缺少边缘模板，请重试')
+            return
+          }
+          void runApiGenerate(key, params, template)
         }}
       />
+      <Drawer
+        title={resultPreview ? `生成结果 · 格 ${resultPreview.key}` : '生成结果'}
+        open={Boolean(resultPreview)}
+        onClose={() => {
+          if (resultPreview) URL.revokeObjectURL(resultPreview.url)
+          setResultPreview(null)
+        }}
+        width={Math.min(480, typeof window !== 'undefined' ? window.innerWidth - 24 : 480)}
+        placement="right"
+        destroyOnClose
+        footer={
+          <Button
+            type="primary"
+            block
+            style={{ background: '#c45c26', borderColor: '#c45c26' }}
+            onClick={() => {
+              if (resultPreview) URL.revokeObjectURL(resultPreview.url)
+              setResultPreview(null)
+            }}
+          >
+            已填入画布，关闭
+          </Button>
+        }
+      >
+        {resultPreview ? (
+          <div
+            style={{
+              border: '1px solid #ddd',
+              borderRadius: 8,
+              background:
+                'repeating-conic-gradient(#d9d0c2 0% 25%, #eee7dc 0% 50%) 50% / 16px 16px',
+              padding: 8,
+            }}
+          >
+            <img
+              src={resultPreview.url}
+              alt={`generated ${resultPreview.key}`}
+              style={{ width: '100%', imageRendering: 'pixelated', display: 'block' }}
+            />
+          </div>
+        ) : null}
+      </Drawer>
       <MapStitchRegionEditor
         open={Boolean(regionKey)}
         imageUrl={regionImageUrl}
@@ -1740,6 +1929,7 @@ export default function MapStitch({ onBack }: Props) {
           setApiTemplateFile(file)
           setApiTemplateUrl(url)
           setApiModalKey(key)
+          setSelectedKey(key)
         }}
       />
     </div>
